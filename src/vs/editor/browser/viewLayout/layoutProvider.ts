@@ -80,6 +80,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	}
 
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		this.linesLayout.onConfigurationChanged(e);
 		if (e.layoutInfo) {
 			this.scrollable.setWidth(this.configuration.editor.layoutInfo.contentWidth);
 			this.scrollable.setHeight(this.configuration.editor.layoutInfo.contentHeight);
@@ -103,13 +104,13 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 
 	// ---- Layouting logic
 
-	public getCurrentViewport(): editorCommon.IViewport {
-		return {
-			top: this.scrollable.getScrollTop(),
-			left: this.scrollable.getScrollLeft(),
-			width: this.configuration.editor.layoutInfo.contentWidth,
-			height: this.configuration.editor.layoutInfo.contentHeight
-		};
+	public getCurrentViewport(): editorCommon.Viewport {
+		return new editorCommon.Viewport(
+			this.scrollable.getScrollTop(),
+			this.scrollable.getScrollLeft(),
+			this.scrollable.getWidth(),
+			this.scrollable.getHeight()
+		);
 	}
 
 	public getCenteredViewLineNumberInViewport(): number {
@@ -202,7 +203,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData {
 		return this.linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
-	public getLinesViewportData(): editorCommon.IViewLinesViewportData {
+	public getLinesViewportData(): editorCommon.ViewLinesViewportData {
 		return this.linesLayout.getLinesViewportData(this.getCurrentViewport());
 	}
 	public getWhitespaceViewportData(): editorCommon.IViewWhitespaceViewportData[] {
@@ -247,5 +248,9 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	}
 	public getScrolledTopFromAbsoluteTop(top:number): number {
 		return top - this.scrollable.getScrollTop();
+	}
+
+	public renderScrollbar(): void {
+		this.scrollManager.renderScrollbar();
 	}
 }

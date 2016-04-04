@@ -825,8 +825,8 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
-				assert.equal(value.length, 1);
-				let [[first]] = value;
+				assert.ok(value.length >= 1); // check for min because snippets and others contribute
+				let [first] = value;
 				assert.equal(first.suggestions.length, 1)
 				assert.equal(first.suggestions[0].codeSnippet, 'testing2')
 				done();
@@ -850,8 +850,8 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
-				assert.equal(value.length, 1);
-				let [[first]] = value;
+				assert.ok(value.length >= 1);
+				let [first] = value;
 				assert.equal(first.suggestions.length, 1)
 				assert.equal(first.suggestions[0].codeSnippet, 'weak-selector')
 				done();
@@ -876,8 +876,8 @@ suite('ExtHostLanguageFeatures', function() {
 
 			threadService.sync().then(() => {
 				suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
-					assert.equal(value.length, 2);
-					let [[first], [second]] = value;
+					assert.ok(value.length >= 2);
+					let [first, second] = value;
 					assert.equal(first.suggestions.length, 1)
 					assert.equal(first.suggestions[0].codeSnippet, 'strong-2') // last wins
 					assert.equal(second.suggestions[0].codeSnippet, 'strong-1')
@@ -905,8 +905,7 @@ suite('ExtHostLanguageFeatures', function() {
 		threadService.sync().then(() => {
 
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
-				assert.equal(value.length, 1);
-				assert.equal(value[0][0].incomplete, undefined);
+				assert.equal(value[0].incomplete, undefined);
 				done();
 			});
 		});
@@ -923,8 +922,7 @@ suite('ExtHostLanguageFeatures', function() {
 		return threadService.sync().then(() => {
 
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
-				assert.equal(value.length, 1);
-				assert.equal(value[0][0].incomplete, true);
+				assert.equal(value[0].incomplete, true);
 			});
 		});
 	});

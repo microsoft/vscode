@@ -6,38 +6,20 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import {ITokensInflatorMap} from 'vs/editor/common/editorCommon';
-import {IToken} from 'vs/editor/common/modes';
-
-class InflatedToken implements IToken {
-	startIndex:number;
-	type:string;
-
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex;
-		this.type = type;
-	}
-
-	public toString(): string {
-		return '{ ' + this.startIndex + ', \'' + this.type + '\'}';
-	}
-}
+import {ITokensInflatorMap, LineToken} from 'vs/editor/common/editorCommon';
 
 export var START_INDEX_MASK = 0xffffffff;
 export var TYPE_MASK = 0xffff;
 export var START_INDEX_OFFSET = 1;
 export var TYPE_OFFSET = Math.pow(2, 32);
 
-var DEFAULT_TOKEN = {
-	startIndex: 0,
-	type: ''
-};
-var INFLATED_TOKENS_EMPTY_TEXT = <IToken[]>[];
-var DEFLATED_TOKENS_EMPTY_TEXT = <number[]>[];
-var INFLATED_TOKENS_NON_EMPTY_TEXT = <IToken[]>[DEFAULT_TOKEN];
-var DEFLATED_TOKENS_NON_EMPTY_TEXT = <number[]>[0];
+var DEFAULT_TOKEN = new LineToken(0, '');
+var INFLATED_TOKENS_EMPTY_TEXT:LineToken[] = [];
+var DEFLATED_TOKENS_EMPTY_TEXT:number[] = [];
+var INFLATED_TOKENS_NON_EMPTY_TEXT:LineToken[] = [DEFAULT_TOKEN];
+var DEFLATED_TOKENS_NON_EMPTY_TEXT:number[] = [0];
 
-export function deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[] {
+export function deflateArr(map:ITokensInflatorMap, tokens:LineToken[]): number[] {
 	if (tokens.length === 0) {
 		return DEFLATED_TOKENS_EMPTY_TEXT;
 	}
@@ -49,7 +31,7 @@ export function deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[] {
 		len:number,
 		deflatedToken:number,
 		deflated:number,
-		token:IToken,
+		token:LineToken,
 		inflateMap = map._inflate,
 		deflateMap = map._deflate,
 		prevStartIndex:number = -1,
@@ -97,7 +79,7 @@ export function deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[] {
 	return result;
 }
 
-export function inflate(map:ITokensInflatorMap, binaryEncodedToken:number): IToken {
+export function inflate(map:ITokensInflatorMap, binaryEncodedToken:number): LineToken {
 	if (binaryEncodedToken === 0) {
 		return DEFAULT_TOKEN;
 	}
@@ -105,7 +87,7 @@ export function inflate(map:ITokensInflatorMap, binaryEncodedToken:number): ITok
 	var startIndex = (binaryEncodedToken / START_INDEX_OFFSET) & START_INDEX_MASK;
 	var deflatedType = (binaryEncodedToken / TYPE_OFFSET) & TYPE_MASK;
 
-	return new InflatedToken(startIndex, map._inflate[deflatedType]);
+	return new LineToken(startIndex, map._inflate[deflatedType]);
 }
 
 export function getStartIndex(binaryEncodedToken:number): number {
@@ -120,7 +102,7 @@ export function getType(map:ITokensInflatorMap, binaryEncodedToken:number): stri
 	return map._inflate[deflatedType];
 }
 
-export function inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): IToken[] {
+export function inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): LineToken[] {
 	if (binaryEncodedTokens.length === 0) {
 		return INFLATED_TOKENS_EMPTY_TEXT;
 	}
@@ -128,7 +110,7 @@ export function inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[])
 		return INFLATED_TOKENS_NON_EMPTY_TEXT;
 	}
 
-	var result: IToken[] = new Array(binaryEncodedTokens.length),
+	var result: LineToken[] = new Array(binaryEncodedTokens.length),
 		i:number,
 		len:number,
 		deflated:number,
@@ -142,7 +124,7 @@ export function inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[])
 		startIndex = (deflated / START_INDEX_OFFSET) & START_INDEX_MASK;
 		deflatedType = (deflated / TYPE_OFFSET) & TYPE_MASK;
 
-		result[i] = new InflatedToken(startIndex, inflateMap[deflatedType]);
+		result[i] = new LineToken(startIndex, inflateMap[deflatedType]);
 	}
 
 	return result;
@@ -152,7 +134,7 @@ export function findIndexOfOffset(binaryEncodedTokens:number[], offset:number): 
 	return findIndexInSegmentsArray(binaryEncodedTokens, offset);
 }
 
-export function sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): IToken[] {
+export function sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): LineToken[] {
 	if (binaryEncodedTokens.length === 0) {
 		return INFLATED_TOKENS_EMPTY_TEXT;
 	}
@@ -167,13 +149,13 @@ export function sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:numb
 		originalStartIndex:number,
 		newStartIndex:number,
 		deflatedType:number,
-		result: IToken[] = [],
+		result: LineToken[] = [],
 		inflateMap = map._inflate;
 
 	originalToken = binaryEncodedTokens[startIndex];
 	deflatedType = (originalToken / TYPE_OFFSET) & TYPE_MASK;
 	newStartIndex = 0;
-	result.push(new InflatedToken(newStartIndex, inflateMap[deflatedType]));
+	result.push(new LineToken(newStartIndex, inflateMap[deflatedType]));
 
 	for (i = startIndex + 1, len = binaryEncodedTokens.length; i < len; i++) {
 		originalToken = binaryEncodedTokens[i];
@@ -185,7 +167,7 @@ export function sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:numb
 
 		deflatedType = (originalToken / TYPE_OFFSET) & TYPE_MASK;
 		newStartIndex = originalStartIndex - startOffset + deltaStartIndex;
-		result.push(new InflatedToken(newStartIndex, inflateMap[deflatedType]));
+		result.push(new LineToken(newStartIndex, inflateMap[deflatedType]));
 	}
 
 	return result;

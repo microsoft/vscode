@@ -19,13 +19,16 @@ export namespace Arrays {
 	 */
 	export function findIndexInSegmentsArray(arr: { startIndex: number; }[], desiredIndex: number): number {
 
-		var low = 0,
-			high = arr.length - 1,
-			mid: number;
+		let low = 0;
+		let high = arr.length - 1;
+
+		if (high <= 0) {
+			return 0;
+		}
 
 		while (low < high) {
 
-			mid = low + Math.ceil((high - low) / 2);
+			let mid = low + Math.ceil((high - low) / 2);
 
 			if (arr[mid].startIndex > desiredIndex) {
 				high = mid - 1;

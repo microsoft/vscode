@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import { emmet as $, append } from 'vs/base/browser/dom';
+import { emmet as $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
@@ -83,13 +83,33 @@ interface IEditorSelectionStatus {
 	charactersSelected?: number;
 }
 
-interface IStateChange {
+class StateChange {
+	_stateChangeTrait: void;
+
 	indentation: boolean;
 	selectionStatus: boolean;
 	mode: boolean;
 	encoding: boolean;
 	EOL: boolean;
 	tabFocusMode: boolean;
+
+	constructor() {
+		this.indentation = false;
+		this.selectionStatus = false;
+		this.mode = false;
+		this.encoding = false;
+		this.EOL = false;
+		this.tabFocusMode = false;
+	}
+
+	public combine(other: StateChange) {
+		this.indentation = this.indentation || other.indentation;
+		this.selectionStatus = this.selectionStatus || other.selectionStatus;
+		this.mode = this.mode || other.mode;
+		this.encoding = this.encoding || other.encoding;
+		this.EOL = this.EOL || other.EOL;
+		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
+	}
 }
 
 interface StateDelta {
@@ -128,15 +148,8 @@ class State {
 		this._tabFocusMode = false;
 	}
 
-	public update(update: StateDelta): IStateChange {
-		let e = {
-			selectionStatus: false,
-			mode: false,
-			encoding: false,
-			EOL: false,
-			tabFocusMode: false,
-			indentation: false
-		};
+	public update(update: StateDelta): StateChange {
+		let e = new StateChange();
 		let somethingChanged = false;
 
 		if (typeof update.selectionStatus !== 'undefined') {
@@ -215,6 +228,8 @@ export class EditorStatus implements IStatusbarItem {
 	private eolElement: HTMLElement;
 	private modeElement: HTMLElement;
 	private toDispose: IDisposable[];
+	private delayedRender: IDisposable;
+	private toRender: StateChange;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -262,7 +277,18 @@ export class EditorStatus implements IStatusbarItem {
 		this.modeElement.onclick = () => this.onModeClick();
 		hide(this.modeElement);
 
+		this.delayedRender = null;
+		this.toRender = null;
+
 		this.toDispose.push(
+			{
+				dispose: () => {
+					if (this.delayedRender) {
+						this.delayedRender.dispose();
+						this.delayedRender = null;
+					}
+				}
+			},
 			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChange(e.editor)),
 			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_SELECTION_CHANGED, (e: TextEditorSelectionEvent) => this.onSelectionChange(e.editor)),
@@ -282,6 +308,20 @@ export class EditorStatus implements IStatusbarItem {
 			return;
 		}
 
+		if (!this.toRender) {
+			this.toRender = changed;
+			this.delayedRender = runAtThisOrScheduleAtNextAnimationFrame(() => {
+				this.delayedRender = null;
+				let toRender = this.toRender;
+				this.toRender = null;
+				this._renderNow(toRender);
+			});
+		} else {
+			this.toRender.combine(changed);
+		}
+	}
+
+	private _renderNow(changed: StateChange): void {
 		if (changed.tabFocusMode) {
 			if (this.state.tabFocusMode && this.state.tabFocusMode === true) {
 				show(this.tabFocusModeElement);
@@ -448,7 +488,7 @@ export class EditorStatus implements IStatusbarItem {
 					update.indentation = (
 						modelOpts.insertSpaces
 							? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
-							: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key']}, "Tab Size: {0}", modelOpts.tabSize)
+							: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
 					);
 				}
 			}
@@ -828,49 +868,48 @@ export class ChangeEncodingAction extends Action {
 			}
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
+				const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+
 				let isReopenWithEncoding = (action === reopenWithEncodingPick);
+				let configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+				let directMatchIndex: number;
+				let aliasMatchIndex: number;
 
-				return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
-					let configuredEncoding = configuration && configuration.files && configuration.files.encoding;
-					let directMatchIndex: number;
-					let aliasMatchIndex: number;
-
-					// All encodings are valid picks
-					let picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
-						.sort((k1, k2) => {
-							if (k1 === configuredEncoding) {
-								return -1;
-							} else if (k2 === configuredEncoding) {
-								return 1;
-							}
-
-							return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
-						})
-						.filter(k => {
-							return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
-						})
-						.map((key, index) => {
-							if (key === encodingSupport.getEncoding()) {
-								directMatchIndex = index;
-							} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
-								aliasMatchIndex = index;
-							}
-
-							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
-						});
-
-					return this.quickOpenService.pick(picks, {
-						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
-						autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
-					}).then((encoding) => {
-						if (encoding) {
-							activeEditor = this.editorService.getActiveEditor();
-							encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
-							if (encodingSupport && types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding) && encodingSupport.getEncoding() !== encoding.id) {
-								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
-							}
+				// All encodings are valid picks
+				let picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
+					.sort((k1, k2) => {
+						if (k1 === configuredEncoding) {
+							return -1;
+						} else if (k2 === configuredEncoding) {
+							return 1;
 						}
+
+						return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
+					})
+					.filter(k => {
+						return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
+					})
+					.map((key, index) => {
+						if (key === encodingSupport.getEncoding()) {
+							directMatchIndex = index;
+						} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
+							aliasMatchIndex = index;
+						}
+
+						return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
 					});
+
+				return this.quickOpenService.pick(picks, {
+					placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
+					autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
+				}).then((encoding) => {
+					if (encoding) {
+						activeEditor = this.editorService.getActiveEditor();
+						encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
+						if (encodingSupport && types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding) && encodingSupport.getEncoding() !== encoding.id) {
+							encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+						}
+					}
 				});
 			});
 		});

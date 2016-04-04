@@ -337,6 +337,6 @@ export class ConfigurationManager {
 	}
 
 	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
-		return this.configurationService.loadConfiguration('launch');
+		return TPromise.as(this.configurationService.getConfiguration<debug.IGlobalConfig>('launch'));
 	}
 }

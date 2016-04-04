@@ -87,23 +87,22 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 
 	public load(): TPromise<EditorModel> {
 		return super.load().then((model) => {
-			return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
-				// Encoding
-				this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+			// Encoding
+			this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
 
-				// Listen to content changes
-				this.textModelChangeListener = this.textEditorModel.addListener(EventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
+			// Listen to content changes
+			this.textModelChangeListener = this.textEditorModel.addListener(EventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
 
-				// Emit initial dirty event if we are
-				if (this.dirty) {
-					setTimeout(() => {
-						this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_DIRTY, new UntitledEditorEvent(this.resource));
-					}, 0 /* prevent race condition between creating model and emitting dirty event */);
-				}
+			// Emit initial dirty event if we are
+			if (this.dirty) {
+				setTimeout(() => {
+					this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_DIRTY, new UntitledEditorEvent(this.resource));
+				}, 0 /* prevent race condition between creating model and emitting dirty event */);
+			}
 
-				return model;
-			});
+			return model;
 		});
 	}
 

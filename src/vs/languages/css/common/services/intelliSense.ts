@@ -160,14 +160,13 @@ export class CSSIntellisense {
 
 	public getValueEnumProposals(entry:languageFacts.IEntry, result:Modes.ISuggestion[]):Modes.ISuggestion[]{
 		if (entry.values) {
-			var type = 'value';
 			entry.values.forEach((value) => {
 				if (languageFacts.isCommonValue(value)) { // only show if supported by more than one browser
 					result.push({
 						label: value.name,
 						documentationLabel: languageFacts.getEntryDescription(value),
 						codeSnippet: value.name,
-						type: type
+						type: 'value'
 					});
 				}
 			});
@@ -237,7 +236,7 @@ export class CSSIntellisense {
 					label: color,
 					documentationLabel: languageFacts.colors[color],
 					codeSnippet: color,
-					type: '#' + languageFacts.colors[color]
+					type: 'customcolor'
 				});
 			}
 			for (var color in languageFacts.colorKeywords) {
@@ -254,7 +253,7 @@ export class CSSIntellisense {
 				result.push({
 					label: color,
 					codeSnippet: color,
-					type: '#' + color
+					type: 'customcolor'
 				});
 			});
 			CSSIntellisense.colorFunctions.forEach((p) => {

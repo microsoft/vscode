@@ -5,7 +5,7 @@
 'use strict';
 
 import 'vs/languages/markdown/common/markdown.contribution';
-import 'vs/languages/javascript/common/javascript.contribution';
+import 'vs/languages/typescript/common/typescript.contribution';
 import 'vs/languages/html/common/html.contribution';
 import 'vs/languages/css/common/css.contribution';
 import modesUtil = require('vs/editor/test/common/modesUtil');

@@ -27,6 +27,7 @@ import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, SuggestRegistry} from '../com
 import {CompletionItem, CompletionModel} from './completionModel';
 import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
 import {alert} from 'vs/base/browser/ui/aria/aria';
+import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -83,9 +84,9 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
 		}
 
-		if (suggestion.type && suggestion.type.charAt(0) === '#') {
+		if (suggestion.type === 'customcolor') {
 			data.icon.className = 'icon customcolor';
-			data.colorspan.style.backgroundColor = suggestion.type.substring(1);
+			data.colorspan.style.backgroundColor = suggestion.label;
 		} else {
 			data.icon.className = 'icon ' + suggestion.type;
 			data.colorspan.style.backgroundColor = '';
@@ -180,7 +181,8 @@ class SuggestionDetails {
 	private el: HTMLElement;
 	private title: HTMLElement;
 	private back: HTMLElement;
-	private scrollable: ScrollableElement;
+	private scrollable: DomNodeScrollable;
+	private scrollbar: ScrollableElement;
 	private body: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
@@ -193,8 +195,9 @@ class SuggestionDetails {
 		this.back = append(header, $('span.go-back.octicon.octicon-mail-reply'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
-		this.scrollable = new ScrollableElement(this.body, {});
-		append(this.el, this.scrollable.getDomNode());
+		this.scrollable = new DomNodeScrollable(this.body);
+		this.scrollbar = new ScrollableElement(this.body, this.scrollable, {});
+		append(this.el, this.scrollbar.getDomNode());
 		this.type = append(this.body, $('p.type'));
 		this.docs = append(this.body, $('p.docs'));
 
@@ -227,8 +230,8 @@ class SuggestionDetails {
 			this.widget.toggleDetails();
 		};
 
-		this.scrollable.onElementDimensions();
-		this.scrollable.onElementInternalDimensions();
+		this.scrollbar.onElementDimensions();
+		this.scrollable.onContentsDimensions();
 
 		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.typeLabel || '', item.suggestion.documentationLabel || '');
 	}
@@ -254,6 +257,9 @@ class SuggestionDetails {
 	}
 
 	dispose(): void {
+		this.scrollbar.dispose();
+		this.scrollable.dispose();
+
 		this.el.parentElement.removeChild(this.el);
 		this.el = null;
 	}
@@ -548,7 +554,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onDidSuggest(e: ISuggestEvent): void {
-		clearTimeout(this.loadingTimeout);
+		if (this.loadingTimeout) {
+			clearTimeout(this.loadingTimeout);
+			this.loadingTimeout = null;
+		}
 
 		this.completionModel = e.completionModel;
 
@@ -609,7 +618,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onDidCancel(e: ICancelEvent) {
-		clearTimeout(this.loadingTimeout);
+		if (this.loadingTimeout) {
+			clearTimeout(this.loadingTimeout);
+			this.loadingTimeout = null;
+		}
 
 		if (!e.retrigger) {
 			this.setState(State.Hidden);
@@ -821,8 +833,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.toDispose = dispose(this.toDispose);
 		this._onDidVisibilityChange.dispose();
 		this._onDidVisibilityChange = null;
-		clearTimeout(this.loadingTimeout);
-		this.loadingTimeout = null;
+		if (this.loadingTimeout) {
+			clearTimeout(this.loadingTimeout);
+			this.loadingTimeout = null;
+		}
 
 		if (this.editorBlurTimeout) {
 			this.editorBlurTimeout.cancel();

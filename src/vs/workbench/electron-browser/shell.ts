@@ -14,7 +14,6 @@ import 'vs/css!vs/workbench/browser/media/hc-black-theme';
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
@@ -34,7 +33,6 @@ import {IWindowService, WindowService} from 'vs/workbench/services/window/electr
 import {MessageService} from 'vs/workbench/services/message/electron-browser/messageService';
 import {RequestService} from 'vs/workbench/services/request/node/requestService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
@@ -69,9 +67,7 @@ import {MainThreadEditors} from 'vs/workbench/api/node/extHostEditors';
 import {MainThreadWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
 import {MainThreadConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
-import {EventService} from 'vs/platform/event/common/eventService';
 import {IOptions} from 'vs/workbench/common/options';
-import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -101,17 +97,28 @@ import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsSe
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 
 /**
+ * Services that we require for the Shell
+ */
+export interface ICoreServices {
+	contextService: IWorkspaceContextService;
+	eventService: IEventService;
+	configurationService: IConfigurationService;
+}
+
+/**
  * The Monaco Workbench Shell contains the Monaco workbench with a rich header containing navigation and the activity bar.
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
  */
 export class WorkbenchShell {
 	private storageService: IStorageService;
 	private messageService: IMessageService;
+	private eventService: IEventService;
 	private contextViewService: ContextViewService;
 	private windowService: IWindowService;
 	private threadService: MainThreadService;
+	private configurationService: IConfigurationService;
 	private themeService: IThemeService;
-	private contextService: WorkspaceContextService;
+	private contextService: IWorkspaceContextService;
 	private telemetryService: ElectronTelemetryService;
 	private keybindingService: WorkbenchKeybindingService;
 
@@ -128,12 +135,16 @@ export class WorkbenchShell {
 	private options: IOptions;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, workspace: IWorkspace, configuration: IConfiguration, options: IOptions) {
+	constructor(container: HTMLElement, workspace: IWorkspace, services: ICoreServices, configuration: IConfiguration, options: IOptions) {
 		this.container = container;
 
 		this.workspace = workspace;
 		this.configuration = configuration;
-		this.options = objects.mixin({}, options);
+		this.options = options;
+
+		this.contextService = services.contextService;
+		this.eventService = services.eventService;
+		this.configurationService = services.configurationService;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
@@ -221,32 +232,23 @@ export class WorkbenchShell {
 	}
 
 	private initInstantiationService(): IInstantiationService {
-		let eventService = new EventService();
-
-		this.contextService = new WorkspaceContextService(eventService, this.workspace, this.configuration, this.options);
-
 		this.windowService = new WindowService();
 
 		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
-		let configService = new ConfigurationService(
-			this.contextService,
-			eventService
-		);
-
 		// no telemetry in a window for extension development!
 		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
-		this.telemetryService = new ElectronTelemetryService(configService, this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
+		this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
-		this.keybindingService = new WorkbenchKeybindingService(configService, this.contextService, eventService, this.telemetryService, <any>window);
+		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.configurationService, this.telemetryService, <any>window);
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
 		this.keybindingService.setMessageService(this.messageService);
 
 		let fileService = new FileService(
-			configService,
-			eventService,
+			this.configurationService,
+			this.eventService,
 			this.contextService
 		);
 
@@ -259,7 +261,7 @@ export class WorkbenchShell {
 
 		let requestService = new RequestService(
 			this.contextService,
-			configService,
+			this.configurationService,
 			this.telemetryService
 		);
 		lifecycleService.onShutdown(() => requestService.dispose());
@@ -269,8 +271,8 @@ export class WorkbenchShell {
 		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
 		this.keybindingService.setExtensionService(extensionService);
 
-		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService, configService);
-		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, configService, this.messageService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService, this.configurationService);
+		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, this.configurationService, this.messageService);
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = new UntitledEditorService();
@@ -278,7 +280,7 @@ export class WorkbenchShell {
 
 		let result = createInstantiationService();
 		result.addSingleton(ITelemetryService, this.telemetryService);
-		result.addSingleton(IEventService, eventService);
+		result.addSingleton(IEventService, this.eventService);
 		result.addSingleton(IRequestService, requestService);
 		result.addSingleton(IWorkspaceContextService, this.contextService);
 		result.addSingleton(IContextViewService, this.contextViewService);
@@ -291,9 +293,9 @@ export class WorkbenchShell {
 		result.addSingleton(IModeService, modeService);
 		result.addSingleton(IFileService, fileService);
 		result.addSingleton(IUntitledEditorService, untitledEditorService);
-		result.addSingleton(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, configService));
+		result.addSingleton(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, this.configurationService));
 		result.addSingleton(IWindowService, this.windowService);
-		result.addSingleton(IConfigurationService, configService);
+		result.addSingleton(IConfigurationService, this.configurationService);
 		result.addSingleton(IKeybindingService, this.keybindingService);
 		result.addSingleton(IMarkerService, markerService);
 		result.addSingleton(IModelService, modelService);

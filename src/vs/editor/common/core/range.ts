@@ -224,17 +224,26 @@ export class Range implements IEditorRange {
 	 * A function that compares ranges, useful for sorting ranges
 	 * It will first compare ranges on the startPosition and then on the endPosition
 	 */
-	public static compareRangesUsingStarts(a:IRange, b:IRange): number {
-		if (a.startLineNumber === b.startLineNumber) {
-			if (a.startColumn === b.startColumn) {
-				if (a.endLineNumber === b.endLineNumber) {
-					return a.endColumn - b.endColumn;
+	public static compareRangesUsingStarts(a:IEditorRange, b:IEditorRange): number {
+		let aStartLineNumber = a.startLineNumber|0;
+		let bStartLineNumber = b.startLineNumber|0;
+		let aStartColumn = a.startColumn|0;
+		let bStartColumn = b.startColumn|0;
+		let aEndLineNumber = a.endLineNumber|0;
+		let bEndLineNumber = b.endLineNumber|0;
+		let aEndColumn = a.endColumn|0;
+		let bEndColumn = b.endColumn|0;
+
+		if (aStartLineNumber === bStartLineNumber) {
+			if (aStartColumn === bStartColumn) {
+				if (aEndLineNumber === bEndLineNumber) {
+					return aEndColumn - bEndColumn;
 				}
-				return a.endLineNumber - b.endLineNumber;
+				return aEndLineNumber - bEndLineNumber;
 			}
-			return a.startColumn - b.startColumn;
+			return aStartColumn - bStartColumn;
 		}
-		return a.startLineNumber - b.startLineNumber;
+		return aStartLineNumber - bStartLineNumber;
 	}
 
 	/**

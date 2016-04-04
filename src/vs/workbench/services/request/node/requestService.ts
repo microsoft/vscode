@@ -51,10 +51,10 @@ export class RequestService extends BaseRequestService {
 	private _rawHttpServicePromise: TPromise<IRawHttpService>;
 	private get rawHttpServicePromise(): TPromise<IRawHttpService> {
 		if (!this._rawHttpServicePromise) {
-			this._rawHttpServicePromise = this.configurationService.loadConfiguration().then((configuration: any) => {
-				rawHttpService.configure(configuration.http && configuration.http.proxy, configuration.http.proxyStrictSSL);
-				return rawHttpService;
-			});
+			const configuration = this.configurationService.getConfiguration<any>();
+			rawHttpService.configure(configuration.http && configuration.http.proxy, configuration.http.proxyStrictSSL);
+
+			return TPromise.as(rawHttpService);
 		}
 
 		return this._rawHttpServicePromise;

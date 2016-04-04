@@ -90,19 +90,16 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	public create(): TPromise<void> {
 
 		// Load Config
-		return this.configurationService.loadConfiguration().then((configuration) => {
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
 
-			// Update configuration
-			this.onConfigurationUpdated(configuration);
+		// listeners
+		this.registerListeners();
 
-			// listeners
-			this.registerListeners();
+		// highlight active input
+		this.highlightInput(this.editorService.getActiveEditorInput());
 
-			// highlight active input
-			this.highlightInput(this.editorService.getActiveEditorInput());
-
-			return super.create();
-		});
+		return super.create();
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
@@ -296,10 +293,10 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 			dnd: dnd,
 			accessibilityProvider: accessibility
 		}, {
-			indentPixels: 0,
-			twistiePixels: 8,
-			ariaLabel: nls.localize('treeAriaLabel', "Working Files")
-		});
+				indentPixels: 0,
+				twistiePixels: 8,
+				ariaLabel: nls.localize('treeAriaLabel', "Working Files")
+			});
 
 		this.tree.setInput(this.model);
 

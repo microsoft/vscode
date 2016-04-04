@@ -909,9 +909,7 @@ export class SearchViewlet extends Viewlet {
 			this.toggleFileTypes(true, true, true);
 		}
 
-		this.configurationService.loadConfiguration().then((configuration) => {
-			this.updateGlobalPatternExclusions(configuration);
-		}).done(null, errors.onUnexpectedError);
+		this.updateGlobalPatternExclusions(this.configurationService.getConfiguration<ISearchConfiguration>());
 
 		return TPromise.as(null);
 	}
@@ -1148,8 +1146,7 @@ export class SearchViewlet extends Viewlet {
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
 		};
 
-		this.queryBuilder.text(content, options)
-			.then(query => this.onQueryTriggered(query, patternExcludes, patternIncludes), errors.onUnexpectedError);
+		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);
 
 		if (!preserveFocus) {
 			this.findInput.focus(); // focus back to input field

@@ -251,6 +251,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('dynamicHeight', "Controls if the height of the working files section should adapt dynamically to the number of elements or not."),
 			'default': true
+		},
+		'explorer.autoReveal': {
+			'type': 'boolean',
+			'description': nls.localize('autoReveal', "Controls if the explorer should automatically reveal files when opening them."),
+			'default': true
 		}
 	}
 });

@@ -354,13 +354,47 @@ export function toDocumentHighlight(occurrence: modes.IOccurence): types.Documen
 		types.DocumentHighlightKind[occurrence.kind.charAt(0).toUpperCase() + occurrence.kind.substr(1)]);
 }
 
+export const CompletionItemKind = {
+
+	from(kind: types.CompletionItemKind): modes.SuggestionType {
+		switch (kind) {
+			case types.CompletionItemKind.Function: return 'function';
+			case types.CompletionItemKind.Constructor: return 'constructor';
+			case types.CompletionItemKind.Field: return 'field';
+			case types.CompletionItemKind.Variable: return 'variable';
+			case types.CompletionItemKind.Class: return 'class';
+			case types.CompletionItemKind.Interface: return 'interface';
+			case types.CompletionItemKind.Module: return 'module';
+			case types.CompletionItemKind.Property: return 'property';
+			case types.CompletionItemKind.Unit: return 'unit';
+			case types.CompletionItemKind.Value: return 'value';
+			case types.CompletionItemKind.Enum: return 'enum';
+			case types.CompletionItemKind.Keyword: return 'keyword';
+			case types.CompletionItemKind.Snippet: return 'snippet';
+			case types.CompletionItemKind.Text: return 'text';
+			case types.CompletionItemKind.Color: return 'color';
+			case types.CompletionItemKind.File: return 'file';
+			case types.CompletionItemKind.Reference: return 'reference';
+		}
+		return 'text';
+	},
+
+	to(type: modes.SuggestionType): types.CompletionItemKind {
+		if (!type) {
+			return types.CompletionItemKind.Text;
+		} else {
+			return types.CompletionItemKind[type.charAt(0).toUpperCase() + type.substr(1)];
+		}
+	}
+};
+
 export const Suggest = {
 
 	from(item: vscode.CompletionItem): modes.ISuggestion {
 		const suggestion: modes.ISuggestion = {
 			label: item.label,
 			codeSnippet: item.insertText || item.label,
-			type: types.CompletionItemKind[item.kind || types.CompletionItemKind.Text].toString().toLowerCase(),
+			type: CompletionItemKind.from(item.kind),
 			typeLabel: item.detail,
 			documentationLabel: item.documentation,
 			sortText: item.sortText,
@@ -372,7 +406,7 @@ export const Suggest = {
 	to(container: modes.ISuggestResult, position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.codeSnippet;
-		result.kind = types.CompletionItemKind[suggestion.type.charAt(0).toUpperCase() + suggestion.type.substr(1)];
+		result.kind = CompletionItemKind.to(suggestion.type);
 		result.detail = suggestion.typeLabel;
 		result.documentation = suggestion.documentationLabel;
 		result.sortText = suggestion.sortText;

@@ -12,8 +12,8 @@ export class Position implements IEditorPosition {
 	public column: number;
 
 	constructor(lineNumber: number, column: number) {
-		this.lineNumber = lineNumber;
-		this.column = column;
+		this.lineNumber = lineNumber|0;
+		this.column = column|0;
 	}
 
 	public equals(other:IPosition): boolean {

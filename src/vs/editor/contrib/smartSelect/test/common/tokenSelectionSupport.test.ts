@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/javascript/common/javascript.contribution';
+import 'vs/languages/typescript/common/typescript.contribution';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import {Range} from 'vs/editor/common/core/range';

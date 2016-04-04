@@ -11,7 +11,7 @@ import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import paths = require('vs/base/common/paths');
-import {ILink, IWorkerParticipant} from 'vs/editor/common/modes';
+import {ILink} from 'vs/editor/common/modes';
 import {Range} from 'vs/editor/common/core/range';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 
@@ -27,7 +27,6 @@ export class OutputWorker {
 
 	constructor(
 		modeId: string,
-		participants: IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService,
 		@IWorkspaceContextService contextService:IWorkspaceContextService

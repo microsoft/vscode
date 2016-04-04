@@ -171,7 +171,7 @@ export class SuggestModel implements IDisposable {
 	private requestPromise: TPromise<void>;
 	private context: Context;
 
-	private raw: ISuggestResult2[][];
+	private raw: ISuggestResult2[];
 	private completionModel: CompletionModel;
 	private incomplete: boolean;
 
@@ -319,7 +319,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			this.raw = all;
-			this.incomplete = all.reduce((r, s) => r || s.reduce((r, s) => r || s.incomplete, false), false);
+			this.incomplete = all.some(result => result.incomplete);
 
 			this.onNewContext(new Context(this.editor, auto));
 		}).then(null, onUnexpectedError);

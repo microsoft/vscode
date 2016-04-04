@@ -27,7 +27,7 @@ export interface ILinesCollection {
 	getOutputLineContent(outputLineNumber:number): string;
 	getOutputLineMinColumn(outputLineNumber:number): number;
 	getOutputLineMaxColumn(outputLineNumber:number): number;
-	getOutputLineTokens(outputLineNumber:number, inaccurateTokensAcceptable:boolean): editorCommon.IViewLineTokens;
+	getOutputLineTokens(outputLineNumber:number): editorCommon.ViewLineTokens;
 	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition;
 	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): editorCommon.IEditorPosition;
 	setHiddenAreas(ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void;
@@ -46,7 +46,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 	private lines:ILinesCollection;
 	private decorations:ViewModelDecorations;
 	private cursors:ViewModelCursors;
-	private shouldForceTokenization:boolean;
 
 	private getCurrentCenteredModelRange:()=>editorCommon.IEditorRange;
 
@@ -71,7 +70,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		this.decorations.reset(this.model);
 
 		this.cursors = new ViewModelCursors(this.configuration, this);
-		this._updateShouldForceTokenization();
 
 		this.listenersToRemove = [];
 		this._toDispose = [];
@@ -88,7 +86,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 				this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 				this.cursors.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
-				this._updateShouldForceTokenization();
 			}
 		});
 	}
@@ -111,17 +108,12 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		this.model = null;
 	}
 
-	private _updateShouldForceTokenization(): void {
-		this.shouldForceTokenization = (this.lines.getOutputLineCount() <= this.configuration.editor.forcedTokenizationBoundary);
-	}
-
 	private _onTabSizeChange(newTabSize:number): boolean {
 		var lineMappingChanged = this.lines.setTabSize(newTabSize, (eventType:string, payload:any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
 			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this._updateShouldForceTokenization();
 		}
 		return lineMappingChanged;
 	}
@@ -132,7 +124,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this._updateShouldForceTokenization();
 		}
 		return lineMappingChanged;
 	}
@@ -156,7 +147,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this._updateShouldForceTokenization();
 		}
 		return lineMappingChanged;
 	}
@@ -179,7 +169,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 				len:number,
 				e: IEmitterEvent,
 				data:any,
-				shouldUpdateForceTokenization = false,
 				modelContentChangedEvent:editorCommon.IModelContentChangedEvent,
 				hadOtherModelChange = false,
 				hadModelLineChangeThatChangedLineMapping = false,
@@ -218,7 +207,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 								console.info('ViewModel received unknown event: ');
 								console.info(e);
 						}
-						shouldUpdateForceTokenization = true;
 						break;
 
 					case editorCommon.EventType.ModelTokensChanged:
@@ -292,15 +280,10 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 				}
 			}
 
-			if (shouldUpdateForceTokenization) {
-				this._updateShouldForceTokenization();
-			}
-
 			if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 				this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 				this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-				this._updateShouldForceTokenization();
 			}
 
 			if (revealPreviousCenteredModelRange && previousCenteredModelRange) {
@@ -427,8 +410,8 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		return result + 2;
 	}
 
-	public getLineTokens(lineNumber:number): editorCommon.IViewLineTokens {
-		return this.lines.getOutputLineTokens(lineNumber, !this.shouldForceTokenization);
+	public getLineTokens(lineNumber:number): editorCommon.ViewLineTokens {
+		return this.lines.getOutputLineTokens(lineNumber);
 	}
 
 	public getLineRenderLineNumber(viewLineNumber:number): string {
@@ -445,8 +428,8 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		return modelLineNumber.toString();
 	}
 
-	public getDecorationsResolver(startLineNumber:number, endLineNumber:number): editorCommon.IViewModelDecorationsResolver {
-		return this.decorations.getDecorationsResolver(startLineNumber, endLineNumber);
+	public getDecorationsViewportData(startLineNumber:number, endLineNumber:number): editorCommon.IDecorationsViewportData {
+		return this.decorations.getDecorationsViewportData(startLineNumber, endLineNumber);
 	}
 
 	public getAllDecorations(): editorCommon.IModelDecoration[] {

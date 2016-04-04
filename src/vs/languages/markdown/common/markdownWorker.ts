@@ -100,7 +100,6 @@ export class MarkdownWorker {
 
 	constructor(
 		modeId: string,
-		participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService,
 		@IModeService modeService: IModeService

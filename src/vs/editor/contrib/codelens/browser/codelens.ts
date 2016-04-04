@@ -279,8 +279,18 @@ class CodeLens {
 		});
 	}
 
-	public updateCodeLensSymbols(data: ICodeLensData[]): void {
+	public updateCodeLensSymbols(data: ICodeLensData[], helper: CodeLensHelper): void {
+		while (this._decorationIds.length) {
+			helper.removeDecoration(this._decorationIds.pop());
+		}
 		this._data = data;
+		this._decorationIds = new Array<string>(this._data.length);
+		this._data.forEach((codeLensData, i) => {
+			helper.addDecoration({
+				range: codeLensData.symbol.range,
+				options: {}
+			}, id => this._decorationIds[i] = id);
+		});
 	}
 
 	public computeIfNecessary(currentModelsVersionId: number, model: editorCommon.IModel): ICodeLensData[] {
@@ -518,7 +528,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		if (!symbols) {
 			symbols = [];
 		} else {
-			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range));
+			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(Range.lift(a.symbol.range), Range.lift(b.symbol.range)));
 		}
 
 		let maxLineNumber = this._editor.getModel().getLineCount();
@@ -556,7 +566,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						this._lenses[codeLensIndex].dispose(helper, accessor);
 						this._lenses.splice(codeLensIndex, 1);
 					} else if (codeLensLineNumber === symbolsLineNumber) {
-						this._lenses[codeLensIndex].updateCodeLensSymbols(groups[groupsIndex]);
+						this._lenses[codeLensIndex].updateCodeLensSymbols(groups[groupsIndex], helper);
 						groupsIndex++;
 						codeLensIndex++;
 					} else {

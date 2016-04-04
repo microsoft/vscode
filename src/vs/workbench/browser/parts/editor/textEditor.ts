@@ -9,7 +9,6 @@ import 'vs/css!./media/texteditor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
-import errors = require('vs/base/common/errors');
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {Preferences} from 'vs/workbench/common/constants';
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
@@ -164,9 +163,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}));
 
 		// Configuration
-		this.configurationService.loadConfiguration().then((config) => {
-			this.applyConfiguration(config);
-		}, errors.onUnexpectedError);
+		this.applyConfiguration(this.configurationService.getConfiguration<IFilesConfiguration>());
 	}
 
 	/**

@@ -53,12 +53,10 @@ export class CrashReporter {
 	public start(rawConfiguration:Electron.CrashReporterStartOptions): void {
 		if (!this.isStarted) {
 			if (!this.config) {
-				this.configurationService.loadConfiguration(TELEMETRY_SECTION_ID).done((c) => {
-					this.config = c;
-					if (this.config && this.config.enableCrashReporter) {
-						this.doStart(rawConfiguration);
-					}
-				});
+				this.config = this.configurationService.getConfiguration(TELEMETRY_SECTION_ID);
+				if (this.config && this.config.enableCrashReporter) {
+					this.doStart(rawConfiguration);
+				}
 			} else {
 				if (this.config.enableCrashReporter) {
 					this.doStart(rawConfiguration);

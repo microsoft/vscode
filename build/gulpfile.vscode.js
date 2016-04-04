@@ -292,23 +292,14 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/prerm'))
 
-		var all = es.merge(control, prerm, desktop, icon, shortcut, code);
+		var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ARCHITECTURE@@', debArch))
+			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
+			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
+			.pipe(rename('DEBIAN/postinst'))
 
-		// Register an apt repository if this is an official build
-		if (product.updateUrl && product.quality) {
-			var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(replace('@@UPDATEURL@@', product.updateUrl))
-				.pipe(replace('@@QUALITY@@', product.quality))
-				.pipe(replace('@@ARCHITECTURE@@', debArch))
-				.pipe(rename('DEBIAN/postinst'))
-			all = es.merge(all, postinst);
-		} else {
-			var postinst = gulp.src('resources/linux/debian/postinst.oss.template', { base: '.' })
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(rename('DEBIAN/postinst'))
-			all = es.merge(all, postinst);
-		}
+		var all = es.merge(control, postinst, prerm, desktop, icon, shortcut, code);
 
 		return all.pipe(symdest(destination));
 	};
@@ -338,6 +329,7 @@ function getRpmPackageArch(arch) {
 
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
+	var rpmArch = getRpmPackageArch(arch);
 	var destination = rpmBuildPath;
 	var packageRevision = getEpochTime();
 
@@ -359,8 +351,12 @@ function prepareRpmPackage(arch) {
 
 		var spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@VERSION@@', packageJson.version))
 			.pipe(replace('@@RELEASE@@', packageRevision))
+			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
+			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
+			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 
 		var specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
@@ -379,7 +375,7 @@ function buildRpmPackage(arch) {
 	return shell.task([
 		'mkdir -p ' + destination,
 		'fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
-		'cp ' + rpmOut + '/* ' + destination,
+		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/vscode-' + rpmArch + '.rpm',
 		'createrepo ' + destination
 	]);
 }

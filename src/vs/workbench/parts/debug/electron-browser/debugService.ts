@@ -527,7 +527,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
-		this.setStateAndEmit(debug.State.Initializing);
 		this.clearReplExpressions();
 
 		return this.textFileService.saveAll()
@@ -558,7 +557,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					return this.doCreateSession(configuration, changeViewState);
 				}
 
-				this.setStateAndEmit(debug.State.Inactive);
 				this.messageService.show(severity.Error, {
 					message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Errors detected while running the preLaunchTask '{0}'.", configuration.preLaunchTask) :
 						errorCount === 1 ?  nls.localize('preLaunchTaskError', "Error detected while running the preLaunchTask '{0}'.", configuration.preLaunchTask) :
@@ -569,7 +567,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					})]
 				});
 			}, (err: TaskError) => {
-				this.setStateAndEmit(debug.State.Inactive);
 				if (err.code !== TaskErrors.NotConfigured) {
 					throw err;
 				}
@@ -579,10 +576,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					actions: [CloseAction, this.taskService.configureAction()]
 				});
 			});
-		})), err => {
-			this.setStateAndEmit(debug.State.Inactive);
-			throw err;
-		});
+		})));
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
@@ -624,6 +618,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints(), watchExpressionsCount: this.model.getWatchExpressions().length });
 		}).then(undefined, (error: any) => {
 			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
+			this.setStateAndEmit(debug.State.Inactive);
 			if (this.session) {
 				this.session.disconnect();
 			}

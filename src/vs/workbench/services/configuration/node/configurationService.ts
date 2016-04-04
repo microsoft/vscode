@@ -24,12 +24,26 @@ import fs = require('fs');
 export class ConfigurationService extends CommonConfigurationService {
 
 	public serviceId = IConfigurationService;
+
 	protected contextService: IWorkspaceContextService;
 	private toDispose: Function;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService) {
 		super(contextService, eventService);
+
 		this.registerListeners();
+	}
+
+	protected registerListeners(): void {
+		super.registerListeners();
+
+		this.toDispose = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
+	}
+
+	private onOptionsChanged(e: OptionsChangeEvent): void {
+		if (e.key === 'globalSettings') {
+			this.handleConfigurationChange();
+		}
 	}
 
 	protected resolveContents(resources: uri[]): TPromise<IContent[]> {
@@ -88,16 +102,6 @@ export class ConfigurationService extends CommonConfigurationService {
 		});
 	}
 
-	private registerListeners(): void {
-		this.toDispose = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
-	}
-
-	private onOptionsChanged(e: OptionsChangeEvent): void {
-		if (e.key === 'globalSettings') {
-			this.reloadConfiguration();
-		}
-	}
-
 	protected loadWorkspaceConfiguration(section?: string): TPromise<{ [relativeWorkspacePath: string]: IConfigFile }> {
 
 		// Return early if we don't have a workspace
@@ -105,25 +109,26 @@ export class ConfigurationService extends CommonConfigurationService {
 			return TPromise.as({});
 		}
 
-		// Migrate as needed (.settings => .vscode)
 		return super.loadWorkspaceConfiguration(section);
 	}
 
-	protected loadGlobalConfiguration(): TPromise<{ contents: any; parseErrors?: string[]; }> {
-		return super.loadGlobalConfiguration().then((defaults) => {
-			let globalSettings = this.contextService.getOptions().globalSettings;
-			return {
-				contents: objects.mixin(
-					objects.clone(defaults.contents),	// target: default values (but don't modify!)
-					globalSettings.settings,			// source: global configured values
-					true								// overwrite
-				),
-				parseErrors: globalSettings.settingsParseErrors
-			};
-		});
+	protected loadGlobalConfiguration(): { contents: any; parseErrors?: string[]; } {
+		const defaults = super.loadGlobalConfiguration();
+		const globalSettings = this.contextService.getOptions().globalSettings;
+
+		return {
+			contents: objects.mixin(
+				objects.clone(defaults.contents),	// target: default values (but don't modify!)
+				globalSettings.settings,			// source: global configured values
+				true								// overwrite
+			),
+			parseErrors: globalSettings.settingsParseErrors
+		};
 	}
 
 	public dispose(): void {
+		super.dispose();
+
 		this.toDispose();
 	}
 }

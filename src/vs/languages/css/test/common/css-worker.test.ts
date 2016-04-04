@@ -10,7 +10,6 @@ import cssWorker = require('vs/languages/css/common/cssWorker');
 import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import MarkerService = require('vs/platform/markers/common/markerService');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import cssErrors = require('vs/languages/css/common/parser/cssErrors');
@@ -40,7 +39,7 @@ suite('Validation - CSS', () => {
 			resourceService: resourceService,
 			markerService: markerService
 		});
-		var worker = new cssWorker.CSSWorker('mock.mode.id', [], services.resourceService, services.markerService);
+		var worker = new cssWorker.CSSWorker('mock.mode.id', services.resourceService, services.markerService);
 		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
@@ -62,7 +61,7 @@ suite('Validation - CSS', () => {
 			markerService: markerService
 		});
 
-		var worker = new cssWorker.CSSWorker('mock.mode.id', [], services.resourceService, services.markerService);
+		var worker = new cssWorker.CSSWorker('mock.mode.id', services.resourceService, services.markerService);
 		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
@@ -254,7 +253,7 @@ suite('Validation - CSS', () => {
 			}),
 			testSuggestionsFor('.foo { background-color: #123456; } .bar { background-color: }', '.bar { background-color:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
-				assertSuggestion(completion, '#123456', '##123456');
+				assertSuggestion(completion, '#123456', 'customcolor');
 			}),
 			testSuggestionsFor('.foo { unknown: foo; } .bar { unknown: }', '.bar { unknown:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
@@ -264,7 +263,7 @@ suite('Validation - CSS', () => {
 				assert.equal(completion.currentWord, 'r');
 				assertSuggestion(completion, 'rgb', 'function');
 				assertSuggestion(completion, 'rgba', 'function');
-				assertSuggestion(completion, 'red', '##ff0000');
+				assertSuggestion(completion, 'red', 'customcolor');
 			})
 		]).done(() => testDone(), (errors: any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));

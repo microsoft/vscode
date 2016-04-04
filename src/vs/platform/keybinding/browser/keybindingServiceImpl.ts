@@ -61,7 +61,7 @@ export class ConfigurationContext {
 
 	constructor(configurationService: IConfigurationService) {
 		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(e.config));
-		configurationService.loadConfiguration().then(config => this._updateConfigurationContext(config));
+		this._updateConfigurationContext(configurationService.getConfiguration());
 	}
 
 	public dispose() {

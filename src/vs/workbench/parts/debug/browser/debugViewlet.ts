@@ -240,24 +240,31 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 				return;
 			}
 			const element = e.selection[0];
-			if (!(element instanceof model.StackFrame)) {
-				return;
+
+			if (element instanceof model.StackFrame) {
+				const stackFrame = <debug.IStackFrame> element;
+				this.debugService.setFocusedStackFrameAndEvaluate(stackFrame);
+
+				const isMouse = (e.payload.origin === 'mouse');
+				let preserveFocus = isMouse;
+
+				const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
+				if (originalEvent && isMouse && originalEvent.detail === 2) {
+					preserveFocus = false;
+					originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
+				}
+
+				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+				this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
 
-			const stackFrame = <debug.IStackFrame> element;
-			this.debugService.setFocusedStackFrameAndEvaluate(stackFrame);
-
-			const isMouse = (e.payload.origin === 'mouse');
-			let preserveFocus = isMouse;
-
-			const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
-			if (originalEvent && isMouse && originalEvent.detail === 2) {
-				preserveFocus = false;
-				originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
+			// user clicked on 'Load More Stack Frames', get those stack frames and refresh the tree.
+			if (typeof element === 'number') {
+				const thread = this.debugService.getModel().getThreads()[element];
+				if (thread) {
+					thread.getCallStack(this.debugService, true).then(() => this.tree.refresh()).done(null, errors.onUnexpectedError);
+				}
 			}
-
-			const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-			this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 		}));
 
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
@@ -275,7 +282,13 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
 			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
-			if (focussedThread && focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason && focussedThread.stoppedDetails.reason !== 'step') {
+			if (!focussedThread) {
+				return;
+			}
+
+			this.tree.expand(focussedThread);
+			this.tree.select(this.debugService.getViewModel().getFocusedStackFrame());
+			if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
 				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
 				if (focussedThread.stoppedDetails.text) {
 					this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
@@ -284,23 +297,6 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 				this.pauseMessage.show();
 			} else {
 				this.pauseMessage.hide();
-			}
-		}));
-
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED,() => {
-			const focused = this.debugService.getViewModel().getFocusedStackFrame();
-			if (focused) {
-				const threads = this.debugService.getModel().getThreads();
-				for (let ref in threads) {
-					// Only query for threads whose callstacks are already available
-					// so that we don't perform unnecessary queries to the
-					// debug adapter. If it's a thread we need to expand, its
-					// callstack would have already been populated already
-					if (threads[ref].getCachedCallStack() && threads[ref].getCachedCallStack().some(sf => sf === focused)) {
-						this.tree.expand(threads[ref]);
-					}
-				}
-				this.tree.setFocus(focused);
 			}
 		}));
 	}

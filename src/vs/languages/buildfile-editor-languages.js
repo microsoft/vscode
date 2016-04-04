@@ -43,27 +43,19 @@ exports.collectModules = function(args) {
 		.combine(worker)
 			.define('vs/languages/json/common/jsonWorker');
 
-	// ---- shared between javascript and typescript -----------------------------------
+	// ---- typescript & javascript -----------------
+
 	common.define('vs/languages/typescript/common/lib/typescriptServices');
+
 	common.define('vs/languages/typescript/common/typescript', 'vs/languages/typescript/common/lib/typescriptServices');
-	var SHARED_JS_TS = ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/typescript/common/typescript'];
 
-	// ---- typescript -----------------------------------
-	var particpantExcludes = common.define('vs/languages/typescript/common/typescriptMode', SHARED_JS_TS)
+	var EXCLUDES = ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/typescript/common/typescript'];
+
+	common.define('vs/languages/typescript/common/mode', EXCLUDES)
 		.combine(worker)
-			.define('vs/languages/typescript/common/typescriptWorker2');
+			.define('vs/languages/typescript/common/worker', EXCLUDES);
 
-	particpantExcludes.define('vs/languages/typescript/common/js/globalVariableRewriter');
-	particpantExcludes.define('vs/languages/typescript/common/js/importAndExportRewriter');
-	particpantExcludes.define('vs/languages/typescript/common/js/angularServiceRewriter');
-	particpantExcludes.define('vs/languages/typescript/common/js/defineRewriter');
-	particpantExcludes.define('vs/languages/typescript/common/js/es6PropertyDeclarator');
-	particpantExcludes.define('vs/languages/typescript/common/js/requireRewriter');
-
-	// ---- javascript ----------------------------
-	common.define('vs/languages/javascript/common/javascript', SHARED_JS_TS.concat(['vs/languages/typescript/common/typescriptMode']))
-		.combine(worker)
-			.define('vs/languages/javascript/common/javascriptWorker', ['vs/languages/typescript/common/typescriptWorker2']);
+	common.define('vs/languages/typescript/common/workerManager', EXCLUDES);
 
 	return result;
 };

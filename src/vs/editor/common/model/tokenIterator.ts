@@ -5,9 +5,10 @@
 'use strict';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
-var getStartIndex = editorCommon.LineTokensBinaryEncoding.getStartIndex;
-var inflate = editorCommon.LineTokensBinaryEncoding.inflate;
+var getStartIndex = TokensBinaryEncoding.getStartIndex;
+var inflate = TokensBinaryEncoding.inflate;
 
 export class TokenIterator implements editorCommon.ITokenIterator {
 

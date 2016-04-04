@@ -13,6 +13,9 @@
 	-webkit-text-size-adjust: 100%;
 }
 
+.monaco-editor .token.whitespace { display:inline-block; }
+/*.monaco-editor .token.leading.whitespace { border-left:1px solid lightgrey; }*/
+
 .monaco-editor.enable-ligatures {
 	-webkit-font-feature-settings: "liga" on, "calt" on;
 	font-feature-settings: "liga" on, "calt" on;

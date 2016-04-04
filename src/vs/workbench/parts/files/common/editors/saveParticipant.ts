@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
- 
+
 'use strict';
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import errors = require('vs/base/common/errors');
 import {TextFileChangeEvent, EventType} from 'vs/workbench/parts/files/common/files';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IPosition, IEditorSelection, IModel} from 'vs/editor/common/editorCommon';
@@ -30,18 +29,12 @@ export class SaveParticipant implements IWorkbenchContribution {
 		this.trimTrailingWhitespace = false;
 
 		this.registerListeners();
-		this.loadConfiguration();
+		this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>());
 	}
 
 	private registerListeners(): void {
 		this.toUnbind.push(this.eventService.addListener(EventType.FILE_SAVING, (e: TextFileChangeEvent) => this.onTextFileSaving(e)));
 		this.toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config)));
-	}
-
-	private loadConfiguration(): void {
-		this.configurationService.loadConfiguration().done((configuration: IFilesConfiguration) => {
-			this.onConfigurationChange(configuration);
-		}, errors.onUnexpectedError);
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {

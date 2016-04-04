@@ -66,18 +66,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	}
 
 	public pushStackElement(): void {
-		if (this._isDisposed) {
-			throw new Error('EditableTextModel.pushStackElement: Model is disposed');
-		}
-
 		this._commandManager.pushStackElement();
 	}
 
 	public pushEditOperations(beforeCursorState:editorCommon.IEditorSelection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): editorCommon.IEditorSelection[] {
-		if (this._isDisposed) {
-			throw new Error('EditableTextModel.pushEditOperations: Model is disposed');
-		}
-
 		return this.deferredEmit(() => {
 			return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 		});
@@ -532,10 +524,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	}
 
 	public undo(): editorCommon.IEditorSelection[] {
-		if (this._isDisposed) {
-			throw new Error('EditableTextModel.undo: Model is disposed');
-		}
-
 		return this._withDeferredEvents(() => {
 			this._isUndoing = true;
 			let r = this._commandManager.undo();
@@ -552,10 +540,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	}
 
 	public redo(): editorCommon.IEditorSelection[] {
-		if (this._isDisposed) {
-			throw new Error('EditableTextModel.redo: Model is disposed');
-		}
-
 		return this._withDeferredEvents(() => {
 			this._isRedoing = true;
 			let r = this._commandManager.redo();
@@ -572,10 +556,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	}
 
 	public setEditableRange(range:editorCommon.IRange): void {
-		if (this._isDisposed) {
-			throw new Error('EditableTextModel.setEditableRange: Model is disposed');
-		}
-
 		this._commandManager.clear();
 		if (this._hasEditableRange) {
 			this.removeTrackedRange(this._editableRangeId);
@@ -590,18 +570,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	}
 
 	public hasEditableRange(): boolean {
-		if (this._isDisposed) {
-			throw new Error('EditableTextModel.hasEditableRange: Model is disposed');
-		}
-
 		return this._hasEditableRange;
 	}
 
 	public getEditableRange(): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('EditableTextModel.getEditableRange: Model is disposed');
-		}
-
 		if (this._hasEditableRange) {
 			return this.getTrackedRange(this._editableRangeId);
 		} else {
