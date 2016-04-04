@@ -31,6 +31,10 @@
 			<string>#special_block</string>
 		</dict>
 		<dict>
+			<key>include</key>
+			<string>source.c</string>
+		</dict>
+		<dict>
 			<key>match</key>
 			<string>\b(friend|explicit|virtual)\b</string>
 			<key>name</key>
@@ -181,69 +185,6 @@
 					<string>$base</string>
 				</dict>
 			</array>
-		</dict>
-        <dict>
-			<key>begin</key>
-			<string>(?x)
-    		(?:  ^                                 # begin-of-line
-    		  |
-    		     (?: (?= \s )           (?&lt;!else|new|return) (?&lt;=\w)      #  or word + space before name
-    		       | (?= \s*[A-Za-z_] ) (?&lt;!&amp;&amp;)       (?&lt;=[*&amp;&gt;])   #  or type modifier before name
-    		     )
-    		)
-    		(\s*) (?!(while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\s*\()
-    		(
-    			(?: [A-Za-z_][A-Za-z0-9_]*+ | :: )++ |                  # actual name
-    			(?: (?&lt;=operator) (?: [-*&amp;&lt;&gt;=+!]+ | \(\) | \[\] ) )  # if it is a C++ operator
-    		)
-    		 \s*(?=\()</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.whitespace.function.leading.c</string>
-				</dict>
-				<key>3</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.function.c</string>
-				</dict>
-				<key>4</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.parameters.c</string>
-				</dict>
-			</dict>
-			<key>end</key>
-			<string>(?&lt;=\})|(?=#)|(;)</string>
-			<key>name</key>
-			<string>meta.function.c++</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>include</key>
-					<string>#comments</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#parens</string>
-				</dict>
-        		<dict>
-					<key>match</key>
-					<string>\b(const|final|override|noexcept)\b</string>
-					<key>name</key>
-					<string>storage.modifier.$1.c++</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#block</string>
-				</dict>
-			</array>
-		</dict>
-        <dict>
-			<key>include</key>
-			<string>source.c</string>
 		</dict>
 	</array>
 	<key>repository</key>
@@ -640,3 +581,4 @@
 	<string>26251B18-6B1D-11D9-AFDB-000D93589AF6</string>
 </dict>
 </plist>
+

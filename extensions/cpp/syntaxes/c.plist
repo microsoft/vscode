@@ -431,6 +431,12 @@
 					<string>#parens</string>
 				</dict>
 				<dict>
+					<key>match</key>
+					<string>\b(const|final|override|noexcept)\b</string>
+					<key>name</key>
+					<string>storage.modifier.$1.c++</string>
+				</dict>
+				<dict>
 					<key>include</key>
 					<string>#block</string>
 				</dict>
