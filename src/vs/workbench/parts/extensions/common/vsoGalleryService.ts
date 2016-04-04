@@ -243,7 +243,6 @@ export class GalleryService implements IGalleryService {
 	}
 
 	private queryGallery(query: Query): TPromise<{ galleryExtensions: IGalleryExtension[], total: number; }> {
-		console.log('making request', query.pageNumber);
 		const data = JSON.stringify(query.raw);
 
 		return this.getRequestHeaders()
