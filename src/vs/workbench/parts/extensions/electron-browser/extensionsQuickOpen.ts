@@ -220,18 +220,22 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 	}
 
 	renderPlaceholder(index: number, templateId: string, data: ITemplateData): void {
-		data.author.textContent = '';
-		data.displayName.set('loading'); // TODO
-		data.version.textContent = '';
+		dom.addClass(data.root, 'loading');
+
+		data.author.textContent = nls.localize('author', 'Author');
+		data.displayName.set(nls.localize('name', 'Name'));
+		data.version.textContent = '0.0.1';
 		data.installCount.textContent = '';
 		dom.removeClass(data.installCount, 'octicon');
 		dom.removeClass(data.installCount, 'octicon-cloud-download');
 		data.actionbar.clear();
-		data.description.set('');
+		data.description.set(nls.localize('description', 'Description'));
 		data.disposables = dispose(data.disposables);
 	}
 
 	renderElement(entry: IExtensionEntry, templateId: string, data: ITemplateData): void {
+		dom.removeClass(data.root, 'loading');
+
 		const extension = entry.extension;
 		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
 		const installCount = extension.galleryInformation ? extension.galleryInformation.installCount : null;
