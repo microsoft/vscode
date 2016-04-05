@@ -1162,9 +1162,14 @@ export class LiveSyncAction extends BaseSyncAction {
 export class UndoLastCommitAction extends GitAction {
 
 	static ID = 'workbench.action.git.undoLastCommit';
+	static LABEL = nls.localize('undoLastCommit', "Undo Last Commit");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(UndoLastCommitAction.ID, nls.localize('undoLastCommit', "Undo Last Commit"), 'git-action undo-last-commit', gitService);
+	constructor(
+		id = UndoLastCommitAction.ID,
+		label = UndoLastCommitAction.LABEL,
+		@IGitService gitService: IGitService
+	) {
+		super(UndoLastCommitAction.ID, UndoLastCommitAction.LABEL, 'git-action undo-last-commit', gitService);
 	}
 
 	public run():Promise {
