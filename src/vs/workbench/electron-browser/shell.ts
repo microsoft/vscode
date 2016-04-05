@@ -13,6 +13,7 @@ import 'vs/css!vs/workbench/browser/media/hc-black-theme';
 
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
+import * as platform from 'vs/base/common/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -229,6 +230,10 @@ export class WorkbenchShell {
 
 		let workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
 		workspaceStats.reportWorkspaceTags();
+
+		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
+			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
+		}
 	}
 
 	private initInstantiationService(): IInstantiationService {
