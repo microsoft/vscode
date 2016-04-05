@@ -7,7 +7,7 @@
 import * as browser from 'vs/base/browser/browser';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
-import {ILineParts, createLineParts, getColumnOfLinePartOffset} from 'vs/editor/common/viewLayout/viewLineParts';
+import {LineParts, createLineParts, getColumnOfLinePartOffset} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
@@ -24,7 +24,7 @@ export class ViewLine implements IVisibleLineData {
 
 	private _domNode: FastDomNode;
 
-	private _lineParts: ILineParts;
+	private _lineParts: LineParts;
 
 	private _isInvalid: boolean;
 	private _isMaybeInvalid: boolean;
@@ -99,7 +99,7 @@ export class ViewLine implements IVisibleLineData {
 	}
 
 	public shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
-		let newLineParts:ILineParts = null;
+		let newLineParts:LineParts = null;
 
 		if (this._isMaybeInvalid || this._isInvalid) {
 			// Compute new line parts only if there is some evidence that something might have changed
@@ -158,7 +158,7 @@ export class ViewLine implements IVisibleLineData {
 
 	// --- end IVisibleLineData
 
-	private _render(lineNumber:number, lineParts:ILineParts): string {
+	private _render(lineNumber:number, lineParts:LineParts): string {
 
 		this._cachedWidth = -1;
 
@@ -346,7 +346,7 @@ class WebKitViewLine extends ViewLine {
 }
 
 
-function findIndexInArrayWithMax(lineParts:ILineParts, desiredIndex: number, maxResult:number): number {
+function findIndexInArrayWithMax(lineParts:LineParts, desiredIndex: number, maxResult:number): number {
 	let r = lineParts.findIndexOfOffset(desiredIndex);
 	return r <= maxResult ? r : maxResult;
 }

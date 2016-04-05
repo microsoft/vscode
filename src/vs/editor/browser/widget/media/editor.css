@@ -14,7 +14,12 @@
 }
 
 .monaco-editor .token.whitespace { display:inline-block; }
-/*.monaco-editor .token.leading.whitespace { border-left:1px solid lightgrey; }*/
+
+.monaco-editor .token.indent-guide {
+	display:inline-block;
+	border-left: 1px solid lightgray;
+	box-sizing: border-box;
+}
 
 .monaco-editor.enable-ligatures {
 	-webkit-font-feature-settings: "liga" on, "calt" on;
