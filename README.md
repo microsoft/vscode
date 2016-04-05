@@ -103,6 +103,10 @@ Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-comple
 
 ## Change Log
 
+### Version 0.3.2
+* Ability to control how debugger breaks into exceptions raised (always break, never break or only break if unhandled)
+* Disabled displaying of errors, as there are a few instances when errors are displayed in the IDE when not required
+
 ### Version 0.3.1
 * Remote debugging (updated documentation and fixed minor issues)
 * Fixed issues with formatting of files when path contains spaces
