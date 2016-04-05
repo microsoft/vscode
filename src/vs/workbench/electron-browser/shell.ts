@@ -21,7 +21,6 @@ import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
-import {Preferences} from 'vs/workbench/common/constants';
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
@@ -69,7 +68,7 @@ import {MainThreadWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
 import {MainThreadConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {IOptions} from 'vs/workbench/common/options';
-import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -89,8 +88,8 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
-import {IThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
-import {ThemeService} from 'vs/workbench/services/themes/node/themeService';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
 import {getService } from 'vs/base/common/service';
 import {connect} from 'vs/base/node/service.net';
 import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
@@ -118,7 +117,7 @@ export class WorkbenchShell {
 	private windowService: IWindowService;
 	private threadService: MainThreadService;
 	private configurationService: IConfigurationService;
-	private themeService: IThemeService;
+	private themeService: ThemeService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ElectronTelemetryService;
 	private keybindingService: WorkbenchKeybindingService;
@@ -281,7 +280,7 @@ export class WorkbenchShell {
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = new UntitledEditorService();
-		this.themeService = new ThemeService(extensionService);
+		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService);
 
 		let result = createInstantiationService();
 		result.addSingleton(ITelemetryService, this.telemetryService);
@@ -363,46 +362,7 @@ export class WorkbenchShell {
 		this.registerListeners();
 
 		// Enable theme support
-		let themeId = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, null);
-		if (!themeId) {
-			themeId = DEFAULT_THEME_ID;
-			this.storageService.store(Preferences.THEME, themeId, StorageScope.GLOBAL);
-		}
-
-		this.setTheme(themeId, false);
-
-		this.toUnbind.push(this.storageService.addListener2(StorageEventType.STORAGE, (e: StorageEvent) => {
-			if (e.key === Preferences.THEME) {
-				this.setTheme(e.newValue);
-			}
-		}));
-	}
-
-	private setTheme(themeId: string, layout = true): void {
-		if (!themeId) {
-			return;
-		}
-		let applyTheme = (themeId: string) => {
-			if (this.currentTheme) {
-				$(this.container).removeClass(this.currentTheme);
-			}
-			this.currentTheme = themeId;
-			$(this.container).addClass(this.currentTheme);
-
-			if (layout) {
-				this.layout();
-			}
-		};
-
-		this.themeService.loadTheme(themeId).then(theme => {
-			let newThemeId = theme ? theme.id : DEFAULT_THEME_ID;
-
-			this.themeService.applyThemeCSS(newThemeId);
-			applyTheme(newThemeId);
-			if (newThemeId !== themeId) {
-				this.storageService.store(Preferences.THEME, newThemeId, StorageScope.GLOBAL);
-			}
-		}, error => {
+		this.themeService.initialize(this.container).then(null, error => {
 			errors.onUnexpectedError(error);
 		});
 	}

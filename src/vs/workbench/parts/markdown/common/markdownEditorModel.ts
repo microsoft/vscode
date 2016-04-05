@@ -13,11 +13,11 @@ import {EditorModel} from 'vs/workbench/common/editor';
 import {Preferences} from 'vs/workbench/common/constants';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {IEmitOutput} from 'vs/editor/common/modes';
-import themes = require('vs/platform/theme/common/themes');
+import {isLightTheme} from 'vs/platform/theme/common/themes';
 import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 import {MARKDOWN_MIME, MARKDOWN_MODE_ID} from 'vs/workbench/parts/markdown/common/markdown';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 interface IMarkdownWorkerOutput extends IEmitOutput {
@@ -35,7 +35,7 @@ export class MarkdownEditorModel extends IFrameEditorModel {
 		resource: URI,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService private storageService: IStorageService
+		@IThemeService private themeService: IThemeService
 	) {
 		super(resource);
 	}
@@ -50,8 +50,8 @@ export class MarkdownEditorModel extends IFrameEditorModel {
 			// On Error: Show error to user as rendered HTML
 			let onError = (error: Error) => {
 				try {
-					let theme = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
-					let usesLightTheme = themes.isLightTheme(theme);
+					let theme = this.themeService.getTheme();
+					let usesLightTheme = isLightTheme(theme);
 
 					let markdownError = nls.localize('markdownError', "Unable to open '{0}' for Markdown rendering. Please make sure the file exists and that it is a valid Markdown file.", paths.basename(this.resource.fsPath));
 					this.setContents('<html><head><style type="text/css">body {color: ' + (usesLightTheme ? 'black' : 'white') + '; font-family: "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback"; font-size: 13px; margin: 0; line-height: 1.4em; padding-left: 20px;}</style></head><body>', markdownError, '</body></html>');

@@ -317,11 +317,6 @@ export class WindowsManager {
 			}
 		});
 
-		ipc.on('vscode:changeTheme', (event, theme: string) => {
-			this.sendToAll('vscode:changeTheme', theme);
-			storage.setItem(window.VSCodeWindow.themeStorageKey, theme);
-		});
-
 		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && broadcast.payload) {
 				if (target) {
