@@ -18,14 +18,9 @@ class LastRenderedData {
 	private _currentVisibleRange: Range;
 	private _bigNumbersDelta: number;
 
-	private _domNodeClientRectLeft: number;
-	private _domNodeClientRectLeftIsValid: boolean;
-
 	constructor() {
 		this._currentVisibleRange = new Range(1, 1, 1, 1);
 		this._bigNumbersDelta = 0;
-		this._domNodeClientRectLeft = 0;
-		this._domNodeClientRectLeftIsValid = false;
 	}
 
 	public getCurrentVisibleRange(): Range {
@@ -42,19 +37,6 @@ class LastRenderedData {
 
 	public setBigNumbersDelta(bigNumbersDelta:number): void {
 		this._bigNumbersDelta = bigNumbersDelta;
-	}
-
-	public getDomNodeClientRectLeft(domNode:HTMLElement): number {
-		if (!this._domNodeClientRectLeftIsValid) {
-			let boundingClientRect = domNode.getBoundingClientRect();
-			this._domNodeClientRectLeft = boundingClientRect.left;
-			this._domNodeClientRectLeftIsValid = true;
-		}
-		return this._domNodeClientRectLeft;
-	}
-
-	public resetDomNodeClientRectLeft(): void {
-		this._domNodeClientRectLeftIsValid = false;
 	}
 }
 
@@ -140,7 +122,6 @@ export class ViewLines extends ViewLayer {
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		var shouldRender = super.onLayoutChanged(layoutInfo);
 		this._maxLineWidth = 0;
-		this._lastRenderedData.resetDomNodeClientRectLeft();
 		return shouldRender;
 	}
 
@@ -261,7 +242,7 @@ export class ViewLines extends ViewLayer {
 		}
 
 		let visibleRanges:editorCommon.LineVisibleRanges[] = [];
-		let clientRectDeltaLeft = this._lastRenderedData.getDomNodeClientRectLeft(this.domNode.domNode);
+		let clientRectDeltaLeft = this.domNode.domNode.getBoundingClientRect().left;
 
 		let nextLineModelLineNumber:number;
 		if (includeNewLines) {
@@ -316,7 +297,7 @@ export class ViewLines extends ViewLayer {
 		}
 
 		let result:editorCommon.VisibleRange[] = [];
-		let clientRectDeltaLeft = this._lastRenderedData.getDomNodeClientRectLeft(this.domNode.domNode);
+		let clientRectDeltaLeft = this.domNode.domNode.getBoundingClientRect().left;
 		let bigNumbersDelta = this._lastRenderedData.getBigNumbersDelta();
 
 		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
@@ -414,18 +395,12 @@ export class ViewLines extends ViewLayer {
 		}
 
 		// (4) handle scrolling
-		let somethingChanged = false;
 		if (browser.canUseTranslate3d) {
 			var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-			somethingChanged = StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform) || somethingChanged; // TODO@Alex
+			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform);
 		} else {
-			somethingChanged = StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop) || somethingChanged; // TODO@Alex
-			somethingChanged = StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()) || somethingChanged; // TODO@Alex
-		}
-
-		// (5) reset cached client rect left if scrolling changed something
-		if (somethingChanged) {
-			this._lastRenderedData.resetDomNodeClientRectLeft();
+			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
+			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
 		}
 
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
