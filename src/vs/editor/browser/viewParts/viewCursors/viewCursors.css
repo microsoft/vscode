@@ -26,6 +26,7 @@
 /* -- block-style -- */
 .monaco-editor .cursors-layer.cursor-block-style > .cursor {
 	width: 1ch;
+	opacity: 0.75;
 }
 
 /* -- under-line-style -- */

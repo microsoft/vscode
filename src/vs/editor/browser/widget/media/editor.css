@@ -119,6 +119,7 @@
 .monaco-editor .view-lines {
 	cursor: text;
 	white-space: nowrap;
+	z-index: 1;
 }
 
 .monaco-editor .view-line {
