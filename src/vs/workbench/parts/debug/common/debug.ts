@@ -7,7 +7,9 @@ import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
+import { AdaptiveCollapsibleViewletView, CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import editor = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -345,6 +347,41 @@ export interface IDebugService extends ee.IEventEmitter {
 export interface IDebugEditorContribution extends editor.IEditorContribution {
 	showHover(range: editor.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void>;
 }
+
+// Debug view descriptors and registration
+
+export class DebugViewDescriptor extends SyncDescriptor<CollapsibleViewletView | AdaptiveCollapsibleViewletView> {
+	// constructor(ctorName: string, public id: string, public name: string, public cssClass: string) {
+	// 	super(ctorName);
+	// }
+}
+
+export interface IDebugViewRegistry {
+	registerDebugView(descriptor: DebugViewDescriptor): void;
+	getDebugViews(): DebugViewDescriptor[];
+}
+
+class DebugViewRegistryImpl implements IDebugViewRegistry {
+	private debugViews: DebugViewDescriptor[];
+
+	constructor() {
+		this.debugViews = [];
+	}
+
+	public registerDebugView(descriptor: DebugViewDescriptor): void {
+		if (this.debugViews.some(dsc => dsc.equals(descriptor))) {
+			return;
+		}
+
+		this.debugViews.push(descriptor);
+	}
+
+	public getDebugViews(): DebugViewDescriptor[] {
+		return this.debugViews;
+	}
+}
+
+export var DebugViewRegistry = <IDebugViewRegistry>new DebugViewRegistryImpl();
 
 // utils
 
