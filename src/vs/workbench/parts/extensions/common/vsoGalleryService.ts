@@ -228,6 +228,10 @@ export class GalleryService implements IGalleryService {
 
 		if (text) {
 			query = query.withFilter(FilterType.SearchText, text);
+		} else if (options.ids) {
+			options.ids.forEach(id => {
+				query = query.withFilter(FilterType.ExtensionName, id);
+			});
 		}
 
 		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
