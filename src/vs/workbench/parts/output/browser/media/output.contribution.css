@@ -7,17 +7,17 @@
 	background: url('clear_output.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .output-action.clear-output {
+.vs-dark .monaco-workbench .output-action.clear-output {
 	background: url('clear_output_inverse.svg') center center no-repeat;
 }
 
 /* High Contrast Theming */
 
-.monaco-workbench.hc-black .output-action.clear-output {
+.hc-black .monaco-workbench .output-action.clear-output {
 	background: none;
 }
 
-.monaco-workbench.hc-black .output-action.clear-output:before {
+.hc-black .monaco-workbench .output-action.clear-output:before {
 	content: url('clear_output_inverse.svg');
 	position: absolute;
 	top: 12px;

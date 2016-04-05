@@ -10,7 +10,6 @@ import {EventType} from 'vs/base/common/events';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import paths = require('vs/base/common/paths');
 import {EventType as EditorEventType, IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
-import {Preferences} from 'vs/workbench/common/constants';
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';

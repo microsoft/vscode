@@ -66,11 +66,11 @@
 }
 
 /* Theming */
-.monaco-workbench.vs-dark .explorer-viewlet .collapsible.header .action-close-all-files {
+.vs-dark .monaco-workbench .explorer-viewlet .collapsible.header .action-close-all-files {
 	background: url("closeall_inverse.svg") center center no-repeat;
 }
 
 /* High Contrast Theming */
-.monaco-workbench.hc-black .explorer-viewlet .explorer-item, .monaco-workbench.hc-black .explorer-viewlet .working-files-item {
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item, .hc-black .monaco-workbench .explorer-viewlet .working-files-item {
 	line-height: 20px;
 }

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.vs .monaco-editor-background {
+.vs .monaco-workbench .monaco-editor-background {
 	background-color: white;
 }
 
-.monaco-workbench.vs-dark .monaco-editor-background {
+.vs-dark .monaco-workbench .monaco-editor-background {
 	background-color: #1E1E1E;
 }
 
 /* High Contrast Theming */
-.monaco-workbench.hc-black .monaco-editor-background {
+.hc-black .monaco-workbench .monaco-editor-background {
 	background-color: #000;
 }
 
@@ -25,11 +25,11 @@
 	background-image: url('./letterpress.png');
 }
 
-.monaco-workbench.vs-dark .part.editor.empty {
+.vs-dark .monaco-workbench .part.editor.empty {
 	background-image: url('./letterpress-dark.png');
 }
 
-.monaco-workbench.hc-black .part.editor.empty {
+.hc-black .monaco-workbench .part.editor.empty {
 	background-image: url('./letterpress-dark.png');
 }
 
@@ -44,11 +44,11 @@
 		background-image: url('./letterpress@2x.png');
 	}
 
-	.monaco-workbench.vs-dark .part.editor.empty {
+	.vs-dark .monaco-workbench .part.editor.empty {
 		background-image: url('./letterpress-dark@2x.png');
 	}
 
-	.monaco-workbench.hc-black .part.editor.empty {
+	.hc-black .monaco-workbench .part.editor.empty {
 		background-image: url('./letterpress-dark@2x.png');
 	}
 }

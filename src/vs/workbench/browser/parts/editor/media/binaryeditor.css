@@ -20,22 +20,22 @@
 }
 
 /* CSS checkerbox pattern (learnt from http://lea.verou.me/2011/02/checkerboard-pattern-with-css3/*/
-.monaco-workbench.vs .binary-container img {
+.vs .monaco-workbench .binary-container img {
 	background-image:
 		linear-gradient(45deg, rgb(220, 220, 220) 25%, transparent 25%, transparent 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220)),
 		linear-gradient(45deg, rgb(220, 220, 220) 25%, transparent 25%, transparent 75%, rgb(220, 220, 220) 75%, rgb(220, 220, 220));
 }
 
-.monaco-workbench.vs-dark .binary-container img {
+.vs-dark .monaco-workbench .binary-container img {
 	background-image:
 		linear-gradient(45deg, rgb(80, 80, 80) 25%, transparent 25%, transparent 75%, rgb(80, 80, 80) 75%, rgb(80, 80, 80)),
 		linear-gradient(45deg, rgb(80, 80, 80) 25%, transparent 25%, transparent 75%, rgb(80, 80, 80) 75%, rgb(80, 80, 80));
 }
 
-.monaco-workbench.vs .binary-container {
+.vs .monaco-workbench .binary-container {
 	background-color: white;
 }
 
-.monaco-workbench.vs-dark .binary-container {
+.vs-dark .monaco-workbench .binary-container {
 	background-color: #1E1E1E;
 }

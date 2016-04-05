@@ -10,10 +10,10 @@
 .monaco-workbench .sidebar .separator 	{ background-color: #EFEFF2; }
 
 /* Input Fields */
-.monaco-workbench.vs input {
+.vs .monaco-workbench input {
 	background-color: white;
 }
 
-.monaco-workbench.vs input:disabled {
+.vs .monaco-workbench input:disabled {
 	background-color: #E1E1E1;
 }
