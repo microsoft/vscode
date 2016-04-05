@@ -34,6 +34,7 @@ export class Engine implements ISearchEngine {
 	private isDone: boolean;
 	private total: number;
 	private worked: number;
+	private progressed: number;
 	private walkerError: Error;
 	private walkerIsDone: boolean;
 	private fileEncoding: string;
@@ -48,6 +49,7 @@ export class Engine implements ISearchEngine {
 		this.limitReached = false;
 		this.maxResults = config.maxResults;
 		this.worked = 0;
+		this.progressed = 0;
 		this.total = 0;
 		this.fileEncoding = encodingExists(config.fileEncoding) ? config.fileEncoding : UTF8;
 	}
@@ -60,14 +62,19 @@ export class Engine implements ISearchEngine {
 	public search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 		let resultCounter = 0;
 
+		let progress = () => {
+			this.progressed++;
+			if (this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
+				onProgress({ total: this.total, worked: this.worked }); // buffer progress in chunks to reduce pressure
+			}
+		};
+
 		let unwind = (processed: number) => {
 			this.worked += processed;
 
 			// Emit progress() unless we got canceled or hit the limit
 			if (processed && !this.isDone && !this.isCanceled && !this.limitReached) {
-				if (this.worked % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
-					onProgress({ total: this.total, worked: this.worked });
-				}
+				progress();
 			}
 
 			// Emit done()
@@ -78,18 +85,17 @@ export class Engine implements ISearchEngine {
 		};
 
 		// Walk over the file system
-		this.walker.walk(this.rootFolders, this.extraFiles, (result) => {
-			this.total++;
+		this.walker.walk(this.rootFolders, this.extraFiles, (result, size) => {
+			size = size ||  1;
+			this.total += size;
 
 			// If the result is empty or we have reached the limit or we are canceled, ignore it
 			if (this.limitReached || this.isCanceled) {
-				return unwind(1);
+				return unwind(size);
 			}
 
 			// Indicate progress to the outside
-			if (this.worked % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
-				onProgress({ total: this.total, worked: this.worked });
-			}
+			progress();
 
 			let fileMatch: FileMatch = null;
 
@@ -98,7 +104,7 @@ export class Engine implements ISearchEngine {
 					onResult(fileMatch.serialize());
 				}
 
-				return unwind(1);
+				return unwind(size);
 			};
 
 			let perLineCallback = (line: string, lineNumber: number) => {

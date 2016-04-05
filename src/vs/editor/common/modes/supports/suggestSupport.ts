@@ -7,8 +7,8 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
-import {ILineContext, IMode, ISuggestResult, ISuggestSupport, ISuggestion, ISuggestionFilter} from 'vs/editor/common/modes';
-import {DefaultFilter, StrictPrefix} from 'vs/editor/common/modes/modesFilters';
+import {ILineContext, IMode, ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
+import {IFilter, matchesStrictPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -60,10 +60,6 @@ export class SuggestSupport implements ISuggestSupport {
 		});
 	}
 
-	public getFilter(): ISuggestionFilter {
-		return DefaultFilter;
-	}
-
 	public getTriggerCharacters(): string[] {
 		return this.contribution.triggerCharacters;
 	}
@@ -87,8 +83,8 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		return this._editorWorkerService.textualSuggest(resource, position);
 	}
 
-	public getFilter(): ISuggestionFilter {
-		return StrictPrefix;
+	public get filter(): IFilter {
+		return matchesStrictPrefix;
 	}
 
 	public getTriggerCharacters(): string[] {
@@ -171,12 +167,12 @@ export function filterSuggestions(value: ISuggestResult): ISuggestResult[] {
 		return;
 	}
 	// filter suggestions
-	var accept = DefaultFilter,
+	var accept = fuzzyContiguousFilter,
 		result: ISuggestResult[] = [];
 
 	result.push({
 		currentWord: value.currentWord,
-		suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
+		suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element.label)),
 		incomplete: value.incomplete
 	});
 

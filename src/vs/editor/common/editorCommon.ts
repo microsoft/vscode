@@ -1188,6 +1188,46 @@ export interface ICursorStateComputer {
 /**
  * A token on a line.
  */
+export class ViewLineToken {
+	public _viewLineTokenTrait: void;
+
+	public startIndex:number;
+	public type:string;
+
+	constructor(startIndex:number, type:string) {
+		this.startIndex = startIndex|0;// @perf
+		this.type = type.replace(/[^a-z0-9\-]/gi, ' ');
+	}
+
+	public equals(other:ViewLineToken): boolean {
+		return (
+			this.startIndex === other.startIndex
+			&& this.type === other.type
+		);
+	}
+
+	public static findIndexInSegmentsArray(arr:ViewLineToken[], desiredIndex: number): number {
+		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
+	}
+
+	public static equalsArray(a:ViewLineToken[], b:ViewLineToken[]): boolean {
+		let aLen = a.length;
+		let bLen = b.length;
+		if (aLen !== bLen) {
+			return false;
+		}
+		for (let i = 0; i < aLen; i++) {
+			if (!a[i].equals(b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
+/**
+ * A token on a line.
+ */
 export class LineToken {
 	public _lineTokenTrait: void;
 
@@ -1196,7 +1236,7 @@ export class LineToken {
 
 	constructor(startIndex:number, type:string) {
 		this.startIndex = startIndex|0;// @perf
-		this.type = type.replace(/[^a-z0-9\-]/gi, ' ');
+		this.type = type;
 	}
 
 	public equals(other:LineToken): boolean {
@@ -2547,17 +2587,17 @@ export interface IConfiguration {
 export class ViewLineTokens {
 	_viewLineTokensTrait: void;
 
-	private _lineTokens:LineToken[];
+	private _lineTokens:ViewLineToken[];
 	private _fauxIndentLength:number;
 	private _textLength:number;
 
-	constructor(lineTokens:LineToken[], fauxIndentLength:number, textLength:number) {
+	constructor(lineTokens:ViewLineToken[], fauxIndentLength:number, textLength:number) {
 		this._lineTokens = lineTokens;
 		this._fauxIndentLength = fauxIndentLength|0;
 		this._textLength = textLength|0;
 	}
 
-	public getTokens(): LineToken[] {
+	public getTokens(): ViewLineToken[] {
 		return this._lineTokens;
 	}
 
@@ -2573,12 +2613,12 @@ export class ViewLineTokens {
 		return (
 			this._fauxIndentLength === other._fauxIndentLength
 			&& this._textLength === other._textLength
-			&& LineToken.equalsArray(this._lineTokens, other._lineTokens)
+			&& ViewLineToken.equalsArray(this._lineTokens, other._lineTokens)
 		);
 	}
 
 	public findIndexOfOffset(offset:number): number {
-		return LineToken.findIndexInSegmentsArray(this._lineTokens, offset);
+		return ViewLineToken.findIndexInSegmentsArray(this._lineTokens, offset);
 	}
 }
 

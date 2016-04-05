@@ -64,13 +64,13 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
 		let titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('workingFiles', "Working Files")).appendTo(titleDiv);
 
 		this.dirtyCountElement = $('div.monaco-count-badge').appendTo(titleDiv).hide().getHTMLElement();
 		this.updateDirtyIndicator();
+
+		super.renderHeader(container);
 	}
 
 	public getActions(): IAction[] {

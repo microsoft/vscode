@@ -49,29 +49,29 @@ declare module DebugProtocol {
 
 	/** Event message for "initialized" event type.
 		This event indicates that the debug adapter is ready to accept configuration requests (e.g. SetBreakpointsRequest, SetExceptionBreakpointsRequest).
-		A debug adapter is expected to send this event when it is ready to accept configuration requests.
+		A debug adapter is expected to send this event when it is ready to accept configuration requests (but not before the InitializeRequest has finished).
 		The sequence of events/requests is as follows:
-		- adapters sends InitializedEvent (at any time)
+		- adapters sends InitializedEvent (after the InitializeRequest has returned)
 		- frontend sends zero or more SetBreakpointsRequest
 		- frontend sends one SetFunctionBreakpointsRequest
 		- frontend sends a SetExceptionBreakpointsRequest if one or more exceptionBreakpointFilters have been defined (or if supportsConfigurationDoneRequest is not defined or false)
-		- frontend sends other configuration requests that are added in the future
-		- frontend sends one ConfigurationDoneRequest
+		- frontend sends other future configuration requests
+		- frontend sends one ConfigurationDoneRequest to indicate the end of the configuration
 	*/
 	export interface InitializedEvent extends Event {
 	}
 
 	/** Event message for "stopped" event type.
-		The event indicates that the execution of the debuggee has stopped due to a break condition.
-		This can be caused by a break point previously set, a stepping action has completed or by executing a debugger statement.
+		The event indicates that the execution of the debuggee has stopped due to some condition.
+		This can be caused by a break point previously set, a stepping action has completed, by executing a debugger statement etc.
 	*/
 	export interface StoppedEvent extends Event {
 		body: {
-			/** The reason for the event (such as: 'step', 'breakpoint', 'exception', 'pause') */
+			/** The reason for the event (such as: 'step', 'breakpoint', 'exception', 'pause'). This string is shown in the UI. */
 			reason: string;
 			/** The thread which was stopped. */
 			threadId?: number;
-			/** Additional information. E.g. if reason is 'exception', text contains the exception name. */
+			/** Additional information. E.g. if reason is 'exception', text contains the exception name. This string is shown in the UI. */
 			text?: string;
 			/** If allThreadsStopped is true, a debug adapter can announce that all threads have stopped.
 			 *  The client should use this information to enable that all threads can be expanded to access their stacktraces.
@@ -382,7 +382,7 @@ declare module DebugProtocol {
 	export interface StackTraceArguments {
 		/** Retrieve the stacktrace for this thread. */
 		threadId: number;
-		/** the index of the first frames to return; if omitted frames start at 0. */
+		/** The index of the first frame to return; if omitted frames start at 0. */
 		startFrame?: number;
 		/** The maximum number of frames to return. If levels is not specified or 0, all frames are returned. */
 		levels?: number;

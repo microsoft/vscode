@@ -144,9 +144,13 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		if (this.stopServerPending && force) {
 			return this.stopServer();
 		}
+
 		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.sentPromises.forEach(p => p.cancel());
-		this.sentPromises = [];
+		// Give a 1s timeout to give a chance for some promises to complete.
+		setTimeout(() => {
+			this.sentPromises.forEach(p => p.cancel());
+			this.sentPromises = [];
+		}, 1000);
 
 		if ((this.serverProcess || this.socket) && !this.stopServerPending) {
 			// point of no return: from now on don't report any errors
@@ -215,6 +219,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			this.socket.on('error', (err: any) => {
 				e(err);
 			});
+			this.socket.on('close', () => this.onServerExit());
 		});
 	}
 

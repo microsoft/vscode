@@ -66,9 +66,10 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('variables', "Variables")).appendTo(titleDiv);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -143,9 +144,10 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('watch', "Watch")).appendTo(titleDiv);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -213,12 +215,13 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
 		const title = $('div.debug-call-stack-title').appendTo(container);
 		$('span.title').text(nls.localize('callStack', "Call Stack")).appendTo(title);
 		this.pauseMessage = $('span.pause-message').appendTo(title);
 		this.pauseMessage.hide();
 		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -262,7 +265,12 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 			if (typeof element === 'number') {
 				const thread = this.debugService.getModel().getThreads()[element];
 				if (thread) {
-					thread.getCallStack(this.debugService, true).then(() => this.tree.refresh()).done(null, errors.onUnexpectedError);
+					thread.getCallStack(this.debugService, true)
+					.then(() => this.tree.refresh())
+					.then(() => {
+						this.tree.clearFocus();
+						this.tree.clearSelection();
+					}).done(null, errors.onUnexpectedError);
 				}
 			}
 		}));
@@ -283,11 +291,12 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
 			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
 			if (!focussedThread) {
+				this.pauseMessage.hide();
 				return;
 			}
 
 			this.tree.expand(focussedThread);
-			this.tree.select(this.debugService.getViewModel().getFocusedStackFrame());
+			this.tree.setFocus(this.debugService.getViewModel().getFocusedStackFrame());
 			if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
 				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
 				if (focussedThread.stoppedDetails.text) {
@@ -326,9 +335,10 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('breakpoints', "Breakpoints")).appendTo(titleDiv);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {

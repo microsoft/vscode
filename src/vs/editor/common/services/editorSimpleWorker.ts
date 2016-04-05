@@ -9,13 +9,13 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IRequestHandler} from 'vs/base/common/worker/simpleWorker';
 import {Range} from 'vs/editor/common/core/range';
+import {fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion} from 'vs/editor/common/modes';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
-import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {BasicInplaceReplace} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import {EditorSimpleWorker, IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 
@@ -214,12 +214,11 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 
 	private _suggestFiltered(model:MirrorModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult[] {
 		let value = this._suggestUnfiltered(model, position, wordDefRegExp);
-		let accept = DefaultFilter;
 
 		// filter suggestions
 		return [{
 			currentWord: value.currentWord,
-			suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
+			suggestions: value.suggestions.filter((element) => !!fuzzyContiguousFilter(value.currentWord, element.label)),
 			incomplete: value.incomplete
 		}];
 	}

@@ -240,10 +240,6 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return 'variable';
 	}
 
-	getFilter(): modes.ISuggestionFilter {
-		return;
-	}
-
 	getTriggerCharacters(): string[] {
 		return ['.'];
 	}

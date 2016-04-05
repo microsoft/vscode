@@ -27,14 +27,15 @@
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions {
-	float: right;
+	flex: 1;
 	padding-right: 8px;
-	width: 0; /* not using display: none for keyboard a11y reasons */
+	padding-left: 5px;
+	visibility: collapse; /* not using display: none for keyboard a11y reasons */
 }
 
 .monaco-workbench .viewlet .split-view-view:hover .actions,
 .monaco-workbench .viewlet .collapsible.header.focused .actions {
-	width: initial;
+	visibility: initial;
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions .action-label {

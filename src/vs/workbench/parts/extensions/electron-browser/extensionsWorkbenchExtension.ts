@@ -66,7 +66,8 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 					'GalleryExtensionsHandler',
 					'ext install ',
-					nls.localize('galleryExtensionsCommands', "Install Gallery Extensions")
+					nls.localize('galleryExtensionsCommands', "Install Gallery Extensions"),
+					true
 				)
 			);
 

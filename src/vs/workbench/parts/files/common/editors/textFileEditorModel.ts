@@ -674,7 +674,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		}
 	}
 
-	private updatePreferredEncoding(encoding: string): void {
+	public updatePreferredEncoding(encoding: string): void {
 		if (!this.isNewEncoding(encoding)) {
 			return;
 		}

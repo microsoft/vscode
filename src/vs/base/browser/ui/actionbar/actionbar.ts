@@ -262,7 +262,7 @@ export class ActionItem extends BaseActionItem {
 			title = this.getAction().label;
 
 			if (this.options.keybinding) {
-				title = nls.localize('titleLabel', "{0} ({1})", title, this.options.keybinding);
+				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding']}, "{0} ({1})", title, this.options.keybinding);
 			}
 		}
 

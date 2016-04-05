@@ -5,7 +5,6 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
@@ -579,9 +578,6 @@ class SuggestAdapter implements modes.ISuggestSupport {
 		});
 	}
 
-	getFilter(): any {
-		throw new Error('illegal state');
-	}
 	getTriggerCharacters(): string[] {
 		throw new Error('illegal state');
 	}
@@ -1034,9 +1030,6 @@ export class MainThreadLanguageFeatures {
 			},
 			getSuggestionDetails: (resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> => {
 				return this._proxy.$getSuggestionDetails(handle, resource, position, suggestion);
-			},
-			getFilter() {
-				return DefaultFilter;
 			},
 			getTriggerCharacters(): string[] {
 				return triggerCharacters;

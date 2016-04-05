@@ -261,7 +261,7 @@ function prepareDebPackage(arch) {
 	return function () {
 		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('usr/bin/' + product.applicationName));
+			.pipe(rename('usr/share/' + product.applicationName + '/bin/' + product.applicationName));
 
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -308,6 +308,7 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
+		'chmod 755 vscode-' + debArch + '/DEBIAN/postinst ' + 'vscode-' + debArch + '/DEBIAN/prerm',
 		'mkdir -p deb',
 		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-' + debArch + '.deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
@@ -336,7 +337,7 @@ function prepareRpmPackage(arch) {
 	return function () {
 		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('BUILD/usr/bin/' + product.applicationName));
+			.pipe(rename('BUILD/usr/share/' + product.applicationName + '/bin/' + product.applicationName));
 
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))

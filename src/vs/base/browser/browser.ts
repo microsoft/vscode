@@ -116,42 +116,6 @@ export function hasCSSAnimationSupport() {
 	return this._hasCSSAnimationSupport;
 }
 
-/**
- * Returns if the browser supports the provided video mime type or not.
- */
-export function canPlayVideo(type: string) {
-	if (!globals.document) {
-		return false;
-	}
-
-	let video: HTMLVideoElement = <HTMLVideoElement>globals.document.createElement('video');
-	if (video.canPlayType) {
-		let canPlay = video.canPlayType(type);
-
-		return canPlay === 'maybe' || canPlay === 'probably';
-	}
-
-	return false;
-}
-
-/**
- * Returns if the browser supports the provided audio mime type or not.
- */
-export function canPlayAudio(type: string) {
-	if (!globals.document) {
-		return false;
-	}
-
-	let audio: HTMLAudioElement = <HTMLAudioElement>globals.document.createElement('audio');
-	if (audio.canPlayType) {
-		let canPlay = audio.canPlayType(type);
-
-		return canPlay === 'maybe' || canPlay === 'probably';
-	}
-
-	return false;
-}
-
 export function isInWebWorker(): boolean {
 	return !globals.document && typeof ((<any>globals).importScripts) !== 'undefined';
 }

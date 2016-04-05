@@ -7,14 +7,17 @@ import nls = require('vs/nls');
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isNumber } from 'vs/base/common/types';
+import { PagedModel, mapPager } from 'vs/base/common/paging';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IContext, IAccessiblityProvider } from 'vs/base/parts/quickopen/common/quickOpen';
+import { QuickOpenPagedModel, IPagedRenderer } from 'vs/base/parts/quickopen/common/quickOpenPaging';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IExtensionsService, IGalleryService, IExtensionTipsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, IGalleryService, IExtensionTipsService, IExtension, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
 import { InstallAction, UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -61,13 +64,13 @@ interface ITemplateData {
 	disposables: IDisposable[];
 }
 
-function getHighlights(input: string, extension: IExtension): IHighlights {
+function getHighlights(input: string, extension: IExtension, nullIfEmpty = true): IHighlights {
 	const id = matchesContiguousSubString(input, `${ extension.publisher }.${ extension.name }`) || [];
 	const name = matchesContiguousSubString(input, extension.name) || [];
 	const displayName = matchesContiguousSubString(input, extension.displayName) || [];
 	const description = matchesContiguousSubString(input, extension.description) || [];
 
-	if (!id.length && !name.length && !displayName.length && !description.length) {
+	if (nullIfEmpty && !id.length && !name.length && !displayName.length && !description.length) {
 		return null;
 	}
 
@@ -178,7 +181,7 @@ class AccessibilityProvider implements IAccessiblityProvider<IExtensionEntry> {
 	}
 }
 
-class Renderer implements IRenderer<IExtensionEntry> {
+class Renderer implements IPagedRenderer<IExtensionEntry> {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -216,7 +219,23 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		};
 	}
 
+	renderPlaceholder(index: number, templateId: string, data: ITemplateData): void {
+		dom.addClass(data.root, 'loading');
+
+		data.author.textContent = nls.localize('author', 'Author');
+		data.displayName.set(nls.localize('name', 'Name'));
+		data.version.textContent = '0.0.1';
+		data.installCount.textContent = '';
+		dom.removeClass(data.installCount, 'octicon');
+		dom.removeClass(data.installCount, 'octicon-cloud-download');
+		data.actionbar.clear();
+		data.description.set(nls.localize('description', 'Description'));
+		data.disposables = dispose(data.disposables);
+	}
+
 	renderElement(entry: IExtensionEntry, templateId: string, data: ITemplateData): void {
+		dom.removeClass(data.root, 'loading');
+
 		const extension = entry.extension;
 		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
 		const installCount = extension.galleryInformation ? extension.galleryInformation.installCount : null;
@@ -394,18 +413,15 @@ class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 	public entries: IExtensionEntry[];
 
 	constructor(
+		input: string,
 		private galleryExtensions: IExtension[],
 		private localExtensions: IExtension[],
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.renderer = instantiationService.createInstance(Renderer);
 		this.runner = instantiationService.createInstance(InstallRunner);
-		this.entries = [];
-	}
-
-	public set input(input: string) {
 		this.entries = this.galleryExtensions
-			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
+			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension, false) }))
 			.filter(({ highlights }) => !!highlights)
 			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
 				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
@@ -417,14 +433,13 @@ class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 						? (local.version === extension.version ? ExtensionState.Installed : ExtensionState.Outdated)
 						: ExtensionState.Uninstalled
 				};
-			})
-			.sort(extensionEntryCompare);
+			});
 	}
 }
 
 export class GalleryExtensionsHandler extends QuickOpenHandler {
 
-	private modelPromise: TPromise<GalleryExtensionsModel>;
+	private delayer: ThrottledDelayer<any>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -433,27 +448,28 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super();
+		this.delayer = new ThrottledDelayer(500);
 	}
 
 	public getAriaLabel(): string {
 		return nls.localize('galleryExtensionsHandlerAriaLabel', "Type to narrow down the list of extensions from the gallery");
 	}
 
-	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
-		if (!this.modelPromise) {
-			this.telemetryService.publicLog('extensionGallery:open');
-			this.modelPromise = TPromise.join<any>([this.galleryService.query(), this.extensionsService.getInstalled()])
-				.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, result[0], result[1]));
-		}
+	getResults(text: string): TPromise<IModel<number>> {
+		return this.delayer.trigger(() => this.galleryService.query({ text })).then((result: IQueryResult) => {
+			const pager = mapPager(result, extension => ({
+				extension,
+				highlights: getHighlights(text.trim(), extension, false),
+				state: ExtensionState.Uninstalled
+			}));
 
-		return this.modelPromise.then(model => {
-			model.input = input;
-			return model;
+			return new QuickOpenPagedModel<IExtensionEntry>(
+				new PagedModel(pager),
+				new DataSource(),
+				this.instantiationService.createInstance(Renderer),
+				this.instantiationService.createInstance(InstallRunner)
+			);
 		});
-	}
-
-	onClose(canceled: boolean): void {
-		this.modelPromise = null;
 	}
 
 	getEmptyLabel(input: string): string {
@@ -486,7 +502,7 @@ class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 		this.entries = this.outdatedExtensions
 			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
 			.filter(({ highlights }) => !!highlights)
-			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => ({
+			.map(({ extension, highlights }) => ({
 				extension,
 				highlights,
 				state: ExtensionState.Outdated

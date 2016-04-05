@@ -6,7 +6,7 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {LineToken, IModel} from 'vs/editor/common/editorCommon';
+import {ViewLineToken, IModel} from 'vs/editor/common/editorCommon';
 import {ILineTokens, IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IRenderLineOutput, renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -92,7 +92,7 @@ export class Colorizer {
 		return result;
 	}
 
-	public static colorizeLine(line:string, tokens:LineToken[], tabSize:number = 4): string {
+	public static colorizeLine(line:string, tokens:ViewLineToken[], tabSize:number = 4): string {
 		var renderResult = renderLine(new RenderLineInput(
 			line,
 			tabSize,
@@ -143,7 +143,7 @@ function actualColorize(lines:string[], mode:IMode, tabSize:number): IActualColo
 			0,
 			-1,
 			false,
-			tokenizeResult.tokens.map(t => new LineToken(t.startIndex, t.type))
+			tokenizeResult.tokens.map(t => new ViewLineToken(t.startIndex, t.type))
 		));
 
 		html = html.concat(renderResult.output);

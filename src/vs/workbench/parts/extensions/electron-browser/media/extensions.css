@@ -8,6 +8,14 @@
 	height: 48px;
 }
 
+.quick-open-widget .extension.loading {
+	background: url('loading.svg') center center no-repeat;
+}
+
+.quick-open-widget .extension.loading > * {
+	opacity: 0.4;
+}
+
 .quick-open-widget .extension .row {
 	display: block;
 	overflow: hidden;

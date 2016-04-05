@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMatch} from 'vs/base/common/filters';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IFilter} from 'vs/base/common/filters';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
@@ -365,11 +365,6 @@ export interface ISuggestResult {
 	incomplete?: boolean;
 }
 
-export interface ISuggestionFilter {
-	// Should return whether `suggestion` is a good suggestion for `word`
-	(word: string, suggestion: ISuggestion): IMatch[];
-}
-
 /**
  * Interface used to get completion suggestions at a specific location.
  */
@@ -385,7 +380,7 @@ export interface ISuggestSupport {
 	 */
 	getSuggestionDetails?: (resource: URI, position: editorCommon.IPosition, suggestion: ISuggestion) => TPromise<ISuggestion>;
 
-	getFilter(): ISuggestionFilter;
+	filter?: IFilter;
 	getTriggerCharacters(): string[];
 	shouldShowEmptySuggestionList(): boolean;
 	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean;

@@ -6,12 +6,12 @@
 
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {LineToken, IEditorRange, ViewLineTokens} from 'vs/editor/common/editorCommon';
+import {ViewLineToken, IEditorRange, ViewLineTokens} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 
 export interface ILineParts {
 
-	getParts(): LineToken[];
+	getParts(): ViewLineToken[];
 
 	equals(other:ILineParts): boolean;
 
@@ -38,7 +38,7 @@ export function createLineParts(lineNumber:number, minLineColumn:number, lineCon
 	}
 }
 
-function trimEmptyTrailingPart(parts: LineToken[], lineContent: string): LineToken[] {
+function trimEmptyTrailingPart(parts: ViewLineToken[], lineContent: string): ViewLineToken[] {
 	if (parts.length <= 1) {
 		return parts;
 	}
@@ -133,7 +133,7 @@ function insertWhitespace(lineNumber:number, lineContent: string, tabSize:number
 export class FastViewLineParts implements ILineParts {
 
 	private lineTokens: ViewLineTokens;
-	private parts: LineToken[];
+	private parts: ViewLineToken[];
 
 	constructor(lineTokens:ViewLineTokens, lineContent:string) {
 		this.lineTokens = lineTokens;
@@ -141,7 +141,7 @@ export class FastViewLineParts implements ILineParts {
 		this.parts = trimEmptyTrailingPart(this.parts, lineContent);
 	}
 
-	public getParts(): LineToken[]{
+	public getParts(): ViewLineToken[]{
 		return this.parts;
 	}
 
@@ -161,7 +161,7 @@ export class FastViewLineParts implements ILineParts {
 
 export class ViewLineParts implements ILineParts {
 
-	private parts:LineToken[];
+	private parts:ViewLineToken[];
 	private lastPartIndex:number;
 	private lastEndOffset:number;
 
@@ -177,7 +177,7 @@ export class ViewLineParts implements ILineParts {
 			currentTokenEndOffset:number,
 			currentTokenClassName:string;
 
-		var parts:LineToken[] = [];
+		var parts:ViewLineToken[] = [];
 
 		for (var i = 0, len = actualLineTokens.length; i < len; i++) {
 			nextStartOffset = actualLineTokens[i].startIndex;
@@ -187,11 +187,11 @@ export class ViewLineParts implements ILineParts {
 			while (lineDecorationsIndex < lineDecorationsLength && lineDecorations[lineDecorationsIndex].startOffset < currentTokenEndOffset) {
 				if (lineDecorations[lineDecorationsIndex].startOffset > nextStartOffset) {
 					// the first decorations starts after the token
-					parts.push(new LineToken(nextStartOffset, currentTokenClassName));
+					parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName));
 					nextStartOffset = lineDecorations[lineDecorationsIndex].startOffset;
 				}
 
-				parts.push(new LineToken(nextStartOffset, currentTokenClassName + ' ' + lineDecorations[lineDecorationsIndex].className));
+				parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName + ' ' + lineDecorations[lineDecorationsIndex].className));
 
 				if (lineDecorations[lineDecorationsIndex].endOffset >= currentTokenEndOffset) {
 					// this decoration goes on to the next token
@@ -205,7 +205,7 @@ export class ViewLineParts implements ILineParts {
 			}
 
 			if (nextStartOffset < currentTokenEndOffset) {
-				parts.push(new LineToken(nextStartOffset, currentTokenClassName));
+				parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName));
 			}
 		}
 
@@ -214,7 +214,7 @@ export class ViewLineParts implements ILineParts {
 		this.lastEndOffset = currentTokenEndOffset;
 	}
 
-	public getParts(): LineToken[] {
+	public getParts(): ViewLineToken[] {
 		return this.parts;
 	}
 
