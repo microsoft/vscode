@@ -7,7 +7,7 @@
 import * as browser from 'vs/base/browser/browser';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
-import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
+import {ILineParts, createLineParts, getColumnOfLinePartOffset} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
@@ -244,7 +244,7 @@ export class ViewLine implements IVisibleLineData {
 		if (startColumn === 1 && endColumn === this._charOffsetInPart.length) {
 			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
 
-			return [this._readRawVisibleRangeForEntireLine()];
+			return [new HorizontalRange(0, this.getWidth())];
 		}
 
 		let startPartIndex = findIndexInArrayWithMax(this._lineParts, startColumn - 1, this._lastRenderedPartIndex);
@@ -255,10 +255,6 @@ export class ViewLine implements IVisibleLineData {
 		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
 	}
 
-	private _readRawVisibleRangeForEntireLine(): HorizontalRange {
-		return new HorizontalRange(0, this._getReadingTarget().offsetWidth);
-	}
-
 	protected _getScaleRatio(): number {
 		return 1;
 	}
@@ -267,6 +263,8 @@ export class ViewLine implements IVisibleLineData {
 	 * Returns the column for the text found at a specific offset inside a rendered dom node
 	 */
 	public getColumnOfNodeOffset(lineNumber:number, spanNode:HTMLElement, offset:number): number {
+		let spanNodeTextContentLength = spanNode.textContent.length;
+
 		let spanIndex = -1;
 		while (spanNode) {
 			spanNode = <HTMLElement>spanNode.previousSibling;
@@ -274,81 +272,15 @@ export class ViewLine implements IVisibleLineData {
 		}
 		let lineParts = this._lineParts.getParts();
 
-		if (spanIndex >= lineParts.length) {
-			return this._stopRenderingLineAfter;
-		}
-
-		if (offset === 0) {
-			return lineParts[spanIndex].startIndex + 1;
-		}
-
-		let originalMin = lineParts[spanIndex].startIndex;
-		let originalMax:number;
-		let originalMaxStartOffset:number;
-
-		if (spanIndex + 1 < lineParts.length) {
-			// Stop searching characters at the beginning of the next part
-			originalMax = lineParts[spanIndex + 1].startIndex;
-			originalMaxStartOffset = this._charOffsetInPart[originalMax - 1] + this._charOffsetInPart[originalMax];
-		} else {
-			originalMax = this._context.model.getLineMaxColumn(lineNumber) - 1;
-			originalMaxStartOffset = this._charOffsetInPart[originalMax];
-		}
-
-		let min = originalMin;
-		let max = originalMax;
-
-		if (this._stopRenderingLineAfter !== -1) {
-			max = Math.min(this._stopRenderingLineAfter - 1, originalMax);
-		}
-
-		let nextStartOffset:number;
-		let prevStartOffset:number;
-
-		// Here are the variables and their relation plotted on an axis
-
-		// prevStartOffset    a    midStartOffset    b    nextStartOffset
-		// ------|------------|----------|-----------|-----------|--------->
-
-		// Everything in (a;b] will match mid
-
-		while (min < max) {
-			let mid = Math.floor( (min + max) / 2 );
-			let midStartOffset = this._charOffsetInPart[mid];
-
-			if (mid === originalMax) {
-				// Using Number.MAX_VALUE to ensure that any offset after midStartOffset will match mid
-				nextStartOffset = Number.MAX_VALUE;
-			} else if (mid + 1 === originalMax) {
-				// mid + 1 is already in next part and might have the _charOffsetInPart = 0
-				nextStartOffset = originalMaxStartOffset;
-			} else {
-				nextStartOffset = this._charOffsetInPart[mid + 1];
-			}
-
-			if (mid === originalMin) {
-				// Using Number.MIN_VALUE to ensure that any offset before midStartOffset will match mid
-				prevStartOffset = Number.MIN_VALUE;
-			} else {
-				prevStartOffset = this._charOffsetInPart[mid - 1];
-			}
-
-			let a = (prevStartOffset + midStartOffset) / 2;
-			let b = (midStartOffset + nextStartOffset) / 2;
-
-			if (a < offset && offset <= b) {
-				// Hit!
-				return mid + 1;
-			}
-
-			if (offset <= a) {
-				max = mid - 1;
-			} else {
-				min = mid + 1;
-			}
-		}
-
-		return min + 1;
+		return getColumnOfLinePartOffset(
+			this._stopRenderingLineAfter,
+			lineParts,
+			this._context.model.getLineMaxColumn(lineNumber),
+			this._charOffsetInPart,
+			spanIndex,
+			spanNodeTextContentLength,
+			offset
+		);
 	}
 }
 

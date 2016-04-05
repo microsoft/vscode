@@ -38,6 +38,56 @@ export function createLineParts(lineNumber:number, minLineColumn:number, lineCon
 	}
 }
 
+export function getColumnOfLinePartOffset(stopRenderingLineAfter:number, lineParts:ViewLineToken[], lineMaxColumn:number, charOffsetInPart:number[], partIndex:number, partLength:number, offset:number): number {
+	if (partIndex >= lineParts.length) {
+		return stopRenderingLineAfter;
+	}
+
+	if (offset === 0) {
+		return lineParts[partIndex].startIndex + 1;
+	}
+
+	if (offset === partLength) {
+		return (partIndex + 1 < lineParts.length ? lineParts[partIndex + 1].startIndex + 1 : lineMaxColumn);
+	}
+
+	let originalMin = lineParts[partIndex].startIndex;
+	let originalMax = (partIndex + 1 < lineParts.length ? lineParts[partIndex + 1].startIndex : lineMaxColumn - 1);
+
+	let min = originalMin;
+	let max = originalMax;
+
+	// invariant: offsetOf(min) <= offset <= offsetOf(max)
+	while (min + 1 < max) {
+		let mid = Math.floor( (min + max) / 2 );
+		let midOffset = charOffsetInPart[mid];
+
+		if (midOffset === offset) {
+			return mid + 1;
+		} else if (midOffset > offset) {
+			max = mid;
+		} else {
+			min = mid;
+		}
+	}
+
+	if (min === max) {
+		return min + 1;
+	}
+
+	let minOffset = charOffsetInPart[min];
+	let maxOffset = (max < originalMax ? charOffsetInPart[max] : partLength);
+
+	let distanceToMin = offset - minOffset;
+	let distanceToMax = maxOffset - offset;
+
+	if (distanceToMin <= distanceToMax) {
+		return min + 1;
+	} else {
+		return max + 1;
+	}
+}
+
 function trimEmptyTrailingPart(parts: ViewLineToken[], lineContent: string): ViewLineToken[] {
 	if (parts.length <= 1) {
 		return parts;
