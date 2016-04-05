@@ -51,14 +51,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getRecommendations(): Promise<IExtension[]> {
-		return this._galleryService.query()
-			.then(null, () => [])
-			.then(available => toObject(available, ext => `${ext.publisher}.${ext.name}`))
-			.then(available => {
-				return Object.keys(this._recommendations)
-					.map(id => available[id])
-					.filter(i => !!i);
-			});
+		const ids = Object.keys(this._recommendations);
+
+		return this._galleryService.query({ ids, pageSize: ids.length })
+			.then(result => result.firstPage, () => []);
 	}
 
 	private _suggest(uri: URI): Promise<any> {

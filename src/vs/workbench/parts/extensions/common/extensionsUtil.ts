@@ -10,6 +10,10 @@ import * as semver from 'semver';
 
 'use strict';
 
+export function getExtensionId(extension: IExtension): string {
+	return `${ extension.publisher }.${ extension.name }`;
+}
+
 export function extensionEquals(one: IExtension, other: IExtension): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
@@ -22,14 +26,16 @@ export function getOutdatedExtensions(accessor: ServicesAccessor): TPromise<IExt
 		return TPromise.as([]);
 	}
 
-	return TPromise.join<any>([galleryService.query(), extensionsService.getInstalled()])
-		.then(result => {
-			const available = result[0];
-			const installed = result[1];
+	return extensionsService.getInstalled().then(installed => {
+		const ids = installed.map(getExtensionId);
+
+		return galleryService.query({ ids, pageSize: 1000 }).then(result => {
+			const available = result.firstPage;
 
 			return available.filter(extension => {
 				const local = installed.filter(local => extensionEquals(local, extension))[0];
 				return local && semver.lt(local.version, extension.version);
 			});
 		});
+	});
 }
