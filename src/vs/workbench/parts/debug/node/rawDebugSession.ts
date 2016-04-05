@@ -219,6 +219,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			this.socket.on('error', (err: any) => {
 				e(err);
 			});
+			this.socket.on('close', () => this.onServerExit());
 		});
 	}
 
