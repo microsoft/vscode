@@ -16,6 +16,7 @@ import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
+import {EditorOptions} from 'vs/workbench/common/editor';
 import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
 import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAction} from 'vs/workbench/parts/files/browser/fileActions';
@@ -200,6 +201,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	public focusBody(): void {
+		let keepFocus = false;
 
 		// Make sure the current selected element is revealed
 		if (this.explorerViewer) {
@@ -212,12 +214,13 @@ export class ExplorerView extends CollapsibleViewletView {
 
 			// Pass Focus to Viewer
 			this.explorerViewer.DOMFocus();
+			keepFocus = true;
 		}
 
 		// Open the focused element in the editor if there is currently no file opened
 		let input = this.editorService.getActiveEditorInput();
 		if (!input || !(input instanceof FileEditorInput)) {
-			this.openFocusedElement();
+			this.openFocusedElement(keepFocus);
 		}
 	}
 
@@ -256,7 +259,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				if (lastActiveFileResource && root && root.find(lastActiveFileResource)) {
 					let editorInput = this.instantiationService.createInstance(FileEditorInput, lastActiveFileResource, void 0, void 0);
-					this.openOrFocusEditor(editorInput).done(null, errors.onUnexpectedError);
+					this.openEditor(editorInput).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
 				}
@@ -269,19 +272,16 @@ export class ExplorerView extends CollapsibleViewletView {
 		});
 	}
 
-	private openFocusedElement(): boolean {
+	private openFocusedElement(keepFocus?: boolean): void {
 		let stat: FileStat = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-			this.openOrFocusEditor(editorInput).done(null, errors.onUnexpectedError);
 
-			return true;
+			this.openEditor(editorInput, keepFocus).done(null, errors.onUnexpectedError);
 		}
-
-		return false;
 	}
 
-	private openOrFocusEditor(input: FileEditorInput): TPromise<IEditor> {
+	private openEditor(input: FileEditorInput, keepFocus?: boolean): TPromise<IEditor> {
 
 		// First try to find if input already visible
 		let editors = this.editorService.getVisibleEditors();
@@ -289,13 +289,17 @@ export class ExplorerView extends CollapsibleViewletView {
 			for (let i = 0; i < editors.length; i++) {
 				let editor = editors[i];
 				if (input.matches(editor.input)) {
-					return this.editorService.focusEditor(editor);
+					if (!keepFocus) {
+						return this.editorService.focusEditor(editor);
+					}
+
+					return TPromise.as(editor);
 				}
 			}
 		}
 
 		// Otherwise open in active slot
-		return this.editorService.openEditor(input);
+		return this.editorService.openEditor(input, keepFocus ? EditorOptions.create({ preserveFocus: true }) : void 0);
 	}
 
 	private getActiveEditorInputResource(): URI {
