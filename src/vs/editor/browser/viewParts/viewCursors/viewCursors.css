@@ -26,7 +26,8 @@
 /* -- block-style -- */
 .monaco-editor .cursors-layer.cursor-block-style > .cursor {
 	width: 1ch;
-	opacity: 0.75;
+	/* TODO: Consider using `backdrop-filter: invert(100%);` when chromium supports it. */
+	opacity: 0.5;
 }
 
 /* -- under-line-style -- */
