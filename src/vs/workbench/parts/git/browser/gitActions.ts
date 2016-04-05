@@ -731,6 +731,46 @@ export class CommitAction extends BaseCommitAction {
 
 }
 
+export class InputCommitAction extends GitAction {
+
+	static ID = 'workbench.action.git.input-commit';
+	static LABEL = nls.localize('commit', "Commit");
+
+	constructor(
+		id = InputCommitAction.ID,
+		label = InputCommitAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, '', gitService);
+	}
+
+	protected isEnabled():boolean {
+		if (!this.gitService) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		const status = this.gitService.getModel().getStatus();
+
+		return status.getIndexStatus().all().length > 0 || status.getWorkingTreeStatus().all().length > 0;
+	}
+
+	run(): TPromise<any> {
+		if (!this.enabled) {
+			return TPromise.as(null);
+		}
+
+		const status = this.gitService.getModel().getStatus();
+
+		return this.quickOpenService.input({ prompt: 'Commit Message' })
+			.then(message => message && this.gitService.commit(message, false, status.getIndexStatus().all().length === 0));
+	}
+}
+
 export class StageAndCommitAction extends BaseCommitAction {
 
 	static ID = 'workbench.action.git.stageAndCommit';
