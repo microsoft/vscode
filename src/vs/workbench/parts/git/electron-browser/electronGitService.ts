@@ -21,6 +21,7 @@ import URI from 'vs/base/common/uri';
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { remote } from 'electron';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 interface IGit {
 	path: string;
@@ -167,13 +168,14 @@ export class ElectronGitService extends GitService {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IStorageService storageService: IStorageService
 	) {
 		let workspace = contextService.getWorkspace();
 		let raw = !workspace
 			? new NoOpGitService()
 			: instantiationService.createInstance(ElectronRawGitService, workspace.resource.fsPath);
 
-		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService);
+		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService, storageService);
 	}
 }
