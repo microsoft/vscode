@@ -272,7 +272,6 @@ export class CollapseAction extends Action {
 
 export interface IViewletView {
 	create(): TPromise<void>;
-	refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void>;
 	setVisible(visible: boolean): TPromise<void>;
 	getActions(): IAction[];
 	getSecondaryActions(): IAction[];
@@ -350,14 +349,10 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 		return this.tree;
 	}
 
-	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return TPromise.as(null);
-	}
-
 	public setVisible(visible: boolean): TPromise<void> {
 		this.isVisible = visible;
 
-		updateTreeVisibility(this.tree, this.state === CollapsibleState.EXPANDED);
+		updateTreeVisibility(this.tree, visible && this.state === CollapsibleState.EXPANDED);
 
 		return TPromise.as(null);
 	}
@@ -477,14 +472,10 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		return this.tree;
 	}
 
-	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return TPromise.as(null);
-	}
-
 	public setVisible(visible: boolean): TPromise<void> {
 		this.isVisible = visible;
 
-		updateTreeVisibility(this.tree, this.state === CollapsibleState.EXPANDED);
+		updateTreeVisibility(this.tree, visible && this.state === CollapsibleState.EXPANDED);
 
 		return TPromise.as(null);
 	}
@@ -572,7 +563,7 @@ function focus(tree: ITree): void {
 	// Make sure the current selected element is revealed
 	let selection = tree.getSelection();
 	if (selection.length > 0) {
-		reveal(tree, selection[0], 0.5);
+		reveal(tree, selection[0], 0.5).done(null, errors.onUnexpectedError);
 	}
 
 	// Pass Focus to Viewer

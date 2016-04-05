@@ -1386,15 +1386,7 @@ export class CompareResourcesAction extends Action {
 export class RefreshViewExplorerAction extends Action {
 
 	constructor(explorerView: ExplorerView, clazz: string) {
-		super('workbench.files.action.refreshExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => {
-			if (explorerView.getViewer().getHighlight()) {
-				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
-			}
-
-			explorerView.focusBody();
-
-			return explorerView.refresh(true, true, true);
-		});
+		super('workbench.files.action.refreshExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => explorerView.refresh());
 	}
 }
 
@@ -2439,7 +2431,7 @@ export function getWellFormedFileName(filename: string): string {
 // Diagnostics support
 let diag: (...args: any[]) => void;
 if (!diag) {
-	diag = diagnostics.register('FileActionsDiagnostics', function(...args: any[]) {
+	diag = diagnostics.register('FileActionsDiagnostics', function (...args: any[]) {
 		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
 	});
 }
