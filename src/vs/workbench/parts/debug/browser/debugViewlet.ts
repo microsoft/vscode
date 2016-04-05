@@ -34,6 +34,7 @@ export class DebugViewlet extends viewlet.Viewlet {
 
 	private $el: builder.Builder;
 	private splitView: splitview.SplitView;
+	// TODO@Isidor views need to be splitView.collapsibleView to make them more general
 	private views: (viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView)[];
 
 	private lastFocusedView: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView;
@@ -89,7 +90,7 @@ export class DebugViewlet extends viewlet.Viewlet {
 
 	public setVisible(visible: boolean): TPromise<any> {
 		return super.setVisible(visible).then(() => {
-			return TPromise.join(this.views.map((view) => view.setVisible(visible)));
+			return TPromise.join(this.views.map((view) => view.setVisible && view.setVisible(visible)));
 		});
 	}
 
