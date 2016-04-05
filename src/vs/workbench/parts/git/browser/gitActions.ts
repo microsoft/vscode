@@ -222,7 +222,7 @@ export abstract class BaseStageAction extends GitAction {
 	public run(context?: any):Promise {
 		var flatContext = flatten(context);
 
-		return this.gitService.add(flatten(context)).then((status: IModel) => {
+		return this.gitService.add(flatContext).then(status => {
 			var targetEditor = this.findGitWorkingTreeEditor();
 			if (!targetEditor) {
 				return TPromise.as(status);
@@ -245,7 +245,7 @@ export abstract class BaseStageAction extends GitAction {
 			var editorControl = <any>targetEditor.getControl();
 			var viewState = editorControl ? editorControl.saveViewState() : null;
 
-			return this.gitService.getInput(fileStatus).then((input) => {
+			return this.gitService.getInput(fileStatus).then(input => {
 				var options = new TextDiffEditorOptions();
 				options.forceOpen = true;
 
