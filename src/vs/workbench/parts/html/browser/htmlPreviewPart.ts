@@ -50,6 +50,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		super(HtmlPreviewPart.ID, telemetryService);
 
 		this._editorService = editorService;
+		this._themeService = themeService;
 		this._iFrameBase = contextService.toResource('/');
 	}
 
