@@ -279,7 +279,8 @@ export class GalleryService implements IGalleryService {
 	private getRequestHeaders(): TPromise<any> {
 		return this.machineId.then(machineId => {
 			const result = {
-				'X-Market-Client-Id': 'VSCode'
+				'X-Market-Client-Id': 'VSCode',
+				'User-Agent': 'VSCode'
 			};
 
 			if (machineId) {
