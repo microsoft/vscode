@@ -85,15 +85,15 @@ export class Linter {
         return new Promise<Diagnostic[]>((resolve, reject) => {
             var dir = path.dirname(filePath); 
             //var cmd: string = `${PYLINT_COMMANDLINE} ${filePath}`;
-            exec(cmd,{cwd:dir}, (error: Error, stdout: Buffer, stderr: Buffer) => {
-                var outputLines = (stdout || "").toString('utf-8').split(/\r?\n/g);
+            exec(cmd,{cwd:dir}, (error: Error, stdout: string, stderr: string) => {
+                var outputLines = (stdout || "").split(/\r?\n/g);
                 if (outputLines.length === 0 || outputLines[0] === ""){
                     var errorMessages = [];
                     if (error && error.message){
                         errorMessages.push(`Error Message (${error.name}) : ${error.message}`);
                     }
                     if (stderr && stderr.length > 0){
-                        errorMessages.push(stderr.toString('utf-8'));
+                        errorMessages.push(stderr + '');
                     }                    
                     if (errorMessages.length === 0){
                         return resolve([])

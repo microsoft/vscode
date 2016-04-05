@@ -17,7 +17,7 @@ export function WaitForPortToOpen(port: number, timeout: number): Promise<any> {
                 return;
             }
 
-            var socket = net.connect(port, () => {
+            var socket = net.connect({ port: port }, () => {
                 if (timedOut) {
                     return;
                 }
@@ -26,7 +26,7 @@ export function WaitForPortToOpen(port: number, timeout: number): Promise<any> {
                 socket.end();
                 clearTimeout(handle);
             });
-            socket.on("error", error=> {
+            socket.on("error", error => {
                 if (timedOut) {
                     return;
                 }

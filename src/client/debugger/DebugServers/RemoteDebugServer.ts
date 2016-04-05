@@ -44,7 +44,7 @@ export class RemoteDebugServer extends BaseDebugServer {
             var languageVersionRead = false;
             var portNumber = this.args.port;
             var debugCommandsAccepted = false;
-            this.socket = net.connect(portNumber, () => {
+            this.socket = net.connect({ port: portNumber }, () => {
                 console.log('client connected');
                 console.log(`Debug server started, listening on port ${portNumber}`);
                 resolve({ port: portNumber });
@@ -90,7 +90,7 @@ export class RemoteDebugServer extends BaseDebugServer {
                         that.stream.RollBackTransaction()
                         return;
                     }
-                    
+
                     // If we are talking the same protocol but different version, reply with signature + version before bailing out
                     // so that ptvsd has a chance to gracefully close the socket on its side. 
                     that.stream.EndTransaction();
@@ -180,17 +180,17 @@ export class RemoteDebugServer extends BaseDebugServer {
                     }
                 }
             });
-            this.socket.on("close", d=> {
+            this.socket.on("close", d => {
                 var msg = `Debugger client closed, ${d}`;
                 console.log(msg);
                 that.emit("detach", d);
             });
-            this.socket.on("timeout", d=> {
+            this.socket.on("timeout", d => {
                 var msg = `Debugger client timedout, ${d}`;
                 that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
                 console.log(msg);
             });
-            this.socket.on("error", ex=> {
+            this.socket.on("error", ex => {
                 var exMessage = JSON.stringify(ex);
                 var msg = `There was an error in starting the debug server. Error = ${exMessage}`;
                 that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));

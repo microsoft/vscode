@@ -74,16 +74,16 @@ export class PythonDebugger extends DebugSession {
     private InitializeEventHandlers() {
         this.pythonProcess.on("last", arg => this.onDetachDebugger());
         this.pythonProcess.on("threadExited", arg => this.onPythonThreadExited(arg));
-        this.pythonProcess.on("moduleLoaded", arg=> this.onPythonModuleLoaded(arg));
-        this.pythonProcess.on("threadCreated", arg=> this.onPythonThreadCreated(arg));
-        this.pythonProcess.on("processLoaded", arg=> this.onPythonProcessLoaded(arg));
+        this.pythonProcess.on("moduleLoaded", arg => this.onPythonModuleLoaded(arg));
+        this.pythonProcess.on("threadCreated", arg => this.onPythonThreadCreated(arg));
+        this.pythonProcess.on("processLoaded", arg => this.onPythonProcessLoaded(arg));
         this.pythonProcess.on("output", (pyThread, output) => this.onDebuggerOutput(pyThread, output));
         this.pythonProcess.on("exceptionRaised", (pyThread, ex) => this.onPythonException(pyThread, ex));
         this.pythonProcess.on("breakpointHit", (pyThread, breakpointId) => this.onBreakpointHit(pyThread, breakpointId));
         this.pythonProcess.on("stepCompleted", (pyThread) => this.onStepCompleted(pyThread));
         this.pythonProcess.on("detach", () => this.onDetachDebugger());
         this.pythonProcess.on("error", ex => this.sendEvent(new OutputEvent(ex, "stderr")));
-        this.pythonProcess.on("asyncBreakCompleted", arg=> this.onPythonProcessPaused(arg));
+        this.pythonProcess.on("asyncBreakCompleted", arg => this.onPythonProcessPaused(arg));
 
         this.debugServer.on("detach", () => this.onDetachDebugger());
     }
@@ -138,7 +138,7 @@ export class PythonDebugger extends DebugSession {
         this.launchArgs = args;
         this.debugClient = CreateLaunchDebugClient(args, this);
 
-        this.debuggerLoaded = new Promise(resolve=> {
+        this.debuggerLoaded = new Promise(resolve => {
             this.debuggerLoadedPromiseResolve = resolve;
         });
 
@@ -149,12 +149,12 @@ export class PythonDebugger extends DebugSession {
             this.startDebugServer().then(dbgServer => {
                 that.debugClient.LaunchApplicationToDebug(dbgServer).then(() => {
 
-                }, error=> {
+                }, error => {
                     this.sendEvent(new OutputEvent(error + "\n", "stderr"));
                     this.sendErrorResponse(that.entryResponse, 2000, error);
                 });
             });
-        }, error=> {
+        }, error => {
             this.sendEvent(new OutputEvent(error + "\n", "stderr"));
             this.sendErrorResponse(that.entryResponse, 2000, error);
         });
@@ -163,7 +163,7 @@ export class PythonDebugger extends DebugSession {
         this.attachArgs = args;
         this.debugClient = CreateAttachDebugClient(args, this);
 
-        this.debuggerLoaded = new Promise(resolve=> {
+        this.debuggerLoaded = new Promise(resolve => {
             this.debuggerLoadedPromiseResolve = resolve;
         });
 
@@ -174,7 +174,7 @@ export class PythonDebugger extends DebugSession {
             this.startDebugServer().then(dbgServer => {
                 that.debugClient.LaunchApplicationToDebug(dbgServer);
             });
-        }, error=> {
+        }, error => {
             this.sendEvent(new OutputEvent(error + "\n", "stderr"));
             this.sendErrorResponse(that.entryResponse, 2000, error);
         });
@@ -218,19 +218,19 @@ export class PythonDebugger extends DebugSession {
 
             var breakpoints: { verified: boolean, line: number }[] = [];
             var breakpointsToRemove = [];
-            var linesToAdd = args.breakpoints.map(b=> b.line);
+            var linesToAdd = args.breakpoints.map(b => b.line);
             var registeredBks = this.registeredBreakpointsByFileName.get(args.source.path);
-            var linesToRemove = registeredBks.map(b=> b.LineNo).filter(oldLine=> linesToAdd.indexOf(oldLine) === -1);
-            var linesToUpdate = registeredBks.map(b=> b.LineNo).filter(oldLine=> linesToAdd.indexOf(oldLine) >= 0);
-            
+            var linesToRemove = registeredBks.map(b => b.LineNo).filter(oldLine => linesToAdd.indexOf(oldLine) === -1);
+            var linesToUpdate = registeredBks.map(b => b.LineNo).filter(oldLine => linesToAdd.indexOf(oldLine) >= 0);
+
             //Always add new breakpoints, don't re-enable previous breakpoints
             //Cuz sometimes some breakpoints get added too early (e.g. in django) and don't get registeredBks
             //and the response comes back indicating it wasn't set properly
             //However, at a later point in time, the program breaks at that point!!!            
-            var linesToAddPromises = args.breakpoints.map(bk=> {
-                return new Promise(resolve=> {
+            var linesToAddPromises = args.breakpoints.map(bk => {
+                return new Promise(resolve => {
                     var breakpoint: IPythonBreakpoint;
-                    var existingBreakpointsForThisLine = registeredBks.filter(registeredBk=> registeredBk.LineNo === bk.line);
+                    var existingBreakpointsForThisLine = registeredBks.filter(registeredBk => registeredBk.LineNo === bk.line);
                     if (existingBreakpointsForThisLine.length > 0) {
                         //We have an existing breakpoint for this line
                         //just enable that
@@ -246,7 +246,7 @@ export class PythonDebugger extends DebugSession {
                         breakpoints.push({ verified: true, line: bk.line });
                         registeredBks.push(breakpoint);
                         resolve();
-                    }, reason=> {
+                    }, reason => {
                         this.registeredBreakpoints.set(breakpoint.Id, breakpoint);
                         breakpoints.push({ verified: false, line: bk.line });
                         registeredBks.push(breakpoint);
@@ -255,10 +255,10 @@ export class PythonDebugger extends DebugSession {
                 });
             });
 
-            var linesToRemovePromises = linesToRemove.map(line=> {
-                return new Promise(resolve=> {
+            var linesToRemovePromises = linesToRemove.map(line => {
+                return new Promise(resolve => {
                     var registeredBks = this.registeredBreakpointsByFileName.get(args.source.path);
-                    var bk = registeredBks.filter(b=> b.LineNo === line)[0];
+                    var bk = registeredBks.filter(b => b.LineNo === line)[0];
                     //Ok, we won't get a response back, so update the breakpoints list  indicating this has been disabled
                     bk.Enabled = false;
                     this.pythonProcess.DisableBreakPoint(bk);
@@ -279,7 +279,7 @@ export class PythonDebugger extends DebugSession {
 
     protected threadsRequest(response: DebugProtocol.ThreadsResponse): void {
         var threads = [];
-        this.pythonProcess.Threads.forEach(t=> {
+        this.pythonProcess.Threads.forEach(t => {
             threads.push(new Thread(t.Id, t.Name));
         });
 
@@ -367,8 +367,8 @@ export class PythonDebugger extends DebugSession {
                 return this.sendResponse(response);
             }
 
-            this.pythonProcess.ExecuteText(args.expression, PythonEvaluationResultReprKind.Normal, frame).then(result=> {
-                let variablesReference = 0; 
+            this.pythonProcess.ExecuteText(args.expression, PythonEvaluationResultReprKind.Normal, frame).then(result => {
+                let variablesReference = 0;
                 //If this value can be expanded, then create a vars ref for user to expand it
                 if (result.IsExpandable) {
                     const parentVariable: IDebugVariable = {
@@ -419,7 +419,7 @@ export class PythonDebugger extends DebugSession {
 
         if (varRef.evaluateChildren !== true) {
             let variables = [];
-            varRef.variables.forEach(variable=> {
+            varRef.variables.forEach(variable => {
                 let variablesReference = 0;
                 //If this value can be expanded, then create a vars ref for user to expand it
                 if (variable.IsExpandable) {
@@ -443,12 +443,12 @@ export class PythonDebugger extends DebugSession {
 
             return this.sendResponse(response);
         }
-                
+
         //Ok, we need to evaluate the children of the current variable
         var variables = [];
-        var promises = varRef.variables.map(variable=> {
-            return variable.Process.EnumChildren(variable.Expression, variable.Frame, CHILD_ENUMEARATION_TIMEOUT).then(children=> {
-                children.forEach(child=> {
+        var promises = varRef.variables.map(variable => {
+            return variable.Process.EnumChildren(variable.Expression, variable.Frame, CHILD_ENUMEARATION_TIMEOUT).then(children => {
+                children.forEach(child => {
                     let variablesReference = 0;
                     //If this value can be expanded, then create a vars ref for user to expand it
                     if (child.IsExpandable) {
@@ -465,7 +465,7 @@ export class PythonDebugger extends DebugSession {
                         variablesReference: variablesReference
                     });
                 });
-            }, error=> {
+            }, error => {
                 this.sendErrorResponse(response, 2001, error);
             });
         });
@@ -491,7 +491,27 @@ export class PythonDebugger extends DebugSession {
             if (args.filters.indexOf("all") >= 0) {
                 mode = enum_EXCEPTION_STATE.BREAK_MODE_ALWAYS;
             }
-            this.pythonProcess.SendExceptionInfo(mode, null);
+            var exToIgnore = null;
+            var exceptionHandling = this.launchArgs.exceptionHandling;
+            if (exceptionHandling) {
+                exToIgnore = new Map<string, enum_EXCEPTION_STATE>();
+                if (Array.isArray(exceptionHandling.ignore)) {
+                    exceptionHandling.ignore.forEach(exType => {
+                        exToIgnore.set(exType, enum_EXCEPTION_STATE.BREAK_MODE_NEVER);
+                    });
+                }
+                if (Array.isArray(exceptionHandling.always)) {
+                    exceptionHandling.always.forEach(exType => {
+                        exToIgnore.set(exType, enum_EXCEPTION_STATE.BREAK_MODE_ALWAYS);
+                    });
+                }
+                if (Array.isArray(exceptionHandling.unhandled)) {
+                    exceptionHandling.unhandled.forEach(exType => {
+                        exToIgnore.set(exType, enum_EXCEPTION_STATE.BREAK_MODE_UNHANDLED);
+                    });
+                }
+            }
+            this.pythonProcess.SendExceptionInfo(mode, exToIgnore);
             this.sendResponse(response);
         });
     }

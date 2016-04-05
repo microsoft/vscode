@@ -201,10 +201,10 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         }
         else {
             this.stream.WriteInt32(breakOn.size);
-            for (var key in breakOn.keys()) {
-                this.stream.WriteInt32(breakOn.get(key));
+            breakOn.forEach((value,key)=>{
+                this.stream.WriteInt32(value);
                 this.stream.WriteString(key);
-            }
+            });
         }
     }
 

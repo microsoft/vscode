@@ -16,6 +16,13 @@ export class DebugOptions {
     public static get DebugStdLib(): string { return "DebugStdLib"; }
     public static get BreakOnSystemExitZero(): string { return "BreakOnSystemExitZero"; }
 }
+
+export interface ExceptionHandling {
+    ignore: string[];
+    always: string[];
+    unhandled: string[];
+}
+
 export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
     /** An absolute path to the program to debug. */
     program: string;
@@ -28,6 +35,7 @@ export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArgum
     cwd?: string;
     debugOptions?: string[];
     env?: Object;
+    exceptionHandling?: ExceptionHandling
 }
 // 
 // export interface LaunchDjangoRequestArguments extends LaunchRequestArguments {

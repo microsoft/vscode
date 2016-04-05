@@ -165,7 +165,6 @@ function killProcess() {
 
 function handleError(source: string, errorMessage: string) {
     logger.error(source + ' jediProxy', `Error (${source}) ${errorMessage}`);
-    vscode.window.showErrorMessage(`There was an error in the python extension. Error ${errorMessage}`);
 }
 
 function spawnProcess(dir: string) {
