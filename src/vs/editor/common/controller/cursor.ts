@@ -1141,7 +1141,7 @@ export class Cursor extends EventEmitter {
 
 	private _columnSelectMouse(ctx: IMultipleCursorOperationContext): boolean {
 		let cursors = this.cursors.getAll();
-		let result = OneCursorOp.columnSelectMouse(cursors[0], ctx.eventData.position, ctx.eventData.viewPosition,  ctx.eventData.mouseColumn);
+		let result = OneCursorOp.columnSelectMouse(cursors[0], ctx.eventData.position, ctx.eventData.viewPosition,  ctx.eventData.mouseColumn - 1);
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
 		ctx.shouldReveal = true;
