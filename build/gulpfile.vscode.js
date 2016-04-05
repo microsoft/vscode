@@ -238,6 +238,10 @@ function packageTask(platform, arch, opts) {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+		} else if (platform === 'linux') {
+			result = es.merge(result, gulp.src('resources/linux/bin/code.sh', { base: '.' })
+				.pipe(replace('@@NAME@@', product.applicationName))
+				.pipe(rename('bin/' + product.applicationName)));
 		}
 
 		return result.pipe(symdest(destination));
@@ -259,10 +263,6 @@ function prepareDebPackage(arch) {
 	var packageRevision = getEpochTime();
 
 	return function () {
-		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
-			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('usr/share/' + product.applicationName + '/bin/' + product.applicationName));
-
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME@@', product.applicationName))
@@ -299,7 +299,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'))
 
-		var all = es.merge(control, postinst, prerm, desktop, icon, shortcut, code);
+		var all = es.merge(control, postinst, prerm, desktop, icon, code);
 
 		return all.pipe(symdest(destination));
 	};
@@ -335,10 +335,6 @@ function prepareRpmPackage(arch) {
 	var packageRevision = getEpochTime();
 
 	return function () {
-		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
-			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('BUILD/usr/share/' + product.applicationName + '/bin/' + product.applicationName));
-
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME@@', product.applicationName))
@@ -363,7 +359,7 @@ function prepareRpmPackage(arch) {
 		var specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
 			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
 
-		var all = es.merge(code, desktop, icon, shortcut, spec, specIcon);
+		var all = es.merge(code, desktop, icon, spec, specIcon);
 
 		return all.pipe(symdest(destination));
 	}

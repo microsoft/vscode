@@ -46,6 +46,5 @@ ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
 %defattr(-,root,root)
 
 /usr/share/@@NAME@@/
-/usr/share/@@NAME@@/bin/@@NAME@@
 /usr/share/applications/@@NAME@@.desktop
 /usr/share/pixmaps/@@NAME@@.png
