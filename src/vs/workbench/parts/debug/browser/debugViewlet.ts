@@ -64,7 +64,7 @@ export class DebugViewlet extends viewlet.Viewlet {
 
 		if (this.contextService.getWorkspace()) {
 			const actionRunner = this.getActionRunner();
-			const viewDescriptors = debug.DebugViewRegistry.getDebugViews();
+			const viewDescriptors = debug.DebugViewRegistry.getDebugViews().sort((first, second) => first.order - second.order);
 			this.views = viewDescriptors.map(dsc => this.instantiationService.createInstance(dsc, actionRunner, this.viewletSettings));
 
 			this.splitView = new splitview.SplitView(this.$el.getHTMLElement());

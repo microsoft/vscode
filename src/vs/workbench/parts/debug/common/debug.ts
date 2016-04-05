@@ -351,9 +351,9 @@ export interface IDebugEditorContribution extends editor.IEditorContribution {
 // Debug view descriptors and registration
 
 export class DebugViewDescriptor extends SyncDescriptor<CollapsibleViewletView | AdaptiveCollapsibleViewletView> {
-	// constructor(ctorName: string, public id: string, public name: string, public cssClass: string) {
-	// 	super(ctorName);
-	// }
+	constructor(ctor: any, public order: number) {
+		super(ctor);
+	}
 }
 
 export interface IDebugViewRegistry {
