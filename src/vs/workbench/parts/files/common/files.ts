@@ -67,7 +67,6 @@ export interface IFilesConfiguration extends IFilesConfiguration {
 			maxVisible: number;
 			dynamicHeight: boolean;
 		};
-		autoReveal: boolean;
 	};
 	editor: IEditorOptions;
 }

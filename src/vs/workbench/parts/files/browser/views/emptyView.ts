@@ -60,6 +60,10 @@ export class EmptyView extends CollapsibleView {
 		return TPromise.as(null);
 	}
 
+	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public setVisible(visible: boolean): TPromise<void> {
 		return TPromise.as(null);
 	}
