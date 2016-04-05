@@ -878,7 +878,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
 			bp => `${ bp.desiredLineNumber }`
 		);
-		const rawSource = breakpointsToSend.length > 0 ? breakpointsToSend[0].source.raw : Source.toRawSource(modelUri, null);
+		const rawSource = breakpointsToSend.length > 0 ? breakpointsToSend[0].source.raw : Source.toRawSource(modelUri, this.model);
 
 		return this.session.setBreakpoints({ source: rawSource, lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
 			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })) }).then(response => {
