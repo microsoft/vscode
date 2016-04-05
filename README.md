@@ -1,6 +1,9 @@
 # Python
 Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
- 
+
+##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
+Once installed, do remember to [configure the path](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version) to the python executable.
+
 ##Features
 * Linting (PyLint, Pep8, Flake8 with config files and plugins)
 * Intellisense and autocompletion
@@ -15,8 +18,6 @@ Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-comple
 * Unit testing (unittests and nosetests, with config files)
 * Sorting imports
 * Snippets
-
-##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
 
 ##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
 * Support for Virtual Environments (in development)
