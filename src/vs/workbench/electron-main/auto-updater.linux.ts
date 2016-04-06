@@ -11,6 +11,7 @@ import {Promise} from 'vs/base/common/winjs.base';
 import {json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import {manager as Settings} from 'vs/workbench/electron-main/settings';
+import env = require('vs/workbench/electron-main/env');
 
 export interface IUpdate {
 	url: string;
@@ -55,7 +56,7 @@ export class LinuxAutoUpdaterImpl extends events.EventEmitter {
 				if (!update || !update.url || !update.version) {
 					this.emit('update-not-available');
 				} else {
-					this.emit('update-available', update.url);
+					this.emit('update-available', env.product.downloadUrl);
 				}
 			})
 			.then(null, e => {

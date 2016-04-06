@@ -10,7 +10,6 @@ import severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {ipcRenderer as ipc, shell} from 'electron';
-import {isLinux} from 'vs/base/common/platform';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IRequestService} from 'vs/platform/request/common/request';
@@ -47,7 +46,7 @@ export const ShowReleaseNotesAction = (releaseNotesUrl: string, returnValue = fa
 
 export const DownloadAction = (url: string) => new Action(
 	'update.download',
-	nls.localize('download', "Download"),
+	nls.localize('downloadNow', "Download Now"),
 	null,
 	true,
 	() => { shell.openExternal(url); return TPromise.as(true); }
@@ -69,7 +68,7 @@ export class Update {
 			});
 		});
 
-		ipc.on('vscode:update-available', url => {
+		ipc.on('vscode:update-available', (event, url: string) => {
 			this.messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', `There is an available update.`),
 				actions: [ShowReleaseNotesAction(env.releaseNotesUrl), NotNowAction, DownloadAction(url)]
@@ -79,30 +78,5 @@ export class Update {
 		ipc.on('vscode:update-not-available', () => {
 			this.messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
 		});
-
-		const updateFeedUrl = env.updateFeedUrl;
-
-		// manually check for update on linux
-		if (isLinux && updateFeedUrl) {
-			this.requestService.makeRequest({ url: updateFeedUrl }).done(res => {
-				if (res.status !== 200) {
-					return; // no update available
-				}
-
-				this.messageService.show(severity.Info, {
-					message: nls.localize('noUpdateLinux', "This version of {0} is outdated and can\'t be updated automatically. Please download and install the latest version manually.", env.appName),
-					actions: [
-						new Action('pleaseUpdate', nls.localize('downloadLatestAction', "Download Latest"), '', true, () => {
-							shell.openExternal(env.productDownloadUrl);
-							return TPromise.as(true);
-						}),
-						new Action('releaseNotes', nls.localize('releaseNotesAction', "Release Notes"), '', true, () => {
-							shell.openExternal(env.releaseNotesUrl);
-							return TPromise.as(false);
-						})
-					]
-				});
-			});
-		}
 	}
 }

@@ -208,10 +208,6 @@ export class UpdateManager extends events.EventEmitter {
 			return null;
 		}
 
-		if (platform.isLinux) {
-			return null;
-		}
-
 		if (platform.isWindows && !fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))) {
 			return null;
 		}

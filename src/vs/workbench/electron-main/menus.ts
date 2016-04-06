@@ -645,7 +645,7 @@ export class VSCodeMenu {
 				if (platform.isLinux) {
 					const update = UpdateManager.availableUpdate;
 					return [new MenuItem({
-						label: nls.localize('miDownloadUpdate', "Download Update..."), click: () => {
+						label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
 							update.quitAndUpdate();
 						}
 					})];
