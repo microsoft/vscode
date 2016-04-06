@@ -210,7 +210,7 @@ export class WebviewPart extends BaseEditor {
 		parent.getHTMLElement().appendChild(this._container);
 	}
 
-	get webview(): ManagedWebview {
+	private get webview(): ManagedWebview {
 		if (!this._webview) {
 			this._webview = new ManagedWebview(document.getElementById('workbench.main.container'),
 				this._container,
