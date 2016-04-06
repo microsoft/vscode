@@ -110,6 +110,14 @@ if (process.env.VSCODE_DEV) {
 	app.setPath('userData', path.join(appData, 'Code-Development'));
 }
 
+// Use custom user data dir if specified, required to run as root on Linux
+var args = process.argv;
+args.forEach(function (arg) {
+	if (arg.indexOf('--user-data-dir=') === 0) {
+		app.setPath('userData', arg.split('=')[1]);
+	}
+});
+
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 // the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
 global.macOpenFiles = [];
