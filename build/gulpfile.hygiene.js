@@ -48,7 +48,6 @@ var indentationFilter = [
 	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
-	'!**/vs/base/node/terminateProcess.sh',
 	'!**/vs/text.js',
 	'!**/vs/nls.js',
 	'!**/vs/css.js',
@@ -168,7 +167,7 @@ var hygiene = exports.hygiene = function (some, options) {
 			formatter: 'json',
 			configuration: configuration,
 			rulesDirectory: 'build/lib/tslint',
-		}
+		};
 		var contents = file.contents.toString('utf8');
 		var linter = new tslint(file.relative, contents, options);
 		var result = linter.lint();
