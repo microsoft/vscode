@@ -23,94 +23,106 @@ import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import pfs = require('vs/base/node/pfs');
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 
 
 interface Data {
 	c: string; // content
 	t: string; // token
-	r: string; // rule
+	r: { [theme:string]:string}
 }
 
-const ID = 'workbench.action.snapshotAction';
-const LABEL = nls.localize('togglePosition', "Take Theme Snapshot");
+class Snapper {
 
-class SnapshotAction extends Action {
-
-	private currentSrcFolder: string;
-
-	constructor(id: string, label: string,
-		@IModeService private modeService: IModeService
+	constructor(
+		@IModeService private modeService: IModeService,
+		@IThemeService private themeService: IThemeService
 	) {
-		super(id, label);
-		let outFolder = require.toUrl('');
-		this.currentSrcFolder = paths.normalize(paths.join(outFolder, "../src/vs/workbench/parts/themes/test/electron-browser"));
 	}
 
-	public run(): TPromise<any> {
-		let fixturesPath = URI.parse(paths.join(this.currentSrcFolder, 'fixtures')).fsPath;
-		return pfs.readdir(fixturesPath).then(fileNames => {
-			return TPromise.join(fileNames.map(fileName => {
-				return pfs.readFile(paths.join(fixturesPath, fileName)).then(content => {
-					return this.snap(fileName, content.toString()).then(result => {
-						return this.verify(fileName, result);
-					});
-				});
-			}));
-		}, err => {
-			console.log(err.toString());
-		});
-	}
-
-	public getId() : string {
-		return "TokenizationSnapshotController";
-	}
-
-	private getEditorNode() : Element {
-		let editorNodes = document.getElementsByClassName('monaco-editor');
-		if (editorNodes.length > 0) {
-			return editorNodes.item(0);
-		}
-		return null;
-	}
-
-	private getStyle(scope: string) : string {
+	private getTestNode(themeId: string) : Element {
+		let editorNode = document.createElement('div');
+		editorNode.className = 'monaco-editor ' + themeId;
+		document.body.appendChild(editorNode);
 
 		let element = document.createElement('span');
-		element.className = scope;
-		element.hidden = true;
 
-		let cssStyles = window.getComputedStyle(element);
+		editorNode.appendChild(element);
+
+		return element;
+	}
+
+	private getStyle(testNode: Element, scope: string) : string {
+
+		testNode.className = 'token ' + scope;
+
+		let cssStyles = window.getComputedStyle(testNode);
 		if (cssStyles) {
 			return cssStyles.color;
 		}
 		return '';
 	}
 
-	private getMatchedCSSRule(scope: string) : string {
-		let element = document.createElement('span');
-		element.className = 'token ' + scope;
-		element.hidden = true;
+	private getMatchedCSSRule(testNode: Element, scope: string) : string {
 
-		let editorNode = this.getEditorNode();
-		editorNode.appendChild(element);
+		testNode.className = 'token ' + scope.replace(/\./g, ' ');
 
-		let rulesList = window.getMatchedCSSRules(element);
-
-		editorNode.removeChild(element);
+		let rulesList = window.getMatchedCSSRules(testNode);
 
 		if (rulesList) {
 			for (let i = rulesList.length - 1; i >= 0 ; i--) {
 				let selectorText = <string> rulesList.item(i)['selectorText'];
-				if (selectorText && selectorText.indexOf('.monaco-editor.vs') === 0) {
+				if (selectorText && selectorText.match(/\.monaco-editor\..+token/) ) {
 					return selectorText.substr(14);
 				}
 			}
+		} else {
+			console.log('no match ' + scope);
 		}
 
 		return '';
 	}
 
-	public snap(fileName: string, content: string) : TPromise<Data[]> {
+
+	public appendThemeInformation(data: Data[]) : TPromise<Data[]> {
+		let currentTheme = this.themeService.getTheme();
+
+		let getThemeName = (id: string) => {
+			let part = 'vscode-theme-defaults-themes-';
+			let startIdx = id.indexOf(part);
+			if (startIdx !== -1) {
+				return id.substring(startIdx + part.length, id.length - 5);
+			}
+			return void 0;
+		}
+
+		return this.themeService.getThemes().then(themeDatas => {
+			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
+			return TPromise.join(defaultThemes.map(defaultTheme => {
+				let themeId = defaultTheme.id;
+				return this.themeService.setTheme(themeId, false).then(success => {
+					if (success) {
+						let testNode = this.getTestNode(themeId);
+						let themeName = getThemeName(themeId);
+						data.forEach(entry => {
+							entry.r[themeName] = this.getMatchedCSSRule(testNode, entry.t);
+						});
+					}
+				});
+			}));
+		}).then(_ => {
+			return this.themeService.setTheme(currentTheme, false).then(_ => {
+				return data;
+			});
+		});
+	}
+
+	public captureSyntaxTokens(fileName: string, content: string) : TPromise<Data[]> {
 		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
 			let result : Data[] = [];
 			let model = new TextModelWithTokens([], TextModel.toRawText(content, TextModel.DEFAULT_CREATION_OPTIONS), false, mode);
@@ -122,39 +134,48 @@ class SnapshotAction extends Action {
 					result.push({
 						c: content,
 						t: tokenInfo.token.type,
-						r: this.getMatchedCSSRule(tokenInfo.token.type)
+						r: {}
 					});
 				}
 			});
-			return result;
-		});
-	}
-
-	public verify(fileName: string, data: Data[]) : TPromise<any> {
-		let dataString = JSON.stringify(data, null, '\t');
-		let resultFileName = fileName.replace('.', '_') + '.json';
-		let resultPath = URI.parse(paths.join(this.currentSrcFolder, 'results', resultFileName)).fsPath;
-
-		return pfs.fileExists(resultPath).then(success => {
-			if (success) {
-				return pfs.readFile(resultPath).then(content => {
-					let previousDataString = content.toString();
-					if (previousDataString !== dataString) {
-						let errorResultFileName = fileName.replace('.', '_') + '.error.json';
-						let errorResultPath = URI.parse(paths.join(this.currentSrcFolder, 'results', errorResultFileName)).fsPath;
-						console.log(`Different result for ${fileName}`);
-						return pfs.writeFile(errorResultPath, dataString);
-					}
-					return true;
-				});
-			} else {
-				return pfs.writeFile(resultPath, dataString);
-			}
+			return this.appendThemeInformation(result);
 		});
 	}
 }
 
-var workbenchActionsRegistry = <WorkbenchActionRegistry.IWorkbenchActionRegistry> Platform.Registry.as(WorkbenchActionRegistry.Extensions.WorkbenchActions);
+KeybindingsRegistry.registerCommandDesc({
+	id: '_workbench.captureSyntaxTokens',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, args: [URI]) {
 
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SnapshotAction, ID, LABEL), nls.localize('view', "View"));
+		let process = (resource: URI) => {
+			let filePath = resource.fsPath;
+			let fileName = paths.basename(filePath);
+			let snapper = accessor.get(IInstantiationService).createInstance(Snapper);
+
+			return pfs.readFile(filePath).then(content => {
+				return snapper.captureSyntaxTokens(fileName, content.toString());
+			});
+		}
+
+
+		let [resource] = args;
+		if (!resource) {
+			let editorService = accessor.get(IWorkbenchEditorService);
+			let fileEditorInput = asFileEditorInput(editorService.getActiveEditorInput());
+			if (fileEditorInput) {
+				process(fileEditorInput.getResource()).then(result => {
+					console.log(result);
+				});
+			} else {
+				console.log('No file editor active');
+			}
+		} else {
+			return process(resource);
+		}
+
+	},
+	context: undefined,
+	primary: KeyMod.Shift | KeyCode.F11
+});
 

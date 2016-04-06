@@ -142,7 +142,7 @@ export class ThemeService implements IThemeService {
 			if (broadcastToAllWindows) {
 				this.windowService.broadcast({ channel: THEME_CHANNEL, payload: themeId });
 			}
-			return TPromise.as(false);
+			return TPromise.as(true);
 		}
 
 		themeId = validateThemeId(themeId); // migrate theme ids
@@ -191,7 +191,7 @@ export class ThemeService implements IThemeService {
 			if (theme) {
 				return applyTheme(theme, onApply);
 			}
-			return null;
+			return false;
 		});
 	}
 
@@ -253,7 +253,7 @@ function applyTheme(theme: IThemeData, onApply: (themeId:string) => void): TProm
 		theme.styleSheetContent = styleSheetContent;
 		_applyRules(styleSheetContent);
 		onApply(theme.id);
-		return false;
+		return true;
 	}, error => {
 		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
 	});
