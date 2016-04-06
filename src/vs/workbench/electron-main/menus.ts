@@ -642,6 +642,15 @@ export class VSCodeMenu {
 				return [new MenuItem({ label: nls.localize('miCheckingForUpdates', "Checking For Updates..."), enabled: false })];
 
 			case um.State.UpdateAvailable:
+				if (platform.isLinux) {
+					const update = UpdateManager.availableUpdate;
+					return [new MenuItem({
+						label: nls.localize('miDownloadUpdate', "Download Update..."), click: () => {
+							update.quitAndUpdate();
+						}
+					})];
+				}
+
 				let updateAvailableLabel = platform.isWindows
 					? nls.localize('miDownloadingUpdate', "Downloading Update...")
 					: nls.localize('miInstallingUpdate', "Installing Update...");

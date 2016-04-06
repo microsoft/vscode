@@ -45,6 +45,14 @@ export const ShowReleaseNotesAction = (releaseNotesUrl: string, returnValue = fa
 	() => { shell.openExternal(releaseNotesUrl); return TPromise.as(returnValue); }
 );
 
+export const DownloadAction = (url: string) => new Action(
+	'update.download',
+	nls.localize('download', "Download"),
+	null,
+	true,
+	() => { shell.openExternal(url); return TPromise.as(true); }
+);
+
 export class Update {
 
 	constructor(
@@ -58,6 +66,13 @@ export class Update {
 			this.messageService.show(severity.Info, {
 				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", env.appName),
 				actions: [ShowReleaseNotesAction(env.releaseNotesUrl), NotNowAction, ApplyUpdateAction]
+			});
+		});
+
+		ipc.on('vscode:update-available', url => {
+			this.messageService.show(severity.Info, {
+				message: nls.localize('thereIsUpdateAvailable', `There is an available update.`),
+				actions: [ShowReleaseNotesAction(env.releaseNotesUrl), NotNowAction, DownloadAction(url)]
 			});
 		});
 

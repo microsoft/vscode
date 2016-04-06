@@ -383,6 +383,12 @@ export class WindowsManager {
 			}
 		});
 
+		UpdateManager.on('update-available', (url: string) => {
+			if (url) {
+				this.sendToFocused('vscode:update-available', url);
+			}
+		});
+
 		lifecycle.onBeforeQuit(() => {
 
 			// 0-1 window open: Do not keep the list but just rely on the active window to be stored

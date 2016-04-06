@@ -12,7 +12,8 @@ import electron = require('electron');
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
 import settings = require('vs/workbench/electron-main/settings');
-import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/win32/auto-updater.win32';
+import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.win32';
+import {LinuxAutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.linux';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
 
 'use strict';
@@ -64,6 +65,8 @@ export class UpdateManager extends events.EventEmitter {
 
 		if (platform.isWindows) {
 			this.raw = new Win32AutoUpdaterImpl();
+		} else if (platform.isLinux) {
+			this.raw = new LinuxAutoUpdaterImpl();
 		} else if (platform.isMacintosh) {
 			this.raw = electron.autoUpdater;
 		}
@@ -84,9 +87,21 @@ export class UpdateManager extends events.EventEmitter {
 			this.setState(State.CheckingForUpdate);
 		});
 
-		this.raw.on('update-available', () => {
-			this.emit('update-available');
-			this.setState(State.UpdateAvailable);
+		this.raw.on('update-available', url => {
+			this.emit('update-available', url);
+
+			let data: IUpdate = null;
+
+			if (url) {
+				data = {
+					releaseNotes: '',
+					version: '',
+					date: new Date(),
+					quitAndUpdate: () => electron.shell.openExternal(url)
+				};
+			}
+
+			this.setState(State.UpdateAvailable, data);
 		});
 
 		this.raw.on('update-not-available', () => {
