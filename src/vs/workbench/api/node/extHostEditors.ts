@@ -77,7 +77,7 @@ export class ExtHostEditors {
 	}
 
 	getActiveTextEditor(): vscode.TextEditor {
-		return this._activeEditorId && this._editors[this._activeEditorId];
+		return this._editors[this._activeEditorId];
 	}
 
 	getVisibleTextEditors(): vscode.TextEditor[] {
