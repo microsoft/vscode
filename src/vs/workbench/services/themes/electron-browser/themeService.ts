@@ -324,7 +324,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 		//cssRules.push(`.monaco-editor.${themeSelector} { background-color: ${background}; }`);
 		cssRules.push(`.monaco-editor.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
 		cssRules.push(`.monaco-editor.${themeSelector} .glyph-margin { background-color: ${background}; }`);
-		cssRules.push(`.monaco-workbench.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
+		cssRules.push(`.${themeSelector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
 	}
 	if (editorSettings.foreground) {
 		let foreground = new Color(editorSettings.foreground);
