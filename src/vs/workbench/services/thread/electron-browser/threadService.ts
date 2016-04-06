@@ -91,7 +91,7 @@ class ExtensionHostProcessManager {
 	private terminating: boolean;
 
 	private isExtensionDevelopmentHost: boolean;
-	private isExtensionDevelopmentTest: boolean;
+	private isExtensionDevelopmentTestFromCli: boolean;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -103,7 +103,7 @@ class ExtensionHostProcessManager {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		const config = this.contextService.getConfiguration();
 		this.isExtensionDevelopmentHost = !!config.env.extensionDevelopmentPath;
-		this.isExtensionDevelopmentTest = this.isExtensionDevelopmentHost && !!config.env.extensionTestsPath;
+		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!config.env.extensionTestsPath && !config.env.debugBrkExtensionHost;
 
 		this.unsentMessages = [];
 		this.extensionHostProcessReady = false;
@@ -202,12 +202,12 @@ class ExtensionHostProcessManager {
 						}
 
 						// Send to local console unless we run tests from cli
-						if (!this.isExtensionDevelopmentTest) {
+						if (!this.isExtensionDevelopmentTestFromCli) {
 							console[logEntry.severity].apply(console, consoleArgs);
 						}
 
 						// Log on main side if running tests from cli
-						if (this.isExtensionDevelopmentTest) {
+						if (this.isExtensionDevelopmentTestFromCli) {
 							ipc.send('vscode:log', logEntry);
 						}
 
@@ -256,7 +256,7 @@ class ExtensionHostProcessManager {
 						}
 
 						// Expected development extension termination: When the extension host goes down we also shutdown the window
-						else if (!this.isExtensionDevelopmentTest) {
+						else if (!this.isExtensionDevelopmentTestFromCli) {
 							this.windowService.getWindow().close();
 						}
 
@@ -322,7 +322,7 @@ class ExtensionHostProcessManager {
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
-		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTest) {
+		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli) {
 			this.windowService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: true
