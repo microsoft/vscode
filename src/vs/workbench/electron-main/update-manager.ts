@@ -10,7 +10,6 @@ import events = require('events');
 
 import electron = require('electron');
 import platform = require('vs/base/common/platform');
-import { isString } from 'vs/base/common/types';
 import env = require('vs/workbench/electron-main/env');
 import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.win32';
@@ -88,12 +87,12 @@ export class UpdateManager extends events.EventEmitter {
 			this.setState(State.CheckingForUpdate);
 		});
 
-		this.raw.on('update-available', url => {
+		this.raw.on('update-available', (event, url: string) => {
 			this.emit('update-available', url);
 
 			let data: IUpdate = null;
 
-			if (isString(url)) {
+			if (url) {
 				data = {
 					releaseNotes: '',
 					version: '',
