@@ -56,8 +56,8 @@ class ManagedWebview {
 		this._ready = new TPromise<this>(resolve => {
 			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
-					this._webview.openDevTools();
-					console.info('[PID Webview] ' + event.args[0]);
+					// this._webview.openDevTools();
+					// console.info('[PID Webview] ' + event.args[0]);
 					subscription.dispose();
 					resolve(this);
 				}
