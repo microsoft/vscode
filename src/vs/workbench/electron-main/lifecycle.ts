@@ -103,12 +103,13 @@ export class Lifecycle {
 	}
 
 	public unload(vscodeWindow: VSCodeWindow): TPromise<boolean /* veto */> {
-		env.log('Lifecycle#unload()', vscodeWindow.id);
 
 		// Always allow to unload a window that is not yet ready
 		if (vscodeWindow.readyState !== ReadyState.READY) {
 			return TPromise.as<boolean>(false);
 		}
+		
+		env.log('Lifecycle#unload()', vscodeWindow.id);
 
 		return new TPromise<boolean>((c) => {
 			let oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
