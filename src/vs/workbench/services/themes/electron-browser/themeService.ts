@@ -167,7 +167,7 @@ export class ThemeService implements IThemeService {
 	}
 
 	public getTheme() {
-		return this.currentTheme || DEFAULT_THEME_ID;
+		return this.currentTheme || this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 	}
 
 	private loadTheme(themeId: string, defaultId?: string): TPromise<IThemeData> {
