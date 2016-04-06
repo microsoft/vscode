@@ -107,6 +107,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	referenceInfos: boolean;
 	folding: boolean;
 	renderWhitespace: boolean;
+	indentGuides: boolean;
 	layoutInfo: editorCommon.IEditorLayoutInfo;
 	stylingInfo: editorCommon.IEditorStyling;
 	wrappingInfo: editorCommon.IEditorWrappingInfo;
@@ -175,6 +176,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.referenceInfos = Boolean(input.referenceInfos);
 		this.folding = Boolean(input.folding);
 		this.renderWhitespace = Boolean(input.renderWhitespace);
+		this.indentGuides = Boolean(input.indentGuides);
 		this.layoutInfo = {
 			width: Number(input.layoutInfo.width)|0,
 			height: Number(input.layoutInfo.height)|0,
@@ -365,6 +367,7 @@ class InternalEditorOptionsHelper {
 			referenceInfos: toBoolean(opts.referenceInfos),
 			folding: toBoolean(opts.folding),
 			renderWhitespace: toBoolean(opts.renderWhitespace),
+			indentGuides: toBoolean(opts.indentGuides),
 
 			layoutInfo: layoutInfo,
 			stylingInfo: {
@@ -459,6 +462,7 @@ class InternalEditorOptionsHelper {
 			referenceInfos:					(prevOpts.referenceInfos !== newOpts.referenceInfos),
 			folding:						(prevOpts.folding !== newOpts.folding),
 			renderWhitespace:				(prevOpts.renderWhitespace !== newOpts.renderWhitespace),
+			indentGuides:					(prevOpts.indentGuides !== newOpts.indentGuides),
 
 			layoutInfo: 					(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
 			stylingInfo: 					(!this._stylingInfoEqual(prevOpts.stylingInfo, newOpts.stylingInfo)),
@@ -931,6 +935,11 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			default: DefaultConfig.editor.renderWhitespace,
 			description: nls.localize('renderWhitespace', "Controls whether the editor should render whitespace characters")
+		},
+		'editor.indentGuides': {
+			'type': 'boolean',
+			default: DefaultConfig.editor.indentGuides,
+			description: nls.localize('indentGuides', "Controls whether the editor should render indent guides")
 		},
 		'editor.referenceInfos' : {
 			'type': 'boolean',

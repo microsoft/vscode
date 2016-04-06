@@ -79,6 +79,7 @@ class ConfigClass implements IConfiguration {
 			referenceInfos: true,
 			folding: true,
 			renderWhitespace: false,
+			indentGuides: true,
 
 			fontFamily: '',
 			fontSize: 0,

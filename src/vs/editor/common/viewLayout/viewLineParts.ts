@@ -9,16 +9,23 @@ import {Arrays} from 'vs/editor/common/core/arrays';
 import {ViewLineToken, IEditorRange, ViewLineTokens} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 
-const INDENT_GUIDES = false;
-
 function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
-export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): LineParts {
-	if (INDENT_GUIDES || renderWhitespace) {
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean, indentGuides:boolean): LineParts {
+	if (indentGuides || renderWhitespace) {
+		let customLineDecorations:CustomLineDecorations;
+		if (indentGuides && renderWhitespace) {
+			customLineDecorations = CustomLineDecorations.RenderWhitespaceAndIndentGuides;
+		} else if (renderWhitespace) {
+			customLineDecorations = CustomLineDecorations.RenderWhitespace;
+		} else {
+			customLineDecorations = CustomLineDecorations.RenderIndentGuides;
+		}
+
 		let oldLength = rawLineDecorations.length;
-		rawLineDecorations = insertWhitespace(INDENT_GUIDES, renderWhitespace, lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
+		rawLineDecorations = insertCustomLineDecorations(customLineDecorations, lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
 		if (rawLineDecorations.length !== oldLength) {
 			rawLineDecorations.sort(cmpLineDecorations);
 		}
@@ -106,9 +113,19 @@ function insertOneWhitespace(dest:ILineDecoration[], lineNumber:number, startCol
 	});
 }
 
-function insertWhitespace(renderIndentGuides:boolean, renderWhitespace:boolean, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
+enum CustomLineDecorations {
+	RenderWhitespace,
+	RenderIndentGuides,
+	RenderWhitespaceAndIndentGuides
+}
+
+function insertCustomLineDecorations(customLineDecorations:CustomLineDecorations, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
 	let lineLength = lineContent.length;
 	if (lineLength === fauxIndentLength) {
+		return rawLineDecorations;
+	}
+	if (fauxIndentLength > 0 && customLineDecorations === CustomLineDecorations.RenderIndentGuides) {
+		// no indent guides on faux indented lines
 		return rawLineDecorations;
 	}
 
@@ -134,17 +151,34 @@ function insertWhitespace(renderIndentGuides:boolean, renderWhitespace:boolean, 
 	let tmpIndent = 0;
 	let whitespaceStartColumn = fauxIndentLength + 1;
 
-	let leadingClassName = '';
-	if (renderIndentGuides) {
-		leadingClassName += ' indent-guide';
-	}
-	if (renderWhitespace) {
-		leadingClassName += ' leading whitespace';
+	let leadingClassName:string;
+	switch (customLineDecorations) {
+		case CustomLineDecorations.RenderWhitespaceAndIndentGuides:
+			if (fauxIndentLength > 0) {
+				leadingClassName = 'leading whitespace';
+			} else {
+				leadingClassName = 'leading whitespace indent-guide';
+			}
+			break;
+		case CustomLineDecorations.RenderWhitespace:
+			leadingClassName = 'leading whitespace';
+			break;
+		case CustomLineDecorations.RenderIndentGuides:
+			leadingClassName = 'indent-guide';
+			break;
 	}
 
-	let trailingClassName = '';
-	if (renderWhitespace) {
-		trailingClassName += ' trailing whitespace';
+	let trailingClassName:string;
+	switch (customLineDecorations) {
+		case CustomLineDecorations.RenderWhitespaceAndIndentGuides:
+			trailingClassName = 'trailing whitespace';
+			break;
+		case CustomLineDecorations.RenderWhitespace:
+			trailingClassName = 'trailing whitespace';
+			break;
+		case CustomLineDecorations.RenderIndentGuides:
+			trailingClassName = '';
+			break;
 	}
 
 	for (let i = fauxIndentLength; i < lineLength; i++) {
@@ -179,6 +213,12 @@ function insertWhitespace(renderIndentGuides:boolean, renderWhitespace:boolean, 
 		}
 
 		if (i === lastNonWhitespaceIndex) {
+
+			if (customLineDecorations === CustomLineDecorations.RenderIndentGuides) {
+				// no need to create additional parts at the end when rendering indent guides
+				break;
+			}
+
 			whitespaceStartColumn = i + 2;
 			tmpIndent = tmpIndent % tabSize;
 		}

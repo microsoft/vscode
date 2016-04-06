@@ -1768,7 +1768,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let lineTokens = new editorCommon.ViewLineTokens([new editorCommon.ViewLineToken(0, '')], 0, lineContent.length);
 
-		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace);
+		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace, config.indentGuides);
 
 		let r = renderLine(new RenderLineInput(
 			lineContent,

@@ -520,6 +520,11 @@ export interface IEditorOptions {
 	 */
 	renderWhitespace?: boolean;
 	/**
+	 * Enable rendering of indent guides.
+	 * Defaults to true.
+	 */
+	indentGuides?: boolean;
+	/**
 	 * The font family
 	 */
 	fontFamily?: string;
@@ -643,6 +648,7 @@ export interface IInternalEditorOptions {
 	referenceInfos: boolean;
 	folding: boolean;
 	renderWhitespace: boolean;
+	indentGuides: boolean;
 
 	// ---- Options that are computed
 
@@ -735,6 +741,7 @@ export interface IConfigurationChangedEvent {
 	referenceInfos: boolean;
 	folding: boolean;
 	renderWhitespace: boolean;
+	indentGuides: boolean;
 
 	// ---- Options that are computed
 	layoutInfo: boolean;
