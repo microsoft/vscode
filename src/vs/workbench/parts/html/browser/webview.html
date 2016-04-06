@@ -3,7 +3,7 @@
 <head>
 	<title>Virtual Document</title>
 </head>
-<body style="margin: 0;">
+<body style="margin: 0; overflow: hidden;">
 	<iframe id="_target" frameborder="0"></iframe>
 	<script>
 		'use strict';
@@ -13,9 +13,8 @@
 
 		let initData = {};
 
-		ipcRenderer.on('init', function(event, data) {
-			// console.log(data);
-			initData = data;
+		ipcRenderer.on('baseUrl', function(event, value) {
+			initData.baseUrl = value;
 		});
 
 		// forward layout calls
@@ -24,9 +23,12 @@
 			document.body.style.height = target.style.height = height + 'px';
 		});
 
-		ipcRenderer.on('updateStyles', function(event, value) {
+		ipcRenderer.on('styles', function(event, value) {
+			initData.styles = value;
 			const defaultStyles = target.contentDocument.getElementById('_defaultStyles');
-			defaultStyles.innerHTML = value;
+			if(defaultStyles) {
+				defaultStyles.innerHTML = value;
+			}
 		});
 
 		// propagate focus
@@ -67,7 +69,7 @@
 		// signal ready, needs a short timeout for an
 		// unknown reason
 		setTimeout(function() {
-			ipcRenderer.sendToHost('webview-ready');
+			ipcRenderer.sendToHost('webview-ready', process.pid);
 		}, 10);
 
 	</script>

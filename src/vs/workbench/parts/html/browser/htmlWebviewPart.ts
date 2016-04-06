@@ -11,7 +11,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, EventType} from 'vs/editor/common/editorCommon';
 import {Dimension, Builder} from 'vs/base/browser/builder';
-import {empty as EmptyDisposable} from 'vs/base/common/lifecycle';
+import {empty as EmptyDisposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {addDisposableListener} from 'vs/base/browser/dom';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -38,150 +38,79 @@ declare interface Webview extends HTMLElement {
 	closeDevTools(): any;
 }
 
-/**
- * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
- */
-export class WebviewPart extends BaseEditor {
+class ManagedWebview {
 
-	static ID: string = 'workbench.editor.webviewPart';
+	private _webview: Webview;
+	private _ready: TPromise<this>;
+	private _disposables: IDisposable[];
 
-	private _editorService: IWorkbenchEditorService;
-	private _themeService: IThemeService;
-	private _container: HTMLDivElement;
-	private _webview: TPromise<Webview>;
-	private _baseUrl: URI;
+	constructor(private _parent: HTMLElement, private _layoutParent: HTMLElement, private _styleElement) {
+		this._webview = <Webview>document.createElement('webview');
+		this._webview.style.zIndex = '1';
+		this._webview.style.position = 'absolute';
+		this._webview.style.left = '-1e10px'; // visible but far away
+		this._webview.autoSize = 'on';
+		this._webview.nodeintegration = 'on';
+		this._webview.src = require.toUrl('./webview.html');
 
-	private _model: IModel;
-	private _modelChangeSubscription = EmptyDisposable;
-	private _themeChangeSubscription = EmptyDisposable;
+		this._ready = new TPromise<this>(resolve => {
+			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
+				if (event.channel === 'webview-ready') {
+					this._webview.openDevTools();
+					console.info('[PID Webview] ' + event.args[0]);
+					subscription.dispose();
+					resolve(this);
+				}
+			});
+		});
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
-	) {
-		super(WebviewPart.ID, telemetryService);
+		this._disposables = [
+			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
+				console.log(`[Embedded Page] ${e.message}`);
+			}),
+			addDisposableListener(this._webview, 'crashed', function () {
+				console.error('embedded page crashed');
+			})
+		];
 
-		this._editorService = editorService;
-		this._themeService = themeService;
-		this._baseUrl = contextService.toResource('/');
+		this._parent.appendChild(this._webview);
 	}
 
 	dispose(): void {
-		// remove from dom
-		this._webview.then(webview => webview.parentElement.removeChild(webview));
-
-		// unhook listeners
-		this._themeChangeSubscription.dispose();
-		this._modelChangeSubscription.dispose();
-		this._model = undefined;
-		super.dispose();
+		this._disposables = dispose(this._disposables);
+		this._webview.parentElement.removeChild(this._webview);
 	}
 
-	public createEditor(parent: Builder): void {
-
-		this._container = document.createElement('div');
-		parent.getHTMLElement().appendChild(this._container);
-
-		this._webview = new TPromise<Webview>((resolve, reject) => {
-
-			const webview = <Webview>document.createElement('webview');
-			webview.style.position = 'absolute';
-			webview.style.zIndex = '1';
-			webview.style.visibility = 'hidden';
-			webview.autoSize = 'on';
-			webview.nodeintegration = 'on';
-			webview.src = require.toUrl('./webview.html');
-
-			const sub1 = addDisposableListener(webview, 'dom-ready', () => {
-				webview.openDevTools();
-			});
-
-			const sub2 = addDisposableListener(webview, 'ipc-message', (event) => {
-				if (event.channel === 'webview-ready') {
-					sub1.dispose();
-					sub2.dispose();
-
-					webview.send('init', {
-						baseUrl: this._baseUrl && this._baseUrl.toString(),
-						styles: this._getDefaultStyles()
-					});
-					resolve(webview);
-				}
-			});
-
-			document.getElementById('workbench.main.container').appendChild(webview);
-		});
-
-		this._themeChangeSubscription =	this._themeService.onDidThemeChange(() => {
-			this._sendToWebview('updateStyles', this._getDefaultStyles());
-		});
+	private _send(channel: string, ...args: any[]): void {
+		this._ready
+			.then(() => this._webview.send(channel, ...args))
+			.done(void 0, console.error);
 	}
 
-	public setVisible(visible: boolean, position?: Position): TPromise<void> {
-		return this._webview.then(value => {
-			value.style.visibility = visible ? 'inherit' : 'hidden';
-			return super.setVisible(visible, position);
-		});
+	set contents(value: string[]) {
+		this._send('content', value);
 	}
 
-	public layout(dimension: Dimension): void {
-		const {width, height} = dimension;
-		this._container.style.width = `${width}px`;
-		this._container.style.height = `${height}px`;
-
-		this._webview.then(value => {
-			const rect = this._container.getBoundingClientRect();
-			value.style.top = `${rect.top}px`;
-			value.style.left = `${rect.left}px`;
-			value.style.width = `${rect.width}px`;
-			value.style.height = `${rect.height}px`;
-			value.send('layout', width, height);
-		});
+	set baseUrl(value: string) {
+		this._send('baseUrl', value);
 	}
 
-	public focus(): void {
-		this._sendToWebview('focus');
+	focus(): void {
+		this._send('focus');
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+	layout(): void {
+		const {top, left, width, height} = this._layoutParent.getBoundingClientRect();
+		this._webview.style.top = `${top}px`;
+		this._webview.style.left = `${left}px`;
+		this._webview.style.width = `${width}px`;
+		this._webview.style.height = `${height}px`;
 
-		if (this.input === input) {
-			return TPromise.as(undefined);
-		}
-
-		this._model = undefined;
-		this._modelChangeSubscription.dispose();
-
-		if (!(input instanceof HtmlInput)) {
-			return TPromise.wrapError<void>('Invalid input');
-		}
-
-		return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
-			if (model instanceof BaseTextEditorModel) {
-				this._model = model.textEditorModel;
-			}
-			if (!this._model) {
-				return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
-			}
-			this._modelChangeSubscription = this._model.addListener2(EventType.ModelContentChanged2, () => this._updateFromModel());
-			this._updateFromModel();
-			return super.setInput(input, options);
-		});
+		this._send('layout', width, height);
 	}
 
-	private _updateFromModel(): void {
-		this._sendToWebview('content', this._model.getLinesContent());
-	}
-
-	private _sendToWebview(channel:string, ...args: any[]): void {
-		this._webview.then(webview => webview.send(channel, ...args)).done(undefined, console.error);
-	}
-
-	private _getDefaultStyles():string {
-		// const {color, background, fontFamily, fontSize} = window.getComputedStyle(this._container);
-		const {color, backgroundColor, fontFamily, fontSize} = window.getComputedStyle(document.querySelector('.monaco-editor-background'));
+	style(themeId: string): void {
+		const {color, backgroundColor, fontFamily, fontSize} = window.getComputedStyle(this._styleElement);
 
 		let value = `
 		body {
@@ -212,7 +141,7 @@ export class WebviewPart extends BaseEditor {
 			background-color: rgba(100, 100, 100, 0.7);
 		}`;
 
-		if (isLightTheme(this._themeService.getTheme())) {
+		if (isLightTheme(themeId)) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(100, 100, 100, 0.4);
@@ -230,6 +159,121 @@ export class WebviewPart extends BaseEditor {
 			}`;
 		}
 
-		return value;
+		this._send('styles', value);
+	}
+}
+
+/**
+ * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
+ */
+export class WebviewPart extends BaseEditor {
+
+	static ID: string = 'workbench.editor.webviewPart';
+
+	private _editorService: IWorkbenchEditorService;
+	private _themeService: IThemeService;
+	private _webview: ManagedWebview;
+	private _container: HTMLDivElement;
+
+	private _baseUrl: URI;
+
+	private _model: IModel;
+	private _modelChangeSubscription = EmptyDisposable;
+	private _themeChangeSubscription = EmptyDisposable;
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		super(WebviewPart.ID, telemetryService);
+
+		this._editorService = editorService;
+		this._themeService = themeService;
+		this._baseUrl = contextService.toResource('/');
+	}
+
+	dispose(): void {
+		// remove from dom
+		this._webview.dispose();
+
+		// unhook listeners
+		this._themeChangeSubscription.dispose();
+		this._modelChangeSubscription.dispose();
+		this._model = undefined;
+		super.dispose();
+	}
+
+	public createEditor(parent: Builder): void {
+		this._container = document.createElement('div');
+		parent.getHTMLElement().appendChild(this._container);
+	}
+
+	get webview(): ManagedWebview {
+		if (!this._webview) {
+			this._webview = new ManagedWebview(document.getElementById('workbench.main.container'),
+				this._container,
+				document.querySelector('.monaco-editor-background'));
+
+			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString();
+		}
+		return this._webview;
+	}
+
+	public setVisible(visible: boolean, position?: Position): TPromise<void> {
+		if (!visible) {
+			this._themeChangeSubscription.dispose();
+			this._modelChangeSubscription.dispose();
+			this._webview.dispose();
+			this._webview = undefined;
+		} else {
+			this._themeChangeSubscription = this._themeService.onDidThemeChange(themeId => this.webview.style(themeId));
+			this.webview.style(this._themeService.getTheme());
+			this.webview.layout();
+
+			if (this._model) {
+				this._modelChangeSubscription = this._model.addListener2(EventType.ModelContentChanged2, () => this.webview.contents = this._model.getLinesContent());
+				this.webview.contents = this._model.getLinesContent();
+			}
+		}
+		return super.setVisible(visible, position);
+	}
+
+	public layout(dimension: Dimension): void {
+		const {width, height} = dimension;
+		this._container.style.width = `${width}px`;
+		this._container.style.height = `${height}px`;
+		this.webview.layout();
+	}
+
+	public focus(): void {
+		this.webview.focus();
+	}
+
+	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+
+		if (this.input === input) {
+			return TPromise.as(undefined);
+		}
+
+		this._model = undefined;
+		this._modelChangeSubscription.dispose();
+
+		if (!(input instanceof HtmlInput)) {
+			return TPromise.wrapError<void>('Invalid input');
+		}
+
+		return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
+			if (model instanceof BaseTextEditorModel) {
+				this._model = model.textEditorModel;
+			}
+			if (!this._model) {
+				return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
+			}
+			this._modelChangeSubscription = this._model.addListener2(EventType.ModelContentChanged2, () => this.webview.contents = this._model.getLinesContent());
+			this.webview.contents = this._model.getLinesContent();
+			return super.setInput(input, options);
+		});
 	}
 }
