@@ -7,10 +7,6 @@
 
 import 'vs/css!./media/shell';
 
-import 'vs/css!vs/workbench/browser/media/vs-theme';
-import 'vs/css!vs/workbench/browser/media/vs-dark-theme';
-import 'vs/css!vs/workbench/browser/media/hc-black-theme';
-
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
