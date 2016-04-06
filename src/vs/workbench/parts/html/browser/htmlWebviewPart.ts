@@ -18,13 +18,11 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService, StorageEventType, StorageScope} from 'vs/platform/storage/common/storage';
-import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 import {isLightTheme} from 'vs/platform/theme/common/themes';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {Preferences} from 'vs/workbench/common/constants';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
 declare interface Webview extends HTMLElement {
 	src: string;
@@ -48,7 +46,7 @@ export class WebviewPart extends BaseEditor {
 	static ID: string = 'workbench.editor.webviewPart';
 
 	private _editorService: IWorkbenchEditorService;
-	private _storageService: IStorageService;
+	private _themeService: IThemeService;
 	private _container: HTMLDivElement;
 	private _webview: TPromise<Webview>;
 	private _baseUrl: URI;
@@ -60,13 +58,13 @@ export class WebviewPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(WebviewPart.ID, telemetryService);
 
 		this._editorService = editorService;
-		this._storageService = storageService;
+		this._themeService = themeService;
 		this._baseUrl = contextService.toResource('/');
 	}
 
@@ -116,13 +114,10 @@ export class WebviewPart extends BaseEditor {
 			document.getElementById('workbench.main.container').appendChild(webview);
 		});
 
-		this._themeChangeSubscription = this._storageService.addListener2(StorageEventType.STORAGE, event => {
-			if (event.key === Preferences.THEME && this.isVisible()) {
-				this._sendToWebview('updateStyles', this._getDefaultStyles());
-			}
+		this._themeChangeSubscription =	this._themeService.onDidThemeChange(() => {
+			this._sendToWebview('updateStyles', this._getDefaultStyles());
 		});
 	}
-
 
 	public setVisible(visible: boolean, position?: Position): TPromise<void> {
 		return this._webview.then(value => {
@@ -217,7 +212,7 @@ export class WebviewPart extends BaseEditor {
 			background-color: rgba(100, 100, 100, 0.7);
 		}`;
 
-		if (isLightTheme(this._storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID))) {
+		if (isLightTheme(this._themeService.getTheme())) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(100, 100, 100, 0.4);
