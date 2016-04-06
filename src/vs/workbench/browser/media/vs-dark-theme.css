@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* General Theme Colors */
-.monaco-workbench.vs-dark		 	{ background-color: #252526; color: #CCC; }
+.vs-dark .monaco-workbench		 	{ background-color: #252526; color: #CCC; }
 
 /* Scrollable ELements */
-.monaco-workbench.vs-dark .monaco-scrollable-element .shadow.top {	box-shadow: #000 0 6px 6px -6px inset; }
-.monaco-workbench.vs-dark .monaco-scrollable-element .shadow.left { box-shadow: #000 6px 0 6px -6px inset; }
-.monaco-workbench.vs-dark .monaco-scrollable-element .shadow.top.left { box-shadow: #000 6px 6px 6px -6px inset; }
-.monaco-workbench.vs-dark .monaco-scrollable-element .slider.active { background-color: rgba(85, 85, 85, .8); }
+.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top {	box-shadow: #000 0 6px 6px -6px inset; }
+.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.left { box-shadow: #000 6px 0 6px -6px inset; }
+.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top.left { box-shadow: #000 6px 6px 6px -6px inset; }
+.vs-dark .monaco-workbench .monaco-scrollable-element .slider.active { background-color: rgba(85, 85, 85, .8); }
 
 /* Sidebar */
-.monaco-workbench.vs-dark .sidebar 				{ border: none; }
-.monaco-workbench.vs-dark .sidebar .separator 	{ background-color: #2D2D30; }
+.vs-dark .monaco-workbench .sidebar 				{ border: none; }
+.vs-dark .monaco-workbench .sidebar .separator 	{ background-color: #2D2D30; }
 
 /* Input Fields */
-.monaco-workbench.vs-dark input,
-.monaco-workbench.vs-dark textarea {
+.vs-dark .monaco-workbench input,
+.vs-dark .monaco-workbench textarea {
 	background-color: #3C3C3C;
 }
 
-.monaco-workbench.vs-dark input:disabled {
+.vs-dark .monaco-workbench input:disabled {
 	background-color: #333;
 }
 
 /* Viewlet */
-.monaco-workbench.vs-dark .viewlet .message { opacity: 0.5; }
+.vs-dark .monaco-workbench .viewlet .message { opacity: 0.5; }
 
 /* Action labels */
-.monaco-workbench.vs-dark .stacked-view .action-label		{ color: inherit; }
-.monaco-workbench.vs-dark .stacked-view .action-label:hover { color: #3399FF; }
+.vs-dark .monaco-workbench .stacked-view .action-label		{ color: inherit; }
+.vs-dark .monaco-workbench .stacked-view .action-label:hover { color: #3399FF; }

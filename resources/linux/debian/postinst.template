@@ -3,6 +3,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
+# Symlink bin command to /usr/bin
+rm -f /usr/bin/@@NAME@@
+ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
+
 # Register code in the alternatives system
 # Priority of 0 should never make code the default editor in auto mode as most
 # developers would prefer a terminal editor as the default.

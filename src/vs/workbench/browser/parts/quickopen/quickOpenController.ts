@@ -624,12 +624,19 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private onType(value: string): void {
 		this.previousValue = value;
 
+		// look for a handler
+		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
+		const handlerDescriptor = registry.getQuickOpenHandler(value);
+		const instantProgress = handlerDescriptor && handlerDescriptor.instantProgress;
+
 		// Use a generated token to avoid race conditions from long running promises
 		let currentResultToken = uuid.generateUuid();
 		this.currentResultToken = currentResultToken;
 
 		// Reset Progress
-		this.quickOpenWidget.getProgressBar().stop().getContainer().hide();
+		if (!instantProgress) {
+			this.quickOpenWidget.getProgressBar().stop().getContainer().hide();
+		}
 
 		// Reset Extra Class
 		this.quickOpenWidget.setExtraClass(null);
@@ -646,9 +653,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		let resultPromise: TPromise<void>;
 		let resultPromiseDone = false;
 
-		// look for a handler
-		let registry = (<IQuickOpenRegistry>Registry.as(Extensions.Quickopen));
-		let handlerDescriptor = registry.getQuickOpenHandler(value);
 		if (handlerDescriptor) {
 			resultPromise = this.handleSpecificHandler(handlerDescriptor, value, currentResultToken);
 		}
@@ -663,7 +667,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.previousActiveHandlerDescriptor = handlerDescriptor;
 
 		// Progress if task takes a long time
-		TPromise.timeout(handlerDescriptor && handlerDescriptor.instantProgress ? 0 : 800).then(() => {
+		TPromise.timeout(instantProgress ? 0 : 800).then(() => {
 			if (!resultPromiseDone && currentResultToken === this.currentResultToken) {
 				this.quickOpenWidget.getProgressBar().infinite().getContainer().show();
 			}

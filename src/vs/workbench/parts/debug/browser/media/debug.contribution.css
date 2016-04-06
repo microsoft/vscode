@@ -185,33 +185,33 @@
 	color: #A31515;
 }
 
-.monaco-workbench.vs-dark  > .monaco-tree-row:not(.selected) .expression .value {
+.vs-dark .monaco-workbench  > .monaco-tree-row:not(.selected) .expression .value {
 	color: rgba(204, 204, 204, 0.6);
 }
 
-.monaco-workbench.vs-dark  .monaco-tree-row:not(.selected) .expression .error {
+.vs-dark .monaco-workbench  .monaco-tree-row:not(.selected) .expression .error {
 	color: #F48771;
 }
 
-.monaco-workbench.vs-dark  .monaco-tree-row:not(.selected) .expression .value.number {
+.vs-dark .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.number {
 	color: #B5CEA8;
 }
 
-.monaco-workbench.vs-dark  .monaco-tree-row:not(.selected) .expression .value.boolean {
+.vs-dark .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.boolean {
 	color: #4E94CE;
 }
 
-.monaco-workbench.vs-dark  .monaco-tree-row:not(.selected) .expression .value.string {
+.vs-dark .monaco-workbench  .monaco-tree-row:not(.selected) .expression .value.string {
 	color: #CE9178;
 }
 
-.monaco-workbench.hc-black .monaco-tree-row:not(.selected) .expression .error {
+.hc-black .monaco-workbench .monaco-tree-row:not(.selected) .expression .error {
 	color: #F48771;
 }
 
 /* Dark theme */
 
-.monaco-workbench.vs-dark .monaco-tree-row:not(.selected) .expression .name {
+.vs-dark .monaco-workbench .monaco-tree-row:not(.selected) .expression .name {
 	color: #C586C0;
 }
 
@@ -269,62 +269,62 @@
 	background: url('stackframe-and-breakpoint-dark.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.step-over {
+.vs-dark .monaco-workbench .debug-action.step-over {
 	background: url('step-over-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.step-into {
+.vs-dark .monaco-workbench .debug-action.step-into {
 	background: url('step-into-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.step-out {
+.vs-dark .monaco-workbench .debug-action.step-out {
 	background: url('step-out-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.continue {
+.vs-dark .monaco-workbench .debug-action.continue {
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.start {
+.vs-dark .monaco-workbench .debug-action.start {
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.restart {
+.vs-dark .monaco-workbench .debug-action.restart {
 	background: url('restart-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.pause {
+.vs-dark .monaco-workbench .debug-action.pause {
 	background: url('pause-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.stop {
+.vs-dark .monaco-workbench .debug-action.stop {
 	background: url('stop-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.clear-repl {
+.vs-dark .monaco-workbench .debug-action.clear-repl {
 	background: url('clear-repl-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-actions-widget {
+.vs-dark .monaco-workbench .debug-actions-widget {
 	background-color: #333;
 	box-shadow: 0 2px 8px #000;
 }
 
 /* High Contrast Theming */
 
-.monaco-workbench.hc-black .monaco-tree-row:not(.selected) .expression .name {
+.hc-black .monaco-workbench .monaco-tree-row:not(.selected) .expression .name {
 	color: inherit;
 }
 
-.monaco-workbench.hc-black > .activitybar .monaco-action-bar .action-label.debug:before {
+.hc-black .monaco-workbench > .activitybar .monaco-action-bar .action-label.debug:before {
 	content: url('debug.svg');
 }
 
-.monaco-workbench.hc-black .debug-action {
+.hc-black .monaco-workbench .debug-action {
 	background: none;
 }
 
-.monaco-workbench.hc-black .debug-action:before {
+.hc-black .monaco-workbench .debug-action:before {
 	position: absolute;
 	top: 12px;
 	left: 8px;
@@ -332,43 +332,43 @@
 	width: 16px;
 }
 
-.monaco-workbench.hc-black .debug-actions-widget {
+.hc-black .monaco-workbench .debug-actions-widget {
 	background-color: #333;
 	box-shadow: 0 2px 8px #000;
 }
 
-.monaco-workbench.hc-black .debug-action.step-over {
+.hc-black .monaco-workbench .debug-action.step-over {
 	background: url('step-over-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.step-into {
+.hc-black .monaco-workbench .debug-action.step-into {
 	background: url('step-into-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.step-out {
+.hc-black .monaco-workbench .debug-action.step-out {
 	background: url('step-out-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.continue {
+.hc-black .monaco-workbench .debug-action.continue {
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.start {
+.hc-black .monaco-workbench .debug-action.start {
 	background: url('continue-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.restart {
+.hc-black .monaco-workbench .debug-action.restart {
 	background: url('restart-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.pause {
+.hc-black .monaco-workbench .debug-action.pause {
 	background: url('pause-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.stop {
+.hc-black .monaco-workbench .debug-action.stop {
 	background: url('stop-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.clear-repl {
+.hc-black .monaco-workbench .debug-action.clear-repl {
 	background: url('clear-repl-inverse.svg') center center no-repeat;
 }

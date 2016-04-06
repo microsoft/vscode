@@ -10,20 +10,20 @@ import {EventType} from 'vs/base/common/events';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import paths = require('vs/base/common/paths');
 import {EventType as EditorEventType, IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
-import {Preferences} from 'vs/workbench/common/constants';
-import themes = require('vs/platform/theme/common/themes');
+import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
 import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 interface ILanguageConfiguration {
 	markdown: {
@@ -38,7 +38,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 
 	private fileChangeListener: () => void;
 	private configFileChangeListener: () => void;
-	private themeChangeListener: () => void;
+	private themeChangeListener: IDisposable;
 	private editorInputChangeListener: () => void;
 	private markdownConfigurationThumbprint: string;
 	private markdownConfigurationPaths: string[];
@@ -50,15 +50,15 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModelService private modelService: IModelService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.markdownConfigurationPaths = [];
 		this.hasModelListenerOnResourcePath = Object.create(null);
 
-		this.configureMode(this.storageService.get(Preferences.THEME, StorageScope.GLOBAL));
+		this.configureMode(themeService.getTheme());
 
 		this.registerListeners();
 	}
@@ -74,11 +74,9 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		this.readMarkdownConfiguration(this.configurationService.getConfiguration<ILanguageConfiguration>());
 
 		// listen to theme changes
-		this.themeChangeListener = this.storageService.addListener(StorageEventType.STORAGE, (e: StorageEvent) => {
-			if (e.key === Preferences.THEME) {
-				this.configureMode(e.newValue);
-				this.reloadMarkdownEditors(true);
-			}
+		this.themeChangeListener = this.themeService.onDidThemeChange(themeId => {
+			this.configureMode(themeId);
+			this.reloadMarkdownEditors(true);
 		});
 	}
 
@@ -122,7 +120,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 
 	private configureMode(theme: string): void {
 		if (theme) {
-			let baseTheme = themes.getBaseThemeId(theme);
+			let baseTheme = getBaseThemeId(theme);
 			this.modeService.configureMode('text/x-web-markdown', { theme: baseTheme });
 		}
 	}

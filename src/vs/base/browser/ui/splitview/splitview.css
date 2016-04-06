@@ -28,6 +28,7 @@
 	padding-left: 20px;
 	background: rgba(128, 128, 128, 0.2);
 	overflow: hidden;
+	display: flex;
 }
 
 .monaco-split-view > .split-view-view > .header.collapsible {

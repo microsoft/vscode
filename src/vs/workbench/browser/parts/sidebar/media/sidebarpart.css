@@ -7,7 +7,7 @@
 	background-color: rgb(243, 243, 243);
 }
 
-.monaco-workbench.vs-dark > .sidebar > .title > .title-actions {
+.vs-dark .monaco-workbench > .sidebar > .title > .title-actions {
 	background-color: rgb(37, 37, 38);
 }
 
@@ -27,14 +27,15 @@
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions {
-	float: right;
 	padding-right: 8px;
+	padding-left: 5px;
 	width: 0; /* not using display: none for keyboard a11y reasons */
 }
 
 .monaco-workbench .viewlet .split-view-view:hover .actions,
 .monaco-workbench .viewlet .collapsible.header.focused .actions {
 	width: initial;
+	flex: 1;
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions .action-label {
@@ -62,14 +63,14 @@
 }
 
 /* High Contrast Theming */
-.monaco-workbench.hc-black > .sidebar.left {
+.hc-black .monaco-workbench > .sidebar.left {
 	border-right: 1px solid #6FC3DF;
 }
 
-.monaco-workbench.hc-black > .sidebar.right {
+.hc-black .monaco-workbench > .sidebar.right {
 	border-left: 1px solid #6FC3DF;
 }
 
-.monaco-workbench.hc-black > .sidebar > .title > .title-actions {
+.hc-black .monaco-workbench > .sidebar > .title > .title-actions {
 	background-color: #000;
 }

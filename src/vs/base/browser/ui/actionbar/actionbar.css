@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar {
-	text-align: center;
+	text-align: right;
 	overflow: hidden;
 	white-space: nowrap;
 }
@@ -177,19 +177,19 @@
 	margin: 5px 4px;
 }
 
-.vs-dark.monaco-workbench .action-bar-select {
+.vs-dark .monaco-workbench .action-bar-select {
 	background-color: #3C3C3C;
 	border-color: #3C3C3C;
 	color: rgb(204, 204, 204);
 }
 
-.hc-black.monaco-workbench .action-bar-select {
+.hc-black .monaco-workbench .action-bar-select {
 	background-color: #3C3C3C;
 	border-color: #3C3C3C;
 	color: white;
 }
 
-.vs.monaco-workbench .action-bar-select {
+.vs .monaco-workbench .action-bar-select {
 	background-color: white;
 	border-color: #CECECE;
 }

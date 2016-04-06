@@ -428,6 +428,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			'class': ['composite', 'title']
 		});
 
+		// Left Title Label
+		$(titleArea).div({
+			'class': 'title-label'
+		}, (div) => {
+			this.titleLabel = div.span();
+		});
+
 		// Right Actions Container
 		$(titleArea).div({
 			'class': 'title-actions'
@@ -438,13 +445,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action),
 				orientation: ActionsOrientation.HORIZONTAL
 			});
-		});
-
-		// Left Title Label
-		$(titleArea).div({
-			'class': 'title-label'
-		}, (div) => {
-			this.titleLabel = div.span();
 		});
 
 		return titleArea;

@@ -5,8 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import {DecorationSegment, ILineDecoration, LineDecorationsNormalizer} from 'vs/editor/common/viewLayout/viewLineParts';
+import {DecorationSegment, ILineDecoration, LineDecorationsNormalizer, getColumnOfLinePartOffset} from 'vs/editor/common/viewLayout/viewLineParts';
 import {Range} from 'vs/editor/common/core/range';
+import {ViewLineToken} from 'vs/editor/common/editorCommon';
+import {RenderLineInput, renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 
@@ -126,6 +128,138 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
+	function createTestGetColumnOfLinePartOffset(lineContent:string, tabSize:number, parts:ViewLineToken[]): (partIndex:number, partLength:number, offset:number, expected:number)=>void {
+		let renderLineOutput = renderLine(new RenderLineInput(lineContent, tabSize, 10, -1, false, parts));
+
+		return (partIndex:number, partLength:number, offset:number, expected:number) => {
+			let actual = getColumnOfLinePartOffset(-1, parts, lineContent.length + 1, renderLineOutput.charOffsetInPart, partIndex, partLength, offset);
+			assert.equal(actual, expected, 'getColumnOfLinePartOffset for ' + partIndex + ' @ ' + offset);
+		};
+	}
+
+	test('getColumnOfLinePartOffset 1 - simple text', () => {
+		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+			'hello world',
+			4,
+			[
+				new ViewLineToken(0, 'aToken')
+			]
+		);
+		testGetColumnOfLinePartOffset(0, 11,  0,  1);
+		testGetColumnOfLinePartOffset(0, 11,  1,  2);
+		testGetColumnOfLinePartOffset(0, 11,  2,  3);
+		testGetColumnOfLinePartOffset(0, 11,  3,  4);
+		testGetColumnOfLinePartOffset(0, 11,  4,  5);
+		testGetColumnOfLinePartOffset(0, 11,  5,  6);
+		testGetColumnOfLinePartOffset(0, 11,  6,  7);
+		testGetColumnOfLinePartOffset(0, 11,  7,  8);
+		testGetColumnOfLinePartOffset(0, 11,  8,  9);
+		testGetColumnOfLinePartOffset(0, 11,  9, 10);
+		testGetColumnOfLinePartOffset(0, 11, 10, 11);
+		testGetColumnOfLinePartOffset(0, 11, 11, 12);
+	});
+
+	test('getColumnOfLinePartOffset 2 - regular JS', () => {
+		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+			'var x = 3;',
+			4,
+			[
+				new ViewLineToken(0, 'meta type js storage var expr'),
+				new ViewLineToken(3, 'meta js var expr'),
+				new ViewLineToken(4, 'meta js var expr var-single-variable variable'),
+				new ViewLineToken(5, 'meta js var expr var-single-variable'),
+				new ViewLineToken(8, 'meta js var expr var-single-variable constant numeric'),
+				new ViewLineToken(9, ''),
+			]
+		);
+		testGetColumnOfLinePartOffset(0, 3, 0,  1);
+		testGetColumnOfLinePartOffset(0, 3, 1,  2);
+		testGetColumnOfLinePartOffset(0, 3, 2,  3);
+		testGetColumnOfLinePartOffset(0, 3, 3,  4);
+		testGetColumnOfLinePartOffset(1, 1, 0,  4);
+		testGetColumnOfLinePartOffset(1, 1, 1,  5);
+		testGetColumnOfLinePartOffset(2, 1, 0,  5);
+		testGetColumnOfLinePartOffset(2, 1, 1,  6);
+		testGetColumnOfLinePartOffset(3, 3, 0,  6);
+		testGetColumnOfLinePartOffset(3, 3, 1,  7);
+		testGetColumnOfLinePartOffset(3, 3, 2,  8);
+		testGetColumnOfLinePartOffset(3, 3, 3,  9);
+		testGetColumnOfLinePartOffset(4, 1, 0,  9);
+		testGetColumnOfLinePartOffset(4, 1, 1, 10);
+		testGetColumnOfLinePartOffset(5, 1, 0, 10);
+		testGetColumnOfLinePartOffset(5, 1, 1, 11);
+	});
+
+	test('getColumnOfLinePartOffset 3 - tab with tab size 6', () => {
+		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+			'\t',
+			6,
+			[
+				new ViewLineToken(0, 'leading whitespace')
+			]
+		);
+		testGetColumnOfLinePartOffset(0, 6, 0,  1);
+		testGetColumnOfLinePartOffset(0, 6, 1,  1);
+		testGetColumnOfLinePartOffset(0, 6, 2,  1);
+		testGetColumnOfLinePartOffset(0, 6, 3,  1);
+		testGetColumnOfLinePartOffset(0, 6, 4,  2);
+		testGetColumnOfLinePartOffset(0, 6, 5,  2);
+		testGetColumnOfLinePartOffset(0, 6, 6,  2);
+	});
+
+	test('getColumnOfLinePartOffset 4 - once indented line, tab size 4', () => {
+		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+			'\tfunction',
+			4,
+			[
+				new ViewLineToken(0, ''),
+				new ViewLineToken(1, 'meta type js function storage'),
+			]
+		);
+		testGetColumnOfLinePartOffset(0, 4, 0,  1);
+		testGetColumnOfLinePartOffset(0, 4, 1,  1);
+		testGetColumnOfLinePartOffset(0, 4, 2,  1);
+		testGetColumnOfLinePartOffset(0, 4, 3,  2);
+		testGetColumnOfLinePartOffset(0, 4, 4,  2);
+		testGetColumnOfLinePartOffset(1, 8, 0,  2);
+		testGetColumnOfLinePartOffset(1, 8, 1,  3);
+		testGetColumnOfLinePartOffset(1, 8, 2,  4);
+		testGetColumnOfLinePartOffset(1, 8, 3,  5);
+		testGetColumnOfLinePartOffset(1, 8, 4,  6);
+		testGetColumnOfLinePartOffset(1, 8, 5,  7);
+		testGetColumnOfLinePartOffset(1, 8, 6,  8);
+		testGetColumnOfLinePartOffset(1, 8, 7,  9);
+		testGetColumnOfLinePartOffset(1, 8, 8, 10);
+	});
+
+	test('getColumnOfLinePartOffset 5 - twice indented line, tab size 4', () => {
+		let testGetColumnOfLinePartOffset = createTestGetColumnOfLinePartOffset(
+			'\t\tfunction',
+			4,
+			[
+				new ViewLineToken(0, ''),
+				new ViewLineToken(2, 'meta type js function storage'),
+			]
+		);
+		testGetColumnOfLinePartOffset(0, 8, 0,  1);
+		testGetColumnOfLinePartOffset(0, 8, 1,  1);
+		testGetColumnOfLinePartOffset(0, 8, 2,  1);
+		testGetColumnOfLinePartOffset(0, 8, 3,  2);
+		testGetColumnOfLinePartOffset(0, 8, 4,  2);
+		testGetColumnOfLinePartOffset(0, 8, 5,  2);
+		testGetColumnOfLinePartOffset(0, 8, 6,  2);
+		testGetColumnOfLinePartOffset(0, 8, 7,  3);
+		testGetColumnOfLinePartOffset(0, 8, 8,  3);
+		testGetColumnOfLinePartOffset(1, 8, 0,  3);
+		testGetColumnOfLinePartOffset(1, 8, 1,  4);
+		testGetColumnOfLinePartOffset(1, 8, 2,  5);
+		testGetColumnOfLinePartOffset(1, 8, 3,  6);
+		testGetColumnOfLinePartOffset(1, 8, 4,  7);
+		testGetColumnOfLinePartOffset(1, 8, 5,  8);
+		testGetColumnOfLinePartOffset(1, 8, 6,  9);
+		testGetColumnOfLinePartOffset(1, 8, 7, 10);
+		testGetColumnOfLinePartOffset(1, 8, 8, 11);
+	});
 });
 
 

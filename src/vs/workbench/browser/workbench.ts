@@ -17,7 +17,7 @@ import assert = require('vs/base/common/assert');
 import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
-import {Identifiers, Preferences} from 'vs/workbench/common/constants';
+import {Identifiers} from 'vs/workbench/common/constants';
 import {EventType} from 'vs/workbench/common/events';
 import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
@@ -41,9 +41,8 @@ import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindi
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
-import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -112,7 +111,6 @@ export class Workbench implements IPartService {
 	private workbenchLayout: WorkbenchLayout;
 	private toDispose: IDisposable[];
 	private toShutdown: { shutdown: () => void; }[];
-	private currentTheme: string;
 	private callbacks: IWorkbenchCallbacks;
 	private creationPromise: TPromise<boolean>;
 	private creationPromiseComplete: ValueCallback;
@@ -144,7 +142,6 @@ export class Workbench implements IPartService {
 			instantiationService
 		};
 
-		this.currentTheme = null;
 		this.toDispose = [];
 		this.toShutdown = [];
 		this.editorBackgroundDelayer = new Delayer<void>(50);
@@ -689,15 +686,6 @@ export class Workbench implements IPartService {
 
 	private registerListeners(): void {
 
-		// Listen to Preference changes
-		this.toDispose.push(this.toDisposable(this.eventService.addListener(StorageEventType.STORAGE, (e: StorageEvent) => {
-			switch (e.key) {
-				case Preferences.THEME:
-					this.applyTheme(e.newValue);
-					break;
-			}
-		})));
-
 		// Listen to editor changes
 		this.toDispose.push(this.toDisposable(this.eventService.addListener(EventType.EDITOR_CLOSED, () => this.onEditorOpenedOrClosed())));
 		this.toDispose.push(this.toDisposable(this.eventService.addListener(EventType.EDITOR_OPENED, () => this.onEditorOpenedOrClosed())));
@@ -779,26 +767,8 @@ export class Workbench implements IPartService {
 		// Create QuickOpen
 		this.createQuickOpen();
 
-		// Check theme in preferences
-		let currentTheme = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
-
-		// Apply theme
-		this.applyTheme(currentTheme);
-
 		// Add Workbench to DOM
 		this.workbenchContainer.build(this.container);
-	}
-
-	private applyTheme(theme: string): void {
-		if (this.currentTheme) {
-			this.workbench.removeClass(this.currentTheme);
-		}
-
-		this.currentTheme = theme || null;
-
-		if (this.currentTheme) {
-			this.workbench.addClass(this.currentTheme);
-		}
 	}
 
 	private createActivityBarPart(): void {

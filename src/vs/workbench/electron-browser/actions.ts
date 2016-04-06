@@ -17,8 +17,12 @@ import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
+
+// --- actions
 
 export class CloseEditorAction extends Action {
 
@@ -459,3 +463,22 @@ export class CloseMessagesAction extends Action {
 		return TPromise.as(true);
 	}
 }
+
+// --- commands
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_workbench.ipc',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, args: [string, any[]]) {
+		const ipcMessage = args[0];
+		const ipcArgs = args[1];
+
+		if (ipcMessage && Array.isArray(ipcArgs)) {
+			ipc.send(ipcMessage, ...ipcArgs);
+		} else {
+			ipc.send(ipcMessage);
+		}
+	},
+	context: undefined,
+	primary: undefined
+});

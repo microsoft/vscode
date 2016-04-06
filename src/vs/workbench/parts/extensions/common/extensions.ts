@@ -45,10 +45,23 @@ export interface IExtension extends IExtensionManifest {
 export const IExtensionsService = createDecorator<IExtensionsService>('extensionsService');
 export const IGalleryService = createDecorator<IGalleryService>('galleryService');
 
+export interface IQueryOptions {
+	text?: string;
+	ids?: string[];
+	pageSize?: number;
+}
+
+export interface IQueryResult {
+	firstPage: IExtension[];
+	total: number;
+	pageSize: number;
+	getPage(pageNumber: number): TPromise<IExtension[]>;
+}
+
 export interface IGalleryService {
 	serviceId: ServiceIdentifier<any>;
 	isEnabled(): boolean;
-	query(): TPromise<IExtension[]>;
+	query(options?: IQueryOptions): TPromise<IQueryResult>;
 }
 
 export interface IExtensionsService {

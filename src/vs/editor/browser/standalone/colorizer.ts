@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ViewLineToken, IModel} from 'vs/editor/common/editorCommon';
 import {ILineTokens, IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IRenderLineOutput, renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {RenderLineOutput, renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 export interface IColorizerOptions {
@@ -126,7 +126,7 @@ function actualColorize(lines:string[], mode:IMode, tabSize:number): IActualColo
 		length:number,
 		line: string,
 		tokenizeResult: ILineTokens,
-		renderResult: IRenderLineOutput,
+		renderResult: RenderLineOutput,
 		retokenize: TPromise<void>[] = [];
 
 	for (i = 0, length = lines.length; i < length; i++) {

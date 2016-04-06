@@ -806,13 +806,255 @@ suite('Editor Controller - Cursor', () => {
 		});
 
 		let expectedSelections = [
-			new Selection(1, 7, 1, 13),
-			new Selection(2, 4, 2, 10),
-			new Selection(3, 3, 3, 7),
+			new Selection(1, 7, 1, 12),
+			new Selection(2, 4, 2, 9),
+			new Selection(3, 3, 3, 6),
 			new Selection(4, 4, 4, 4),
 		];
 
 		cursorEquals(cursor, expectedSelections);
+
+		cursor.dispose();
+		model.dispose();
+	});
+
+	test('issue #4905 - column select is biased to the right', () => {
+		let model = new Model([
+			'var gulp = require("gulp");',
+			'var path = require("path");',
+			'var rimraf = require("rimraf");',
+			'var isarray = require("isarray");',
+			'var merge = require("merge-stream");',
+			'var concat = require("gulp-concat");',
+			'var newer = require("gulp-newer");',
+		].join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+
+		moveTo(cursor, 1, 4, false);
+		cursorEqual(cursor, 1, 4);
+
+		cursorCommand(cursor, H.ColumnSelect, {
+			position: new Position(4, 1),
+			viewPosition: new Position(4, 1),
+			mouseColumn: 1
+		});
+
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 1),
+			new Selection(2, 4, 2, 1),
+			new Selection(3, 4, 3, 1),
+			new Selection(4, 4, 4, 1),
+		]);
+
+		cursor.dispose();
+		model.dispose();
+	});
+
+	test('column select with keyboard', () => {
+		let model = new Model([
+			'var gulp = require("gulp");',
+			'var path = require("path");',
+			'var rimraf = require("rimraf");',
+			'var isarray = require("isarray");',
+			'var merge = require("merge-stream");',
+			'var concat = require("gulp-concat");',
+			'var newer = require("gulp-newer");',
+		].join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+
+		moveTo(cursor, 1, 4, false);
+		cursorEqual(cursor, 1, 4);
+
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 5)
+		]);
+
+		cursorCommand(cursor, H.CursorColumnSelectDown);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 5),
+			new Selection(2, 4, 2, 5)
+		]);
+
+		cursorCommand(cursor, H.CursorColumnSelectDown);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 5),
+			new Selection(2, 4, 2, 5),
+			new Selection(3, 4, 3, 5),
+		]);
+
+		cursorCommand(cursor, H.CursorColumnSelectDown);
+		cursorCommand(cursor, H.CursorColumnSelectDown);
+		cursorCommand(cursor, H.CursorColumnSelectDown);
+		cursorCommand(cursor, H.CursorColumnSelectDown);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 5),
+			new Selection(2, 4, 2, 5),
+			new Selection(3, 4, 3, 5),
+			new Selection(4, 4, 4, 5),
+			new Selection(5, 4, 5, 5),
+			new Selection(6, 4, 6, 5),
+			new Selection(7, 4, 7, 5),
+		]);
+
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 6),
+			new Selection(2, 4, 2, 6),
+			new Selection(3, 4, 3, 6),
+			new Selection(4, 4, 4, 6),
+			new Selection(5, 4, 5, 6),
+			new Selection(6, 4, 6, 6),
+			new Selection(7, 4, 7, 6),
+		]);
+
+		// 10 times
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 16),
+			new Selection(2, 4, 2, 16),
+			new Selection(3, 4, 3, 16),
+			new Selection(4, 4, 4, 16),
+			new Selection(5, 4, 5, 16),
+			new Selection(6, 4, 6, 16),
+			new Selection(7, 4, 7, 16),
+		]);
+
+		// 10 times
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 26),
+			new Selection(2, 4, 2, 26),
+			new Selection(3, 4, 3, 26),
+			new Selection(4, 4, 4, 26),
+			new Selection(5, 4, 5, 26),
+			new Selection(6, 4, 6, 26),
+			new Selection(7, 4, 7, 26),
+		]);
+
+		// 2 times => reaching the ending of lines 1 and 2
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 28),
+			new Selection(2, 4, 2, 28),
+			new Selection(3, 4, 3, 28),
+			new Selection(4, 4, 4, 28),
+			new Selection(5, 4, 5, 28),
+			new Selection(6, 4, 6, 28),
+			new Selection(7, 4, 7, 28),
+		]);
+
+		// 4 times => reaching the ending of line 3
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 28),
+			new Selection(2, 4, 2, 28),
+			new Selection(3, 4, 3, 32),
+			new Selection(4, 4, 4, 32),
+			new Selection(5, 4, 5, 32),
+			new Selection(6, 4, 6, 32),
+			new Selection(7, 4, 7, 32),
+		]);
+
+		// 2 times => reaching the ending of line 4
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 28),
+			new Selection(2, 4, 2, 28),
+			new Selection(3, 4, 3, 32),
+			new Selection(4, 4, 4, 34),
+			new Selection(5, 4, 5, 34),
+			new Selection(6, 4, 6, 34),
+			new Selection(7, 4, 7, 34),
+		]);
+
+		// 1 time => reaching the ending of line 7
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 28),
+			new Selection(2, 4, 2, 28),
+			new Selection(3, 4, 3, 32),
+			new Selection(4, 4, 4, 34),
+			new Selection(5, 4, 5, 35),
+			new Selection(6, 4, 6, 35),
+			new Selection(7, 4, 7, 35),
+		]);
+
+		// 3 times => reaching the ending of lines 5 & 6
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 28),
+			new Selection(2, 4, 2, 28),
+			new Selection(3, 4, 3, 32),
+			new Selection(4, 4, 4, 34),
+			new Selection(5, 4, 5, 37),
+			new Selection(6, 4, 6, 37),
+			new Selection(7, 4, 7, 35),
+		]);
+
+		// cannot go anywhere anymore
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 28),
+			new Selection(2, 4, 2, 28),
+			new Selection(3, 4, 3, 32),
+			new Selection(4, 4, 4, 34),
+			new Selection(5, 4, 5, 37),
+			new Selection(6, 4, 6, 37),
+			new Selection(7, 4, 7, 35),
+		]);
+
+		// cannot go anywhere anymore even if we insist
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorCommand(cursor, H.CursorColumnSelectRight);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 28),
+			new Selection(2, 4, 2, 28),
+			new Selection(3, 4, 3, 32),
+			new Selection(4, 4, 4, 34),
+			new Selection(5, 4, 5, 37),
+			new Selection(6, 4, 6, 37),
+			new Selection(7, 4, 7, 35),
+		]);
+
+		// can easily go back
+		cursorCommand(cursor, H.CursorColumnSelectLeft);
+		cursorEquals(cursor, [
+			new Selection(1, 4, 1, 28),
+			new Selection(2, 4, 2, 28),
+			new Selection(3, 4, 3, 32),
+			new Selection(4, 4, 4, 34),
+			new Selection(5, 4, 5, 36),
+			new Selection(6, 4, 6, 36),
+			new Selection(7, 4, 7, 35),
+		]);
 
 		cursor.dispose();
 		model.dispose();

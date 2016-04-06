@@ -17,13 +17,11 @@ import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService, StorageEventType, StorageScope} from 'vs/platform/storage/common/storage';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
-import {Preferences} from 'vs/workbench/common/constants';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
 import {isLightTheme} from 'vs/platform/theme/common/themes';
-import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
@@ -33,7 +31,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
 	private _editorService: IWorkbenchEditorService;
-	private _storageService: IStorageService;
+	private _themeService: IThemeService;
 	private _iFrameElement: HTMLIFrameElement;
 	private _iFrameMessageSubscription = EmptyDisposable;
 	private _iFrameBase: URI;
@@ -46,13 +44,13 @@ export class HtmlPreviewPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService);
 
 		this._editorService = editorService;
-		this._storageService = storageService;
+		this._themeService = themeService;
 		this._iFrameBase = contextService.toResource('/');
 	}
 
@@ -84,8 +82,8 @@ export class HtmlPreviewPart extends BaseEditor {
 
 		parent.getHTMLElement().appendChild(iFrameContainerElement);
 
-		this._themeChangeSubscription = this._storageService.addListener2(StorageEventType.STORAGE, event => {
-			if (event.key === Preferences.THEME && this.isVisible()) {
+		this._themeChangeSubscription = this._themeService.onDidThemeChange(themeId => {
+			if (this.isVisible()) {
 				this._updateIFrameContent(true);
 			}
 		});
@@ -207,7 +205,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		const parser = new DOMParser();
 		const newDocument = parser.parseFromString(html, 'text/html');
 		// ensure styles
-		const styleElement = Integration.defaultStyle(this._iFrameElement.parentElement, this._storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID));
+		const styleElement = Integration.defaultStyle(this._iFrameElement.parentElement, this._themeService.getTheme());
 		if (newDocument.head.hasChildNodes()) {
 			newDocument.head.insertBefore(styleElement, newDocument.head.firstChild);
 		} else {

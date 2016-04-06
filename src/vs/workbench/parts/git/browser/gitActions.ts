@@ -222,7 +222,7 @@ export abstract class BaseStageAction extends GitAction {
 	public run(context?: any):Promise {
 		var flatContext = flatten(context);
 
-		return this.gitService.add(flatten(context)).then((status: IModel) => {
+		return this.gitService.add(flatContext).then(status => {
 			var targetEditor = this.findGitWorkingTreeEditor();
 			if (!targetEditor) {
 				return TPromise.as(status);
@@ -245,7 +245,7 @@ export abstract class BaseStageAction extends GitAction {
 			var editorControl = <any>targetEditor.getControl();
 			var viewState = editorControl ? editorControl.saveViewState() : null;
 
-			return this.gitService.getInput(fileStatus).then((input) => {
+			return this.gitService.getInput(fileStatus).then(input => {
 				var options = new TextDiffEditorOptions();
 				options.forceOpen = true;
 
@@ -731,6 +731,46 @@ export class CommitAction extends BaseCommitAction {
 
 }
 
+export class InputCommitAction extends GitAction {
+
+	static ID = 'workbench.action.git.input-commit';
+	static LABEL = nls.localize('commit', "Commit");
+
+	constructor(
+		id = InputCommitAction.ID,
+		label = InputCommitAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, '', gitService);
+	}
+
+	protected isEnabled():boolean {
+		if (!this.gitService) {
+			return false;
+		}
+
+		if (!this.gitService.isIdle()) {
+			return false;
+		}
+
+		const status = this.gitService.getModel().getStatus();
+
+		return status.getIndexStatus().all().length > 0 || status.getWorkingTreeStatus().all().length > 0;
+	}
+
+	run(): TPromise<any> {
+		if (!this.enabled) {
+			return TPromise.as(null);
+		}
+
+		const status = this.gitService.getModel().getStatus();
+
+		return this.quickOpenService.input({ prompt: 'Commit Message' })
+			.then(message => message && this.gitService.commit(message, false, status.getIndexStatus().all().length === 0));
+	}
+}
+
 export class StageAndCommitAction extends BaseCommitAction {
 
 	static ID = 'workbench.action.git.stageAndCommit';
@@ -1122,9 +1162,14 @@ export class LiveSyncAction extends BaseSyncAction {
 export class UndoLastCommitAction extends GitAction {
 
 	static ID = 'workbench.action.git.undoLastCommit';
+	static LABEL = nls.localize('undoLastCommit', "Undo Last Commit");
 
-	constructor(@IGitService gitService: IGitService) {
-		super(UndoLastCommitAction.ID, nls.localize('undoLastCommit', "Undo Last Commit"), 'git-action undo-last-commit', gitService);
+	constructor(
+		id = UndoLastCommitAction.ID,
+		label = UndoLastCommitAction.LABEL,
+		@IGitService gitService: IGitService
+	) {
+		super(UndoLastCommitAction.ID, UndoLastCommitAction.LABEL, 'git-action undo-last-commit', gitService);
 	}
 
 	public run():Promise {

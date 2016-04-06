@@ -162,6 +162,14 @@ class ExtHostApiCommands {
 				{ name: 'column', description: '(optional) Column in which to preview.' },
 			]
 		});
+
+		this._register('vscode.openFolder', (uri: URI, newWindow?: boolean) => this._commands.executeCommand('_workbench.ipc', 'vscode:windowOpen', [[uri.fsPath], newWindow]), {
+			description: 'Open a folder in the current window. Note that this will shutdown the current extension host process and start a new one on the given folder unless the newWindow parameter is set to true.',
+			args: [
+				{ name: 'uri', description: 'Uri of the folder to open.', constraint: URI },
+				{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.' }
+			]
+		});
 	}
 
 	// --- command impl

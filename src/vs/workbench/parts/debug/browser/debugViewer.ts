@@ -70,6 +70,7 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 
 	if (variable.value) {
 		renderExpressionValue(variable, data.value, showChanged);
+		data.expression.title = variable.value;
 	} else {
 		data.value.textContent = '';
 		data.value.title = '';
@@ -318,7 +319,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {
-		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames...");
+		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
@@ -658,6 +659,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		data.name.textContent = `${watchExpression.name}:`;
 		if (watchExpression.value) {
 			renderExpressionValue(watchExpression, data.value, true);
+			data.expression.title = watchExpression.value;
 		}
 	}
 

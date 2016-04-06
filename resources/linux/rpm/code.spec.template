@@ -15,11 +15,9 @@ AutoReq:  0
 Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle.
 
 %install
-mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/share/@@NAME@@
 mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/pixmaps
-cp -r usr/bin/@@NAME@@ %{buildroot}/usr/bin
 cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
 cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/pixmaps/@@NAME@@.png %{buildroot}/usr/share/pixmaps
@@ -29,6 +27,10 @@ cp -r usr/share/pixmaps/@@NAME@@.png %{buildroot}/usr/share/pixmaps
 if [ "@@NAME@@" = "code" ]; then
 	rm -f /usr/local/bin/code
 fi
+
+# Symlink bin command to /usr/bin2
+rm -f /usr/bin/@@NAME@@
+ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
 
 # Register yum repository
 # TODO: #229: Enable once the yum repository is signed
@@ -43,7 +45,6 @@ fi
 %files
 %defattr(-,root,root)
 
-/usr/bin/@@NAME@@
 /usr/share/@@NAME@@/
 /usr/share/applications/@@NAME@@.desktop
 /usr/share/pixmaps/@@NAME@@.png

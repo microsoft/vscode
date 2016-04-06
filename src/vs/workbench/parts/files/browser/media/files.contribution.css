@@ -10,6 +10,6 @@
 }
 
 /* High Contrast Theming */
-.monaco-workbench.hc-black > .activitybar .monaco-action-bar .action-label.explore:before {
+.hc-black .monaco-workbench > .activitybar .monaco-action-bar .action-label.explore:before {
 	content: url('files-dark.svg');
 }

@@ -54,17 +54,17 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	public walk(rootFolders: string[], extraFiles: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
+	public walk(rootFolders: string[], extraFiles: string[], onResult: (result: ISerializedFileMatch, size: number) => void, done: (error: Error, isLimitHit: boolean) => void): void {
 
 		// Support that the file pattern is a full path to a file that exists
-		this.checkFilePatternAbsoluteMatch((exists) => {
+		this.checkFilePatternAbsoluteMatch((exists, size) => {
 			if (this.isCanceled) {
 				return done(null, this.isLimitHit);
 			}
 
 			// Report result from file pattern if matching
 			if (exists) {
-				onResult({ path: this.filePattern });
+				onResult({ path: this.filePattern }, size);
 
 				// Optimization: a match on an absolute path is a good result and we do not
 				// continue walking the entire root paths array for other matches because
@@ -92,14 +92,14 @@ export class FileWalker {
 					}
 
 					// Support relative paths to files from a root resource
-					return this.checkFilePatternRelativeMatch(absolutePath, (match) => {
+					return this.checkFilePatternRelativeMatch(absolutePath, (match, size) => {
 						if (this.isCanceled || this.isLimitHit) {
 							return perEntryCallback(null, null);
 						}
 
 						// Report result from file pattern if matching
 						if (match) {
-							onResult({ path: match });
+							onResult({ path: match }, size);
 						}
 
 						return this.doWalk(paths.normalize(absolutePath), '', files, onResult, perEntryCallback);
@@ -111,17 +111,17 @@ export class FileWalker {
 		});
 	}
 
-	private checkFilePatternAbsoluteMatch(clb: (exists: boolean) => void): void {
+	private checkFilePatternAbsoluteMatch(clb: (exists: boolean, size?: number) => void): void {
 		if (!this.filePattern || !paths.isAbsolute(this.filePattern)) {
 			return clb(false);
 		}
 
 		return fs.stat(this.filePattern, (error, stat) => {
-			return clb(!error && !stat.isDirectory()); // only existing files
+			return clb(!error && !stat.isDirectory(), stat && stat.size); // only existing files
 		});
 	}
 
-	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string) => void): void {
+	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string, size?: number) => void): void {
 		if (!this.filePattern || paths.isAbsolute(this.filePattern)) {
 			return clb(null);
 		}
@@ -129,11 +129,11 @@ export class FileWalker {
 		const absolutePath = paths.join(basePath, this.filePattern);
 
 		return fs.stat(absolutePath, (error, stat) => {
-			return clb(!error && !stat.isDirectory() ? absolutePath : null); // only existing files
+			return clb(!error && !stat.isDirectory() ? absolutePath : null, stat && stat.size); // only existing files
 		});
 	}
 
-	private doWalk(absolutePath: string, relativeParentPathWithSlashes: string, files: string[], onResult: (result: ISerializedFileMatch) => void, done: (error: Error, result: any) => void): void {
+	private doWalk(absolutePath: string, relativeParentPathWithSlashes: string, files: string[], onResult: (result: ISerializedFileMatch, size: number) => void, done: (error: Error, result: any) => void): void {
 
 		// Execute tasks on each file in parallel to optimize throughput
 		flow.parallel(files, (file: string, clb: (error: Error) => void): void => {
@@ -208,7 +208,7 @@ export class FileWalker {
 							return clb(null); // ignore file if max file size is hit
 						}
 
-						this.matchFile(onResult, currentAbsolutePath, currentRelativePathWithSlashes);
+						this.matchFile(onResult, currentAbsolutePath, currentRelativePathWithSlashes, stat.size);
 					}
 
 					// Unwind
@@ -224,7 +224,7 @@ export class FileWalker {
 		});
 	}
 
-	private matchFile(onResult: (result: ISerializedFileMatch) => void, absolutePath: string, relativePathWithSlashes: string): void {
+	private matchFile(onResult: (result: ISerializedFileMatch, size: number) => void, absolutePath: string, relativePathWithSlashes: string, size?: number): void {
 		if (this.isFilePatternMatch(relativePathWithSlashes) && (!this.includePattern || glob.match(this.includePattern, relativePathWithSlashes))) {
 			this.resultCount++;
 
@@ -235,7 +235,7 @@ export class FileWalker {
 			if (!this.isLimitHit) {
 				onResult({
 					path: absolutePath
-				});
+				}, size);
 			}
 		}
 	}
