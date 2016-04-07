@@ -12,7 +12,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, EventType} from 'vs/editor/common/editorCommon';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {empty as EmptyDisposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {addDisposableListener} from 'vs/base/browser/dom';
+import {addDisposableListener, addClass} from 'vs/base/browser/dom';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Position} from 'vs/platform/editor/common/editor';
@@ -23,6 +23,24 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_webview.openDevTools',
+	context: null,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	primary: null,
+	handler() {
+		const elements = document.querySelectorAll('webview.ready');
+		for (let i = 0; i < elements.length; i++) {
+			try {
+				(<Webview>elements.item(i)).openDevTools();
+			} catch (e) {
+				console.error(e);
+			}
+		}
+	}
+});
 
 declare interface Webview extends HTMLElement {
 	src: string;
@@ -56,8 +74,8 @@ class ManagedWebview {
 		this._ready = new TPromise<this>(resolve => {
 			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
-					// this._webview.openDevTools();
 					// console.info('[PID Webview] ' + event.args[0]);
+					addClass(this._webview, 'ready');
 					subscription.dispose();
 					resolve(this);
 				}
