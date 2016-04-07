@@ -6,10 +6,10 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorInput } from 'vs/workbench/common/editor';
 
-export class ExtensionsInput extends EventEmitter implements IEditorInput {
+export class ExtensionsInput extends EditorInput {
 
 	getId(): string {
 		return 'workbench.extensions.input';
@@ -21,5 +21,9 @@ export class ExtensionsInput extends EventEmitter implements IEditorInput {
 
 	matches(other: any): boolean {
 		return other instanceof ExtensionsInput;
+	}
+
+	resolve(refresh?: boolean): TPromise<any> {
+		return TPromise.as(null);
 	}
 }
