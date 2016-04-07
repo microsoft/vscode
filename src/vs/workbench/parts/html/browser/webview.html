@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 	<title>Virtual Document</title>
+	<style id="_defaultStyles"></style>
 </head>
 <body style="margin: 0; overflow: hidden;">
 	<iframe id="_target" frameborder="0"></iframe>
@@ -25,7 +26,13 @@
 
 		ipcRenderer.on('styles', function(event, value) {
 			initData.styles = value;
-			const defaultStyles = target.contentDocument.getElementById('_defaultStyles');
+
+			// webview
+			let defaultStyles = document.getElementById('_defaultStyles');
+			defaultStyles.innerHTML = value;
+
+			// iframe
+			defaultStyles = target.contentDocument.getElementById('_defaultStyles');
 			if(defaultStyles) {
 				defaultStyles.innerHTML = value;
 			}
