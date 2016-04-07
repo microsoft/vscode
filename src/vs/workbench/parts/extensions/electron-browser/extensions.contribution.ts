@@ -14,12 +14,27 @@ import { GalleryService } from 'vs/workbench/parts/extensions/common/vsoGalleryS
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ExtensionsWorkbenchExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsWorkbenchExtension';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/parts/output/common/output';
-import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsPart } from 'vs/workbench/parts/extensions/electron-browser/extensionsPart';
 import { GlobalExtensionsActionContributor } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IActionBarRegistry, Scope as ActionBarScope, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
+import { EditorInput } from 'vs/workbench/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+class ExtensionsInputFactory implements IEditorInputFactory {
+
+	constructor() {}
+
+	public serialize(editorInput: EditorInput): string {
+		return '';
+	}
+
+	public deserialize(instantiationService: IInstantiationService, resourceRaw: string): EditorInput {
+		return instantiationService.createInstance(ExtensionsInput);
+	}
+}
 
 registerSingleton(IGalleryService, GalleryService);
 
@@ -31,6 +46,9 @@ Registry.as<IStatusbarRegistry>(StatusbarExtensions.Statusbar)
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel(ExtensionsLabel);
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors)
+	.registerEditorInputFactory(ExtensionsInput.ID, ExtensionsInputFactory);
 
 const editorDescriptor = new EditorDescriptor(
 	ExtensionsPart.ID,

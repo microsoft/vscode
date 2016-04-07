@@ -11,8 +11,14 @@ import { EditorInput } from 'vs/workbench/common/editor';
 
 export class ExtensionsInput extends EditorInput {
 
+	static get ID()  { return 'workbench.extensions.input'; }
+
+	constructor() {
+		super();
+	}
+
 	getId(): string {
-		return 'workbench.extensions.input';
+		return ExtensionsInput.ID;
 	}
 
 	getName(): string {
