@@ -25,8 +25,8 @@ export class ExtensionsPart extends BaseEditor {
 	}
 
 	createEditor(parent: Builder): void {
-		this.domNode = append(parent.getHTMLElement(), $('.HELLO'));
-		this.domNode.textContent = 'HELLO';
+		const container = parent.getHTMLElement();
+		this.domNode = append(container, $('.extension-manager'));
 	}
 
 	setVisible(visible: boolean, position?: Position): TPromise<void> {

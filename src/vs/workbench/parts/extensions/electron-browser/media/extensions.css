@@ -141,6 +141,12 @@
 	transform: none;
 }
 
+/* Extension Manager */
+.extension-manager {
+	width: 100%;
+	height: 100%;
+}
+
 /* Status bar */
 .monaco-shell .extensions-statusbar {
 	display: flex !important;
