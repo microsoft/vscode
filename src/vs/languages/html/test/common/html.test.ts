@@ -14,10 +14,7 @@ import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnt
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Range} from 'vs/editor/common/core/range';
-import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
-import {IModeService} from 'vs/editor/common/services/modeService';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
-import {MockExtensionService} from 'vs/editor/test/common/mocks/mockExtensionService';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {HTMLMode} from 'vs/languages/html/common/html';
