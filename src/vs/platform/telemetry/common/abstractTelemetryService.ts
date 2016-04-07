@@ -16,7 +16,6 @@ import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 const DefaultTelemetryServiceConfig: ITelemetryServiceConfig = {
-	enableTelemetry: true,
 	enableHardIdle: true,
 	enableSoftIdle: true,
 	userOptIn: true,

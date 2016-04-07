@@ -65,7 +65,6 @@ export interface ITelemetryAppender extends Lifecycle.IDisposable {
 }
 
 export interface ITelemetryServiceConfig {
-	enableTelemetry?: boolean;
 	userOptIn?: boolean;
 
 	enableHardIdle?: boolean;

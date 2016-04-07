@@ -22,6 +22,7 @@ import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {NullTelemetryService} from 'vs/platform/telemetry/common/nullTelemetryService';
 import {ElectronTelemetryService} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
@@ -116,7 +117,7 @@ export class WorkbenchShell {
 	private configurationService: IConfigurationService;
 	private themeService: ThemeService;
 	private contextService: IWorkspaceContextService;
-	private telemetryService: ElectronTelemetryService;
+	private telemetryService: ITelemetryService;
 	private keybindingService: WorkbenchKeybindingService;
 
 	private container: HTMLElement;
@@ -238,15 +239,18 @@ export class WorkbenchShell {
 		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
-		// no telemetry in a window for extension development!
-		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
-		let cleanupPatterns = [new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi')];
-		this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
-			cleanupPatterns,
-			enableTelemetry: enableTelemetry,
-			version: this.configuration.env.version,
-			commitHash: this.configuration.env.commitHash
-		});
+		if (this.configuration.env.isBuilt
+			&& !this.configuration.env.extensionDevelopmentPath // no telemetry in a window for extension development!
+			&& !!this.configuration.env.enableTelemetry) {
+
+			this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
+				cleanupPatterns: [new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi')],
+				version: this.configuration.env.version,
+				commitHash: this.configuration.env.commitHash
+			});
+		} else {
+			this.telemetryService = NullTelemetryService.Instance;
+		}
 
 		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.configurationService, this.telemetryService, <any>window);
 
