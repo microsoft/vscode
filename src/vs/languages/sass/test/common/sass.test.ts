@@ -4,24 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/sass/common/sass.contribution';
 import SASS = require('vs/languages/sass/common/sass');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import Modes = require('vs/editor/common/modes');
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
 suite('Sass Colorizer', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
 	var assertOnEnter: modesUtil.IOnEnterAsserter;
 
-	setup((done) => {
-		modesUtil.load('sass').then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-			done();
+	(function() {
+
+		let threadService = NULL_THREAD_SERVICE;
+		let modeService = new MockModeService();
+		let inst = createInstantiationService({
+			threadService: threadService,
+			modeService: modeService
 		});
-	});
+		threadService.setInstantiationService(inst);
+
+
+		let mode = new SASS.SASSMode(
+			{ id: 'sass' },
+			inst,
+			threadService,
+			modeService,
+			null,
+			null
+		);
+
+		tokenizationSupport = mode.tokenizationSupport;
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+
+	})();
 
 	test('', () => {
 		modesUtil.executeTests(tokenizationSupport, [

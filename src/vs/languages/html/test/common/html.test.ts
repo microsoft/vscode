@@ -22,7 +22,7 @@ import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
-export class MockJSMode extends MockTokenizingMode {
+class MockJSMode extends MockTokenizingMode {
 
 	public richEditSupport: Modes.IRichEditSupport;
 

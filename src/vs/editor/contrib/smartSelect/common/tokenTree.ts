@@ -164,6 +164,7 @@ class TokenScanner {
 
 		let tokenType = this._currentLineTokens.getTokenType(this._currentTokenIndex);
 		let tokenEndIndex = this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._currentLineText.length);
+		let tmpTokenEndIndex = tokenEndIndex;
 
 		let nextBracket: Range = null;
 		if (this._currentModeBrackets && !ignoreBracketsInToken(tokenType)) {
@@ -172,7 +173,7 @@ class TokenScanner {
 
 		if (nextBracket && this._currentTokenStart < nextBracket.startColumn - 1) {
 			// found a bracket, but it is not at the beginning of the token
-			tokenEndIndex = nextBracket.startColumn - 1;
+			tmpTokenEndIndex = nextBracket.startColumn - 1;
 			nextBracket = null;
 		}
 
@@ -192,13 +193,18 @@ class TokenScanner {
 					startLineNumber: this._currentLineNumber,
 					startColumn: 1 + this._currentTokenStart,
 					endLineNumber: this._currentLineNumber,
-					endColumn: 1 + tokenEndIndex
+					endColumn: 1 + tmpTokenEndIndex
 				}
 			};
-			// console.log('TOKEN: <<' + this._currentLineText.substring(this._currentTokenStart, tokenEndIndex) + '>>');
+			// console.log('TOKEN: <<' + this._currentLineText.substring(this._currentTokenStart, tmpTokenEndIndex) + '>>');
 
-			this._currentTokenIndex += 1;
-			this._currentTokenStart = (this._currentTokenIndex < this._currentLineTokens.getTokenCount() ? this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex) : 0);
+			if (tmpTokenEndIndex < tokenEndIndex) {
+				// there is a bracket somewhere in this token...
+				this._currentTokenStart = tmpTokenEndIndex;
+			} else {
+				this._currentTokenIndex += 1;
+				this._currentTokenStart = (this._currentTokenIndex < this._currentLineTokens.getTokenCount() ? this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex) : 0);
+			}
 			return token;
 		}
 
