@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IMirrorModelEvents, MirrorModel, createTestMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
-import {createMockMode} from 'vs/editor/test/common/modesTestUtils';
 
 function equalRange(left, right) {
 	if(left.startLineNumber !== right.startLineNumber) {

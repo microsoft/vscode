@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -13,7 +12,6 @@ import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
