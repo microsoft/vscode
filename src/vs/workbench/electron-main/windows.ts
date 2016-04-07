@@ -87,6 +87,11 @@ interface ILogEntry {
 	arguments: any;
 }
 
+interface INativeOpenDialogOptions {
+	pickFolders?: boolean;
+	pickFiles?: boolean;
+}
+
 export class WindowsManager {
 
 	public static openedPathsListStorageKey = 'openedPathsList';
@@ -181,10 +186,16 @@ export class WindowsManager {
 			this.openFilePicker();
 		});
 
-		ipc.on('vscode:openFolderPicker', () => {
+		ipc.on('vscode:openFolderPicker', (event, forceNewWindow?: boolean) => {
 			env.log('IPC#vscode-openFolderPicker');
 
-			this.openFolderPicker();
+			this.openFolderPicker(forceNewWindow);
+		});
+
+		ipc.on('vscode:openFileFolderPicker', (event, forceNewWindow?: boolean) => {
+			env.log('IPC#vscode-openFileFolderPicker');
+
+			this.openFileFolderPicker(forceNewWindow);
 		});
 
 		ipc.on('vscode:closeFolder', (event, windowId: number) => {
@@ -200,12 +211,6 @@ export class WindowsManager {
 			env.log('IPC#vscode-openNewWindow');
 
 			this.openNewWindow();
-		});
-
-		ipc.on('vscode:openFileFolderPicker', () => {
-			env.log('IPC#vscode-openFileFolderPicker');
-
-			this.openFolderPicker();
 		});
 
 		ipc.on('vscode:reloadWindow', (event, windowId: number) => {
@@ -954,31 +959,35 @@ export class WindowsManager {
 		return state;
 	}
 
-	public openFilePicker(): void {
-		this.getFileOrFolderPaths(false, (paths: string[]) => {
+	public openFileFolderPicker(forceNewWindow?: boolean): void {
+		this.doPickAndOpen({ pickFolders: true, pickFiles: true }, forceNewWindow);
+	}
+
+	public openFilePicker(forceNewWindow?: boolean): void {
+		this.doPickAndOpen({ pickFiles: true }, forceNewWindow);
+	}
+
+	public openFolderPicker(forceNewWindow?: boolean): void {
+		this.doPickAndOpen({ pickFolders: true }, forceNewWindow);
+	}
+
+	private doPickAndOpen(options: INativeOpenDialogOptions, forceNewWindow?: boolean): void {
+		this.getFileOrFolderPaths(options, (paths: string[]) => {
 			if (paths && paths.length) {
-				this.open({ cli: env.cliArgs, pathsToOpen: paths });
+				this.open({ cli: env.cliArgs, pathsToOpen: paths, forceNewWindow });
 			}
 		});
 	}
 
-	public openFolderPicker(): void {
-		this.getFileOrFolderPaths(true, (paths: string[]) => {
-			if (paths && paths.length) {
-				this.open({ cli: env.cliArgs, pathsToOpen: paths });
-			}
-		});
-	}
-
-	private getFileOrFolderPaths(isFolder: boolean, clb: (paths: string[]) => void): void {
+	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 		let workingDir = storage.getItem<string>(WindowsManager.workingDirPickerStorageKey);
 		let focussedWindow = this.getFocusedWindow();
 
 		let pickerProperties: string[];
-		if (platform.isMacintosh) {
+		if (options.pickFiles && options.pickFolders) {
 			pickerProperties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
 		} else {
-			pickerProperties = ['multiSelections', isFolder ? 'openDirectory' : 'openFile', 'createDirectory'];
+			pickerProperties = ['multiSelections', options.pickFolders ? 'openDirectory' : 'openFile', 'createDirectory'];
 		}
 
 		dialog.showOpenDialog(focussedWindow && focussedWindow.win, {
