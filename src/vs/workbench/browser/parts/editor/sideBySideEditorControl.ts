@@ -721,7 +721,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private create(parent: Builder): void {
 
 		// Left Container
-		this.containers[Position.LEFT] = $(parent).div({ class: 'one-editor-container editor-left' });
+		this.containers[Position.LEFT] = $(parent).div({ class: 'one-editor-container editor-left monaco-editor-background' });
 
 		// Left Sash
 		this.leftSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
@@ -731,7 +731,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.leftSash.hide();
 
 		// Center Container
-		this.containers[Position.CENTER] = $(parent).div({ class: 'one-editor-container editor-center' });
+		this.containers[Position.CENTER] = $(parent).div({ class: 'one-editor-container editor-center monaco-editor-background' });
 
 		// Right Sash
 		this.rightSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
@@ -741,11 +741,11 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.rightSash.hide();
 
 		// Right Container
-		this.containers[Position.RIGHT] = $(parent).div({ class: 'one-editor-container editor-right' });
+		this.containers[Position.RIGHT] = $(parent).div({ class: 'one-editor-container editor-right monaco-editor-background' });
 
 		// Title containers
 		POSITIONS.forEach((position) => {
-			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title monaco-editor-background' });
+			this.titleContainer[position] = $(this.containers[position]).div({ 'class': 'title' });
 			this.fillTitleArea($(this.titleContainer[position]), position);
 		});
 

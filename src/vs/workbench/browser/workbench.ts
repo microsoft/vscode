@@ -808,7 +808,7 @@ export class Workbench implements IPartService {
 	private createEditorPart(): void {
 		let editorContainer = $(this.workbench)
 			.div({
-				'class': ['part', 'editor', 'monaco-editor-background'],
+				'class': ['part', 'editor'],
 				id: Identifiers.EDITOR_PART,
 				role: 'main'
 			});
