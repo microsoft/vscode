@@ -4,23 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/typescript/common/typescript.contribution';
-
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {JavaScriptMode} from 'vs/languages/typescript/common/mode';
 
 suite('TS/JS - syntax highlighting', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
 	var assertOnEnter: modesUtil.IOnEnterAsserter;
 
-	setup((done) => {
-		modesUtil.load('javascript').then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-			done();
-		});
+	setup(() => {
+		let threadService = NULL_THREAD_SERVICE;
+
+		let mode = new JavaScriptMode(
+			{ id: 'javascript' },
+			threadService,
+			null,
+			null
+		);
+
+		tokenizationSupport = mode.tokenizationSupport;
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
 	});
 
 	test('onEnter', function() {

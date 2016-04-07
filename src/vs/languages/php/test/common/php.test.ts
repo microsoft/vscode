@@ -4,15 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/php/common/php.contribution';
-import 'vs/languages/html/common/html.contribution';
-import 'vs/languages/typescript/common/typescript.contribution';
-import 'vs/languages/css/common/css.contribution';
-
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
-import {htmlTokenTypes} from 'vs/languages/html/common/html';
+import {HTMLMode, htmlTokenTypes} from 'vs/languages/html/common/html';
 import {cssTokenTypes} from 'vs/languages/css/common/css';
+import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {PHPMode} from 'vs/languages/php/common/php';
+import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
+
+class PHPMockModeService extends MockModeService {
+
+	private _htmlMode: HTMLMode<any>;
+
+	constructor() {
+		super();
+		this._htmlMode = null;
+	}
+
+	setHTMLMode(htmlMode: HTMLMode<any>) {
+		this._htmlMode = htmlMode;
+	}
+
+	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/html') {
+			return this._htmlMode;
+		}
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/javascript') {
+			return new MockTokenizingMode('js', 'mock-js');
+		}
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/css') {
+			return new MockTokenizingMode('css', 'mock-css');
+		}
+		throw new Error('Not implemented');
+	}
+}
 
 suite('Syntax Highlighting - PHP', () => {
 
@@ -21,14 +48,32 @@ suite('Syntax Highlighting - PHP', () => {
 	var tokenizationSupport: Modes.ITokenizationSupport;
 	var assertOnEnter: modesUtil.IOnEnterAsserter;
 
-	setup((done) => {
-		modesUtil.load('php', ['html', 'javascript', 'css']).then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-			wordDefinition = mode.richEditSupport.wordDefinition;
-			done();
+	(function() {
+		let threadService = NULL_THREAD_SERVICE;
+		let modeService = new PHPMockModeService();
+		let inst = createInstantiationService({
+			threadService: threadService,
+			modeService: modeService
 		});
-	});
+		threadService.setInstantiationService(inst);
+
+		modeService.setHTMLMode(new HTMLMode<any>(
+			{ id: 'html' },
+			inst,
+			modeService,
+			threadService
+		));
+
+		let mode = new PHPMode(
+			{ id: 'php' },
+			modeService,
+			null
+		);
+
+		tokenizationSupport = mode.tokenizationSupport;
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+		wordDefinition = mode.richEditSupport.wordDefinition;
+	})();
 
 	test('', () => {
 		modesUtil.executeTests(tokenizationSupport, [
@@ -1685,13 +1730,7 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:5, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:6, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:12, type: htmlTokenTypes.DELIM_START },
-				{ startIndex:13, type: 'keyword.js' },
-				{ startIndex:16, type: '' },
-				{ startIndex:17, type: 'identifier.js' },
-				{ startIndex:18, type: 'delimiter.js' },
-				{ startIndex:19, type: '' },
-				{ startIndex:20, type: 'number.js' },
-				{ startIndex:22, type: 'delimiter.js' },
+				{ startIndex:13, type: 'mock-js' },
 				{ startIndex:23, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:25, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:31, type: htmlTokenTypes.DELIM_END },
@@ -1715,13 +1754,7 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:5, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:6, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:12, type: htmlTokenTypes.DELIM_START },
-				{ startIndex:13, type: 'keyword.js' },
-				{ startIndex:16, type: '' },
-				{ startIndex:17, type: 'identifier.js' },
-				{ startIndex:18, type: 'delimiter.js' },
-				{ startIndex:19, type: '' },
-				{ startIndex:20, type: 'number.js' },
-				{ startIndex:22, type: 'delimiter.js' },
+				{ startIndex:13, type: 'mock-js' },
 				{ startIndex:23, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:25, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:31, type: htmlTokenTypes.DELIM_END },
@@ -1733,13 +1766,7 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:42, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:43, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:49, type: htmlTokenTypes.DELIM_START },
-				{ startIndex:50, type: 'keyword.js' },
-				{ startIndex:53, type: '' },
-				{ startIndex:54, type: 'identifier.js' },
-				{ startIndex:55, type: 'delimiter.js' },
-				{ startIndex:56, type: '' },
-				{ startIndex:57, type: 'number.js' },
-				{ startIndex:59, type: 'delimiter.js' },
+				{ startIndex:50, type: 'mock-js' },
 				{ startIndex:60, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:62, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:68, type: htmlTokenTypes.DELIM_END }
@@ -1761,14 +1788,7 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:7, type: 'metatag.php' },
 				{ startIndex:10, type: 'string.php' },
 				{ startIndex:15, type: 'metatag.php' },
-				{ startIndex:17, type: 'punctuation.bracket.css' },
-				{ startIndex:18, type: '' },
-				{ startIndex:19, type: cssTokenTypes.TOKEN_PROPERTY + '.css' },
-				{ startIndex:24, type: 'punctuation.css' },
-				{ startIndex:25, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:29, type: 'punctuation.css' },
-				{ startIndex:30, type: '' },
-				{ startIndex:31, type: 'punctuation.bracket.css' },
+				{ startIndex:17, type: 'mock-css' },
 				{ startIndex:32, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:34, type: htmlTokenTypes.getTag('style') },
 				{ startIndex:39, type: htmlTokenTypes.DELIM_END }
@@ -1781,14 +1801,7 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:7, type: 'metatag.php' },
 				{ startIndex:10, type: 'string.php' },
 				{ startIndex:15, type: 'metatag.php' },
-				{ startIndex:17, type: 'punctuation.bracket.css' },
-				{ startIndex:18, type: '' },
-				{ startIndex:19, type: cssTokenTypes.TOKEN_PROPERTY + '.css' },
-				{ startIndex:24, type: 'punctuation.css' },
-				{ startIndex:25, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:29, type: 'punctuation.css' },
-				{ startIndex:30, type: '' },
-				{ startIndex:31, type: 'punctuation.bracket.css' },
+				{ startIndex:17, type: 'mock-css' },
 				{ startIndex:32, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:34, type: htmlTokenTypes.getTag('style') },
 				{ startIndex:39, type: htmlTokenTypes.DELIM_END }
@@ -1807,15 +1820,7 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:13, type: 'metatag.php' },
 				{ startIndex:16, type: 'string.php' },
 				{ startIndex:21, type: 'metatag.php' },
-				{ startIndex:23, type: '' },
-				{ startIndex:24, type: 'punctuation.bracket.css' },
-				{ startIndex:25, type: '' },
-				{ startIndex:26, type: cssTokenTypes.TOKEN_PROPERTY + '.css' },
-				{ startIndex:31, type: 'punctuation.css' },
-				{ startIndex:32, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:36, type: 'punctuation.css' },
-				{ startIndex:37, type: '' },
-				{ startIndex:38, type: 'punctuation.bracket.css' },
+				{ startIndex:23, type: 'mock-css' },
 				{ startIndex:39, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:41, type: htmlTokenTypes.getTag('style') },
 				{ startIndex:46, type: htmlTokenTypes.DELIM_END },
@@ -1827,28 +1832,12 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:73, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:74, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:80, type: htmlTokenTypes.DELIM_START },
-				{ startIndex:81, type: 'keyword.js' },
-				{ startIndex:84, type: '' },
-				{ startIndex:85, type: 'identifier.js' },
-				{ startIndex:86, type: '' },
-				{ startIndex:87, type: 'delimiter.js' },
-				{ startIndex:88, type: '' },
-				{ startIndex:89, type: 'number.js' },
-				{ startIndex:90, type: 'delimiter.js' },
-				{ startIndex:91, type: 'comment.js' },
+				{ startIndex:81, type: 'mock-js' },
 				{ startIndex:94, type: 'metatag.php' },
 				{ startIndex:97, type: 'string.php' },
 				{ startIndex:109, type: 'comment.php' },
 				{ startIndex:122, type: 'metatag.php' },
-				{ startIndex:124, type: 'comment.js' },
-				{ startIndex:127, type: 'keyword.js' },
-				{ startIndex:130, type: '' },
-				{ startIndex:131, type: 'identifier.js' },
-				{ startIndex:132, type: '' },
-				{ startIndex:133, type: 'delimiter.js' },
-				{ startIndex:134, type: '' },
-				{ startIndex:135, type: 'number.js' },
-				{ startIndex:136, type: 'delimiter.js' },
+				{ startIndex:124, type: 'mock-js' },
 				{ startIndex:137, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:139, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:145, type: htmlTokenTypes.DELIM_END },
@@ -1882,7 +1871,7 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:7, type: htmlTokenTypes.DELIM_START },
-				{ startIndex:8, type: 'comment.js' },
+				{ startIndex:8, type: 'mock-js' },
 				{ startIndex:10, type: 'metatag.php' }
 			]}],
 
@@ -1892,13 +1881,13 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:7, type: htmlTokenTypes.DELIM_START },
-				{ startIndex:8, type: 'string.js' },
+				{ startIndex:8, type: 'mock-js' },
 				{ startIndex:9, type: 'metatag.php' },
 				{ startIndex:14, type: 'number.php' },
 				{ startIndex:15, type: 'delimiter.php' },
 				{ startIndex:16, type: 'number.php' },
 				{ startIndex:17, type: 'metatag.php' },
-				{ startIndex:19, type: 'string.js' }
+				{ startIndex:19, type: 'mock-js' }
 			]}],
 
 			[{

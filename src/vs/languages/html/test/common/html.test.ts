@@ -19,42 +19,15 @@ import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {HTMLMode} from 'vs/languages/html/common/html';
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
-import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
-import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
-export class MockJSState extends AbstractState {
+export class MockJSMode extends MockTokenizingMode {
 
-	constructor(mode:Modes.IMode, stateCount:number) {
-		super(mode);
-	}
-
-	public makeClone():MockJSState {
-		return this;
-	}
-
-	public equals(other:Modes.IState):boolean {
-		return true;
-	}
-
-	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
-		stream.advanceToEOS();
-		return { type: 'mock-js' };
-	}
-}
-
-export class MockJSMode extends MockMode {
-
-	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 
 	constructor() {
-		super();
-
-		this.tokenizationSupport = new TokenizationSupport(this, {
-			getInitialState: () => new MockJSState(this, 0)
-		}, false, false);
+		super('js', 'mock-js');
 
 		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			brackets: [
@@ -117,7 +90,7 @@ suite('Colorizing - HTML', () => {
 	let tokenizationSupport: Modes.ITokenizationSupport;
 	let _mode: Modes.IMode;
 
-	suiteSetup(() => {
+	(function() {
 		let threadService = NULL_THREAD_SERVICE;
 		let modeService = new HTMLMockModeService();
 		let inst = createInstantiationService({
@@ -134,7 +107,7 @@ suite('Colorizing - HTML', () => {
 		);
 
 		tokenizationSupport = _mode.tokenizationSupport;
-	});
+	})();
 
 	test('Open Start Tag #1', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{

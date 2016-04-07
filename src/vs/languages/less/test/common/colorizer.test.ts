@@ -11,42 +11,7 @@ import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {LESSMode} from 'vs/languages/less/common/less';
-import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
-import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
-
-export class MockJSState extends AbstractState {
-
-	constructor(mode:Modes.IMode, stateCount:number) {
-		super(mode);
-	}
-
-	public makeClone():MockJSState {
-		return this;
-	}
-
-	public equals(other:Modes.IState):boolean {
-		return true;
-	}
-
-	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
-		stream.advanceToEOS();
-		return { type: 'mock-js' };
-	}
-}
-
-export class MockJSMode extends MockMode {
-
-	public tokenizationSupport: Modes.ITokenizationSupport;
-
-	constructor() {
-		super();
-
-		this.tokenizationSupport = new TokenizationSupport(this, {
-			getInitialState: () => new MockJSState(this, 0)
-		}, false, false);
-	}
-}
+import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
 
 class LESSMockModeService extends MockModeService {
 	isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -58,7 +23,7 @@ class LESSMockModeService extends MockModeService {
 
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
 		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'javascript') {
-			return new MockJSMode();
+			return new MockTokenizingMode('js', 'mock-js');
 		}
 		throw new Error('Not implemented');
 	}
@@ -76,7 +41,7 @@ suite('LESS-tokenization', () => {
 	let tokenizationSupport: Modes.ITokenizationSupport;
 	let assertOnEnter: modesUtil.IOnEnterAsserter;
 
-	setup(() => {
+	(function() {
 		let threadService = NULL_THREAD_SERVICE;
 		let modeService = new LESSMockModeService();
 		let inst = createInstantiationService({
@@ -96,7 +61,7 @@ suite('LESS-tokenization', () => {
 
 		tokenizationSupport = mode.tokenizationSupport;
 		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-	});
+	})();
 
 	test('', () => {
 		modesUtil.executeTests(tokenizationSupport, [
