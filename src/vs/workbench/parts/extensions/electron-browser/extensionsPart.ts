@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { append, emmet as $ } from 'vs/base/browser/dom';
@@ -19,7 +20,11 @@ import { IExtension, IGalleryService } from '../common/extensions';
 interface ITemplateData {
 	container: HTMLElement;
 	extension: HTMLElement;
+	icon: HTMLImageElement;
 	name: HTMLElement;
+	version: HTMLElement;
+	author: HTMLElement;
+	description: HTMLElement;
 }
 
 enum ExtensionState {
@@ -46,7 +51,7 @@ function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): nu
 }
 
 class Delegate implements IDelegate<IExtension> {
-	getHeight() { return 84; }
+	getHeight() { return 90; } // 74
 	getTemplateId() { return 'extension'; }
 }
 
@@ -61,18 +66,31 @@ class Renderer implements IRenderer<IExtensionEntry, ITemplateData> {
 	renderTemplate(container: HTMLElement): ITemplateData {
 		const root = append(container, $('.extension-container'));
 		const extension = append(root, $('.extension'));
-		const name = append(extension, $('.span.name'));
+		const icon = append(extension, $<HTMLImageElement>('img.icon'));
+		const body = append(extension, $('.body'));
+		const title = append(body, $('.title'));
+		const subtitle = append(body, $('.subtitle'));
+		const name = append(title, $('span.name'));
+		const version = append(subtitle, $('span.version'));
+		const author = append(subtitle, $('span.author'));
+		const description = append(body, $('.description'));
 
 		return {
-			container: root,
-			extension,
-			name
+			container: root, extension, icon,
+			name, version, author, description
 		};
 	}
 
 	renderElement(entry: IExtensionEntry, index: number, data: ITemplateData): void {
 		const extension = entry.extension;
+		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
+		const version = extension.galleryInformation.versions[0];
+
+		data.icon.src = version.iconUrl;
 		data.name.textContent = extension.displayName;
+		data.version.textContent = ` ${ extension.version }`;
+		data.author.textContent = ` ${ localize('author', "by {0}", publisher)}`;
+		data.description.textContent = extension.description;
 	}
 
 	disposeTemplate(data: ITemplateData): void {

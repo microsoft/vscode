@@ -931,7 +931,7 @@ export function append<T extends Node>(parent: HTMLElement, child: T): T {
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
 // Similar to builder, but much more lightweight
-export function emmet(description: string): HTMLElement {
+export function emmet<T extends HTMLElement>(description: string): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
@@ -939,6 +939,7 @@ export function emmet(description: string): HTMLElement {
 	}
 
 	let result = document.createElement(match[1] || 'div');
+
 	if (match[3]) {
 		result.id = match[3];
 	}
@@ -946,7 +947,7 @@ export function emmet(description: string): HTMLElement {
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	return result;
+	return result as T;
 }
 
 export function show(...elements: HTMLElement[]): void {

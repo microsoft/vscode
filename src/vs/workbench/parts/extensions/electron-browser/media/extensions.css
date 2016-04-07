@@ -180,6 +180,39 @@
 	box-shadow: 2px 2px 5px rgba(0,0,0,.25);
 }
 
+.extension-manager .extension {
+	display: flex;
+}
+
+.extension-manager .extension > .icon {
+	box-sizing: border-box;
+	width: 70px;
+	height: 70px;
+	padding: 8px;
+}
+
+.extension-manager .extension > .body {
+	flex: 1;
+	padding: 8px;
+}
+
+.extension-manager .extension > .body > .title > .name {
+	font-weight: bold;
+}
+
+.extension-manager .extension > .body > .subtitle {
+	font-size: 90%;
+}
+
+.extension-manager .extension > .body > .subtitle > .author {
+	font-style: italic;
+}
+
+.extension-manager .extension > .body > .description {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
 
 /* Status bar */
 .monaco-shell .extensions-statusbar {
