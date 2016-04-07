@@ -151,7 +151,7 @@ export class WindowsManager {
 
 		ipc.on('vscode:startCrashReporter', (event: any, config: any) => {
 			env.log('IPC#vscode:startCrashReporter');
-			
+
 			crashReporter.start(config);
 		});
 
@@ -685,6 +685,7 @@ export class WindowsManager {
 		configuration.appKeybindingsPath = env.appKeybindingsPath;
 		configuration.userExtensionsHome = env.userExtensionsHome;
 		configuration.extensionTips = env.product.extensionTips;
+		configuration.mainIPCHandle = env.mainIPCHandle;
 		configuration.sharedIPCHandle = env.sharedIPCHandle;
 		configuration.isBuilt = env.isBuilt;
 		configuration.crashReporter = env.product.crashReporter;
