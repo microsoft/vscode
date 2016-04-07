@@ -17,6 +17,8 @@ import { extensionEquals, getTelemetryData } from 'vs/workbench/parts/extensions
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 import { CONTEXT as ToolbarContext } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 
 const CloseAction = new Action('action.close', nls.localize('close', "Close"));
 
@@ -213,13 +215,12 @@ export class UninstallAction extends Action {
 
 class ManageExtensionsAction extends Action {
 
-	constructor() {
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super('extensions.manage', nls.localize('openExtensions', "Manage Extensions"), 'manage-extensions-action');
 	}
 
-	run(): TPromise<void> {
-		console.log('yeah');
-		return null;
+	run(): TPromise<any> {
+		return this.editorService.openEditor(new ExtensionsInput());
 	}
 }
 

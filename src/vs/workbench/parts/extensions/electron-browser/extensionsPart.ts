@@ -7,6 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
+import { append, emmet as $ } from 'vs/base/browser/dom';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -17,7 +18,7 @@ export class ExtensionsPart extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extensionsPart';
 
-	private domNode: HTMLDivElement;
+	private domNode: HTMLElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService
@@ -26,8 +27,8 @@ export class ExtensionsPart extends BaseEditor {
 	}
 
 	createEditor(parent: Builder): void {
-		this.domNode = document.createElement('div');
-		parent.getHTMLElement().appendChild(this.domNode);
+		this.domNode = append(parent.getHTMLElement(), $('.HELLO'));
+		this.domNode.textContent = 'HELLO';
 	}
 
 	setVisible(visible: boolean, position?: Position): TPromise<void> {
@@ -53,6 +54,8 @@ export class ExtensionsPart extends BaseEditor {
 		if (!(input instanceof ExtensionsInput)) {
 			return TPromise.wrapError<void>('Invalid input');
 		}
+
+		return TPromise.as(null);
 
 		// return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
 		// 	if (model instanceof BaseTextEditorModel) {
