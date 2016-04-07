@@ -103,7 +103,6 @@ export class ExtensionsPart extends BaseEditor {
 	static ID: string = 'workbench.editor.extensionsPart';
 
 	private list: List<IExtensionEntry>;
-	private domNode: HTMLElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -115,8 +114,12 @@ export class ExtensionsPart extends BaseEditor {
 
 	createEditor(parent: Builder): void {
 		const container = parent.getHTMLElement();
-		this.domNode = append(container, $('.extension-manager'));
-		const extensions = append(this.domNode, $('.extensions'));
+
+		const root = append(container, $('.extension-manager'));
+		const search = append(root, $('.search'));
+		/*const searchBox =*/ append(search, $('input.search-box'));
+
+		const extensions = append(root, $('.extensions'));
 		this.list = new List(extensions, new Delegate(), [this.instantiationService.createInstance(Renderer)]);
 
 		this.galleryService.query().then(({ firstPage }) => {
