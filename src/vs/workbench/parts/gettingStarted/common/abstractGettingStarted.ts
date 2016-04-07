@@ -34,8 +34,11 @@ export abstract class AbstractGettingStarted implements IWorkbenchContribution {
 
 	protected handleWelcome(): void {
 		let firstStartup = !this.storageService.get(AbstractGettingStarted.hideWelcomeSettingskey);
+		let isRootUser = process.getuid() === 0;
 
-		if (firstStartup && this.welcomePageURL) {
+		// Don't open the welcome page as the root user, This is due to a bug with xdg-open which
+		// recommends against running itself as root.
+		if (firstStartup && this.welcomePageURL && !isRootUser) {
 			this.telemetryService.getTelemetryInfo().then(info=>{
 				let url = this.getUrl(info);
 				this.openExternal(url);
