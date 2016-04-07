@@ -2920,7 +2920,7 @@ declare namespace vscode {
 
 		/**
 		 * An [event](#Event) which fires when the [active editor](#window.activeTextEditor)
-		 * has changed. *Note* that the event also fires when the activ editor changes
+		 * has changed. *Note* that the event also fires when the active editor changes
 		 * to `undefined`.
 		 */
 		export const onDidChangeActiveTextEditor: Event<TextEditor>;
