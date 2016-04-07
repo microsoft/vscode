@@ -7,6 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Delayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { append, emmet as $ } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -117,7 +118,28 @@ export class ExtensionsPart extends BaseEditor {
 
 		const root = append(container, $('.extension-manager'));
 		const search = append(root, $('.search'));
-		/*const searchBox =*/ append(search, $('input.search-box'));
+		const searchBox = append(search, $<HTMLInputElement>('input.search-box'));
+
+		const delayer = new Delayer(500);
+
+		// TODO: HACK
+		searchBox.oninput = event => {
+			delayer.trigger(() => {
+
+				this.galleryService.query({ text: searchBox.value }).then(({ firstPage }) => {
+					const entries = firstPage
+						.map(extension => ({
+							extension,
+							state: ExtensionState.Installed
+						}))
+						.sort(extensionEntryCompare);
+
+					this.list.splice(0, this.list.length, ...entries);
+				});
+
+				return null;
+			});
+		};
 
 		const extensions = append(root, $('.extensions'));
 		this.list = new List(extensions, new Delegate(), [this.instantiationService.createInstance(Renderer)]);
