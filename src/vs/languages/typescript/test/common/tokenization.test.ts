@@ -6,28 +6,14 @@
 
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
-
-import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {JavaScriptMode} from 'vs/languages/typescript/common/mode';
+import {createTokenizationSupport, Language} from 'vs/languages/typescript/common/tokenization';
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {createRichEditSupport} from 'vs/languages/typescript/common/mode';
 
 suite('TS/JS - syntax highlighting', () => {
 
-	var tokenizationSupport: Modes.ITokenizationSupport;
-	var assertOnEnter: modesUtil.IOnEnterAsserter;
-
-	setup(() => {
-		let threadService = NULL_THREAD_SERVICE;
-
-		let mode = new JavaScriptMode(
-			{ id: 'javascript' },
-			threadService,
-			null,
-			null
-		);
-
-		tokenizationSupport = mode.tokenizationSupport;
-		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-	});
+	var tokenizationSupport = createTokenizationSupport(new MockMode('javascript'), Language.EcmaScript5);
+	var assertOnEnter = modesUtil.createOnEnterAsserter('javascript', createRichEditSupport('javascript'));
 
 	test('onEnter', function() {
 		assertOnEnter.nothing('', '', 'var f = function() {');

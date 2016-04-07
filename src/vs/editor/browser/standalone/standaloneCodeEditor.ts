@@ -440,7 +440,7 @@ export function createCustomMode(language:ILanguage): TPromise<IMode> {
 	return modeService.getOrCreateMode(modeId);
 }
 
-export function registerStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
+export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
 	ModesRegistry.registerLanguage(language);
 
 	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
@@ -457,6 +457,27 @@ export function registerStandaloneLanguage(language:ILanguageExtensionPoint, def
 			let editorWorkerService = staticPlatformServices.editorWorkerService;
 
 			modeService.registerMonarchDefinition(modelService, editorWorkerService, language.id, value.language);
+		}, (err) => {
+			console.error('Cannot find module ' + defModule, err);
+		});
+	});
+}
+
+export function registerStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
+	ModesRegistry.registerLanguage(language);
+
+	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
+		require([defModule], (value:{activate:()=>void}) => {
+			if (!value.activate) {
+				console.error('Expected ' + defModule + ' to export an `activate` function');
+				return;
+			}
+
+			startup.initStaticServicesIfNecessary();
+			let staticPlatformServices = ensureStaticPlatformServices(null);
+			let instantiationService = staticPlatformServices.instantiationService;
+
+			instantiationService.invokeFunction(value.activate);
 		}, (err) => {
 			console.error('Cannot find module ' + defModule, err);
 		});

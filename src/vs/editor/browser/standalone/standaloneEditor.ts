@@ -67,7 +67,7 @@ Monaco.Editor.OverlayWidgetPositionPreference = OverlayWidgetPositionPreference;
 // Register all built-in standalone languages
 let MonacoEditorLanguages: ILanguageDef[] = this.MonacoEditorLanguages || [];
 MonacoEditorLanguages.forEach((language) => {
-	standaloneCodeEditor.registerStandaloneLanguage(language, language.defModule);
+	standaloneCodeEditor.registerMonarchStandaloneLanguage(language, language.defModule);
 });
 
 // Register all built-in standalone JSON schemas
@@ -75,3 +75,8 @@ let MonacoEditorSchemas: { [url:string]: IJSONSchema } = this.MonacoEditorSchema
 for (var uri in MonacoEditorSchemas) {
 	standaloneCodeEditor.registerStandaloneSchema(uri, MonacoEditorSchemas[uri]);
 }
+
+if (!Monaco.Languages) {
+	Monaco.Languages = {};
+}
+Monaco.Languages.register = standaloneCodeEditor.registerStandaloneLanguage;
