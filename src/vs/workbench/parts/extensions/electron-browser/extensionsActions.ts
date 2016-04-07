@@ -5,7 +5,7 @@
 
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { assign } from 'vs/base/common/objects';
 import Severity from 'vs/base/common/severity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,6 +15,8 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtensionsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { extensionEquals, getTelemetryData } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
+import { CONTEXT as ToolbarContext } from 'vs/base/browser/ui/toolbar/toolbar';
 
 const CloseAction = new Action('action.close', nls.localize('close', "Close"));
 
@@ -204,7 +206,36 @@ export class UninstallAction extends Action {
 
 	private reportTelemetry(extension: IExtension, success: boolean) {
 		const data = assign(getTelemetryData(extension), { success });
-		
+
 		this.telemetryService.publicLog('extensionGallery:uninstall', data);
+	}
+}
+
+class ManageExtensionsAction extends Action {
+
+	constructor() {
+		super('extensions.manage', nls.localize('openExtensions', "Manage Extensions"), 'manage-extensions-action');
+	}
+
+	run(): TPromise<void> {
+		console.log('yeah');
+		return null;
+	}
+}
+
+export class GlobalExtensionsActionContributor extends ActionBarContributor {
+
+	constructor(@IInstantiationService protected instantiationService: IInstantiationService) {
+		super();
+	}
+
+	public hasActions(context:any):boolean {
+		return context === ToolbarContext;
+	}
+
+	public getActions(context:any): IAction[] {
+		return [
+			this.instantiationService.createInstance(ManageExtensionsAction)
+		];
 	}
 }

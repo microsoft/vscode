@@ -18,6 +18,8 @@ import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsPart } from 'vs/workbench/parts/extensions/electron-browser/extensionsPart';
+import { GlobalExtensionsActionContributor } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { IActionBarRegistry, Scope as ActionBarScope, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
 
 registerSingleton(IGalleryService, GalleryService);
 
@@ -39,3 +41,6 @@ const editorDescriptor = new EditorDescriptor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ExtensionsInput)]);
+
+Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar)
+	.registerActionBarContributor(ActionBarScope.GLOBAL, GlobalExtensionsActionContributor);
