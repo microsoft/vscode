@@ -143,9 +143,43 @@
 
 /* Extension Manager */
 .extension-manager {
+	background: #f1f1f1;
 	width: 100%;
 	height: 100%;
 }
+.extension-manager > .extensions {
+	width: 100%;
+	max-width: 600px;
+	height: 100%;
+	margin: 0 auto;
+}
+
+.extension-manager .monaco-list-row.selected {
+	background-color: inherit;
+	color: inherit;
+}
+
+.extension-manager .monaco-list-row:hover {
+	background-color: inherit;
+}
+
+.extension-manager .extension-container {
+	width: 100%;
+	height: 100%;
+}
+
+.extension-manager .extension-container > .extension {
+	margin: 10px 20px 10px 10px;
+	width: calc(100% - 30px);
+	height: calc(100% - 20px);
+	background-color: white;
+	box-shadow: 2px 2px 5px rgba(0,0,0,.1);
+}
+
+.extension-manager .extension-container > .extension:hover {
+	box-shadow: 2px 2px 5px rgba(0,0,0,.25);
+}
+
 
 /* Status bar */
 .monaco-shell .extensions-statusbar {
