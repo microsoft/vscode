@@ -73,6 +73,8 @@ export interface ITelemetryServiceConfig {
 	sessionID?: string;
 	commitHash?: string;
 	version?: string;
+
+	cleanupPatterns?: RegExp[];
 }
 
 export function anonymize(input: string): string {
