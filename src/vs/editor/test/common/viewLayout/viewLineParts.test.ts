@@ -306,7 +306,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		);
 	});
 
-	test('createLineParts render indent guides ignores line with faux indent', () => {
+	test('createLineParts render indent guides uses faux indent', () => {
 		testCreateLineParts(
 			'\t\t  Hello world! \t  \t   \t    ',
 			[
@@ -318,7 +318,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			false,
 			true,
 			[
-				new ViewLineToken(0, ''),
+				new ViewLineToken(0, ' indent-guide'),
+				new ViewLineToken(1, ' indent-guide'),
+				new ViewLineToken(2, ''),
 				new ViewLineToken(4, 'a'),
 				new ViewLineToken(6, 'b')
 			]
@@ -337,7 +339,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			true,
 			true,
 			[
-				new ViewLineToken(0, ''),
+				new ViewLineToken(0, ' indent-guide'),
+				new ViewLineToken(1, ' indent-guide'),
 				new ViewLineToken(2, ' leading whitespace'),
 				new ViewLineToken(4, 'a'),
 				new ViewLineToken(6, 'b'),

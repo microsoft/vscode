@@ -6,6 +6,7 @@
 
 import 'vs/editor/standalone-languages/all';
 import './standaloneSchemas';
+import 'vs/css!./media/standalone-tokens';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ClassNames, ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';

@@ -71,11 +71,6 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 			return;
 		}
 
-		// don't send telemetry when channel is not enabled
-		if (!this.config.enableTelemetry) {
-			return;
-		}
-
 		// don't send events when the user is optout unless the event is flaged as optin friendly
 		if(!this.config.userOptIn && this.optInFriendly.indexOf(eventName) === -1) {
 			return;

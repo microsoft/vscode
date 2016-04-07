@@ -15,17 +15,8 @@ function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
 
 export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean, indentGuides:boolean): LineParts {
 	if (indentGuides || renderWhitespace) {
-		let customLineDecorations:CustomLineDecorations;
-		if (indentGuides && renderWhitespace) {
-			customLineDecorations = CustomLineDecorations.RenderWhitespaceAndIndentGuides;
-		} else if (renderWhitespace) {
-			customLineDecorations = CustomLineDecorations.RenderWhitespace;
-		} else {
-			customLineDecorations = CustomLineDecorations.RenderIndentGuides;
-		}
-
 		let oldLength = rawLineDecorations.length;
-		rawLineDecorations = insertCustomLineDecorations(customLineDecorations, lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
+		rawLineDecorations = insertCustomLineDecorations(indentGuides, renderWhitespace, lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
 		if (rawLineDecorations.length !== oldLength) {
 			rawLineDecorations.sort(cmpLineDecorations);
 		}
@@ -104,7 +95,7 @@ function trimEmptyTrailingPart(parts: ViewLineToken[], lineContent: string): Vie
 const _tab = '\t'.charCodeAt(0);
 const _space = ' '.charCodeAt(0);
 
-function insertOneWhitespace(dest:ILineDecoration[], lineNumber:number, startColumn:number, endColumn:number, className:string): void {
+function insertOneCustomLineDecoration(dest:ILineDecoration[], lineNumber:number, startColumn:number, endColumn:number, className:string): void {
 	dest.push({
 		range: new Range(lineNumber, startColumn, lineNumber, endColumn),
 		options: {
@@ -113,23 +104,17 @@ function insertOneWhitespace(dest:ILineDecoration[], lineNumber:number, startCol
 	});
 }
 
-enum CustomLineDecorations {
-	RenderWhitespace,
-	RenderIndentGuides,
-	RenderWhitespaceAndIndentGuides
-}
+function insertCustomLineDecorations(indentGuides:boolean, renderWhitespace:boolean, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
+	if (!indentGuides && !renderWhitespace) {
+		return rawLineDecorations;
+	}
 
-function insertCustomLineDecorations(customLineDecorations:CustomLineDecorations, lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
 	let lineLength = lineContent.length;
 	if (lineLength === fauxIndentLength) {
 		return rawLineDecorations;
 	}
-	if (fauxIndentLength > 0 && customLineDecorations === CustomLineDecorations.RenderIndentGuides) {
-		// no indent guides on faux indented lines
-		return rawLineDecorations;
-	}
 
-	let firstChar = lineContent.charCodeAt(fauxIndentLength);
+	let firstChar = indentGuides ? lineContent.charCodeAt(0) : lineContent.charCodeAt(fauxIndentLength);
 	let lastChar = lineContent.charCodeAt(lineLength - 1);
 
 	if (firstChar !== _tab && firstChar !== _space && lastChar !== _tab && lastChar !== _space) {
@@ -147,42 +132,61 @@ function insertCustomLineDecorations(customLineDecorations:CustomLineDecorations
 		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
 	}
 
+	let sm_endIndex: number[] = [];
+	let sm_decoration: string[] = [];
+
+	if (fauxIndentLength > 0) {
+		// add faux indent state
+		sm_endIndex.push(fauxIndentLength - 1);
+		sm_decoration.push(indentGuides ? 'indent-guide' : null);
+	}
+	if (firstNonWhitespaceIndex > fauxIndentLength) {
+		// add leading whitespace state
+		sm_endIndex.push(firstNonWhitespaceIndex - 1);
+
+		let leadingClassName:string = null;
+
+		if (fauxIndentLength > 0) {
+			leadingClassName = (renderWhitespace ? 'leading whitespace' : null);
+		} else {
+			if (indentGuides && renderWhitespace) {
+				leadingClassName = 'leading whitespace indent-guide';
+			} else if (indentGuides) {
+				leadingClassName = 'indent-guide';
+			} else {
+				leadingClassName = 'leading whitespace';
+			}
+		}
+		sm_decoration.push(leadingClassName);
+
+	}
+	// add content state
+	sm_endIndex.push(lastNonWhitespaceIndex);
+	sm_decoration.push(null);
+
+	// add trailing whitespace state
+	sm_endIndex.push(lineLength - 1);
+	sm_decoration.push(renderWhitespace ? 'trailing whitespace' : null);
+
+	// add dummy state to avoid array length checks
+	sm_endIndex.push(lineLength);
+	sm_decoration.push(null);
+
+	return insertCustomLineDecorationsWithStateMachine(lineNumber, lineContent, tabSize, rawLineDecorations, sm_endIndex, sm_decoration);
+}
+
+function insertCustomLineDecorationsWithStateMachine(lineNumber:number, lineContent: string, tabSize:number, rawLineDecorations: ILineDecoration[], sm_endIndex: number[], sm_decoration: string[]): ILineDecoration[] {
+	let lineLength = lineContent.length;
+	let currentStateIndex = 0;
+	let stateEndIndex = sm_endIndex[currentStateIndex];
+	let stateDecoration = sm_decoration[currentStateIndex];
+
 	let result = rawLineDecorations.slice(0);
 	let tmpIndent = 0;
-	let whitespaceStartColumn = fauxIndentLength + 1;
+	let whitespaceStartColumn = 1;
 
-	let leadingClassName:string;
-	switch (customLineDecorations) {
-		case CustomLineDecorations.RenderWhitespaceAndIndentGuides:
-			if (fauxIndentLength > 0) {
-				leadingClassName = 'leading whitespace';
-			} else {
-				leadingClassName = 'leading whitespace indent-guide';
-			}
-			break;
-		case CustomLineDecorations.RenderWhitespace:
-			leadingClassName = 'leading whitespace';
-			break;
-		case CustomLineDecorations.RenderIndentGuides:
-			leadingClassName = 'indent-guide';
-			break;
-	}
-
-	let trailingClassName:string;
-	switch (customLineDecorations) {
-		case CustomLineDecorations.RenderWhitespaceAndIndentGuides:
-			trailingClassName = 'trailing whitespace';
-			break;
-		case CustomLineDecorations.RenderWhitespace:
-			trailingClassName = 'trailing whitespace';
-			break;
-		case CustomLineDecorations.RenderIndentGuides:
-			trailingClassName = '';
-			break;
-	}
-
-	for (let i = fauxIndentLength; i < lineLength; i++) {
-		let chCode = lineContent.charCodeAt(i);
+	for (let index = 0; index < lineLength; index++) {
+		let chCode = lineContent.charCodeAt(index);
 
 		if (chCode === _tab) {
 			tmpIndent = tabSize;
@@ -190,37 +194,22 @@ function insertCustomLineDecorations(customLineDecorations:CustomLineDecorations
 			tmpIndent++;
 		}
 
-		if (i < firstNonWhitespaceIndex) {
-			// in leading whitespace
-			// push for every indent or when the end of the leading whitespace is reached
-			if (tmpIndent >= tabSize || i === firstNonWhitespaceIndex - 1) {
-				insertOneWhitespace(result, lineNumber, whitespaceStartColumn, i + 2, leadingClassName);
-				whitespaceStartColumn = i + 2;
-				tmpIndent = 0;
+		if (index === stateEndIndex) {
+			if (stateDecoration !== null) {
+				insertOneCustomLineDecoration(result, lineNumber, whitespaceStartColumn, index + 2, stateDecoration);
 			}
-			continue;
-		}
-
-		if (i > lastNonWhitespaceIndex) {
-			// in trailing whitespace
-			// push for every indent or when the end of the string is reached
-			if (tmpIndent >= tabSize || i === lineLength - 1) {
-				insertOneWhitespace(result, lineNumber, whitespaceStartColumn, i + 2, trailingClassName);
-				whitespaceStartColumn = i + 2;
-				tmpIndent = 0;
-			}
-			continue;
-		}
-
-		if (i === lastNonWhitespaceIndex) {
-
-			if (customLineDecorations === CustomLineDecorations.RenderIndentGuides) {
-				// no need to create additional parts at the end when rendering indent guides
-				break;
-			}
-
-			whitespaceStartColumn = i + 2;
+			whitespaceStartColumn = index + 2;
 			tmpIndent = tmpIndent % tabSize;
+
+			currentStateIndex++;
+			stateEndIndex = sm_endIndex[currentStateIndex];
+			stateDecoration = sm_decoration[currentStateIndex];
+		} else {
+			if (stateDecoration !== null && tmpIndent >= tabSize) {
+				insertOneCustomLineDecoration(result, lineNumber, whitespaceStartColumn, index + 2, stateDecoration);
+				whitespaceStartColumn = index + 2;
+				tmpIndent = tmpIndent % tabSize;
+			}
 		}
 	}
 

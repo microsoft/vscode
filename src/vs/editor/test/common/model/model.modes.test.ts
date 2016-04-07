@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Model} from 'vs/editor/common/model/model';

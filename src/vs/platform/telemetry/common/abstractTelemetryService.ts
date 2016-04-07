@@ -16,10 +16,10 @@ import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 const DefaultTelemetryServiceConfig: ITelemetryServiceConfig = {
-	enableTelemetry: true,
 	enableHardIdle: true,
 	enableSoftIdle: true,
-	userOptIn: true
+	userOptIn: true,
+	cleanupPatterns: []
 };
 
 /**
@@ -144,6 +144,12 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		// "Error: ENOENT; no such file or directory" is often followed with PII, clean it
 		reg = /ENOENT: no such file or directory.*?\'([^\']+)\'/gi;
 		stack = stack.replace(reg, 'ENOENT: no such file or directory');
+
+		// sanitize with configured cleanup patterns
+		for (let pattern of this.config.cleanupPatterns) {
+			stack = stack.replace(pattern, '');
+		}
+
 		return stack;
 	}
 

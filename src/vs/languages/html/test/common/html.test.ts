@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/html/common/html.contribution';
-import 'vs/languages/typescript/common/typescript.contribution';
 import assert = require('assert');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -16,18 +14,129 @@ import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnt
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Range} from 'vs/editor/common/core/range';
+import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
+import {MockExtensionService} from 'vs/editor/test/common/mocks/mockExtensionService';
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {HTMLMode} from 'vs/languages/html/common/html';
+import htmlWorker = require('vs/languages/html/common/htmlWorker');
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+
+export class MockJSState extends AbstractState {
+
+	constructor(mode:Modes.IMode, stateCount:number) {
+		super(mode);
+	}
+
+	public makeClone():MockJSState {
+		return this;
+	}
+
+	public equals(other:Modes.IState):boolean {
+		return true;
+	}
+
+	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
+		stream.advanceToEOS();
+		return { type: 'mock-js' };
+	}
+}
+
+export class MockJSMode extends MockMode {
+
+	public tokenizationSupport: Modes.ITokenizationSupport;
+	public richEditSupport: Modes.IRichEditSupport;
+
+	constructor() {
+		super();
+
+		this.tokenizationSupport = new TokenizationSupport(this, {
+			getInitialState: () => new MockJSState(this, 0)
+		}, false, false);
+
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+			brackets: [
+				['(', ')'],
+				['{', '}'],
+				['[', ']']
+			],
+
+			onEnterRules: [
+				{
+					// e.g. /** | */
+					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+					afterText: /^\s*\*\/$/,
+					action: { indentAction: Modes.IndentAction.IndentOutdent, appendText: ' * ' }
+				},
+				{
+					// e.g. /** ...|
+					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+					action: { indentAction: Modes.IndentAction.None, appendText: ' * ' }
+				},
+				{
+					// e.g.  * ...|
+					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+					action: { indentAction: Modes.IndentAction.None, appendText: '* ' }
+				},
+				{
+					// e.g.  */|
+					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+					action: { indentAction: Modes.IndentAction.None, removeText: 1 }
+				}
+			]
+		});
+	}
+}
+
+class HTMLMockModeService extends MockModeService {
+	isRegisteredMode(mimetypeOrModeId: string): boolean {
+		if (mimetypeOrModeId === 'text/javascript') {
+			return true;
+		}
+		if (mimetypeOrModeId === 'text/plain') {
+			return false;
+		}
+		throw new Error('Not implemented');
+	}
+
+	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/javascript') {
+			return new MockJSMode();
+		}
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/plain') {
+			return null;
+		}
+		throw new Error('Not implemented');
+	}
+}
 
 suite('Colorizing - HTML', () => {
 
-	var tokenizationSupport: Modes.ITokenizationSupport;
-	var _mode: Modes.IMode;
+	let tokenizationSupport: Modes.ITokenizationSupport;
+	let _mode: Modes.IMode;
 
-	suiteSetup((done) => {
-		modesUtil.load('html', ['javascript']).then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			_mode = mode;
-			done();
+	suiteSetup(() => {
+		let threadService = NULL_THREAD_SERVICE;
+		let modeService = new HTMLMockModeService();
+		let inst = createInstantiationService({
+			threadService: threadService,
+			modeService: modeService
 		});
+		threadService.setInstantiationService(inst);
+
+		_mode = new HTMLMode<htmlWorker.HTMLWorker>(
+			{ id: 'html' },
+			inst,
+			modeService,
+			threadService
+		);
+
+		tokenizationSupport = _mode.tokenizationSupport;
 	});
 
 	test('Open Start Tag #1', () => {
@@ -181,13 +290,7 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:12, type: DELIM_ASSIGN },
 				{ startIndex:13, type: ATTRIB_VALUE },
 				{ startIndex:30, type: DELIM_START },
-				{ startIndex:31, type: 'keyword.js' },
-				{ startIndex:34, type: '' },
-				{ startIndex:35, type: 'identifier.js' },
-				{ startIndex:36, type: 'delimiter.js' },
-				{ startIndex:37, type: '' },
-				{ startIndex:38, type: 'number.js' },
-				{ startIndex:40, type: 'delimiter.js' },
+				{ startIndex:31, type: 'mock-js' },
 				{ startIndex:41, type: DELIM_END },
 				{ startIndex:43, type: getTag('script') },
 				{ startIndex:49, type: DELIM_END }
@@ -209,13 +312,7 @@ suite('Colorizing - HTML', () => {
 			]}, {
 			line: 'var i= 10;',
 			tokens: [
-				{ startIndex:0, type: 'keyword.js' },
-				{ startIndex:3, type: '' },
-				{ startIndex:4, type: 'identifier.js' },
-				{ startIndex:5, type: 'delimiter.js' },
-				{ startIndex:6, type: '' },
-				{ startIndex:7, type: 'number.js' },
-				{ startIndex:9, type: 'delimiter.js' }
+				{ startIndex:0, type: 'mock-js' },
 			]}, {
 			line: '</script>',
 			tokens: [
@@ -237,13 +334,7 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:12, type: DELIM_ASSIGN },
 				{ startIndex:13, type: ATTRIB_VALUE },
 				{ startIndex:30, type: DELIM_START },
-				{ startIndex:31, type: 'keyword.js' },
-				{ startIndex:34, type: '' },
-				{ startIndex:35, type: 'identifier.js' },
-				{ startIndex:36, type: 'delimiter.js' },
-				{ startIndex:37, type: '' },
-				{ startIndex:38, type: 'number.js' },
-				{ startIndex:40, type: 'delimiter.js' }
+				{ startIndex:31, type: 'mock-js' },
 			]}, {
 			line: '</script>',
 			tokens: [
@@ -268,13 +359,7 @@ suite('Colorizing - HTML', () => {
 			]}, {
 			line: 'var i= 10;</script>',
 			tokens: [
-				{ startIndex:0, type: 'keyword.js' },
-				{ startIndex:3, type: '' },
-				{ startIndex:4, type: 'identifier.js' },
-				{ startIndex:5, type: 'delimiter.js' },
-				{ startIndex:6, type: '' },
-				{ startIndex:7, type: 'number.js' },
-				{ startIndex:9, type: 'delimiter.js' },
+				{ startIndex:0, type: 'mock-js' },
 				{ startIndex:10, type: DELIM_END },
 				{ startIndex:12, type: getTag('script') },
 				{ startIndex:18, type: DELIM_END }
@@ -308,14 +393,14 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:0, type: DELIM_START },
 				{ startIndex:1, type: getTag('script') },
 				{ startIndex:7, type: DELIM_START },
-				{ startIndex:8, type: 'identifier.js' },
+				{ startIndex:8, type: 'mock-js' },
 				{ startIndex:9, type: DELIM_END },
 				{ startIndex:11, type: getTag('script') },
 				{ startIndex:17, type: DELIM_END },
 				{ startIndex:18, type: DELIM_START },
 				{ startIndex:19, type: getTag('script') },
 				{ startIndex:25, type: DELIM_START },
-				{ startIndex:26, type: 'identifier.js' },
+				{ startIndex:26, type: 'mock-js' },
 				{ startIndex:27, type: DELIM_END },
 				{ startIndex:29, type: getTag('script') },
 				{ startIndex:35, type: DELIM_END }
@@ -348,13 +433,7 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:0, type: DELIM_START },
 				{ startIndex:1, type: getTag('script') },
 				{ startIndex:7, type: DELIM_START },
-				{ startIndex:8, type: 'keyword.js' },
-				{ startIndex:11, type: '' },
-				{ startIndex:12, type: 'identifier.js' },
-				{ startIndex:13, type: 'delimiter.js' },
-				{ startIndex:14, type: '' },
-				{ startIndex:15, type: 'number.js' },
-				{ startIndex:17, type: 'delimiter.js' },
+				{ startIndex:8, type: 'mock-js' },
 				{ startIndex:18, type: DELIM_END },
 				{ startIndex:20, type: getTag('script') },
 				{ startIndex:26, type: DELIM_END }
@@ -605,7 +684,7 @@ suite('Colorizing - HTML', () => {
 		]);
 	});
 
-	test('onEnter', function() {
+	test('onEnter 1', function() {
 		var model = new Model('<script type=\"text/javascript\">function f() { foo(); }', Model.DEFAULT_CREATION_OPTIONS, _mode);
 
 		var actual = _mode.richEditSupport.onEnter.onEnter(model, {
@@ -618,7 +697,7 @@ suite('Colorizing - HTML', () => {
 		model.dispose();
 	});
 
-	test('onEnter', function() {
+	test('onEnter 2', function() {
 		function onEnter(line:string, offset:number): Modes.IEnterAction {
 			let model = new TextModelWithTokens([], TextModel.toRawText(line, Model.DEFAULT_CREATION_OPTIONS), false, _mode);
 			let result = getRawEnterActionAtPosition(model, 1, offset + 1);

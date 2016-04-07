@@ -696,7 +696,9 @@ export class ChangeModeAction extends Action {
 		let autoDetectMode: IPickOpenEntry = {
 			label: nls.localize('autoDetect', "Auto Detect")
 		};
-		picks.unshift(autoDetectMode);
+		if (fileinput) {
+			picks.unshift(autoDetectMode);
+		}
 
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then((language) => {
 			if (language) {
