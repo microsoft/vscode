@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/text!./webview.html';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
