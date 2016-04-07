@@ -5,25 +5,25 @@
 
 /* Editor Actions */
 
-.monaco-workbench.vs .markdown-action.action-preview {
+.vs .monaco-workbench .markdown-action.action-preview {
 	background: url('Preview.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .markdown-action.action-preview {
+.vs-dark .monaco-workbench .markdown-action.action-preview {
 	background: url('Preview_inverse.svg') center center no-repeat;
 }
 
 /* High Contrast Theming */
 
-.monaco-workbench.hc-black .markdown-action.action-preview,
-.monaco-workbench.hc-black .markdown-action.view-source,
-.monaco-workbench.hc-black .markdown-action.refresh {
+.hc-black .monaco-workbench .markdown-action.action-preview,
+.hc-black .monaco-workbench .markdown-action.view-source,
+.hc-black .monaco-workbench .markdown-action.refresh {
 	background: none;
 }
 
-.monaco-workbench.hc-black .markdown-action.action-preview:before,
-.monaco-workbench.hc-black .markdown-action.view-source:before,
-.monaco-workbench.hc-black .markdown-action.refresh:before {
+.hc-black .monaco-workbench .markdown-action.action-preview:before,
+.hc-black .monaco-workbench .markdown-action.view-source:before,
+.hc-black .monaco-workbench .markdown-action.refresh:before {
 	position: absolute;
 	top: 12px;
 	left: 8px;
@@ -31,6 +31,6 @@
 	width: 16px;
 }
 
-.monaco-workbench.hc-black .markdown-action.action-preview:before {
+.hc-black .monaco-workbench .markdown-action.action-preview:before {
 	content: url('Preview_inverse.svg');
 }

@@ -33,10 +33,17 @@ export class RenderLineInput {
 	}
 }
 
-export interface IRenderLineOutput {
+export class RenderLineOutput {
+	_renderLineOutputTrait: void;
 	charOffsetInPart: number[];
 	lastRenderedPartIndex: number;
 	output: string;
+
+	constructor(charOffsetInPart: number[], lastRenderedPartIndex: number, output: string) {
+		this.charOffsetInPart = charOffsetInPart;
+		this.lastRenderedPartIndex = lastRenderedPartIndex;
+		this.output = output;
+	}
 }
 
 const _space = ' '.charCodeAt(0);
@@ -48,7 +55,7 @@ const _carriageReturn = '\r'.charCodeAt(0);
 const _lineSeparator = '\u2028'.charCodeAt(0); //http://www.fileformat.info/info/unicode/char/2028/index.htm
 const _bom = 65279;
 
-export function renderLine(input:RenderLineInput): IRenderLineOutput {
+export function renderLine(input:RenderLineInput): RenderLineOutput {
 	const lineText = input.lineContent;
 	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
@@ -58,12 +65,12 @@ export function renderLine(input:RenderLineInput): IRenderLineOutput {
 	const charBreakIndex = (input.stopRenderingLineAfter === -1 ? lineTextLength : input.stopRenderingLineAfter - 1);
 
 	if (lineTextLength === 0) {
-		return {
-			charOffsetInPart: [],
-			lastRenderedPartIndex: 0,
+		return new RenderLineOutput(
+			[],
+			0,
 			// This is basically for IE's hit test to work
-			output: '<span><span>&nbsp;</span></span>'
-		};
+			'<span><span>&nbsp;</span></span>'
+		);
 	}
 
 	if (actualLineParts.length === 0) {
@@ -78,7 +85,7 @@ function isWhitespace(type:string): boolean {
 	return WHITESPACE_TOKEN_TEST.test(type);
 }
 
-function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, spaceWidth:number, actualLineParts:ViewLineToken[], renderWhitespace:boolean, charBreakIndex:number): IRenderLineOutput {
+function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, spaceWidth:number, actualLineParts:ViewLineToken[], renderWhitespace:boolean, charBreakIndex:number): RenderLineOutput {
 	lineTextLength = +lineTextLength;
 	tabSize = +tabSize;
 	charBreakIndex = +charBreakIndex;
@@ -140,11 +147,11 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 					out += partContent;
 					out += '&hellip;</span></span>';
 					charOffsetInPartArr[charIndex] = charOffsetInPart;
-					return {
-						charOffsetInPart: charOffsetInPartArr,
-						lastRenderedPartIndex: partIndex,
-						output: out
-					};
+					return new RenderLineOutput(
+						charOffsetInPartArr,
+						partIndex,
+						out
+					);
 				}
 			}
 			out += '<span class="token '+part.type+'" style="width:'+(spaceWidth * partContentCnt)+'px">';
@@ -213,11 +220,11 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 				if (charIndex >= charBreakIndex) {
 					out += '&hellip;</span></span>';
 					charOffsetInPartArr[charIndex] = charOffsetInPart;
-					return {
-						charOffsetInPart: charOffsetInPartArr,
-						lastRenderedPartIndex: partIndex,
-						output: out
-					};
+					return new RenderLineOutput(
+						charOffsetInPartArr,
+						partIndex,
+						out
+					);
 				}
 			}
 
@@ -231,9 +238,9 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 	// text range at the end of the span, insteaf of at the beginning of next span
 	charOffsetInPartArr.push(charOffsetInPart);
 
-	return {
-		charOffsetInPart: charOffsetInPartArr,
-		lastRenderedPartIndex: actualLineParts.length - 1,
-		output: out
-	};
+	return new RenderLineOutput(
+		charOffsetInPartArr,
+		actualLineParts.length - 1,
+		out
+	);
 }

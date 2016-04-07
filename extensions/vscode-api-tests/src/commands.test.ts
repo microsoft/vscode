@@ -6,9 +6,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import {commands, workspace, Uri} from 'vscode';
+import {join} from 'path';
+import {commands, workspace, window, Uri} from 'vscode';
 
-suite("commands namespace tests", () => {
+suite('commands namespace tests', () => {
 
 	test('getCommands', function(done) {
 
@@ -39,7 +40,7 @@ suite("commands namespace tests", () => {
 		}, done);
 	});
 
-	test('api-command: workbench.html.preview', function() {
+	test('api-command: workbench.html.preview', function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('speciale', {
 			provideTextDocumentContent(uri) {
@@ -47,12 +48,33 @@ suite("commands namespace tests", () => {
 			}
 		});
 
-		let virtualDocumentUri = Uri.parse('speciale://authority/path')
+		let virtualDocumentUri = Uri.parse('speciale://authority/path');
 
 		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri).then(success => {
 			assert.ok(success);
 			registration.dispose();
 		});
 
-	})
+	});
+
+	test('editorCommand with extra args', function () {
+
+		let args: IArguments;
+		let registration = commands.registerTextEditorCommand('t1', function() {
+			args = arguments;
+		});
+
+		return workspace.openTextDocument(join(workspace.rootPath, './far.js')).then(doc => {
+			return window.showTextDocument(doc).then(editor => {
+				return commands.executeCommand('t1', 12345, commands);
+			}).then(() => {
+				assert.ok(args);
+				assert.equal(args.length, 4);
+				assert.ok(args[2] === 12345);
+				assert.ok(args[3] === commands);
+				registration.dispose();
+			});
+		});
+
+	});
 });

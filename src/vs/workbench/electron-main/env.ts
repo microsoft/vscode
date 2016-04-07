@@ -108,7 +108,7 @@ export const isTestingFromCli = cliArgs.extensionTestsPath && !cliArgs.debugBrkE
 
 export function log(...a: any[]): void {
 	if (cliArgs.verboseLogging) {
-		console.log.apply(null, a);
+		console.log.call(null, `(${new Date().toLocaleTimeString()})`, ...a);
 	}
 }
 

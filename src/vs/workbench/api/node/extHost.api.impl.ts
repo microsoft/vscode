@@ -162,9 +162,8 @@ export class ExtHostAPIImplementation {
 			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, command, thisArgs);
 			},
-			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit) => void, thisArg?: any): vscode.Disposable {
-				let actualCallback: typeof callback = thisArg ? callback.bind(thisArg) : callback;
-				return extHostCommands.registerCommand(id, () => {
+			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
+				return extHostCommands.registerCommand(id, (...args: any[]) => {
 					let activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						console.warn('Cannot execute ' + id + ' because there is no active text editor.');
@@ -172,7 +171,9 @@ export class ExtHostAPIImplementation {
 					}
 
 					activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
-						actualCallback(activeTextEditor, edit);
+						args.unshift(activeTextEditor, edit);
+						callback.apply(thisArg, args);
+
 					}).then((result) => {
 						if (!result) {
 							console.warn('Edits from command ' + id + ' were not applied.');

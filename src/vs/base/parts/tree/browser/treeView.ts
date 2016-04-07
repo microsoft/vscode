@@ -11,6 +11,7 @@ import Lifecycle = require('vs/base/common/lifecycle');
 import DOM = require('vs/base/browser/dom');
 import Diff = require('vs/base/common/diff/diff');
 import Touch = require('vs/base/browser/touch');
+import strings = require('vs/base/common/strings');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import Model = require('vs/base/parts/tree/browser/treeModel');
@@ -233,7 +234,7 @@ export class ViewItem implements IViewItem {
 		// ARIA
 		this.element.setAttribute('role', 'treeitem');
 		if (this.model.hasTrait('focused')) {
-			const base64Id = btoa(this.model.id);
+			const base64Id = strings.safeBtoa(this.model.id);
 			const ariaLabel = this.context.accessibilityProvider.getAriaLabel(this.context.tree, this.model.getElement());
 
 			this.element.setAttribute('aria-selected', 'true');
@@ -1108,7 +1109,7 @@ export class TreeView extends HeightMap implements IScrollable {
 
 		// ARIA
 		if (focus) {
-			this.domNode.setAttribute('aria-activedescendant', btoa(this.context.dataSource.getId(this.context.tree, focus)));
+			this.domNode.setAttribute('aria-activedescendant', strings.safeBtoa(this.context.dataSource.getId(this.context.tree, focus)));
 		} else {
 			this.domNode.removeAttribute('aria-activedescendant');
 		}

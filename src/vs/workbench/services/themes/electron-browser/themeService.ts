@@ -8,18 +8,27 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
-import Themes = require('vs/platform/theme/common/themes');
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
+import {IThemeService, IThemeData} from 'vs/workbench/services/themes/common/themeService';
+import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes';
+import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {Preferences} from 'vs/workbench/common/constants';
+import {$} from 'vs/base/browser/builder';
+import Event, {Emitter} from 'vs/base/common/event';
 
 import plist = require('vs/base/node/plist');
 import pfs = require('vs/base/node/pfs');
 
 // implementation
 
-let defaultBaseTheme = Themes.getBaseThemeId(DEFAULT_THEME_ID);
+const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
+
+const THEME_CHANNEL = 'vscode:changeTheme';
+
+let defaultBaseTheme = getBaseThemeId(DEFAULT_THEME_ID);
 
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
@@ -86,32 +95,101 @@ export class ThemeService implements IThemeService {
 	serviceId = IThemeService;
 
 	private knownThemes: IThemeData[];
+	private currentTheme: string;
+	private container: HTMLElement;
+	private onThemeChange: Emitter<string>;
 
-	constructor(private extensionService: IExtensionService) {
+	constructor(
+			private extensionService: IExtensionService,
+			@IWindowService private windowService: IWindowService,
+			@IStorageService private storageService: IStorageService) {
 		this.knownThemes = [];
+		this.onThemeChange = new Emitter<string>();
 
 		themesExtPoint.setHandler((extensions) => {
 			for (let ext of extensions) {
 				this.onThemes(ext.description.extensionFolderPath, ext.description.id, ext.value, ext.collector);
 			}
 		});
+
+		windowService.onBroadcast(e => {
+			if (e.channel === THEME_CHANNEL && typeof e.payload === 'string') {
+				this.setTheme(e.payload, false);
+			}
+		});
 	}
 
-	public loadTheme(themeId: string): TPromise<IThemeData> {
-		themeId = validateThemeId(themeId);
+	public get onDidThemeChange(): Event<string> {
+		return this.onThemeChange.event;
+	}
+
+	public initialize(container: HTMLElement): TPromise<boolean> {
+		this.container = container;
+
+		let themeId = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, null);
+		if (!themeId) {
+			themeId = DEFAULT_THEME_ID;
+			this.storageService.store(Preferences.THEME, themeId, StorageScope.GLOBAL);
+		}
+		return this.setTheme(themeId, false);
+	}
+
+	public setTheme(themeId: string, broadcastToAllWindows: boolean) : TPromise<boolean> {
+		if (!themeId) {
+			return TPromise.as(false);
+		}
+		if (themeId === this.currentTheme) {
+			if (broadcastToAllWindows) {
+				this.windowService.broadcast({ channel: THEME_CHANNEL, payload: themeId });
+			}
+			return TPromise.as(false);
+		}
+
+		themeId = validateThemeId(themeId); // migrate theme ids
+
+		let onApply = (newThemeId) => {
+			if (this.container) {
+				if (this.currentTheme) {
+					$(this.container).removeClass(this.currentTheme);
+				}
+				this.currentTheme = newThemeId;
+				$(this.container).addClass(newThemeId);
+			}
+
+			this.storageService.store(Preferences.THEME, newThemeId, StorageScope.GLOBAL);
+			if (broadcastToAllWindows) {
+				this.windowService.broadcast({ channel: THEME_CHANNEL, payload: newThemeId });
+			}
+			this.onThemeChange.fire(newThemeId);
+		};
+
+		return this.applyThemeCSS(themeId, DEFAULT_THEME_ID, onApply);
+	}
+
+	public getTheme() {
+		return this.currentTheme || this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
+	}
+
+	private loadTheme(themeId: string, defaultId?: string): TPromise<IThemeData> {
 		return this.getThemes().then(allThemes => {
 			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
 				return themes[0];
 			}
+			if (defaultId) {
+				let themes = allThemes.filter(t => t.id === defaultId);
+				if (themes.length > 0) {
+					return themes[0];
+				}
+			}
 			return null;
 		});
 	}
 
-	public applyThemeCSS(themeId: string): TPromise<boolean> {
-		return this.loadTheme(themeId).then(theme => {
+	private applyThemeCSS(themeId: string, defaultId: string, onApply: (themeId:string) => void): TPromise<boolean> {
+		return this.loadTheme(themeId, defaultId).then(theme => {
 			if (theme) {
-				return applyTheme(theme);
+				return applyTheme(theme, onApply);
 			}
 			return null;
 		});
@@ -164,15 +242,18 @@ function toCssSelector(str: string) {
 	return str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 }
 
-function applyTheme(theme: IThemeData): TPromise<boolean> {
+function applyTheme(theme: IThemeData, onApply: (themeId:string) => void): TPromise<boolean> {
 	if (theme.styleSheetContent) {
 		_applyRules(theme.styleSheetContent);
+		onApply(theme.id);
+		return TPromise.as(true);
 	}
 	return _loadThemeDocument(theme.path).then(themeDocument => {
 		let styleSheetContent = _processThemeObject(theme.id, themeDocument);
 		theme.styleSheetContent = styleSheetContent;
 		_applyRules(styleSheetContent);
-		return true;
+		onApply(theme.id);
+		return false;
 	}, error => {
 		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
 	});
@@ -216,7 +297,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 		selection: void 0
 	};
 
-	let themeSelector = `${Themes.getBaseThemeId(themeId)}.${Themes.getSyntaxThemeId(themeId)}`;
+	let themeSelector = `${getBaseThemeId(themeId)}.${getSyntaxThemeId(themeId)}`;
 
 	if (Array.isArray(themeSettings)) {
 		themeSettings.forEach((s : ThemeSetting, index, arr) => {
@@ -243,7 +324,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 		//cssRules.push(`.monaco-editor.${themeSelector} { background-color: ${background}; }`);
 		cssRules.push(`.monaco-editor.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
 		cssRules.push(`.monaco-editor.${themeSelector} .glyph-margin { background-color: ${background}; }`);
-		cssRules.push(`.monaco-workbench.${themeSelector} .monaco-editor-background { background-color: ${background}; }`);
+		cssRules.push(`.${themeSelector} .monaco-workbench .monaco-editor-background { background-color: ${background}; }`);
 	}
 	if (editorSettings.foreground) {
 		let foreground = new Color(editorSettings.foreground);

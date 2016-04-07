@@ -6,16 +6,16 @@
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {TPromise} from 'vs/base/common/winjs.base';
+import Event from 'vs/base/common/event';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');
 
-export const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
-
 export interface IThemeService {
 	serviceId: ServiceIdentifier<any>;
-	loadTheme(themeId: string): TPromise<IThemeData>;
-	applyThemeCSS(themeId: string): TPromise<boolean>;
+	setTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean>;
+	getTheme(): string;
 	getThemes(): TPromise<IThemeData[]>;
+	onDidThemeChange: Event<string>;
 }
 
 export interface IThemeData {

@@ -6,11 +6,11 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, window, commands, ViewColumn, TextEditor, TextEditorViewColumnChangeEvent, Uri} from 'vscode';
+import {workspace, window, ViewColumn, TextEditorViewColumnChangeEvent, Uri} from 'vscode';
 import {join} from 'path';
 import {cleanUp, pathEquals} from './utils';
 
-suite("window namespace tests", () => {
+suite('window namespace tests', () => {
 
 	teardown(cleanUp);
 
@@ -22,6 +22,11 @@ suite("window namespace tests", () => {
 				assert.ok(pathEquals(active.document.uri.fsPath, doc.uri.fsPath));
 			});
 		});
+	});
+
+	test('editor, UN-active text editor', () => {
+		assert.equal(window.visibleTextEditors.length, 0);
+		assert.ok(window.activeTextEditor === undefined);
 	});
 
 	test('editor, assign and check view columns', () => {
@@ -48,7 +53,7 @@ suite("window namespace tests", () => {
 			provideTextDocumentContent() {
 				return 'mountainbiking,roadcycling';
 			}
-		})
+		});
 
 		return Promise.all([
 			workspace.openTextDocument(Uri.parse('bikes://testing/one')).then(doc => window.showTextDocument(doc, ViewColumn.One)),
@@ -74,7 +79,7 @@ suite("window namespace tests", () => {
 				assert.ok(actualEvent.viewColumn === two.viewColumn);
 
 				registration1.dispose();
-			})
+			});
 		});
 	});
 });

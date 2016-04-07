@@ -10,7 +10,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
-import {Preferences} from 'vs/workbench/common/constants';
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
 import {OptionsChangeEvent, EventType as WorkbenchEventType, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {Scope} from 'vs/workbench/common/memento';
@@ -21,8 +20,7 @@ import {IEditorSelection, IEditor, EventType, IConfigurationChangedEvent, IModel
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {Position} from 'vs/platform/editor/common/editor';
-import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
-import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +28,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
 const EDITOR_VIEW_STATE_PREFERENCE_KEY = 'editorViewState';
 
@@ -51,14 +50,16 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEventService private _eventService: IEventService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IModeService private _modeService: IModeService
+		@IModeService private _modeService: IModeService,
+		@IThemeService private _themeService: IThemeService
 	) {
 		super(id, telemetryService);
 
-		this.toUnbind.push(this._eventService.addListener(StorageEventType.STORAGE, (e: StorageEvent) => this.onPreferencesChanged(e)));
 		this.toUnbind.push(this._eventService.addListener(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e)));
 		this.toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.applyConfiguration(e.config)));
-	}
+
+		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.onThemeChanged()).dispose);
+}
 
 	public get instantiationService(): IInstantiationService {
 		return this._instantiationService;
@@ -97,12 +98,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}
 	}
 
-	private onPreferencesChanged(e: StorageEvent): void {
-
-		// Update Theme in Editor Control
-		if (e.key === Preferences.THEME) {
-			this.editorControl.updateOptions(this.getCodeEditorOptions());
-		}
+	private onThemeChanged(): void {
+		this.editorControl.updateOptions(this.getCodeEditorOptions());
 	}
 
 	protected getCodeEditorOptions(): IEditorOptions {
@@ -111,7 +108,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			readOnly: this.contextService.getOptions().readOnly,
 			glyphMargin: true,
 			lineNumbersMinChars: 3,
-			theme: this._storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID)
+			theme: this._themeService.getTheme()
 		};
 
 		// Always mixin editor options from the context into our set to allow for override

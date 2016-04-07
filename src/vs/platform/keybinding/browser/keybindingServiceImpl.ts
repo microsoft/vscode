@@ -10,12 +10,13 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {KeyCode, Keybinding} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
+import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {ICommandHandler, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler, ICommandHandlerDescription, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -258,10 +259,25 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	private _getAllCommandsAsComment(): string {
-		let boundCommands = this._getResolver().getDefaultBoundCommands();
-		let unboundCommands = Object.keys(KeybindingsRegistry.getCommands()).filter(commandId => commandId[0] !== '_' && !boundCommands[commandId]);
-		unboundCommands.sort();
-		let pretty = unboundCommands.join('\n// - ');
+		const commands = KeybindingsRegistry.getCommands();
+		const unboundCommands: string[] = [];
+		const boundCommands = this._getResolver().getDefaultBoundCommands();
+
+		for (let id in commands) {
+			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
+				continue;
+			}
+			if (typeof commands[id].description === 'object'
+				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
+				continue;
+			}
+			if (boundCommands[id]) {
+				continue;
+			}
+			unboundCommands.push(id);
+		}
+
+		let pretty = unboundCommands.sort().join('\n// - ');
 
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}

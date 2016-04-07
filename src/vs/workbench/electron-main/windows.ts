@@ -150,6 +150,8 @@ export class WindowsManager {
 		}, this);
 
 		ipc.on('vscode:startCrashReporter', (event: any, config: any) => {
+			env.log('IPC#vscode:startCrashReporter');
+			
 			crashReporter.start(config);
 		});
 
@@ -317,13 +319,10 @@ export class WindowsManager {
 			}
 		});
 
-		ipc.on('vscode:changeTheme', (event, theme: string) => {
-			this.sendToAll('vscode:changeTheme', theme);
-			storage.setItem(window.VSCodeWindow.themeStorageKey, theme);
-		});
-
 		ipc.on('vscode:broadcast', (event, windowId: number, target: string, broadcast: { channel: string; payload: any; }) => {
 			if (broadcast.channel && broadcast.payload) {
+				env.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
+
 				if (target) {
 					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
 					const directTargetMatch = otherWindowsWithTarget.filter(w => this.isPathEqual(target, w.openedWorkspacePath));
@@ -352,10 +351,14 @@ export class WindowsManager {
 		});
 
 		ipc.on('vscode:exit', (event, code: number) => {
+			env.log('IPC#vscode:exit', code);
+
 			process.exit(code);
 		});
 
 		ipc.on('vscode:closeExtensionHostWindow', (event, extensionDevelopmentPath: string) => {
+			env.log('IPC#vscode:closeExtensionHostWindow', extensionDevelopmentPath);
+
 			const windowOnExtension = this.findWindow(null, null, extensionDevelopmentPath);
 			if (windowOnExtension) {
 				windowOnExtension.win.close();
@@ -385,6 +388,12 @@ export class WindowsManager {
 
 			if (explicit) {
 				this.sendToFocused('vscode:update-not-available', '');
+			}
+		});
+
+		UpdateManager.on('update-available', (url: string) => {
+			if (url) {
+				this.sendToFocused('vscode:update-available', url);
 			}
 		});
 

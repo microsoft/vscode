@@ -5,7 +5,6 @@
 'use strict';
 
 import {Dimension, Builder, Box} from 'vs/base/browser/builder';
-import {Preferences} from 'vs/workbench/common/constants';
 import {EditorEvent, EventType} from 'vs/workbench/common/events';
 import {Part} from 'vs/workbench/browser/part';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
@@ -13,19 +12,17 @@ import {Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProv
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IStorageService, StorageScope, StorageEventType} from 'vs/platform/storage/common/storage';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 170;
 const DEFAULT_MIN_EDITOR_PART_HEIGHT = 170;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
-
-const LAYOUT_RELATED_PREFERENCES = [
-	Preferences.THEME
-];
 
 export class LayoutOptions {
 	public margin: Box;
@@ -66,7 +63,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private statusbar: Part;
 	private quickopen: QuickOpenController;
 	private options: LayoutOptions;
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 	private computedStyles: ComputedStyles;
 	private workbenchSize: Dimension;
 	private sashX: Sash;
@@ -92,11 +89,12 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		quickopen: QuickOpenController,
 		options: LayoutOptions,
 		@IStorageService private storageService: IStorageService,
-		@IEventService private eventService: IEventService,
+		@IEventService eventService: IEventService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
@@ -120,14 +118,12 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.sidebarWidth = this.storageService.getInteger(WorkbenchLayout.sashXWidthSettingsKey, StorageScope.GLOBAL, -1);
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
-		this.registerListeners();
+		this.toUnbind.push(themeService.onDidThemeChange(_ => this.relayout()));
+		this.toUnbind.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGING, (e: EditorEvent) => this.onEditorInputChanging(e)));
+
 		this.registerSashListeners();
 	}
 
-	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener(StorageEventType.STORAGE, (e: StorageEvent) => this.onPreferenceChange(e)));
-		this.toUnbind.push(this.eventService.addListener(EventType.EDITOR_INPUT_CHANGING, (e: EditorEvent) => this.onEditorInputChanging(e)));
-	}
 
 	private registerSashListeners(): void {
 		let startX: number = 0;
@@ -239,18 +235,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 	}
 
-	private onPreferenceChange(e: StorageEvent): void {
-		if (e.key && LAYOUT_RELATED_PREFERENCES.indexOf(e.key) >= 0) {
+	private relayout(): void {
 
-			// Recompute Styles
-			this.computeStyle();
-			this.editor.getLayout().computeStyle();
-			this.sidebar.getLayout().computeStyle();
-			this.panel.getLayout().computeStyle();
+		// Recompute Styles
+		this.computeStyle();
+		this.editor.getLayout().computeStyle();
+		this.sidebar.getLayout().computeStyle();
+		this.panel.getLayout().computeStyle();
 
-			// Trigger Layout
-			this.layout();
-		}
+		// Trigger Layout
+		this.layout();
 	}
 
 	private computeStyle(): void {
@@ -494,8 +488,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
+		if (this.toUnbind) {
+			dispose(this.toUnbind);
+			this.toUnbind = null;
 		}
 	}
 }

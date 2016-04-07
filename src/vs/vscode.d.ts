@@ -2017,6 +2017,12 @@ declare namespace vscode {
 	 * A completion item represents a text snippet that is
 	 * proposed to complete text that is being typed.
 	 *
+	 * It is suffient to create a completion item from just
+	 * a [label](#CompletionItem.label). In that case the completion
+	 * item will replace the [word](#TextDocument.getWordRangeAtPosition)
+	 * until the cursor with the given label.
+	 *
+	 *
 	 * @see [CompletionItemProvider.provideCompletionItems](#CompletionItemProvider.provideCompletionItems)
 	 * @see [CompletionItemProvider.resolveCompletionItem](#CompletionItemProvider.resolveCompletionItem)
 	 */
@@ -2865,7 +2871,7 @@ declare namespace vscode {
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 * @return Disposable which unregisters this command on disposal.
 		 */
-		export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit) => void, thisArg?: any): Disposable;
+		export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit, ...args: any[]) => void, thisArg?: any): Disposable;
 
 		/**
 		 * Executes the command denoted by the given command identifier.
@@ -2901,7 +2907,7 @@ declare namespace vscode {
 	export namespace window {
 
 		/**
-		 * The currently active editor or undefined. The active editor is the one
+		 * The currently active editor or `undefined`. The active editor is the one
 		 * that currently has focus or, when none has focus, the one that has changed
 		 * input most recently.
 		 */
@@ -2914,7 +2920,8 @@ declare namespace vscode {
 
 		/**
 		 * An [event](#Event) which fires when the [active editor](#window.activeTextEditor)
-		 * has changed.
+		 * has changed. *Note* that the event also fires when the activ editor changes
+		 * to `undefined`.
 		 */
 		export const onDidChangeActiveTextEditor: Event<TextEditor>;
 

@@ -227,7 +227,7 @@ export abstract class CompositeRegistry<T extends Composite> {
 	}
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
-		if (this.compositById(descriptor.id) !== null) {
+		if (this.compositeById(descriptor.id) !== null) {
 			return;
 		}
 
@@ -235,7 +235,7 @@ export abstract class CompositeRegistry<T extends Composite> {
 	}
 
 	public getComposite(id: string): CompositeDescriptor<T> {
-		return this.compositById(id);
+		return this.compositeById(id);
 	}
 
 	protected getComposits(): CompositeDescriptor<T>[] {
@@ -246,7 +246,7 @@ export abstract class CompositeRegistry<T extends Composite> {
 		this.composits = compositsToSet;
 	}
 
-	private compositById(id: string): CompositeDescriptor<T> {
+	private compositeById(id: string): CompositeDescriptor<T> {
 		for (let i = 0; i < this.composits.length; i++) {
 			if (this.composits[i].id === id) {
 				return this.composits[i];

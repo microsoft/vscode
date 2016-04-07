@@ -33,6 +33,7 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
 	position: relative;
+	flex: 1;
 }
 
 .monaco-workbench > .part > .title > .title-label span,
@@ -50,11 +51,14 @@
 	cursor: pointer;
 }
 
-.monaco-workbench > .part > .title > .title-actions,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
+.monaco-workbench > .part > .title > .title-actions {
 	height: 35px;
 	flex: 1;
 	padding-left: 5px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
+	flex: initial;
 }
 
 .monaco-workbench > .part > .title > .title-actions .action-label,

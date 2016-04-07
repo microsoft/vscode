@@ -1538,7 +1538,7 @@ export class SaveFileAction extends BaseSaveFileAction {
 export class SaveFileAsAction extends BaseSaveFileAction {
 
 	public static ID = 'workbench.action.files.saveAs';
-	public static LABEL = 'Save As...';
+	public static LABEL = nls.localize('saveAs', "Save As...");
 
 	public isSaveAs(): boolean {
 		return true;

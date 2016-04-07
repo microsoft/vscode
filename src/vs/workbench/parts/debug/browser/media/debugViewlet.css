@@ -31,19 +31,19 @@
 	border: 1px solid white;
 }
 
-.monaco-workbench.vs-dark .debug-action.configure {
+.vs-dark .monaco-workbench .debug-action.configure {
 	background: url('configure-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.toggle-repl {
+.vs-dark .monaco-workbench .debug-action.toggle-repl {
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.configure {
+.hc-black .monaco-workbench .debug-action.configure {
 	background: url('configure-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench.hc-black .debug-action.toggle-repl {
+.hc-black .monaco-workbench .debug-action.toggle-repl {
 	background: url('repl-inverse.svg') center center no-repeat;
 }
 
@@ -93,7 +93,7 @@
 	opacity: 0.35;
 }
 
-.vs-dark.monaco-workbench .debug-select {
+.vs-dark .monaco-workbench .debug-select {
 	background-color: #3C3C3C;
 	border-color: #3C3C3C;
 	color: rgb(204, 204, 204);
@@ -290,7 +290,7 @@
 
 /* High Contrast Theming */
 
-.hc-black.monaco-workbench .debug-select {
+.hc-black .monaco-workbench .debug-select {
 	background-color: #3C3C3C;
 	border-color: #3C3C3C;
 	color: rgb(204, 204, 204);

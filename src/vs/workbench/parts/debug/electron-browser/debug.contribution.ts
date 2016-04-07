@@ -18,6 +18,7 @@ import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
 import panel = require('vs/workbench/browser/panel');
+import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/browser/debugViews';
 import wbext = require('vs/workbench/common/contributions');
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
@@ -82,6 +83,12 @@ const openViewletKb: IKeybindings = {
 	'repl'
 ));
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).setDefaultPanelId(debug.REPL_ID);
+
+// Register default debug views
+debug.DebugViewRegistry.registerDebugView(new debug.DebugViewDescriptor(VariablesView, 10));
+debug.DebugViewRegistry.registerDebugView(new debug.DebugViewDescriptor(WatchExpressionsView, 20));
+debug.DebugViewRegistry.registerDebugView(new debug.DebugViewDescriptor(CallStackView, 30));
+debug.DebugViewRegistry.registerDebugView(new debug.DebugViewDescriptor(BreakpointsView, 40));
 
 // register action to open viewlet
 const registry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));

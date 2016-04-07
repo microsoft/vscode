@@ -585,3 +585,8 @@ export function appendWithLimit(first: string, second: string, maxLength: number
 
 	return first;
 }
+
+
+export function safeBtoa(str: string): string {
+	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
+}

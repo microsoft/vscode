@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Virtual Document</title>
+</head>
+<body style="margin: 0; overflow: hidden;">
+	<iframe id="_target" frameborder="0"></iframe>
+	<script>
+		'use strict';
+
+		const ipcRenderer = require('electron').ipcRenderer;
+		const target = document.getElementById('_target');
+
+		let initData = {};
+
+		ipcRenderer.on('baseUrl', function(event, value) {
+			initData.baseUrl = value;
+		});
+
+		// forward layout calls
+		ipcRenderer.on('layout', function(event, width, height) {
+			document.body.style.width = target.style.width = width + 'px';
+			document.body.style.height = target.style.height = height + 'px';
+		});
+
+		ipcRenderer.on('styles', function(event, value) {
+			initData.styles = value;
+			const defaultStyles = target.contentDocument.getElementById('_defaultStyles');
+			if(defaultStyles) {
+				defaultStyles.innerHTML = value;
+			}
+		});
+
+		// propagate focus
+		ipcRenderer.on('focus', function() {
+			target.contentDocument.body.focus();
+		});
+
+		// update iframe-contents
+		ipcRenderer.on('content', function(event, value) {
+
+			const parser = new DOMParser();
+			const newDocument = parser.parseFromString(value.join('\n'), 'text/html');
+
+			// set base-url if possible
+			if(initData.baseUrl) {
+				const baseElement = document.createElement('base');
+				baseElement.href = initData.baseUrl;
+				newDocument.head.appendChild(baseElement);
+			}
+
+			// apply default styles
+			const defaultStyles = newDocument.createElement('style');
+			defaultStyles.id = '_defaultStyles';
+			defaultStyles.innerHTML = initData.styles;
+			if (newDocument.head.hasChildNodes()) {
+				newDocument.head.insertBefore(defaultStyles, newDocument.head.firstChild);
+			} else {
+				newDocument.head.appendChild(defaultStyles);
+			}
+
+			// write new content onto iframe
+			target.contentDocument.open('text/html', 'replace');
+			target.contentDocument.write(newDocument.documentElement.innerHTML);
+			target.contentDocument.close();
+
+		});
+
+		// signal ready, needs a short timeout for an
+		// unknown reason
+		setTimeout(function() {
+			ipcRenderer.sendToHost('webview-ready', process.pid);
+		}, 10);
+
+	</script>
+</body>
+</html>

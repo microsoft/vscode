@@ -126,7 +126,7 @@ export class MockDebugService extends ee.EventEmitter implements debug.IDebugSer
 	}
 
 	public getViewModel(): debug.IViewModel {
-		return null
+		return null;
 	}
 
 	public openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {

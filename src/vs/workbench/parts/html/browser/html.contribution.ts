@@ -14,8 +14,6 @@ import {HtmlInput} from '../common/htmlInput';
 import {HtmlPreviewPart} from 'vs/workbench/parts/html/browser/htmlPreviewPart';
 import {Registry} from 'vs/platform/platform';
 import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';
-
-
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 // --- Register Editor

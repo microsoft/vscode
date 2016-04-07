@@ -29,12 +29,13 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IConfigurationService, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, CancelAction} from 'vs/platform/message/common/message';
+import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import * as semver from 'semver';
 import { shell } from 'electron';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -368,6 +369,8 @@ interface IGitCredentialRequest {
 	scope: git.IGitCredentialScope;
 }
 
+const IgnoreOldGitStorageKey = 'settings.workspace.git.ignoreOld';
+
 export class GitService extends ee.EventEmitter
 	implements
 		git.IGitService {
@@ -402,7 +405,8 @@ export class GitService extends ee.EventEmitter
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IOutputService outputService: IOutputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IStorageService storageService: IStorageService
 	) {
 		super();
 
@@ -430,24 +434,30 @@ export class GitService extends ee.EventEmitter
 
 		this.triggerStatus(true); // trigger initial status
 
-		this.raw.getVersion().done(version => {
-			version = version || '';
-			version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
-			version = semver.valid(version);
+		if (!storageService.getBoolean(IgnoreOldGitStorageKey, StorageScope.GLOBAL, false)) {
+			this.raw.getVersion().done(version => {
+				version = version || '';
+				version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
+				version = semver.valid(version);
 
-			if (version && semver.satisfies(version, '<2.0.0')) {
-				messageService.show(severity.Warning, {
-					message: nls.localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
-					actions: [
-						CancelAction,
-						new actions.Action('downloadLatest', nls.localize('download', "Download"), '', true, () => {
-							shell.openExternal('https://git-scm.com/');
-							return null;
-						})
-					]
-				});
-			}
-		});
+				if (version && semver.satisfies(version, '<2.0.0')) {
+					messageService.show(severity.Warning, {
+						message: nls.localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
+						actions: [
+							CloseAction,
+							new actions.Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {
+								storageService.store(IgnoreOldGitStorageKey, true, StorageScope.GLOBAL);
+								return null;
+							}),
+							new actions.Action('downloadLatest', nls.localize('download', "Download"), '', true, () => {
+								shell.openExternal('https://git-scm.com/');
+								return null;
+							})
+						]
+					});
+				}
+			});
+		}
 	}
 
 	private registerListeners():void {

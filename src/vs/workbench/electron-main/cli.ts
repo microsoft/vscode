@@ -40,6 +40,8 @@ ${ indent }--locale=LOCALE       The locale to use (e.g. en-US or zh-TW).
 ${ indent }-n, --new-window      Force a new instance of Code.
 ${ indent }-r, --reuse-window    Force opening a file or folder in the last active
 ${ indent }                      window.
+${ indent }--user-data-dir=DIR   Specifies the directory that user data is kept in,
+${ indent }                      useful when running as root.
 ${ indent }-v, --version         Print version.
 ${ indent }-w, --wait            Wait for the window to be closed before returning.`;
 	}

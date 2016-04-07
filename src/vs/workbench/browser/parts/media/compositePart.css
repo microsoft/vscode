@@ -21,10 +21,10 @@
 	text-transform: uppercase;
 }
 
-.monaco-workbench.vs-dark > .part > .composite.title > .title-label span  {
+.vs-dark .monaco-workbench > .part > .composite.title > .title-label span  {
 	color: #bbbbbb;
 }
 
-.monaco-workbench.hc-black > .part > .composite.title > .title-label span  {
+.hc-black .monaco-workbench > .part > .composite.title > .title-label span  {
 	color: #fff;
 }

@@ -16,6 +16,6 @@
 }
 
 /* High Contrast Theming */
-.monaco-workbench.hc-black > .part.panel > .title {
+.hc-black .monaco-workbench > .part.panel > .title {
 	border-top-color: #6FC3DF;
 }

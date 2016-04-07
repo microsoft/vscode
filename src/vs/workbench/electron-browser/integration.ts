@@ -13,7 +13,6 @@ import Severity from 'vs/base/common/severity';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IAction, Action} from 'vs/base/common/actions';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -51,7 +50,6 @@ export class ElectronIntegration {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IStorageService private storageService: IStorageService,
 		@IMessageService private messageService: IMessageService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
@@ -111,11 +109,6 @@ export class ElectronIntegration {
 		// Emit event when vscode has loaded
 		this.partService.joinCreation().then(() => {
 			ipc.send('vscode:workbenchLoaded', this.windowService.getWindowId());
-		});
-
-		// Theme changes
-		ipc.on('vscode:changeTheme', (event, theme: string) => {
-			this.storageService.store('workbench.theme', theme, StorageScope.GLOBAL);
 		});
 
 		// Message support

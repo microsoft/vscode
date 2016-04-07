@@ -41,11 +41,11 @@
 	margin: 10px 10px;
 }
 
-.monaco-workbench.vs > .activitybar > .content {
+.vs .monaco-workbench > .activitybar > .content {
 	background-color: #2C2C2C;
 }
 
-.monaco-workbench.vs-dark > .activitybar > .content {
+.vs-dark .monaco-workbench > .activitybar > .content {
 	background-color: #333;
 }
 
@@ -60,14 +60,14 @@
 }
 
 /* High Contrast Theming */
-.monaco-workbench.hc-black > .part.activitybar.left {
+.hc-black .monaco-workbench > .part.activitybar.left {
 	border-right: 1px solid #6FC3DF;
 }
 
-.monaco-workbench.hc-black > .part.activitybar.right {
+.hc-black .monaco-workbench > .part.activitybar.right {
 	border-left: 1px solid #6FC3DF;
 }
 
-.monaco-workbench.hc-black > .activitybar > .content {
+.hc-black .monaco-workbench > .activitybar > .content {
 	background-color: #000;
 }
