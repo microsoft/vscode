@@ -6,13 +6,14 @@
 import nls = require('vs/nls');
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
+import { assign } from 'vs/base/common/objects';
 import Severity from 'vs/base/common/severity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtensionsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
-import { extensionEquals } from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import { extensionEquals, getTelemetryData } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 const CloseAction = new Action('action.close', nls.localize('close', "Close"));
@@ -138,16 +139,13 @@ export class InstallAction extends Action {
 
 	private onSuccess(extension: IExtension, isUpdate: boolean) {
 		this.reportTelemetry(extension, isUpdate, true);
-		this.messageService.show(
-			Severity.Info,
-			{
-				message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.displayName),
-				actions: [
-					CloseAction,
-					this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))
-				]
-			}
-		);
+		this.messageService.show(Severity.Info, {
+			message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.displayName),
+			actions: [
+				CloseAction,
+				this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))
+			]
+		});
 	}
 
 	private onError(err: Error, extension: IExtension, isUpdate: boolean) {
@@ -157,14 +155,7 @@ export class InstallAction extends Action {
 
 	private reportTelemetry(extension: IExtension, isUpdate: boolean, success: boolean) {
 		const event = isUpdate ? 'extensionGallery:update' : 'extensionGallery:install';
-		const data = {
-			success,
-			id: extension.galleryInformation ? extension.galleryInformation.id : null,
-			name: extension.name,
-			publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
-			publisherName: extension.publisher,
-			publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
-		};
+		const data = assign(getTelemetryData(extension), { success });
 
 		this.telemetryService.publicLog(event, data);
 	}
@@ -197,16 +188,13 @@ export class UninstallAction extends Action {
 
 	private onSuccess(extension: IExtension) {
 		this.reportTelemetry(extension, true);
-		this.messageService.show(
-			Severity.Info,
-			{
-				message: nls.localize('success-uninstalled', "'{0}' was successfully uninstalled. Restart to deactivate it.", extension.displayName),
-				actions: [
-					CloseAction,
-					this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))
-				]
-			}
-		);
+		this.messageService.show(Severity.Info, {
+			message: nls.localize('success-uninstalled', "'{0}' was successfully uninstalled. Restart to deactivate it.", extension.displayName),
+			actions: [
+				CloseAction,
+				this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))
+			]
+		});
 	}
 
 	private onError(err: Error, extension: IExtension) {
@@ -215,13 +203,8 @@ export class UninstallAction extends Action {
 	}
 
 	private reportTelemetry(extension: IExtension, success: boolean) {
-		this.telemetryService.publicLog('extensionGallery:uninstall', {
-			success,
-			id: extension.galleryInformation ? extension.galleryInformation.id : null,
-			name: extension.name,
-			publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
-			publisherName: extension.publisher,
-			publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
-		});
+		const data = assign(getTelemetryData(extension), { success });
+		
+		this.telemetryService.publicLog('extensionGallery:uninstall', data);
 	}
 }
