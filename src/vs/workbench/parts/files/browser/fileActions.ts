@@ -723,48 +723,34 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			}
 		}
 
-		// Check if file is dirty in editor and save it to avoid data loss
-		return this.handleDirty().then((cancel: boolean) => {
-			if (cancel) {
-				return TPromise.as(null);
+		// Since a delete operation can take a while we want to emit the event proactively to avoid issues
+		// with stale entries in the explorer tree.
+		this.eventService.emit('files.internal:fileChanged', new Files.LocalFileChangeEvent(this.element.clone(), null));
+
+		// Call function
+		let servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
+			if (this.element.parent) {
+				this.tree.setFocus(this.element.parent); // move focus to parent
+			}
+		}, (error: any) => {
+
+			// Allow to retry
+			let extraAction: Action;
+			if (this.useTrash) {
+				extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
 			}
 
-			// If the file is still dirty, do not touch it because a save is pending to disk and we can not abort it
-			if (this.textFileService.isDirty(this.element.resource)) {
-				this.onWarning(nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", getPathLabel(this.element.resource)));
+			this.onErrorWithRetry(error, () => this.run(), extraAction);
 
-				return TPromise.as(null);
-			}
+			// Since the delete failed, best we can do is to refresh the explorer from the root to show the current state of files.
+			let event = new Files.LocalFileChangeEvent(new FileStat(this.contextService.getWorkspace().resource, true, true), new FileStat(this.contextService.getWorkspace().resource, true, true));
+			this.eventService.emit('files.internal:fileChanged', event);
 
-			// Since a delete operation can take a while we want to emit the event proactively to avoid issues
-			// with stale entries in the explorer tree.
-			this.eventService.emit('files.internal:fileChanged', new Files.LocalFileChangeEvent(this.element.clone(), null));
-
-			// Call function
-			let servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
-				if (this.element.parent) {
-					this.tree.setFocus(this.element.parent); // move focus to parent
-				}
-			}, (error: any) => {
-
-				// Allow to retry
-				let extraAction: Action;
-				if (this.useTrash) {
-					extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
-				}
-
-				this.onErrorWithRetry(error, () => this.run(), extraAction);
-
-				// Since the delete failed, best we can do is to refresh the explorer from the root to show the current state of files.
-				let event = new Files.LocalFileChangeEvent(new FileStat(this.contextService.getWorkspace().resource, true, true), new FileStat(this.contextService.getWorkspace().resource, true, true));
-				this.eventService.emit('files.internal:fileChanged', event);
-
-				// Focus back to tree
-				this.tree.DOMFocus();
-			});
-
-			return servicePromise;
+			// Focus back to tree
+			this.tree.DOMFocus();
 		});
+
+		return servicePromise;
 	}
 }
 
