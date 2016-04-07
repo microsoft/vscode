@@ -15,6 +15,7 @@ import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
+import {escapeRegExpCharacters} from 'vs/base/common/strings';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
@@ -237,7 +238,8 @@ export class WorkbenchShell {
 
 		// no telemetry in a window for extension development!
 		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
-		this.telemetryService = new ElectronTelemetryService(configService, this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
+		let cleanupPatterns = [new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi')];
+		this.telemetryService = new ElectronTelemetryService(configService, this.storageService, { cleanupPatterns, enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
 		this.keybindingService = new WorkbenchKeybindingService(configService, this.contextService, eventService, this.telemetryService, <any>window);
 
