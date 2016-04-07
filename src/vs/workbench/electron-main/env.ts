@@ -64,6 +64,8 @@ export const isBuilt = !process.env.VSCODE_DEV;
 
 export const appRoot = path.dirname(uri.parse(require.toUrl('')).fsPath);
 
+export const currentWorkingDirectory = process.env.VSCODE_CWD || process.cwd();
+
 let productContents: IProductConfiguration;
 try {
 	productContents = JSON.parse(fs.readFileSync(path.join(appRoot, 'product.json'), 'utf8'));
@@ -280,7 +282,7 @@ function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
 					}
 
 					if (pathCandidate) {
-						pathCandidate = massagePath(pathCandidate);
+						pathCandidate = preparePath(pathCandidate);
 					}
 
 					let realPath: string;
@@ -289,7 +291,7 @@ function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
 					} catch (error) {
 						// in case of an error, assume the user wants to create this file
 						// if the path is relative, we join it to the cwd
-						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
+						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(currentWorkingDirectory, pathCandidate));
 					}
 
 					if (!paths.isValidBasename(path.basename(realPath))) {
@@ -310,28 +312,30 @@ function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
 	);
 }
 
-function massagePath(path: string): string {
+function preparePath(p: string): string {
+
+	// Trim trailing quotes
 	if (platform.isWindows) {
-		path = strings.rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+		p = strings.rtrim(p, '"'); // https://github.com/Microsoft/vscode/issues/1498
 	}
 
 	// Trim whitespaces
-	path = strings.trim(strings.trim(path, ' '), '\t');
+	p = strings.trim(strings.trim(p, ' '), '\t');
 
-	// Trim '.' chars on Windows to prevent invalid file names
 	if (platform.isWindows) {
-		path = strings.rtrim(resolvePath(path), '.');
+
+		// Resolve the path against cwd if it is relative
+		p = path.resolve(currentWorkingDirectory, p);
+
+		// Trim trailing '.' chars on Windows to prevent invalid file names
+		p = strings.rtrim(p, '.');
 	}
 
-	return path;
+	return p;
 }
 
 function normalizePath(p?: string): string {
 	return p ? path.normalize(p) : p;
-}
-
-function resolvePath(p?: string): string {
-	return p ? path.resolve(p): p;
 }
 
 function parseNumber(argv: string[], key: string, defaultValue?: number, fallbackValue?: number): number {
