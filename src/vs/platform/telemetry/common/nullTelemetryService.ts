@@ -6,6 +6,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IDisposable, empty} from 'vs/base/common/lifecycle';
 import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -35,10 +36,8 @@ export class NullTelemetryService implements ITelemetryService {
 		return [];
 	}
 
-	addTelemetryAppender(appender): void {
-	}
-
-	removeTelemetryAppender(appender): void {
+	addTelemetryAppender(appender): IDisposable {
+		return empty;
 	}
 
 	dispose(): void {
@@ -46,14 +45,6 @@ export class NullTelemetryService implements ITelemetryService {
 
 	getSessionId(): string {
 		return this._sessionId;
-	}
-
-	getMachineId(): string {
-		return this._machineId;
-	}
-
-	getInstanceId(): string {
-		return this._instanceId;
 	}
 
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {

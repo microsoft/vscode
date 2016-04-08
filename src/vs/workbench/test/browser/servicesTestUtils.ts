@@ -137,14 +137,6 @@ export class TestTelemetryService implements ITelemetryService {
 		return null;
 	}
 
-	getMachineId(): string {
-		return null;
-	}
-
-	getInstanceId(): string {
-		return null;
-	}
-
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as(null);
 	}
@@ -164,8 +156,9 @@ export class TestTelemetryService implements ITelemetryService {
 		return [];
 	}
 
-	addTelemetryAppender(appender): void { }
-	removeTelemetryAppender(appender): void { }
+	addTelemetryAppender(appender): Lifecycle.IDisposable {
+		return Lifecycle.empty;
+	}
 	dispose(): void { }
 	setInstantiationService(instantiationService: IInstantiationService) { }
 }

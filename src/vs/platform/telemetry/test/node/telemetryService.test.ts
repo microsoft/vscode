@@ -118,7 +118,7 @@ suite('TelemetryService', () => {
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender = new TestTelemetryAppender();
-		service.addTelemetryAppender(testAppender);
+		let registration = service.addTelemetryAppender(testAppender);
 		assert.equal(service.getAppendersCount(), 1);
 
 		//report event
@@ -126,7 +126,7 @@ suite('TelemetryService', () => {
 		assert.equal(testAppender.getEventsCount(), 1);
 
 		//remove appender
-		service.removeTelemetryAppender(testAppender);
+		registration.dispose();
 		assert.equal(service.getAppendersCount(), 0);
 
 		//verify events not being sent
@@ -141,7 +141,7 @@ suite('TelemetryService', () => {
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender1 = new TestTelemetryAppender();
-		service.addTelemetryAppender(testAppender1);
+		let registrgation1 = service.addTelemetryAppender(testAppender1);
 		assert.equal(service.getAppendersCount(), 1);
 
 		//report event
@@ -159,7 +159,7 @@ suite('TelemetryService', () => {
 		assert.equal(testAppender2.getEventsCount(), 1);
 
 		//remove appender 1
-		service.removeTelemetryAppender(testAppender1);
+		registrgation1.dispose();
 		assert.equal(service.getAppendersCount(), 1);
 
 		//verify events not being sent to the removed appender

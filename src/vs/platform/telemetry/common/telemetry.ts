@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import Lifecycle = require('vs/base/common/lifecycle');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import Timer = require('vs/base/common/timer');
 import {createDecorator, ServiceIdentifier, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -19,7 +19,7 @@ export interface ITelemetryInfo {
 	instanceId: string;
 }
 
-export interface ITelemetryService extends Lifecycle.IDisposable {
+export interface ITelemetryService extends IDisposable {
 	serviceId: ServiceIdentifier<any>;
 
 	/**
@@ -38,16 +38,6 @@ export interface ITelemetryService extends Lifecycle.IDisposable {
 	 */
 	getSessionId(): string;
 
-	/**
-	 * a unique Id that is not hardware specific
-	 */
-	getInstanceId(): string;
-
-	/**
-	 * a hardware specific machine Id
-	 */
-	getMachineId(): string;
-
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
 	/**
@@ -55,12 +45,11 @@ export interface ITelemetryService extends Lifecycle.IDisposable {
 	 */
 	getAppendersCount(): number;
 	getAppenders(): ITelemetryAppender[];
-	addTelemetryAppender(appender: ITelemetryAppender): void;
-	removeTelemetryAppender(appender: ITelemetryAppender): void;
+	addTelemetryAppender(appender: ITelemetryAppender): IDisposable;
 	setInstantiationService(instantiationService: IInstantiationService): void;
 }
 
-export interface ITelemetryAppender extends Lifecycle.IDisposable {
+export interface ITelemetryAppender extends IDisposable {
 	log(eventName: string, data?: any): void;
 }
 
