@@ -54,8 +54,8 @@ class ConfigClass implements IConfiguration {
 			automaticLayout: false,
 			wrappingColumn: 300,
 			wrappingIndent: 'same',
-			wordWrapBreakBeforeCharacters: '{([+',
-			wordWrapBreakAfterCharacters: ' \t})]?|&,;',
+			wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
+			wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
 			wordWrapBreakObtrusiveCharacters: '.',
 			tabFocusMode: false,
 			// stopLineTokenizationAfter
