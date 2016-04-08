@@ -2502,6 +2502,32 @@ declare namespace vscode {
 		clear(): void;
 
 		/**
+		 * Iterate over each entry in this collection.
+		 *
+		 * @param callback Function to execute for each entry.
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 */
+		forEach(callback: (uri: Uri, diagnostics: Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void;
+
+		/**
+		 * Get the diagnostics for a given resource. *Note* that you cannot
+		 * modify the diagnostics-array returned from this call.
+		 *
+		 * @param uri A resource identifier.
+		 * @returns An immutable array of [diagnostics](#Diagnostic) or `undefined`.
+		 */
+		get(uri: Uri): Diagnostic[];
+
+		/**
+		 * Check if this collection contains diagnostics for a
+		 * given resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @returns `true` if this collection has diagnostic for the given resource.
+		 */
+		has(uri: Uri): boolean;
+
+		/**
 		 * Dispose and free associated resources. Calls
 		 * [clear](#DiagnosticCollection.clear).
 		 */
