@@ -213,10 +213,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		}
 	}
 
-	public getSessionId(): string {
-		return this.sessionId;
-	}
-
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
 			instanceId: this.instanceId,

@@ -133,10 +133,6 @@ export class TestMessageService implements IMessageService {
 export class TestTelemetryService implements ITelemetryService {
 	public serviceId = ITelemetryService;
 
-	getSessionId(): string {
-		return null;
-	}
-
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as(null);
 	}

@@ -5,9 +5,11 @@
 'use strict';
 
 import nls = require('vs/nls');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Registry} from 'vs/platform/platform';
 
 import {ipcRenderer as ipc, crashReporter} from 'electron';
@@ -37,12 +39,11 @@ export class CrashReporter {
 	private sessionId: string;
 
 	constructor(version: string, commit: string,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService private telemetryService: ITelemetryService = NullTelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.configurationService = configurationService;
 		this.telemetryService = telemetryService;
-		this.sessionId = this.telemetryService ? this.telemetryService.getSessionId() : null;
 		this.version = version;
 		this.commit = commit;
 
@@ -52,16 +53,23 @@ export class CrashReporter {
 
 	public start(rawConfiguration:Electron.CrashReporterStartOptions): void {
 		if (!this.isStarted) {
-			if (!this.config) {
-				this.config = this.configurationService.getConfiguration(TELEMETRY_SECTION_ID);
-				if (this.config && this.config.enableCrashReporter) {
-					this.doStart(rawConfiguration);
+
+			let sessionId = !this.sessionId
+				? this.telemetryService.getTelemetryInfo().then(info => this.sessionId = info.sessionId)
+				: TPromise.as(undefined);
+
+			sessionId.then(() => {
+				if (!this.config) {
+					this.config = this.configurationService.getConfiguration(TELEMETRY_SECTION_ID);
+					if (this.config && this.config.enableCrashReporter) {
+						this.doStart(rawConfiguration);
+					}
+				} else {
+					if (this.config.enableCrashReporter) {
+						this.doStart(rawConfiguration);
+					}
 				}
-			} else {
-				if (this.config.enableCrashReporter) {
-					this.doStart(rawConfiguration);
-				}
-			}
+			}, onUnexpectedError);
 		}
 	}
 

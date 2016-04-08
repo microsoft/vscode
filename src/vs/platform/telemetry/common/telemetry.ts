@@ -33,10 +33,6 @@ export interface ITelemetryService extends IDisposable {
 	 */
 	start(name: string, data?: any): ITimerEvent;
 
-	/**
-	 * Session Id
-	 */
-	getSessionId(): string;
 
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
@@ -57,9 +53,6 @@ export const NullTelemetryService: ITelemetryService = {
 	getAppenders(): any[] { return []; },
 	addTelemetryAppender(appender): IDisposable { return { dispose() { } }; },
 	dispose(): void { },
-	getSessionId(): string {
-		return 'someValue.sessionId';
-	},
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
 			instanceId: 'someValue.instanceId',
