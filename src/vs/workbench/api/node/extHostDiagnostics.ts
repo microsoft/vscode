@@ -28,10 +28,10 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	dispose(): void {
 		if (!this._isDisposed) {
-			this._isDisposed = true;
 			this._proxy.$clear(this.name);
 			this._proxy = undefined;
 			this._data = undefined;
+			this._isDisposed = true;
 		}
 	}
 
@@ -56,6 +56,13 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 		let toSync: vscode.Uri[];
 
 		if (first instanceof URI) {
+
+			if (!diagnostics) {
+				// remove this entry
+				this.delete(first);
+				return;
+			}
+
 			// update single row
 			this._data[first.toString()] = diagnostics;
 			toSync = [first];
@@ -101,6 +108,13 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this._checkDisposed();
 		this._data = Object.create(null);
 		this._proxy.$clear(this.name);
+	}
+
+	forEach(callback: (uri: URI, diagnostics: vscode.Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void {
+		this._checkDisposed();
+		for (let key in this._data) {
+			callback.apply(thisArg, [URI.parse(key), this._data[key], this]);
+		}
 	}
 
 	private _checkDisposed() {

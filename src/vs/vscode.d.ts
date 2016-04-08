@@ -2502,6 +2502,14 @@ declare namespace vscode {
 		clear(): void;
 
 		/**
+		 * Iterate over each entry in this collection.
+		 *
+		 * @param callback Function to execute for each entry.
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 */
+		forEach(callback: (uri: Uri, diagnostics: Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void;
+
+		/**
 		 * Dispose and free associated resources. Calls
 		 * [clear](#DiagnosticCollection.clear).
 		 */
