@@ -166,7 +166,7 @@ export class VSCodeWindow {
 
 		// For VS theme we can show directly because background is white
 		const usesLightTheme = /vs($| )/.test(storage.getItem<string>(VSCodeWindow.themeStorageKey));
-		let showDirectly = usesLightTheme;
+		let showDirectly = true; // set to false to prevent background color flash (flash should be fixed for Electron >= 0.37.x)
 		if (showDirectly && !global.windowShow) {
 			global.windowShow = new Date().getTime();
 		}
