@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import Timer = require('vs/base/common/timer');
+import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
 import {createDecorator, ServiceIdentifier, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'telemetryService';
@@ -31,7 +31,7 @@ export interface ITelemetryService extends IDisposable {
 	/**
 	 * Starts a telemetry timer. Call stop() to send the event.
 	 */
-	start(name: string, data?: any): Timer.ITimerEvent;
+	start(name: string, data?: any): ITimerEvent;
 
 	/**
 	 * Session Id
@@ -48,6 +48,27 @@ export interface ITelemetryService extends IDisposable {
 	addTelemetryAppender(appender: ITelemetryAppender): IDisposable;
 	setInstantiationService(instantiationService: IInstantiationService): void;
 }
+
+export const NullTelemetryService: ITelemetryService = {
+	serviceId: undefined,
+	start(name: string, data?: any): ITimerEvent { return nullEvent; },
+	publicLog(eventName: string, data?: any): void { },
+	getAppendersCount(): number { return 0; },
+	getAppenders(): any[] { return []; },
+	addTelemetryAppender(appender): IDisposable { return { dispose() { } }; },
+	dispose(): void { },
+	getSessionId(): string {
+		return 'someValue.sessionId';
+	},
+	getTelemetryInfo(): TPromise<ITelemetryInfo> {
+		return TPromise.as({
+			instanceId: 'someValue.instanceId',
+			sessionId: 'someValue.sessionId',
+			machineId: 'someValue.machineId'
+		});
+	},
+	setInstantiationService(instantiationService: IInstantiationService) {}
+};
 
 export interface ITelemetryAppender extends IDisposable {
 	log(eventName: string, data?: any): void;
