@@ -27,8 +27,7 @@ import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
-import {NullTelemetryService} from 'vs/platform/telemetry/common/nullTelemetryService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
@@ -167,7 +166,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		let enableTelemetry = config && config.env ? !!config.env.enableTelemetry: false;
 		telemetryService = enableTelemetry
 			? new MainTelemetryService()
-			: NullTelemetryService.Instance;
+			: NullTelemetryService;
 	}
 
 	let eventService = services.eventService || new EventService();

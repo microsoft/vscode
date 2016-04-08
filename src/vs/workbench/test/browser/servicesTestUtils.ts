@@ -133,18 +133,6 @@ export class TestMessageService implements IMessageService {
 export class TestTelemetryService implements ITelemetryService {
 	public serviceId = ITelemetryService;
 
-	getSessionId(): string {
-		return null;
-	}
-
-	getMachineId(): string {
-		return null;
-	}
-
-	getInstanceId(): string {
-		return null;
-	}
-
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as(null);
 	}
@@ -152,7 +140,7 @@ export class TestTelemetryService implements ITelemetryService {
 	log(eventName: string, data?: any): void { }
 	publicLog(eventName: string, data?: any): void { }
 
-	start(name: string, data?: any, isPublic?: boolean): any {
+	timedPublicLog(name: string, data?: any, isPublic?: boolean): any {
 		return null;
 	}
 
@@ -164,8 +152,9 @@ export class TestTelemetryService implements ITelemetryService {
 		return [];
 	}
 
-	addTelemetryAppender(appender): void { }
-	removeTelemetryAppender(appender): void { }
+	addTelemetryAppender(appender): Lifecycle.IDisposable {
+		return Lifecycle.empty;
+	}
 	dispose(): void { }
 	setInstantiationService(instantiationService: IInstantiationService) { }
 }

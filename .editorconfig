@@ -7,6 +7,7 @@ root = true
 [*]
 indent_style = tab
 indent_size = 4
+trim_trailing_whitespace = true
 
 # The indent size used in the `package.json` file cannot be changed
 # https://github.com/npm/npm/pull/3180#issuecomment-16336516

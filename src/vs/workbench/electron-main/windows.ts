@@ -328,6 +328,10 @@ export class WindowsManager {
 			if (broadcast.channel && broadcast.payload) {
 				env.log('IPC#vscode:broadcast', target, broadcast.channel, broadcast.payload);
 
+				// Handle specific events on main side
+				this.onBroadcast(broadcast.channel, broadcast.payload);
+
+				// Send to windows
 				if (target) {
 					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
 					const directTargetMatch = otherWindowsWithTarget.filter(w => this.isPathEqual(target, w.openedWorkspacePath));
@@ -433,6 +437,14 @@ export class WindowsManager {
 
 			window.send('vscode:telemetry', { eventName: 'startupTime', data: { ellapsed: Date.now() - global.vscodeStart } });
 		});
+	}
+
+	private onBroadcast(event: string, payload: any): void {
+
+		// Theme changes
+		if (event === 'vscode:changeTheme' && typeof payload === 'string') {
+			storage.setItem(window.VSCodeWindow.themeStorageKey, payload);
+		}
 	}
 
 	public reload(win: window.VSCodeWindow, cli?: env.ICommandLineArguments): void {

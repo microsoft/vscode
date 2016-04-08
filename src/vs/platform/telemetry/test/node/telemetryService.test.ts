@@ -95,7 +95,7 @@ suite('TelemetryService', () => {
 
 		// log events
 		service.publicLog('testEvent');
-		let timedEvent = service.start('testTimed', { 'somedata': 'test' });
+		let timedEvent = service.timedPublicLog('testTimed', { 'somedata': 'test' });
 		timedEvent.stop();
 
 		//dispose
@@ -118,7 +118,7 @@ suite('TelemetryService', () => {
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender = new TestTelemetryAppender();
-		service.addTelemetryAppender(testAppender);
+		let registration = service.addTelemetryAppender(testAppender);
 		assert.equal(service.getAppendersCount(), 1);
 
 		//report event
@@ -126,7 +126,7 @@ suite('TelemetryService', () => {
 		assert.equal(testAppender.getEventsCount(), 1);
 
 		//remove appender
-		service.removeTelemetryAppender(testAppender);
+		registration.dispose();
 		assert.equal(service.getAppendersCount(), 0);
 
 		//verify events not being sent
@@ -141,7 +141,7 @@ suite('TelemetryService', () => {
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender1 = new TestTelemetryAppender();
-		service.addTelemetryAppender(testAppender1);
+		let registrgation1 = service.addTelemetryAppender(testAppender1);
 		assert.equal(service.getAppendersCount(), 1);
 
 		//report event
@@ -159,7 +159,7 @@ suite('TelemetryService', () => {
 		assert.equal(testAppender2.getEventsCount(), 1);
 
 		//remove appender 1
-		service.removeTelemetryAppender(testAppender1);
+		registrgation1.dispose();
 		assert.equal(service.getAppendersCount(), 1);
 
 		//verify events not being sent to the removed appender
@@ -210,42 +210,50 @@ suite('TelemetryService', () => {
 	test('Simple event', sinon.test(function() {
 		let service = new MainTelemetryService.MainTelemetryService();
 		let testAppender = new TestTelemetryAppender();
-		service.addTelemetryAppender(testAppender);
 
-		service.publicLog('testEvent');
-		assert.equal(testAppender.getEventsCount(), 1);
-		assert.equal(testAppender.events[0].eventName, 'testEvent');
-		assert.notEqual(testAppender.events[0].data, null);
-		assert.equal(testAppender.events[0].data['sessionID'], service.getSessionId());
-		assert.notEqual(testAppender.events[0].data['timestamp'], null);
+		return service.getTelemetryInfo().then(info => {
 
-		service.dispose();
+			service.addTelemetryAppender(testAppender);
+
+			service.publicLog('testEvent');
+			assert.equal(testAppender.getEventsCount(), 1);
+			assert.equal(testAppender.events[0].eventName, 'testEvent');
+			assert.notEqual(testAppender.events[0].data, null);
+			assert.equal(testAppender.events[0].data['sessionID'], info.sessionId);
+			assert.notEqual(testAppender.events[0].data['timestamp'], null);
+
+			service.dispose();
+		});
 	}));
 
 	test('Event with data', sinon.test(function() {
 		let service = new MainTelemetryService.MainTelemetryService();
 		let testAppender = new TestTelemetryAppender();
-		service.addTelemetryAppender(testAppender);
 
-		service.publicLog('testEvent', {
-			'stringProp': 'property',
-			'numberProp': 1,
-			'booleanProp': true,
-			'complexProp': {
-				'value': 0
-			}
+		return service.getTelemetryInfo().then(info => {
+			service.addTelemetryAppender(testAppender);
+
+			service.publicLog('testEvent', {
+				'stringProp': 'property',
+				'numberProp': 1,
+				'booleanProp': true,
+				'complexProp': {
+					'value': 0
+				}
+			});
+			assert.equal(testAppender.getEventsCount(), 1);
+			assert.equal(testAppender.events[0].eventName, 'testEvent');
+			assert.notEqual(testAppender.events[0].data, null);
+			assert.equal(testAppender.events[0].data['sessionID'], info.sessionId);
+			assert.notEqual(testAppender.events[0].data['timestamp'], null);
+			assert.equal(testAppender.events[0].data['stringProp'], 'property');
+			assert.equal(testAppender.events[0].data['numberProp'], 1);
+			assert.equal(testAppender.events[0].data['booleanProp'], true);
+			assert.equal(testAppender.events[0].data['complexProp'].value, 0);
+
+			service.dispose();
 		});
-		assert.equal(testAppender.getEventsCount(), 1);
-		assert.equal(testAppender.events[0].eventName, 'testEvent');
-		assert.notEqual(testAppender.events[0].data, null);
-		assert.equal(testAppender.events[0].data['sessionID'], service.getSessionId());
-		assert.notEqual(testAppender.events[0].data['timestamp'], null);
-		assert.equal(testAppender.events[0].data['stringProp'], 'property');
-		assert.equal(testAppender.events[0].data['numberProp'], 1);
-		assert.equal(testAppender.events[0].data['booleanProp'], true);
-		assert.equal(testAppender.events[0].data['complexProp'].value, 0);
 
-		service.dispose();
 	}));
 
 	test('Telemetry Timer events', sinon.test(function() {
@@ -255,15 +263,15 @@ suite('TelemetryService', () => {
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
-		let t1 = service.start('editorDance');
+		let t1 = service.timedPublicLog('editorDance');
 		this.clock.tick(20);
-		let t2 = service.start('editorSwoon', null);
+		let t2 = service.timedPublicLog('editorSwoon', null);
 		this.clock.tick(20);
 
 		t1.stop(new Date());
 		t2.stop(new Date());
 
-		let t3 = service.start('editorMove', { someData: 'data' });
+		let t3 = service.timedPublicLog('editorMove', { someData: 'data' });
 		this.clock.tick(30);
 		t3.stop(new Date());
 
@@ -733,8 +741,11 @@ suite('TelemetryService', () => {
 
 		let testSessionId = 'test session id';
 		let service = new MainTelemetryService.MainTelemetryService({ sessionID: testSessionId });
-		assert.equal(service.getSessionId(), testSessionId);
-		service.dispose();
+
+		return service.getTelemetryInfo().then(info => {
+			assert.equal(info.sessionId, testSessionId);
+			service.dispose();
+		});
 	}));
 
 	test('Telemetry Service respects user opt-in settings', sinon.test(function() {

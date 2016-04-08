@@ -1159,8 +1159,8 @@ export class SearchViewlet extends Viewlet {
 			this.currentRequest = null;
 		}
 
-		let progressTimer = this.telemetryService.start('searchResultsFirstRender');
-		let doneTimer = this.telemetryService.start('searchResultsFinished');
+		let progressTimer = this.telemetryService.timedPublicLog('searchResultsFirstRender');
+		let doneTimer = this.telemetryService.timedPublicLog('searchResultsFinished');
 
 		// Progress total is 100%
 		let progressTotal = 100;

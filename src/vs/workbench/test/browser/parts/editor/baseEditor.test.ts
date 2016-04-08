@@ -13,8 +13,7 @@ import * as InstantiationService from 'vs/platform/instantiation/common/instanti
 import * as Platform from 'vs/platform/platform';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {NullTelemetryService} from 'vs/platform/telemetry/common/nullTelemetryService';
+import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import mime = require('vs/base/common/mime');
 
 let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
@@ -128,7 +127,7 @@ class MyOtherClass { }
 suite("Workbench BaseEditor", () => {
 
 	test("BaseEditor API", function(done) {
-		let e = new MyEditor("id", new NullTelemetryService());
+		let e = new MyEditor("id", NullTelemetryService);
 		let input = new MyOtherInput();
 		let options = new EditorOptions();
 
@@ -237,20 +236,20 @@ suite("Workbench BaseEditor", () => {
 		let contributor = new MyEditorInputActionContributor();
 
 		assert(!contributor.hasActions(null));
-		assert(contributor.hasActions({ editor: new MyEditor("id", new NullTelemetryService()), input: inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false), position: 0 }));
+		assert(contributor.hasActions({ editor: new MyEditor("id", NullTelemetryService), input: inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false), position: 0 }));
 
-		let actionsFirst = contributor.getActions({ editor: new MyEditor("id", new NullTelemetryService()), input: inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false), position: 0 });
+		let actionsFirst = contributor.getActions({ editor: new MyEditor("id", NullTelemetryService), input: inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false), position: 0 });
 		assert.strictEqual(actionsFirst.length, 2);
 
 		let input = inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false);
-		let actions = contributor.getActions({ editor: new MyEditor("id", new NullTelemetryService()), input: input, position: 0 });
+		let actions = contributor.getActions({ editor: new MyEditor("id", NullTelemetryService), input: input, position: 0 });
 		assert(actions[0] === actionsFirst[0]);
 		assert(actions[1] === actionsFirst[1]);
 		assert((<any>actions[0]).input === input);
 		assert((<any>actions[1]).input === input);
 
 		// other editor causes new actions to be created
-		actions = contributor.getActions({ editor: new MyOtherEditor("id2", new NullTelemetryService()), input: input, position: 0 });
+		actions = contributor.getActions({ editor: new MyOtherEditor("id2", NullTelemetryService), input: input, position: 0 });
 		assert(actions[0] !== actionsFirst[0]);
 		assert(actions[1] !== actionsFirst[1]);
 		assert((<any>actions[0]).input === input);
@@ -262,7 +261,7 @@ suite("Workbench BaseEditor", () => {
 			return "foo.id";
 		};
 
-		actions = contributor.getActions({ editor: new MyEditor("id3", new NullTelemetryService()), input: myInput, position: 0 });
+		actions = contributor.getActions({ editor: new MyEditor("id3", NullTelemetryService), input: myInput, position: 0 });
 		assert(!(<any>actionsFirst[0]).input);
 		assert(!(<any>actionsFirst[1]).input);
 	});

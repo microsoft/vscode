@@ -142,7 +142,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		var requestId = ++this.requestIdPool,
 			editorModel = this.editor.getModel();
 
-		var timer = this.telemetryService.start('findReferences', {
+		var timer = this.telemetryService.timedPublicLog('findReferences', {
 			mode: editorModel.getMode().getId()
 		});
 

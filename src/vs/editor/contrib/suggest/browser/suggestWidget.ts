@@ -536,7 +536,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
-		this.telemetryTimer = this.telemetryService.start('suggestWidgetLoadingTime');
+		this.telemetryTimer = this.telemetryService.timedPublicLog('suggestWidgetLoadingTime');
 		this.isAuto = !!e.auto;
 
 		if (!this.isAuto) {
