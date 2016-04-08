@@ -142,9 +142,7 @@ export class TextFileEditor extends BaseTextEditor {
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// stop the event
-			if (setModelEvent) {
-				setModelEvent.stop();
-			}
+			setModelEvent.stop();
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
 			let optionsGotApplied = false;
