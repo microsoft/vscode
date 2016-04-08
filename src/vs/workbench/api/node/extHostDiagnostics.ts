@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as vscode from 'vscode';
 
-class DiagnosticCollection implements vscode.DiagnosticCollection {
+export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	private static _maxDiagnosticsPerFile: number = 250;
 
@@ -113,8 +113,22 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 	forEach(callback: (uri: URI, diagnostics: vscode.Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
 		for (let key in this._data) {
-			callback.apply(thisArg, [URI.parse(key), this._data[key], this]);
+			let uri = URI.parse(key);
+			callback.apply(thisArg, [uri, this.get(uri), this]);
 		}
+	}
+
+	get(uri: URI): vscode.Diagnostic[] {
+		this._checkDisposed();
+		let result = this._data[uri.toString()];
+		if (Array.isArray(result)) {
+			return Object.freeze(result.slice(0));
+		}
+	}
+
+	has(uri: URI): boolean {
+		this._checkDisposed();
+		return Array.isArray(this._data[uri.toString()]);
 	}
 
 	private _checkDisposed() {
@@ -150,20 +164,44 @@ class DiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 }
 
+@Remotable.ExtHostContext('ExtHostDiagnostics')
 export class ExtHostDiagnostics {
 
 	private static _idPool: number = 0;
-	private _proxy: MainThreadDiagnostics;
 
-	constructor(threadService: IThreadService) {
+	private _proxy: MainThreadDiagnostics;
+	private _collections: DiagnosticCollection[];
+
+	constructor(@IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadDiagnostics);
+		this._collections = [];
 	}
 
 	createDiagnosticCollection(name: string): vscode.DiagnosticCollection {
 		if (!name) {
 			name = '_generated_diagnostic_collection_name_#' + ExtHostDiagnostics._idPool++;
 		}
-		return new DiagnosticCollection(name, this._proxy);
+
+		const {_collections, _proxy} = this;
+		const result = new class extends DiagnosticCollection {
+			constructor() {
+				super(name, _proxy);
+				_collections.push(this);
+			}
+			dispose() {
+				super.dispose();
+				let idx = _collections.indexOf(this);
+				if (idx !== -1) {
+					_collections.splice(idx, 1);
+				}
+			}
+		};
+
+		return result;
+	}
+
+	forEach(callback: (collection: DiagnosticCollection) => any): void {
+		this._collections.forEach(callback);
 	}
 }
 
