@@ -27,6 +27,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	private static STORAGE_KEY = 'workingFiles.model.entries';
 
 	private entries: WorkingFileEntry[];
+	private recentlyClosedEntries: (uri | uri[])[];
 	private pathLabelProvider: labels.PathLabelProvider;
 	private mapEntryToResource: { [resource: string]: WorkingFileEntry; };
 	private _onModelChange: Emitter<IWorkingFileModelChangeEvent>;
@@ -44,6 +45,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	) {
 		this.pathLabelProvider = new labels.PathLabelProvider(this.contextService);
 		this.entries = [];
+		this.recentlyClosedEntries = [];
 		this.toDispose = [];
 		this.mapEntryToResource = Object.create(null);
 		this._onModelChange = new Emitter<IWorkingFileModelChangeEvent>();
@@ -276,6 +278,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		let resource: uri = arg1 instanceof WorkingFileEntry ? (<WorkingFileEntry>arg1).resource : <uri>arg1;
 		let index = this.indexOf(resource);
 		if (index >= 0) {
+			this.recentlyClosedEntries.push(resource);
 
 			// Remove entry
 			let removed = this.entries.splice(index, 1)[0];
@@ -300,6 +303,25 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		return null;
 	}
 
+	public restoreRecentlyRemovedEntry(): WorkingFileEntry {
+		if (this.recentlyClosedEntries.length > 0) {
+			var resource: (uri | uri[]) = this.recentlyClosedEntries.pop();
+			if (!(resource instanceof uri)) {
+				var resources = <uri[]>resource;
+				var newEntries: WorkingFileEntry[] = [];
+				var that = this;
+				resources.forEach(function (resource) {
+					newEntries.push(that.addEntry(resource));
+				});
+				// TODO: Restore the correct entry
+				return newEntries[0];
+			}
+
+			return this.addEntry(<uri>resource);
+		}
+		return null;
+	}
+
 	public reorder(source: WorkingFileEntry, target: WorkingFileEntry): void {
 		let sortedEntries = this.entries.slice(0).sort(WorkingFilesModel.compare);
 
@@ -319,6 +341,9 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	}
 
 	public clear(): void {
+		this.recentlyClosedEntries.push(this.entries.map((entry) => {
+			return entry.resource;
+		}));
 		let deleted = this.entries;
 		this.entries = [];
 		this.mapEntryToResource = Object.create(null);
@@ -375,7 +400,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		if (options && options.filesToDiff) {
 			files.push(...options.filesToDiff);
 		}
-		
+
 		arrays
 			.distinct(files, (r) => r.resource.toString())							// no duplicates
 			.map((f) => f.resource)													// just the resource
