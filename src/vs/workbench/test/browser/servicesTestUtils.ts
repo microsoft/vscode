@@ -140,7 +140,7 @@ export class TestTelemetryService implements ITelemetryService {
 	log(eventName: string, data?: any): void { }
 	publicLog(eventName: string, data?: any): void { }
 
-	start(name: string, data?: any, isPublic?: boolean): any {
+	timedPublicLog(name: string, data?: any, isPublic?: boolean): any {
 		return null;
 	}
 

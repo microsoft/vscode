@@ -95,7 +95,7 @@ suite('TelemetryService', () => {
 
 		// log events
 		service.publicLog('testEvent');
-		let timedEvent = service.start('testTimed', { 'somedata': 'test' });
+		let timedEvent = service.timedPublicLog('testTimed', { 'somedata': 'test' });
 		timedEvent.stop();
 
 		//dispose
@@ -263,15 +263,15 @@ suite('TelemetryService', () => {
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
-		let t1 = service.start('editorDance');
+		let t1 = service.timedPublicLog('editorDance');
 		this.clock.tick(20);
-		let t2 = service.start('editorSwoon', null);
+		let t2 = service.timedPublicLog('editorSwoon', null);
 		this.clock.tick(20);
 
 		t1.stop(new Date());
 		t2.stop(new Date());
 
-		let t3 = service.start('editorMove', { someData: 'data' });
+		let t3 = service.timedPublicLog('editorMove', { someData: 'data' });
 		this.clock.tick(30);
 		t3.stop(new Date());
 

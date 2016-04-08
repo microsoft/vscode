@@ -339,7 +339,7 @@ export class QuickFixSelectionWidget implements IContentWidget {
 
 		this.modelListenersToRemove.push(this.model.addListener('loading', (e: any) => {
 			if (!this.isActive) {
-				timer = this.telemetryService.start('QuickFixSelectionWidgetLoadingTime');
+				timer = this.telemetryService.timedPublicLog('QuickFixSelectionWidgetLoadingTime');
 				this.isLoading = true;
 				this.isAuto = !!e.auto;
 

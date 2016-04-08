@@ -31,8 +31,7 @@ export interface ITelemetryService extends IDisposable {
 	/**
 	 * Starts a telemetry timer. Call stop() to send the event.
 	 */
-	start(name: string, data?: any): ITimerEvent;
-
+	timedPublicLog(name: string, data?: any): ITimerEvent;
 
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
@@ -47,7 +46,7 @@ export interface ITelemetryService extends IDisposable {
 
 export const NullTelemetryService: ITelemetryService = {
 	serviceId: undefined,
-	start(name: string, data?: any): ITimerEvent { return nullEvent; },
+	timedPublicLog(name: string, data?: any): ITimerEvent { return nullEvent; },
 	publicLog(eventName: string, data?: any): void { },
 	getAppendersCount(): number { return 0; },
 	getAppenders(): any[] { return []; },

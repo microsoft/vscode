@@ -133,7 +133,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// log the time it takes the editor to render the resource
 			let mode = textFileModel.textEditorModel.getMode();
-			let setModelEvent = this.telemetryService.start('editorSetModel', {
+			let setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
 				mode: mode && mode.getId(),
 				resource: textFileModel.textEditorModel.getAssociatedResource().toString(),
 			});

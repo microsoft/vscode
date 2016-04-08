@@ -238,7 +238,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		}
 	}
 
-	public start(name: string, data?: any): ITimerEvent {
+	public timedPublicLog(name: string, data?: any): ITimerEvent {
 		let topic = 'public';
 		let event = this.timeKeeper.start(topic, name);
 		if (data) {
