@@ -66,7 +66,9 @@ export class DebugViewlet extends viewlet.Viewlet {
 		if (this.contextService.getWorkspace()) {
 			const actionRunner = this.getActionRunner();
 			const viewDescriptors = debug.DebugViewRegistry.getDebugViews().sort((first, second) => first.order - second.order);
-			this.views = viewDescriptors.map(dsc => this.instantiationService.createInstance(dsc, actionRunner, this.viewletSettings));
+			// TODO@Isi viewDescriptors mixed descriptors with different arguments (# of arguments) which means
+			// you fail to use the createInstance method which checks for the ctor-args of the type you create. 
+			this.views = viewDescriptors.map(dsc => <any> this.instantiationService.createInstance(<any> dsc, actionRunner, this.viewletSettings));
 
 			this.splitView = new splitview.SplitView(this.$el.getHTMLElement());
 			this.toDispose.push(this.splitView);
