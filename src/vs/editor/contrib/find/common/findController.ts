@@ -18,6 +18,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
+import {RunOnceScheduler} from 'vs/base/common/async';
 
 export enum FindStartFocusAction {
 	NoFocusChange,
@@ -498,16 +499,24 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private decorations: string[];
+	private updateSoon: RunOnceScheduler;
+	private lastWordUnderCursor: editorCommon.IEditorRange;
 
 	constructor(editor:editorCommon.ICommonCodeEditor) {
 		super();
 		this.editor = editor;
 		this.decorations = [];
+		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
+		this.lastWordUnderCursor = null;
 
 		this._register(editor.addListener2(editorCommon.EventType.CursorSelectionChanged, (e: editorCommon.ICursorSelectionChangedEvent) => {
 			if (e.selection.isEmpty()) {
 				if (e.reason === 'explicit') {
-					this._update();
+					if (!this.lastWordUnderCursor || !this.lastWordUnderCursor.containsPosition(e.selection.getStartPosition())) {
+						// no longer valid
+						this.removeDecorations();
+					}
+					this.updateSoon.schedule();
 				} else {
 					this.removeDecorations();
 
@@ -529,12 +538,14 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	}
 
 	private removeDecorations(): void {
+		this.lastWordUnderCursor = null;
 		if (this.decorations.length > 0) {
 			this.decorations = this.editor.deltaDecorations(this.decorations, []);
 		}
 	}
 
 	private _update(): void {
+		this.lastWordUnderCursor = null;
 		if (!this.editor.getConfiguration().selectionHighlight) {
 			return;
 		}
@@ -554,6 +565,8 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 				this.removeDecorations();
 				return;
 			}
+
+			this.lastWordUnderCursor = r.nextMatch;
 		}
 		if (/^[ \t]+$/.test(r.searchText)) {
 			// whitespace only selection
