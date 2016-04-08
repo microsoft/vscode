@@ -4,26 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/json/common/json.contribution';
 import jsonMode = require('vs/languages/json/common/json');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import tokenization = require('vs/languages/json/common/features/tokenization');
 import jsonTokenTypes = require('vs/languages/json/common/features/jsonTokenTypes');
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
 suite('JSON - tokenization', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
 	var assertOnEnter: modesUtil.IOnEnterAsserter;
 
-	setup((done) => {
-		modesUtil.load('json').then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-			done();
+	(function() {
+
+		let threadService = NULL_THREAD_SERVICE;
+		let inst = createInstantiationService({
+			threadService: threadService
 		});
-	});
+		threadService.setInstantiationService(inst);
+
+		let mode = new jsonMode.JSONMode(
+			{ id: 'json' },
+			inst,
+			threadService
+		)
+
+		tokenizationSupport = mode.tokenizationSupport;
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+
+	})();
 
 	test('', () => {
 		modesUtil.executeTests(tokenizationSupport,[

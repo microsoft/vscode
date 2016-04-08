@@ -92,6 +92,16 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		super.dispose();
 	}
 
+	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
+		let oldTheme = this._configuration.editor.theme;
+		super.updateOptions(newOptions);
+		let newTheme = this._configuration.editor.theme;
+
+		if (oldTheme !== newTheme) {
+			this.render();
+		}
+	}
+
 	public colorizeModelLine(lineNumber:number, model:editorCommon.IModel = this.model): string {
 		if (!model) {
 			return '';

@@ -5,14 +5,20 @@
 
 /* Editor Container Styles */
 
-.vs .monaco-workbench .editor > .content.dragged {
+.vs .monaco-workbench .editor:not(.empty) > .content {
 	background-color: #F3F3F3;
+}
+
+.vs-dark .monaco-workbench .editor:not(.empty) > .content {
+	background-color: #252526;
+}
+
+.vs .monaco-workbench .editor > .content.dragged {
 	border-left: 1px solid #E7E7E7;
 	border-right: 1px solid #E7E7E7;
 }
 
 .vs-dark .monaco-workbench .editor > .content.dragged {
-	background-color: #252526;
 	border-left: 1px solid #444;
 	border-right: 1px solid #444;
 }

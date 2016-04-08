@@ -97,6 +97,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 	userExtensionsHome: string;
+	mainIPCHandle: string;
 	sharedIPCHandle: string;
 	appRoot: string;
 	isBuilt: boolean;

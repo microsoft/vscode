@@ -347,6 +347,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	if (editorSettings.invisibles) {
 		let invisibles = new Color(editorSettings.invisibles);
 		cssRules.push(`.monaco-editor.${themeSelector} .token.whitespace { color: ${invisibles} !important; }`);
+		cssRules.push(`.monaco-editor.${themeSelector} .token.indent-guide { border-left: 1px solid ${invisibles}; }`);
 	}
 
 	return cssRules.join('\n');

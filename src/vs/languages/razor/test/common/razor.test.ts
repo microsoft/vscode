@@ -4,21 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/razor/common/razor.contribution';
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import Modes = require('vs/editor/common/modes');
 import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
+import {RAZORMode} from 'vs/languages/razor/common/razor';
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
 suite('Syntax Highlighting - Razor', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
-	setup((done) => {
-		modesUtil.load('razor').then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			done();
+
+	(function() {
+
+		let threadService = NULL_THREAD_SERVICE;
+		let modeService = new MockModeService();
+		let inst = createInstantiationService({
+			threadService: threadService,
+			modeService: modeService
 		});
-	});
+		threadService.setInstantiationService(inst);
+
+		let mode = new RAZORMode(
+			{ id: 'razor' },
+			inst,
+			modeService,
+			threadService
+		);
+
+		tokenizationSupport = mode.tokenizationSupport;
+	})();
 
 	test('', () => {
 		modesUtil.executeTests(tokenizationSupport,[

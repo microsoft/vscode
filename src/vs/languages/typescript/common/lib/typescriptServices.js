@@ -14,6 +14,11 @@ require.config({
 	}
 });
 
+if (typeof process !== "undefined") {
+	// make sure the node system is not used
+	process.browser = true;
+}
+
 define(['./raw.typescriptServices'], function (ts) {
 	return ts;
 });

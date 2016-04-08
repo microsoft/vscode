@@ -4,23 +4,73 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/handlebars/common/handlebars.contribution';
-import 'vs/languages/typescript/common/typescript.contribution';
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
 import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebarsTokenTypes');
+import {HandlebarsMode} from 'vs/languages/handlebars/common/handlebars';
+import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
 
+class HandlebarsMockModeService extends MockModeService {
+
+	private _handlebarsMode: HandlebarsMode;
+
+	constructor() {
+		super();
+		this._handlebarsMode = null;
+	}
+
+	public setHandlebarsMode(handlebarsMode: HandlebarsMode): void {
+		this._handlebarsMode = handlebarsMode;
+	}
+
+	isRegisteredMode(mimetypeOrModeId: string): boolean {
+		if (mimetypeOrModeId === 'text/javascript') {
+			return true;
+		}
+		if (mimetypeOrModeId === 'text/x-handlebars-template') {
+			return true;
+		}
+		throw new Error('Not implemented');
+	}
+
+	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/javascript') {
+			return new MockTokenizingMode('js', 'mock-js');
+		}
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'text/x-handlebars-template') {
+			return this._handlebarsMode;
+		}
+		throw new Error('Not implemented');
+	}
+}
 
 suite('Handlebars', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
-	setup((done) => {
-		modesUtil.load('handlebars', ['javascript']).then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			done();
+	(function() {
+		let threadService = NULL_THREAD_SERVICE;
+		let modeService = new HandlebarsMockModeService();
+		let inst = createInstantiationService({
+			threadService: threadService,
+			modeService: modeService
 		});
-	});
+		threadService.setInstantiationService(inst);
+
+		let mode = new HandlebarsMode(
+			{ id: 'handlebars' },
+			inst,
+			modeService,
+			threadService
+		);
+
+		modeService.setHandlebarsMode(mode);
+
+		tokenizationSupport = mode.tokenizationSupport;
+	})();
 
 	test('Just HTML', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
@@ -179,13 +229,7 @@ suite('Handlebars', () => {
 				{ startIndex:12, type: htmlTokenTypes.DELIM_ASSIGN },
 				{ startIndex:13, type: htmlTokenTypes.ATTRIB_VALUE },
 				{ startIndex:30, type: htmlTokenTypes.DELIM_START },
-				{ startIndex:31, type: 'keyword.js' },
-				{ startIndex:34, type: '' },
-				{ startIndex:35, type: 'identifier.js' },
-				{ startIndex:36, type: 'delimiter.js' },
-				{ startIndex:37, type: '' },
-				{ startIndex:38, type: 'number.js' },
-				{ startIndex:40, type: 'delimiter.js' },
+				{ startIndex:31, type: 'mock-js' },
 				{ startIndex:41, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:43, type: htmlTokenTypes.getTag('script') },
 				{ startIndex:49, type: htmlTokenTypes.DELIM_END }

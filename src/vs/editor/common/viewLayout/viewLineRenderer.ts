@@ -80,9 +80,12 @@ export function renderLine(input:RenderLineInput): RenderLineOutput {
 	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts.slice(0), renderWhitespace, charBreakIndex);
 }
 
-const WHITESPACE_TOKEN_TEST = /\bwhitespace\b/;
 function isWhitespace(type:string): boolean {
-	return WHITESPACE_TOKEN_TEST.test(type);
+	return (type.indexOf('whitespace') >= 0);
+}
+
+function isIndentGuide(type:string): boolean {
+	return (type.indexOf('indent-guide') >= 0);
 }
 
 function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, spaceWidth:number, actualLineParts:ViewLineToken[], renderWhitespace:boolean, charBreakIndex:number): RenderLineOutput {
@@ -100,10 +103,8 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
 		let part = actualLineParts[partIndex];
 
-		let partRendersWhitespace = false;
-		if (renderWhitespace) {
-			partRendersWhitespace = isWhitespace(part.type);
-		}
+		let parsRendersWhitespace = (renderWhitespace && isWhitespace(part.type));
+		let partIsFixedWidth = parsRendersWhitespace || isIndentGuide(part.type);
 
 		let toCharIndex = lineTextLength;
 		if (partIndex + 1 < partIndexLen) {
@@ -112,7 +113,7 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 		}
 
 		charOffsetInPart = 0;
-		if (partRendersWhitespace) {
+		if (partIsFixedWidth) {
 
 			let partContentCnt = 0;
 			let partContent = '';
@@ -125,7 +126,7 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						partContent += '&rarr;';
+						partContent += parsRendersWhitespace ? '&rarr;' : '&nbsp;';
 						partContentCnt++;
 						insertSpacesCount--;
 					}
@@ -136,7 +137,7 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 					}
 				} else {
 					// must be _space
-					partContent += '&middot;';
+					partContent += parsRendersWhitespace ? '&middot;' : '&nbsp;';
 					partContentCnt++;
 				}
 
@@ -171,10 +172,6 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 						let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 						tabsCharDelta += insertSpacesCount - 1;
 						charOffsetInPart += insertSpacesCount - 1;
-						if (insertSpacesCount > 0) {
-							out += '&nbsp;';
-							insertSpacesCount--;
-						}
 						while (insertSpacesCount > 0) {
 							out += '&nbsp;';
 							insertSpacesCount--;

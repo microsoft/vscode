@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -13,7 +12,6 @@ import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -36,6 +34,7 @@ import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
+import {MockExtensionService} from 'vs/editor/test/common/mocks/mockExtensionService';
 
 export interface IMockPlatformServices {
 	threadService?:IThreadService;
@@ -99,35 +98,6 @@ export function createMockEditorWorkerServices(mockEditorWorkerServices: IMockEd
 }
 
 class MockModeService extends ModeServiceImpl {}
-class MockExtensionService extends AbstractExtensionService<ActivatedExtension> {
-	constructor() {
-		super(true);
-	}
-
-	protected _showMessage(severity: Severity, msg: string): void {
-		switch (severity) {
-			case Severity.Error:
-				console.error(msg);
-				break;
-			case Severity.Warning:
-				console.warn(msg);
-				break;
-			case Severity.Info:
-				console.info(msg);
-				break;
-			default:
-				console.log(msg);
-		}
-	}
-
-	protected _createFailedExtension(): any {
-		throw new Error('not implemented');
-	}
-
-	protected _actualActivateExtension(extensionDescription): any {
-		throw new Error('not implemented');
-	}
-}
 
 class MockModelService extends ModelServiceImpl { }
 

@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/css/common/css.contribution';
 import cssMode = require('vs/languages/css/common/css');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
-import {cssTokenTypes} from 'vs/languages/css/common/css';
+import {cssTokenTypes, CSSMode} from 'vs/languages/css/common/css';
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
 suite('CSS Colorizing', () => {
 
@@ -18,14 +19,23 @@ suite('CSS Colorizing', () => {
 	var tokenizationSupport: Modes.ITokenizationSupport;
 	var assertOnEnter: modesUtil.IOnEnterAsserter;
 
-	suiteSetup((done) => {
-		modesUtil.load('css').then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-			wordDefinition = mode.richEditSupport.wordDefinition;
-			done();
+	(function() {
+		let threadService = NULL_THREAD_SERVICE;
+		let inst = createInstantiationService({
+			threadService: threadService,
 		});
-	});
+		threadService.setInstantiationService(inst);
+
+		let mode = new CSSMode(
+			{ id: 'css' },
+			inst,
+			threadService
+		);
+
+		tokenizationSupport = mode.tokenizationSupport;
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+		wordDefinition = mode.richEditSupport.wordDefinition;
+	})();
 
 	test('Skip whitespace', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{

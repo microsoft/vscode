@@ -67,7 +67,7 @@ class SelectThemeAction extends actions.Action {
 			let themeToPreview : IPickOpenEntry = null;
 			let previewThemeScheduler = new RunOnceScheduler(() => {
 				selectTheme(themeToPreview, false);
-			}, 200);
+			}, 100);
 			let previewTheme = pick => {
 				themeToPreview = pick;
 				previewThemeScheduler.schedule();

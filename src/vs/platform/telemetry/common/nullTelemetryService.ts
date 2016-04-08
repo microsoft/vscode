@@ -10,6 +10,9 @@ import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/te
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class NullTelemetryService implements ITelemetryService {
+
+	static Instance = new NullTelemetryService();
+
 	public serviceId = ITelemetryService;
 
 	protected sessionId: string = null;

@@ -17,6 +17,7 @@ export class ViewLine implements IVisibleLineData {
 
 	protected _context:IViewContext;
 	private _renderWhitespace: boolean;
+	private _indentGuides: boolean;
 	private _spaceWidth: number;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
@@ -36,6 +37,7 @@ export class ViewLine implements IVisibleLineData {
 	constructor(context:IViewContext) {
 		this._context = context;
 		this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
+		this._indentGuides = this._context.configuration.editor.indentGuides;
 		this._spaceWidth = this._context.configuration.editor.spaceWidth;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
@@ -83,6 +85,9 @@ export class ViewLine implements IVisibleLineData {
 		if (e.renderWhitespace) {
 			this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
 		}
+		if (e.indentGuides) {
+			this._indentGuides = this._context.configuration.editor.indentGuides;
+		}
 		if (e.spaceWidth) {
 			this._spaceWidth = this._context.configuration.editor.spaceWidth;
 		}
@@ -110,7 +115,8 @@ export class ViewLine implements IVisibleLineData {
 				this._context.model.getTabSize(),
 				this._context.model.getLineTokens(lineNumber),
 				inlineDecorations,
-				this._renderWhitespace
+				this._renderWhitespace,
+				this._indentGuides
 			);
 		}
 

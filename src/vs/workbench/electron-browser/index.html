@@ -108,7 +108,10 @@
 			var configuration = JSON.parse(args['config']);
 			var enableDeveloperTools = !configuration.isBuilt || !!configuration.extensionDevelopmentPath;
 
+			// Linux is a PAIN https://github.com/electron/electron/issues/3306
+			process.env['VSCODE_IPC_HOOK'] = configuration.mainIPCHandle;
 			process.env['VSCODE_SHARED_IPC_HOOK'] = configuration.sharedIPCHandle;
+
 			// Get the nls configuration into the process.env as early as possible.
 			if (configuration.userEnv && configuration.userEnv['VSCODE_NLS_CONFIG']) {
 				process.env['VSCODE_NLS_CONFIG'] = configuration.userEnv['VSCODE_NLS_CONFIG'];

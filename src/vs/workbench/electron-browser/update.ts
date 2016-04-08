@@ -70,7 +70,7 @@ export class Update {
 
 		ipc.on('vscode:update-available', (event, url: string) => {
 			this.messageService.show(severity.Info, {
-				message: nls.localize('thereIsUpdateAvailable', `There is an available update.`),
+				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
 				actions: [ShowReleaseNotesAction(env.releaseNotesUrl), NotNowAction, DownloadAction(url)]
 			});
 		});

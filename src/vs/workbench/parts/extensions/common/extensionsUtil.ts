@@ -18,6 +18,17 @@ export function extensionEquals(one: IExtension, other: IExtension): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
+export function getTelemetryData(extension: IExtension): any {
+	return {
+		id: getExtensionId(extension),
+		name: extension.name,
+		galleryId: extension.galleryInformation ? extension.galleryInformation.id : null,
+		publisherId: extension.galleryInformation ? extension.galleryInformation.publisherId : null,
+		publisherName: extension.publisher,
+		publisherDisplayName: extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : null
+	};
+}
+
 export function getOutdatedExtensions(accessor: ServicesAccessor): TPromise<IExtension[]> {
 	const extensionsService = accessor.get(IExtensionsService);
 	const galleryService = accessor.get(IGalleryService);

@@ -6,6 +6,7 @@
 
 import 'vs/editor/standalone-languages/all';
 import './standaloneSchemas';
+import 'vs/css!./media/standalone-tokens';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ClassNames, ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
@@ -66,7 +67,7 @@ Monaco.Editor.OverlayWidgetPositionPreference = OverlayWidgetPositionPreference;
 // Register all built-in standalone languages
 let MonacoEditorLanguages: ILanguageDef[] = this.MonacoEditorLanguages || [];
 MonacoEditorLanguages.forEach((language) => {
-	standaloneCodeEditor.registerStandaloneLanguage(language, language.defModule);
+	standaloneCodeEditor.registerMonarchStandaloneLanguage(language, language.defModule);
 });
 
 // Register all built-in standalone JSON schemas
@@ -74,3 +75,8 @@ let MonacoEditorSchemas: { [url:string]: IJSONSchema } = this.MonacoEditorSchema
 for (var uri in MonacoEditorSchemas) {
 	standaloneCodeEditor.registerStandaloneSchema(uri, MonacoEditorSchemas[uri]);
 }
+
+if (!Monaco.Languages) {
+	Monaco.Languages = {};
+}
+Monaco.Languages.register = standaloneCodeEditor.registerStandaloneLanguage;

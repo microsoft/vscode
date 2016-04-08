@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import {IFoundBracket, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
+import {IFoundBracket} from 'vs/editor/common/editorCommon';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 
