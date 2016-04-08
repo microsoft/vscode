@@ -114,15 +114,15 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
 		hardWrappingIndent = +hardWrappingIndent; //@perf
 
-		var wrappedTextIndentVisibleColumn = 0,
-			wrappedTextIndent = '',
-			TAB_CHAR_CODE = '\t'.charCodeAt(0);
+		let wrappedTextIndentVisibleColumn = 0;
+		let wrappedTextIndent = '';
+		const TAB_CHAR_CODE = '\t'.charCodeAt(0);
 
 		if (hardWrappingIndent !== WrappingIndent.None) {
-			var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
+			let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 			if (firstNonWhitespaceIndex !== -1) {
 				wrappedTextIndent = lineText.substring(0, firstNonWhitespaceIndex);
-				for (var i = 0; i < firstNonWhitespaceIndex; i++) {
+				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, lineText.charCodeAt(i) === TAB_CHAR_CODE, 1);
 				}
 				if (hardWrappingIndent === WrappingIndent.Indent) {
@@ -137,36 +137,26 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			}
 		}
 
-		var classifier = this.classifier,
-			lastBreakingOffset = 0, // Last 0-based offset in the lineText at which a break happened
-			breakingLengths:number[] = [], // The length of each broken-up line text
-			breakingLengthsIndex:number = 0, // The count of breaks already done
-			i:number,
-			len:number,
-			visibleColumn:number, // Visible column since the beginning of the current line
-			charCode:number,
-			charCodeIsTab:boolean,
-			charCodeClass:number,
-			breakBeforeOffset:number, // 0-based offset in the lineText before which breaking
-			restoreVisibleColumnFrom:number, // visible column used to re-establish a correct `visibleColumn`
-			prevCode:number, // CJK kinsoku shori: character and class before current one
-			prevClass:number,
-			nextCode:number, // CJK kinsoku shori: character and class after current one
-			nextClass:number;
+		let classifier = this.classifier;
+		let lastBreakingOffset = 0; // Last 0-based offset in the lineText at which a break happened
+		let breakingLengths:number[] = []; // The length of each broken-up line text
+		let breakingLengthsIndex:number = 0; // The count of breaks already done
+		let visibleColumn = 0; // Visible column since the beginning of the current line
+		let breakBeforeOffset:number; // 0-based offset in the lineText before which breaking
+		let restoreVisibleColumnFrom:number;
+		let niceBreakOffset = -1; // Last index of a character that indicates a break should happen before it (more desirable)
+		let niceBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `niceBreakOffset`
+		let obtrusiveBreakOffset = -1; // Last index of a character that indicates a break should happen before it (less desirable)
+		let obtrusiveBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `obtrusiveBreakOffset`
+		let len = lineText.length;
 
-		var niceBreakOffset = -1, // Last index of a character that indicates a break should happen before it (more desirable)
-			niceBreakVisibleColumn = 0, // visible column if a break were to be later introduced before `niceBreakOffset`
-			obtrusiveBreakOffset = -1, // Last index of a character that indicates a break should happen before it (less desirable)
-			obtrusiveBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `obtrusiveBreakOffset`
-
-		visibleColumn = 0;
-		for (i = 0, len = lineText.length; i < len; i++) {
+		for (let i = 0; i < len; i++) {
 			// At this point, there is a certainty that the character before `i` fits on the current line,
 			// but the character at `i` might not fit
 
-			charCode = lineText.charCodeAt(i);
-			charCodeIsTab = (charCode === TAB_CHAR_CODE);
-			charCodeClass = classifier.classify(charCode);
+			let charCode = lineText.charCodeAt(i);
+			let charCodeIsTab = (charCode === TAB_CHAR_CODE);
+			let charCodeClass = classifier.classify(charCode);
 
 			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
 				// This is a character that indicates that a break should happen before it
@@ -178,15 +168,15 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 			// CJK breaking : before break
 			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0) {
-				prevCode = lineText.charCodeAt(i - 1);
-				prevClass = classifier.classify(prevCode);
+				let prevCode = lineText.charCodeAt(i - 1);
+				let prevClass = classifier.classify(prevCode);
 				if (prevClass !== CharacterClass.BREAK_BEFORE) { // Kinsoku Shori: Don't break after a leading character, like an open bracket
 					niceBreakOffset = i;
 					niceBreakVisibleColumn = 0;
 				}
 			}
 
-			var charColumnSize = 1;
+			let charColumnSize = 1;
 			if (strings.isFullWidthCharacter(charCode)) {
 				charColumnSize = columnsForFullWidthChar;
 			}
@@ -253,8 +243,8 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 			// CJK breaking : after break
 			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i < len - 1) {
-				nextCode = lineText.charCodeAt(i + 1);
-				nextClass = classifier.classify(nextCode);
+				let nextCode = lineText.charCodeAt(i + 1);
+				let nextClass = classifier.classify(nextCode);
 				if (nextClass !== CharacterClass.BREAK_AFTER) { // Kinsoku Shori: Don't break before a trailing character, like a period
 					niceBreakOffset = i + 1;
 					niceBreakVisibleColumn = 0;
