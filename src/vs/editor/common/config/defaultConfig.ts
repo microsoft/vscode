@@ -27,7 +27,7 @@ class ConfigClass implements IConfiguration {
 			experimentalScreenReader: true,
 			rulers: [],
 			wordSeparators: USUAL_WORD_SEPARATORS,
-			selectionClipboard: false,
+			selectionClipboard: true,
 			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 			lineNumbers: true,
 			selectOnLineNumbers: true,
