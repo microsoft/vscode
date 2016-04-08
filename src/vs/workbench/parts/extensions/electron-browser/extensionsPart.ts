@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -111,6 +111,13 @@ class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> {
 	}
 }
 
+const EmptyModel = new PagedModel({
+	firstPage: [],
+	total: 0,
+	pageSize: 0,
+	getPage: null
+});
+
 export class ExtensionsPart extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extensionsPart';
@@ -134,6 +141,7 @@ export class ExtensionsPart extends BaseEditor {
 		const root = append(container, $('.extension-manager'));
 		const search = append(root, $('.search'));
 		this.searchBox = append(search, $<HTMLInputElement>('input.search-box'));
+		this.searchBox.placeholder = localize('searchExtensions', "Search Extensions");
 		this.extensionsBox = append(root, $('.extensions'));
 
 		const delegate = new Delegate();
@@ -145,7 +153,6 @@ export class ExtensionsPart extends BaseEditor {
 
 	setVisible(visible: boolean, position?: Position): TPromise<void> {
 		return super.setVisible(visible, position).then(() => {
-
 			if (visible) {
 				this.searchBox.value = '';
 				this.triggerSearch('', 0);
@@ -161,11 +168,16 @@ export class ExtensionsPart extends BaseEditor {
 	}
 
 	focus(): void {
-		// TODO
+		this.searchBox.focus();
 	}
 
 	private triggerSearch(text: string = '', delay = 500): void {
-		this.searchDelayer.trigger(() => this.doSearch(text), delay);
+		this.list.model = EmptyModel;
+
+		const promise = this.searchDelayer.trigger(() => this.doSearch(text), delay);
+
+		addClass(this.extensionsBox, 'loading');
+		always(promise, () => removeClass(this.extensionsBox, 'loading'));
 	}
 
 	private doSearch(text: string = ''): TPromise<any> {

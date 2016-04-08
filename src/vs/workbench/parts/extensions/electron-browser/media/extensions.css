@@ -165,9 +165,15 @@
 .extension-manager > .search > .search-box {
 	margin: 10px 0;
 	width: calc(100% - 28px); /* TODO: HACK */
-	padding: 6px 8px;
+	padding: 10px 8px;
 	font-size: 16px;
 	border: 1px solid gainsboro;
+}
+
+.extension-manager .extensions.loading {
+	background-image: url('loading.svg');
+	background-position: top center;
+	background-repeat: no-repeat;
 }
 
 .extension-manager .monaco-list-row.selected {
@@ -230,7 +236,7 @@
 	font-style: italic;
 }
 
-.extension-manager .extension > .body > .description {
+.extension-manager .extension > .body > div {
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
