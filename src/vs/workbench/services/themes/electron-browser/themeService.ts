@@ -342,7 +342,8 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	}
 	if (editorSettings.caret) {
 		let caret = new Color(editorSettings.caret);
-		cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; border-color: ${caret}; }`);
+		let oppositeCaret = caret.opposite();
+		cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
 	}
 	if (editorSettings.invisibles) {
 		let invisibles = new Color(editorSettings.invisibles);
@@ -445,5 +446,14 @@ class Color {
 	public transparent(factor: number): Color {
 		let p = this.parsed;
 		return new Color({ r: p.r, g: p.g, b: p.b, a: p.a * factor });
+	}
+
+	public opposite(): Color {
+		return new Color({
+			r: 255 - this.parsed.r,
+			g: 255 - this.parsed.g,
+			b: 255 - this.parsed.b,
+			a : this.parsed.a
+		});
 	}
 }
