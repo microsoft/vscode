@@ -159,6 +159,7 @@
 .extension-manager > .search {
 	box-sizing: border-box;
 	padding: 10px;
+	height: 72px;
 }
 
 .extension-manager > .search > .search-box {
@@ -167,10 +168,6 @@
 	padding: 6px 8px;
 	font-size: 16px;
 	border: 1px solid gainsboro;
-}
-
-.extension-manager > .extensions {
-	height: 100%;
 }
 
 .extension-manager .monaco-list-row.selected {

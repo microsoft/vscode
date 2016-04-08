@@ -118,6 +118,7 @@ export class ExtensionsPart extends BaseEditor {
 	private list: PagedList<IExtensionEntry>;
 	private searchDelayer: ThrottledDelayer<any>;
 	private searchBox: HTMLInputElement;
+	private extensionsBox: HTMLElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -133,11 +134,11 @@ export class ExtensionsPart extends BaseEditor {
 		const root = append(container, $('.extension-manager'));
 		const search = append(root, $('.search'));
 		this.searchBox = append(search, $<HTMLInputElement>('input.search-box'));
-		const extensions = append(root, $('.extensions'));
+		this.extensionsBox = append(root, $('.extensions'));
 
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
-		this.list = new PagedList(extensions, delegate, [renderer]);
+		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
 
 		this.searchBox.oninput = () => this.triggerSearch(this.searchBox.value);
 	}
@@ -153,7 +154,10 @@ export class ExtensionsPart extends BaseEditor {
 	}
 
 	layout(dimension: Dimension): void {
-		this.list.layout(dimension.height);
+		const height = dimension.height - 72;
+
+		this.extensionsBox.style.height = `${ height }px`;
+		this.list.layout(height);
 	}
 
 	focus(): void {
