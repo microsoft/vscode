@@ -2920,7 +2920,7 @@ export interface IActionDescriptor {
 	 * An array of keybindings for the action.
 	 */
 	keybindings?: number[];
-	keybindingContext: string;
+	keybindingContext?: string;
 	/**
 	 * A set of enablement conditions.
 	 */
