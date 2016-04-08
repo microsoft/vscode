@@ -314,7 +314,7 @@ export class ExtHostAPIImplementation {
 
 		//
 		const languages = new ExtHostLanguages(this._threadService);
-		const extHostDiagnostics = new ExtHostDiagnostics(this._threadService);
+		const extHostDiagnostics = threadService.getRemotable(ExtHostDiagnostics);
 		const languageFeatures = threadService.getRemotable(ExtHostLanguageFeatures);
 
 		this.languages = {
