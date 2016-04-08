@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -15,19 +16,19 @@ export class NullTelemetryService implements ITelemetryService {
 
 	public serviceId = ITelemetryService;
 
-	protected sessionId: string = null;
-	protected instanceId: string = null;
-	protected machineId: string = null;
+	private _sessionId = 'someValue.sessionId';
+	private _instanceId = 'someValue.instanceId';
+	private _machineId = 'someValue.machineId';
 
 	publicLog(eventName: string, data?: any): void {
 	}
 
-	start(name: string, data?: any): any {
-		return null;
+	start(name: string, data?: any): ITimerEvent {
+		return nullEvent;
 	}
 
 	getAppendersCount(): number {
-		return -1;
+		return 0;
 	}
 
 	getAppenders(): any[] {
@@ -44,22 +45,22 @@ export class NullTelemetryService implements ITelemetryService {
 	}
 
 	getSessionId(): string {
-		return this.sessionId;
+		return this._sessionId;
 	}
 
 	getMachineId(): string {
-		return this.machineId;
+		return this._machineId;
 	}
 
 	getInstanceId(): string {
-		return this.instanceId;
+		return this._instanceId;
 	}
 
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
-			instanceId: this.instanceId,
-			sessionId: this.sessionId,
-			machineId: this.machineId
+			instanceId: this._instanceId,
+			sessionId: this._sessionId,
+			machineId: this._machineId
 		});
 	}
 
