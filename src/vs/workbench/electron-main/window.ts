@@ -136,7 +136,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 export class VSCodeWindow {
 
 	public static menuBarHiddenKey = 'menuBarHidden';
-	public static themeStorageKey = 'theme'; // TODO@Ben this key is only used to find out if a window can be shown instantly because of light theme, remove once we have support for bg color
+	public static themeStorageKey = 'theme';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
