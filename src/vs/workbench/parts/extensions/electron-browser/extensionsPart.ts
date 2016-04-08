@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Delayer } from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -15,10 +15,9 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDelegate } from 'vs/base/browser/ui/list/list';
-import { IPagedRenderer, PagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { List } from 'vs/base/browser/ui/list/listWidget';
+import { IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IExtension, IGalleryService } from '../common/extensions';
-import { PagedModel, mapPager, IPager } from 'vs/base/common/paging';
+import { PagedModel, mapPager } from 'vs/base/common/paging';
 
 interface ITemplateData {
 	root: HTMLElement;
@@ -54,7 +53,7 @@ interface IExtensionEntry {
 // }
 
 class Delegate implements IDelegate<IExtension> {
-	getHeight() { return 90; } // 74
+	getHeight() { return 90; }
 	getTemplateId() { return 'extension'; }
 }
 
@@ -116,7 +115,9 @@ export class ExtensionsPart extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extensionsPart';
 
-	private list: List<number>;
+	private list: PagedList<IExtensionEntry>;
+	private searchDelayer: ThrottledDelayer<any>;
+	private searchBox: HTMLInputElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -124,58 +125,31 @@ export class ExtensionsPart extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(ExtensionsPart.ID, telemetryService);
+		this.searchDelayer = new ThrottledDelayer(500);
 	}
 
 	createEditor(parent: Builder): void {
 		const container = parent.getHTMLElement();
-
 		const root = append(container, $('.extension-manager'));
 		const search = append(root, $('.search'));
-		const searchBox = append(search, $<HTMLInputElement>('input.search-box'));
-
-		const delayer = new Delayer(500);
-
-
-		const onResults = (result: IPager<IExtension>) => {
-			// const entries = firstPage
-			// 	.map()
-			// 	.sort(extensionEntryCompare);
-
-			const model = new PagedModel(mapPager(result, extension => ({
-				extension,
-				state: ExtensionState.Installed
-			})));
-
-			pagedRenderer.model = model;
-
-			const foo = [];
-			for (let i = 0; i < model.length; i++) {
-				foo.push(i);
-			}
-
-			this.list.splice(0, this.list.length, ...foo);
-		};
-
-		// TODO: HACK
-		searchBox.oninput = event => {
-			delayer.trigger(() => {
-				this.galleryService.query({ text: searchBox.value }).then(onResults);
-				return null;
-			});
-		};
-
+		this.searchBox = append(search, $<HTMLInputElement>('input.search-box'));
 		const extensions = append(root, $('.extensions'));
 
+		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
-		const pagedRenderer = new PagedRenderer(renderer);
+		this.list = new PagedList(extensions, delegate, [renderer]);
 
-		this.list = new List(extensions, new Delegate(), [pagedRenderer]);
-
-		this.galleryService.query().then(onResults);
+		this.searchBox.oninput = () => this.triggerSearch(this.searchBox.value);
 	}
 
 	setVisible(visible: boolean, position?: Position): TPromise<void> {
-		return super.setVisible(visible, position);
+		return super.setVisible(visible, position).then(() => {
+
+			if (visible) {
+				this.searchBox.value = '';
+				this.triggerSearch('', 0);
+			}
+		});
 	}
 
 	layout(dimension: Dimension): void {
@@ -184,6 +158,16 @@ export class ExtensionsPart extends BaseEditor {
 
 	focus(): void {
 		// TODO
+	}
+
+	private triggerSearch(text: string = '', delay = 500): void {
+		this.searchDelayer.trigger(() => this.doSearch(text), delay);
+	}
+
+	private doSearch(text: string = ''): TPromise<any> {
+		return this.galleryService.query({ text })
+			.then(result => new PagedModel(mapPager(result, extension => ({ extension, state: ExtensionState.Installed }))))
+			.then(model => this.list.model = model);
 	}
 
 	dispose(): void {

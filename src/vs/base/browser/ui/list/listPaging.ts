@@ -5,6 +5,7 @@
 
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { range } from 'vs/base/common/arrays';
 import { IDelegate, IRenderer } from './list';
 import { List } from './listWidget';
 import { PagedModel } from 'vs/base/common/paging';
@@ -18,32 +19,14 @@ export interface ITemplateData<T> {
 	disposable: IDisposable;
 }
 
-export class PagedDelegate<T> implements IDelegate<number> {
+class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITemplateData<TTemplateData>> {
 
-	constructor(private delegate: IDelegate<T>) {
-		// noop
-	}
-
-	getHeight(element: number): number {
-		// TODO
-		return this.delegate.getHeight(null);
-	}
-
-	getTemplateId(element: number): string {
-		// TODO
-		return this.delegate.getTemplateId(null);
-	}
-}
-
-export class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITemplateData<TTemplateData>> {
-
-	private _model: PagedModel<TElement>;
-	set model(model: PagedModel<TElement>) { this._model = model; }
 	get templateId(): string { return this.renderer.templateId; }
 
-	constructor(private renderer: IPagedRenderer<TElement, TTemplateData>) {
-		// noop
-	}
+	constructor(
+		private renderer: IPagedRenderer<TElement, TTemplateData>,
+		private modelProvider: () => PagedModel<TElement>
+	) {}
 
 	renderTemplate(container: HTMLElement): ITemplateData<TTemplateData> {
 		const data = this.renderer.renderTemplate(container);
@@ -53,15 +36,13 @@ export class PagedRenderer<TElement, TTemplateData> implements IRenderer<number,
 	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>): void {
 		data.disposable.dispose();
 
-		if (!this._model) {
-			return;
+		const model = this.modelProvider();
+
+		if (model.isResolved(index)) {
+			return this.renderer.renderElement(model.get(index), index, data.data);
 		}
 
-		if (this._model.isResolved(index)) {
-			return this.renderer.renderElement(this._model.get(index), index, data.data);
-		}
-
-		const promise = this._model.resolve(index);
+		const promise = model.resolve(index);
 		data.disposable = { dispose: () => promise.cancel() };
 
 		this.renderer.renderPlaceholder(index, data.data);
@@ -76,24 +57,25 @@ export class PagedRenderer<TElement, TTemplateData> implements IRenderer<number,
 	}
 }
 
-// TODO work on this
 export class PagedList<T> extends List<number> {
 
 	private _model: PagedModel<T>;
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
-		renderers: IPagedRenderer<number, any>[]
+		delegate: IDelegate<number>,
+		renderers: IPagedRenderer<T, any>[]
 	) {
-		super(
-			container,
-			new PagedDelegate(delegate),
-			renderers.map(r => new PagedRenderer(r))
-		);
+		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, () => this.model));
+		super(container, delegate, pagedRenderers);
+	}
+
+	get model(): PagedModel<T> {
+		return this._model;
 	}
 
 	set model(model: PagedModel<T>) {
 		this._model = model;
+		this.splice(0, this.length, ...range(model.length));
 	}
 }
