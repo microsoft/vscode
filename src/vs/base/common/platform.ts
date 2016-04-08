@@ -9,6 +9,7 @@
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
+let _isRootUser = false;
 let _isNative = false;
 let _isWeb = false;
 let _isQunit = false;
@@ -23,6 +24,7 @@ interface NLSConfig {
 interface INodeProcess {
 	platform: string;
 	env: { [key: string]: string; };
+	getuid(): number;
 }
 declare let process: INodeProcess;
 declare let global: any;
@@ -39,6 +41,7 @@ if (typeof process === 'object') {
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
+	_isRootUser = !_isWindows && (process.getuid() === 0);
 	let vscode_nls_config = process.env['VSCODE_NLS_CONFIG'];
 	if (vscode_nls_config) {
 		try {
@@ -83,6 +86,7 @@ if (_isNative) {
 export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
+export const isRootUser = _isRootUser;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const isQunit = _isQunit;
