@@ -32,6 +32,7 @@ var EntryPoint = (function() {
 	};
 	return EntryPoint;
 })();
+
 exports.collectModules = function(args) {
 
 	var result = [];
@@ -45,17 +46,20 @@ exports.collectModules = function(args) {
 
 	// ---- typescript & javascript -----------------
 
-	common.define('vs/languages/typescript/common/lib/typescriptServices');
+	result.push({
+		name: 'vs/languages/typescript/common/lib/typescriptServices',
+		exclude: ['vs/css', 'vs/nls', 'vs/text']
+	});
 
-	common.define('vs/languages/typescript/common/typescript', 'vs/languages/typescript/common/lib/typescriptServices');
+	result.push({
+		name: 'vs/languages/typescript/common/worker',
+		exclude: ['vs/base/common/worker/simpleWorker', 'vs/languages/typescript/common/lib/typescriptServices', 'vs/css', 'vs/nls', 'vs/text']
+	});
 
-	var EXCLUDES = ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/typescript/common/typescript'];
-
-	common.define('vs/languages/typescript/common/mode', EXCLUDES)
-		.combine(worker)
-			.define('vs/languages/typescript/common/worker', EXCLUDES);
-
-	common.define('vs/languages/typescript/common/workerManager', EXCLUDES);
+	result.push({
+		name: 'vs/languages/typescript/common/mode',
+		exclude: ['vs/editor/editor.main', 'vs/languages/typescript/common/lib/typescriptServices', 'vs/css', 'vs/nls', 'vs/text']
+	});
 
 	return result;
 };

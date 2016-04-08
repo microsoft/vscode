@@ -15,36 +15,29 @@ import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {LanguageServiceDefaults, typeScriptDefaults, javaScriptDefaults, LanguageServiceMode} from './typescript';
 import {register} from './languageFeatures';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import * as workerManager from 'vs/languages/typescript/common/workerManager';
 
 function setupMode(modelService:IModelService, markerService:IMarkerService, modeService:IModeService, defaults:LanguageServiceDefaults, modeId:string, language:Language): void {
 
 	let disposables: lifecycle.IDisposable[] = [];
-	let languageServiceMode: LanguageServiceMode;
 
-	require(['vs/languages/typescript/common/workerManager'], workerManager => {
+	const client = <LanguageServiceMode & lifecycle.IDisposable>workerManager.create(defaults, modelService);
+	disposables.push(client);
 
-		const client = <LanguageServiceMode & lifecycle.IDisposable>workerManager.create(defaults, modelService);
+	const registration = register(
+		modelService,
+		markerService,
+		modeId,
+		defaults,
+		(first, ...more) => client.getLanguageServiceWorker(...[first].concat(more))
+	);
+	disposables.push(registration);
 
-		languageServiceMode = client;
-		disposables.push(client);
+	disposables.push(modeService.registerRichEditSupport(modeId, richEditConfiguration));
 
-		const registration = register(
-			modelService,
-			markerService,
-			modeId,
-			defaults,
-			(first, ...more) => client.getLanguageServiceWorker(...[first].concat(more))
-		);
-		disposables.push(registration);
-
-	}, err => {
-		console.error(err);
-	});
-
-	modeService.registerRichEditSupport(modeId, richEditConfiguration);
-	modeService.registerTokenizationSupport(modeId, (mode) => {
+	disposables.push(modeService.registerTokenizationSupport(modeId, (mode) => {
 		return createTokenizationSupport(mode, language);
-	});
+	}));
 }
 
 const richEditConfiguration:IRichEditConfiguration = {
