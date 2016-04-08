@@ -9,17 +9,19 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { append, emmet as $ } from 'vs/base/browser/dom';
+import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRenderer, IDelegate } from 'vs/base/browser/ui/list/list';
+import { IDelegate } from 'vs/base/browser/ui/list/list';
+import { IPagedRenderer, PagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IExtension, IGalleryService } from '../common/extensions';
+import { PagedModel, mapPager, IPager } from 'vs/base/common/paging';
 
 interface ITemplateData {
-	container: HTMLElement;
+	root: HTMLElement;
 	extension: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
@@ -39,24 +41,24 @@ interface IExtensionEntry {
 	state: ExtensionState;
 }
 
-function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
-	const oneInstallCount = one.extension.galleryInformation ? one.extension.galleryInformation.installCount : 0;
-	const otherInstallCount = other.extension.galleryInformation ? other.extension.galleryInformation.installCount : 0;
-	const diff = otherInstallCount - oneInstallCount;
+// function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
+// 	const oneInstallCount = one.extension.galleryInformation ? one.extension.galleryInformation.installCount : 0;
+// 	const otherInstallCount = other.extension.galleryInformation ? other.extension.galleryInformation.installCount : 0;
+// 	const diff = otherInstallCount - oneInstallCount;
 
-	if (diff !== 0) {
-		return diff;
-	}
+// 	if (diff !== 0) {
+// 		return diff;
+// 	}
 
-	return one.extension.displayName.localeCompare(other.extension.displayName);
-}
+// 	return one.extension.displayName.localeCompare(other.extension.displayName);
+// }
 
 class Delegate implements IDelegate<IExtension> {
 	getHeight() { return 90; } // 74
 	getTemplateId() { return 'extension'; }
 }
 
-class Renderer implements IRenderer<IExtensionEntry, ITemplateData> {
+class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -77,9 +79,18 @@ class Renderer implements IRenderer<IExtensionEntry, ITemplateData> {
 		const description = append(body, $('.description'));
 
 		return {
-			container: root, extension, icon,
+			root, extension, icon,
 			name, version, author, description
 		};
+	}
+
+	renderPlaceholder(index: number, data: ITemplateData): void {
+		addClass(data.extension, 'loading');
+		data.icon.style.display = 'none';
+		data.name.textContent = '';
+		data.version.textContent = '';
+		data.author.textContent = '';
+		data.description.textContent = '';
 	}
 
 	renderElement(entry: IExtensionEntry, index: number, data: ITemplateData): void {
@@ -87,6 +98,8 @@ class Renderer implements IRenderer<IExtensionEntry, ITemplateData> {
 		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
 		const version = extension.galleryInformation.versions[0];
 
+		removeClass(data.extension, 'loading');
+		data.icon.style.display = 'block';
 		data.icon.src = version.iconUrl;
 		data.name.textContent = extension.displayName;
 		data.version.textContent = ` ${ extension.version }`;
@@ -103,7 +116,7 @@ export class ExtensionsPart extends BaseEditor {
 
 	static ID: string = 'workbench.editor.extensionsPart';
 
-	private list: List<IExtensionEntry>;
+	private list: List<number>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -122,38 +135,43 @@ export class ExtensionsPart extends BaseEditor {
 
 		const delayer = new Delayer(500);
 
+
+		const onResults = (result: IPager<IExtension>) => {
+			// const entries = firstPage
+			// 	.map()
+			// 	.sort(extensionEntryCompare);
+
+			const model = new PagedModel(mapPager(result, extension => ({
+				extension,
+				state: ExtensionState.Installed
+			})));
+
+			pagedRenderer.model = model;
+
+			const foo = [];
+			for (let i = 0; i < model.length; i++) {
+				foo.push(i);
+			}
+
+			this.list.splice(0, this.list.length, ...foo);
+		};
+
 		// TODO: HACK
 		searchBox.oninput = event => {
 			delayer.trigger(() => {
-
-				this.galleryService.query({ text: searchBox.value }).then(({ firstPage }) => {
-					const entries = firstPage
-						.map(extension => ({
-							extension,
-							state: ExtensionState.Installed
-						}))
-						.sort(extensionEntryCompare);
-
-					this.list.splice(0, this.list.length, ...entries);
-				});
-
+				this.galleryService.query({ text: searchBox.value }).then(onResults);
 				return null;
 			});
 		};
 
 		const extensions = append(root, $('.extensions'));
-		this.list = new List(extensions, new Delegate(), [this.instantiationService.createInstance(Renderer)]);
 
-		this.galleryService.query().then(({ firstPage }) => {
-			const entries = firstPage
-				.map(extension => ({
-					extension,
-					state: ExtensionState.Installed
-				}))
-				.sort(extensionEntryCompare);
+		const renderer = this.instantiationService.createInstance(Renderer);
+		const pagedRenderer = new PagedRenderer(renderer);
 
-			this.list.splice(0, this.list.length, ...entries);
-		});
+		this.list = new List(extensions, new Delegate(), [pagedRenderer]);
+
+		this.galleryService.query().then(onResults);
 	}
 
 	setVisible(visible: boolean, position?: Position): TPromise<void> {

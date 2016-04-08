@@ -203,6 +203,12 @@
 	display: flex;
 }
 
+.extension-manager .extension.loading {
+	background-image: url('loading.svg');
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
 .extension-manager .extension > .icon {
 	box-sizing: border-box;
 	width: 70px;
