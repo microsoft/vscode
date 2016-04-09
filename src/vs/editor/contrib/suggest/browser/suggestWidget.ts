@@ -29,6 +29,7 @@ import {CompletionItem, CompletionModel} from './completionModel';
 import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
 import {alert} from 'vs/base/browser/ui/aria/aria';
 import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
+import {ISuggestion} from 'vs/editor/common/modes';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -142,13 +143,16 @@ class Delegate implements IDelegate<CompletionItem> {
 	}
 }
 
-function computeScore(suggestion: string, currentWord: string, currentWordLowerCase: string): number {
-	const suggestionLowerCase = suggestion.toLowerCase();
+function computeScore(suggestion: ISuggestion, currentWord: string, currentWordLowerCase: string): number {
+	const label = suggestion.label;
+	const type = suggestion.type;
+	const suggestionLowerCase = label.toLowerCase();
 	let score = 0;
 
-	for (let i = 0; i < currentWord.length && i < suggestion.length; i++) {
-		if (currentWord[i] === suggestion[i]) {
-			score += 2;
+	for (let i = 0; i < currentWord.length && i < label.length; i++) {
+		if (currentWord[i] === label[i]) {
+			// Promote exact matched snippets over other suggestions
+			score += type === 'snippet' ? 3 : 2;
 		} else if (currentWordLowerCase[i] === suggestionLowerCase[i]) {
 			score += 1;
 		} else {
@@ -591,7 +595,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			let bestScore = -1;
 
 			this.completionModel.items.forEach((item, index) => {
-				const score = computeScore(item.suggestion.label, currentWord, currentWordLowerCase);
+				const score = computeScore(item.suggestion, currentWord, currentWordLowerCase);
 
 				if (score > bestScore) {
 					bestScore = score;

@@ -66,9 +66,9 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 	});
 
 	return sequence(factory).then(() => {
-		// add snippets to the first group
+		// add snippets to the zero group
 		const snippets = SnippetsRegistry.getSnippets(model, position);
-		result.push(snippets);
+		result.unshift(snippets);
 		return result;
 	});
 }
