@@ -867,7 +867,7 @@ if (Env.enableTasks) {
 					'anyOf': [
 						{
 							'type': 'string',
-							'enum': ['$tsc', '$tsc-watch' ,'$msCompile', '$lessCompile', '$gulp-tsc', '$cpp', '$csc', '$vb', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish']
+							'enum': ['$tsc', '$tsc-watch' ,'$msCompile', '$lessCompile', '$gulp-tsc', '$cpp', '$csc', '$vb', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
 						},
 						{
 							'$ref': '#/definitions/pattern'
@@ -939,7 +939,7 @@ if (Env.enableTasks) {
 					'oneOf': [
 						{
 							'type': 'string',
-							'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish']
+							'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
 						},
 						{
 							'$ref': '#/definitions/problemMatcher'
@@ -953,7 +953,7 @@ if (Env.enableTasks) {
 									},
 									{
 										'type': 'string',
-										'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish']
+										'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
 									}
 								]
 							}
@@ -980,7 +980,7 @@ if (Env.enableTasks) {
 					'properties': {
 						'base': {
 							'type': 'string',
-							'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish'],
+							'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go'],
 							'description': nls.localize('JsonSchema.problemMatcher.base', 'The name of a base problem matcher to use.')
 						},
 						'owner': {
