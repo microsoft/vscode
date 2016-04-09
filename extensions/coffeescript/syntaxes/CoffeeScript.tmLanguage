@@ -325,26 +325,8 @@
 			</array>
 		</dict>
 		<dict>
-			<key>begin</key>
-			<string>/(?![\s=/*+{}?])</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.string.begin.coffee</string>
-				</dict>
-			</dict>
-			<key>end</key>
-			<string>(/)[igmy]{0,4}(?![a-zA-Z0-9])</string>
-			<key>endCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.string.end.coffee</string>
-				</dict>
-			</dict>
+			<key>match</key>
+			<string>/(?![\s=/*+{}?]).*(/)[igmy]{0,4}(?![a-zA-Z0-9])</string>
 			<key>name</key>
 			<string>string.regexp.coffee</string>
 			<key>patterns</key>
