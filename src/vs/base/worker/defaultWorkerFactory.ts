@@ -10,7 +10,7 @@ import {IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/wo
 import * as dom from 'vs/base/browser/dom';
 
 function defaultGetWorkerUrl(workerId:string, label:string): string {
-	return require.toUrl('./' + workerId + '?' + encodeURIComponent(label));
+	return require.toUrl('./' + workerId);
 }
 var getWorkerUrl = flags.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 

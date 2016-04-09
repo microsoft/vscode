@@ -28,7 +28,6 @@ var editorResources = [
 	'out-build/vs/{base,editor}/**/*.{svg,png}',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
-	'out-build/vs/languages/typescript/common/lib/lib.{d.ts,es6.d.ts}',
 	'!out-build/vs/workbench/**',
 	'!**/test/**'
 ];

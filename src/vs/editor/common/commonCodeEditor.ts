@@ -519,6 +519,13 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	}
 
 	public addAction(descriptor:editorCommon.IActionDescriptor): void {
+		if (
+			(typeof descriptor.id !== 'string')
+			|| (typeof descriptor.label !== 'string')
+			|| (typeof descriptor.run !== 'function')
+		) {
+			throw new Error('Invalid action descriptor, `id`, `label` and `run` are required properties!');
+		}
 		var action = this._instantiationService.createInstance(DynamicEditorAction, descriptor, this);
 		this.contributions[action.getId()] = action;
 	}
