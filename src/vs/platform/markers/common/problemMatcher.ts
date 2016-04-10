@@ -1138,7 +1138,7 @@ registry.add('eslint-stylish', {
 });
 
 registry.add('go', {
-	owner: 'typescript',
+	owner: 'go',
 	applyTo: ApplyToKind.allDocuments,
 	fileLocation: FileLocationKind.Relative,
 	filePrefix: '${cwd}',
