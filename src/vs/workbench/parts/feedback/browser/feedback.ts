@@ -215,6 +215,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.sentiment = smile ? 1 : 0;
 		this.maxFeedbackCharacters = this.feedbackService.getCharacterLimit(this.sentiment);
 		this.updateCharCountText();
+		$(this.feedbackDescriptionInput).attr({ maxlength: this.maxFeedbackCharacters });
 	}
 
 	protected invoke(element: Builder, callback: () => void): Builder {
