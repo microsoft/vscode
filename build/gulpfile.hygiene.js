@@ -54,7 +54,8 @@ var indentationFilter = [
 	'!**/vs/loader.js',
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
-	'!extensions/**/themes/**'
+	'!extensions/**/themes/**',
+	'!extensions/**/colorize-fixtures/**'
 ];
 
 var copyrightFilter = [
