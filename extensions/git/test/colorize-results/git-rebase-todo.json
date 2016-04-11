@@ -1,0 +1,541 @@
+[
+	{
+		"c": "pick",
+		"t": "meta.commit-command.git-rebase.support.function",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.support.function.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.function.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.support.function.git-rebase"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "1fc6c95",
+		"t": "meta.commit-command.git-rebase.constant.sha",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.sha.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.sha.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.sha.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.sha.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.sha.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Patch A",
+		"t": "meta.commit-command.git-rebase.commit-message",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "squash",
+		"t": "meta.commit-command.git-rebase.support.function",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.support.function.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.function.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.support.function.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "fa39187",
+		"t": "meta.commit-command.git-rebase.constant.sha",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.sha.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.sha.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.sha.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.sha.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.sha.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Something to add to patch A",
+		"t": "meta.commit-command.git-rebase.commit-message",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "pick",
+		"t": "meta.commit-command.git-rebase.support.function",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.support.function.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.function.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.support.function.git-rebase"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "7b36971",
+		"t": "meta.commit-command.git-rebase.constant.sha",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.sha.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.sha.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.sha.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.sha.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.sha.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Something to move before patch B",
+		"t": "meta.commit-command.git-rebase.commit-message",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "pick",
+		"t": "meta.commit-command.git-rebase.support.function",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.support.function.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.function.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.support.function.git-rebase"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "6b2481b",
+		"t": "meta.commit-command.git-rebase.constant.sha",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.sha.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.sha.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.sha.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.sha.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.sha.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Patch B",
+		"t": "meta.commit-command.git-rebase.commit-message",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "fixup",
+		"t": "meta.commit-command.git-rebase.support.function",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.support.function.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.function.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.support.function.git-rebase"
+		}
+	},
+	{
+		"c": "   ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "c619268",
+		"t": "meta.commit-command.git-rebase.constant.sha",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.sha.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.sha.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.sha.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.sha.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.sha.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "A fix for Patch B",
+		"t": "meta.commit-command.git-rebase.commit-message",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "edit",
+		"t": "meta.commit-command.git-rebase.support.function",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.support.function.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.function.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.support.function.git-rebase"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "dd1475d",
+		"t": "meta.commit-command.git-rebase.constant.sha",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.sha.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.sha.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.sha.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.sha.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.sha.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Something I want to split",
+		"t": "meta.commit-command.git-rebase.commit-message",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "reword",
+		"t": "meta.commit-command.git-rebase.support.function",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.function.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.function.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.support.function.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.function.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.support.function.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "4ca2acc",
+		"t": "meta.commit-command.git-rebase.constant.sha",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.constant.sha.git-rebase",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.constant.sha.git-rebase",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.constant.sha.git-rebase",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.constant.sha.git-rebase",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.constant.sha.git-rebase"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.commit-command.git-rebase",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "i cant' typ goods",
+		"t": "meta.commit-command.git-rebase.commit-message",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "#",
+		"t": "git-rebase.comment.line.number-sign.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " Commands:",
+		"t": "git-rebase.comment.line.number-sign",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "#",
+		"t": "git-rebase.comment.line.number-sign.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  p, pick = use commit",
+		"t": "git-rebase.comment.line.number-sign",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "#",
+		"t": "git-rebase.comment.line.number-sign.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  r, reword = use commit, but edit the commit message",
+		"t": "git-rebase.comment.line.number-sign",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "#",
+		"t": "git-rebase.comment.line.number-sign.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  e, edit = use commit, but stop for amending",
+		"t": "git-rebase.comment.line.number-sign",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "#",
+		"t": "git-rebase.comment.line.number-sign.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  s, squash = use commit, but meld into previous commit",
+		"t": "git-rebase.comment.line.number-sign",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "#",
+		"t": "git-rebase.comment.line.number-sign.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  f, fixup = like \"squash\", but discard this commit's log message",
+		"t": "git-rebase.comment.line.number-sign",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "#",
+		"t": "git-rebase.comment.line.number-sign.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  x, exec = run command (the rest of the line) using shell",
+		"t": "git-rebase.comment.line.number-sign",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	}
+]
