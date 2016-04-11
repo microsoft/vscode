@@ -176,6 +176,6 @@ KeybindingsRegistry.registerCommandDesc({
 
 	},
 	context: undefined,
-	primary: KeyMod.Shift | KeyCode.F11
+	primary: undefined
 });
 
