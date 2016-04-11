@@ -10,9 +10,9 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition} from 'vs/editor/common/editorCommon';
-import {ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
+import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {ISuggestResult2, SuggestRegistry, suggest} from '../common/suggest';
+import {ISuggestResult2, suggest} from '../common/suggest';
 import {CompletionModel} from './completionModel';
 
 export interface ICancelEvent {

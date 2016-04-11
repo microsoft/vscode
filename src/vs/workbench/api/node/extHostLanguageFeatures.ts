@@ -25,7 +25,6 @@ import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 
 // --- adapter
@@ -1022,7 +1021,7 @@ export class MainThreadLanguageFeatures {
 	// --- suggest
 
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
-		this._registrations[handle] = SuggestRegistry.register(selector, <modes.ISuggestSupport>{
+		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			suggest: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.ISuggestResult[]> => {
 				return this._proxy.$suggest(handle, resource, position);
 			},

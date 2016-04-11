@@ -14,11 +14,11 @@ import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/key
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {ISuggestSupport} from 'vs/editor/common/modes';
+import {ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
-import {ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE, SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
+import {ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE} from 'vs/editor/contrib/suggest/common/suggest';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {withCodeEditorFromCommandHandler} from 'vs/editor/common/config/config';
 import {SuggestModel} from './suggestModel';

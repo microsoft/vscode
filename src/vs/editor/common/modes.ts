@@ -763,3 +763,5 @@ export interface IRichEditSupport {
 export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
 
 export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
+
+export var SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
