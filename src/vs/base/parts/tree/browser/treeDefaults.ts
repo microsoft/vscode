@@ -319,11 +319,12 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			var focus = tree.getFocus();
-			tree.collapse(focus).done((didCollapse) => {
+			tree.collapse(focus).then(didCollapse => {
 				if (focus && !didCollapse) {
 					tree.focusParent(payload);
+					return tree.reveal(tree.getFocus());
 				}
-			});
+			}).done(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
