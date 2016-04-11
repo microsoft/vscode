@@ -761,3 +761,5 @@ export interface IRichEditSupport {
 // --- feature registries ------
 
 export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
+
+export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');

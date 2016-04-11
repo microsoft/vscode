@@ -22,7 +22,6 @@ import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/word
 import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
-import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
@@ -1012,7 +1011,7 @@ export class MainThreadLanguageFeatures {
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = RenameRegistry.register(selector, <modes.IRenameSupport>{
+		this._registrations[handle] = modes.RenameRegistry.register(selector, <modes.IRenameSupport>{
 			rename: (resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> => {
 				return this._proxy.$rename(handle, resource, position, newName);
 			}
