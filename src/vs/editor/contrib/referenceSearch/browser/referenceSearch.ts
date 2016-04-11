@@ -300,11 +300,9 @@ function metaTitle(references: IReference[]): string {
 	}
 }
 
-let findReferencesCommand: ICommandHandler = (accessor, args) => {
+let findReferencesCommand: ICommandHandler = (accessor, args:[URI, editorCommon.IPosition]) => {
 
-	let resource = <URI>args[0];
-	let position = <editorCommon.IPosition>args[1];
-
+	let [resource, position] = args;
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri');
 	}
