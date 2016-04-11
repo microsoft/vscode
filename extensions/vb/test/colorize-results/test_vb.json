@@ -1,0 +1,2180 @@
+[
+	{
+		"c": "'",
+		"t": "comment.line.apostrophe.asp.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " Copyright (c) Microsoft Corporation. All rights reserved.",
+		"t": "comment.line.apostrophe.asp",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "Public Sub ",
+		"t": "asp.storage.type",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type"
+		}
+	},
+	{
+		"c": "LongTask",
+		"t": "asp.support.function.entity.name",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "(",
+		"t": "asp.punctuation.meta.round-brackets.section.begin",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "ByVal",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " Duration ",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "As",
+		"t": "asp.meta.round-brackets.keyword.operator",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Single",
+		"t": "asp.type.support.meta.round-brackets.vb",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ",",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " _",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.round-brackets.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "ByVal MinimumInterval ",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "As",
+		"t": "asp.meta.round-brackets.keyword.operator",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Single",
+		"t": "asp.type.support.meta.round-brackets.vb",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ")",
+		"t": "asp.punctuation.meta.round-brackets.section.end",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Dim",
+		"t": "asp.storage.type.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type"
+		}
+	},
+	{
+		"c": " ",
+		"t": "asp.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Threshold",
+		"t": "asp.variable.other.dim.bfeac",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "asp.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "As",
+		"t": "asp.keyword.operator",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Single",
+		"t": "asp.type.support.vb",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Dim",
+		"t": "asp.storage.type.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type"
+		}
+	},
+	{
+		"c": " ",
+		"t": "asp.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Start",
+		"t": "asp.variable.other.dim.bfeac",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "asp.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "As",
+		"t": "asp.keyword.operator",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Single",
+		"t": "asp.type.support.vb",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Dim",
+		"t": "asp.storage.type.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type"
+		}
+	},
+	{
+		"c": " ",
+		"t": "asp.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "blnCancel",
+		"t": "asp.variable.other.dim.bfeac",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "asp.variable.other.dim",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "As",
+		"t": "asp.keyword.operator",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Boolean",
+		"t": "asp.type.support.vb",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "'",
+		"t": "comment.line.apostrophe.asp.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " The Timer property of the DateAndTime object returns the seconds",
+		"t": "comment.line.apostrophe.asp",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "'",
+		"t": "comment.line.apostrophe.asp.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " and milliseconds that have passed since midnight.",
+		"t": "comment.line.apostrophe.asp",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Start",
+		"t": "asp.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "=",
+		"t": "keyword.operator.js",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "CSng",
+		"t": "asp.support.function.vb",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "(",
+		"t": "asp.punctuation.meta.round-brackets.section.begin",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Timer",
+		"t": "asp.support.function.meta.round-brackets.vb",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ")",
+		"t": "asp.punctuation.meta.round-brackets.section.end",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Threshold",
+		"t": "asp.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "=",
+		"t": "keyword.operator.js",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " MinimumInterval",
+		"t": "asp.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Do",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "While",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "CSng",
+		"t": "asp.support.function.vb",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "(",
+		"t": "asp.punctuation.meta.round-brackets.section.begin",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Timer",
+		"t": "asp.support.function.meta.round-brackets.vb",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ")",
+		"t": "asp.punctuation.meta.round-brackets.section.end",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "<",
+		"t": "keyword.operator.js",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "(",
+		"t": "asp.punctuation.meta.round-brackets.section.begin",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Start",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "+",
+		"t": "meta.round-brackets.keyword.operator.js",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " Duration",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ")",
+		"t": "asp.punctuation.meta.round-brackets.section.end",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "'",
+		"t": "comment.line.apostrophe.asp.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " In a real application, some unit of work would",
+		"t": "comment.line.apostrophe.asp",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "'",
+		"t": "comment.line.apostrophe.asp.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " be done here each time through the loop.",
+		"t": "comment.line.apostrophe.asp",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "If",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "CSng",
+		"t": "asp.support.function.vb",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "(",
+		"t": "asp.punctuation.meta.round-brackets.section.begin",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Timer",
+		"t": "asp.support.function.meta.round-brackets.vb",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ")",
+		"t": "asp.punctuation.meta.round-brackets.section.end",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ">",
+		"t": "keyword.operator.js",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "(",
+		"t": "asp.punctuation.meta.round-brackets.section.begin",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Start",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "+",
+		"t": "meta.round-brackets.keyword.operator.js",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " Threshold",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ")",
+		"t": "asp.punctuation.meta.round-brackets.section.end",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Then",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "RaiseEvent ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "PercentDone",
+		"t": "asp.support.function.entity.name",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.function",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "(",
+		"t": "asp.punctuation.meta.round-brackets.section.begin",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " _",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.round-brackets.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Threshold",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " /",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " Duration",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ",",
+		"t": "meta.round-brackets",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " blnCancel",
+		"t": "asp.meta.round-brackets.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ")",
+		"t": "asp.punctuation.meta.round-brackets.section.end",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "'",
+		"t": "comment.line.apostrophe.asp.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " Check to see if the operation was canceled.",
+		"t": "comment.line.apostrophe.asp",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "If",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": " blnCancel ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Then",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Exit Sub",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Threshold",
+		"t": "asp.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "=",
+		"t": "keyword.operator.js",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " Threshold",
+		"t": "asp.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "+",
+		"t": "keyword.operator.js",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.operator",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.operator",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.operator",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.operator",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.operator"
+		}
+	},
+	{
+		"c": " MinimumInterval",
+		"t": "asp.variable.other",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "End If",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.odd-tab.spaces",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "meta.leading-space.spaces.even-tab",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.leading-space",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Loop",
+		"t": "asp.keyword.control",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control"
+		}
+	},
+	{
+		"c": "End Sub",
+		"t": "asp.storage.type",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.storage.type",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.storage.type",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.storage.type"
+		}
+	}
+]

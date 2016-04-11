@@ -1,0 +1,1663 @@
+[
+	{
+		"c": "# Header 1 #",
+		"t": "entity.name.tag.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "## Header 2 ##",
+		"t": "entity.name.tag.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "### Header 3 ###",
+		"t": "entity.name.tag.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "             (Hashes on right are optional)",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "## Markdown plus h2 with a custom ID ##",
+		"t": "entity.name.tag.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "   ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "{#id-goes-here}",
+		"t": "string.target.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "[",
+		"t": "string.link.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "Link back to H2",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "](#id-goes-here)",
+		"t": "string.link.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "<!--",
+		"t": "comment.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " html madness ",
+		"t": "comment.content.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "-->",
+		"t": "comment.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": "<div",
+		"t": "entity.name.tag.tag-div.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": " ",
+		"t": "white.md",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "class",
+		"t": "entity.other.attribute-name.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name"
+		}
+	},
+	{
+		"c": "=",
+		"t": "meta.tag.assign.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.tag"
+		}
+	},
+	{
+		"c": "\"custom-class\"",
+		"t": "string.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string.html",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string.html",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": " ",
+		"t": "white.md",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "markdown",
+		"t": "entity.other.attribute-name.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name"
+		}
+	},
+	{
+		"c": "=",
+		"t": "meta.tag.assign.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.tag"
+		}
+	},
+	{
+		"c": "\"1\"",
+		"t": "string.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string.html",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string.html",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": ">",
+		"t": "entity.name.tag.tag-div.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "<div>",
+		"t": "entity.name.tag.tag-div.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "    nested div",
+		"t": "string.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "</div>",
+		"t": "entity.name.tag.tag-div.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "<script",
+		"t": "entity.name.tag.tag-script.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": " ",
+		"t": "white.md",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "type",
+		"t": "entity.other.attribute-name.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name"
+		}
+	},
+	{
+		"c": "=",
+		"t": "meta.tag.assign.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.tag"
+		}
+	},
+	{
+		"c": "'text/x-koka'",
+		"t": "string.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string.html",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string.html",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": ">",
+		"t": "entity.name.tag.tag-script.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "    function( x: int ) { return x*x; }",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "</script>",
+		"t": "entity.name.tag.tag-script.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "  This is a div ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "_with_",
+		"t": "emphasis.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.emphasis",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.emphasis",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.emphasis",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.emphasis",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.emphasis"
+		}
+	},
+	{
+		"c": " underscores",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  and a & ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "<b",
+		"t": "entity.name.tag.tag-b.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": " ",
+		"t": "white.md",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "class",
+		"t": "entity.other.attribute-name.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name"
+		}
+	},
+	{
+		"c": "=",
+		"t": "meta.tag.assign.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.tag"
+		}
+	},
+	{
+		"c": "\"bold\"",
+		"t": "string.html.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string.html",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string.html",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": ">",
+		"t": "entity.name.tag.tag-b.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "bold",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "</b>",
+		"t": "entity.name.tag.tag-b.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": " element.",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "<style>",
+		"t": "entity.name.tag.tag-style.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "css.meta.selector",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.selector",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.selector",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.selector",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.selector",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.selector"
+		}
+	},
+	{
+		"c": "body",
+		"t": "css.meta.selector.entity.name.tag",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.selector",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.selector",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.selector",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.selector",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.selector"
+		}
+	},
+	{
+		"c": " ",
+		"t": "css.meta.selector",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.selector",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.selector",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.selector",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.selector",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.selector"
+		}
+	},
+	{
+		"c": "{",
+		"t": "css.punctuation.meta.property-list.section.begin",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "css.meta.property-list",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "font",
+		"t": "css.meta.property-list.property-name.support.type",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.support.type.property-name",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.support.type.property-name.css",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.support.type.property-name",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.support.type.property-name.css",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.support.type.property-name"
+		}
+	},
+	{
+		"c": ":",
+		"t": "css.punctuation.meta.property-list.property-value.separator.key-value",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "css.meta.property-list.property-value",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "css.punctuation.definition.meta.property-list.begin.property-value.string.quoted.double",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "Consolas",
+		"t": "css.meta.property-list.property-value.string.quoted.double",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "css.punctuation.definition.meta.property-list.property-value.end.string.quoted.double",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": " ",
+		"t": "css.meta.property-list.property-value",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "}",
+		"t": "css.punctuation.meta.property-list.section.end",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "</style>",
+		"t": "entity.name.tag.tag-style.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "</div>",
+		"t": "entity.name.tag.tag-div.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "* ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "Bullet lists are easy too",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "- ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "Another one",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "+ ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "Another one",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "This is a paragraph, which is text surrounded by",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "whitespace. Paragraphs can be on one",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "line (or many), and can drone on for hours.",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Now some inline markup like ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "_italics_",
+		"t": "emphasis.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.emphasis",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.emphasis",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.emphasis",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.emphasis",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.emphasis"
+		}
+	},
+	{
+		"c": ",  ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "**bold**",
+		"t": "strong.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.strong",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.strong",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.strong",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.strong",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.strong"
+		}
+	},
+	{
+		"c": ",",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "and ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "`code()`",
+		"t": "variable.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ". Note that underscores",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "in_words_are ignored.",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "````application/json",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "{ value: [\"or with a mime type\"] }",
+		"t": "string.target.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "````",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ">",
+		"t": "comment.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " Blockquotes are like quoted text in email replies",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ">>",
+		"t": "comment.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+		}
+	},
+	{
+		"c": " And, they can be nested",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "1. ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "A numbered list",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "2. ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "Which is numbered",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "3. ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "With periods and a space",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "And now some code:",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "    // Code is just text indented a bit",
+		"t": "string.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "    which(is_easy) to_remember();",
+		"t": "string.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "And a block",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "~~~",
+		"t": "string.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "// Markdown extra adds un-indented code blocks too",
+		"t": "variable.source.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "if (this_is_more_code == true && !indented) {",
+		"t": "variable.source.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "    // tild wrapped code blocks, also not indented",
+		"t": "variable.source.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "}",
+		"t": "variable.source.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "~~~",
+		"t": "string.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "Text with",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "two trailing spaces",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "(on the right)",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "can be used",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "for things like poems",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "### Horizontal rules",
+		"t": "entity.name.tag.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "* * * *",
+		"t": "meta.separator.md",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "****",
+		"t": "meta.separator.md",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "--------------------------",
+		"t": "entity.other.attribute-name.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.other.attribute-name",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.other.attribute-name",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.other.attribute-name",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.other.attribute-name",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.other.attribute-name"
+		}
+	},
+	{
+		"c": "![",
+		"t": "string.link.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "picture alt",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "](/images/photo.jpeg \"Title is optional\")",
+		"t": "string.link.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": "## Markdown plus tables ##",
+		"t": "entity.name.tag.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "| Header | Header | Right  |",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "| ------ | ------ | -----: |",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "|  Cell  |  Cell  |   $10  |",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "|  Cell  |  Cell  |   $20  |",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "* ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "Outer pipes on tables are optional",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "* ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "Colon used for alignment (right versus left)",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "## Markdown plus definition lists ##",
+		"t": "entity.name.tag.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": "Bottled water",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ": ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "$ 1.25",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ": ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "$ 1.55 (Large)",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Milk",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "Pop",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": ": ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "$ 1.75",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "* ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "Multiple definitions and terms are possible",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "* ",
+		"t": "keyword.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword"
+		}
+	},
+	{
+		"c": "Definitions can include multiple paragraphs too",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "*",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "[ABBR]",
+		"t": "string.link.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.string",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.string",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.string",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.string",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.string"
+		}
+	},
+	{
+		"c": ": Markdown plus abbreviations (produces an ",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "<abbr>",
+		"t": "entity.name.tag.tag-abbr.md",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.tag",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.tag",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.entity.name.tag",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.entity.name.tag",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.entity.name.tag"
+		}
+	},
+	{
+		"c": " tag)",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	}
+]
