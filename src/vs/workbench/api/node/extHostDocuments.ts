@@ -294,7 +294,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	}
 
 	get isDocumentReferenced(): boolean {
-		return this._documentRef && !weak.isDead(this._documentRef);
+		return weak.isWeakRef(this._documentRef) && !weak.isDead(this._documentRef);
 	}
 
 	_acceptLanguageId(newLanguageId: string): void {
