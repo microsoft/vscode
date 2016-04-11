@@ -9,17 +9,17 @@ import { AIAdapter } from 'vs/base/node/aiAdapter';
 
 interface IAppInsightsEvent {
 	eventName: string;
-	properties?: {string?: string;};
-	measurements?: {string?: number;}
+	properties?: { string?: string; };
+	measurements?: { string?: number; };
 }
 
 class AppInsightsMock {
 
-	public events: IAppInsightsEvent[]=[];
+	public events: IAppInsightsEvent[] = [];
 	public IsTrackingPageView: boolean = false;
-	public exceptions: any[] =[];
+	public exceptions: any[] = [];
 
-	public trackEvent(eventName: string, properties?: {string?: string;}, measurements?: {string?: number;}): void {
+	public trackEvent(eventName: string, properties?: { string?: string; }, measurements?: { string?: number; }): void {
 		this.events.push({
 			eventName: eventName,
 			properties: properties,
@@ -65,14 +65,14 @@ suite('AIAdapter', () => {
 
 	test('property limits', () => {
 		var reallyLongPropertyName = 'abcdefghijklmnopqrstuvwxyz';
-		for (var i =0; i <6; i++) {
-			reallyLongPropertyName +='abcdefghijklmnopqrstuvwxyz';
+		for (var i = 0; i < 6; i++) {
+			reallyLongPropertyName += 'abcdefghijklmnopqrstuvwxyz';
 		}
 		assert(reallyLongPropertyName.length > 150);
 
 		var reallyLongPropertyValue = 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
-		for (var i =0; i <21; i++) {
-			reallyLongPropertyValue +='abcdefghijklmnopqrstuvwxyz012345678901234567890123';
+		for (var i = 0; i < 21; i++) {
+			reallyLongPropertyValue += 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
 		}
 		assert(reallyLongPropertyValue.length > 1024);
 
@@ -83,15 +83,15 @@ suite('AIAdapter', () => {
 
 		assert.equal(appInsightsMock.events.length, 1);
 
-		for (var prop in appInsightsMock.events[0].properties){
+		for (var prop in appInsightsMock.events[0].properties) {
 			assert(prop.length < 150);
-			assert(appInsightsMock.events[0].properties[prop].length <1024);
+			assert(appInsightsMock.events[0].properties[prop].length < 1024);
 		}
 	});
 
 	test('Different data types', () => {
 		var date = new Date();
-		adapter.log('testEvent', { favoriteDate: date, likeRed: false, likeBlue: true, favoriteNumber:1,  favoriteColor: 'blue', favoriteCars: ['bmw', 'audi', 'ford']});
+		adapter.log('testEvent', { favoriteDate: date, likeRed: false, likeBlue: true, favoriteNumber: 1, favoriteColor: 'blue', favoriteCars: ['bmw', 'audi', 'ford'] });
 
 		assert.equal(appInsightsMock.events.length, 1);
 		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
@@ -105,7 +105,7 @@ suite('AIAdapter', () => {
 
 	test('Nested data', () => {
 		adapter.log('testEvent', {
-			window : {
+			window: {
 				title: 'some title',
 				measurements: {
 					width: 100,
@@ -118,7 +118,7 @@ suite('AIAdapter', () => {
 						testProperty: 'test',
 					}
 				},
-				testMeasurement:1
+				testMeasurement: 1
 			}
 		});
 
@@ -129,7 +129,7 @@ suite('AIAdapter', () => {
 		assert.equal(appInsightsMock.events[0].measurements['window.measurements.width'], 100);
 		assert.equal(appInsightsMock.events[0].measurements['window.measurements.height'], 200);
 
-		assert.equal(appInsightsMock.events[0].properties['nestedObj.nestedObj2.nestedObj3'], JSON.stringify({"testProperty":"test"}));
-		assert.equal(appInsightsMock.events[0].measurements['nestedObj.testMeasurement'],1);
+		assert.equal(appInsightsMock.events[0].properties['nestedObj.nestedObj2.nestedObj3'], JSON.stringify({ 'testProperty': 'test' }));
+		assert.equal(appInsightsMock.events[0].measurements['nestedObj.testMeasurement'], 1);
 	});
 });

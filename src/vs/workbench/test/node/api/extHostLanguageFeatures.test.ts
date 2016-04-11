@@ -7,13 +7,11 @@
 
 import * as assert from 'assert';
 import {setUnexpectedErrorHandler, errorHandler} from 'vs/base/common/errors';
-import {create} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
-import {TestThreadService} from './testThreadService'
+import {TestThreadService} from './testThreadService';
 import {createInstantiationService as createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -172,7 +170,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
 			provideCodeLenses(): any {
-				throw new Error('evil')
+				throw new Error('evil');
 			}
 		}));
 		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
@@ -325,7 +323,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				throw new Error('evil provider')
+				throw new Error('evil provider');
 			}
 		}));
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
@@ -351,7 +349,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
-				return new types.Hover('Hello')
+				return new types.Hover('Hello');
 			}
 		}));
 
@@ -420,12 +418,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
-				throw new Error('evil')
+				throw new Error('evil');
 			}
 		}));
 		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
-				return new types.Hover('Hello')
+				return new types.Hover('Hello');
 			}
 		}));
 
@@ -445,7 +443,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))]
+				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
 			}
 		}));
 
@@ -465,12 +463,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
-				return []
+				return [];
 			}
 		}));
 		disposables.push(extHost.registerDocumentHighlightProvider('*', <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))]
+				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
 			}
 		}));
 
@@ -490,12 +488,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 2))]
+				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 2))];
 			}
 		}));
 		disposables.push(extHost.registerDocumentHighlightProvider('*', <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))]
+				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
 			}
 		}));
 
@@ -521,7 +519,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDocumentHighlightProvider(defaultSelector, <vscode.DocumentHighlightProvider>{
 			provideDocumentHighlights(): any {
-				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))]
+				return [new types.DocumentHighlight(new types.Range(0, 0, 0, 4))];
 			}
 		}));
 
@@ -659,10 +657,10 @@ suite('ExtHostLanguageFeatures', function() {
 					assert.equal(value, undefined);
 
 					assert.equal(actualArgs.length, 4);
-					assert.equal(actualArgs[0], true)
-					assert.equal(actualArgs[1], 1)
+					assert.equal(actualArgs[0], true);
+					assert.equal(actualArgs[1], 1);
 					assert.deepEqual(actualArgs[2], { bar: 'boo', foo: 'far' });
-					assert.equal(actualArgs[3], null)
+					assert.equal(actualArgs[3], null);
 					done();
 				});
 			});
@@ -702,7 +700,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerWorkspaceSymbolProvider(<vscode.WorkspaceSymbolProvider>{
 			provideWorkspaceSymbols(): any {
-				return [new types.SymbolInformation('testing', types.SymbolKind.Array, new types.Range(0, 0, 1, 1))]
+				return [new types.SymbolInformation('testing', types.SymbolKind.Array, new types.Range(0, 0, 1, 1))];
 			}
 		}));
 
@@ -803,7 +801,7 @@ suite('ExtHostLanguageFeatures', function() {
 			}, err => {
 				assert.equal(err.message, 'evil');
 				done();
-			})
+			});
 		});
 	});
 
@@ -827,8 +825,8 @@ suite('ExtHostLanguageFeatures', function() {
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.ok(value.length >= 1); // check for min because snippets and others contribute
 				let [first] = value;
-				assert.equal(first.suggestions.length, 1)
-				assert.equal(first.suggestions[0].codeSnippet, 'testing2')
+				assert.equal(first.suggestions.length, 1);
+				assert.equal(first.suggestions[0].codeSnippet, 'testing2');
 				done();
 			});
 		});
@@ -852,12 +850,12 @@ suite('ExtHostLanguageFeatures', function() {
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.ok(value.length >= 1);
 				let [first] = value;
-				assert.equal(first.suggestions.length, 1)
-				assert.equal(first.suggestions[0].codeSnippet, 'weak-selector')
+				assert.equal(first.suggestions.length, 1);
+				assert.equal(first.suggestions[0].codeSnippet, 'weak-selector');
 				done();
 			});
 		});
-	})
+	});
 
 	test('Suggest, order 2/3', function(done) {
 
@@ -878,14 +876,14 @@ suite('ExtHostLanguageFeatures', function() {
 				suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 					assert.ok(value.length >= 2);
 					let [first, second] = value;
-					assert.equal(first.suggestions.length, 1)
-					assert.equal(first.suggestions[0].codeSnippet, 'strong-2') // last wins
-					assert.equal(second.suggestions[0].codeSnippet, 'strong-1')
+					assert.equal(first.suggestions.length, 1);
+					assert.equal(first.suggestions[0].codeSnippet, 'strong-2'); // last wins
+					assert.equal(second.suggestions[0].codeSnippet, 'strong-1');
 					done();
 				});
 			});
 		}, 5);
-	})
+	});
 
 	test('Suggest, evil provider', function(done) {
 
@@ -975,7 +973,7 @@ suite('ExtHostLanguageFeatures', function() {
 				done();
 			});
 		});
-	})
+	});
 
 	test('Format Range, + format_doc', function(done) {
 		disposables.push(extHost.registerDocumentRangeFormattingEditProvider(defaultSelector, <vscode.DocumentRangeFormattingEditProvider>{
@@ -1008,7 +1006,7 @@ suite('ExtHostLanguageFeatures', function() {
 		threadService.sync().then(() => {
 			formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(undefined, err => done());
 		});
-	})
+	});
 
 	test('Format on Type, data conversion', function(done) {
 

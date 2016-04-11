@@ -13,12 +13,11 @@ import fs = require('fs');
 
 import uuid = require('vs/base/common/uuid');
 import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
 import extfs = require('vs/base/node/extfs');
 
 suite('Extfs', () => {
 
-	test('mkdirp', function(done: () => void) {
+	test('mkdirp', function (done: () => void) {
 		var id = uuid.generateUuid();
 		var parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		var newDir = path.join(parentDir, 'extfs', id);
@@ -27,11 +26,11 @@ suite('Extfs', () => {
 			assert.ok(!error);
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.del(parentDir, os.tmpdir(), () => {}, done);
+			extfs.del(parentDir, os.tmpdir(), () => { }, done);
 		}); // 493 = 0755
 	});
 
-	test('copy, move and delete', function(done: () => void) {
+	test('copy, move and delete', function (done: () => void) {
 		var id = uuid.generateUuid();
 		var id2 = uuid.generateUuid();
 		var sourceDir = require.toUrl('./fixtures');
@@ -75,7 +74,7 @@ suite('Extfs', () => {
 		});
 	});
 
-	test('readdir', function(done: () => void) {
+	test('readdir', function (done: () => void) {
 		if (strings.canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
 			var id = uuid.generateUuid();
 			var parentDir = path.join(os.tmpdir(), 'vsctests', id);
@@ -88,7 +87,7 @@ suite('Extfs', () => {
 				extfs.readdir(path.join(parentDir, 'extfs', id), (error, children) => {
 					assert.equal(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 
-					extfs.del(parentDir, os.tmpdir(), () => {}, done);
+					extfs.del(parentDir, os.tmpdir(), () => { }, done);
 				});
 			}); // 493 = 0755
 		} else {
