@@ -86,7 +86,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 				// no more than 250 diagnostics per file
 				if (diagnostics.length > DiagnosticCollection._maxDiagnosticsPerFile) {
-					console.warn('diagnostics for %s will be capped to %d (actually is %d)', uri, DiagnosticCollection._maxDiagnosticsPerFile, diagnostics.length);
+					console.warn('diagnostics for %s will be capped to %d (actually is %d)', uri.toString(), DiagnosticCollection._maxDiagnosticsPerFile, diagnostics.length);
 					diagnostics = diagnostics.slice(0, DiagnosticCollection._maxDiagnosticsPerFile);
 				}
 				marker = diagnostics.map(DiagnosticCollection._toMarkerData);
