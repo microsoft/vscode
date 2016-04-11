@@ -1,255 +1,255 @@
 [
 	{
 		"c": "This is the summary line. It can't be too long.",
-		"t": "meta.scope.message.git-commit.subject",
+		"t": "git-commit.message.meta.scope.subject",
 		"r": {
-			"dark_plus": ".vs-dark .token",
-			"light_plus": ".vs .token",
-			"dark_vs": ".vs-dark .token",
-			"light_vs": ".vs .token",
-			"hc_black": ".hc-black .token"
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "After I can write a much more detailed description without quite the same restrictions on length.",
-		"t": "meta.scope.message.git-commit",
+		"t": "git-commit.message.meta.scope",
 		"r": {
-			"dark_plus": ".vs-dark .token",
-			"light_plus": ".vs .token",
-			"dark_vs": ".vs-dark .token",
-			"light_vs": ".vs .token",
-			"hc_black": ".hc-black .token"
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": " Please enter the commit message for your changes. Lines starting",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign",
+		"t": "comment.git-commit.line.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": " with '#' will be ignored, and an empty message aborts the commit.",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign",
+		"t": "comment.git-commit.line.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": " On branch master",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign",
+		"t": "comment.git-commit.line.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": " Your branch is up-to-date with 'origin/master'.",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign",
+		"t": "comment.git-commit.line.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": " Changes to be committed:",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign",
+		"t": "comment.git-commit.line.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign",
+		"t": "comment.git-commit.line.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "deleted:    README.md",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.markup.deleted",
+		"t": "comment.deleted.git-commit.line.markup.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted rgb(163, 21, 21)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted rgb(163, 21, 21)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted rgb(206, 145, 120)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign",
+		"t": "comment.git-commit.line.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "modified:   index.less",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.markup.changed",
+		"t": "changed.comment.git-commit.line.markup.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.changed",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.changed",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.changed",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.changed",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.changed"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.changed rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.changed rgb(4, 81, 165)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.changed rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.changed rgb(4, 81, 165)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.changed rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign",
+		"t": "comment.git-commit.line.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	},
 	{
 		"c": "new file:   spec/COMMIT_EDITMSG",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.markup.inserted",
+		"t": "comment.git-commit.inserted.line.markup.meta.metadata.number-sign.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
 		}
 	},
 	{
 		"c": "#",
-		"t": "meta.scope.git-commit.metadata.comment.line.number-sign.punctuation.definition",
+		"t": "comment.definition.git-commit.line.meta.metadata.number-sign.punctuation.scope",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment rgb(96, 139, 78)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment rgb(0, 128, 0)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment rgb(124, 166, 104)"
 		}
 	}
 ]
