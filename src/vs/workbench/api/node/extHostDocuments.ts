@@ -269,9 +269,16 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		// document data. keeps a weak reference only such that
 		// we later when a document isn't needed anymore
 
-		if (!this.isDocumentReferenced) {
+		// console.log('isDocumentReferenced?', this.isDocumentReferenced, this._uri.fsPath);
+
+		let doc: vscode.TextDocument;
+		if (weak.isWeakRef(this._documentRef)) {
+			doc = weak.get(this._documentRef);
+		}
+
+		if (!doc) {
 			const data = this;
-			const doc = {
+			doc = {
 				get uri() { return data._uri; },
 				get fileName() { return data._uri.fsPath; },
 				get isUntitled() { return data._uri.scheme !== 'file'; },
@@ -290,11 +297,11 @@ export class ExtHostDocumentData extends MirrorModel2 {
 			};
 			this._documentRef = weak(doc);
 		}
-		return weak.get(this._documentRef);
+		return doc;
 	}
 
 	get isDocumentReferenced(): boolean {
-		return this._documentRef && !weak.isDead(this._documentRef);
+		return weak.isWeakRef(this._documentRef) && typeof weak.get(this._documentRef) === 'object';
 	}
 
 	_acceptLanguageId(newLanguageId: string): void {
