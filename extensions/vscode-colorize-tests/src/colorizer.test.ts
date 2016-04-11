@@ -25,9 +25,7 @@ function assertUnchangedTokens(testFixurePath:string, done) {
 				try {
 					assert.deepEqual(data, previousData);
 				} catch (e) {
-					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { mode: 'w' });
-					let errorResultPath = join(resultsFolderPath, fileName.replace('.', '_') + '.previous.json');
-					fs.writeFileSync(errorResultPath, JSON.stringify(previousData, null, '\t'), { mode: 'w' });
+					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
 					throw e;
 				}
 			} else {
