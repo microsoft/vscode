@@ -32,7 +32,7 @@ suite('FileService', () => {
 
 		extfs.copy(sourceDir, testDir, () => {
 			events = new utils.TestEventService();
-			service = new FileService(testDir, events, { disableWatcher: true });
+			service = new FileService(testDir, { disableWatcher: true }, events);
 			done();
 		});
 	});
@@ -457,11 +457,11 @@ suite('FileService', () => {
 				encoding: 'utf16le'
 			});
 
-			let _service = new FileService(_testDir, null, {
+			let _service = new FileService(_testDir, {
 				encoding: 'windows1252',
 				encodingOverride: encodingOverride,
 				disableWatcher: true
-			});
+			}, null);
 
 			_service.resolveContent(uri.file(path.join(testDir, 'index.html'))).done(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -485,9 +485,9 @@ suite('FileService', () => {
 		let _sourceDir = require.toUrl('./fixtures/service');
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
-		let _service = new FileService(_testDir, null, {
+		let _service = new FileService(_testDir, {
 			disableWatcher: true
-		});
+		}, null);
 
 		extfs.copy(_sourceDir, _testDir, () => {
 			fs.readFile(resource.fsPath, (error, data) => {

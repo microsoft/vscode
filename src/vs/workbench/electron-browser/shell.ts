@@ -259,7 +259,8 @@ export class WorkbenchShell {
 		let fileService = new FileService(
 			this.configurationService,
 			this.eventService,
-			this.contextService
+			this.contextService,
+			this.messageService
 		);
 
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
