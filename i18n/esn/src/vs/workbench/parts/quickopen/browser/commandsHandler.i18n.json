@@ -7,7 +7,7 @@
 	"QuickCommandsAction.label": "Mostrar comandos del editor",
 	"actionNotEnabled": "El comando '{0}' no está habilitado en el contexto actual.",
 	"canNotRun": "El comando '{0}' no puede ejecutarse desde aquí.",
-	"commandLabel": "{0}:{1}",
+	"commandLabel": "{0}: {1}",
 	"entryAriaLabel": "{0}, comandos",
 	"entryAriaLabelWithKey": "{0}, {1}, comandos",
 	"noCommandsMatching": "No hay comandos coincidentes",
