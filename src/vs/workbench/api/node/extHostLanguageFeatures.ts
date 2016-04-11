@@ -19,7 +19,6 @@ import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
@@ -942,7 +941,7 @@ export class MainThreadLanguageFeatures {
 	// --- references
 
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = ReferenceRegistry.register(selector, <modes.IReferenceSupport>{
+		this._registrations[handle] = modes.ReferenceSearchRegistry.register(selector, <modes.IReferenceSupport>{
 			canFindReferences() {
 				return true;
 			},

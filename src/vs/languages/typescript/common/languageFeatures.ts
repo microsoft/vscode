@@ -17,7 +17,6 @@ import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
-import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {OutlineRegistry} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
@@ -33,7 +32,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	disposables.push(ExtraInfoRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
 	disposables.push(OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
-	disposables.push(ReferenceRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
+	disposables.push(modes.ReferenceSearchRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
 	disposables.push(OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
 	disposables.push(FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
 	disposables.push(FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));

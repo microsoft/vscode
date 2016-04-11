@@ -25,11 +25,11 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IReference} from 'vs/editor/common/modes';
+import {IReference, ReferenceSearchRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {Events, IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {ReferenceRegistry, findReferences} from '../common/referenceSearch';
+import {findReferences} from '../common/referenceSearch';
 import {EventType, ReferencesModel} from './referenceSearchModel';
 import {ReferenceWidget} from './referenceSearchWidget';
 
@@ -267,7 +267,7 @@ export class ReferenceAction extends EditorAction {
 	}
 
 	public isSupported():boolean {
-		return ReferenceRegistry.has(this.editor.getModel()) && super.isSupported();
+		return ReferenceSearchRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState():boolean {
@@ -280,7 +280,7 @@ export class ReferenceAction extends EditorAction {
 		let context = model.getLineContext(position.lineNumber);
 		let offset = position.column - 1;
 
-		return ReferenceRegistry.all(model).some(support => {
+		return ReferenceSearchRegistry.all(model).some(support => {
 			return support.canFindReferences(context, offset);
 		});
 	}

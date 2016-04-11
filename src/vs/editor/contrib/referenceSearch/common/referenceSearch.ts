@@ -9,15 +9,12 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IReference, IReferenceSupport} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-
-export const ReferenceRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
+import {IReference, ReferenceSearchRegistry} from 'vs/editor/common/modes';
 
 export function findReferences(model: IModel, position: IPosition): TPromise<IReference[]> {
 
 	// collect references from all providers
-	const promises = ReferenceRegistry.ordered(model).map(provider => {
+	const promises = ReferenceSearchRegistry.ordered(model).map(provider => {
 		return provider.findReferences(model.getAssociatedResource(), position, true).then(result => {
 			if (Array.isArray(result)) {
 				return <IReference[]> result;
