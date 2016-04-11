@@ -1,0 +1,398 @@
+[
+	{
+		"c": "---",
+		"t": "meta.diff.header.from-file.punctuation.definition",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.header.diff",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.header",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.header.diff",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.header",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.header"
+		}
+	},
+	{
+		"c": " lao\tSat Jan 26 23:30:39 1991",
+		"t": "meta.diff.header.from-file",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.header.diff",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.header",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.header.diff",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.header",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.header"
+		}
+	},
+	{
+		"c": "+++",
+		"t": "meta.diff.header.punctuation.definition.to-file",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.header.diff",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.header",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.header.diff",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.header",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.header"
+		}
+	},
+	{
+		"c": " tzu\tSat Jan 26 23:30:50 1991",
+		"t": "meta.diff.header.to-file",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.header.diff",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.header",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.header.diff",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.header",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.header"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "meta.diff.punctuation.definition.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.diff.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "-1,7 +1,6",
+		"t": "meta.diff.range.unified.toc-list.line-number",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.diff.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "meta.diff.punctuation.definition.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "-",
+		"t": "diff.punctuation.definition.markup.deleted.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted"
+		}
+	},
+	{
+		"c": "The Way that can be told of is not the eternal Way;",
+		"t": "diff.markup.deleted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted"
+		}
+	},
+	{
+		"c": "-",
+		"t": "diff.punctuation.definition.markup.deleted.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted"
+		}
+	},
+	{
+		"c": "The name that can be named is not the eternal name.",
+		"t": "diff.markup.deleted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted"
+		}
+	},
+	{
+		"c": " The Nameless is the origin of Heaven and Earth;",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "-",
+		"t": "diff.punctuation.definition.markup.deleted.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted"
+		}
+	},
+	{
+		"c": "The Named is the mother of all things.",
+		"t": "diff.markup.deleted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted"
+		}
+	},
+	{
+		"c": "+",
+		"t": "diff.punctuation.definition.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	},
+	{
+		"c": "The named is the mother of all things.",
+		"t": "diff.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	},
+	{
+		"c": "+",
+		"t": "diff.punctuation.definition.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	},
+	{
+		"c": " Therefore let there always be non-being,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "   so we may see their subtlety,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " And let there always be being,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "meta.diff.punctuation.definition.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.diff.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "-9,3 +8,6",
+		"t": "meta.diff.range.unified.toc-list.line-number",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " ",
+		"t": "meta.diff.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "meta.diff.punctuation.definition.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " The two are the same,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": " But after they are produced,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "   they have different names.",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token",
+			"light_plus": ".vs .token",
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token"
+		}
+	},
+	{
+		"c": "+",
+		"t": "diff.punctuation.definition.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	},
+	{
+		"c": "They both may be called deep and profound.",
+		"t": "diff.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	},
+	{
+		"c": "+",
+		"t": "diff.punctuation.definition.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	},
+	{
+		"c": "Deeper and more profound,",
+		"t": "diff.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	},
+	{
+		"c": "+",
+		"t": "diff.punctuation.definition.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	},
+	{
+		"c": "The door of all subtleties!",
+		"t": "diff.markup.inserted",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted"
+		}
+	}
+]
