@@ -10,7 +10,7 @@ import * as Platform from 'vs/platform/platform';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Extensions} from 'vs/workbench/common/actionRegistry';
-import {Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
+import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {Action} from 'vs/base/common/actions';
 
 class MyClass extends Action {
@@ -19,12 +19,12 @@ class MyClass extends Action {
 	}
 }
 
-suite("Workbench Action Registry", () => {
+suite('Workbench Action Registry', () => {
 
-	test("Workbench Action Registration", function() {
+	test('Workbench Action Registration', function () {
 		let Registry = Platform.Registry.as(Extensions.WorkbenchActions);
 
-		let d = new SyncActionDescriptor(MyClass, "id", "name");
+		let d = new SyncActionDescriptor(MyClass, 'id', 'name');
 
 		let oldActions = Registry.getWorkbenchActions().slice(0);
 		let oldCount = Registry.getWorkbenchActions().length;
@@ -33,12 +33,12 @@ suite("Workbench Action Registry", () => {
 		Registry.registerWorkbenchAction(d);
 
 		assert.equal(Registry.getWorkbenchActions().length, 1 + oldCount);
-		assert.strictEqual(d, Registry.getWorkbenchAction("id"));
+		assert.strictEqual(d, Registry.getWorkbenchAction('id'));
 
 		Registry.setWorkbenchActions(oldActions);
 	});
 
-	test("Workbench Action Bar prepareActions()", function() {
+	test('Workbench Action Bar prepareActions()', function () {
 		let a1 = new Separator();
 		let a2 = new Separator();
 		let a3 = new Action('a3');

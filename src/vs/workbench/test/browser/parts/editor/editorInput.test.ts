@@ -7,7 +7,6 @@
 
 import * as assert from 'assert';
 import {EditorInput} from 'vs/workbench/common/editor';
-import {EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 
 class MyEditorInput extends EditorInput {
@@ -24,9 +23,9 @@ class MyEditorInput extends EditorInput {
 	}
 }
 
-suite("Workbench - EditorInput", () => {
+suite('Workbench - EditorInput', () => {
 
-	test("EditorInput", function() {
+	test('EditorInput', function () {
 		let counter = 0;
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
@@ -36,7 +35,7 @@ suite("Workbench - EditorInput", () => {
 		assert(!input.matches(null));
 		assert(!input.getName());
 
-		input.addListener("dispose", function() {
+		input.addListener('dispose', function () {
 			assert(true);
 			counter++;
 		});
@@ -45,21 +44,21 @@ suite("Workbench - EditorInput", () => {
 		assert.equal(counter, 1);
 	});
 
-	test("DiffEditorInput", function() {
+	test('DiffEditorInput', function () {
 		let counter = 0;
 		let input = new MyEditorInput();
-		input.addListener("dispose", function() {
+		input.addListener('dispose', function () {
 			assert(true);
 			counter++;
 		});
 
 		let otherInput = new MyEditorInput();
-		otherInput.addListener("dispose", function() {
+		otherInput.addListener('dispose', function () {
 			assert(true);
 			counter++;
 		});
 
-		let diffInput = new DiffEditorInput("name", "description", input, otherInput);
+		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
 		assert.equal(diffInput.getOriginalInput(), input);
 		assert.equal(diffInput.getModifiedInput(), otherInput);
@@ -71,13 +70,13 @@ suite("Workbench - EditorInput", () => {
 		assert.equal(counter, 2);
 	});
 
-	test("DiffEditorInput disposes when input inside disposes", function() {
+	test('DiffEditorInput disposes when input inside disposes', function () {
 		let counter = 0;
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
 
-		let diffInput = new DiffEditorInput("name", "description", input, otherInput);
-		diffInput.addListener("dispose", function() {
+		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
+		diffInput.addListener('dispose', function () {
 			counter++;
 			assert(true);
 		});
@@ -87,8 +86,8 @@ suite("Workbench - EditorInput", () => {
 		input = new MyEditorInput();
 		otherInput = new MyEditorInput();
 
-		let diffInput2 = new DiffEditorInput("name", "description", input, otherInput);
-		diffInput2.addListener("dispose", function() {
+		let diffInput2 = new DiffEditorInput('name', 'description', input, otherInput);
+		diffInput2.addListener('dispose', function () {
 			counter++;
 			assert(true);
 		});

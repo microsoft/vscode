@@ -452,13 +452,13 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return null;
 	}
 
-	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void {}
-	public dispose() {}
-	public quickNavigate(): void {}
+	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void { }
+	public dispose() { }
+	public quickNavigate(): void { }
 }
 
 export const TestFileService = {
-	resolveContent: function(resource) {
+	resolveContent: function (resource) {
 		return TPromise.as({
 			resource: resource,
 			value: 'Hello Html',
@@ -470,7 +470,7 @@ export const TestFileService = {
 		});
 	},
 
-	updateContent: function(res) {
+	updateContent: function (res) {
 		return TPromise.timeout(1).then(() => {
 			return {
 				resource: res,
@@ -491,7 +491,7 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 		return {};
 	}
 
-	public hasWorkspaceConfiguration():boolean {
+	public hasWorkspaceConfiguration(): boolean {
 		return false;
 	}
 

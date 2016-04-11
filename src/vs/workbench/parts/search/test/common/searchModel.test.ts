@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import model = require('vs/editor/common/model/model');
 import {Emitter} from 'vs/base/common/event';
-import {IModel, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
+import {IModel} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TestContextService} from 'vs/workbench/test/browser/servicesTestUtils';
@@ -43,7 +43,7 @@ suite('Search - Model', () => {
 		oneModel.dispose();
 	});
 
-	test('Line Match', function() {
+	test('Line Match', function () {
 		let fileMatch = new FileMatch(null, toUri('folder\\file.txt'));
 		let lineMatch = new Match(fileMatch, 'foo bar', 1, 0, 3);
 		assert.equal(lineMatch.text(), 'foo bar');
@@ -53,7 +53,7 @@ suite('Search - Model', () => {
 		assert.equal(lineMatch.range().endColumn, 4);
 	});
 
-	test('Line Match - Remove', function() {
+	test('Line Match - Remove', function () {
 
 		let fileMatch = new FileMatch(null, toUri('folder\\file.txt'));
 		let lineMatch = new Match(fileMatch, 'foo bar', 1, 0, 3);
@@ -63,7 +63,7 @@ suite('Search - Model', () => {
 		assert.equal(fileMatch.matches().length, 0);
 	});
 
-	test('File Match', function() {
+	test('File Match', function () {
 
 		let fileMatch = new FileMatch(null, toUri('folder\\file.txt'));
 		assert.equal(fileMatch.matches(), 0);
@@ -76,7 +76,7 @@ suite('Search - Model', () => {
 		assert.equal(fileMatch.name(), 'file.txt');
 	});
 
-	test('Search Result', function() {
+	test('Search Result', function () {
 
 		let searchResult = instantiation.createInstance(SearchResult, null);
 		assert.equal(searchResult.isEmpty(), true);
@@ -98,7 +98,7 @@ suite('Search - Model', () => {
 		assert.equal(searchResult.matches().length, 10);
 	});
 
-	test('Alle Drei Zusammen', function() {
+	test('Alle Drei Zusammen', function () {
 
 		let searchResult = instantiation.createInstance(SearchResult, null);
 		let fileMatch = new FileMatch(searchResult, toUri('far\\boo'));

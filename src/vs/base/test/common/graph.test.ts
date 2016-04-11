@@ -56,7 +56,7 @@ suite('Graph', () => {
 		var items = ['3', '4', '5'];
 		graph.traverse('3', true, (node) => assert.equal(node, items.shift()));
 
-		var items = ['3', '1', '2'];
+		items = ['3', '1', '2'];
 		graph.traverse('3', false, (node) => assert.equal(node, items.shift()));
 	});
 
@@ -69,7 +69,7 @@ suite('Graph', () => {
 		var items = ['1', '2', '3', '4', '5'];
 		graph.traverse('1', true, (node) => assert.equal(node, items.shift()));
 
-		var items = ['1', '2', '3', '4', '5'].reverse();
+		items = ['1', '2', '3', '4', '5'].reverse();
 		graph.traverse('5', false, (node) => assert.equal(node, items.shift()));
 	});
 
@@ -80,7 +80,7 @@ suite('Graph', () => {
 		assert.equal(roots[0].data, '2');
 
 		graph.insertEdge('2', '1');
-		var roots = graph.roots();
+		roots = graph.roots();
 		assert.equal(roots.length, 0);
 	});
 

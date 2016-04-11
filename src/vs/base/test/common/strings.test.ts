@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import strings = require('vs/base/common/strings');
 
 suite('Strings', () => {
-	test('equalsIgnoreCase', function() {
+	test('equalsIgnoreCase', function () {
 
 		assert(strings.equalsIgnoreCase('', ''));
 		assert(!strings.equalsIgnoreCase('', '1'));
@@ -33,13 +33,13 @@ suite('Strings', () => {
 	});
 
 	test('computeLineStarts', function () {
-		function assertLineStart(text: string, ...offsets: number[]):void {
+		function assertLineStart(text: string, ...offsets: number[]): void {
 			var actual = strings.computeLineStarts(text);
 			assert.equal(actual.length, offsets.length);
-			if(actual.length !== offsets.length) {
+			if (actual.length !== offsets.length) {
 				return;
 			}
-			while(offsets.length > 0) {
+			while (offsets.length > 0) {
 				assert.equal(actual.pop(), offsets.pop());
 			}
 		}
@@ -135,7 +135,7 @@ suite('Strings', () => {
 		assert.strictEqual(' 	  '.trim(), '');
 	});
 
-	test('localeCompare', function() {
+	test('localeCompare', function () {
 		assert.strictEqual(strings.localeCompare('a', 'a'), 'a'.localeCompare('a'));
 		assert.strictEqual(strings.localeCompare('A', 'A'), 'A'.localeCompare('A'));
 		assert.strictEqual(strings.localeCompare('All', 'A'), 'All'.localeCompare('A'));
@@ -144,10 +144,10 @@ suite('Strings', () => {
 		assert.strictEqual(strings.localeCompare('a', 'A'), 'a'.localeCompare('A'));
 	});
 
-	test('appendWithLimit', function() {
+	test('appendWithLimit', function () {
 		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 100), 'abcd');
 		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 2), '...cd');
-		assert.strictEqual(strings.appendWithLimit('ab', 'cdefgh',4), '...efgh');
+		assert.strictEqual(strings.appendWithLimit('ab', 'cdefgh', 4), '...efgh');
 		assert.strictEqual(strings.appendWithLimit('abcdef', 'ghijk', 7), '...efghijk');
 	});
 });

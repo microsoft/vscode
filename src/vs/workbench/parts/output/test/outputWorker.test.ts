@@ -21,7 +21,7 @@ function toOSPath(p: string): string {
 
 suite('Workbench - OutputWorker', () => {
 
-	test('OutputWorker - Link detection', function() {
+	test('OutputWorker - Link detection', function () {
 		let patternsSlash = OutputWorker.createPatterns({
 			id: 'foo',
 			name: 'foo',

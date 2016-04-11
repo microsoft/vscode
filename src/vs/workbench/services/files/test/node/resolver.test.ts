@@ -31,7 +31,7 @@ function toResource(relativePath: string): uri {
 
 suite('Stat Resolver', () => {
 
-	test('resolve file', function(done: () => void) {
+	test('resolve file', function (done: () => void) {
 		let resolver = create('/index.html');
 		resolver.resolve(null).then(result => {
 			assert.ok(!result.isDirectory);
@@ -43,10 +43,10 @@ suite('Stat Resolver', () => {
 				assert.ok(result.isDirectory);
 			});
 		})
-		.done(() => done(), done);
+			.done(() => done(), done);
 	});
 
-	test('resolve directory', function(done: () => void) {
+	test('resolve directory', function (done: () => void) {
 		let testsElements = ['examples', 'other', 'index.html', 'site.css'];
 
 		let resolver = create('/');
@@ -80,10 +80,10 @@ suite('Stat Resolver', () => {
 				}
 			});
 		})
-		.done(() => done(), done);
+			.done(() => done(), done);
 	});
 
-	test('resolve directory - resolveTo single directory', function(done: () => void) {
+	test('resolve directory - resolveTo single directory', function (done: () => void) {
 		let resolver = create('/');
 
 		resolver.resolve({ resolveTo: [toResource('other/deep')] }).then(result => {
@@ -104,10 +104,10 @@ suite('Stat Resolver', () => {
 			assert.ok(deep.hasChildren);
 			assert.equal(deep.children.length, 4);
 		})
-		.done(() => done(), done);
+			.done(() => done(), done);
 	});
 
-	test('resolve directory - resolveTo single directory - mixed casing', function(done: () => void) {
+	test('resolve directory - resolveTo single directory - mixed casing', function (done: () => void) {
 		let resolver = create('/');
 
 		resolver.resolve({ resolveTo: [toResource('other/Deep')] }).then(result => {
@@ -134,10 +134,10 @@ suite('Stat Resolver', () => {
 				assert.equal(deep.children.length, 4);
 			}
 		})
-		.done(() => done(), done);
+			.done(() => done(), done);
 	});
 
-	test('resolve directory - resolveTo multiple directories', function(done: () => void) {
+	test('resolve directory - resolveTo multiple directories', function (done: () => void) {
 		let resolver = create('/');
 
 		resolver.resolve({ resolveTo: [toResource('other/deep'), toResource('examples')] }).then(result => {
@@ -163,10 +163,10 @@ suite('Stat Resolver', () => {
 			assert.ok(examples.hasChildren);
 			assert.equal(examples.children.length, 4);
 		})
-		.done(() => done(), done);
+			.done(() => done(), done);
 	});
 
-	test('resolve directory - resolveSingleChildFolders', function(done: () => void) {
+	test('resolve directory - resolveSingleChildFolders', function (done: () => void) {
 		let resolver = create('/other');
 
 		resolver.resolve({ resolveSingleChildDescendants: true }).then(result => {
@@ -183,6 +183,6 @@ suite('Stat Resolver', () => {
 			assert.ok(deep.hasChildren);
 			assert.equal(deep.children.length, 4);
 		})
-		.done(() => done(), done);
+			.done(() => done(), done);
 	});
 });
