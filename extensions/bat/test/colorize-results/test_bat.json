@@ -1,0 +1,398 @@
+[
+	{
+		"c": "@",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "echo",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": " off",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "setlocal",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": "title",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": " VSCode Dev",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "pushd",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": " ",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "%",
+		"t": "dosbatch.variable.parameter.function.begin.shell",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter"
+		}
+	},
+	{
+		"c": "~dp0",
+		"t": "dosbatch.variable.parameter.function",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.variable.parameter",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.variable.parameter"
+		}
+	},
+	{
+		"c": "\\..",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": ":: Node modules",
+		"t": "dosbatch.comment.line.colons",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment"
+		}
+	},
+	{
+		"c": "if not exist",
+		"t": "keyword.dosbatch.control.conditional.if",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control"
+		}
+	},
+	{
+		"c": " node_modules ",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "call",
+		"t": "keyword.dosbatch.control.statement",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control"
+		}
+	},
+	{
+		"c": " .\\scripts\\npm.bat install",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": ":: Get electron",
+		"t": "dosbatch.comment.line.colons",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment"
+		}
+	},
+	{
+		"c": "node .\\node_modules\\gulp\\bin\\gulp.js electron",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": ":: Build",
+		"t": "dosbatch.comment.line.colons",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment"
+		}
+	},
+	{
+		"c": "if not exist",
+		"t": "keyword.dosbatch.control.conditional.if",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control"
+		}
+	},
+	{
+		"c": " out node .\\node_modules\\gulp\\bin\\gulp.js compile",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": ":: Configuration",
+		"t": "dosbatch.comment.line.colons",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment"
+		}
+	},
+	{
+		"c": "set",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": " NODE_ENV=development",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "set",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": " VSCODE_DEV=1",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "set",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": " ELECTRON_DEFAULT_ERROR_MODE=1",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "set",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": " ELECTRON_ENABLE_LOGGING=1",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "set",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": " ELECTRON_ENABLE_STACK_DUMPING=1",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": ":: Launch Code",
+		"t": "dosbatch.comment.line.colons",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.comment",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.comment",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.comment",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment"
+		}
+	},
+	{
+		"c": ".\\.build\\electron\\electron.exe . %*",
+		"t": "",
+		"r": {
+			"dark_vs": ".vs-dark .token",
+			"light_vs": ".vs .token",
+			"hc_black": ".hc-black .token",
+			"light_plus": ".vs .token",
+			"dark_plus": ".vs-dark .token"
+		}
+	},
+	{
+		"c": "popd",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	},
+	{
+		"c": "endlocal",
+		"t": "keyword.command.dosbatch",
+		"r": {
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword"
+		}
+	}
+]
