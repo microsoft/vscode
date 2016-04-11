@@ -120,6 +120,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		this.widget.show(range, 18);
 		this.callOnClear.push(this.widget.addListener(Events.Closed, () => {
 			this.widget = null;
+			referencesPromise.cancel();
 			this.clear();
 		}));
 		this.callOnClear.push(this.widget.addListener(ReferenceWidget.Events.EditorDoubleClick, (event:any) => {
@@ -148,8 +149,8 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 
 		referencesPromise.then((references:IReference[]) => {
 
-			// still current request?
-			if(requestId !== this.requestIdPool) {
+			// still current request? widget still open?
+			if(requestId !== this.requestIdPool || !this.widget) {
 				timer.stop();
 				return;
 			}
