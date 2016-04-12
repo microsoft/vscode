@@ -405,7 +405,9 @@ class VoidView extends PlainView {
 	}
 }
 
-function sum(a: number, b: number): number { return a + b; }
+function sum(arr: number[]): number {
+	return arr.reduce((a, b) => a + b);
+}
 
 export class SplitView implements
 	sash.IHorizontalSashLayoutProvider,
@@ -574,9 +576,9 @@ export class SplitView implements
 		let expands = this.views.map(v => v.maximumSize - v.size);
 
 		if (size < this.size) {
-			this.expandCollapse(Math.min(diff, collapses.reduce(sum, 0)), collapses, expands, up, []);
+			this.expandCollapse(Math.min(diff, sum(collapses)), collapses, expands, up, []);
 		} else if (size > this.size) {
-			this.expandCollapse(Math.min(diff, expands.reduce(sum, 0)), collapses, expands, [], up);
+			this.expandCollapse(Math.min(diff, sum(expands)), collapses, expands, [], up);
 		}
 
 		this.size = size;
@@ -601,8 +603,8 @@ export class SplitView implements
 			sizes: this.views.map(v => v.size),
 			up: up,
 			down: down,
-			maxUp: Math.min(collapsesUp.reduce(sum, 0), expandsDown.reduce(sum, 0)),
-			maxDown: Math.min(expandsUp.reduce(sum, 0), collapsesDown.reduce(sum, 0)),
+			maxUp: Math.min(sum(collapsesUp), sum(expandsDown)),
+			maxDown: Math.min(sum(expandsUp), sum(collapsesDown)),
 			collapses: collapses,
 			expands: expands
 		};
