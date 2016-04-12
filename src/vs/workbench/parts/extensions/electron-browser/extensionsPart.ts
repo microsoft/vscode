@@ -77,18 +77,19 @@ class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> {
 	renderTemplate(container: HTMLElement): ITemplateData {
 		const root = append(container, $('.extension-container'));
 		const extension = append(root, $('.extension'));
-		const icon = append(extension, $<HTMLImageElement>('img.icon'));
-		const body = append(extension, $('.body'));
-		const title = append(body, $('.title'));
-		const subtitle = append(body, $('.subtitle'));
+		const header = append(extension, $('.header'));
+		const icon = append(header, $<HTMLImageElement>('img.icon'));
+		const details = append(header, $('.details'));
+		const title = append(details, $('.title'));
+		const subtitle = append(details, $('.subtitle'));
 		const name = append(title, $('span.name'));
 		const version = append(subtitle, $('span.version'));
 		const author = append(subtitle, $('span.author'));
-		const description = append(body, $('.description'));
-		const result = {
-			id: null, root, extension, icon,
-			name, version, author, description
-		};
+		const description = append(details, $('.description'));
+		const body = append(extension, $('.body'));
+		body.innerText = 'hello';
+
+		const result = { id: null, root, extension, icon, name, version, author, description };
 
 		this._templates.push(result);
 		return result;

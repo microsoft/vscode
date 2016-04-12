@@ -90,6 +90,7 @@
 	margin: 10px 20px 10px 10px;
 	width: calc(100% - 30px);
 	height: calc(100% - 20px);
+	overflow: hidden;
 }
 
 .extension-manager .overlay .extension-container > .extension {
@@ -111,41 +112,41 @@
 	box-shadow: 2px 2px 5px rgba(0,0,0,.25);
 }
 
-.extension-manager .extension {
-	display: flex;
-}
-
-.extension-manager .extension.loading {
+.extension-manager .extension-container > .extension.loading {
 	background-image: url('loading.svg');
 	background-position: center center;
 	background-repeat: no-repeat;
 }
 
-.extension-manager .extension > .icon {
+.extension-manager .extension-container > .extension > .header {
+	display: flex;
+}
+
+.extension-manager .extension-container > .extension > .header > .icon {
 	box-sizing: border-box;
 	width: 70px;
 	height: 70px;
 	padding: 8px;
 }
 
-.extension-manager .extension > .body {
+.extension-manager .extension-container > .extension > .header > .details {
 	flex: 1;
 	padding: 8px;
 }
 
-.extension-manager .extension > .body > .title > .name {
+.extension-manager .extension-container > .extension > .header > .details > .title > .name {
 	font-weight: bold;
 }
 
-.extension-manager .extension > .body > .subtitle {
+.extension-manager .extension-container > .extension > .header > .details > .subtitle {
 	font-size: 90%;
 }
 
-.extension-manager .extension > .body > .subtitle > .author {
+.extension-manager .extension-container > .extension > .header > .details > .subtitle > .author {
 	font-style: italic;
 }
 
-.extension-manager .extension > .body > div {
+.extension-manager .extension-container > .extension > .header > .details > div {
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
