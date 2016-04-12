@@ -47,9 +47,11 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		frameId: stackFrame ? stackFrame.frameId : undefined,
 		context
 	}).then(response => {
-		expression.value = response.body.result;
-		expression.available = true;
-		expression.reference = response.body.variablesReference;
+		expression.available = !!response.body;
+		if (response.body) {
+			expression.value = response.body.result;
+			expression.reference = response.body.variablesReference;
+		}
 
 		return expression;
 	}, err => {
