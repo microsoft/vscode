@@ -7,6 +7,7 @@
 
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
+import {cloneAndChange} from 'vs/base/common/objects';
 import {AbstractTelemetryService} from 'vs/platform/telemetry/common/abstractTelemetryService';
 import {ITelemetryService, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
@@ -83,6 +84,7 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 
 		this.eventCount++;
 
+		data = data && cloneAndChange(data, value => typeof value === 'string' ? this.cleanupInfo(value) : void 0);
 		data = this.addCommonProperties(data);
 
 		let allAppenders = this.getAppenders();

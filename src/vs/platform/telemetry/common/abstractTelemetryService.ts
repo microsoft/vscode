@@ -132,7 +132,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		this.errorFlushTimeout = -1;
 	}
 
-	private cleanupInfo(stack: string): string {
+	protected cleanupInfo(stack: string): string {
 
 		// `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		let reg = /file:\/\/\/.*?\/resources\/app\//gi;
