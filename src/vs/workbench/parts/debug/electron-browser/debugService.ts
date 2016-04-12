@@ -610,6 +610,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				this.revealRepl(false).done(undefined, errors.onUnexpectedError);
 			}
 			this.partService.addClass('debugging');
+			this.extensionService.activateByEvent(`onDebug:${ configuration.type }`).done(null, errors.onUnexpectedError);
 			this.contextService.updateOptions('editor', {
 				glyphMargin: true
 			});
