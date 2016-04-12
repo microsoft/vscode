@@ -12,10 +12,6 @@
 	height: 100%;
 }
 
-.extension-manager.highlighted .monaco-list {
-	display: none;
-}
-
 .extension-manager > .search,
 .extension-manager > .extensions {
 	width: 100%;
@@ -56,10 +52,24 @@
 	padding: 0 20px 0 10px;
 }
 
-.extension-manager > .extensions > .overlay.animated {
+.extension-manager.animated > .extensions > .overlay {
 	transition-property: top, height, padding;
 	transition-duration: 0.2s;
 	transition-timing-function: ease-out;
+}
+
+.extension-manager > .extensions > .monaco-list {
+	transition-property: opacity;
+	transition-duration: 0.2s;
+	transition-timing-function: ease-out;
+}
+
+.extension-manager.highlight-in > .extensions > .monaco-list {
+	opacity: 0;
+}
+
+.extension-manager.highlighted > .extensions > .monaco-list {
+	display: none;
 }
 
 .extension-manager .monaco-list-row.selected {

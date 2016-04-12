@@ -188,9 +188,9 @@ export class ExtensionsPart extends BaseEditor {
 
 		this.list.onSelectionChange(({ elements }) => {
 			if (this.highlightDisposable) {
-				removeClass(this.overlay, 'animated');
+				removeClass(this.root, 'animated');
 				this.highlightDisposable.dispose();
-				this.highlightDisposable = null;
+				this.highlightDisposable = empty;
 			}
 
 			const [selected] = elements;
@@ -235,6 +235,7 @@ export class ExtensionsPart extends BaseEditor {
 	}
 
 	private triggerSearch(text: string = '', delay = 500): void {
+		this.highlight = null;
 		this.list.model = EmptyModel;
 
 		const promise = this.searchDelayer.trigger(() => this.doSearch(text), delay);
@@ -259,28 +260,35 @@ export class ExtensionsPart extends BaseEditor {
 		if (!data) {
 			removeClass(this.root, 'highlighted');
 			this.highlightDisposable.dispose();
+			this.highlightDisposable = empty;
 			return;
 		}
 
 		const position = getDomNodePosition(data.root);
 		const rootPosition = getDomNodePosition(this.extensionsBox);
 
-		removeClass(this.overlay, 'animated');
-
 		this.overlay.style.top = `${ position.top - rootPosition.top - this.list.scrollTop }px`;
 		this.overlay.style.height = `${ position.height }px`;
-		let _ = this.overlay.offsetHeight; _ = _; // trigger reflow
-		addClass(this.overlay, 'animated');
+		let _ = this.overlay.offsetHeight; _++; // trigger reflow
+
+		addClass(this.root, 'animated highlight-in');
 		this.overlay.style.top = '0';
 		this.overlay.style.height = this.extensionsBox.style.height;
 
+		// swap parents
 		const container = data.root.parentElement;
 		this.overlay.appendChild(data.root);
-		addClass(this.root, 'highlighted');
+
+		// transition end event
+		const listener = addDisposableListener(this.overlay, 'transitionend', e => {
+			listener.dispose();
+			removeClass(this.root, 'animated');
+			removeClass(this.root, 'highlight-in');
+			addClass(this.root, 'highlighted');
+		});
 
 		this.highlightDisposable = toDisposable(() => {
 			container.appendChild(data.root);
-			removeClass(this.overlay, 'animated');
 			this.overlay.style.height = '0';
 		});
 	}
