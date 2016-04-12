@@ -9,45 +9,87 @@ import {WrappingIndent} from 'vs/editor/common/editorCommon';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {ILineMapperFactory, ILineMapping, OutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
 
-var BREAK_BEFORE_CLASS = 1;
-var BREAK_AFTER_CLASS = 2;
-var BREAK_OBTRUSIVE_CLASS = 3;
+enum CharacterClass {
+	NONE = 0,
+	BREAK_BEFORE = 1,
+	BREAK_AFTER = 2,
+	BREAK_OBTRUSIVE = 3,
+	BREAK_IDEOGRAPHIC = 4 // for Han and Kana.
+}
 
-function buildCharacterClassesMap(BREAK_BEFORE:string, BREAK_AFTER:string, BREAK_OBTRUSIVE:string): number[] {
-	var result:number[] = [],
-		maxCharCode = 0,
-		allBreakingChars = BREAK_BEFORE + BREAK_AFTER + BREAK_OBTRUSIVE,
-		i:number;
+class CharacterClassifier {
 
-	for (i = 0; i < allBreakingChars.length; i++) {
-		maxCharCode = Math.max(maxCharCode, allBreakingChars.charCodeAt(i));
+	/**
+	 * Maintain a compact (fully initialized ASCII map for quickly classifying ASCII characters - used more often in code).
+	 */
+	private _asciiMap: CharacterClass[];
+
+	/**
+	 * The entire map (sparse array).
+	 */
+	private _map: CharacterClass[];
+
+	constructor(BREAK_BEFORE:string, BREAK_AFTER:string, BREAK_OBTRUSIVE:string) {
+
+		this._asciiMap = [];
+		for (let i = 0; i < 256; i++) {
+			this._asciiMap[i] = CharacterClass.NONE;
+		}
+
+		this._map = [];
+
+		for (let i = 0; i < BREAK_BEFORE.length; i++) {
+			this._set(BREAK_BEFORE.charCodeAt(i), CharacterClass.BREAK_BEFORE);
+		}
+
+		for (let i = 0; i < BREAK_AFTER.length; i++) {
+			this._set(BREAK_AFTER.charCodeAt(i), CharacterClass.BREAK_AFTER);
+		}
+
+		for (let i = 0; i < BREAK_OBTRUSIVE.length; i++) {
+			this._set(BREAK_OBTRUSIVE.charCodeAt(i), CharacterClass.BREAK_OBTRUSIVE);
+		}
 	}
 
-	for (i = 0; i <= maxCharCode; i++) {
-		result[i] = 0;
+	private _set(charCode:number, charClass:CharacterClass): void {
+		if (charCode < 256) {
+			this._asciiMap[charCode] = charClass;
+		}
+		this._map[charCode] = charClass;
 	}
 
-	for (i = 0; i < BREAK_BEFORE.length; i++) {
-		result[BREAK_BEFORE.charCodeAt(i)] = BREAK_BEFORE_CLASS;
-	}
+	public classify(charCode:number): CharacterClass {
+		if (charCode < 256) {
+			return this._asciiMap[charCode];
+		}
 
-	for (i = 0; i < BREAK_AFTER.length; i++) {
-		result[BREAK_AFTER.charCodeAt(i)] = BREAK_AFTER_CLASS;
-	}
+		let charClass = this._map[charCode];
+		if (charClass) {
+			return charClass;
+		}
 
-	for (i = 0; i < BREAK_OBTRUSIVE.length; i++) {
-		result[BREAK_OBTRUSIVE.charCodeAt(i)] = BREAK_OBTRUSIVE_CLASS;
-	}
+		// Initialize CharacterClass.BREAK_IDEOGRAPHIC for these Unicode ranges:
+		// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
+		// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
+		// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
+		if (
+			(charCode >= 0x3040 && charCode <= 0x30FF)
+			|| (charCode >= 0x3400 && charCode <= 0x4DBF)
+			|| (charCode >= 0x4E00 && charCode <= 0x9FFF)
+		) {
+			return CharacterClass.BREAK_IDEOGRAPHIC;
+		}
 
-	return result;
+		return CharacterClass.NONE;
+	}
 }
 
 export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactory {
 
-	private characterClasses:number[];
+	private classifier:CharacterClassifier;
 
 	constructor(breakBeforeChars:string, breakAfterChars:string, breakObtrusiveChars:string) {
-		this.characterClasses = buildCharacterClassesMap(breakBeforeChars, breakAfterChars, breakObtrusiveChars);
+		this.classifier = new CharacterClassifier(breakBeforeChars, breakAfterChars, breakObtrusiveChars);
 	}
 
 	// TODO@Alex -> duplicated in lineCommentCommand
@@ -72,15 +114,15 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
 		hardWrappingIndent = +hardWrappingIndent; //@perf
 
-		var wrappedTextIndentVisibleColumn = 0,
-			wrappedTextIndent = '',
-			TAB_CHAR_CODE = '\t'.charCodeAt(0);
+		let wrappedTextIndentVisibleColumn = 0;
+		let wrappedTextIndent = '';
+		const TAB_CHAR_CODE = '\t'.charCodeAt(0);
 
 		if (hardWrappingIndent !== WrappingIndent.None) {
-			var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
+			let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 			if (firstNonWhitespaceIndex !== -1) {
 				wrappedTextIndent = lineText.substring(0, firstNonWhitespaceIndex);
-				for (var i = 0; i < firstNonWhitespaceIndex; i++) {
+				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, lineText.charCodeAt(i) === TAB_CHAR_CODE, 1);
 				}
 				if (hardWrappingIndent === WrappingIndent.Indent) {
@@ -95,34 +137,28 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			}
 		}
 
-		var characterClasses = this.characterClasses,
-			lastBreakingOffset = 0, // Last 0-based offset in the lineText at which a break happened
-			breakingLengths:number[] = [], // The length of each broken-up line text
-			breakingLengthsIndex:number = 0, // The count of breaks already done
-			i:number,
-			len:number,
-			visibleColumn:number, // Visible column since the beginning of the current line
-			charCode:number,
-			charCodeIsTab:boolean,
-			charCodeClass:number,
-			breakBeforeOffset:number, // 0-based offset in the lineText before which breaking
-			restoreVisibleColumnFrom:number; // visible column used to re-establish a correct `visibleColumn`
+		let classifier = this.classifier;
+		let lastBreakingOffset = 0; // Last 0-based offset in the lineText at which a break happened
+		let breakingLengths:number[] = []; // The length of each broken-up line text
+		let breakingLengthsIndex:number = 0; // The count of breaks already done
+		let visibleColumn = 0; // Visible column since the beginning of the current line
+		let breakBeforeOffset:number; // 0-based offset in the lineText before which breaking
+		let restoreVisibleColumnFrom:number;
+		let niceBreakOffset = -1; // Last index of a character that indicates a break should happen before it (more desirable)
+		let niceBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `niceBreakOffset`
+		let obtrusiveBreakOffset = -1; // Last index of a character that indicates a break should happen before it (less desirable)
+		let obtrusiveBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `obtrusiveBreakOffset`
+		let len = lineText.length;
 
-		var niceBreakOffset = -1, // Last index of a character that indicates a break should happen before it (more desirable)
-			niceBreakVisibleColumn = 0, // visible column if a break were to be later introduced before `niceBreakOffset`
-			obtrusiveBreakOffset = -1, // Last index of a character that indicates a break should happen before it (less desirable)
-			obtrusiveBreakVisibleColumn = 0; // visible column if a break were to be later introduced before `obtrusiveBreakOffset`
-
-		visibleColumn = 0;
-		for (i = 0, len = lineText.length; i < len; i++) {
+		for (let i = 0; i < len; i++) {
 			// At this point, there is a certainty that the character before `i` fits on the current line,
 			// but the character at `i` might not fit
 
-			charCode = lineText.charCodeAt(i);
-			charCodeIsTab = (charCode === TAB_CHAR_CODE);
-			charCodeClass = charCode < characterClasses.length ? characterClasses[charCode] : 0;
+			let charCode = lineText.charCodeAt(i);
+			let charCodeIsTab = (charCode === TAB_CHAR_CODE);
+			let charCodeClass = classifier.classify(charCode);
 
-			if (charCodeClass === BREAK_BEFORE_CLASS) {
+			if (charCodeClass === CharacterClass.BREAK_BEFORE) {
 				// This is a character that indicates that a break should happen before it
 				// Since we are certain the character before `i` fits, there's no extra checking needed,
 				// just mark it as a nice breaking opportunity
@@ -130,7 +166,17 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				niceBreakVisibleColumn = 0;
 			}
 
-			var charColumnSize = 1;
+			// CJK breaking : before break
+			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i > 0) {
+				let prevCode = lineText.charCodeAt(i - 1);
+				let prevClass = classifier.classify(prevCode);
+				if (prevClass !== CharacterClass.BREAK_BEFORE) { // Kinsoku Shori: Don't break after a leading character, like an open bracket
+					niceBreakOffset = i;
+					niceBreakVisibleColumn = 0;
+				}
+			}
+
+			let charColumnSize = 1;
 			if (strings.isFullWidthCharacter(charCode)) {
 				charColumnSize = columnsForFullWidthChar;
 			}
@@ -189,13 +235,23 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				obtrusiveBreakVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(obtrusiveBreakVisibleColumn, tabSize, charCodeIsTab, charColumnSize);
 			}
 
-			if (charCodeClass === BREAK_AFTER_CLASS) {
+			if (charCodeClass === CharacterClass.BREAK_AFTER) {
 				// This is a character that indicates that a break should happen after it
 				niceBreakOffset = i + 1;
 				niceBreakVisibleColumn = 0;
 			}
 
-			if (charCodeClass === BREAK_OBTRUSIVE_CLASS) {
+			// CJK breaking : after break
+			if (charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && i < len - 1) {
+				let nextCode = lineText.charCodeAt(i + 1);
+				let nextClass = classifier.classify(nextCode);
+				if (nextClass !== CharacterClass.BREAK_AFTER) { // Kinsoku Shori: Don't break before a trailing character, like a period
+					niceBreakOffset = i + 1;
+					niceBreakVisibleColumn = 0;
+				}
+			}
+
+			if (charCodeClass === CharacterClass.BREAK_OBTRUSIVE) {
 				// This is an obtrusive character that indicates that a break should happen after it
 				obtrusiveBreakOffset = i + 1;
 				obtrusiveBreakVisibleColumn = 0;

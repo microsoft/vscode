@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
-import collections = require('vs/base/common/collections');
 import Modes = require('vs/editor/common/modes');
 import supports = require('vs/editor/common/modes/supports');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
@@ -96,7 +93,7 @@ function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [
 	};
 
 	function appendFn(startIndex:number, type:string):void {
-		if(ret.tokens.length === 0 || arrays.tail(ret.tokens).type !== type) {
+		if(ret.tokens.length === 0 || ret.tokens[ret.tokens.length - 1].type !== type) {
 			ret.tokens.push(new supports.Token(startIndex, type));
 		}
 	}
@@ -134,7 +131,7 @@ function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [
 		} else {
 			// everything else
 			appendFn(offset + offsetDelta,
-				tokenTypeTable[entry.classification] || strings.empty);
+				tokenTypeTable[entry.classification] || '');
 		}
 
 		offset += entry.length;
@@ -143,7 +140,11 @@ function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [
 	return ret;
 }
 
-var tsBracketTypeTable = collections.createNumberDictionary<string>();
+interface INumberStringDictionary {
+	[idx: number]: string;
+}
+
+var tsBracketTypeTable:INumberStringDictionary = Object.create(null);
 tsBracketTypeTable['('.charCodeAt(0)] = 'delimiter.parenthesis.ts';
 tsBracketTypeTable[')'.charCodeAt(0)] = 'delimiter.parenthesis.ts';
 tsBracketTypeTable['{'.charCodeAt(0)] = 'delimiter.bracket.ts';
@@ -151,7 +152,7 @@ tsBracketTypeTable['}'.charCodeAt(0)] = 'delimiter.bracket.ts';
 tsBracketTypeTable['['.charCodeAt(0)] = 'delimiter.array.ts';
 tsBracketTypeTable[']'.charCodeAt(0)] = 'delimiter.array.ts';
 
-var tsTokenTypeTable = collections.createNumberDictionary<string>();
+var tsTokenTypeTable:INumberStringDictionary = Object.create(null);
 tsTokenTypeTable[ts.TokenClass.Identifier] = 'identifier.ts';
 tsTokenTypeTable[ts.TokenClass.Keyword] = 'keyword.ts';
 tsTokenTypeTable[ts.TokenClass.Operator] = 'delimiter.ts';
@@ -160,7 +161,7 @@ tsTokenTypeTable[ts.TokenClass.NumberLiteral] = 'number.ts';
 tsTokenTypeTable[ts.TokenClass.RegExpLiteral] = 'regexp.ts';
 tsTokenTypeTable[ts.TokenClass.StringLiteral] = 'string.ts';
 
-var jsBracketTypeTable = collections.createNumberDictionary<string>();
+var jsBracketTypeTable:INumberStringDictionary = Object.create(null);
 jsBracketTypeTable['('.charCodeAt(0)] = 'delimiter.parenthesis.js';
 jsBracketTypeTable[')'.charCodeAt(0)] = 'delimiter.parenthesis.js';
 jsBracketTypeTable['{'.charCodeAt(0)] = 'delimiter.bracket.js';
@@ -168,7 +169,7 @@ jsBracketTypeTable['}'.charCodeAt(0)] = 'delimiter.bracket.js';
 jsBracketTypeTable['['.charCodeAt(0)] = 'delimiter.array.js';
 jsBracketTypeTable[']'.charCodeAt(0)] = 'delimiter.array.js';
 
-var jsTokenTypeTable = collections.createNumberDictionary<string>();
+var jsTokenTypeTable:INumberStringDictionary = Object.create(null);
 jsTokenTypeTable[ts.TokenClass.Identifier] = 'identifier.js';
 jsTokenTypeTable[ts.TokenClass.Keyword] = 'keyword.js';
 jsTokenTypeTable[ts.TokenClass.Operator] = 'delimiter.js';

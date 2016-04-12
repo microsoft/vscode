@@ -15,11 +15,32 @@ import {shell} from 'electron';
 class TwitterFeedbackService implements IFeedbackService {
 
 	private static TWITTER_URL: string = 'https://twitter.com/intent/tweet';
+	private static VIA_NAME: string = 'code';
+	private static HASHTAGS: string[]  = ['HappyCoding'];
+
+	private combineHashTagsAsString() : string {
+		return TwitterFeedbackService.HASHTAGS.join(',');
+	}
 
 	public submitFeedback(feedback: IFeedback): void {
-		var queryString = `?${feedback.sentiment === 1 ? 'hashtags=HappyCoding&' : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${feedback.feedback}&tw_p=tweetbutton&via=code`;
+		var queryString = `?${feedback.sentiment === 1 ? `hashtags=${this.combineHashTagsAsString()}&` : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${feedback.feedback}&tw_p=tweetbutton&via=${TwitterFeedbackService.VIA_NAME}`;
 		var url = TwitterFeedbackService.TWITTER_URL + queryString;
 		shell.openExternal(url);
+	}
+
+	public getCharacterLimit(sentiment: number): number {
+		let length : number = 0;
+		if (sentiment === 1)
+		{
+			TwitterFeedbackService.HASHTAGS.forEach(element => {
+				length += element.length + 2;
+			});
+		}
+
+		if (TwitterFeedbackService.VIA_NAME) {
+			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
+		}
+		return 140 - length;
 	}
 }
 

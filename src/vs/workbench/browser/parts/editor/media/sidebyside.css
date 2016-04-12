@@ -5,11 +5,11 @@
 
 /* Editor Container Styles */
 
-.vs .monaco-workbench .editor > .content {
+.vs .monaco-workbench .editor:not(.empty) > .content {
 	background-color: #F3F3F3;
 }
 
-.vs-dark .monaco-workbench .editor > .content {
+.vs-dark .monaco-workbench .editor:not(.empty) > .content {
 	background-color: #252526;
 }
 

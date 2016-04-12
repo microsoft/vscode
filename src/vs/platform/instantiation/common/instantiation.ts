@@ -142,8 +142,6 @@ export interface IInstantiationService {
 	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(ctor: IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): T;
 	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor: IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): T;
 
-	createInstance<T>(descriptor: descriptors.SyncDescriptor<T>, ...args: any[]): T;
-
 	/**
 	 * Asynchronously creates an instance that is denoted by
 	 * the descriptor

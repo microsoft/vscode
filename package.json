@@ -1,6 +1,6 @@
 {
   "name": "Code",
-  "version": "0.10.12",
+  "version": "1.0.0",
   "electronVersion": "0.35.6",
   "author": {
     "name": "Microsoft Corporation"
@@ -13,7 +13,7 @@
   "scripts": {
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/ && npm --prefix extensions/php/ install extensions/php/",
+    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/vscode-colorize-tests/ install extensions/vscode-colorize-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/ && npm --prefix extensions/php/ install extensions/php/",
     "watch": "gulp watch"
   },
   "dependencies": {

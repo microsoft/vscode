@@ -55,7 +55,7 @@ function assertLineMapping(factory:ILineMapperFactory, tabSize:number, breakAfte
 		}
 	}
 
-	let mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 1, WrappingIndent.None);
+	var mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 2, WrappingIndent.None);
 
 	assert.equal(safeGetOutputLineCount(mapper), (lineIndices.length > 0 ? lineIndices[lineIndices.length - 1] + 1 : 1));
 	for (let i = 0, len = rawText.length; i < len; i++) {
@@ -104,5 +104,14 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assertLineMapping(factory, 4, 5, 'aaa(|()|.aaa');
 		assertLineMapping(factory, 4, 5, 'aa.(|()|.aaa');
 		assertLineMapping(factory, 4, 5, 'aa.|(.)|.aaa');
+	});
+	test('CharacterHardWrappingLineMapper - CJK and Kinsoku Shori', () => {
+		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
+		assertLineMapping(factory, 4, 5, 'aa \u5b89|\u5b89');
+		assertLineMapping(factory, 4, 5, '\u3042 \u5b89|\u5b89');
+		assertLineMapping(factory, 4, 5, '\u3042\u3042|\u5b89\u5b89');
+		assertLineMapping(factory, 4, 5, 'aa |\u5b89)\u5b89|\u5b89');
+		assertLineMapping(factory, 4, 5, 'aa \u3042|\u5b89\u3042)|\u5b89');
+		assertLineMapping(factory, 4, 5, 'aa |(\u5b89aa|\u5b89');
 	});
 });

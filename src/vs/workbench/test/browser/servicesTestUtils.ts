@@ -133,18 +133,6 @@ export class TestMessageService implements IMessageService {
 export class TestTelemetryService implements ITelemetryService {
 	public serviceId = ITelemetryService;
 
-	getSessionId(): string {
-		return null;
-	}
-
-	getMachineId(): string {
-		return null;
-	}
-
-	getInstanceId(): string {
-		return null;
-	}
-
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as(null);
 	}
@@ -152,7 +140,7 @@ export class TestTelemetryService implements ITelemetryService {
 	log(eventName: string, data?: any): void { }
 	publicLog(eventName: string, data?: any): void { }
 
-	start(name: string, data?: any, isPublic?: boolean): any {
+	timedPublicLog(name: string, data?: any, isPublic?: boolean): any {
 		return null;
 	}
 
@@ -164,8 +152,9 @@ export class TestTelemetryService implements ITelemetryService {
 		return [];
 	}
 
-	addTelemetryAppender(appender): void { }
-	removeTelemetryAppender(appender): void { }
+	addTelemetryAppender(appender): Lifecycle.IDisposable {
+		return Lifecycle.empty;
+	}
 	dispose(): void { }
 	setInstantiationService(instantiationService: IInstantiationService) { }
 }
@@ -463,13 +452,13 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return null;
 	}
 
-	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void {}
-	public dispose() {}
-	public quickNavigate(): void {}
+	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void { }
+	public dispose() { }
+	public quickNavigate(): void { }
 }
 
 export const TestFileService = {
-	resolveContent: function(resource) {
+	resolveContent: function (resource) {
 		return TPromise.as({
 			resource: resource,
 			value: 'Hello Html',
@@ -481,7 +470,7 @@ export const TestFileService = {
 		});
 	},
 
-	updateContent: function(res) {
+	updateContent: function (res) {
 		return TPromise.timeout(1).then(() => {
 			return {
 				resource: res,
@@ -502,7 +491,7 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 		return {};
 	}
 
-	public hasWorkspaceConfiguration():boolean {
+	public hasWorkspaceConfiguration(): boolean {
 		return false;
 	}
 

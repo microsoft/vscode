@@ -11,18 +11,22 @@ import {OutOfProcessWin32FolderWatcher} from 'vs/workbench/services/files/node/w
 import {IEventService} from 'vs/platform/event/common/event';
 
 export class FileWatcher {
-	private eventEmitter: IEventService;
 
-	constructor(private basePath: string, private ignored: string[], eventEmitter: IEventService, private errorLogger: (msg: string) => void, private verboseLogging: boolean) {
-		this.eventEmitter = eventEmitter;
+	constructor(
+		private basePath: string,
+		private ignored: string[],
+		private eventEmitter: IEventService,
+		private errorLogger: (msg: string) => void,
+		private verboseLogging: boolean
+	) {
 	}
 
 	public startWatching(): () => void {
 		let watcher = new OutOfProcessWin32FolderWatcher(
 			this.basePath,
 			this.ignored,
-			this.errorLogger,
 			(events) => this.onRawFileEvents(events),
+			(error) => this.onError(error),
 			this.verboseLogging
 		);
 
@@ -35,5 +39,9 @@ export class FileWatcher {
 		if (events.length > 0) {
 			this.eventEmitter.emit(EventType.FILE_CHANGES, watcher.toFileChangesEvent(events));
 		}
+	}
+
+	private onError(error: string): void {
+		this.errorLogger(error);
 	}
 }

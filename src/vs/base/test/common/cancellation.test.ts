@@ -21,7 +21,7 @@ suite('CancellationToken', function() {
 		});
 
 		assert.throws(function () {
-			CancellationToken.Cancelled.onCancellationRequested = null
+			CancellationToken.Cancelled.onCancellationRequested = null;
 		});
 
 		assert.throws(function () {
@@ -29,7 +29,7 @@ suite('CancellationToken', function() {
 		});
 
 		assert.throws(function () {
-			CancellationToken.None.onCancellationRequested = null
+			CancellationToken.None.onCancellationRequested = null;
 		});
 	});
 
@@ -58,7 +58,7 @@ suite('CancellationToken', function() {
 			cancelCount += 1;
 		}
 
-		source.token.onCancellationRequested(onCancel)
+		source.token.onCancellationRequested(onCancel);
 
 		source.cancel();
 		source.cancel();

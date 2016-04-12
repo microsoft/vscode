@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import Lifecycle = require('vs/base/common/lifecycle');
-import Timer = require('vs/base/common/timer');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
 import {createDecorator, ServiceIdentifier, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'telemetryService';
@@ -19,7 +19,7 @@ export interface ITelemetryInfo {
 	instanceId: string;
 }
 
-export interface ITelemetryService extends Lifecycle.IDisposable {
+export interface ITelemetryService extends IDisposable {
 	serviceId: ServiceIdentifier<any>;
 
 	/**
@@ -31,22 +31,7 @@ export interface ITelemetryService extends Lifecycle.IDisposable {
 	/**
 	 * Starts a telemetry timer. Call stop() to send the event.
 	 */
-	start(name: string, data?: any): Timer.ITimerEvent;
-
-	/**
-	 * Session Id
-	 */
-	getSessionId(): string;
-
-	/**
-	 * a unique Id that is not hardware specific
-	 */
-	getInstanceId(): string;
-
-	/**
-	 * a hardware specific machine Id
-	 */
-	getMachineId(): string;
+	timedPublicLog(name: string, data?: any): ITimerEvent;
 
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
@@ -55,12 +40,29 @@ export interface ITelemetryService extends Lifecycle.IDisposable {
 	 */
 	getAppendersCount(): number;
 	getAppenders(): ITelemetryAppender[];
-	addTelemetryAppender(appender: ITelemetryAppender): void;
-	removeTelemetryAppender(appender: ITelemetryAppender): void;
+	addTelemetryAppender(appender: ITelemetryAppender): IDisposable;
 	setInstantiationService(instantiationService: IInstantiationService): void;
 }
 
-export interface ITelemetryAppender extends Lifecycle.IDisposable {
+export const NullTelemetryService: ITelemetryService = {
+	serviceId: undefined,
+	timedPublicLog(name: string, data?: any): ITimerEvent { return nullEvent; },
+	publicLog(eventName: string, data?: any): void { },
+	getAppendersCount(): number { return 0; },
+	getAppenders(): any[] { return []; },
+	addTelemetryAppender(appender): IDisposable { return { dispose() { } }; },
+	dispose(): void { },
+	getTelemetryInfo(): TPromise<ITelemetryInfo> {
+		return TPromise.as({
+			instanceId: 'someValue.instanceId',
+			sessionId: 'someValue.sessionId',
+			machineId: 'someValue.machineId'
+		});
+	},
+	setInstantiationService(instantiationService: IInstantiationService) {}
+};
+
+export interface ITelemetryAppender extends IDisposable {
 	log(eventName: string, data?: any): void;
 }
 

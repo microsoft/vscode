@@ -87,7 +87,10 @@ define([
 	'vs/workbench/electron-browser/darwin/cli.contribution',
 
 	'vs/workbench/electron-browser/main.contribution',
-	'vs/workbench/electron-browser/main'
+	'vs/workbench/electron-browser/main',
+
+
+	'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution'
 
 ], function() {
 	'use strict';

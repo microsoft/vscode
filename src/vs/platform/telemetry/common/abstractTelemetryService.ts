@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import Errors = require('vs/base/common/errors');
 import Types = require('vs/base/common/types');
 import Platform = require('vs/base/common/platform');
@@ -212,18 +213,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		}
 	}
 
-	public getSessionId(): string {
-		return this.sessionId;
-	}
-
-	public getMachineId(): string {
-		return this.machineId;
-	}
-
-	public getInstanceId(): string {
-		return this.instanceId;
-	}
-
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
 			instanceId: this.instanceId,
@@ -249,7 +238,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		}
 	}
 
-	public start(name: string, data?: any): ITimerEvent {
+	public timedPublicLog(name: string, data?: any): ITimerEvent {
 		let topic = 'public';
 		let event = this.timeKeeper.start(topic, name);
 		if (data) {
@@ -270,16 +259,16 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		return this.appenders;
 	}
 
-	public addTelemetryAppender(appender: ITelemetryAppender): void {
+	public addTelemetryAppender(appender: ITelemetryAppender): IDisposable {
 		this.appenders.push(appender);
-	}
-
-	public removeTelemetryAppender(appender: ITelemetryAppender): void {
-		let index = this.appenders.indexOf(appender);
-
-		if (index > -1) {
-			this.appenders.splice(index, 1);
-		}
+		return {
+			dispose: () => {
+				let index = this.appenders.indexOf(appender);
+				if (index > -1) {
+					this.appenders.splice(index, 1);
+				}
+			}
+		};
 	}
 
 	public setInstantiationService(instantiationService: IInstantiationService): void {

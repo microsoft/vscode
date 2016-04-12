@@ -4,26 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/css/common/css.contribution';
-import 'vs/languages/typescript/common/typescript.contribution';
-import 'vs/languages/less/common/less';
-import 'vs/languages/less/common/less.contribution';
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
+import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
+import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {LESSMode} from 'vs/languages/less/common/less';
+import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
+
+class LESSMockModeService extends MockModeService {
+	isRegisteredMode(mimetypeOrModeId: string): boolean {
+		if (mimetypeOrModeId === 'javascript') {
+			return true;
+		}
+		throw new Error('Not implemented');
+	}
+
+	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
+		if (commaSeparatedMimetypesOrCommaSeparatedIds === 'javascript') {
+			return new MockTokenizingMode('js', 'mock-js');
+		}
+		throw new Error('Not implemented');
+	}
+
+	getModeIdForLanguageName(alias:string): string {
+		if (alias === 'text/javascript') {
+			return 'javascript';
+		}
+		throw new Error('Not implemented');
+	}
+}
 
 suite('LESS-tokenization', () => {
 
-	var tokenizationSupport: Modes.ITokenizationSupport;
-	var assertOnEnter: modesUtil.IOnEnterAsserter;
+	let tokenizationSupport: Modes.ITokenizationSupport;
+	let assertOnEnter: modesUtil.IOnEnterAsserter;
 
-	setup((done) => {
-		modesUtil.load('less', ['javascript']).then(mode => {
-			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-			done();
+	(function() {
+		let threadService = NULL_THREAD_SERVICE;
+		let modeService = new LESSMockModeService();
+		let inst = createInstantiationService({
+			threadService: threadService,
+			modeService: modeService
 		});
-	});
+		threadService.setInstantiationService(inst);
+
+		let mode = new LESSMode(
+			{ id: 'less' },
+			inst,
+			threadService,
+			modeService,
+			null,
+			null
+		);
+
+		tokenizationSupport = mode.tokenizationSupport;
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+	})();
 
 	test('', () => {
 		modesUtil.executeTests(tokenizationSupport, [
@@ -621,10 +659,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:5, type: 'punctuation.less' },
 				{ startIndex:6, type: '' },
 				{ startIndex:7, type: 'punctuation.backtick.less' },
-				{ startIndex:8, type: 'keyword.js' },
-				{ startIndex:16, type: '' },
-				{ startIndex:17, type: 'identifier.js' },
-				{ startIndex:24, type: 'delimiter.parenthesis.js' },
+				{ startIndex:8, type: 'mock-js' },
 				{ startIndex:26, type: 'punctuation.backtick.less' },
 				{ startIndex:27, type: '' },
 				{ startIndex:28, type: 'comment.less' }

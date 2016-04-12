@@ -97,10 +97,10 @@ log('ATOM_SHELL_INTERNAL_RUN_AS_NODE: ' + process.env['ATOM_SHELL_INTERNAL_RUN_A
 		return slicedBuffer.length;
 	};
 
-	// handle fs.writeSync(1, ...)
+	// handle fs.writeSync(1, ...) and fs.writeSync(2, ...)
 	var originalWriteSync = fs.writeSync;
 	fs.writeSync = function(fd, data, position, encoding) {
-		if (fd !== 1 || fd !== 2) {
+		if (fd !== 1 && fd !== 2) {
 			return originalWriteSync.apply(fs, arguments);
 		}
 		// usage:

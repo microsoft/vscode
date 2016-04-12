@@ -8,27 +8,23 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {Range as EditorRange} from 'vs/editor/common/core/range';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {Range, DocumentHighlightKind, Disposable, Diagnostic, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
+import {Range, DocumentHighlightKind, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
-import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
+import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
-import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 
 // --- adapter
@@ -298,31 +294,38 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 
 	private _documents: ExtHostModelService;
 	private _commands: ExtHostCommands;
+	private _diagnostics: ExtHostDiagnostics;
 	private _provider: vscode.CodeActionProvider;
 
 	private _cachedCommands: IDisposable[] = [];
 
-	constructor(documents: ExtHostModelService, commands: ExtHostCommands, provider: vscode.CodeActionProvider) {
+	constructor(documents: ExtHostModelService, commands: ExtHostCommands, diagnostics: ExtHostDiagnostics, provider: vscode.CodeActionProvider) {
 		this._documents = documents;
 		this._commands = commands;
+		this._diagnostics = diagnostics;
 		this._provider = provider;
 	}
 
-	getQuickFixes(resource: URI, range: IRange, markers?: IMarker[]): TPromise<modes.IQuickFix[]> {
+	getQuickFixes(resource: URI, range: IRange): TPromise<modes.IQuickFix[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = TypeConverters.toRange(range);
-		const diagnostics = markers.map(marker => {
-			const diag = new Diagnostic(TypeConverters.toRange(marker), marker.message);
-			diag.code = marker.code;
-			diag.severity = TypeConverters.toDiagnosticSeverty(marker.severity);
-			return diag;
+		const allDiagnostics: vscode.Diagnostic[] = [];
+
+		this._diagnostics.forEach(collection => {
+			if (collection.has(resource)) {
+				for (let diagnostic of collection.get(resource)) {
+					if (diagnostic.range.intersection(ran)) {
+						allDiagnostics.push(diagnostic);
+					}
+				}
+			}
 		});
 
 		this._cachedCommands = dispose(this._cachedCommands);
 		const ctx = { commands: this._commands, disposables: this._cachedCommands };
 
-		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: <any>diagnostics }, token)).then(commands => {
+		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)).then(commands => {
 			if (!Array.isArray(commands)) {
 				return;
 			}
@@ -633,12 +636,14 @@ export class ExtHostLanguageFeatures {
 	private _proxy: MainThreadLanguageFeatures;
 	private _documents: ExtHostModelService;
 	private _commands: ExtHostCommands;
+	private _diagnostics: ExtHostDiagnostics;
 	private _adapter: { [handle: number]: Adapter } = Object.create(null);
 
 	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadLanguageFeatures);
 		this._documents = threadService.getRemotable(ExtHostModelService);
 		this._commands = threadService.getRemotable(ExtHostCommands);
+		this._diagnostics = threadService.getRemotable(ExtHostDiagnostics);
 	}
 
 	private _createDisposable(handle: number): Disposable {
@@ -746,13 +751,13 @@ export class ExtHostLanguageFeatures {
 
 	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new QuickFixAdapter(this._documents, this._commands, provider);
+		this._adapter[handle] = new QuickFixAdapter(this._documents, this._commands, this._diagnostics, provider);
 		this._proxy.$registerQuickFixSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
 
-	$getQuickFixes(handle: number, resource: URI, range: IRange, marker: IMarker[]): TPromise<modes.IQuickFix[]> {
-		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.getQuickFixes(resource, range, marker));
+	$getQuickFixes(handle: number, resource: URI, range: IRange): TPromise<modes.IQuickFix[]> {
+		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.getQuickFixes(resource, range));
 	}
 
 	$runQuickFixAction(handle: number, resource: URI, range: IRange, quickFix: modes.IQuickFix): any {
@@ -855,12 +860,10 @@ export class ExtHostLanguageFeatures {
 export class MainThreadLanguageFeatures {
 
 	private _proxy: ExtHostLanguageFeatures;
-	private _markerService: IMarkerService;
 	private _registrations: { [handle: number]: IDisposable; } = Object.create(null);
 
-	constructor( @IThreadService threadService: IThreadService, @IMarkerService markerService: IMarkerService) {
+	constructor( @IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(ExtHostLanguageFeatures);
-		this._markerService = markerService;
 	}
 
 	$unregister(handle: number): TPromise<any> {
@@ -936,7 +939,7 @@ export class MainThreadLanguageFeatures {
 	// --- references
 
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = ReferenceRegistry.register(selector, <modes.IReferenceSupport>{
+		this._registrations[handle] = modes.ReferenceSearchRegistry.register(selector, <modes.IReferenceSupport>{
 			canFindReferences() {
 				return true;
 			},
@@ -952,13 +955,7 @@ export class MainThreadLanguageFeatures {
 	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = QuickFixRegistry.register(selector, <modes.IQuickFixSupport>{
 			getQuickFixes: (resource: URI, range: IRange): TPromise<modes.IQuickFix[]> => {
-				let markers: IMarker[] = [];
-				this._markerService.read({ resource }).forEach(marker => {
-					if (EditorRange.lift(marker).intersectRanges(range)) {
-						markers.push(marker);
-					}
-				});
-				return this._proxy.$getQuickFixes(handle, resource, range, markers);
+				return this._proxy.$getQuickFixes(handle, resource, range);
 			},
 			runQuickFixAction: (resource: URI, range: IRange, quickFix: modes.IQuickFix) => {
 				return this._proxy.$runQuickFixAction(handle, resource, range, quickFix);
@@ -1013,7 +1010,7 @@ export class MainThreadLanguageFeatures {
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = RenameRegistry.register(selector, <modes.IRenameSupport>{
+		this._registrations[handle] = modes.RenameRegistry.register(selector, <modes.IRenameSupport>{
 			rename: (resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> => {
 				return this._proxy.$rename(handle, resource, position, newName);
 			}
@@ -1024,7 +1021,7 @@ export class MainThreadLanguageFeatures {
 	// --- suggest
 
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
-		this._registrations[handle] = SuggestRegistry.register(selector, <modes.ISuggestSupport>{
+		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			suggest: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.ISuggestResult[]> => {
 				return this._proxy.$suggest(handle, resource, position);
 			},

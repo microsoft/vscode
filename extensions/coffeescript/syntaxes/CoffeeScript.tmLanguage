@@ -326,7 +326,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>/(?![\s=/*+{}?])</string>
+			<string>/(?![\s=/*+{}?])(?=.*/[igmy]{0,4})</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>0</key>

@@ -5,7 +5,7 @@
 'use strict';
 
 import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {IConfigurationChangedEvent, IPosition} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, IPosition, TextEditorCursorStyle} from 'vs/editor/common/editorCommon';
 import {IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
 export class ViewCursor {
@@ -17,9 +17,15 @@ export class ViewCursor {
 	private _isInEditableRange:boolean;
 	private _isVisible:boolean;
 	private _isInViewport:boolean;
+	private _cursorStyle: TextEditorCursorStyle;
+	private _lastRenderedContent: string;
+	private _lineHeight: number;
 
 	constructor(context:IViewContext, isSecondary:boolean) {
 		this._context = context;
+		this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lastRenderedContent = '';
 
 		this._isInEditableRange = true;
 
@@ -38,7 +44,7 @@ export class ViewCursor {
 		if (isSecondary) {
 			domNode.className += ' secondary';
 		}
-		StyleMutator.setHeight(domNode, this._context.configuration.editor.lineHeight);
+		StyleMutator.setHeight(domNode, this._lineHeight);
 		StyleMutator.setTop(domNode, 0);
 		StyleMutator.setLeft(domNode, 0);
 		domNode.setAttribute('role', 'presentation');
@@ -93,7 +99,11 @@ export class ViewCursor {
 
 	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
-			StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+
+		}
+		if (e.cursorStyle) {
+			this._cursorStyle = this._context.configuration.editor.cursorStyle;
 		}
 		return true;
 	}
@@ -109,11 +119,27 @@ export class ViewCursor {
 		}
 	}
 
+	private _getRenderedContent(): string {
+		if (this._cursorStyle === TextEditorCursorStyle.Block) {
+			let lineContent = this._context.model.getLineContent(this._position.lineNumber);
+			return lineContent.charAt(this._position.column - 1);
+		}
+		return '';
+	}
+
 	public render(ctx:IRestrictedRenderingContext): void {
 		if (this._isInViewport) {
+			let renderContent = this._getRenderedContent();
+			if (this._lastRenderedContent !== renderContent) {
+				this._lastRenderedContent = renderContent;
+				this._domNode.textContent = this._lastRenderedContent;
+			}
+
 			StyleMutator.setDisplay(this._domNode, 'block');
 			StyleMutator.setLeft(this._domNode, this._positionLeft);
 			StyleMutator.setTop(this._domNode, this._positionTop + ctx.viewportTop - ctx.bigNumbersDelta);
+			StyleMutator.setLineHeight(this._domNode, this._lineHeight);
+			StyleMutator.setHeight(this._domNode, this._lineHeight);
 		} else {
 			StyleMutator.setDisplay(this._domNode, 'none');
 		}

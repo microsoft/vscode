@@ -10,7 +10,7 @@ import scorer = require('vs/base/common/scorer');
 
 suite('Scorer', () => {
 
-	test("score", function() {
+	test('score', function () {
 		const target = 'HelLo-World';
 
 		const scores = [];
@@ -33,7 +33,7 @@ suite('Scorer', () => {
 		assert.deepEqual(scores, sortedScores);
 	});
 
-	test("cache", function() {
+	test('cache', function () {
 		const cache = Object.create(null);
 
 		scorer.score('target', 'query', cache);
@@ -42,7 +42,7 @@ suite('Scorer', () => {
 		assert.equal(Object.getOwnPropertyNames(cache).length, 2);
 	});
 
-	test("matches", function() {
+	test('matches', function () {
 		assert.ok(scorer.matches('hello world', 'h'));
 		assert.ok(!scorer.matches('hello world', 'q'));
 		assert.ok(scorer.matches('hello world', 'hw'));

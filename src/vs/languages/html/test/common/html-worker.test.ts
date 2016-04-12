@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/html/common/html.contribution';
 import assert = require('assert');
 import mm = require('vs/editor/common/model/mirrorModel');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
@@ -16,17 +15,32 @@ import WinJS = require('vs/base/common/winjs.base');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
+import {HTMLMode} from 'vs/languages/html/common/html';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 
 suite('HTML - worker', () => {
 
 	var mode: Modes.IMode;
 
-	suiteSetup((done) => {
-		modesUtil.load('html').then(_mode => {
-			mode = _mode;
-			done();
+	(function() {
+
+		let threadService = NULL_THREAD_SERVICE;
+		let modeService = new MockModeService();
+		let inst = createInstantiationService({
+			threadService: threadService,
+			modeService: modeService
 		});
-	});
+		threadService.setInstantiationService(inst);
+
+		mode = new HTMLMode<htmlWorker.HTMLWorker>(
+			{ id: 'html' },
+			inst,
+			modeService,
+			threadService
+		);
+
+	})();
 
 	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; } {
 		var resourceService = new ResourceService.ResourceService();

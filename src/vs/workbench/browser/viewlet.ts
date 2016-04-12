@@ -282,7 +282,7 @@ export interface IViewletView {
 /**
  * The AdaptiveCollapsibleViewletView can grow with the content inside dynamically.
  */
-export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView implements IViewletView {
+export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleView implements IViewletView {
 	protected treeContainer: HTMLElement;
 	protected tree: ITree;
 	protected toDispose: IDisposable[];
@@ -407,7 +407,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	}
 }
 
-export class CollapsibleViewletView extends CollapsibleView implements IViewletView {
+export abstract class CollapsibleViewletView extends CollapsibleView implements IViewletView {
 	protected treeContainer: HTMLElement;
 	protected tree: ITree;
 	protected toDispose: IDisposable[];

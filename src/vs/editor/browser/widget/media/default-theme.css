@@ -31,6 +31,7 @@
 .monaco-editor .cursor {
 	background: black;
 	border-color: black;
+	color: white; /* opposite of black */
 }
 
 /* Current line */

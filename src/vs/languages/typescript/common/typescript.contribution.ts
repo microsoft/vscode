@@ -4,26 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
+import {registerStandaloneLanguage} from 'vs/editor/browser/standalone/standaloneCodeEditor';
 
 // ----- Registration and Configuration --------------------------------------------------------
 
-ModesRegistry.registerCompatMode({
+registerStandaloneLanguage({
 	id: 'typescript',
 	extensions: ['.ts'],
 	aliases: ['TypeScript', 'ts', 'typescript'],
 	mimetypes: ['text/typescript'],
-	moduleId: 'vs/languages/typescript/common/mode',
-	ctorName: 'TypeScriptMode'
-});
+}, 'vs/languages/typescript/common/mode');
 
-ModesRegistry.registerCompatMode({
+registerStandaloneLanguage({
 	id: 'javascript',
 	extensions: ['.js', '.es6'],
 	firstLine: '^#!.*\\bnode',
 	filenames: ['jakefile'],
 	aliases: ['JavaScript', 'javascript', 'js'],
 	mimetypes: ['text/javascript'],
-	moduleId: 'vs/languages/typescript/common/mode',
-	ctorName: 'JavaScriptMode'
-});
+}, 'vs/languages/typescript/common/mode');

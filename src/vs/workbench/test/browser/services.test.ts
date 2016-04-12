@@ -21,7 +21,6 @@ import {TestEventService, TestLifecycleService, TestPartService, TestStorageServ
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
 import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
-import Severity from 'vs/base/common/severity';
 import {UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
 import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
@@ -34,7 +33,7 @@ import {createMockModeService, createMockModelService} from 'vs/editor/test/comm
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
-	getSelection: function() {
+	getSelection: function () {
 		return 'test.selection';
 	}
 };
@@ -186,17 +185,17 @@ class TestProgressBar {
 
 	public getContainer() {
 		return {
-			show: function() { },
-			hide: function() { }
+			show: function () { },
+			hide: function () { }
 		};
 	}
 }
 
 suite('Workbench UI Services', () => {
 
-	test('WorkbenchEditorService', function() {
+	test('WorkbenchEditorService', function () {
 		const TestFileService = {
-			resolveContent: function(resource) {
+			resolveContent: function (resource) {
 				return TPromise.as({
 					resource: resource,
 					value: 'Hello Html',
@@ -208,7 +207,7 @@ suite('Workbench UI Services', () => {
 				});
 			},
 
-			updateContent: function(res) {
+			updateContent: function (res) {
 				return TPromise.timeout(1).then(() => {
 					return {
 						resource: res,
@@ -220,9 +219,9 @@ suite('Workbench UI Services', () => {
 					};
 				});
 			}
-		}
+		};
 
-		let editorService = new TestEditorService(function() { });
+		let editorService = new TestEditorService(function () { });
 		let eventService = new TestEventService();
 		let contextService = new TestContextService(TestWorkspace);
 		let requestService = new MockRequestService(TestWorkspace, (url) => {
@@ -308,7 +307,6 @@ suite('Workbench UI Services', () => {
 		service.resolveEditorModel(input, true).then((model: StringEditorModel) => {
 			assert(model instanceof StringEditorModel);
 
-			let stringEditorModel = <StringEditorModel>model;
 			assert(model.isResolved());
 
 			service.resolveEditorModel(input, false).then((otherModel) => {
@@ -338,8 +336,8 @@ suite('Workbench UI Services', () => {
 		});
 	});
 
-	test('DelegatingWorkbenchEditorService', function() {
-		let editorService = new TestEditorService(function() { });
+	test('DelegatingWorkbenchEditorService', function () {
+		let editorService = new TestEditorService(function () { });
 		let contextService = new TestContextService(TestWorkspace);
 		let eventService = new TestEventService();
 		let requestService = new TestRequestService();
@@ -368,7 +366,7 @@ suite('Workbench UI Services', () => {
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
 
-		let service = inst.createInstance(<any>WorkbenchEditorService, testEditorPart);
+		inst.createInstance(<any>WorkbenchEditorService, testEditorPart);
 		class MyEditor extends BaseEditor {
 
 			constructor(id: string) {
@@ -376,7 +374,7 @@ suite('Workbench UI Services', () => {
 			}
 
 			getId(): string {
-				return "myEditor";
+				return 'myEditor';
 			}
 
 			public layout(): void {
@@ -400,7 +398,7 @@ suite('Workbench UI Services', () => {
 		delegate.openEditor(inp);
 	});
 
-	test('ScopedService', function() {
+	test('ScopedService', function () {
 		let eventService = new TestEventService();
 		let service = new TestScopedService(eventService);
 		assert(!service.isActive);
@@ -421,7 +419,7 @@ suite('Workbench UI Services', () => {
 		assert(!service.isActive);
 	});
 
-	test('WorkbenchProgressService', function() {
+	test('WorkbenchProgressService', function () {
 		let testProgressBar = new TestProgressBar();
 		let eventService = new TestEventService();
 		let service = new WorkbenchProgressService(eventService, (<any>testProgressBar), 'test.scopeId', true);

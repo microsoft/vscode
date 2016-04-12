@@ -25,14 +25,14 @@ suite('FileService', () => {
 	let parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	let testDir: string;
 
-	setup(function(done) {
+	setup(function (done) {
 		let id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
 		let sourceDir = require.toUrl('./fixtures/service');
 
 		extfs.copy(sourceDir, testDir, () => {
 			events = new utils.TestEventService();
-			service = new FileService(testDir, events, { disableWatcher: true });
+			service = new FileService(testDir, { disableWatcher: true }, events);
 			done();
 		});
 	});
@@ -43,7 +43,7 @@ suite('FileService', () => {
 		extfs.del(parentDir, os.tmpdir(), () => { }, done);
 	});
 
-	test('resolveContents', function(done: () => void) {
+	test('resolveContents', function (done: () => void) {
 		service.resolveContents([
 			uri.file(path.join(testDir, 'index.html')),
 			uri.file(path.join(testDir, '404.html')),
@@ -57,7 +57,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('createFile', function(done: () => void) {
+	test('createFile', function (done: () => void) {
 		let contents = 'Hello World';
 		service.createFile(uri.file(path.join(testDir, 'test.txt')), contents).done(s => {
 			assert.equal(s.name, 'test.txt');
@@ -68,7 +68,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('createFolder', function(done: () => void) {
+	test('createFolder', function (done: () => void) {
 		service.resolveFile(uri.file(testDir)).done(parent => {
 			return service.createFolder(uri.file(path.join(parent.resource.fsPath, 'newFolder'))).then(f => {
 				assert.equal(f.name, 'newFolder');
@@ -79,7 +79,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('renameFile', function(done: () => void) {
+	test('renameFile', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
 			return service.rename(source.resource, 'other.html').then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
@@ -90,7 +90,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('renameFolder', function(done: () => void) {
+	test('renameFolder', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'deep'))).done(source => {
 			return service.rename(source.resource, 'deeper').then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
@@ -101,7 +101,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('renameFile - MIX CASE', function(done: () => void) {
+	test('renameFile - MIX CASE', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
 			return service.rename(source.resource, 'INDEX.html').then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
@@ -112,7 +112,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('moveFile', function(done: () => void) {
+	test('moveFile', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
 			return service.moveFile(source.resource, uri.file(path.join(testDir, 'other.html'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
@@ -123,7 +123,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('move - FILE_MOVE_CONFLICT', function(done: () => void) {
+	test('move - FILE_MOVE_CONFLICT', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
 			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(null, (e: IFileOperationResult) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
@@ -133,7 +133,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('moveFile - MIX CASE', function(done: () => void) {
+	test('moveFile - MIX CASE', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
 			return service.moveFile(source.resource, uri.file(path.join(testDir, 'INDEX.html'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
@@ -144,7 +144,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('moveFile - overwrite folder with file', function(done: () => void) {
+	test('moveFile - overwrite folder with file', function (done: () => void) {
 		service.resolveFile(uri.file(testDir)).done(parent => {
 			return service.createFolder(uri.file(path.join(parent.resource.fsPath, 'conway.js'))).then(f => {
 				return service.moveFile(uri.file(path.join(testDir, 'deep', 'conway.js')), f.resource, true).then(moved => {
@@ -157,7 +157,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('copyFile', function(done: () => void) {
+	test('copyFile', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
 			return service.copyFile(source.resource, uri.file(path.join(testDir, 'other.html'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
@@ -168,7 +168,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('copyFile - overwrite folder with file', function(done: () => void) {
+	test('copyFile - overwrite folder with file', function (done: () => void) {
 		service.resolveFile(uri.file(testDir)).done(parent => {
 			return service.createFolder(uri.file(path.join(parent.resource.fsPath, 'conway.js'))).then(f => {
 				return service.copyFile(uri.file(path.join(testDir, 'deep', 'conway.js')), f.resource, true).then(copied => {
@@ -181,7 +181,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('importFile', function(done: () => void) {
+	test('importFile', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'deep'))).done(target => {
 			return service.importFile(uri.file(require.toUrl('./fixtures/service/index.html')), target.resource).then(res => {
 				assert.equal(res.isNew, true);
@@ -192,7 +192,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('importFile - MIX CASE', function(done: () => void) {
+	test('importFile - MIX CASE', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
 			return service.rename(source.resource, 'CONWAY.js').then(renamed => { // index.html => CONWAY.js
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
@@ -210,7 +210,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('importFile - overwrite folder with file', function(done: () => void) {
+	test('importFile - overwrite folder with file', function (done: () => void) {
 		service.resolveFile(uri.file(testDir)).done(parent => {
 			return service.createFolder(uri.file(path.join(parent.resource.fsPath, 'conway.js'))).then(f => {
 				return service.importFile(uri.file(path.join(testDir, 'deep', 'conway.js')), uri.file(testDir)).then(res => {
@@ -224,7 +224,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('importFile - same file', function(done: () => void) {
+	test('importFile - same file', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
 			return service.importFile(source.resource, uri.file(path.dirname(source.resource.fsPath))).then(imported => {
 				assert.equal(imported.stat.size, source.size);
@@ -234,7 +234,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('deleteFile', function(done: () => void) {
+	test('deleteFile', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'deep', 'conway.js'))).done(source => {
 			return service.del(source.resource).then(() => {
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
@@ -244,7 +244,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('deleteFolder', function(done: () => void) {
+	test('deleteFolder', function (done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'deep'))).done(source => {
 			return service.del(source.resource).then(() => {
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
@@ -254,7 +254,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveFile', function(done: () => void) {
+	test('resolveFile', function (done: () => void) {
 		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).done(r => {
 			assert.equal(r.children.length, 6);
 
@@ -265,7 +265,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('updateContent', function(done: () => void) {
+	test('updateContent', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'small.txt'));
 
 		service.resolveContent(resource).done(c => {
@@ -281,7 +281,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('updateContent - use encoding (UTF 16 BE)', function(done: () => void) {
+	test('updateContent - use encoding (UTF 16 BE)', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'small.txt'));
 		let encoding = 'utf16be';
 
@@ -302,7 +302,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('updateContent - encoding preserved (UTF 16 LE)', function(done: () => void) {
+	test('updateContent - encoding preserved (UTF 16 LE)', function (done: () => void) {
 		let encoding = 'utf16le';
 		let resource = uri.file(path.join(testDir, 'some_utf16le.css'));
 
@@ -325,7 +325,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - FILE_IS_BINARY', function(done: () => void) {
+	test('resolveContent - FILE_IS_BINARY', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'binary.txt'));
 
 		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e: IFileOperationResult) => {
@@ -339,7 +339,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - FILE_IS_DIRECTORY', function(done: () => void) {
+	test('resolveContent - FILE_IS_DIRECTORY', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'deep'));
 
 		service.resolveContent(resource).done(null, (e: IFileOperationResult) => {
@@ -349,7 +349,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - FILE_NOT_FOUND', function(done: () => void) {
+	test('resolveContent - FILE_NOT_FOUND', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, '404.html'));
 
 		service.resolveContent(resource).done(null, (e: IFileOperationResult) => {
@@ -359,7 +359,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - FILE_NOT_MODIFIED_SINCE', function(done: () => void) {
+	test('resolveContent - FILE_NOT_MODIFIED_SINCE', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource).done(c => {
@@ -371,7 +371,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - FILE_MODIFIED_SINCE', function(done: () => void) {
+	test('resolveContent - FILE_MODIFIED_SINCE', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource).done(c => {
@@ -385,7 +385,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - encoding picked up', function(done: () => void) {
+	test('resolveContent - encoding picked up', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'index.html'));
 		let encoding = 'windows1252';
 
@@ -396,7 +396,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - user overrides BOM', function(done: () => void) {
+	test('resolveContent - user overrides BOM', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'some_utf16le.css'));
 
 		service.resolveContent(resource, { encoding: 'windows1252' }).done(c => {
@@ -406,7 +406,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - BOM removed', function(done: () => void) {
+	test('resolveContent - BOM removed', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'some_utf8_bom.txt'));
 
 		service.resolveContent(resource).done(c => {
@@ -416,7 +416,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveContent - invalid encoding', function(done: () => void) {
+	test('resolveContent - invalid encoding', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource, { encoding: 'superduper' }).done(c => {
@@ -426,7 +426,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('watchFileChanges', function(done: () => void) {
+	test('watchFileChanges', function (done: () => void) {
 		let toWatch = uri.file(path.join(testDir, 'index.html'));
 
 		service.watchFileChanges(toWatch);
@@ -443,7 +443,7 @@ suite('FileService', () => {
 		}, 100);
 	});
 
-	test('options - encoding', function(done: () => void) {
+	test('options - encoding', function (done: () => void) {
 
 		// setup
 		let _id = uuid.generateUuid();
@@ -457,11 +457,11 @@ suite('FileService', () => {
 				encoding: 'utf16le'
 			});
 
-			let _service = new FileService(_testDir, null, {
+			let _service = new FileService(_testDir, {
 				encoding: 'windows1252',
 				encodingOverride: encodingOverride,
 				disableWatcher: true
-			});
+			}, null);
 
 			_service.resolveContent(uri.file(path.join(testDir, 'index.html'))).done(c => {
 				assert.equal(c.encoding, 'windows1252');
@@ -477,7 +477,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('UTF 8 BOMs', function(done: () => void) {
+	test('UTF 8 BOMs', function (done: () => void) {
 
 		// setup
 		let _id = uuid.generateUuid();
@@ -485,9 +485,9 @@ suite('FileService', () => {
 		let _sourceDir = require.toUrl('./fixtures/service');
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
-		let _service = new FileService(_testDir, null, {
+		let _service = new FileService(_testDir, {
 			disableWatcher: true
-		});
+		}, null);
 
 		extfs.copy(_sourceDir, _testDir, () => {
 			fs.readFile(resource.fsPath, (error, data) => {

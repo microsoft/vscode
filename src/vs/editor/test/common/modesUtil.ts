@@ -28,18 +28,6 @@ export function assertWords(actual:string[], expected:string[], message?:string)
 	assert.deepEqual(actual, expected, message);
 }
 
-export function load(modeId: string, preloadModes: string[] = [] ): TPromise<modes.IMode> {
-	var toLoad:string[] = [].concat(preloadModes).concat([modeId]);
-
-	var modeService = createMockModeService();
-
-	var promises = toLoad.map(modeId => modeService.getOrCreateMode(modeId));
-
-	return TPromise.join(promises).then(modes => {
-		return modes[modes.length -1];
-	});
-}
-
 export function assertTokenization(tokenizationSupport: modes.ITokenizationSupport, tests: ITestItem[]): void {
 	var state = tokenizationSupport.getInitialState();
 	for (var i = 0, len = tests.length; i < len; i++) {

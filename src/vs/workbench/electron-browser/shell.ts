@@ -21,8 +21,7 @@ import {ContextMenuService} from 'vs/workbench/services/contextview/electron-bro
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {NullTelemetryService} from 'vs/platform/telemetry/common/nullTelemetryService';
+import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ElectronTelemetryService} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
@@ -249,7 +248,7 @@ export class WorkbenchShell {
 				commitHash: this.configuration.env.commitHash
 			});
 		} else {
-			this.telemetryService = NullTelemetryService.Instance;
+			this.telemetryService = NullTelemetryService;
 		}
 
 		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.configurationService, this.telemetryService, <any>window);
@@ -260,7 +259,8 @@ export class WorkbenchShell {
 		let fileService = new FileService(
 			this.configurationService,
 			this.eventService,
-			this.contextService
+			this.contextService,
+			this.messageService
 		);
 
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);

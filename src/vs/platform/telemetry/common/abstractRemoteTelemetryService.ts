@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import AbstractTelemetryService = require('vs/platform/telemetry/common/abstractTelemetryService');
 import {ITelemetryService, ITelemetryInfo, ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-
+import {IDisposable} from 'vs/base/common/lifecycle';
 /**
  * Helper always instantiated in the main process to receive telemetry events from remote telemetry services
  */
@@ -47,7 +47,7 @@ export class AbstractRemoteTelemetryService extends AbstractTelemetryService.Abs
 		return this._proxy.getTelemetryInfo();
 	}
 
-	public addTelemetryAppender(appender: ITelemetryAppender): void {
+	public addTelemetryAppender(appender: ITelemetryAppender): IDisposable {
 		throw new Error('Telemetry appenders are not supported in this execution envirnoment');
 	}
 

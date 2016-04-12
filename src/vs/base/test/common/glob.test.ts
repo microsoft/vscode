@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import glob = require('vs/base/common/glob');
 
 suite('Glob', () => {
-	test('simple', function() {
+	test('simple', function () {
 		var p = 'node_modules';
 
 		assert(glob.match(p, 'node_modules'));
@@ -43,7 +43,7 @@ suite('Glob', () => {
 		assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
 	});
 
-	test('dot hidden', function() {
+	test('dot hidden', function () {
 		var p = '.*';
 
 		assert(glob.match(p, '.git'));
@@ -83,7 +83,7 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'pat.h/hidden._txt'));
 	});
 
-	test('file pattern', function() {
+	test('file pattern', function () {
 		var p = '*.js';
 
 		assert(glob.match(p, 'foo.js'));
@@ -112,7 +112,7 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'some.js/test'));
 	});
 
-	test('star', function() {
+	test('star', function () {
 		var p = 'node*modules';
 
 		assert(glob.match(p, 'node_modules'));
@@ -129,7 +129,7 @@ suite('Glob', () => {
 		assert(!glob.match(p, '/node_modules/foo.js'));
 	});
 
-	test('questionmark', function() {
+	test('questionmark', function () {
 		var p = 'node?modules';
 
 		assert(glob.match(p, 'node_modules'));
@@ -146,7 +146,7 @@ suite('Glob', () => {
 		assert(!glob.match(p, '/node_modules/foo.js'));
 	});
 
-	test('globstar', function() {
+	test('globstar', function () {
 		var p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
@@ -227,7 +227,7 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'C:\\\\some\\test\\tempting'));
 	});
 
-	test('brace expansion', function() {
+	test('brace expansion', function () {
 		var p = '*.{html,js}';
 
 		assert(glob.match(p, 'foo.js'));
@@ -319,11 +319,11 @@ suite('Glob', () => {
 		assert(glob.match(p, 'prefix/foo.js'));
 	});
 
-	test('expression support (single)', function() {
+	test('expression support (single)', function () {
 		var siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
-		var expression:glob.IExpression = {
+		var expression: glob.IExpression = {
 			'**/*.js': {
 				when: '$(basename).ts'
 			}
@@ -354,11 +354,11 @@ suite('Glob', () => {
 		assert(!glob.match(expression, 'test.js', siblings));
 	});
 
-	test('expression support (multiple)', function() {
+	test('expression support (multiple)', function () {
 		var siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
-		var expression:glob.IExpression = {
+		var expression: glob.IExpression = {
 			'**/*.js': { when: '$(basename).ts' },
 			'**/*.as': true,
 			'**/*.foo': false,
@@ -372,7 +372,7 @@ suite('Glob', () => {
 		assert(!glob.match(expression, 'test.foo', siblings));
 	});
 
-	test('brackets', function() {
+	test('brackets', function () {
 		var p = 'foo.[0-9]';
 
 		assert(glob.match(p, 'foo.5'));
@@ -388,7 +388,7 @@ suite('Glob', () => {
 		assert(glob.match(p, 'foo.f'));
 	});
 
-	test('backslash agnostic', function() {
+	test('backslash agnostic', function () {
 		var p = 'testing/this/foo.txt';
 
 		assert(glob.match(p, 'testing/this/foo.txt'));
@@ -396,7 +396,7 @@ suite('Glob', () => {
 		assert(glob.match(p, 'testing/this\\foo.txt'));
 	});
 
-	test('prefix agnostic', function() {
+	test('prefix agnostic', function () {
 		var p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
@@ -440,7 +440,7 @@ suite('Glob', () => {
 		assert(glob.match(p, 'C:\\testing\\foo.js'));
 	});
 
-	test('cached properly', function() {
+	test('cached properly', function () {
 		var p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
@@ -500,13 +500,13 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'C:\\testing.js\\foo'));
 	});
 
-	test('invalid glob', function() {
+	test('invalid glob', function () {
 		var p = '**/*(.js';
 
 		assert(!glob.match(p, 'foo.js'));
 	});
 
-	test('split glob aware', function() {
+	test('split glob aware', function () {
 		assert.deepEqual(glob.splitGlobAware('foo,bar', ','), ['foo', 'bar']);
 		assert.deepEqual(glob.splitGlobAware('foo', ','), ['foo']);
 		assert.deepEqual(glob.splitGlobAware('{foo,bar}', ','), ['{foo,bar}']);
