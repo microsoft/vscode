@@ -6,6 +6,10 @@
 /* Your images should be linked as if the CSS file sits in the same folder as the images. ie. no paths. */
 /* basic elements */
 
+@import "mystyle.css";
+@import url("mystyle.css");
+@import url("bluish.css") projection, tv;
+
 .html {
     padding: 0;
     font-style: 0;

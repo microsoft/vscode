@@ -1,5 +1,6 @@
 from banana import *
 
+
 class Monkey:
 	# Bananas the monkey can eat.
 	capacity = 10
