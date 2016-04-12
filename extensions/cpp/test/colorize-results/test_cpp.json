@@ -1,7 +1,7 @@
 [
 	{
 		"c": "//",
-		"t": "c++.comment.definition.double-slash.line.punctuation",
+		"t": "comment.cpp.definition.double-slash.line.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": " classes example",
-		"t": "c++.comment.double-slash.line",
+		"t": "comment.cpp.double-slash.line",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -23,21 +23,21 @@
 	},
 	{
 		"c": "#",
-		"t": "c.include.meta.preprocessor",
+		"t": "c.control.definition.directive.include.keyword.meta.preprocessor.punctuation",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.preprocessor rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.preprocessor rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.preprocessor rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.preprocessor rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.preprocessor rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": "include",
-		"t": "c.control.import.include.keyword.meta.preprocessor",
+		"t": "c.control.directive.include.keyword.meta.preprocessor",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control.import rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control.import rgb(0, 0, 255)",
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
 			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
 			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "using",
-		"t": "c++.control.keyword",
+		"t": "control.cpp.keyword.meta.using-namespace-declaration",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": " ",
-		"t": "",
+		"t": "cpp.meta.using-namespace-declaration",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "namespace",
-		"t": "c++.meta.namespace-block${2:+.std}.storage.type",
+		"t": "cpp.meta.storage.type.using-namespace-declaration",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": " ",
-		"t": "c++.meta.namespace-block${2:+.std}",
+		"t": "cpp.meta.using-namespace-declaration",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "std",
-		"t": "c++.entity.meta.name.namespace-block${2:+.std}.type",
+		"t": "cpp.entity.meta.name.type.using-namespace-declaration",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
@@ -144,18 +144,18 @@
 	},
 	{
 		"c": ";",
-		"t": "$2.c++.control.keyword.meta.namespace.namespace-block${2:+.std}",
+		"t": "cpp.meta.using-namespace-declaration",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
 		"c": "class",
-		"t": "c++.class-struct-block.meta.storage.type",
+		"t": "class-struct-block.cpp.meta.storage.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": " ",
-		"t": "c++.class-struct-block.meta",
+		"t": "class-struct-block.cpp.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "Rectangle",
-		"t": "c++.class-struct-block.entity.meta.name.type",
+		"t": "class-struct-block.cpp.entity.meta.name.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.type rgb(78, 201, 176)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.type rgb(38, 127, 153)",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": " ",
-		"t": "c++.class-struct-block.meta",
+		"t": "class-struct-block.cpp.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": "{",
-		"t": "begin.block.c++.class-struct-block.meta.punctuation.section",
+		"t": "begin.block.class-struct-block.cpp.meta.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "c++.class-struct-block.meta",
+		"t": "class-struct-block.cpp.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "int",
-		"t": "c.c++.class-struct-block.meta.storage.type",
+		"t": "c.class-struct-block.cpp.meta.storage.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
@@ -232,7 +232,7 @@
 	},
 	{
 		"c": " width, height;",
-		"t": "c++.class-struct-block.meta",
+		"t": "class-struct-block.cpp.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "c++.class-struct-block.meta",
+		"t": "class-struct-block.cpp.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -254,7 +254,7 @@
 	},
 	{
 		"c": "public:",
-		"t": "c++.class-struct-block.meta.modifier.public.storage",
+		"t": "class-struct-block.cpp.meta.modifier.storage",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.modifier rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.modifier rgb(0, 0, 255)",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "c++.class-struct-block.meta",
+		"t": "class-struct-block.cpp.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "void",
-		"t": "c.c++.class-struct-block.meta.storage.type",
+		"t": "c.class-struct-block.cpp.meta.storage.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": " ",
-		"t": "c.c++.class-struct-block.function.leading.meta.punctuation.whitespace",
+		"t": "c.class-struct-block.cpp.function.leading.meta.punctuation.whitespace",
 		"r": {
 			"dark_plus": ".vs-dark .token.whitespace rgba(227, 228, 226, 0.156863)",
 			"light_plus": ".vs .token.whitespace rgba(51, 51, 51, 0.2)",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": "set_values",
-		"t": "c.c++.class-struct-block.entity.function.meta.name",
+		"t": "c.class-struct-block.cpp.entity.function.meta.name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": " ",
-		"t": "c.c++.class-struct-block.function.meta",
+		"t": "c.class-struct-block.cpp.function.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -320,7 +320,7 @@
 	},
 	{
 		"c": "(",
-		"t": "begin.c.c++.class-struct-block.function.meta.parens.punctuation.section",
+		"t": "begin.c.class-struct-block.cpp.function.meta.parens.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -331,7 +331,7 @@
 	},
 	{
 		"c": "int",
-		"t": "c.c++.class-struct-block.function.meta.parens.storage.type",
+		"t": "c.class-struct-block.cpp.function.meta.parens.storage.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
@@ -342,7 +342,7 @@
 	},
 	{
 		"c": ",",
-		"t": "c.c++.class-struct-block.function.meta.parens",
+		"t": "c.class-struct-block.cpp.function.meta.parens",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": "int",
-		"t": "c.c++.class-struct-block.function.meta.parens.storage.type",
+		"t": "c.class-struct-block.cpp.function.meta.parens.storage.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
@@ -364,7 +364,7 @@
 	},
 	{
 		"c": ")",
-		"t": "c.c++.class-struct-block.end.function.meta.parens.punctuation.section",
+		"t": "c.class-struct-block.cpp.end.function.meta.parens.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -375,7 +375,7 @@
 	},
 	{
 		"c": ";",
-		"t": "c.c++.class-struct-block.function.meta",
+		"t": "c.class-struct-block.cpp.function.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -386,7 +386,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "c++.class-struct-block.meta",
+		"t": "class-struct-block.cpp.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -397,7 +397,7 @@
 	},
 	{
 		"c": "int",
-		"t": "c.c++.class-struct-block.meta.storage.type",
+		"t": "c.class-struct-block.cpp.meta.storage.type",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.storage.type rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.storage.type rgb(0, 0, 255)",
@@ -408,7 +408,7 @@
 	},
 	{
 		"c": " ",
-		"t": "c.c++.class-struct-block.function.leading.meta.punctuation.whitespace",
+		"t": "c.class-struct-block.cpp.function.leading.meta.punctuation.whitespace",
 		"r": {
 			"dark_plus": ".vs-dark .token.whitespace rgba(227, 228, 226, 0.156863)",
 			"light_plus": ".vs .token.whitespace rgba(51, 51, 51, 0.2)",
@@ -419,7 +419,7 @@
 	},
 	{
 		"c": "area",
-		"t": "c.c++.class-struct-block.entity.function.meta.name",
+		"t": "c.class-struct-block.cpp.entity.function.meta.name",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.entity.name.function rgb(220, 220, 170)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.entity.name.function rgb(121, 94, 38)",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "(",
-		"t": "begin.c.c++.class-struct-block.function.meta.parens.punctuation.section",
+		"t": "begin.c.class-struct-block.cpp.function.meta.parens.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -441,7 +441,7 @@
 	},
 	{
 		"c": ")",
-		"t": "c.c++.class-struct-block.end.function.meta.parens.punctuation.section",
+		"t": "c.class-struct-block.cpp.end.function.meta.parens.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -452,7 +452,7 @@
 	},
 	{
 		"c": " ",
-		"t": "c.c++.class-struct-block.function.meta",
+		"t": "c.class-struct-block.cpp.function.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "{",
-		"t": "begin.block.c.c++.class-struct-block.function.meta.punctuation.section",
+		"t": "begin.block.c.class-struct-block.cpp.function.meta.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": "return",
-		"t": "block.c.c++.class-struct-block.control.function.keyword.meta",
+		"t": "block.c.class-struct-block.control.cpp.function.keyword.meta",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control rgb(197, 134, 192)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control rgb(175, 0, 219)",
@@ -485,7 +485,7 @@
 	},
 	{
 		"c": " width*height;",
-		"t": "block.c.c++.class-struct-block.function.meta",
+		"t": "block.c.class-struct-block.cpp.function.meta",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -496,7 +496,7 @@
 	},
 	{
 		"c": "}",
-		"t": "block.c.c++.class-struct-block.end.function.meta.punctuation.section",
+		"t": "block.c.class-struct-block.cpp.end.function.meta.punctuation.section",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -507,13 +507,13 @@
 	},
 	{
 		"c": "}",
-		"t": "c++.class-struct-block.definition.invalid.meta.punctuation",
+		"t": "block.class-struct-block.cpp.end.meta.punctuation.section",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.invalid rgb(244, 71, 71)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.invalid rgb(205, 49, 49)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.invalid rgb(244, 71, 71)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.invalid rgb(205, 49, 49)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.invalid rgb(244, 71, 71)"
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
 	},
 	{
@@ -814,8 +814,19 @@
 		}
 	},
 	{
-		"c": " (",
+		"c": " ",
 		"t": "block.c.function.function-call.meta",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "(",
+		"t": "block.c.definition.function.function-call.meta.parameters.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",
@@ -936,7 +947,7 @@
 	},
 	{
 		"c": "(",
-		"t": "block.c.function.function-call.meta",
+		"t": "block.c.definition.function.function-call.meta.parameters.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
 			"light_plus": ".vs .token rgb(0, 0, 0)",

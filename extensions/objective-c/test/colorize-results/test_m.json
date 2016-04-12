@@ -1,7 +1,7 @@
 [
 	{
 		"c": "//",
-		"t": "c++.comment.definition.double-slash.line.punctuation",
+		"t": "comment.cpp.definition.double-slash.line.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": "//",
-		"t": "c++.comment.definition.double-slash.line.punctuation",
+		"t": "comment.cpp.definition.double-slash.line.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "  Copyright (c) Microsoft Corporation. All rights reserved.",
-		"t": "c++.comment.double-slash.line",
+		"t": "comment.cpp.double-slash.line",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "//",
-		"t": "c++.comment.definition.double-slash.line.punctuation",
+		"t": "comment.cpp.definition.double-slash.line.punctuation",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -45,18 +45,18 @@
 	},
 	{
 		"c": "#",
-		"t": "c.include.meta.preprocessor",
+		"t": "c.control.definition.directive.import.include.keyword.meta.preprocessor.punctuation",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.preprocessor rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.preprocessor rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.preprocessor rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.preprocessor rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.preprocessor rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control.import rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control.import rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": "import",
-		"t": "c.control.import.include.keyword.meta.preprocessor",
+		"t": "c.control.directive.import.include.keyword.meta.preprocessor",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control.import rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control.import rgb(0, 0, 255)",
@@ -111,18 +111,18 @@
 	},
 	{
 		"c": "#",
-		"t": "c.include.meta.preprocessor",
+		"t": "c.control.definition.directive.import.include.keyword.meta.preprocessor.punctuation",
 		"r": {
-			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.preprocessor rgb(86, 156, 214)",
-			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.meta.preprocessor rgb(0, 0, 255)",
-			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.preprocessor rgb(86, 156, 214)",
-			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.meta.preprocessor rgb(0, 0, 255)",
-			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.meta.preprocessor rgb(86, 156, 214)"
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control.import rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control.import rgb(0, 0, 255)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.keyword.control rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
 		}
 	},
 	{
 		"c": "import",
-		"t": "c.control.import.include.keyword.meta.preprocessor",
+		"t": "c.control.directive.import.include.keyword.meta.preprocessor",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.keyword.control.import rgb(86, 156, 214)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.keyword.control.import rgb(0, 0, 255)",
@@ -1100,29 +1100,7 @@
 		}
 	},
 	{
-		"c": " ",
-		"t": "block.bracketed.c.function-call.function-with-body.implementation.initialization.meta.objc.scope",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "(",
-		"t": "block.bracketed.c.definition.function-call.function-with-body.implementation.initialization.meta.objc.parameters.punctuation.scope",
-		"r": {
-			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
-			"light_plus": ".vs .token rgb(0, 0, 0)",
-			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
-			"light_vs": ".vs .token rgb(0, 0, 0)",
-			"hc_black": ".hc-black .token rgb(255, 255, 255)"
-		}
-	},
-	{
-		"c": "result == NSFileHandlingPanelOKButton)",
+		"c": " (result == NSFileHandlingPanelOKButton)",
 		"t": "block.bracketed.c.function-call.function-with-body.implementation.meta.objc.scope",
 		"r": {
 			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
@@ -1772,7 +1750,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "block.c.c++.comment.function-with-body.implementation.leading.meta.objc.punctuation.scope.whitespace",
+		"t": "block.c.comment.cpp.function-with-body.implementation.leading.meta.objc.punctuation.scope.whitespace",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgba(227, 228, 226, 0.156863)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgba(51, 51, 51, 0.2)",
@@ -1783,7 +1761,7 @@
 	},
 	{
 		"c": "//",
-		"t": "block.c.c++.comment.definition.double-slash.function-with-body.implementation.line.meta.objc.punctuation.scope",
+		"t": "block.c.comment.cpp.definition.double-slash.function-with-body.implementation.line.meta.objc.punctuation.scope",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",
@@ -1794,7 +1772,7 @@
 	},
 	{
 		"c": " add a tap gesture recognizer",
-		"t": "block.c.c++.comment.double-slash.function-with-body.implementation.line.meta.objc.scope",
+		"t": "block.c.comment.cpp.double-slash.function-with-body.implementation.line.meta.objc.scope",
 		"r": {
 			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.comment rgb(96, 139, 78)",
 			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.comment rgb(0, 128, 0)",

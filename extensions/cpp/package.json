@@ -19,12 +19,12 @@
 		"grammars": [{
 			"language": "c",
 			"scopeName": "source.c",
-			"path": "./syntaxes/c.plist"
+			"path": "./syntaxes/c.json"
 		},
 		{
 			"language": "cpp",
-			"scopeName": "source.c++",
-			"path": "./syntaxes/c++.plist"
+			"scopeName": "source.cpp",
+			"path": "./syntaxes/c++.json"
 		},
 		{
 			"scopeName": "source.c.platform",
