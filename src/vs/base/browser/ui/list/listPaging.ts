@@ -6,9 +6,10 @@
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IDelegate, IRenderer } from './list';
+import { IDelegate, IRenderer, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { List } from './listWidget';
 import { PagedModel } from 'vs/base/common/paging';
+import Event, { mapEvent } from 'vs/base/common/event';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -57,8 +58,9 @@ class PagedRenderer<TElement, TTemplateData> implements IRenderer<number, ITempl
 	}
 }
 
-export class PagedList<T> extends List<number> {
+export class PagedList<T> {
 
+	private list: List<number>;
 	private _model: PagedModel<T>;
 
 	constructor(
@@ -67,7 +69,15 @@ export class PagedList<T> extends List<number> {
 		renderers: IPagedRenderer<T, any>[]
 	) {
 		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, () => this.model));
-		super(container, delegate, pagedRenderers);
+		this.list = new List(container, delegate, pagedRenderers);
+	}
+
+	get onFocusChange(): Event<IFocusChangeEvent<T>> {
+		return mapEvent(this.list.onFocusChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+	}
+
+	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
+		return mapEvent(this.list.onSelectionChange, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
 	}
 
 	get model(): PagedModel<T> {
@@ -76,6 +86,14 @@ export class PagedList<T> extends List<number> {
 
 	set model(model: PagedModel<T>) {
 		this._model = model;
-		this.splice(0, this.length, ...range(model.length));
+		this.list.splice(0, this.list.length, ...range(model.length));
+	}
+
+	get scrollTop(): number {
+		return this.list.scrollTop;
+	}
+
+	layout(height?: number): void {
+		this.list.layout(height);
 	}
 }

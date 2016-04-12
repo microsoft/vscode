@@ -130,6 +130,8 @@ class Controller<T> implements IDisposable {
 	}
 
 	private onClick(e: IListMouseEvent<T>) {
+		e.preventDefault();
+		e.stopPropagation();
 		this.list.setSelection(e.index);
 	}
 
@@ -191,6 +193,10 @@ export class List<T> implements IDisposable {
 
 	get contentHeight(): number {
 		return this.view.getScrollHeight();
+	}
+
+	get scrollTop(): number {
+		return this.view.getScrollTop();
 	}
 
 	layout(height?: number): void {
