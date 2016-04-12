@@ -24,6 +24,7 @@ export interface IGalleryVersion {
 	version: string;
 	date: string;
 	manifestUrl: string;
+	readmeUrl: string;
 	downloadUrl: string;
 	iconUrl: string;
 	downloadHeaders: { [key: string]: string; };

@@ -167,6 +167,7 @@ function toExtension(galleryExtension: IGalleryExtension, extensionsGalleryUrl: 
 		downloadHeaders,
 		downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
 		manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`,
+		readmeUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Content.Details`,
 		iconUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.Icons.Default`
 	}));
 

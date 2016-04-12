@@ -86,6 +86,23 @@ export function download(filePath: string, opts: IRequestOptions): TPromise<void
 	}));
 }
 
+export function text(opts: IRequestOptions): TPromise<string> {
+	return request(opts).then(pair => new Promise((c, e) => {
+		if (!((pair.res.statusCode >= 200 && pair.res.statusCode < 300) || pair.res.statusCode === 1223)) {
+			return e('Server returned ' + pair.res.statusCode);
+		}
+
+		if (pair.res.statusCode === 204) {
+			return c(null);
+		}
+
+		let buffer: string[] = [];
+		pair.res.on('data', d => buffer.push(d));
+		pair.res.on('end', () => c(buffer.join('')));
+		pair.res.on('error', e);
+	}));
+}
+
 export function json<T>(opts: IRequestOptions): TPromise<T> {
 	return request(opts).then(pair => new Promise((c, e) => {
 		if (!((pair.res.statusCode >= 200 && pair.res.statusCode < 300) || pair.res.statusCode === 1223)) {

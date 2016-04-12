@@ -15,7 +15,7 @@
 .extension-manager > .search,
 .extension-manager > .extensions {
 	width: 100%;
-	max-width: 600px;
+	max-width: 800px;
 	margin: 0 auto;
 }
 
@@ -91,6 +91,8 @@
 	width: calc(100% - 30px);
 	height: calc(100% - 20px);
 	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
 .extension-manager .overlay .extension-container > .extension {
@@ -150,4 +152,10 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+}
+
+.extension-manager .extension-container > .extension > .body {
+	flex: 1;
+	overflow-y: scroll;
+	padding: 10px;
 }

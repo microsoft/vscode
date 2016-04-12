@@ -9,6 +9,8 @@ import 'vs/css!./media/extensions2';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
+import { marked } from 'vs/base/common/marked/marked';
+import { assign } from 'vs/base/common/objects';
 import { IDisposable, toDisposable, empty, dispose } from 'vs/base/common/lifecycle';
 import { Builder } from 'vs/base/browser/builder';
 import { append, emmet as $, addClass, removeClass, getDomNodePosition, addDisposableListener } from 'vs/base/browser/dom';
@@ -21,16 +23,21 @@ import { IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IExtension, IGalleryService } from '../common/extensions';
 import { getExtensionId } from '../common/extensionsUtil';
 import { PagedModel, mapPager } from 'vs/base/common/paging';
+import { text as downloadText, IRequestOptions } from 'vs/base/node/request';
+import { UserSettings } from 'vs/workbench/node/userSettings';
+import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { getProxyAgent } from 'vs/base/node/proxy';
 
 interface ITemplateData {
-	id: string;
-	root: HTMLElement;
-	extension: HTMLElement;
+	extension: IExtension;
+	container: HTMLElement;
+	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
 	version: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
+	body: HTMLElement;
 }
 
 enum ExtensionState {
@@ -74,10 +81,10 @@ class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> {
 
 	get templateId() { return 'extension'; }
 
-	renderTemplate(container: HTMLElement): ITemplateData {
-		const root = append(container, $('.extension-container'));
-		const extension = append(root, $('.extension'));
-		const header = append(extension, $('.header'));
+	renderTemplate(root: HTMLElement): ITemplateData {
+		const container = append(root, $('.extension-container'));
+		const element = append(container, $('.extension'));
+		const header = append(element, $('.header'));
 		const icon = append(header, $<HTMLImageElement>('img.icon'));
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
@@ -86,23 +93,22 @@ class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> {
 		const version = append(subtitle, $('span.version'));
 		const author = append(subtitle, $('span.author'));
 		const description = append(details, $('.description'));
-		const body = append(extension, $('.body'));
-		body.innerText = 'hello';
-
-		const result = { id: null, root, extension, icon, name, version, author, description };
+		const body = append(element, $('.body'));
+		const result = { extension: null, container, element, icon, name, version, author, description, body };
 
 		this._templates.push(result);
 		return result;
 	}
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
-		addClass(data.extension, 'loading');
-		data.id = null;
+		addClass(data.element, 'loading');
+		data.extension = null;
 		data.icon.style.display = 'none';
 		data.name.textContent = '';
 		data.version.textContent = '';
 		data.author.textContent = '';
 		data.description.textContent = '';
+		data.body.textContent = '';
 	}
 
 	renderElement(entry: IExtensionEntry, index: number, data: ITemplateData): void {
@@ -110,14 +116,15 @@ class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> {
 		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
 		const version = extension.galleryInformation.versions[0];
 
-		data.id = getExtensionId(extension);
-		removeClass(data.extension, 'loading');
+		data.extension = extension;
+		removeClass(data.element, 'loading');
 		data.icon.style.display = 'block';
 		data.icon.src = version.iconUrl;
 		data.name.textContent = extension.displayName;
 		data.version.textContent = ` ${ extension.version }`;
 		data.author.textContent = ` ${ localize('author', "by {0}", publisher)}`;
 		data.description.textContent = extension.description;
+		data.body.textContent = '';
 	}
 
 	disposeTemplate(data: ITemplateData): void {
@@ -155,6 +162,7 @@ export class ExtensionsPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IGalleryService private galleryService: IGalleryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(ExtensionsPart.ID, telemetryService);
@@ -201,7 +209,7 @@ export class ExtensionsPart extends BaseEditor {
 			}
 
 			const id = getExtensionId(selected.extension);
-			const [data] = renderer.templates.filter(t => t.id === id);
+			const [data] = renderer.templates.filter(t => t.extension && getExtensionId(t.extension) === id);
 
 			if (!data) {
 				return;
@@ -260,12 +268,14 @@ export class ExtensionsPart extends BaseEditor {
 
 		if (!data) {
 			removeClass(this.root, 'highlighted');
+			removeClass(this.root, 'animated');
+			removeClass(this.root, 'highlight-in');
 			this.highlightDisposable.dispose();
 			this.highlightDisposable = empty;
 			return;
 		}
 
-		const position = getDomNodePosition(data.root);
+		const position = getDomNodePosition(data.container);
 		const rootPosition = getDomNodePosition(this.extensionsBox);
 
 		this.overlay.style.top = `${ position.top - rootPosition.top - this.list.scrollTop }px`;
@@ -277,8 +287,8 @@ export class ExtensionsPart extends BaseEditor {
 		this.overlay.style.height = this.extensionsBox.style.height;
 
 		// swap parents
-		const container = data.root.parentElement;
-		this.overlay.appendChild(data.root);
+		const container = data.container.parentElement;
+		this.overlay.appendChild(data.container);
 
 		// transition end event
 		const listener = addDisposableListener(this.overlay, 'transitionend', e => {
@@ -288,9 +298,39 @@ export class ExtensionsPart extends BaseEditor {
 			addClass(this.root, 'highlighted');
 		});
 
+		const [version] = data.extension.galleryInformation.versions;
+		const headers = version.downloadHeaders;
+
+		// TODO
+		this.request(version.readmeUrl)
+			.then(opts => assign(opts, { headers }))
+			.then(opts => downloadText(opts))
+			.then(marked.parse)
+			.then(html => data.body.innerHTML = html);
+
+		// set up disposable for later
 		this.highlightDisposable = toDisposable(() => {
-			container.appendChild(data.root);
+			listener.dispose();
+			container.appendChild(data.container);
 			this.overlay.style.height = '0';
+			data.body.innerHTML = '';
+		});
+	}
+
+	// Helper for proxy business... shameful.
+	// This should be pushed down and not rely on the context service
+	private request(url: string): TPromise<IRequestOptions> {
+		const settings = TPromise.join([
+			UserSettings.getValue(this.contextService, 'http.proxy'),
+			UserSettings.getValue(this.contextService, 'http.proxyStrictSSL')
+		]);
+
+		return settings.then(settings => {
+			const proxyUrl: string = settings[0];
+			const strictSSL: boolean = settings[1];
+			const agent = getProxyAgent(url, { proxyUrl, strictSSL });
+
+			return { url, agent, strictSSL };
 		});
 	}
 
