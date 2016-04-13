@@ -27,7 +27,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	private static STORAGE_KEY = 'workingFiles.model.entries';
 
 	private entries: WorkingFileEntry[];
-	private recentlyClosedEntries: (uri | uri[])[];
+	private recentlyClosedEntries: uri[][];
 	private pathLabelProvider: labels.PathLabelProvider;
 	private mapEntryToResource: { [resource: string]: WorkingFileEntry; };
 	private _onModelChange: Emitter<IWorkingFileModelChangeEvent>;
@@ -278,7 +278,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		let resource: uri = arg1 instanceof WorkingFileEntry ? (<WorkingFileEntry>arg1).resource : <uri>arg1;
 		let index = this.indexOf(resource);
 		if (index >= 0) {
-			this.recentlyClosedEntries.push(resource);
+			this.recentlyClosedEntries.push([resource]);
 
 			// Remove entry
 			let removed = this.entries.splice(index, 1)[0];
@@ -303,21 +303,9 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		return null;
 	}
 
-	public restoreRecentlyRemovedEntry(): WorkingFileEntry {
+	public popLastClosedEntry(): uri[] {
 		if (this.recentlyClosedEntries.length > 0) {
-			var resource: (uri | uri[]) = this.recentlyClosedEntries.pop();
-			if (!(resource instanceof uri)) {
-				var resources = <uri[]>resource;
-				var newEntries: WorkingFileEntry[] = [];
-				var that = this;
-				resources.forEach(function (resource) {
-					newEntries.push(that.addEntry(resource));
-				});
-				// TODO: Restore the correct entry
-				return newEntries[0];
-			}
-
-			return this.addEntry(<uri>resource);
+			return this.recentlyClosedEntries.pop();
 		}
 		return null;
 	}

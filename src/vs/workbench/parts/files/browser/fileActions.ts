@@ -1783,10 +1783,10 @@ export class OpenResourcesAction extends Action {
 	}
 }
 
-export class OpenRecentlyClosedResourcesAction extends Action {
+export class ReopenClosedFileAction extends Action {
 
-	public static ID = 'workbench.files.action.openRecentlyClosedFile';
-	public static LABEL = nls.localize('openRecentlyClosedFile', "Open Recently Closed File");
+	public static ID = 'workbench.files.action.reopenClosedFile';
+	public static LABEL = nls.localize('reopenClosedFile', "Reopen Closed File");
 
 	constructor(
 		id: string,
@@ -1800,22 +1800,23 @@ export class OpenRecentlyClosedResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.partService.joinCreation().then(() => {
-			let viewletPromise = TPromise.as(null);
-			if (!this.partService.isSideBarHidden()) {
-				viewletPromise = this.viewletService.openViewlet(Files.VIEWLET_ID, false);
+		let viewletPromise = TPromise.as(null);
+		if (!this.partService.isSideBarHidden()) {
+			viewletPromise = this.viewletService.openViewlet(Files.VIEWLET_ID, false);
+		}
+
+		return viewletPromise.then(() => {
+			let workingFilesModel: Files.IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
+			let resources = workingFilesModel.popLastClosedEntry();
+			if (resources === null) {
+				return TPromise.as(true);
 			}
-
-			return viewletPromise.then(() => {
-				let resource = this.textFileService.getWorkingFilesModel().restoreRecentlyRemovedEntry();
-
-				// If there are no files in the recently closed stack
-				if (resource === null) {
-					return TPromise.as(true);
-				}
-
-				return this.editorService.openEditor(resource);
+			var newEntries: Files.IWorkingFileEntry[] = [];
+			resources.forEach(function (resource) {
+				newEntries.push(workingFilesModel.addEntry(resource));
 			});
+			// TODO: Restore the correct entry
+			return this.editorService.openEditor(newEntries[0]);
 		});
 	}
 }
