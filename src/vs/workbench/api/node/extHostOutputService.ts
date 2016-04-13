@@ -93,7 +93,7 @@ export class MainThreadOutputService {
 	}
 
 	public clear(channel: string): TPromise<void> {
-		this._outputService.clearOutput(channel);
+		this._outputService.getOutputChannel(channel).clear();
 		return undefined;
 	}
 

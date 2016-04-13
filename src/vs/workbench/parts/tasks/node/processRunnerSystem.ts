@@ -410,6 +410,6 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private clearOutput(): void {
-		this.outputService.clearOutput(this.outputChannelId);
+		this.outputService.getOutputChannel(this.outputChannelId).clear();
 	}
 }

@@ -53,7 +53,7 @@ export class ClearOutputAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.outputService.clearOutput(this.outputService.getActiveChannel());
+		this.outputService.getOutputChannel(this.outputService.getActiveChannel()).clear();
 		this.panelService.getActivePanel().focus();
 
 		return TPromise.as(true);
@@ -84,7 +84,7 @@ export class ClearOutputEditorAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-		this.outputService.clearOutput(this.outputService.getActiveChannel());
+		this.outputService.getOutputChannel(this.outputService.getActiveChannel()).clear();
 		return TPromise.as(false);
 	}
 }

@@ -99,7 +99,7 @@ export class OutputService implements IOutputService {
 		return this.activeChannelId;
 	}
 
-	public clearOutput(channel: string): void {
+	private clearOutput(channel: string): void {
 		this.receivedOutput[channel] = '';
 
 		this._onOutput.fire({ channelId: channel, output: null /* indicator to clear output */ });

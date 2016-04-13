@@ -75,14 +75,6 @@ export interface IOutputService {
 	getActiveChannel(): string;
 
 	/**
-	 * Clears all received output.
-	 *
-	 * The optional channel allows to clear the output for a specific channel. If you leave the
-	 * channel out, you get clear the default channels output.
-	 */
-	clearOutput(channel: string): void;
-
-	/**
 	 * Opens the output for the given channel
 	 *
 	 * The optional channel allows to show the output for a specific channel. If you leave the
@@ -113,6 +105,11 @@ export interface IOutputChannel {
 	 */
 	append(output: string): void;
 
+
+	/**
+	 * Clears all received output.
+	 */
+	clear(): void;
 }
 
 export interface IOutputChannelRegistry {
