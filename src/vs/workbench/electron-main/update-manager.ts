@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
 
 import fs = require('fs');
 import path = require('path');
@@ -15,8 +16,6 @@ import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.win32';
 import {LinuxAutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.linux';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
-
-'use strict';
 
 export enum State {
 	Uninitialized,

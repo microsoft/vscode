@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 import assert = require('vs/base/common/assert');
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
@@ -10,8 +12,6 @@ import {isLinux} from 'vs/base/common/platform';
 import paths = require('vs/base/common/paths');
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {IFileStat} from 'vs/platform/files/common/files';
-
-'use strict';
 
 export enum StatType {
 	FILE,
