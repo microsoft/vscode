@@ -14,7 +14,7 @@ import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryS
 import {ITelemetryService, ITelemetryInfo, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {Registry} from 'vs/platform/platform';
 
 
@@ -83,9 +83,9 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 		this.publicLog('optInStatus', {optIn: this._config.userOptIn});
 		this.flushBuffer();
 
-		this._toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+		this.configurationService.onDidUpdateConfiguration(e => {
 			this._config.userOptIn = e.config && e.config[TELEMETRY_SECTION_ID] ? e.config[TELEMETRY_SECTION_ID].enableTelemetry : this._config.userOptIn;
-		}));
+		}, undefined, this._disposables);
 	}
 
 	private setupIds(): TPromise<ITelemetryInfo> {

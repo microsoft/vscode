@@ -8,13 +8,12 @@
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import {ITelemetryService, ITelemetryServiceConfig, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import ErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import Errors = require('vs/base/common/errors');
-import {TimeKeeper, IEventsListener, ITimerEvent} from 'vs/base/common/timer';
-import {safeStringify, withDefaults, cloneAndChange} from 'vs/base/common/objects';
-
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
+import {withDefaults, cloneAndChange} from 'vs/base/common/objects';
 
 const DefaultTelemetryServiceConfig: ITelemetryServiceConfig = {
 	enableHardIdle: true,
@@ -33,30 +32,23 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	public serviceId = ITelemetryService;
 
 	private _timeKeeper: TimeKeeper;
-	private _oldOnError: any;
-	private _timeKeeperListener: IEventsListener;
-	private _errorBuffer: { [stack: string]: any };
-	private _errorFlushTimeout: number;
-
 	protected _config: ITelemetryServiceConfig;
 	protected _sessionId: string;
 	protected _instanceId: string;
 	protected _machineId: string;
 	protected _appenders: ITelemetryAppender[] = [];
-	protected _toUnbind: any[] = [];
+	protected _disposables: IDisposable[] = [];
 
 	constructor(config?: ITelemetryServiceConfig) {
 		this._config = withDefaults(config, DefaultTelemetryServiceConfig);
 		this._sessionId = 'SESSION_ID_NOT_SET';
 		this._timeKeeper = new TimeKeeper();
 
-		this._timeKeeperListener = (events: ITimerEvent[]) => this._onTelemetryTimerEventStop(events);
-		this._timeKeeper.addListener(this._timeKeeperListener);
-		this._toUnbind.push(Errors.errorHandler.addListener(this._onErrorEvent.bind(this)));
+		this._disposables.push(this._timeKeeper);
+		this._disposables.push(this._timeKeeper.addListener(events => this._onTelemetryTimerEventStop(events)));
 
-		this._errorBuffer = Object.create(null);
-		this._enableGlobalErrorHandler();
-		this._errorFlushTimeout = -1;
+		const errorTelemetry = new ErrorTelemetry(this, AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+		this._disposables.push(errorTelemetry);
 	}
 
 	private _onTelemetryTimerEventStop(events: ITimerEvent[]): void {
@@ -68,110 +60,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		}
 	}
 
-	private _onErrorEvent(e: any): void {
-
-		if(!e) {
-			return;
-		}
-
-		let error = Object.create(null);
-
-		// unwrap nested errors from loader
-		if (e.detail && e.detail.stack) {
-			e = e.detail;
-		}
-
-		// work around behavior in workerServer.ts that breaks up Error.stack
-		let stack = Array.isArray(e.stack) ? e.stack.join('\n') : e.stack;
-		let message = e.message ? e.message : safeStringify(e);
-
-		// errors without a stack are not useful telemetry
-		if (!stack) {
-			return;
-		}
-
-		error['message'] = this._cleanupInfo(message);
-		error['stack'] = this._cleanupInfo(stack);
-
-		this._addErrorToBuffer(error);
-	}
-
-	private _addErrorToBuffer(e: any): void {
-		if (this._errorBuffer[e.stack]) {
-			this._errorBuffer[e.stack].count++;
-		} else {
-			e.count = 1;
-			this._errorBuffer[e.stack] = e;
-		}
-		this._tryScheduleErrorFlush();
-	}
-
-	private _tryScheduleErrorFlush(): void {
-		if (this._errorFlushTimeout === -1) {
-			this._errorFlushTimeout = setTimeout(() => this._flushErrorBuffer(), AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
-		}
-	}
-
-	private _flushErrorBuffer(): void {
-		if (this._errorBuffer) {
-			for (let stack in this._errorBuffer) {
-				this.publicLog('UnhandledError', this._errorBuffer[stack]);
-			}
-		}
-
-		this._errorBuffer = Object.create(null);
-		this._errorFlushTimeout = -1;
-	}
-
-	private _enableGlobalErrorHandler(): void {
-		if (typeof Platform.globals.onerror === 'function') {
-			this._oldOnError = Platform.globals.onerror;
-		}
-
-		let that = this;
-		let newHandler: any = function(message: string, filename: string, line: number, column?: number, e?: any) {
-			that._onUncaughtError(message, filename, line, column, e);
-			if (that._oldOnError) {
-				that._oldOnError.apply(this, arguments);
-			}
-		};
-
-		Platform.globals.onerror = newHandler;
-	}
-
-	private _onUncaughtError(message: string, filename: string, line: number, column?: number, e?: any): void {
-		filename = this._cleanupInfo(filename);
-		message = this._cleanupInfo(message);
-		let data: any = {
-			message: message,
-			filename: filename,
-			line: line,
-			column: column
-		};
-
-		if (e) {
-			data.error = {
-				name: e.name,
-				message: e.message
-			};
-
-			if (e.stack) {
-
-				if (Array.isArray(e.stack)) {
-					e.stack = e.stack.join('\n');
-				}
-
-				data.stack = this._cleanupInfo(e.stack);
-			}
-		}
-
-		if (!data.stack) {
-			data.stack = data.message;
-		}
-
-		this._addErrorToBuffer(data);
-	}
-
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
 			instanceId: this._instanceId,
@@ -181,19 +69,9 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	}
 
 	public dispose(): void {
-		if (this._errorFlushTimeout !== -1) {
-			clearTimeout(this._errorFlushTimeout);
-			this._flushErrorBuffer();
-		}
-
-		while (this._toUnbind.length) {
-			this._toUnbind.pop()();
-		}
-		this._timeKeeper.removeListener(this._timeKeeperListener);
-		this._timeKeeper.dispose();
-
-		for (let i = 0; i < this._appenders.length; i++) {
-			this._appenders[i].dispose();
+		this._disposables = dispose(this._disposables);
+		for (let appender of this._appenders) {
+			appender.dispose();
 		}
 	}
 
@@ -311,7 +189,7 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 		}
 
 		// don't send events when the user is optout unless the event is flaged as optin friendly
-		if(!this._config.userOptIn && this._optInFriendly.indexOf(eventName) === -1) {
+		if (!this._config.userOptIn && this._optInFriendly.indexOf(eventName) === -1) {
 			return;
 		}
 
