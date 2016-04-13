@@ -407,7 +407,7 @@ export class VSCodeWindow {
 			configuration.logExtensionHostCommunication = cli.logExtensionHostCommunication;
 			configuration.debugExtensionHostPort = cli.debugExtensionHostPort;
 			configuration.debugBrkExtensionHost = cli.debugBrkExtensionHost;
-			configuration.pluginHomePath = cli.pluginHomePath;
+			configuration.extensionsHomePath = cli.extensionsHomePath;
 		}
 
 		// Load config

@@ -880,7 +880,7 @@ export class WindowsManager {
 				configuration.logExtensionHostCommunication = currentWindowConfig.logExtensionHostCommunication;
 				configuration.debugBrkExtensionHost = currentWindowConfig.debugBrkExtensionHost;
 				configuration.debugExtensionHostPort = currentWindowConfig.debugExtensionHostPort;
-				configuration.pluginHomePath = currentWindowConfig.pluginHomePath;
+				configuration.extensionsHomePath = currentWindowConfig.extensionsHomePath;
 			}
 		}
 
