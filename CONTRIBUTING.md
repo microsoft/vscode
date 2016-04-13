@@ -3,9 +3,9 @@
 ### Before Submitting an Issue
 First, please do a search in open issues to see if the issue or feature request has already been filed. If there is an issue add your comments to this issue.
 
-The Code project is distributed across multiple repositories, try to file the issue against the correct repository [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects).
+The Code project is distributed across multiple repositories, try to file the issue against the correct repository [Related Projects](https://github.com/Microsoft/vscode/tree/master/wiki/project-management/related-projects.md).
 
-If your issue is a question then please ask the question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`. 
+If your issue is a question then please ask the question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`.
 
 ## Writing Good Bug Reports and Feature Requests
 
@@ -19,9 +19,8 @@ The more information you can provide, the more likely someone will be successful
 * Code that demonstrates the issue
 * Version of VS Code
 * Errors in the Dev Tools Console (Help | Toggle Developer Tools)
-* When you have extensions installed, can you reproduce the issue when starting vscode without extensions by using the `--disable-extensions` command line argument? 
+* When you have extensions installed, can you reproduce the issue when starting vscode without extensions by using the `--disable-extensions` command line argument?
 
 ## Contributing Fixes
 If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute).
-
+please see the document [How to Contribute](https://github.com/Microsoft/vscode/tree/master/wiki/contributing/how-to-contribute.md).
