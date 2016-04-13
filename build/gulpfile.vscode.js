@@ -32,7 +32,7 @@ var baseModules = [
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
 	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
-	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'weak', 'zlib'
+	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib'
 ];
 
 // Build
@@ -201,8 +201,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
 			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], true))
-			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
-			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
+			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
 
 		var all = es.merge(
 			api,
