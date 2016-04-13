@@ -340,4 +340,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		}
 		this.emit(debug.SessionEvents.SERVER_EXIT);
 	}
+
+	public dispose(): void {
+		this.disconnect().done(null, errors.onUnexpectedError);
+	}
 }

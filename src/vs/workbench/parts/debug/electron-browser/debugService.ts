@@ -111,6 +111,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
+		this.toDispose.push(this.model);
 		this.viewModel = new viewmodel.ViewModel();
 
 		this.registerListeners(eventService, lifecycleService);
@@ -136,7 +137,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		lifecycleService.onShutdown(this.store, this);
 		lifecycleService.onShutdown(this.dispose, this);
 
-		this.windowService.onBroadcast(this.onBroadcast, this);
+		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -231,6 +232,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private registerSessionListeners(): void {
+		this.toDisposeOnSessionEnd.push(this.session);
 		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
@@ -710,15 +712,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private onSessionEnd(): void {
-		try {
-			this.debugStringEditorInputs = lifecycle.dispose(this.debugStringEditorInputs);
-		} catch (e) {
-			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
-		}
-
 		if (this.session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
-			this.session.dispose();
 			this.telemetryService.publicLog('debugSessionStop', {
 				type: this.session.getType(),
 				success: this.session.emittedStopped || !bpsExist,
@@ -729,7 +724,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 
 		this.session = null;
-		this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
+		try {
+			this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
+		} catch (e) {
+			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
+		}
+
 		this.partService.removeClass('debugging');
 		this.editorService.focusEditor();
 
@@ -857,6 +857,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		if (filtered.length === 0) {
 			const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
 			this.debugStringEditorInputs.push(result);
+			this.toDisposeOnSessionEnd.push(result);
+
 			return result;
 		} else {
 			return filtered[0];
@@ -933,12 +935,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public dispose(): void {
-		if (this.session) {
-			this.session.disconnect();
-			this.session = null;
-		}
-		this.model.dispose();
-		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
