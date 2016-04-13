@@ -12,10 +12,11 @@ import paths = require('vs/base/common/paths');
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {EventType} from 'vs/workbench/parts/files/common/files';
-import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {
@@ -38,7 +39,7 @@ suite('Files - TextFileEditorModel', () => {
 			messageService: messageService,
 			fileService: TestFileService,
 			contextService: new TestContextService(),
-			telemetryService: new TestTelemetryService(),
+			telemetryService: NullTelemetryService,
 			storageService: new TestStorageService(),
 			untitledEditorService: new TestUntitledEditorService(),
 			editorService: new TestEditorService(),

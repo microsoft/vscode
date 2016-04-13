@@ -26,12 +26,10 @@ import PartService = require('vs/workbench/services/part/common/partService');
 import WorkspaceContextService = require('vs/workbench/services/workspace/common/contextService');
 import {IEditorInput, IEditorModel, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
 import Lifecycle = require('vs/base/common/lifecycle');
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 
 export const TestWorkspace: IWorkspace = {
@@ -128,27 +126,6 @@ export class TestMessageService implements IMessageService {
 			dispose: () => { /* Nothing to do here */ }
 		};
 	}
-}
-
-export class TestTelemetryService implements ITelemetryService {
-	public serviceId = ITelemetryService;
-
-	getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as(null);
-	}
-
-	log(eventName: string, data?: any): void { }
-	publicLog(eventName: string, data?: any): void { }
-
-	timedPublicLog(name: string, data?: any, isPublic?: boolean): any {
-		return null;
-	}
-
-	addTelemetryAppender(appender): Lifecycle.IDisposable {
-		return Lifecycle.empty;
-	}
-	dispose(): void { }
-	setInstantiationService(instantiationService: IInstantiationService) { }
 }
 
 export class TestPartService implements PartService.IPartService {
