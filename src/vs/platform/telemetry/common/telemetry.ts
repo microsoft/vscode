@@ -40,7 +40,6 @@ export interface ITelemetryService extends IDisposable {
 	 * Appender operations
 	 */
 	getAppendersCount(): number;
-	getAppenders(): ITelemetryAppender[];
 	addTelemetryAppender(appender: ITelemetryAppender): IDisposable;
 }
 
@@ -58,7 +57,6 @@ export const NullTelemetryService: ITelemetryService = {
 	timedPublicLog(name: string, data?: any): ITimerEvent { return nullEvent; },
 	publicLog(eventName: string, data?: any): void { },
 	getAppendersCount(): number { return 0; },
-	getAppenders(): any[] { return []; },
 	addTelemetryAppender(appender): IDisposable { return { dispose() { } }; },
 	dispose(): void { },
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {

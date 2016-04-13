@@ -29,12 +29,12 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	public serviceId = ITelemetryService;
 
 	private timeKeeper: TimeKeeper;
-	private appenders: ITelemetryAppender[];
 	private oldOnError: any;
 	private timeKeeperListener: IEventsListener;
 	private errorBuffer: { [stack: string]: any };
 	private errorFlushTimeout: number;
 
+	protected appenders: ITelemetryAppender[];
 	protected sessionId: string;
 	protected instanceId: string;
 	protected machineId: string;
@@ -239,10 +239,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 
 	public getAppendersCount(): number {
 		return this.appenders.length;
-	}
-
-	public getAppenders(): ITelemetryAppender[] {
-		return this.appenders;
 	}
 
 	public addTelemetryAppender(appender: ITelemetryAppender): IDisposable {

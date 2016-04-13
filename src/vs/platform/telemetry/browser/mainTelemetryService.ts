@@ -82,9 +82,8 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 		data = data && cloneAndChange(data, value => typeof value === 'string' ? this.cleanupInfo(value) : void 0);
 		data = this.addCommonProperties(data);
 
-		let allAppenders = this.getAppenders();
-		for (let i = 0; i < allAppenders.length; i++) {
-			allAppenders[i].log(eventName, data);
+		for (let appender of this.appenders) {
+			appender.log(eventName, data);
 		}
 	}
 
