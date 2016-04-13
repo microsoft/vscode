@@ -12,9 +12,7 @@ import TelemetryService = require('vs/platform/telemetry/common/telemetry');
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import Errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
-import Platform = require('vs/platform/platform');
 import * as sinon from 'sinon';
-import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 const optInStatusEventName: string = 'optInStatus';
 
@@ -170,29 +168,28 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('load appenders from registry', sinon.test(function() {
+	test('TelemetryAppendersRegistry, activate', function() {
 
+		let registry = new TelemetryService.TelemetryAppendersRegistry();
+		registry.registerTelemetryAppenderDescriptor(TestTelemetryAppender);
 
-		let testAppenderDescriptor = createSyncDescriptor<TelemetryService.ITelemetryAppender>(TestTelemetryAppender);
-		let registry = (<AbstractTelemetryService.ITelemetryAppendersRegistry>Platform.Registry.as(AbstractTelemetryService.Extenstions.TelemetryAppenders));
-		registry.registerTelemetryAppenderDescriptor(testAppenderDescriptor);
+		let callCount = 0;
+		let telemetryService: TelemetryService.ITelemetryService = <any> {
+			addTelemetryAppender(appender) {
+				assert.ok(appender);
+				callCount += 1;
+			}
+		};
 
-		let telemetryService = new MainTelemetryService.MainTelemetryService();
+		let instantiationService = InstantiationService.createInstantiationService();
+		instantiationService.addSingleton(TelemetryService.ITelemetryService, telemetryService);
+		registry.activate(instantiationService);
+		assert.equal(callCount, 1);
 
-
-		let instantiationService = InstantiationService.createInstantiationService({});
-		telemetryService.setInstantiationService(instantiationService);
-		assert.equal(telemetryService.getAppendersCount(), 1);
-		let testAppender1 = <TestTelemetryAppender>telemetryService.getAppenders()[0];
-		//report event
-		telemetryService.publicLog('testEvent');
-		assert.equal(testAppender1.getEventsCount(), 1);
-
-		telemetryService.dispose();
-
-		//clean up registry for other tests
-		(<any>registry).telemetryAppenderDescriptors = [];
-	}));
+		// registry is now active/read-only
+		assert.throws(() => registry.registerTelemetryAppenderDescriptor(TestTelemetryAppender));
+		assert.throws(() => registry.activate(instantiationService));
+	});
 
 	test('Disposing', sinon.test(function() {
 		let service = new MainTelemetryService.MainTelemetryService();

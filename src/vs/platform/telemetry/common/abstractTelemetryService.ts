@@ -11,10 +11,7 @@ import Types = require('vs/base/common/types');
 import Platform = require('vs/base/common/platform');
 import {TimeKeeper, IEventsListener, ITimerEvent} from 'vs/base/common/timer';
 import {safeStringify, withDefaults} from 'vs/base/common/objects';
-import {Registry} from 'vs/platform/platform';
 import {ITelemetryService, ITelemetryAppender, ITelemetryInfo, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
-import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 const DefaultTelemetryServiceConfig: ITelemetryServiceConfig = {
 	enableHardIdle: true,
@@ -34,7 +31,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	private timeKeeper: TimeKeeper;
 	private appenders: ITelemetryAppender[];
 	private oldOnError: any;
-	private instantiationService: IInstantiationService;
 	private timeKeeperListener: IEventsListener;
 	private errorBuffer: { [stack: string]: any };
 	private errorFlushTimeout: number;
@@ -203,16 +199,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		this.addErrortoBuffer(data);
 	}
 
-	private loadTelemetryAppendersFromRegistery(): void {
-		let appendersRegistry = (<ITelemetryAppendersRegistry>Registry.as(Extenstions.TelemetryAppenders)).getTelemetryAppenderDescriptors();
-
-		for (let i = 0; i < appendersRegistry.length; i++) {
-			let descriptor = appendersRegistry[i];
-			let appender = this.instantiationService.createInstance(descriptor);
-			this.addTelemetryAppender(appender);
-		}
-	}
-
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
 			instanceId: this.instanceId,
@@ -271,43 +257,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		};
 	}
 
-	public setInstantiationService(instantiationService: IInstantiationService): void {
-		this.instantiationService = instantiationService;
-
-		if (this.instantiationService) {
-			this.loadTelemetryAppendersFromRegistery();
-		}
-	}
-
 	protected handleEvent(eventName: string, data?: any): void {
 		throw new Error('Not implemented!');
 	}
 }
-
-export const Extenstions = {
-	TelemetryAppenders: 'telemetry.appenders'
-};
-
-export interface ITelemetryAppendersRegistry {
-	registerTelemetryAppenderDescriptor(appenderDescriptor: SyncDescriptor0<ITelemetryAppender>): void;
-	getTelemetryAppenderDescriptors(): SyncDescriptor0<ITelemetryAppender>[];
-}
-
-class TelemetryAppendersRegistry implements ITelemetryAppendersRegistry {
-
-	private telemetryAppenderDescriptors: SyncDescriptor0<ITelemetryAppender>[];
-
-	constructor() {
-		this.telemetryAppenderDescriptors = [];
-	}
-
-	public registerTelemetryAppenderDescriptor(descriptor: SyncDescriptor0<ITelemetryAppender>): void {
-		this.telemetryAppenderDescriptors.push(descriptor);
-	}
-
-	public getTelemetryAppenderDescriptors(): SyncDescriptor0<ITelemetryAppender>[] {
-		return this.telemetryAppenderDescriptors;
-	}
-}
-
-Registry.add(Extenstions.TelemetryAppenders, new TelemetryAppendersRegistry());

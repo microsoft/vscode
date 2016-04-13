@@ -209,10 +209,6 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	if (threadService instanceof MainThreadService) {
 		threadService.setInstantiationService(instantiationService);
 	}
-	if (telemetryService instanceof MainTelemetryService) {
-		telemetryService.setInstantiationService(instantiationService);
-	}
-
 
 	return staticServices;
 }

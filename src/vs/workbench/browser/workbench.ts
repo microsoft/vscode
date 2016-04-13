@@ -58,7 +58,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, Extenstions as TelemetryExtensions} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
@@ -411,7 +411,6 @@ export class Workbench implements IPartService {
 
 		// Some services need to be set explicitly after all services are created
 		(<AbstractThreadService><any>threadService).setInstantiationService(this.instantiationService);
-		this.telemetryService.setInstantiationService(this.instantiationService);
 		(<WorkbenchMessageService>messageService).setWorkbenchServices(this.quickOpen, this.statusbarPart);
 		this.quickOpen.setInstantiationService(this.instantiationService);
 		this.statusbarPart.setInstantiationService(this.instantiationService);
@@ -427,6 +426,8 @@ export class Workbench implements IPartService {
 		<IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
 		<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench).setInstantiationService(this.instantiationService);
 		<IEditorRegistry>Registry.as(EditorExtensions.Editors).setInstantiationService(this.instantiationService);
+
+		Registry.as<{activate(s:IInstantiationService):void}>(TelemetryExtensions.TelemetryAppenders).activate(this.instantiationService);
 	}
 
 	private initSettings(): void {
