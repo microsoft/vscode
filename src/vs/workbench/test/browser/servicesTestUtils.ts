@@ -144,10 +144,6 @@ export class TestTelemetryService implements ITelemetryService {
 		return null;
 	}
 
-	getAppendersCount(): number {
-		return -1;
-	}
-
 	addTelemetryAppender(appender): Lifecycle.IDisposable {
 		return Lifecycle.empty;
 	}

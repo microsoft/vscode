@@ -86,9 +86,15 @@ class ErrorTestingSettings {
 
 suite('TelemetryService', () => {
 
+	class AppenderCountTelemetryService extends MainTelemetryService.MainTelemetryService {
+		getAppendersCount() {
+			return this.appenders.length;
+		}
+	}
+
 	// Appenders
 	test('No appenders', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new AppenderCountTelemetryService();
 		assert.equal(service.getAppendersCount(), 0);
 
 		// log events
@@ -101,7 +107,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Add appender', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new AppenderCountTelemetryService();
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender = new TestTelemetryAppender();
@@ -112,7 +118,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Remove appender', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new AppenderCountTelemetryService();
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender = new TestTelemetryAppender();
@@ -135,7 +141,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Multiple appenders', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new AppenderCountTelemetryService();
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender1 = new TestTelemetryAppender();

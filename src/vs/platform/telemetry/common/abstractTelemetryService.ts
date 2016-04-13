@@ -237,10 +237,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		this.handleEvent(eventName, data);
 	}
 
-	public getAppendersCount(): number {
-		return this.appenders.length;
-	}
-
 	public addTelemetryAppender(appender: ITelemetryAppender): IDisposable {
 		this.appenders.push(appender);
 		return {
