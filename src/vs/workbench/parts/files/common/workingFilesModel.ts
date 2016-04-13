@@ -278,7 +278,9 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		let resource: uri = arg1 instanceof WorkingFileEntry ? (<WorkingFileEntry>arg1).resource : <uri>arg1;
 		let index = this.indexOf(resource);
 		if (index >= 0) {
-			this.recentlyClosedEntries.push([resource]);
+			if (resource.scheme === 'file') {
+				this.recentlyClosedEntries.push([resource]);
+			}
 
 			// Remove entry
 			let removed = this.entries.splice(index, 1)[0];
