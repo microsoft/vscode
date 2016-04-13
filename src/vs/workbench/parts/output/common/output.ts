@@ -43,7 +43,7 @@ export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in
  */
 export interface IOutputEvent {
 	output: string;
-	channel?: string;
+	channelId?: string;
 }
 
 export var IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
@@ -53,10 +53,8 @@ export var IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
  */
 export interface IOutputService {
 	serviceId: ServiceIdentifier<any>;
-	/**
-	 * Appends output to the given channel.
-	 */
-	append(channel: string, output: string): void;
+
+	getOutputChannel(id: string): IOutputChannel;
 
 	/**
 	 * Returns the received output.
@@ -110,6 +108,10 @@ export interface IOutputService {
 
 export interface IOutputChannel {
 
+	/**
+	 * Appends output to the channel.
+	 */
+	append(output: string): void;
 
 }
 

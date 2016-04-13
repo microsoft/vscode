@@ -39,7 +39,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private markerService: IMarkerService;
 	private modelService: IModelService;
 	private outputService: IOutputService;
-	private outputChannel: string;
+	private outputChannelId: string;
 	private telemetryService: ITelemetryService;
 
 	private validationStatus: ValidationStatus;
@@ -57,7 +57,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.variables = variables;
 		this.markerService = markerService;
 		this.modelService = modelService;
-		this.outputChannel = outputChannel;
+		this.outputChannelId = outputChannel;
 		this.outputService = outputService;
 		this.telemetryService = telemetryService;
 
@@ -77,7 +77,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.defaultTestTaskIdentifier = parseResult.defaultTestTaskIdentifier;
 
 		if (!this.validationStatus.isOK()) {
-			this.outputService.showOutput(this.outputChannel, true);
+			this.outputService.showOutput(this.outputChannelId, true);
 		}
 	}
 
@@ -177,10 +177,12 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				throw err;
 			} else if (err instanceof Error) {
 				let error = <Error>err;
-				this.outputService.append(this.outputChannel, error.message);
+				const outputChannel = this.outputService.getOutputChannel(this.outputChannelId);
+				outputChannel.append(error.message);
 				throw new TaskError(Severity.Error, error.message, TaskErrors.UnknownError);
 			} else {
-				this.outputService.append(this.outputChannel, err.toString());
+				const outputChannel = this.outputService.getOutputChannel(this.outputChannelId);
+				outputChannel.append(err.toString());
 				throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
 		}
@@ -267,7 +269,8 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				return this.handleError(task, error);
 			}, (progress: LineData) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputService.append(this.outputChannel, line + '\n');
+				const outputChannel = this.outputService.getOutputChannel(this.outputChannelId);
+				outputChannel.append(line + '\n');
 				watchingProblemMatcher.processLine(line);
 				if (delayer === null) {
 					delayer = new Async.Delayer(3000);
@@ -304,7 +307,8 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				return this.handleError(task, error);
 			}, (progress) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputService.append(this.outputChannel, line + '\n');
+				const outputChannel = this.outputService.getOutputChannel(this.outputChannelId);
+				outputChannel.append(line + '\n');
 				startStopProblemMatcher.processLine(line);
 			});
 			return { promise };
@@ -321,16 +325,16 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		if (error.error && !error.terminated) {
 			let args:string = this.configuration.args ? this.configuration.args.join(' ') : '';
 			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', this.configuration.command, args));
-			this.outputService.append(this.outputChannel, error.error.message);
+			this.outputService.getOutputChannel(this.outputChannelId).append(error.error.message);
 			makeVisible = true;
 		}
 
 		if (error.stdout) {
-			this.outputService.append(this.outputChannel, error.stdout);
+			this.outputService.getOutputChannel(this.outputChannelId).append(error.stdout);
 			makeVisible = true;
 		}
 		if (error.stderr) {
-			this.outputService.append(this.outputChannel, error.stderr);
+			this.outputService.getOutputChannel(this.outputChannelId).append(error.stderr);
 			makeVisible = true;
 		}
 		makeVisible = this.checkTerminated(task, error) || makeVisible;
@@ -398,14 +402,14 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public log(value: string): void  {
-		this.outputService.append(this.outputChannel, value + '\n');
+		this.outputService.getOutputChannel(this.outputChannelId).append(value + '\n');
 	}
 
 	private showOutput(): void {
-		this.outputService.showOutput(this.outputChannel, true);
+		this.outputService.showOutput(this.outputChannelId, true);
 	}
 
 	private clearOutput(): void {
-		this.outputService.clearOutput(this.outputChannel);
+		this.outputService.clearOutput(this.outputChannelId);
 	}
 }

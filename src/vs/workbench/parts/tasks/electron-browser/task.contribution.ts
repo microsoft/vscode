@@ -182,20 +182,21 @@ class ConfigureTaskRunnerAction extends Action {
 				}
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
-					this.outputService.showOutput(TaskService.OutputChannel);
-					this.outputService.append(TaskService.OutputChannel, nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
+					this.outputService.showOutput(TaskService.OutputChannelId);
+					const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
+					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
 					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
 					contentPromise = detector.detect(false, selection.id).then((value) => {
 						let config = value.config;
 						if (value.stderr && value.stderr.length > 0) {
 							value.stderr.forEach((line) => {
-								this.outputService.append(TaskService.OutputChannel, line + '\n');
+								outputChannel.append(line + '\n');
 							});
 							this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
 							return selection.content;
 						} else if (config) {
 							if (value.stdout && value.stdout.length > 0) {
-								value.stdout.forEach(line => this.outputService.append(TaskService.OutputChannel, line + '\n'));
+								value.stdout.forEach(line => outputChannel.append(line + '\n'));
 							}
 							let content = JSON.stringify(config, null, '\t');
 							content = [
@@ -287,7 +288,7 @@ class ShowLogAction extends AbstractTaskAction {
 	}
 
 	public run(): Promise {
-		return this.outputService.showOutput(TaskService.OutputChannel);
+		return this.outputService.showOutput(TaskService.OutputChannelId);
 	}
 }
 
@@ -452,7 +453,7 @@ interface TaskServiceEventData {
 class TaskService extends EventEmitter implements ITaskService {
 	public serviceId = ITaskService;
 	public static SERVICE_ID: string = 'taskService';
-	public static OutputChannel:string = 'tasks';
+	public static OutputChannelId:string = 'tasks';
 	public static OutputChannelLabel:string = nls.localize('tasks', "Tasks");
 
 	private modeService: IModeService;
@@ -545,8 +546,9 @@ class TaskService extends EventEmitter implements ITaskService {
 						}
 					}
 					if (isAffected) {
-						this.outputService.append(TaskService.OutputChannel, nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
-						this.outputService.showOutput(TaskService.OutputChannel, true);
+						const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
+						outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+						this.outputService.showOutput(TaskService.OutputChannelId, true);
 						return TPromise.wrapError({});
 					}
 				}
@@ -594,7 +596,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (config.buildSystem === 'service') {
 						result = new LanguageServiceTaskSystem(<LanguageServiceTaskConfiguration>config, this.telemetryService, this.modeService);
 					} else if (this.isRunnerConfig(config)) {
-						result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, variables, this.markerService, this.modelService, this.telemetryService, this.outputService, TaskService.OutputChannel, clearOutput);
+						result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, variables, this.markerService, this.modelService, this.telemetryService, this.outputService, TaskService.OutputChannelId, clearOutput);
 					}
 					if (result === null) {
 						this._taskSystemPromise = null;
@@ -618,9 +620,10 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (stderr && stderr.length > 0) {
 			stderr.forEach((line) => {
 				result = false;
-				this.outputService.append(TaskService.OutputChannel, line + '\n');
+				const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
+				outputChannel.append(line + '\n');
 			});
-			this.outputService.showOutput(TaskService.OutputChannel, true);
+			this.outputService.showOutput(TaskService.OutputChannelId, true);
 		}
 		return result;
 	}
@@ -784,7 +787,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputService.showOutput(TaskService.OutputChannel, true);
+			this.outputService.showOutput(TaskService.OutputChannelId, true);
 		}
 	}
 }
@@ -832,7 +835,7 @@ if (Env.enableTasks) {
 
 	// Output channel
 	let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
-	outputChannelRegistry.registerChannel(TaskService.OutputChannel, TaskService.OutputChannelLabel);
+	outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
 
 	(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 

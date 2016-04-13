@@ -86,7 +86,7 @@ export class OutputEditorInput extends StringEditorInput {
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {
-		if (this.outputSet && e.channel === this.channel) {
+		if (this.outputSet && e.channelId === this.channel) {
 			if (e.output) {
 				this.bufferedOutput = strings.appendWithLimit(this.bufferedOutput, e.output, MAX_OUTPUT_LENGTH);
 				this.scheduleOutputAppend();

@@ -88,7 +88,7 @@ export class MainThreadOutputService {
 	}
 
 	public append(channel: string, value: string): TPromise<void> {
-		this._outputService.append(channel, value);
+		this._outputService.getOutputChannel(channel).append(value);
 		return undefined;
 	}
 

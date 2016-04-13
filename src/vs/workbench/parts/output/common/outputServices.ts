@@ -13,7 +13,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {Registry} from 'vs/platform/platform';
 import {EditorOptions} from 'vs/workbench/common/editor';
-import {IOutputEvent, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH} from 'vs/workbench/parts/output/common/output';
+import {IOutputEvent, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH} from 'vs/workbench/parts/output/common/output';
 import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -60,13 +60,20 @@ export class OutputService implements IOutputService {
 		return this._onActiveOutputChannel.event;
 	}
 
-	public append(channel: string, output: string): void {
+	public getOutputChannel(id: string): IOutputChannel {
+		return {
+			append: (output: string) => this.append(id, output),
+			clear: () => this.clearOutput(id)
+		};
+	}
+
+	private append(channelId: string, output: string): void {
 
 		// Initialize
-		if (!this.receivedOutput[channel]) {
-			this.receivedOutput[channel] = '';
+		if (!this.receivedOutput[channelId]) {
+			this.receivedOutput[channelId] = '';
 
-			this._onOutputChannel.fire(channel); // emit event that we have a new channel
+			this._onOutputChannel.fire(channelId); // emit event that we have a new channel
 		}
 
 		// Sanitize
@@ -74,10 +81,10 @@ export class OutputService implements IOutputService {
 
 		// Store
 		if (output) {
-			this.receivedOutput[channel] = strings.appendWithLimit(this.receivedOutput[channel], output, MAX_OUTPUT_LENGTH);
+			this.receivedOutput[channelId] = strings.appendWithLimit(this.receivedOutput[channelId], output, MAX_OUTPUT_LENGTH);
 		}
 
-		this._onOutput.fire({ output: output, channel });
+		this._onOutput.fire({ output: output, channelId: channelId });
 	}
 
 	public getOutput(channel: string): string {
@@ -95,7 +102,7 @@ export class OutputService implements IOutputService {
 	public clearOutput(channel: string): void {
 		this.receivedOutput[channel] = '';
 
-		this._onOutput.fire({ channel: channel, output: null /* indicator to clear output */ });
+		this._onOutput.fire({ channelId: channel, output: null /* indicator to clear output */ });
 	}
 
 	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
