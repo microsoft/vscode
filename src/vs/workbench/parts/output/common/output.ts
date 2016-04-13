@@ -57,14 +57,9 @@ export interface IOutputService {
 	getOutputChannel(id: string): IOutputChannel;
 
 	/**
-	 * Returns all channels that received output in the current session.
-	 */
-	getChannels(): string[];
-
-	/**
 	 * Returns the name of the currently opened channel.
 	 */
-	getActiveChannel(): string;
+	getActiveChannelId(): string;
 
 	/**
 	 * Allows to register on Output events

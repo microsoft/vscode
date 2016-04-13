@@ -7,7 +7,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
-import arrays = require('vs/base/common/arrays');
 import {IAction, Action} from 'vs/base/common/actions';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -39,7 +38,7 @@ export class ToggleOutputAction extends Action {
 			return TPromise.as(null);
 		}
 
-		return this.outputService.getOutputChannel(this.outputService.getActiveChannel()).show();
+		return this.outputService.getOutputChannel(this.outputService.getActiveChannelId()).show();
 	}
 }
 
@@ -53,7 +52,7 @@ export class ClearOutputAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.outputService.getOutputChannel(this.outputService.getActiveChannel()).clear();
+		this.outputService.getOutputChannel(this.outputService.getActiveChannelId()).clear();
 		this.panelService.getActivePanel().focus();
 
 		return TPromise.as(true);
@@ -84,7 +83,7 @@ export class ClearOutputEditorAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-		this.outputService.getOutputChannel(this.outputService.getActiveChannel()).clear();
+		this.outputService.getOutputChannel(this.outputService.getActiveChannelId()).clear();
 		return TPromise.as(false);
 	}
 }
@@ -110,22 +109,20 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		action: IAction,
 		@IOutputService private outputService: IOutputService
 	) {
-		super(null, action, SwitchOutputActionItem.getChannels(outputService), Math.max(0, SwitchOutputActionItem.getChannels(outputService).indexOf(outputService.getActiveChannel())));
+		super(null, action, SwitchOutputActionItem.getChannels(outputService), Math.max(0, SwitchOutputActionItem.getChannels(outputService).indexOf(outputService.getActiveChannelId())));
 		this.toDispose.push(this.outputService.onOutputChannel(this.onOutputChannel, this));
 		this.toDispose.push(this.outputService.onActiveOutputChannel(this.onOutputChannel, this));
 	}
 
 	private onOutputChannel(): void {
 		let channels = SwitchOutputActionItem.getChannels(this.outputService);
-		let selected = Math.max(0, channels.indexOf(this.outputService.getActiveChannel()));
+		let selected = Math.max(0, channels.indexOf(this.outputService.getActiveChannelId()));
 
 		this.setOptions(channels, selected);
 	}
 
 	private static getChannels(outputService: IOutputService): string[] {
 		const contributedChannels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().map(channelData => channelData.id);
-		const usedChannels = outputService.getChannels();
-
-		return arrays.distinct(contributedChannels.concat(usedChannels)).sort(); // sort by name
+		return contributedChannels.sort(); // sort by name
 	}
 }

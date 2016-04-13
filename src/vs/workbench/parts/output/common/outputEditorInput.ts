@@ -98,7 +98,7 @@ export class OutputEditorInput extends StringEditorInput {
 
 	private isVisible(): boolean {
 		const panel = this.panelService.getActivePanel();
-		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel() === this.channelId;
+		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannelId() === this.channelId;
 	}
 
 	private scheduleOutputAppend(): void {

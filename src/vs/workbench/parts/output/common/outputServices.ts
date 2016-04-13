@@ -93,11 +93,7 @@ export class OutputService implements IOutputService {
 		return this.receivedOutput[channelId] || '';
 	}
 
-	public getChannels(): string[] {
-		return Object.keys(this.receivedOutput);
-	}
-
-	public getActiveChannel(): string {
+	public getActiveChannelId(): string {
 		return this.activeChannelId;
 	}
 
