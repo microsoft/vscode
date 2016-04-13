@@ -188,7 +188,7 @@ function packageTask(platform, arch, opts) {
 			version: version
 		}));
 
-		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt'], { base: '.' });
+		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
 		var depsSrc = _.flatten(Object.keys(packageJson.dependencies).concat(Object.keys(packageJson.optionalDependencies))
