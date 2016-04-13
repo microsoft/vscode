@@ -108,34 +108,39 @@ export interface IOutputService {
 	onActiveOutputChannel: Event<string>;
 }
 
+export interface IOutputChannel {
+
+
+}
+
 export interface IOutputChannelRegistry {
 
 	/**
 	 * Make an output channel known to the output world.
 	 */
-	registerChannel(name: string): void;
+	registerChannel(id: string, name: string): void;
 
 	/**
 	 * Returns the list of channels known to the output world.
 	 */
-	getChannels(): string[];
+	getChannels(): { id: string, displayName: string}[];
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels: string[];
+	private channels: { id: string, displayName: string }[];
 
 	constructor() {
 		this.channels = [];
 	}
 
-	public registerChannel(name: string): void {
-		if (this.channels.indexOf(name) === -1) {
-			this.channels.push(name);
+	public registerChannel(id: string, displayName: string): void {
+		if (this.channels.every(channel => channel.id !== id)) {
+			this.channels.push({ id, displayName });
 		}
 	}
 
-	public getChannels(): string[] {
-		return this.channels.slice(0);
+	public getChannels(): { id: string, displayName: string}[] {
+		return this.channels;
 	}
 }
 

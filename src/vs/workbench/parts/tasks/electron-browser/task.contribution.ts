@@ -452,7 +452,8 @@ interface TaskServiceEventData {
 class TaskService extends EventEmitter implements ITaskService {
 	public serviceId = ITaskService;
 	public static SERVICE_ID: string = 'taskService';
-	public static OutputChannel:string = 'Tasks';
+	public static OutputChannel:string = 'tasks';
+	public static OutputChannelLabel:string = nls.localize('tasks', "Tasks");
 
 	private modeService: IModeService;
 	private configurationService: IConfigurationService;
@@ -831,7 +832,7 @@ if (Env.enableTasks) {
 
 	// Output channel
 	let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
-	outputChannelRegistry.registerChannel(TaskService.OutputChannel);
+	outputChannelRegistry.registerChannel(TaskService.OutputChannel, TaskService.OutputChannelLabel);
 
 	(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 

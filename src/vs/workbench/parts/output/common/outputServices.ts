@@ -25,7 +25,7 @@ export class OutputService implements IOutputService {
 
 	private receivedOutput: { [channel: string]: string; };
 
-	private activeChannel: string;
+	private activeChannelId: string;
 
 	private _onOutput: Emitter<IOutputEvent>;
 	private _onOutputChannel: Emitter<string>;
@@ -45,7 +45,7 @@ export class OutputService implements IOutputService {
 		this.receivedOutput = Object.create(null);
 
 		const channels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels();
-		this.activeChannel = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0] : null);
+		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
 	}
 
 	public get onOutput(): Event<IOutputEvent> {
@@ -89,7 +89,7 @@ export class OutputService implements IOutputService {
 	}
 
 	public getActiveChannel(): string {
-		return this.activeChannel;
+		return this.activeChannelId;
 	}
 
 	public clearOutput(channel: string): void {
@@ -100,12 +100,12 @@ export class OutputService implements IOutputService {
 
 	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
 		const panel = this.panelService.getActivePanel();
-		if (this.activeChannel === channel && panel && panel.getId() === OUTPUT_PANEL_ID) {
+		if (this.activeChannelId === channel && panel && panel.getId() === OUTPUT_PANEL_ID) {
 			return TPromise.as(<OutputPanel>panel);
 		}
 
-		this.activeChannel = channel;
-		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel, StorageScope.WORKSPACE);
+		this.activeChannelId = channel;
+		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannelId, StorageScope.WORKSPACE);
 		this._onActiveOutputChannel.fire(channel); // emit event that a new channel is active
 
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
