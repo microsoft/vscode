@@ -10,9 +10,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
 import {createDecorator, ServiceIdentifier, IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
-export const ID = 'telemetryService';
-
-export const ITelemetryService = createDecorator<ITelemetryService>(ID);
+export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
 export interface ITelemetryInfo {
 	sessionId: string;
