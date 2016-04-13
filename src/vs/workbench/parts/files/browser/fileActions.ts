@@ -1807,11 +1807,11 @@ export class ReopenClosedFileAction extends Action {
 
 		return viewletPromise.then(() => {
 			let workingFilesModel: Files.IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
-			let resources = workingFilesModel.popLastClosedEntry();
+			let resources: Files.IWorkingFileEntry[] = workingFilesModel.popLastClosedEntry();
 			if (resources === null) {
 				return TPromise.as(true);
 			}
-			var newEntries: Files.IWorkingFileEntry[] = [];
+			let newEntries: Files.IWorkingFileEntry[] = [];
 			resources.forEach(function (resource) {
 				newEntries.push(workingFilesModel.addEntry(resource));
 			});

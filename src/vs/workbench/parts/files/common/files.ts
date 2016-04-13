@@ -105,7 +105,7 @@ export interface IWorkingFilesModel {
 	removeEntry(entry: IWorkingFileEntry): IWorkingFileEntry;
 	removeEntry(arg1: IWorkingFileEntry | URI): IWorkingFileEntry;
 
-	popLastClosedEntry(): URI[];
+	popLastClosedEntry(): IWorkingFileEntry[];
 
 	reorder(source: IWorkingFileEntry, target: IWorkingFileEntry): void;
 

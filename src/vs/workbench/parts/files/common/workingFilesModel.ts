@@ -27,7 +27,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	private static STORAGE_KEY = 'workingFiles.model.entries';
 
 	private entries: WorkingFileEntry[];
-	private recentlyClosedEntries: uri[][];
+	private recentlyClosedEntries: WorkingFileEntry[][];
 	private pathLabelProvider: labels.PathLabelProvider;
 	private mapEntryToResource: { [resource: string]: WorkingFileEntry; };
 	private _onModelChange: Emitter<IWorkingFileModelChangeEvent>;
@@ -279,7 +279,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		let index = this.indexOf(resource);
 		if (index >= 0) {
 			if (resource.scheme === 'file') {
-				this.recentlyClosedEntries.push([resource]);
+				this.recentlyClosedEntries.push([this.mapEntryToResource[resource.toString()]]);
 			}
 
 			// Remove entry
@@ -305,7 +305,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		return null;
 	}
 
-	public popLastClosedEntry(): uri[] {
+	public popLastClosedEntry(): WorkingFileEntry[] {
 		if (this.recentlyClosedEntries.length > 0) {
 			return this.recentlyClosedEntries.pop();
 		}
@@ -331,9 +331,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	}
 
 	public clear(): void {
-		this.recentlyClosedEntries.push(this.entries.map((entry) => {
-			return entry.resource;
-		}));
+		this.recentlyClosedEntries.push(this.entries);
 		let deleted = this.entries;
 		this.entries = [];
 		this.mapEntryToResource = Object.create(null);
