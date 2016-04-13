@@ -30,7 +30,6 @@
     "semver": "^4.2.0",
     "vscode-debugprotocol": "1.8.0-pre.3",
     "vscode-textmate": "^1.0.11",
-    "weak": "^1.0.1",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"
   },
