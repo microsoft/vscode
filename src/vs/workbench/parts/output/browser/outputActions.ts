@@ -39,7 +39,7 @@ export class ToggleOutputAction extends Action {
 			return TPromise.as(null);
 		}
 
-		return this.outputService.showOutput(this.outputService.getActiveChannel());
+		return this.outputService.getOutputChannel(this.outputService.getActiveChannel()).show();
 	}
 }
 
@@ -99,8 +99,8 @@ export class SwitchOutputAction extends Action {
 		this.class = 'output-action switch-to-output';
 	}
 
-	public run(channel?: string): TPromise<any> {
-		return this.outputService.showOutput(channel);
+	public run(channelId?: string): TPromise<any> {
+		return this.outputService.getOutputChannel(channelId).show();
 	}
 }
 

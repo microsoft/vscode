@@ -63,7 +63,8 @@ export class OutputService implements IOutputService {
 	public getOutputChannel(id: string): IOutputChannel {
 		return {
 			append: (output: string) => this.append(id, output),
-			clear: () => this.clearOutput(id)
+			clear: () => this.clearOutput(id),
+			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus)
 		};
 	}
 
@@ -87,8 +88,8 @@ export class OutputService implements IOutputService {
 		this._onOutput.fire({ output: output, channelId: channelId });
 	}
 
-	public getOutput(channel: string): string {
-		return this.receivedOutput[channel] || '';
+	public getOutput(channelId: string): string {
+		return this.receivedOutput[channelId] || '';
 	}
 
 	public getChannels(): string[] {
@@ -99,24 +100,24 @@ export class OutputService implements IOutputService {
 		return this.activeChannelId;
 	}
 
-	private clearOutput(channel: string): void {
-		this.receivedOutput[channel] = '';
+	private clearOutput(channelId: string): void {
+		this.receivedOutput[channelId] = '';
 
-		this._onOutput.fire({ channelId: channel, output: null /* indicator to clear output */ });
+		this._onOutput.fire({ channelId: channelId, output: null /* indicator to clear output */ });
 	}
 
-	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
+	private showOutput(channelId: string, preserveFocus?: boolean): TPromise<IEditor> {
 		const panel = this.panelService.getActivePanel();
-		if (this.activeChannelId === channel && panel && panel.getId() === OUTPUT_PANEL_ID) {
+		if (this.activeChannelId === channelId && panel && panel.getId() === OUTPUT_PANEL_ID) {
 			return TPromise.as(<OutputPanel>panel);
 		}
 
-		this.activeChannelId = channel;
+		this.activeChannelId = channelId;
 		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannelId, StorageScope.WORKSPACE);
-		this._onActiveOutputChannel.fire(channel); // emit event that a new channel is active
+		this._onActiveOutputChannel.fire(channelId); // emit event that a new channel is active
 
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
-			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
+			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channelId), EditorOptions.create({ preserveFocus: preserveFocus })).
 				then(() => outputPanel);
 		});
 	}

@@ -182,7 +182,7 @@ class ConfigureTaskRunnerAction extends Action {
 				}
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
-					this.outputService.showOutput(TaskService.OutputChannelId);
+					this.outputService.getOutputChannel(TaskService.OutputChannelId).show();
 					const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
 					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
 					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
@@ -288,7 +288,7 @@ class ShowLogAction extends AbstractTaskAction {
 	}
 
 	public run(): Promise {
-		return this.outputService.showOutput(TaskService.OutputChannelId);
+		return 	this.outputService.getOutputChannel(TaskService.OutputChannelId).show();
 	}
 }
 
@@ -548,7 +548,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (isAffected) {
 						const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
 						outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
-						this.outputService.showOutput(TaskService.OutputChannelId, true);
+						this.outputService.getOutputChannel(TaskService.OutputChannelId).show(true);
 						return TPromise.wrapError({});
 					}
 				}
@@ -623,7 +623,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
 				outputChannel.append(line + '\n');
 			});
-			this.outputService.showOutput(TaskService.OutputChannelId, true);
+			this.outputService.getOutputChannel(TaskService.OutputChannelId).show(true);
 		}
 		return result;
 	}
@@ -787,7 +787,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputService.showOutput(TaskService.OutputChannelId, true);
+			this.outputService.getOutputChannel(TaskService.OutputChannelId).show(true);
 		}
 	}
 }

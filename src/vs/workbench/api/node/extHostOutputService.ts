@@ -98,7 +98,7 @@ export class MainThreadOutputService {
 	}
 
 	public reveal(channel: string, preserveFocus: boolean): TPromise<void> {
-		this._outputService.showOutput(channel, preserveFocus);
+		this._outputService.getOutputChannel(channel).show(preserveFocus);
 		return undefined;
 	}
 

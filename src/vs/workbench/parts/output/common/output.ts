@@ -75,14 +75,6 @@ export interface IOutputService {
 	getActiveChannel(): string;
 
 	/**
-	 * Opens the output for the given channel
-	 *
-	 * The optional channel allows to show the output for a specific channel. If you leave the
-	 * channel out, you show the default channels output.
-	 */
-	showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor>;
-
-	/**
 	 * Allows to register on Output events
 	 */
 	onOutput: Event<IOutputEvent>;
@@ -105,11 +97,15 @@ export interface IOutputChannel {
 	 */
 	append(output: string): void;
 
-
 	/**
 	 * Clears all received output.
 	 */
 	clear(): void;
+
+	/**
+	 * Opens the output for this channel.
+	 */
+	show(preserveFocus?: boolean): TPromise<IEditor>;
 }
 
 export interface IOutputChannelRegistry {
