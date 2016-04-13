@@ -23,14 +23,13 @@ import InstantiationService = require('vs/platform/instantiation/common/instanti
 import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {ExtHostThreadService} from 'vs/platform/thread/common/extHostThreadService';
 import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemetryService';
-import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Client } from 'vs/base/node/service.net';
-import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
-import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {Client} from 'vs/base/node/service.net';
+import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
+import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
 const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
@@ -60,14 +59,12 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	let threadService = new ExtHostThreadService(remoteCom);
 	threadService.setInstantiationService(InstantiationService.createInstantiationService({ threadService: threadService }));
 	let telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-	let requestService = new BaseRequestService(contextService, telemetryService);
 	let modelService = threadService.getRemotable(ExtHostModelService);
 
 	let extensionService = new ExtHostExtensionService(threadService, telemetryService);
 	let modeService = new ModeServiceImpl(threadService, extensionService);
 	let _services: any = {
 		contextService,
-		requestService,
 		modelService,
 		threadService,
 		modeService,
