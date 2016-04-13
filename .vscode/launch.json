@@ -41,6 +41,20 @@
 			"outDir": "${workspaceRoot}/out"
 		},
 		{
+			"name": "VSCode Tokenizer Tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceRoot}/extensions/vscode-colorize-tests/test",
+				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-colorize-tests",
+				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out"
+			],
+			"stopOnEntry": false,
+			"sourceMaps": true,
+			"outDir": "${workspaceRoot}/out"
+		},
+		{
 			"name": "Attach to VSCode",
 			"type": "chrome",
 			"request": "attach",
