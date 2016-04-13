@@ -245,7 +245,7 @@
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code30, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code90	{ color: gray; }
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code31, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code91	{ color: #BE1717; }
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code32, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code92	{ color: darkgreen; }
+.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code32, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code92	{ color: #338A2F; }
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code33, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code93	{ color: #BEB817; }
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code34, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code94	{ color: darkblue; }
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code35, .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression .code95	{ color: darkmagenta; }
