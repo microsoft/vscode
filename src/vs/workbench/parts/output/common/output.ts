@@ -57,14 +57,6 @@ export interface IOutputService {
 	getOutputChannel(id: string): IOutputChannel;
 
 	/**
-	 * Returns the received output.
-	 *
-	 * The optional channel allows to ask for output for a specific channel. If you leave the
-	 * channel out, you get the default channels output.
-	 */
-	getOutput(channel: string): string;
-
-	/**
 	 * Returns all channels that received output in the current session.
 	 */
 	getChannels(): string[];
@@ -93,19 +85,24 @@ export interface IOutputService {
 export interface IOutputChannel {
 
 	/**
+	 * The received output content.
+	 */
+	getContent(): string;
+
+	/**
 	 * Appends output to the channel.
 	 */
 	append(output: string): void;
 
 	/**
-	 * Clears all received output.
-	 */
-	clear(): void;
-
-	/**
 	 * Opens the output for this channel.
 	 */
 	show(preserveFocus?: boolean): TPromise<IEditor>;
+
+	/**
+	 * Clears all received output.
+	 */
+	clear(): void;
 }
 
 export interface IOutputChannelRegistry {

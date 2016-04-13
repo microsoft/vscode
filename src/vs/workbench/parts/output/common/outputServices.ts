@@ -62,9 +62,10 @@ export class OutputService implements IOutputService {
 
 	public getOutputChannel(id: string): IOutputChannel {
 		return {
+			getContent: () => this.getOutput(id),
 			append: (output: string) => this.append(id, output),
-			clear: () => this.clearOutput(id),
-			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus)
+			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
+			clear: () => this.clearOutput(id)
 		};
 	}
 
@@ -88,7 +89,7 @@ export class OutputService implements IOutputService {
 		this._onOutput.fire({ output: output, channelId: channelId });
 	}
 
-	public getOutput(channelId: string): string {
+	private getOutput(channelId: string): string {
 		return this.receivedOutput[channelId] || '';
 	}
 
