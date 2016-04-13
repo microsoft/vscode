@@ -17,7 +17,7 @@ import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import {WorkerTelemetryService} from 'vs/platform/telemetry/common/workerTelemetryService';
+import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
@@ -93,7 +93,7 @@ export class EditorWorkerServer {
 		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
 		this.threadService.setInstantiationService(createInstantiationService({ threadService: this.threadService }));
 
-		var telemetryServiceInstance = new WorkerTelemetryService(this.threadService);
+		var telemetryServiceInstance = new RemoteTelemetryService('workerTelemetry', this.threadService);
 
 		var resourceService = new ResourceService();
 		var markerService = new SecondaryMarkerService(this.threadService);

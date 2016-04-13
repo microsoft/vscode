@@ -20,7 +20,7 @@ export interface ITelemetryInfo {
 	instanceId: string;
 }
 
-export interface ITelemetryService extends IDisposable {
+export interface ITelemetryService {
 	serviceId: ServiceIdentifier<any>;
 
 	/**
@@ -53,7 +53,6 @@ export const NullTelemetryService: ITelemetryService = {
 	timedPublicLog(name: string, data?: any): ITimerEvent { return nullEvent; },
 	publicLog(eventName: string, data?: any): void { },
 	addTelemetryAppender(appender): IDisposable { return { dispose() { } }; },
-	dispose(): void { },
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
 			instanceId: 'someValue.instanceId',

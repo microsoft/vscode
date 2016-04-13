@@ -19,7 +19,7 @@ import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindi
 import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {Registry} from 'vs/platform/platform';
-import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
+import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel} from 'vs/editor/common/editorCommon';

@@ -22,7 +22,7 @@ import {IInstantiationService } from 'vs/platform/instantiation/common/instantia
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {ExtHostThreadService} from 'vs/platform/thread/common/extHostThreadService';
-import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
+import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
@@ -59,20 +59,20 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new ExtHostThreadService(remoteCom);
 	threadService.setInstantiationService(InstantiationService.createInstantiationService({ threadService: threadService }));
-	let telemetryService = new ExtHostTelemetryService(threadService);
+	let telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 	let requestService = new BaseRequestService(contextService, telemetryService);
 	let modelService = threadService.getRemotable(ExtHostModelService);
 
 	let extensionService = new ExtHostExtensionService(threadService, telemetryService);
 	let modeService = new ModeServiceImpl(threadService, extensionService);
 	let _services: any = {
-		contextService: contextService,
-		requestService: requestService,
-		modelService: modelService,
-		threadService: threadService,
-		modeService: modeService,
-		extensionService: extensionService,
-		telemetryService: telemetryService
+		contextService,
+		requestService,
+		modelService,
+		threadService,
+		modeService,
+		extensionService,
+		telemetryService
 	};
 	let instantiationService = InstantiationService.createInstantiationService(_services);
 	threadService.setInstantiationService(instantiationService);
