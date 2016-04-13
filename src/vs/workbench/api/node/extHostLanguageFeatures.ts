@@ -24,7 +24,6 @@ import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
-import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 
 // --- adapter
@@ -1044,7 +1043,7 @@ export class MainThreadLanguageFeatures {
 	// --- parameter hints
 
 	$registerParameterHintsSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> {
-		this._registrations[handle] = ParameterHintsRegistry.register(selector, <modes.IParameterHintsSupport>{
+		this._registrations[handle] = modes.ParameterHintsRegistry.register(selector, <modes.IParameterHintsSupport>{
 			getParameterHints: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> => {
 				return this._proxy.$getParameterHints(handle, resource, position, triggerCharacter);
 			},

@@ -10,8 +10,8 @@ import {EventEmitter, IEventEmitter, ListenerCallback} from 'vs/base/common/even
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
-import {IParameterHints} from 'vs/editor/common/modes';
-import {ParameterHintsRegistry, getParameterHints} from '../common/parameterHints';
+import {ParameterHintsRegistry, IParameterHints} from 'vs/editor/common/modes';
+import {getParameterHints} from '../common/parameterHints';
 
 export interface IHintEvent {
 	hints: IParameterHints;

@@ -13,7 +13,6 @@ import * as modes from 'vs/editor/common/modes';
 import matches from 'vs/editor/common/modes/languageSelector';
 import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
@@ -27,7 +26,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
-	disposables.push(ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
+	disposables.push(modes.ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
 	disposables.push(ExtraInfoRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
 	disposables.push(OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));

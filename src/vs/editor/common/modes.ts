@@ -764,4 +764,6 @@ export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSup
 
 export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
 
-export var SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
+export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
+
+export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>('parameterHintsSupport');
