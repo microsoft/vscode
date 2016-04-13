@@ -66,18 +66,6 @@ export interface ITelemetryAppender extends IDisposable {
 	log(eventName: string, data?: any): void;
 }
 
-export interface ITelemetryServiceConfig {
-	userOptIn?: boolean;
-
-	enableHardIdle?: boolean;
-	enableSoftIdle?: boolean;
-	sessionID?: string;
-	commitHash?: string;
-	version?: string;
-
-	cleanupPatterns?: RegExp[];
-}
-
 export class TelemetryAppendersRegistry implements ITelemetryAppendersRegistry {
 
 	private _telemetryAppenderCtors: IConstructorSignature0<ITelemetryAppender>[];

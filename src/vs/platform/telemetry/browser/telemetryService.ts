@@ -7,13 +7,25 @@
 
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
-import {ITelemetryService, ITelemetryServiceConfig, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import ErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
 import {withDefaults, cloneAndChange} from 'vs/base/common/objects';
+
+export interface ITelemetryServiceConfig {
+	userOptIn?: boolean;
+
+	enableHardIdle?: boolean;
+	enableSoftIdle?: boolean;
+	sessionID?: string;
+	commitHash?: string;
+	version?: string;
+
+	cleanupPatterns?: [RegExp,string][];
+}
 
 export class TelemetryService implements ITelemetryService {
 
@@ -47,6 +59,16 @@ export class TelemetryService implements ITelemetryService {
 			enableSoftIdle: true,
 			userOptIn: true,
 		});
+
+		// static cleanup patterns for:
+		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
+		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
+		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
+		this._configuration.cleanupPatterns.push(
+			[/file:\/\/\/.*?\/resources\/app\//gi, '<APP_ROOT>'],
+			[/file:\/\/\/.*/gi, '<SOME_FILE_URI>'],
+			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
+		);
 
 		this._telemetryInfo = {
 			sessionId: this._configuration.sessionID,
@@ -157,23 +179,12 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
-	protected _cleanupInfo(stack: string): string {
-
-		// `file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		let reg = /file:\/\/\/.*?\/resources\/app\//gi;
-		stack = stack.replace(reg, '');
-
-		// Any other file path that doesn't match the approved form above should be cleaned.
-		reg = /file:\/\/\/.*/gi;
-		stack = stack.replace(reg, '');
-
-		// "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		reg = /ENOENT: no such file or directory.*?\'([^\']+)\'/gi;
-		stack = stack.replace(reg, 'ENOENT: no such file or directory');
+	private _cleanupInfo(stack: string): string {
 
 		// sanitize with configured cleanup patterns
-		for (let pattern of this._configuration.cleanupPatterns) {
-			stack = stack.replace(pattern, '');
+		for (let tuple of this._configuration.cleanupPatterns) {
+			let [regexp, replaceValue] = tuple;
+			stack = stack.replace(regexp, replaceValue);
 		}
 
 		return stack;
