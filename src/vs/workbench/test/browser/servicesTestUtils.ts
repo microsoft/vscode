@@ -10,7 +10,7 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import MainTelemetryService = require('vs/platform/telemetry/browser/mainTelemetryService');
+import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import Event from 'vs/base/common/event';
@@ -216,7 +216,7 @@ export class TestStorageService extends EventEmitter.EventEmitter implements ISt
 export class TestRequestService extends BaseRequestService {
 
 	constructor(workspace = TestWorkspace) {
-		super(new TestContextService(), new MainTelemetryService.MainTelemetryService());
+		super(new TestContextService(), NullTelemetryService);
 	}
 }
 
@@ -232,7 +232,7 @@ export interface IMockRequestHandler {
 export class MockRequestService extends BaseRequestService {
 
 	constructor(workspace: any, private handler: IMockRequestHandler) {
-		super(new TestContextService(), new MainTelemetryService.MainTelemetryService());
+		super(new TestContextService(), NullTelemetryService);
 	}
 
 	public makeRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
