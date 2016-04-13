@@ -1278,6 +1278,7 @@ declare module Electron {
 			icon?: NativeImage;
 			noLink?: boolean;
 			cancelId?: number;
+			defaultId?: number;
 		}
 	}
 
@@ -1797,8 +1798,8 @@ declare module Electron {
 	}
 
 	class Session {
-		static fromPartition(partition: string): Session;
-		static defaultSession: Session;
+		fromPartition(partition: string): Session;
+		defaultSession: Session;
 
 		cookies: any;
 		clearCache(callback: Function): void;
@@ -1811,6 +1812,7 @@ declare module Electron {
 		disableNetworkEmulation(): void;
 		setCertificateVerifyProc(proc: CertificateVerifyProc): void;
 		webRequest: any;
+		flushStorageData(): void;
 	}
 
 	interface CommonElectron {

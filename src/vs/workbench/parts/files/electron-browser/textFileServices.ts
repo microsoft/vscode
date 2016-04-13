@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
-import {isWindows} from 'vs/base/common/platform';
+import {isWindows, isLinux} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -165,17 +165,20 @@ export class TextFileService extends AbstractTextFileService {
 
 		// Button order
 		// Windows: Save | Don't Save | Cancel
-		// Mac/Linux: Save | Cancel | Don't
+		// Mac: Save | Cancel | Don't Save
+		// Linux: Don't Save | Cancel | Save
 
 		const save = { label: resourcesToConfirm.length > 1 ? this.mnemonicLabel(nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All")) : this.mnemonicLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
 		const dontSave = { label: this.mnemonicLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
-		const buttons = [save];
+		const buttons = [];
 		if (isWindows) {
-			buttons.push(dontSave, cancel);
+			buttons.push(save, dontSave, cancel);
+		} else if (isLinux) {
+			buttons.push(dontSave, cancel, save);
 		} else {
-			buttons.push(cancel, dontSave);
+			buttons.push(save, cancel, dontSave);
 		}
 
 		let opts: Electron.Dialog.ShowMessageBoxOptions = {
@@ -187,6 +190,10 @@ export class TextFileService extends AbstractTextFileService {
 			noLink: true,
 			cancelId: buttons.indexOf(cancel)
 		};
+
+		if (isLinux) {
+			opts.defaultId = 2;
+		}
 
 		const choice = this.windowService.getWindow().showMessageBox(opts);
 

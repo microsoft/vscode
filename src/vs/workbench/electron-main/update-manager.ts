@@ -127,6 +127,13 @@ export class UpdateManager extends events.EventEmitter {
 				return;
 			}
 
+			// for some reason updating on Mac causes the local storage not to be flushed.
+			// we workaround this issue by forcing an explicit flush of the storage data.
+			// see also https://github.com/Microsoft/vscode/issues/172
+			if (platform.isMacintosh) {
+				electron.session.defaultSession.flushStorageData();
+			}
+
 			rawQuitAndUpdate();
 		});
 	}
