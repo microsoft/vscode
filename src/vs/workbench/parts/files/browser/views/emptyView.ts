@@ -32,7 +32,7 @@ export class EmptyView extends CollapsibleView {
 		$('span').text(nls.localize('noWorkspace', "No Folder Opened")).appendTo(titleDiv);
 	}
 
-	public renderBody(container: HTMLElement): void {
+	protected renderBody(container: HTMLElement): void {
 		DOM.addClass(container, 'explorer-empty-view');
 
 		let titleDiv = $('div.section').appendTo(container);
@@ -45,6 +45,10 @@ export class EmptyView extends CollapsibleView {
 		button.on('click', () => {
 			this.runWorkbenchAction(env.isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 		});
+	}
+
+	protected layoutBody(size: number): void {
+		// no-op
 	}
 
 	private runWorkbenchAction(actionId: string): void {

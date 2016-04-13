@@ -19,15 +19,12 @@ import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
-import {RenameRegistry} from 'vs/editor/contrib/rename/common/rename';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 
 // --- adapter
@@ -942,7 +939,7 @@ export class MainThreadLanguageFeatures {
 	// --- references
 
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = ReferenceRegistry.register(selector, <modes.IReferenceSupport>{
+		this._registrations[handle] = modes.ReferenceSearchRegistry.register(selector, <modes.IReferenceSupport>{
 			canFindReferences() {
 				return true;
 			},
@@ -1013,7 +1010,7 @@ export class MainThreadLanguageFeatures {
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = RenameRegistry.register(selector, <modes.IRenameSupport>{
+		this._registrations[handle] = modes.RenameRegistry.register(selector, <modes.IRenameSupport>{
 			rename: (resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> => {
 				return this._proxy.$rename(handle, resource, position, newName);
 			}
@@ -1024,7 +1021,7 @@ export class MainThreadLanguageFeatures {
 	// --- suggest
 
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
-		this._registrations[handle] = SuggestRegistry.register(selector, <modes.ISuggestSupport>{
+		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			suggest: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.ISuggestResult[]> => {
 				return this._proxy.$suggest(handle, resource, position);
 			},

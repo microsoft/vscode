@@ -85,10 +85,10 @@ const openViewletKb: IKeybindings = {
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).setDefaultPanelId(debug.REPL_ID);
 
 // Register default debug views
-debug.DebugViewRegistry.registerDebugView(new debug.DebugViewDescriptor(VariablesView, 10));
-debug.DebugViewRegistry.registerDebugView(new debug.DebugViewDescriptor(WatchExpressionsView, 20));
-debug.DebugViewRegistry.registerDebugView(new debug.DebugViewDescriptor(CallStackView, 30));
-debug.DebugViewRegistry.registerDebugView(new debug.DebugViewDescriptor(BreakpointsView, 40));
+debug.DebugViewRegistry.registerDebugView(VariablesView, 10);
+debug.DebugViewRegistry.registerDebugView(WatchExpressionsView, 20);
+debug.DebugViewRegistry.registerDebugView(CallStackView, 30);
+debug.DebugViewRegistry.registerDebugView(BreakpointsView, 40);
 
 // register action to open viewlet
 const registry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));

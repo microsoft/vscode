@@ -49,6 +49,10 @@
 	margin-right: 2px;
 }
 
+.quick-open-widget .extension .icon.octicon-x:before {
+	margin-right: 2px;
+}
+
 .quick-open-widget .extension .published {
 	float: right;
 	opacity: 0.6;

@@ -50,13 +50,6 @@
 			}
 		},
 		{
-			"name": "C includes",
-			"scope": "keyword.control.import",
-			"settings": {
-				"foreground": "#569CD6"
-			}
-		},
-		{
 			"name": "CSS property value",
 			"scope": [
 				"support.property-value",

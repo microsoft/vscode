@@ -16,14 +16,16 @@ function assertUnchangedTokens(testFixurePath:string, done) {
 	return commands.executeCommand('_workbench.captureSyntaxTokens', Uri.file(testFixurePath)).then(data => {
 		try {
 			let resultsFolderPath = join(dirname(dirname(testFixurePath)), 'colorize-results');
+			if (!fs.existsSync(resultsFolderPath)) {
+				fs.mkdirSync(resultsFolderPath);
+			}
 			let resultPath = join(resultsFolderPath, fileName.replace('.', '_') + '.json');
 			if (fs.existsSync(resultPath)) {
-				let previosData = JSON.parse(fs.readFileSync(resultPath).toString());
+				let previousData = JSON.parse(fs.readFileSync(resultPath).toString());
 				try {
-					assert.deepEqual(data, previosData);
+					assert.deepEqual(data, previousData);
 				} catch (e) {
-					let errorResultPath = join(resultsFolderPath, fileName.replace('.', '_') + '.error.json');
-					fs.writeFileSync(errorResultPath, JSON.stringify(data, null, '\t'));
+					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
 					throw e;
 				}
 			} else {
@@ -38,17 +40,15 @@ function assertUnchangedTokens(testFixurePath:string, done) {
 
 suite("colorization", () => {
 	let extensionsFolder = normalize(join(__dirname, '../../'));
-	console.log(extensionsFolder);
 	let extensions = fs.readdirSync(extensionsFolder);
 	extensions.forEach(extension => {
-		let extensionColorizeFixurePath = join(extensionsFolder, extension, 'test', 'colorize-fixtures');
-		if (fs.existsSync(extensionColorizeFixurePath)) {
-			console.log(extensionColorizeFixurePath);
-			let fixturesFiles = fs.readdirSync(extensionColorizeFixurePath);
+		let extensionColorizeFixturePath = join(extensionsFolder, extension, 'test', 'colorize-fixtures');
+		if (fs.existsSync(extensionColorizeFixturePath)) {
+			let fixturesFiles = fs.readdirSync(extensionColorizeFixturePath);
 			fixturesFiles.forEach(fixturesFile => {
 				// define a test for each fixture
 				test(extension + '-' + fixturesFile, function(done) {
-					assertUnchangedTokens(join(extensionColorizeFixurePath, fixturesFile), done);
+					assertUnchangedTokens(join(extensionColorizeFixturePath, fixturesFile), done);
 				});
 			});
 		}

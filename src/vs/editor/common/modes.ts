@@ -12,6 +12,7 @@ import {IFilter} from 'vs/base/common/filters';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export interface ITokenizationResult {
 	type?:string;
@@ -756,3 +757,11 @@ export interface IRichEditSupport {
 	 */
 	brackets?: IRichEditBrackets;
 }
+
+// --- feature registries ------
+
+export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
+
+export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
+
+export var SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');

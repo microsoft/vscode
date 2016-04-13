@@ -16,7 +16,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
-import {remote} from 'electron';
+import {remote, webFrame} from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -77,6 +77,10 @@ export class ContextMenuService implements IContextMenuService {
 					x = pos.x;
 					y = pos.y;
 				}
+				
+				let zoom = webFrame.getZoomFactor();
+				x *= zoom;
+				y *= zoom;
 
 				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
 			});

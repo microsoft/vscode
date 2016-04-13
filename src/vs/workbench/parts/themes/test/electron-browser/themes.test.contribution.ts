@@ -57,9 +57,13 @@ class Snapper {
 		return element;
 	}
 
+	private normalizeType(type: string) : string {
+		return type.split('.').sort().join('.');
+	}
+
 	private getStyle(testNode: Element, scope: string) : string {
 
-		testNode.className = 'token ' + scope;
+		testNode.className = 'token ' + scope.replace(/\./g, ' ');
 
 		let cssStyles = window.getComputedStyle(testNode);
 		if (cssStyles) {
@@ -110,7 +114,7 @@ class Snapper {
 						let testNode = this.getTestNode(themeId);
 						let themeName = getThemeName(themeId);
 						data.forEach(entry => {
-							entry.r[themeName] = this.getMatchedCSSRule(testNode, entry.t);
+							entry.r[themeName] = this.getMatchedCSSRule(testNode, entry.t) + ' ' + this.getStyle(testNode, entry.t)
 						});
 					}
 				});
@@ -133,7 +137,7 @@ class Snapper {
 					let content = model.getValueInRange({ startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: tokenInfo.startColumn, endColumn: tokenInfo.endColumn});
 					result.push({
 						c: content,
-						t: tokenInfo.token.type,
+						t: this.normalizeType(tokenInfo.token.type),
 						r: {}
 					});
 				}
@@ -176,6 +180,6 @@ KeybindingsRegistry.registerCommandDesc({
 
 	},
 	context: undefined,
-	primary: KeyMod.Shift | KeyCode.F11
+	primary: undefined
 });
 
