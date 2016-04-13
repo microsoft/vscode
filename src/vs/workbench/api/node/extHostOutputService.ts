@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IOutputService, OUTPUT_EDITOR_INPUT_ID} from 'vs/workbench/parts/output/common/output';
+import {IOutputService, OUTPUT_EDITOR_INPUT_ID, IOutputChannel} from 'vs/workbench/parts/output/common/output';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
@@ -27,22 +27,21 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	dispose(): void {
 		if (!this._disposed) {
-			this._proxy.clear(this._name).then(() => {
-				this._disposed = true;
-			});
+			this._proxy.getOutputChannel(this._name).clear();
+			this._disposed = true;
 		}
 	}
 
 	append(value: string): void {
-		this._proxy.append(this._name, value);
+		this._proxy.getOutputChannel(this._name).append(value);
 	}
 
 	appendLine(value: string): void {
-		this.append(value + '\n');
+		this._proxy.getOutputChannel(this._name).append(value + '\n');
 	}
 
 	clear(): void {
-		this._proxy.clear(this._name);
+		this._proxy.getOutputChannel(this._name).clear();
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
@@ -50,7 +49,7 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 			preserveFocus = columnOrPreserveFocus;
 		}
 
-		this._proxy.reveal(this._name, preserveFocus);
+		this._proxy.getOutputChannel(this._name).show(preserveFocus);
 	}
 
 	hide(): void {
@@ -87,19 +86,8 @@ export class MainThreadOutputService {
 		this._editorService = editorService;
 	}
 
-	public append(channel: string, value: string): TPromise<void> {
-		this._outputService.getOutputChannel(channel).append(value);
-		return undefined;
-	}
-
-	public clear(channel: string): TPromise<void> {
-		this._outputService.getOutputChannel(channel).clear();
-		return undefined;
-	}
-
-	public reveal(channel: string, preserveFocus: boolean): TPromise<void> {
-		this._outputService.getOutputChannel(channel).show(preserveFocus);
-		return undefined;
+	public getOutputChannel(channelId): IOutputChannel {
+		return this._outputService.getOutputChannel(channelId);
 	}
 
 	public close(channel: string): TPromise<void> {
