@@ -392,6 +392,9 @@ export class VSCodeMenu {
 	}
 
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
+		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedFile', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed File"), 'workbench.files.action.reopenClosedFile'));
+		openRecentMenu.append(__separator__());
+
 		let recentList = this.getOpenedPathsList();
 
 		// Folders
