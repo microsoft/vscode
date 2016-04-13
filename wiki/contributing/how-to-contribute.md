@@ -18,16 +18,19 @@ Code includes node module dependencies that require native compilation. To ensur
 
 For native compilation, you will need [Python](https://www.python.org/downloads/) (version `v2.7` recommended, `v3.x.x` is __*not*__ supported), as well as a C/C++ compiler tool chain.
 
-**Windows:**
+**Windows**
+
 * In addition to [Python v2.7](https://www.python.org/downloads/release/python-279/), make sure you have a PYTHON environment variable set to `drive:\path\to\python.exe`, not to a folder
 * [Visual Studio 2013 for Windows Desktop](https://www.visualstudio.com/en-us/news/vs2013-community-vs.aspx) or [Visual Studio 2015](https://www.visualstudio.com/en-us/products/visual-studio-community-vs.aspx), make sure to select the option to install all C++ tools and the Windows SDK
 
 **OS X**
+
 * Command line developer tools
 * Python should be installed already
 * [XCode](https://developer.apple.com/xcode/downloads/) and the Command Line Tools (XCode -> Preferences -> Downloads), which will install `gcc` and the related toolchain containing `make`
 
 **Linux**
+
 * Python v2.7
 * `make`
 * A proper C/C++11 compiler tool chain, for example [GCC](https://gcc.gnu.org)
@@ -38,23 +41,29 @@ After you have these tools installed, run the following commands to check out Co
 
 **OS X**
 
-	git clone https://github.com/microsoft/vscode
-	cd vscode
-	./scripts/npm.sh install
+```bash
+git clone https://github.com/microsoft/vscode
+cd vscode
+./scripts/npm.sh install
+```
 
 **Windows**
 
-	git clone https://github.com/microsoft/vscode
-	cd vscode
-	scripts\npm install
+```bash
+git clone https://github.com/microsoft/vscode
+cd vscode
+scripts\npm install
+```
 
 **Linux**
 
-	git clone https://github.com/microsoft/vscode
-	cd vscode
-	./scripts/npm.sh install --arch=x64
-	# for 32bit Linux
-	#./scripts/npm.sh install --arch=ia32
+```bash
+git clone https://github.com/microsoft/vscode
+cd vscode
+./scripts/npm.sh install --arch=x64
+# for 32bit Linux
+#./scripts/npm.sh install --arch=ia32
+```
 
 **Note:** For more information on how to install NPM modules globally on UNIX systems without resorting to `sudo`, refer to [this guide](http://www.johnpapa.net/how-to-use-npm-global-without-sudo-on-osx/) .
 
@@ -81,13 +90,17 @@ Errors and warnings will show in the console while developing Code. If you use V
 ### Validate your changes
 To test the changes you launch a development version of VS Code on the workspace `vscode`, which you are currently editing.
 
-OS X and Linux
+**OS X and Linux**
 
-	./scripts/code.sh
+```bash
+./scripts/code.sh
+```
 
-Windows
+**Windows**
 
-	.\scripts\code.bat
+```bash
+.\scripts\code.bat
+```
 
 You can identify the development version of Code by the Electron icon in the Dock or Taskbar.
 
@@ -102,12 +115,15 @@ The **render** process runs the UI code inside the Shell window. To debug code r
 * Install the [Debugger for Chrome](https://marketplace.visualstudio.com/items/msjsdiag.debugger-for-chrome) extension. This extension will let you attach to and debug client side code running in Chrome.
 * Launch the development version of Code with the following command line option:
 
-OSX and Linux
-``` bash
+**OS X and Linux**
+
+```bash
 ./scripts/code.sh --remote-debugging-port=9222
 ```
-Windows
-``` bash
+
+**Windows**
+
+```bash
 scripts\code --remote-debugging-port=9222
 ```
 
@@ -115,11 +131,10 @@ scripts\code --remote-debugging-port=9222
 
 
 #### Using the Chrome Developer Tools
-
 * Run the `Developer: Toggle Developer Tools` command from the Command Palette in your development instance of Code to launch the Chrome tools.
 * It's also possible to debug the released versions of Code, since the sources link to sourcemaps hosted online.
 
-[![](images/sourcemaps.png)](images/sourcemaps.png)
+![](images/sourcemaps.png)
 
 The **extension host** process runs code implemented by a plugin. To debug extensions (including those packaged with Code) which run in the extension host process, you can use VS Code itself. Switch to the Debug viewlet, choose the `Attach to Extension Host` configuration, and press <kbd>F5</kbd>.
 
@@ -146,5 +161,4 @@ Check out the [issues list](https://github.com/Microsoft/vscode/issues?utf8=%E2%
 We're also interested in your feedback for the future of Code. You can submit a suggestion or feature request through the issue tracker. To make this process more effective, we're asking that these include more information to help define them more clearly.
 
 ## Discussion Etiquette
-
 In order to keep the conversation clear and transparent, please limit discussion to English and keep things on topic with the issue. Be considerate to others and try to be courteous and professional at all times.

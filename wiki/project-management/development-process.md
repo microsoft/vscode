@@ -20,8 +20,8 @@ We work in weekly segments:
 - **Week 2**: Work according the plan
 - **Week 3+**: Work according the plan
 - **Final Week**: End game
- - the team tests the new features according a test plan and updates the documentation.
- - we make a pre-release available on the 'insiders' channel and invite users to help us test the pre-release.
+  - the team tests the new features according a test plan and updates the documentation.
+  - we make a pre-release available on the 'insiders' channel and invite users to help us test the pre-release.
 
 ## Triage
 Bugs and features will be assigned a milestone and within a milestone they will be assigned a priority. The priority dictates the order in which issues should be addressed. A `important` bug (something that we think is critical for the milestone) is to be addressed before the other bugs.

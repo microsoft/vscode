@@ -1,4 +1,5 @@
 # Contributor License Agreement
+
 You must sign a Contribution License Agreement (CLA) before your PR will be merged. This a one-time requirement for Microsoft projects in GitHub. You can read more about [Contribution License Agreements (CLA)](https://en.wikipedia.org/wiki/Contributor_License_Agreement) on Wikipedia.
 
 However, you don't have to do this up-front. You can simply clone, fork, and submit your pull-request as usual.

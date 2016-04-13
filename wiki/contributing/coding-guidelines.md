@@ -4,7 +4,7 @@
 
 We prefer a **rebase workflow** and occasional **feature branches**. Most work happens directly on the `master` branch. For that reason, we recommend setting the `pull.rebase` setting to true.
 
-```
+```bash
 git config --global pull.rebase true
 ```
 
@@ -34,18 +34,18 @@ We use tabs, not spaces.
 * Use arrow functions `=>` over anonymous function expressions
 * Only surround arrow function parameters when necessary. For example, `(x) => x + x` is wrong but the following are correct:
 
-``` javascript
-  x => x + x
-  (x,y) => x + y
-  <T>(x: T, y: T) => x === y
+```javascript
+x => x + x
+(x,y) => x + y
+<T>(x: T, y: T) => x === y
 ```
 
 * Always surround loop and conditional bodies with curly braces
 * Open curly braces always go on the same line as whatever necessitates them
 * Parenthesized constructs should have no surrounding whitespace. A single space follows commas, colons, and semicolons in those constructs. For example:
 
-``` javascript
-  for (var i = 0, n = str.length; i < 10; i++) { }
-  if (x < 10) { }
-  function f(x: number, y: string): void { }
+```javascript
+for (var i = 0, n = str.length; i < 10; i++) { }
+if (x < 10) { }
+function f(x: number, y: string): void { }
 ```
