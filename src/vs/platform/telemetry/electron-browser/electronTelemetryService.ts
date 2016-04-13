@@ -78,22 +78,22 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 
 	private loadOptinSettings(): void {
 		const config = this.configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
-		this.config.userOptIn = config ? config.enableTelemetry : this.config.userOptIn;
+		this._config.userOptIn = config ? config.enableTelemetry : this._config.userOptIn;
 		this._optInStatusLoaded = true;
-		this.publicLog('optInStatus', {optIn: this.config.userOptIn});
+		this.publicLog('optInStatus', {optIn: this._config.userOptIn});
 		this.flushBuffer();
 
-		this.toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
-			this.config.userOptIn = e.config && e.config[TELEMETRY_SECTION_ID] ? e.config[TELEMETRY_SECTION_ID].enableTelemetry : this.config.userOptIn;
+		this._toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+			this._config.userOptIn = e.config && e.config[TELEMETRY_SECTION_ID] ? e.config[TELEMETRY_SECTION_ID].enableTelemetry : this._config.userOptIn;
 		}));
 	}
 
 	private setupIds(): TPromise<ITelemetryInfo> {
 		return TPromise.join([this.setupInstanceId(), this.setupMachineId()]).then(() => {
 			return {
-				machineId: this.machineId,
-				instanceId: this.instanceId,
-				sessionId: this.sessionId
+				machineId: this._machineId,
+				instanceId: this._instanceId,
+				sessionId: this._sessionId
 			};
 		});
 	}
@@ -104,15 +104,15 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 			instanceId = uuid.generateUuid();
 			this.storageService.store(StorageKeys.InstanceId, instanceId);
 		}
-		this.instanceId = instanceId;
-		return TPromise.as(this.instanceId);
+		this._instanceId = instanceId;
+		return TPromise.as(this._instanceId);
 	}
 
 	private setupMachineId(): TPromise<string> {
 		let machineId = this.storageService.get(StorageKeys.MachineId);
 		if (machineId) {
-			this.machineId = machineId;
-			return TPromise.as(this.machineId);
+			this._machineId = machineId;
+			return TPromise.as(this._machineId);
 		} else {
 			return new TPromise((resolve, reject) => {
 				try {
@@ -126,18 +126,18 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 							machineId = uuid.generateUuid();
 						}
 
-						this.machineId = machineId;
+						this._machineId = machineId;
 						this.storageService.store(StorageKeys.MachineId, machineId);
-						resolve(this.machineId);
+						resolve(this._machineId);
 					});
 				} catch (err) {
 					errors.onUnexpectedError(err);
 
 					// generate a UUID
 					machineId = uuid.generateUuid();
-					this.machineId = machineId;
+					this._machineId = machineId;
 					this.storageService.store(StorageKeys.MachineId, machineId);
-					resolve(this.machineId);
+					resolve(this._machineId);
 				}
 			});
 
