@@ -54,6 +54,9 @@ export var IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
 export interface IOutputService {
 	serviceId: ServiceIdentifier<any>;
 
+	/**
+	 * Given the channel id returns the output channel instance.
+	 */
 	getOutputChannel(id: string): IOutputChannel;
 
 	/**
@@ -62,17 +65,17 @@ export interface IOutputService {
 	getActiveChannelId(): string;
 
 	/**
-	 * Allows to register on Output events
+	 * Allows to register on Output events.
 	 */
 	onOutput: Event<IOutputEvent>;
 
 	/**
-	 * Allows to register on a new Output channel getting filled with output
+	 * Allows to register on a new Output channel getting filled with output.
 	 */
 	onOutputChannel: Event<string>;
 
 	/**
-	 * Allows to register on active output channel change
+	 * Allows to register on active output channel change.
 	 */
 	onActiveOutputChannel: Event<string>;
 }
@@ -80,7 +83,7 @@ export interface IOutputService {
 export interface IOutputChannel {
 
 	/**
-	 * The received output content.
+	 * Returns the received output content.
 	 */
 	getContent(): string;
 
@@ -95,7 +98,7 @@ export interface IOutputChannel {
 	show(preserveFocus?: boolean): TPromise<IEditor>;
 
 	/**
-	 * Clears all received output.
+	 * Clears all received output for this channel.
 	 */
 	clear(): void;
 }
