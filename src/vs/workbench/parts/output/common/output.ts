@@ -56,9 +56,9 @@ export interface IOutputService {
 
 	/**
 	 * Given the channel id returns the output channel instance.
-	 * Returns null if output channel with id is not registered.
+	 * If label is passed then the output channel registry is not queried for the label of the channel.
 	 */
-	getChannel(id: string): IOutputChannel;
+	getChannel(id: string, label?: string): IOutputChannel;
 
 	/**
 	 * Returns the currently active channel.

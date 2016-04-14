@@ -3084,9 +3084,11 @@ declare namespace vscode {
 		/**
 		 * Create a new [output channel](#OutputChannel) with the given name.
 		 *
-		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param name used as an identifier of the channel.
+		 * @param label Human-readable string which will be used to represent the channel in the UI.
+		 * If not specified name will be used for representing the channel in the UI.
 		 */
-		export function createOutputChannel(name: string): OutputChannel;
+		export function createOutputChannel(name: string, label?: string): OutputChannel;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful

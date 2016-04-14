@@ -13,35 +13,35 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	private _proxy: MainThreadOutputService;
-	private _name: string;
+	private _outputChannel: IOutputChannel;
 	private _disposed: boolean;
 
-	constructor(name: string, proxy: MainThreadOutputService) {
-		this._name = name;
+	constructor(name: string, proxy: MainThreadOutputService, label?: string) {
 		this._proxy = proxy;
+		this._outputChannel = proxy.getOutputChannel(name, label);
 	}
 
 	get name(): string {
-		return this._name;
+		return this._outputChannel.id;
 	}
 
 	dispose(): void {
 		if (!this._disposed) {
-			this._proxy.getOutputChannel(this._name).clear();
+			this._outputChannel.clear();
 			this._disposed = true;
 		}
 	}
 
 	append(value: string): void {
-		this._proxy.getOutputChannel(this._name).append(value);
+		this._outputChannel.append(value);
 	}
 
 	appendLine(value: string): void {
-		this._proxy.getOutputChannel(this._name).append(value + '\n');
+		this._outputChannel.append(value + '\n');
 	}
 
 	clear(): void {
-		this._proxy.getOutputChannel(this._name).clear();
+		this._outputChannel.clear();
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
@@ -49,11 +49,11 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 			preserveFocus = columnOrPreserveFocus;
 		}
 
-		this._proxy.getOutputChannel(this._name).show(preserveFocus);
+		this._outputChannel.show(preserveFocus);
 	}
 
 	hide(): void {
-		this._proxy.close(this._name);
+		this._proxy.close(this._outputChannel.id);
 	}
 }
 
@@ -65,12 +65,12 @@ export class ExtHostOutputService {
 		this._proxy = threadService.getRemotable(MainThreadOutputService);
 	}
 
-	createOutputChannel(name: string): vscode.OutputChannel {
+	createOutputChannel(name: string, label?: string): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			return new ExtHostOutputChannel(name, this._proxy);
+			return new ExtHostOutputChannel(name, this._proxy, label);
 		}
 	}
 }
@@ -86,8 +86,8 @@ export class MainThreadOutputService {
 		this._editorService = editorService;
 	}
 
-	public getOutputChannel(channelId): IOutputChannel {
-		return this._outputService.getChannel(channelId);
+	public getOutputChannel(channelId: string, channelLabel?: string): IOutputChannel {
+		return this._outputService.getChannel(channelId, channelLabel);
 	}
 
 	public close(channel: string): TPromise<void> {
