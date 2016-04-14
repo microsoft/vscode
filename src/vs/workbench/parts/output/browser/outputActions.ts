@@ -115,7 +115,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	}
 
 	protected getActionContext(option: string): string {
-		const channel = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().filter(channelData => channelData.label === option).pop();
+		const channel = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().filter(channelData => channelData.label === option).pop();
 
 		return channel ? channel.id : option;
 	}
@@ -128,7 +128,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	}
 
 	private static getChannelLabels(outputService: IOutputService): string[] {
-		const contributedChannels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().map(channelData => channelData.label);
+		const contributedChannels = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().map(channelData => channelData.label);
 		return contributedChannels.sort(); // sort by name
 	}
 }

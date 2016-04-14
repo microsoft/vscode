@@ -44,7 +44,7 @@ export class OutputService implements IOutputService {
 
 		this.receivedOutput = Object.create(null);
 
-		const channels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels();
+		const channels = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
 	}
 
@@ -61,7 +61,7 @@ export class OutputService implements IOutputService {
 	}
 
 	public getChannel(id: string): IOutputChannel {
-		const channelData = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().filter(channelData => channelData.id === id).pop();
+		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().filter(channelData => channelData.id === id).pop();
 		if (!channelData) {
 			return null;
 		}
