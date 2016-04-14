@@ -156,9 +156,9 @@ class ExtHostApiCommands {
 				typeof position === 'number' ? typeConverters.fromViewColumn(position) : void 0);
 
 		}, {
-			description: 'Preview an html document.',
+			description: 'Render the html of the resource in an editor view.',
 			args: [
-				{ name: 'uri', description: 'Uri of the document to preview.', constraint: URI },
+				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
 				{ name: 'column', description: '(optional) Column in which to preview.' },
 			]
 		});
