@@ -6,7 +6,6 @@
 'use strict';
 
 import path = require('path');
-import os = require('os');
 
 import {shell, screen, BrowserWindow} from 'electron';
 
@@ -236,20 +235,11 @@ export class VSCodeWindow {
 			return;
 		}
 
-		// Windows 10: https://github.com/Microsoft/vscode/issues/929
-		if (platform.isWindows && os.release() && os.release().indexOf('10.') === 0 && !this._win.isFocused()) {
-			this._win.minimize();
-			this._win.focus();
+		if (this._win.isMinimized()) {
+			this._win.restore();
 		}
 
-		// Mac / Linux / Windows 7 & 8
-		else {
-			if (this._win.isMinimized()) {
-				this._win.restore();
-			}
-
-			this._win.focus();
-		}
+		this._win.focus();
 	}
 
 	public get lastFocusTime(): number {
