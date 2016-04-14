@@ -196,7 +196,13 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 
 function setupIPC(): TPromise<Server> {
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(env.mainIPCHandle).then(null, err => {
+		return serve(env.mainIPCHandle).then(server => {
+			if (platform.isMacintosh) {
+				app.dock.show(); // dock might be hidden at this case due to a retry
+			}
+
+			return server;
+		}, err => {
 			if (err.code !== 'EADDRINUSE') {
 				return TPromise.wrapError(err);
 			}
