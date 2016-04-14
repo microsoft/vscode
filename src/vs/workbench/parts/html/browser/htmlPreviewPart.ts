@@ -24,6 +24,7 @@ import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {HtmlInput} from 'vs/workbench/parts/html/common/htmlInput';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {IOpenerService} from 'vs/platform/opener/common/opener';
 
 KeybindingsRegistry.registerCommandDesc({
 	id: '_webview.openDevTools',
@@ -62,7 +63,7 @@ class ManagedWebview {
 	private _ready: TPromise<this>;
 	private _disposables: IDisposable[];
 
-	constructor(private _parent: HTMLElement, private _layoutParent: HTMLElement, private _styleElement) {
+	constructor(private _parent: HTMLElement, private _layoutParent: HTMLElement, private _styleElement, onDidClickLink:(uri:URI)=>any) {
 		this._webview = <Webview>document.createElement('webview');
 		this._webview.style.zIndex = '1';
 		this._webview.style.position = 'absolute';
@@ -88,6 +89,12 @@ class ManagedWebview {
 			}),
 			addDisposableListener(this._webview, 'crashed', function () {
 				console.error('embedded page crashed');
+			}),
+			addDisposableListener(this._webview, 'ipc-message', (event) => {
+				if (event.channel === 'did-click-link') {
+					let [uri] = event.args;
+					onDidClickLink(URI.parse(uri));
+				}
 			})
 		];
 
@@ -190,6 +197,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	private _editorService: IWorkbenchEditorService;
 	private _themeService: IThemeService;
+	private _openerService: IOpenerService;
 	private _webview: ManagedWebview;
 	private _container: HTMLDivElement;
 
@@ -203,12 +211,14 @@ export class HtmlPreviewPart extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
+		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService);
 
 		this._editorService = editorService;
 		this._themeService = themeService;
+		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
 	}
 
@@ -232,7 +242,8 @@ export class HtmlPreviewPart extends BaseEditor {
 		if (!this._webview) {
 			this._webview = new ManagedWebview(document.getElementById('workbench.main.container'),
 				this._container,
-				document.querySelector('.monaco-editor-background'));
+				document.querySelector('.monaco-editor-background'),
+				uri => this._openerService.open(uri));
 
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString();
 		}

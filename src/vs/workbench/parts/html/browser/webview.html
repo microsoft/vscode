@@ -66,12 +66,29 @@
 				newDocument.head.appendChild(defaultStyles);
 			}
 
+			// script to bubble out link-clicks
+			const defaultScripts = newDocument.createElement('script');
+			defaultScripts.innerHTML = `
+				document.body.addEventListener('click', function (event) {
+					if(event.target.tagName === 'A' && event.target.href) {
+						window.parent.postMessage({ command: 'did-click-link', data: event.target.href }, 'file://');
+						event.preventDefault();
+					}
+				});`
+			newDocument.body.appendChild(defaultScripts);
+
 			// write new content onto iframe
 			target.contentDocument.open('text/html', 'replace');
 			target.contentDocument.write(newDocument.documentElement.innerHTML);
 			target.contentDocument.close();
 
 		});
+
+		// forward messages from the embedded iframe
+		window.onmessage = function(message) {
+			const { command, data} = message.data;
+			ipcRenderer.sendToHost(command, data);
+		};
 
 		// signal ready, needs a short timeout for an
 		// unknown reason

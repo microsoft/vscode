@@ -93,6 +93,9 @@ import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extension
 import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 
+// self registering service
+import 'vs/platform/opener/electron-browser/opener.contribution';
+
 /**
  * Services that we require for the Shell
  */
