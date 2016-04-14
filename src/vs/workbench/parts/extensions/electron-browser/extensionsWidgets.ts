@@ -115,7 +115,7 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 				const name = extension && extension.name;
 				const message = name ? `${ name }: ${ m.message }` : m.message;
 
-				const outputChannel = this.outputService.getOutputChannel(ExtensionsChannelId);
+				const outputChannel = this.outputService.getChannel(ExtensionsChannelId);
 				outputChannel.append(message);
 				outputChannel.show(true);
 			});

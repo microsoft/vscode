@@ -87,7 +87,7 @@ export class MainThreadOutputService {
 	}
 
 	public getOutputChannel(channelId): IOutputChannel {
-		return this._outputService.getOutputChannel(channelId);
+		return this._outputService.getChannel(channelId);
 	}
 
 	public close(channel: string): TPromise<void> {

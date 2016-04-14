@@ -60,10 +60,18 @@ export class OutputService implements IOutputService {
 		return this._onActiveOutputChannel.event;
 	}
 
-	public getOutputChannel(id: string): IOutputChannel {
+	public getChannel(id: string): IOutputChannel {
+		const channelData = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().filter(channelData => channelData.id === id).pop();
+		if (!channelData) {
+			return null;
+		}
+
+		const self = this;
 		return {
+			id,
+			label: channelData.label,
 			get output() {
-				return this.getOutput(id);
+				return self.getOutput(id);
 			},
 			append: (output: string) => this.append(id, output),
 			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
@@ -91,12 +99,12 @@ export class OutputService implements IOutputService {
 		this._onOutput.fire({ output: output, channelId: channelId });
 	}
 
-	private getOutput(channelId: string): string {
-		return this.receivedOutput[channelId] || '';
+	public getActiveChannel(): IOutputChannel {
+		return this.getChannel(this.activeChannelId);
 	}
 
-	public getActiveChannelId(): string {
-		return this.activeChannelId;
+	private getOutput(channelId: string): string {
+		return this.receivedOutput[channelId] || '';
 	}
 
 	private clearOutput(channelId: string): void {
@@ -116,7 +124,7 @@ export class OutputService implements IOutputService {
 		this._onActiveOutputChannel.fire(channelId); // emit event that a new channel is active
 
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
-			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channelId), EditorOptions.create({ preserveFocus: preserveFocus })).
+			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, this.getChannel(channelId)), EditorOptions.create({ preserveFocus: preserveFocus })).
 				then(() => outputPanel);
 		});
 	}

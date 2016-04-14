@@ -47,7 +47,7 @@ export class GitOutput implements ext.IWorkbenchContribution {
 	}
 
 	private onOutput(output: string): void {
-		this.outputService.getOutputChannel('Git').append(output);
+		this.outputService.getChannel('Git').append(output);
 	}
 
 	public dispose(): void {

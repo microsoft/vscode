@@ -749,8 +749,12 @@ export class SelectActionItem extends BaseActionItem {
 
 	private registerListeners(): void {
 		this.toDispose.push(DOM.addStandardDisposableListener(this.select, 'change', (e) => {
-			this.actionRunner.run(this._action, e.target.value).done();
+			this.actionRunner.run(this._action, this.getActionContext(e.target.value)).done();
 		}));
+	}
+
+	protected getActionContext(option: string) {
+		return option;
 	}
 
 	public focus(): void {

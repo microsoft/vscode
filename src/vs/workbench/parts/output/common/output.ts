@@ -56,13 +56,15 @@ export interface IOutputService {
 
 	/**
 	 * Given the channel id returns the output channel instance.
+	 * Returns null if output channel with id is not registered.
 	 */
-	getOutputChannel(id: string): IOutputChannel;
+	getChannel(id: string): IOutputChannel;
 
 	/**
-	 * Returns the name of the currently opened channel.
+	 * Returns the currently active channel.
+	 * Only one channel can be active at a given moment.
 	 */
-	getActiveChannelId(): string;
+	getActiveChannel(): IOutputChannel;
 
 	/**
 	 * Allows to register on Output events.
@@ -81,6 +83,16 @@ export interface IOutputService {
 }
 
 export interface IOutputChannel {
+
+	/**
+	 * Identifier of the output channel.
+	 */
+	id: string;
+
+	/**
+	 * Label of the output channel to be displayed to the user.
+	 */
+	label: string;
 
 	/**
 	 * Returns the received output content.

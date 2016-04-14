@@ -182,7 +182,7 @@ class ConfigureTaskRunnerAction extends Action {
 				}
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
-					const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
+					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 					outputChannel.show();
 					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
 					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
@@ -288,7 +288,7 @@ class ShowLogAction extends AbstractTaskAction {
 	}
 
 	public run(): Promise {
-		return this.outputService.getOutputChannel(TaskService.OutputChannelId).show();
+		return this.outputService.getChannel(TaskService.OutputChannelId).show();
 	}
 }
 
@@ -506,7 +506,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
-		this.outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
+		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, () => {
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._taskSystem && this._taskSystem.isActiveSync()) {

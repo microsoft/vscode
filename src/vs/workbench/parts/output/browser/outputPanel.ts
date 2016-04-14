@@ -85,8 +85,8 @@ export class OutputPanel extends StringEditor {
 		options.rulers = [];
 		options.folding = false;
 
-		let channel = this.outputService.getActiveChannelId();
-		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel) : nls.localize('outputPanelAriaLabel', "Output panel");
+		const channel = this.outputService.getActiveChannel();
+		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 
 		return options;
 	}
@@ -97,7 +97,7 @@ export class OutputPanel extends StringEditor {
 
 	public create(parent: Builder): TPromise<void> {
 		return super.create(parent)
-			.then(() => this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannelId()), null));
+			.then(() => this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null));
 	}
 
 	public focus(): void {

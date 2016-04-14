@@ -39,7 +39,6 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private markerService: IMarkerService;
 	private modelService: IModelService;
 	private outputService: IOutputService;
-	private outputChannelId: string;
 	private telemetryService: ITelemetryService;
 
 	private validationStatus: ValidationStatus;
@@ -52,13 +51,12 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private childProcess: LineProcess;
 	private activeTaskIdentifier: string;
 
-	constructor(fileConfig:FileConfig.ExternalTaskRunnerConfiguration, variables:SystemVariables, markerService:IMarkerService, modelService: IModelService, telemetryService: ITelemetryService, outputService:IOutputService, outputChannel:string, clearOutput: boolean = true) {
+	constructor(fileConfig:FileConfig.ExternalTaskRunnerConfiguration, variables:SystemVariables, markerService:IMarkerService, modelService: IModelService, telemetryService: ITelemetryService, outputService:IOutputService, outputChannelId:string, clearOutput: boolean = true) {
 		super();
 		this.fileConfig = fileConfig;
 		this.variables = variables;
 		this.markerService = markerService;
 		this.modelService = modelService;
-		this.outputChannelId = outputChannel;
 		this.outputService = outputService;
 		this.telemetryService = telemetryService;
 
@@ -66,6 +64,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.defaultTestTaskIdentifier = null;
 		this.childProcess = null;
 		this.activeTaskIdentifier = null;
+		this.outputChannel = this.outputService.getChannel(outputChannelId);
 
 		if (clearOutput) {
 			this.clearOutput();
@@ -76,7 +75,6 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.configuration = parseResult.configuration;
 		this.defaultBuildTaskIdentifier = parseResult.defaultBuildTaskIdentifier;
 		this.defaultTestTaskIdentifier = parseResult.defaultTestTaskIdentifier;
-		this.outputChannel = this.outputService.getOutputChannel(this.outputChannelId);
 
 		if (!this.validationStatus.isOK()) {
 			this.showOutput();

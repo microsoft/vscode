@@ -27,37 +27,33 @@ export class OutputEditorInput extends StringEditorInput {
 	private static instances: { [channel: string]: OutputEditorInput; } = Object.create(null);
 
 	private outputSet: boolean;
-	private channelId: string;
 	private bufferedOutput: string;
 	private toDispose: lifecycle.IDisposable[];
 	private appendOutputScheduler: RunOnceScheduler;
-	private outputChannel: IOutputChannel;
 
 	public static getInstances(): OutputEditorInput[] {
 		return Object.keys(OutputEditorInput.instances).map((key) => OutputEditorInput.instances[key]);
 	}
 
-	public static getInstance(instantiationService: IInstantiationService, channel: string): OutputEditorInput {
-		if (OutputEditorInput.instances[channel]) {
-			return OutputEditorInput.instances[channel];
+	public static getInstance(instantiationService: IInstantiationService, channel: IOutputChannel): OutputEditorInput {
+		if (OutputEditorInput.instances[channel.id]) {
+			return OutputEditorInput.instances[channel.id];
 		}
 
-		OutputEditorInput.instances[channel] = instantiationService.createInstance(OutputEditorInput, channel);
+		OutputEditorInput.instances[channel.id] = instantiationService.createInstance(OutputEditorInput, channel);
 
-		return OutputEditorInput.instances[channel];
+		return OutputEditorInput.instances[channel.id];
 	}
 
 	constructor(
-		channelId: string,
+		private outputChannel: IOutputChannel,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOutputService private outputService: IOutputService,
 		@IPanelService private panelService: IPanelService,
 		@IEventService private eventService: IEventService
 	) {
-		super(nls.localize('output', "Output"), channelId ? nls.localize('outputChannel', "for '{0}'", channelId) : '', '', OUTPUT_MIME, true, instantiationService);
+		super(nls.localize('output', "Output"), outputChannel ? nls.localize('outputChannel', "for '{0}'", outputChannel.label) : '', '', OUTPUT_MIME, true, instantiationService);
 
-		this.channelId = channelId;
-		this.outputChannel = this.outputService.getOutputChannel(channelId);
 		this.bufferedOutput = '';
 		this.toDispose = [];
 		this.toDispose.push(this.outputService.onOutput(this.onOutputReceived, this));
@@ -88,7 +84,7 @@ export class OutputEditorInput extends StringEditorInput {
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {
-		if (this.outputSet && e.channelId === this.channelId) {
+		if (this.outputSet && e.channelId === this.outputChannel.id) {
 			if (e.output) {
 				this.bufferedOutput = strings.appendWithLimit(this.bufferedOutput, e.output, MAX_OUTPUT_LENGTH);
 				this.scheduleOutputAppend();
@@ -100,7 +96,7 @@ export class OutputEditorInput extends StringEditorInput {
 
 	private isVisible(): boolean {
 		const panel = this.panelService.getActivePanel();
-		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannelId() === this.channelId;
+		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel().id === this.outputChannel.id;
 	}
 
 	private scheduleOutputAppend(): void {
@@ -127,14 +123,10 @@ export class OutputEditorInput extends StringEditorInput {
 		});
 	}
 
-	public getChannel(): string {
-		return this.channelId;
-	}
-
 	public matches(otherInput: any): boolean {
 		if (otherInput instanceof OutputEditorInput) {
 			let otherOutputEditorInput = <OutputEditorInput>otherInput;
-			if (otherOutputEditorInput.getChannel() === this.channelId) {
+			if (otherOutputEditorInput.outputChannel.id === this.outputChannel.id) {
 				return super.matches(otherInput);
 			}
 		}
