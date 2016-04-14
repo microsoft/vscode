@@ -659,6 +659,14 @@ export function getRelativeTop(element: HTMLElement, parent: HTMLElement): numbe
 	return parentPosition.top - elementPosition.top;
 }
 
+export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
+	let childWidths = children.map((child) => {
+		return getTotalWidth(child) + getRelativeLeft(child, parent) || 0;
+	});
+	let maxWidth = Math.max(...childWidths);
+	return maxWidth;
+}
+
 // ----------------------------------------------------------------------------------------
 
 export function isAncestor(testChild: Node, testAncestor: Node): boolean {

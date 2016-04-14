@@ -78,7 +78,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	public getActiveViewlet(): IViewlet {
-		return this.getActiveComposite();
+		return <IViewlet>this.getActiveComposite();
 	}
 
 	public getLastActiveViewletId(): string {

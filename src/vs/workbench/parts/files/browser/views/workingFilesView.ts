@@ -305,12 +305,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 
 	public getOptimalWidth():number {
 		let parentNode = this.tree.getHTMLElement();
-		let childNodes = parentNode.querySelectorAll('.monaco-file-label > .file-name');
-		let childWidths = Array.prototype.map.call(childNodes, (childNode) => {
-			return DOM.getTotalWidth(childNode) + DOM.getRelativeLeft(childNode, parentNode) || 0;
-		});
-		let maxWidth = Math.max(...childWidths);
-		return maxWidth;
+		let childNodes = [].slice.call(parentNode.querySelectorAll('.monaco-file-label > .file-name'));
+		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
 	public shutdown(): void {

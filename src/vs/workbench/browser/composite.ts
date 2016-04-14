@@ -82,10 +82,6 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 		return this.parent;
 	}
 
-	public getOptimalWidth(): number {
-		return null;
-	}
-
 	/**
 	 * Note: Clients should not call this method, the monaco workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.

@@ -350,12 +350,8 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public getOptimalWidth(): number {
 		let parentNode = this.explorerViewer.getHTMLElement();
-		let childNodes = parentNode.querySelectorAll('.explorer-item-label > a');
-		let childWidths = Array.prototype.map.call(childNodes, (childNode) => {
-			return DOM.getTotalWidth(childNode) + DOM.getRelativeLeft(childNode, parentNode) || 0;
-		});
-		let maxWidth = Math.max(...childWidths);
-		return maxWidth;
+		let childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item-label > a'));
+		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
 	private onLocalFileChange(e: LocalFileChangeEvent): void {
