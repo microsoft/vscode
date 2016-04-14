@@ -14,10 +14,10 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Range} from 'vs/editor/common/core/range';
 import {IEditorRange, IRange} from 'vs/editor/common/editorCommon';
-import {IComputeExtraInfoResult, IMode} from 'vs/editor/common/modes';
+import {ExtraInfoRegistry, IComputeExtraInfoResult, IMode} from 'vs/editor/common/modes';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {ExtraInfoRegistry, getExtraInfoAtPosition} from '../common/hover';
+import {getExtraInfoAtPosition} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
 

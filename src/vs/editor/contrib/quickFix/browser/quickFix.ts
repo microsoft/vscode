@@ -20,8 +20,9 @@ import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IRa
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {bulkEdit} from 'vs/editor/common/services/bulkEdit';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {QuickFixRegistry} from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {IQuickFix2, QuickFixRegistry} from '../common/quickFix';
+import {IQuickFix2} from '../common/quickFix';
 import {QuickFixModel} from './quickFixModel';
 import {QuickFixSelectionWidget} from './quickFixSelectionWidget';
 
