@@ -58,7 +58,7 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
-import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
 import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
@@ -182,8 +182,8 @@ class ConfigureTaskRunnerAction extends Action {
 				}
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
-					this.outputService.getOutputChannel(TaskService.OutputChannelId).show();
 					const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
+					outputChannel.show();
 					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
 					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
 					contentPromise = detector.detect(false, selection.id).then((value) => {
@@ -288,7 +288,7 @@ class ShowLogAction extends AbstractTaskAction {
 	}
 
 	public run(): Promise {
-		return 	this.outputService.getOutputChannel(TaskService.OutputChannelId).show();
+		return this.outputService.getOutputChannel(TaskService.OutputChannelId).show();
 	}
 }
 
@@ -475,6 +475,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private _taskSystem: ITaskSystem;
 	private taskSystemListeners: ListenerUnbind[];
 	private clearTaskSystemPromise: boolean;
+	private outputChannel: IOutputChannel;
 
 	private fileChangesListener: ListenerUnbind;
 
@@ -505,6 +506,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
+		this.outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, () => {
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._taskSystem && this._taskSystem.isActiveSync()) {
@@ -546,9 +548,8 @@ class TaskService extends EventEmitter implements ITaskService {
 						}
 					}
 					if (isAffected) {
-						const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
-						outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
-						this.outputService.getOutputChannel(TaskService.OutputChannelId).show(true);
+						this.outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+						this.outputChannel.show(true);
 						return TPromise.wrapError({});
 					}
 				}
@@ -620,10 +621,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (stderr && stderr.length > 0) {
 			stderr.forEach((line) => {
 				result = false;
-				const outputChannel = this.outputService.getOutputChannel(TaskService.OutputChannelId);
-				outputChannel.append(line + '\n');
+				this.outputChannel.append(line + '\n');
 			});
-			this.outputService.getOutputChannel(TaskService.OutputChannelId).show(true);
+			this.outputChannel.show(true);
 		}
 		return result;
 	}
@@ -787,7 +787,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputService.getOutputChannel(TaskService.OutputChannelId).show(true);
+			this.outputChannel.show(true);
 		}
 	}
 }

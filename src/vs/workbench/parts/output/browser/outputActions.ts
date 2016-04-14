@@ -122,7 +122,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	}
 
 	private static getChannels(outputService: IOutputService): string[] {
-		const contributedChannels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().map(channelData => channelData.displayName);
+		const contributedChannels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels().map(channelData => channelData.label);
 		return contributedChannels.sort(); // sort by name
 	}
 }

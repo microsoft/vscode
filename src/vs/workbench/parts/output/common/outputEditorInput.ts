@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService, MAX_OUTPUT_LENGTH} from 'vs/workbench/parts/output/common/output';
+import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService, MAX_OUTPUT_LENGTH, IOutputChannel} from 'vs/workbench/parts/output/common/output';
 import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -31,6 +31,7 @@ export class OutputEditorInput extends StringEditorInput {
 	private bufferedOutput: string;
 	private toDispose: lifecycle.IDisposable[];
 	private appendOutputScheduler: RunOnceScheduler;
+	private outputChannel: IOutputChannel;
 
 	public static getInstances(): OutputEditorInput[] {
 		return Object.keys(OutputEditorInput.instances).map((key) => OutputEditorInput.instances[key]);
@@ -56,6 +57,7 @@ export class OutputEditorInput extends StringEditorInput {
 		super(nls.localize('output', "Output"), channelId ? nls.localize('outputChannel', "for '{0}'", channelId) : '', '', OUTPUT_MIME, true, instantiationService);
 
 		this.channelId = channelId;
+		this.outputChannel = this.outputService.getOutputChannel(channelId);
 		this.bufferedOutput = '';
 		this.toDispose = [];
 		this.toDispose.push(this.outputService.onOutput(this.onOutputReceived, this));
@@ -75,7 +77,7 @@ export class OutputEditorInput extends StringEditorInput {
 
 	private appendOutput(): void {
 		if (this.value.length + this.bufferedOutput.length > MAX_OUTPUT_LENGTH) {
-			this.setValue(this.outputService.getOutputChannel(this.channelId).getContent());
+			this.setValue(this.outputChannel.output);
 		} else {
 			this.append(this.bufferedOutput);
 		}
@@ -118,7 +120,7 @@ export class OutputEditorInput extends StringEditorInput {
 				return model;
 			}
 
-			this.setValue(this.outputService.getOutputChannel(this.channelId).getContent());
+			this.setValue(this.outputChannel.output);
 			this.outputSet = true;
 
 			return model;

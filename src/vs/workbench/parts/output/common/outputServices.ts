@@ -62,7 +62,9 @@ export class OutputService implements IOutputService {
 
 	public getOutputChannel(id: string): IOutputChannel {
 		return {
-			getContent: () => this.getOutput(id),
+			get output() {
+				return this.getOutput(id);
+			},
 			append: (output: string) => this.append(id, output),
 			show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
 			clear: () => this.clearOutput(id)

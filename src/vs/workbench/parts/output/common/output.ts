@@ -85,7 +85,7 @@ export interface IOutputChannel {
 	/**
 	 * Returns the received output content.
 	 */
-	getContent(): string;
+	output: string;
 
 	/**
 	 * Appends output to the channel.
@@ -113,23 +113,23 @@ export interface IOutputChannelRegistry {
 	/**
 	 * Returns the list of channels known to the output world.
 	 */
-	getChannels(): { id: string, displayName: string}[];
+	getChannels(): { id: string, label: string}[];
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels: { id: string, displayName: string }[];
+	private channels: { id: string, label: string }[];
 
 	constructor() {
 		this.channels = [];
 	}
 
-	public registerChannel(id: string, displayName: string): void {
+	public registerChannel(id: string, label: string): void {
 		if (this.channels.every(channel => channel.id !== id)) {
-			this.channels.push({ id, displayName });
+			this.channels.push({ id, label });
 		}
 	}
 
-	public getChannels(): { id: string, displayName: string}[] {
+	public getChannels(): { id: string, label: string}[] {
 		return this.channels;
 	}
 }
