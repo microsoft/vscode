@@ -37,6 +37,6 @@ As of March 31st we will have completed the engineering work for our “1.0” r
 * Improved Intellisense in JavaScript, migrate to [Salsa](https://github.com/Microsoft/TypeScript/issues/4789)
 * Improve the support for JSX (Salsa enables this)
 
-### C#
+### C&#35;
 * Move into a separate extension
 * Debugging support (collaboration with the CoreCLR team) :heart:
