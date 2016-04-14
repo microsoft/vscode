@@ -7,20 +7,29 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
+import paths = require('vs/base/common/paths');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
+import {EditorInput} from 'vs/workbench/common/editor';
+import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
+
+function toResource(path) {
+	return URI.file(paths.join('C:\\', path));
+}
 
 let baseInstantiationService: IInstantiationService;
+let editorService: TestEditorService;
 let eventService: TestEventService;
 let textFileService: TextFileService;
 
 suite('Files - WorkingFilesModel', () => {
 
 	setup(() => {
+		editorService = new TestEditorService();
 		eventService = new TestEventService();
 
 		baseInstantiationService = createInstantiationService({
@@ -31,7 +40,7 @@ suite('Files - WorkingFilesModel', () => {
 			telemetryService: new TestTelemetryService(),
 			storageService: new TestStorageService(),
 			untitledEditorService: new TestUntitledEditorService(),
-			editorService: new TestEditorService(),
+			editorService: editorService,
 			partService: new TestPartService(),
 			modeService: createMockModeService(),
 			modelService: createMockModelService(),
@@ -102,5 +111,31 @@ suite('Files - WorkingFilesModel', () => {
 		assert.ok(lastClosedEntry[1].isFile);
 
 		assert.equal(model.popLastClosedEntry(), null);
+	});
+
+	test("Reopening multiple files will open the editor in the previously opened file", function() {
+		let model = baseInstantiationService.createInstance(WorkingFilesModel);
+
+		// Open /foo then /bar, set /foo as active input
+		let fooEntry = model.addEntry(URI.create('file', null, '/foo'));
+		editorService.getActiveEditorInput = () => {
+			return baseInstantiationService.createInstance(FileEditorInput, fooEntry.resource, 'text/javascript', void 0);
+		};
+		model.addEntry(URI.create('file', null, '/bar'));
+		model.clear();
+
+		let lastClosedEntry: WorkingFileEntry[] = model.popLastClosedEntry();
+		assert.equal(lastClosedEntry[0].resource.path, '/foo');
+
+		// Open /bar then /foo, set /foo as active input
+		model.addEntry(URI.create('file', null, '/bar'));
+		fooEntry = model.addEntry(URI.create('file', null, '/foo'));
+		editorService.getActiveEditorInput = () => {
+			return baseInstantiationService.createInstance(FileEditorInput, fooEntry.resource, 'text/javascript', void 0);
+		};
+		model.clear();
+
+		lastClosedEntry = model.popLastClosedEntry();
+		assert.equal(lastClosedEntry[0].resource.path, '/foo');
 	});
 });

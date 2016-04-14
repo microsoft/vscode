@@ -18,7 +18,7 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {asFileEditorInput} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 
@@ -279,7 +279,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		let index = this.indexOf(resource);
 		if (index >= 0) {
 			if (resource.scheme === 'file') {
-				this.recentlyClosedEntries.push([this.mapEntryToResource[resource.toString()]]);
+				this.recordRecentlyClosedEntries([this.mapEntryToResource[resource.toString()]]);
 			}
 
 			// Remove entry
@@ -331,7 +331,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	}
 
 	public clear(): void {
-		this.recentlyClosedEntries.push(this.entries);
+		this.recordRecentlyClosedEntries(this.entries);
 		let deleted = this.entries;
 		this.entries = [];
 		this.mapEntryToResource = Object.create(null);
@@ -344,6 +344,27 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 
 	public findEntry(resource: uri): WorkingFileEntry {
 		return this.mapEntryToResource[resource.toString()];
+	}
+
+	private recordRecentlyClosedEntries(resources: WorkingFileEntry[]): void {
+		if (resources.length === 0) {
+			return;
+		}
+
+		// Make the active entry the first entry
+		let recentlyClosedEntry: WorkingFileEntry[] = [];
+		let input = this.editorService.getActiveEditorInput();
+		let resource: uri = getUntitledOrFileResource(input);
+		let activeEntry: WorkingFileEntry;
+		if (resource) {
+			activeEntry = this.findEntry(resource);
+			if (activeEntry) {
+				recentlyClosedEntry.push(activeEntry);
+			}
+		}
+		this.recentlyClosedEntries.push(recentlyClosedEntry.concat(resources.filter(e => {
+			return !activeEntry || e.resource.path !== activeEntry.resource.path;
+		})));
 	}
 
 	private indexOf(resource: uri): number {
