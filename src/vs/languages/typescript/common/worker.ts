@@ -54,7 +54,7 @@ class TypeScriptWorker extends TypeScriptWorkerProtocol implements ts.LanguageSe
 	}
 
 	getScriptFileNames(): string[] {
-		return Object.keys(this._models);
+		return Object.keys(this._models).concat(Object.keys(this._extraLibs));
 	}
 
 	getScriptVersion(fileName: string): string {
