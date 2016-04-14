@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
@@ -37,7 +37,6 @@ suite('Files - WorkingFilesModel', () => {
 			messageService: new TestMessageService(),
 			fileService: TestFileService,
 			contextService: new TestContextService(),
-			telemetryService: new TestTelemetryService(),
 			storageService: new TestStorageService(),
 			untitledEditorService: new TestUntitledEditorService(),
 			editorService: editorService,
