@@ -60,17 +60,13 @@ export class OutputService implements IOutputService {
 		return this._onActiveOutputChannel.event;
 	}
 
-	public getChannel(id: string, label?: string): IOutputChannel {
-		if (!label ) {
-			const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().filter(channelData => channelData.id === id).pop();
-			// If channel is not registered use the id as the label (extensions do not register output channels via registry)
-			label = channelData ? channelData.label : id;
-		}
+	public getChannel(id: string): IOutputChannel {
+		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().filter(channelData => channelData.id === id).pop();
 
 		const self = this;
 		return {
 			id,
-			label,
+			label: channelData ? channelData.label : id,
 			get output() {
 				return self.getOutput(id);
 			},
