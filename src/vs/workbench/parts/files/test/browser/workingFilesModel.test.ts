@@ -17,10 +17,6 @@ import {createMockModelService, createMockModeService} from 'vs/editor/test/comm
 import {EditorInput} from 'vs/workbench/common/editor';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 
-function toResource(path) {
-	return URI.file(paths.join('C:\\', path));
-}
-
 let baseInstantiationService: IInstantiationService;
 let editorService: TestEditorService;
 let eventService: TestEventService;
