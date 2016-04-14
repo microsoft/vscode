@@ -38,7 +38,7 @@ export class OpenerService implements IOpenerService {
 			} catch (e) {
 				//
 			}
-			promise = this._keybindingService.executeCommand(path, Array.isArray(args) ? args : [args]);
+			promise = this._keybindingService.executeCommand(path, args);
 
 		} else {
 			promise = this._editorService.resolveEditorModel({ resource }).then(model => {

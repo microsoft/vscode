@@ -378,7 +378,12 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	public executeCommand(commandId: string, args: any = {}): TPromise<any> {
-		if (!args.context) {
+
+		// TODO@{Alex,Joh} we should spec what args should be. adding extra
+		// props on a string will throw errors
+		if ((Array.isArray(args) || typeof args === 'object')
+			&& !args.context) {
+
 			args.context = Object.create(null);
 			this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(args.context);
 			this._configurationContext.fillInContext(args.context);
