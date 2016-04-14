@@ -1852,7 +1852,6 @@ export class ReopenClosedFileAction extends Action {
 		resources.forEach(function (resource) {
 			newEntries.push(workingFilesModel.addEntry(resource));
 		});
-		// TODO: Restore the correct entry
 		return this.editorService.openEditor(newEntries[0]);
 	}
 }
