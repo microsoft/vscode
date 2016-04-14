@@ -23,3 +23,8 @@ export interface IOpenerService {
 	 */
 	open(resource: URI): TPromise<any>;
 }
+
+export const NullOpenerService: IOpenerService = Object.freeze({
+	serviceId: undefined,
+	open() { return TPromise.as(undefined);}
+});
