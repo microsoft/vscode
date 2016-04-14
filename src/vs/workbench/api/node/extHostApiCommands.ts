@@ -156,7 +156,12 @@ class ExtHostApiCommands {
 				typeof position === 'number' ? typeConverters.fromViewColumn(position) : void 0);
 
 		}, {
-			description: 'Render the html of the resource in an editor view.',
+				description: `
+					Render the html of the resource in an editor view.
+
+					Links contained in the document will be handled by VS Code whereby it supports file-resources and virtual resources
+					as well as triggering commands using the 'command'-scheme.
+				`,
 			args: [
 				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
 				{ name: 'column', description: '(optional) Column in which to preview.' },
