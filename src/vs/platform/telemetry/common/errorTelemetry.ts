@@ -5,6 +5,7 @@
 
 'use strict';
 
+import {binarySearch} from 'vs/base/common/arrays';
 import {globals} from 'vs/base/common/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IDisposable, toDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -18,6 +19,19 @@ interface ErrorEvent {
 	line?: number;
 	column?: number;
 	error?: { name: string; message: string; };
+
+	count?: number;
+}
+
+namespace ErrorEvent {
+	export function compare(a: ErrorEvent, b: ErrorEvent) {
+		if (a.stack < b.stack) {
+			return -1;
+		} else if (a.stack > b.stack) {
+			return 1;
+		}
+		return 0;
+	}
 }
 
 export default class ErrorTelemetry {
@@ -25,7 +39,7 @@ export default class ErrorTelemetry {
 	private _telemetryService: ITelemetryService;
 	private _flushDelay: number;
 	private _flushHandle = -1;
-	private _buffer: { [stack: string]: any } = Object.create(null);
+	private _buffer: ErrorEvent[] = [];
 	private _disposables: IDisposable[] = [];
 
 	constructor(telemetryService: ITelemetryService, flushDelay) {
@@ -107,13 +121,16 @@ export default class ErrorTelemetry {
 		this._enqueue(data);
 	}
 
-	private _enqueue(e: any): void {
-		if (this._buffer[e.stack]) {
-			this._buffer[e.stack].count++;
-		} else {
+	private _enqueue(e: ErrorEvent): void {
+
+		const idx = binarySearch(this._buffer, e, ErrorEvent.compare);
+		if (idx < 0) {
 			e.count = 1;
-			this._buffer[e.stack] = e;
+			this._buffer.splice(~idx, 0, e);
+		} else {
+			this._buffer[idx].count += 1;
 		}
+
 		if (this._flushHandle === -1) {
 			this._flushHandle = setTimeout(() => {
 				this._flushBuffer();
@@ -123,9 +140,9 @@ export default class ErrorTelemetry {
 	}
 
 	private _flushBuffer(): void {
-		for (let stack in this._buffer) {
-			this._telemetryService.publicLog('UnhandledError', this._buffer[stack]);
+		for (let error of this._buffer) {
+			this._telemetryService.publicLog('UnhandledError', error);
 		}
-		this._buffer = Object.create(null);
+		this._buffer.length = 0;
 	}
 }
