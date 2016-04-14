@@ -63,11 +63,11 @@ class ManagedWebview {
 	private _ready: TPromise<this>;
 	private _disposables: IDisposable[];
 
-	constructor(private _parent: HTMLElement, private _layoutParent: HTMLElement, private _styleElement, onDidClickLink:(uri:URI)=>any) {
+	constructor(private _parent: HTMLElement, private _styleElement: Element, onDidClickLink:(uri:URI)=>any) {
 		this._webview = <Webview>document.createElement('webview');
-		this._webview.style.zIndex = '1';
-		this._webview.style.position = 'absolute';
-		this._webview.style.left = '-1e10px'; // visible but far away
+
+		this._webview.style.width = '100%';
+		this._webview.style.height = '100%';
 		this._webview.autoSize = 'on';
 		this._webview.nodeintegration = 'on';
 		this._webview.src = require.toUrl('./webview.html');
@@ -122,16 +122,6 @@ class ManagedWebview {
 
 	focus(): void {
 		this._send('focus');
-	}
-
-	layout(): void {
-		const {top, left, width, height} = this._layoutParent.getBoundingClientRect();
-		this._webview.style.top = `${top}px`;
-		this._webview.style.left = `${left}px`;
-		this._webview.style.width = `${width}px`;
-		this._webview.style.height = `${height}px`;
-
-		this._send('layout', width, height);
 	}
 
 	style(themeId: string): void {
@@ -240,8 +230,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	private get webview(): ManagedWebview {
 		if (!this._webview) {
-			this._webview = new ManagedWebview(document.getElementById('workbench.main.container'),
-				this._container,
+			this._webview = new ManagedWebview(this._container,
 				document.querySelector('.monaco-editor-background'),
 				uri => this._openerService.open(uri));
 
@@ -250,7 +239,21 @@ export class HtmlPreviewPart extends BaseEditor {
 		return this._webview;
 	}
 
+	public changePosition(position: Position): void {
+		// what this actually means is that we got reparented. that
+		// has caused the webview to stop working and we need to reset it
+		this._doSetVisible(false);
+		this._doSetVisible(true);
+
+		super.changePosition(position);
+	}
+
 	public setVisible(visible: boolean, position?: Position): TPromise<void> {
+		this._doSetVisible(visible);
+		return super.setVisible(visible, position);
+	}
+
+	private _doSetVisible(visible: boolean):void {
 		if (!visible) {
 			this._themeChangeSubscription.dispose();
 			this._modelChangeSubscription.dispose();
@@ -259,21 +262,18 @@ export class HtmlPreviewPart extends BaseEditor {
 		} else {
 			this._themeChangeSubscription = this._themeService.onDidThemeChange(themeId => this.webview.style(themeId));
 			this.webview.style(this._themeService.getTheme());
-			this.webview.layout();
 
 			if (this._model) {
 				this._modelChangeSubscription = this._model.addListener2(EventType.ModelContentChanged2, () => this.webview.contents = this._model.getLinesContent());
 				this.webview.contents = this._model.getLinesContent();
 			}
 		}
-		return super.setVisible(visible, position);
 	}
 
 	public layout(dimension: Dimension): void {
 		const {width, height} = dimension;
 		this._container.style.width = `${width}px`;
 		this._container.style.height = `${height}px`;
-		this.webview.layout();
 	}
 
 	public focus(): void {
