@@ -5,6 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import uuid = require('vs/base/common/uuid');
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {Registry} from 'vs/platform/platform';
 import {IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
@@ -15,12 +16,12 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	private _proxy: MainThreadOutputService;
 	private _name: string;
-	private _label: string;
+	private _id: string;
 	private _disposed: boolean;
 
-	constructor(name: string, proxy: MainThreadOutputService, label?: string) {
+	constructor(name: string, proxy: MainThreadOutputService) {
 		this._name = name;
-		this._label = label;
+		this._id = uuid.generateUuid();
 		this._proxy = proxy;
 	}
 
@@ -30,14 +31,14 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	dispose(): void {
 		if (!this._disposed) {
-			this._proxy.clear(this._name).then(() => {
+			this._proxy.clear(this._id, this._name).then(() => {
 				this._disposed = true;
 			});
 		}
 	}
 
 	append(value: string): void {
-		this._proxy.append(this._name, this._label, value);
+		this._proxy.append(this._id, this._name, value);
 	}
 
 	appendLine(value: string): void {
@@ -45,7 +46,7 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 	}
 
 	clear(): void {
-		this._proxy.clear(this._name);
+		this._proxy.clear(this._id, this._name);
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
@@ -53,11 +54,11 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 			preserveFocus = columnOrPreserveFocus;
 		}
 
-		this._proxy.reveal(this._name, preserveFocus);
+		this._proxy.reveal(this._id, this._name, preserveFocus);
 	}
 
 	hide(): void {
-		this._proxy.close(this._name);
+		this._proxy.close(this._id);
 	}
 }
 
@@ -69,12 +70,12 @@ export class ExtHostOutputService {
 		this._proxy = threadService.getRemotable(MainThreadOutputService);
 	}
 
-	createOutputChannel(name: string, label?: string): vscode.OutputChannel {
+	createOutputChannel(name: string): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			return new ExtHostOutputChannel(name, this._proxy, label);
+			return new ExtHostOutputChannel(name, this._proxy);
 		}
 	}
 }
@@ -100,19 +101,19 @@ export class MainThreadOutputService {
 		return undefined;
 	}
 
-	public clear(channelId: string): TPromise<void> {
-		this._getChannel(channelId).clear();
+	public clear(channelId: string, label: string): TPromise<void> {
+		this._getChannel(channelId, label).clear();
 		return undefined;
 	}
 
-	public reveal(channelId: string, preserveFocus: boolean): TPromise<void> {
-		this._getChannel(channelId).show(preserveFocus);
+	public reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> {
+		this._getChannel(channelId, label).show(preserveFocus);
 		return undefined;
 	}
 
-	private _getChannel(channelId: string, label?: string): IOutputChannel {
-		if (!Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().some(channel => channel.id === channelId)) {
-			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel(channelId, label || channelId);
+	private _getChannel(channelId: string, label: string): IOutputChannel {
+		if (Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().every(channel => channel.id !== channelId)) {
+			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel(channelId, label);
 		}
 
 		return this._outputService.getChannel(channelId);

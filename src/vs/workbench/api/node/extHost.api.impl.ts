@@ -234,8 +234,8 @@ export class ExtHostAPIImplementation {
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
 			},
-			createOutputChannel(name: string, label?: string): vscode.OutputChannel {
-				return extHostOutputService.createOutputChannel(name, label);
+			createOutputChannel(name: string): vscode.OutputChannel {
+				return extHostOutputService.createOutputChannel(name);
 			}
 		};
 
