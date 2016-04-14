@@ -10,11 +10,8 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeLensSupport, ICodeLensSymbol} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {CodeLensRegistry, ICodeLensSupport, ICodeLensSymbol} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
-
-export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>('codeLensSupport');
 
 export interface ICodeLensData {
 	symbol: ICodeLensSymbol;

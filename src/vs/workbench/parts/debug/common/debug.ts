@@ -5,11 +5,11 @@
 
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IActionRunner } from 'vs/base/common/actions';
 import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
-import { AdaptiveCollapsibleViewletView, CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
+import { IViewletView } from 'vs/workbench/browser/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import editor = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -348,36 +348,31 @@ export interface IDebugEditorContribution extends editor.IEditorContribution {
 	showHover(range: editor.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void>;
 }
 
-// Debug view descriptors and registration
+// Debug view registration
 
-export class DebugViewDescriptor extends SyncDescriptor<CollapsibleViewletView | AdaptiveCollapsibleViewletView> {
-	constructor(ctor: any, public order: number) {
-		super(ctor);
-	}
+export interface IDebugViewConstructorSignature {
+	new (actionRunner: IActionRunner, viewletSetings: any, ...services: { serviceId: ServiceIdentifier<any>; }[]): IViewletView;
 }
 
 export interface IDebugViewRegistry {
-	registerDebugView(descriptor: DebugViewDescriptor): void;
-	getDebugViews(): DebugViewDescriptor[];
+	registerDebugView(view: IDebugViewConstructorSignature, order: number): void;
+	getDebugViews(): IDebugViewConstructorSignature[];
 }
 
 class DebugViewRegistryImpl implements IDebugViewRegistry {
-	private debugViews: DebugViewDescriptor[];
+	private debugViews: { view: IDebugViewConstructorSignature, order: number }[];
 
 	constructor() {
 		this.debugViews = [];
 	}
 
-	public registerDebugView(descriptor: DebugViewDescriptor): void {
-		if (this.debugViews.some(dsc => dsc.equals(descriptor))) {
-			return;
-		}
-
-		this.debugViews.push(descriptor);
+	public registerDebugView(view: IDebugViewConstructorSignature, order: number): void {
+		this.debugViews.push({ view, order });
 	}
 
-	public getDebugViews(): DebugViewDescriptor[] {
-		return this.debugViews;
+	public getDebugViews(): IDebugViewConstructorSignature[] {
+		return this.debugViews.sort((first, second) => first.order - second.order)
+			.map(viewWithOrder => viewWithOrder.view);
 	}
 }
 

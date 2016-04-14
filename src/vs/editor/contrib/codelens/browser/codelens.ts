@@ -18,11 +18,11 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
+import {CodeLensRegistry, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {CodeLensRegistry, ICodeLensData, getCodeLensData} from '../common/codelens';
+import {ICodeLensData, getCodeLensData} from '../common/codelens';
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {

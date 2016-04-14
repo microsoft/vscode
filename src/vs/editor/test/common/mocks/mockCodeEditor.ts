@@ -8,7 +8,7 @@ import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IKeybindingScopeLocation} from 'vs/platform/keybinding/common/keybindingService';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import {MockTelemetryService} from 'vs/platform/telemetry/test/common/mockTelemetryService';
+import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {Cursor} from 'vs/editor/common/controller/cursor';
@@ -58,7 +58,7 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 
 	let codeEditorService = new MockCodeEditorService();
 	let keybindingService = new MockKeybindingService();
-	let telemetryService = new MockTelemetryService();
+	let telemetryService = NullTelemetryService;
 
 	let instantiationService = createInstantiationService({
 		codeEditorService: codeEditorService,
@@ -75,5 +75,4 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 	editor.dispose();
 	model.dispose();
 	keybindingService.dispose();
-	telemetryService.dispose();
 }

@@ -7,9 +7,8 @@
 import * as assert from 'assert';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Builder } from 'vs/base/browser/builder';
-import mockBrowserService = require('vs/base/test/browser/mockBrowserService');
 
-suite("ProgressBar", () => {
+suite('ProgressBar', () => {
 	var fixture: HTMLElement;
 
 	setup(() => {
@@ -21,7 +20,7 @@ suite("ProgressBar", () => {
 		document.body.removeChild(fixture);
 	});
 
-	test("Progress Bar", function() {
+	test('Progress Bar', function () {
 		var b = new Builder(fixture);
 
 		var bar = new ProgressBar(b);

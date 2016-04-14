@@ -494,6 +494,13 @@ _defaultPatterns['eslint-stylish'] = [
 		loop: true
 	}
 ];
+_defaultPatterns['go'] = {
+	regexp: /^([^:]*: )?((.:)?[^:]*):(\d+)(:(\d+))?: (.*)$/,
+	file: 2,
+	line: 4,
+	column: 6,
+	message: 7
+};
 
 export function defaultPattern(name: 'msCompile'): ProblemPattern;
 export function defaultPattern(name: 'tsc'): ProblemPattern;
@@ -503,6 +510,7 @@ export function defaultPattern(name: 'vb'): ProblemPattern;
 export function defaultPattern(name: 'lessCompile'): ProblemPattern;
 export function defaultPattern(name: 'jshint'): ProblemPattern;
 export function defaultPattern(name: 'gulp-tsc'): ProblemPattern;
+export function defaultPattern(name: 'go'): ProblemPattern;
 export function defaultPattern(name: 'jshint-stylish'): ProblemPattern[];
 export function defaultPattern(name: string): ProblemPattern | ProblemPattern[];
 export function defaultPattern(name: string): ProblemPattern | ProblemPattern[] {
@@ -1127,4 +1135,12 @@ registry.add('eslint-stylish', {
 	applyTo: ApplyToKind.allDocuments,
 	fileLocation: FileLocationKind.Absolute,
 	pattern: defaultPattern('eslint-stylish')
+});
+
+registry.add('go', {
+	owner: 'go',
+	applyTo: ApplyToKind.allDocuments,
+	fileLocation: FileLocationKind.Relative,
+	filePrefix: '${cwd}',
+	pattern: defaultPattern('go')
 });

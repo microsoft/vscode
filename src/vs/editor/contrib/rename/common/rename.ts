@@ -11,10 +11,7 @@ import {illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IRenameResult, IRenameSupport} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-
-export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
+import {IRenameResult, RenameRegistry} from 'vs/editor/common/modes';
 
 export function rename(model: IModel, position: IPosition, newName: string): TPromise<IRenameResult> {
 

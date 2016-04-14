@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 'use strict';
 
 import 'vs/css!./splitview';
@@ -37,6 +36,23 @@ export interface ISashEvent {
 	current: number;
 }
 
+export interface IViewOptions {
+	sizing?: ViewSizing;
+	fixedSize?: number;
+	minimumSize?: number;
+}
+
+export interface IView extends ee.IEventEmitter {
+	size: number;
+	sizing: ViewSizing;
+	fixedSize: number;
+	minimumSize: number;
+	maximumSize: number;
+	render(container: HTMLElement, orientation: Orientation): void;
+	layout(size: number, orientation: Orientation): void;
+	focus(): void;
+}
+
 interface IState {
 	start?: number;
 	sizes?: number[];
@@ -48,16 +64,9 @@ interface IState {
 	expands: number[];
 }
 
-export interface IViewOptions {
-	sizing?: ViewSizing;
-	fixedSize?: number;
-	minimumSize?: number;
-}
+export abstract class View extends ee.EventEmitter implements IView {
 
-export class View extends ee.EventEmitter {
-
-	public size: number;
-
+	size: number;
 	protected _sizing: ViewSizing;
 	protected _fixedSize: number;
 	protected _minimumSize: number;
@@ -71,42 +80,32 @@ export class View extends ee.EventEmitter {
 		this._minimumSize = types.isUndefined(opts.minimumSize) ? 22 : opts.minimumSize;
 	}
 
-	public get sizing(): ViewSizing { return this._sizing; }
-	public get fixedSize(): number { return this._fixedSize; }
-	public get minimumSize(): number { return this.sizing === ViewSizing.Fixed ? this.fixedSize : this._minimumSize; }
-	public get maximumSize(): number { return this.sizing === ViewSizing.Fixed ? this.fixedSize : Number.POSITIVE_INFINITY; }
+	get sizing(): ViewSizing { return this._sizing; }
+	get fixedSize(): number { return this._fixedSize; }
+	get minimumSize(): number { return this.sizing === ViewSizing.Fixed ? this.fixedSize : this._minimumSize; }
+	get maximumSize(): number { return this.sizing === ViewSizing.Fixed ? this.fixedSize : Number.POSITIVE_INFINITY; }
 
-	// protected?
-	public setFlexible(size?: number): void {
+	protected setFlexible(size?: number): void {
 		this._sizing = ViewSizing.Flexible;
 		this.emit('change', types.isUndefined(size) ? this._minimumSize : size);
 	}
 
-	// protected?
-	public setFixed(size?: number): void {
+	protected setFixed(size?: number): void {
 		this._sizing = ViewSizing.Fixed;
 		this._fixedSize = types.isUndefined(size) ? this._fixedSize : size;
 		this.emit('change', this._fixedSize);
 	}
 
-	public render(container: HTMLElement, orientation: Orientation): void {
-		// to implement
-	}
-
-	public focus(): void {
-		// to implement
-	}
-
-	public layout(size: number, orientation: Orientation): void {
-		// to optionally implement
-	}
+	abstract render(container: HTMLElement, orientation: Orientation): void;
+	abstract focus(): void;
+	abstract layout(size: number, orientation: Orientation): void;
 }
 
 export interface IHeaderViewOptions {
 	headerSize?: number;
 }
 
-export class HeaderView extends View {
+export abstract class HeaderView extends View {
 
 	protected headerSize: number;
 	protected header: HTMLElement;
@@ -118,7 +117,7 @@ export class HeaderView extends View {
 		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
 	}
 
-	public render(container: HTMLElement, orientation: Orientation): void {
+	render(container: HTMLElement, orientation: Orientation): void {
 		this.header = document.createElement('div');
 		this.header.className = 'header';
 
@@ -141,17 +140,9 @@ export class HeaderView extends View {
 		container.appendChild(this.body);
 	}
 
-	public layout(size: number, orientation: Orientation): void {
+	layout(size: number, orientation: Orientation): void {
 		this.layoutBodyContainer(orientation);
 		this.layoutBody(size - this.headerSize);
-	}
-
-	public renderHeader(container: HTMLElement): void {
-		throw new Error('not implemented');
-	}
-
-	public renderBody(container: HTMLElement): void {
-		throw new Error('not implemented');
 	}
 
 	private layoutBodyContainer(orientation: Orientation): void {
@@ -164,16 +155,16 @@ export class HeaderView extends View {
 		}
 	}
 
-	protected layoutBody(size: number): void {
-		// to optionally implement
-	}
-
-	public dispose(): void {
+	dispose(): void {
 		this.header = null;
 		this.body = null;
 
 		super.dispose();
 	}
+
+	protected abstract renderHeader(container: HTMLElement): void;
+	protected abstract renderBody(container: HTMLElement): void;
+	protected abstract layoutBody(size: number): void;
 }
 
 export interface ICollapsibleViewOptions {
@@ -189,7 +180,7 @@ export enum CollapsibleState {
 	COLLAPSED
 }
 
-export class AbstractCollapsibleView extends HeaderView {
+export abstract class AbstractCollapsibleView extends HeaderView {
 
 	protected state: CollapsibleState;
 
@@ -205,7 +196,7 @@ export class AbstractCollapsibleView extends HeaderView {
 		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
 	}
 
-	public render(container: HTMLElement, orientation: Orientation): void {
+	render(container: HTMLElement, orientation: Orientation): void {
 		super.render(container, orientation);
 
 		dom.addClass(this.header, 'collapsible');
@@ -255,22 +246,22 @@ export class AbstractCollapsibleView extends HeaderView {
 		});
 	}
 
-	public focus(): void {
+	focus(): void {
 		if (this.header) {
 			this.header.focus();
 		}
 	}
 
-	public layout(size: number, orientation: Orientation): void {
+	layout(size: number, orientation: Orientation): void {
 		this.layoutHeader();
 		super.layout(size, orientation);
 	}
 
-	public isExpanded(): boolean {
+	isExpanded(): boolean {
 		return this.state === CollapsibleState.EXPANDED;
 	}
 
-	public expand(): void {
+	expand(): void {
 		if (this.isExpanded()) {
 			return;
 		}
@@ -278,7 +269,7 @@ export class AbstractCollapsibleView extends HeaderView {
 		this.changeState(CollapsibleState.EXPANDED);
 	}
 
-	public collapse(): void {
+	collapse(): void {
 		if (!this.isExpanded()) {
 			return;
 		}
@@ -286,7 +277,7 @@ export class AbstractCollapsibleView extends HeaderView {
 		this.changeState(CollapsibleState.COLLAPSED);
 	}
 
-	public toggleExpansion(): void {
+	toggleExpansion(): void {
 		if (this.isExpanded()) {
 			this.collapse();
 		} else {
@@ -316,7 +307,7 @@ export class AbstractCollapsibleView extends HeaderView {
 		this.layoutHeader();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.headerClickListener) {
 			this.headerClickListener.dispose();
 			this.headerClickListener = null;
@@ -336,7 +327,7 @@ export class AbstractCollapsibleView extends HeaderView {
 	}
 }
 
-export class CollapsibleView extends AbstractCollapsibleView {
+export abstract class CollapsibleView extends AbstractCollapsibleView {
 
 	private previousSize: number;
 
@@ -361,7 +352,7 @@ export interface IFixedCollapsibleViewOptions extends ICollapsibleViewOptions {
 	expandedBodySize?: number;
 }
 
-export class FixedCollapsibleView extends AbstractCollapsibleView {
+export abstract class FixedCollapsibleView extends AbstractCollapsibleView {
 
 	private _expandedBodySize: number;
 
@@ -370,11 +361,11 @@ export class FixedCollapsibleView extends AbstractCollapsibleView {
 		this._expandedBodySize = types.isUndefined(opts.expandedBodySize) ? 22 : opts.expandedBodySize;
 	}
 
-	public get fixedSize(): number { return this.state === CollapsibleState.EXPANDED ? this.expandedSize : this.headerSize; }
+	get fixedSize(): number { return this.state === CollapsibleState.EXPANDED ? this.expandedSize : this.headerSize; }
 	private get expandedSize(): number { return this.expandedBodySize + this.headerSize; }
 
-	public get expandedBodySize(): number { return this._expandedBodySize; }
-	public set expandedBodySize(size: number) {
+	get expandedBodySize(): number { return this._expandedBodySize; }
+	set expandedBodySize(size: number) {
 		this._expandedBodySize = size;
 		this.setFixed(this.fixedSize);
 	}
@@ -385,23 +376,48 @@ export class FixedCollapsibleView extends AbstractCollapsibleView {
 	}
 }
 
-class DeadView extends View {
-	constructor(view: View) {
+class PlainView extends View {
+	render() {}
+	focus() {}
+	layout() {}
+}
+
+class DeadView extends PlainView {
+
+	constructor(view: IView) {
 		super({ sizing: ViewSizing.Fixed, fixedSize: 0 });
 		this.size = view.size;
 	}
 }
 
-function sum(a: number, b: number): number { return a + b; }
+class VoidView extends PlainView {
+
+	constructor() {
+		super({ sizing: ViewSizing.Fixed, minimumSize: 0, fixedSize: 0 });
+	}
+
+	setFlexible(size?: number): void {
+		super.setFlexible(size);
+	}
+
+	setFixed(size?: number): void {
+		super.setFixed(size);
+	}
+}
+
+function sum(arr: number[]): number {
+	return arr.reduce((a, b) => a + b);
+}
 
 export class SplitView implements
 	sash.IHorizontalSashLayoutProvider,
-	sash.IVerticalSashLayoutProvider {
+	sash.IVerticalSashLayoutProvider
+{
 	private orientation: Orientation;
 	private el: HTMLElement;
 	private size: number;
 	private viewElements: HTMLElement[];
-	private views: View[];
+	private views: IView[];
 	private viewChangeListeners: lifecycle.IDisposable[];
 	private viewFocusPreviousListeners: lifecycle.IDisposable[];
 	private viewFocusNextListeners: lifecycle.IDisposable[];
@@ -414,7 +430,7 @@ export class SplitView implements
 	private layoutViewElement: (viewElement: HTMLElement, size: number) => void;
 	private eventWrapper: (event: sash.ISashEvent) => ISashEvent;
 	private animationTimeout: number;
-	private _onFocus: Emitter<View>;
+	private _onFocus: Emitter<IView>;
 	private state: IState;
 
 	constructor(container: HTMLElement, options?: IOptions) {
@@ -438,7 +454,7 @@ export class SplitView implements
 		this.sashes = [];
 		this.sashesListeners = [];
 		this.animationTimeout = null;
-		this._onFocus = new Emitter<View>();
+		this._onFocus = new Emitter<IView>();
 
 		this.sashOrientation = this.orientation === Orientation.VERTICAL
 			? sash.Orientation.HORIZONTAL
@@ -455,18 +471,14 @@ export class SplitView implements
 		}
 
 		// The void space exists to handle the case where all other views are fixed size
-		this.addView(new View({
-			sizing: ViewSizing.Fixed,
-			minimumSize: 0,
-			fixedSize: 0
-		}), 1, 0);
+		this.addView(new VoidView(), 1, 0);
 	}
 
-	public get onFocus(): Event<View> {
+	get onFocus(): Event<IView> {
 		return this._onFocus.event;
 	}
 
-	public addView(view: View, initialWeight: number = 1, index = this.views.length - 1): void {
+	addView(view: IView, initialWeight: number = 1, index = this.views.length - 1): void {
 		if (initialWeight <= 0) {
 			throw new Error('Initial weight must be a positive number.');
 		}
@@ -511,7 +523,7 @@ export class SplitView implements
 		this.viewFocusNextListeners.splice(index, 0, view.addListener2('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
 	}
 
-	public removeView(view: View): void {
+	removeView(view: IView): void {
 		let index = this.views.indexOf(view);
 
 		if (index < 0) {
@@ -546,7 +558,7 @@ export class SplitView implements
 		view.dispose();
 	}
 
-	public layout(size?: number): void {
+	layout(size?: number): void {
 		size = size || this.measureContainerSize();
 
 		if (this.size === null) {
@@ -564,9 +576,9 @@ export class SplitView implements
 		let expands = this.views.map(v => v.maximumSize - v.size);
 
 		if (size < this.size) {
-			this.expandCollapse(Math.min(diff, collapses.reduce(sum, 0)), collapses, expands, up, []);
+			this.expandCollapse(Math.min(diff, sum(collapses)), collapses, expands, up, []);
 		} else if (size > this.size) {
-			this.expandCollapse(Math.min(diff, expands.reduce(sum, 0)), collapses, expands, [], up);
+			this.expandCollapse(Math.min(diff, sum(expands)), collapses, expands, [], up);
 		}
 
 		this.size = size;
@@ -591,8 +603,8 @@ export class SplitView implements
 			sizes: this.views.map(v => v.size),
 			up: up,
 			down: down,
-			maxUp: Math.min(collapsesUp.reduce(sum, 0), expandsDown.reduce(sum, 0)),
-			maxDown: Math.min(expandsUp.reduce(sum, 0), collapsesDown.reduce(sum, 0)),
+			maxUp: Math.min(sum(collapsesUp), sum(expandsDown)),
+			maxDown: Math.min(sum(expandsUp), sum(collapsesDown)),
 			collapses: collapses,
 			expands: expands
 		};
@@ -712,7 +724,7 @@ export class SplitView implements
 		});
 	}
 
-	private onViewChange(view: View, size: number): void {
+	private onViewChange(view: IView, size: number): void {
 		if (view !== this.voidView) {
 			if (this.areAllViewsFixed()) {
 				this.voidView.setFlexible();
@@ -771,19 +783,19 @@ export class SplitView implements
 		dom.removeClass(this.el, 'animated');
 	}
 
-	private get voidView(): View {
-		return this.views[this.views.length - 1];
+	private get voidView(): VoidView {
+		return this.views[this.views.length - 1] as VoidView;
 	}
 
 	private areAllViewsFixed(): boolean {
 		return this.views.every((v, i) => v.sizing === ViewSizing.Fixed || i === this.views.length - 1);
 	}
 
-	public getVerticalSashLeft(sash: sash.Sash): number {
+	getVerticalSashLeft(sash: sash.Sash): number {
 		return this.getSashPosition(sash);
 	}
 
-	public getHorizontalSashTop(sash: sash.Sash): number {
+	getHorizontalSashTop(sash: sash.Sash): number {
 		return this.getSashPosition(sash);
 	}
 
@@ -798,7 +810,7 @@ export class SplitView implements
 		return position;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (types.isNumber(this.animationTimeout)) {
 			window.clearTimeout(this.animationTimeout);
 		}

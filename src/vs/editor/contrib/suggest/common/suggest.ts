@@ -10,15 +10,12 @@ import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {ISuggestResult, ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
 
 export var CONTEXT_SUGGEST_WIDGET_VISIBLE = 'suggestWidgetVisible';
 export var CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY = 'suggestionSupportsAcceptOnKey';
 export var ACCEPT_SELECTED_SUGGESTION_CMD = 'acceptSelectedSuggestion';
-
-export var SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
 
 export interface ISuggestResult2 extends ISuggestResult {
 	support?: ISuggestSupport;

@@ -13,14 +13,6 @@ import * as modes from 'vs/editor/common/modes';
 import matches from 'vs/editor/common/modes/languageSelector';
 import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
-import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
-import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {OutlineRegistry} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 import {TypeScriptWorkerProtocol, LanguageServiceDefaults} from 'vs/languages/typescript/common/typescript';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
@@ -28,15 +20,15 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
 
 	const disposables: lifecycle.IDisposable[] = [];
-	disposables.push(SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
-	disposables.push(ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
-	disposables.push(ExtraInfoRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
-	disposables.push(OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
-	disposables.push(DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
-	disposables.push(ReferenceRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
-	disposables.push(OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
-	disposables.push(FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
-	disposables.push(FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
+	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
+	disposables.push(modes.ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
+	disposables.push(modes.ExtraInfoRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
+	disposables.push(modes.OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
+	disposables.push(modes.DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
+	disposables.push(modes.ReferenceSearchRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
+	disposables.push(modes.OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
+	disposables.push(modes.FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
+	disposables.push(modes.FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
 	disposables.push(new DiagnostcsAdapter(defaults, selector, markerService, modelService, worker));
 
 	return lifecycle.combinedDisposable(disposables);

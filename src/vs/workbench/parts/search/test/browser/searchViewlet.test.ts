@@ -27,7 +27,7 @@ suite('Search - Viewlet', () => {
 		});
 	});
 
-	test('Data Source', function() {
+	test('Data Source', function () {
 		let ds = new SearchDataSource();
 		let result = instantiation.createInstance(SearchResult, null);
 		result.append([{
@@ -48,7 +48,7 @@ suite('Search - Viewlet', () => {
 		assert(!ds.hasChildren(null, lineMatch));
 	});
 
-	test('Sorter', function() {
+	test('Sorter', function () {
 		let fileMatch1 = new FileMatch(null, uri.file('C:\\foo'));
 		let fileMatch2 = new FileMatch(null, uri.file('C:\\with\\path'));
 		let fileMatch3 = new FileMatch(null, uri.file('C:\\with\\path\\foo'));

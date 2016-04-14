@@ -8,7 +8,7 @@ import { Registry } from 'vs/platform/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { ExtensionsStatusbarItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
-import { IGalleryService, ExtensionsLabel } from 'vs/workbench/parts/extensions/common/extensions';
+import { IGalleryService, ExtensionsLabel, ExtensionsChannelId } from 'vs/workbench/parts/extensions/common/extensions';
 import { GalleryService } from 'vs/workbench/parts/extensions/common/vsoGalleryService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ExtensionsWorkbenchExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsWorkbenchExtension';
@@ -23,4 +23,4 @@ Registry.as<IStatusbarRegistry>(StatusbarExtensions.Statusbar)
 	.registerStatusbarItem(new StatusbarItemDescriptor(ExtensionsStatusbarItem, StatusbarAlignment.LEFT,10000));
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
-	.registerChannel(ExtensionsLabel);
+	.registerChannel(ExtensionsChannelId, ExtensionsLabel);

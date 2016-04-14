@@ -75,7 +75,7 @@ suite('Objects', () => {
 
 		var bar:any = {
 			bar: '456'
-		}
+		};
 
 		objects.mixin(foo, bar, false);
 

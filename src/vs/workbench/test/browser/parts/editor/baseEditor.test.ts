@@ -25,7 +25,7 @@ export class MyEditor extends BaseEditor {
 	}
 
 	getId(): string {
-		return "myEditor";
+		return 'myEditor';
 	}
 
 	public layout(): void {
@@ -44,7 +44,7 @@ export class MyOtherEditor extends BaseEditor {
 	}
 
 	getId(): string {
-		return "myOtherEditor";
+		return 'myOtherEditor';
 	}
 
 	public layout(): void {
@@ -115,8 +115,8 @@ class MyEditorInputActionContributor extends EditorInputActionContributor {
 
 	getActionsForEditorInput(context) {
 		return [
-			new MyAction2("id1", "label1"),
-			new MyAction2("id2", "label2")
+			new MyAction2('id1', 'label1'),
+			new MyAction2('id2', 'label2')
 		];
 	}
 }
@@ -124,28 +124,28 @@ class MyEditorInputActionContributor extends EditorInputActionContributor {
 class MyClass { }
 class MyOtherClass { }
 
-suite("Workbench BaseEditor", () => {
+suite('Workbench BaseEditor', () => {
 
-	test("BaseEditor API", function(done) {
-		let e = new MyEditor("id", NullTelemetryService);
+	test('BaseEditor API', function (done) {
+		let e = new MyEditor('id', NullTelemetryService);
 		let input = new MyOtherInput();
 		let options = new EditorOptions();
 
 		assert(!e.isVisible());
 		assert(!e.getInput());
 		assert(!e.getOptions());
-		e.setInput(input, options).then(function() {
+		e.setInput(input, options).then(function () {
 			assert.strictEqual(input, e.getInput());
 			assert.strictEqual(options, e.getOptions());
 
-			return e.setVisible(true).then(function() {
+			return e.setVisible(true).then(function () {
 				assert(e.isVisible());
-				input.addListener("dispose", function() {
+				input.addListener('dispose', function () {
 					assert(false);
 				});
 				e.dispose();
 				e.clearInput();
-				return e.setVisible(false).then(function() {
+				return e.setVisible(false).then(function () {
 					assert(!e.isVisible());
 					assert(!e.getInput());
 					assert(!e.getOptions());
@@ -155,15 +155,15 @@ suite("Workbench BaseEditor", () => {
 		}).done(() => done());
 	});
 
-	test("EditorDescriptor", function() {
-		let d = new EditorDescriptor("id", "name", "vs/workbench/test/browser/parts/editor/baseEditor.test", "MyClass");
-		assert.strictEqual(d.getId(), "id");
-		assert.strictEqual(d.getName(), "name");
+	test('EditorDescriptor', function () {
+		let d = new EditorDescriptor('id', 'name', 'vs/workbench/test/browser/parts/editor/baseEditor.test', 'MyClass');
+		assert.strictEqual(d.getId(), 'id');
+		assert.strictEqual(d.getName(), 'name');
 	});
 
-	test("Editor Registration", function() {
-		let d1 = new EditorDescriptor("id1", "name", "vs/workbench/test/browser/parts/editor/baseEditor.test", "MyClass");
-		let d2 = new EditorDescriptor("id2", "name", "vs/workbench/test/browser/parts/editor/baseEditor.test", "MyOtherClass");
+	test('Editor Registration', function () {
+		let d1 = new EditorDescriptor('id1', 'name', 'vs/workbench/test/browser/parts/editor/baseEditor.test', 'MyClass');
+		let d2 = new EditorDescriptor('id2', 'name', 'vs/workbench/test/browser/parts/editor/baseEditor.test', 'MyOtherClass');
 
 		let oldEditorsCnt = EditorRegistry.getEditors().length;
 		let oldInputCnt = (<any>EditorRegistry).getEditorInputs().length;
@@ -177,14 +177,14 @@ suite("Workbench BaseEditor", () => {
 		assert.strictEqual(EditorRegistry.getEditor(new MyInput()), d2);
 		assert.strictEqual(EditorRegistry.getEditor(new MyOtherInput()), d2);
 
-		assert.strictEqual(EditorRegistry.getEditorById("id1"), d1);
-		assert.strictEqual(EditorRegistry.getEditorById("id2"), d2);
-		assert(!EditorRegistry.getEditorById("id3"));
+		assert.strictEqual(EditorRegistry.getEditorById('id1'), d1);
+		assert.strictEqual(EditorRegistry.getEditorById('id2'), d2);
+		assert(!EditorRegistry.getEditorById('id3'));
 	});
 
-	test("Editor Lookup favors specific class over superclass (match on specific class)", function(done) {
-		let d1 = new EditorDescriptor("id1", "name", "vs/workbench/test/browser/parts/editor/baseEditor.test", "MyEditor");
-		let d2 = new EditorDescriptor("id2", "name", "vs/workbench/test/browser/parts/editor/baseEditor.test", "MyOtherEditor");
+	test('Editor Lookup favors specific class over superclass (match on specific class)', function (done) {
+		let d1 = new EditorDescriptor('id1', 'name', 'vs/workbench/test/browser/parts/editor/baseEditor.test', 'MyEditor');
+		let d2 = new EditorDescriptor('id2', 'name', 'vs/workbench/test/browser/parts/editor/baseEditor.test', 'MyOtherEditor');
 
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
@@ -194,19 +194,19 @@ suite("Workbench BaseEditor", () => {
 
 		let inst = InstantiationService.createInstantiationService({});
 
-		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function(editor) {
-			assert.strictEqual(editor.getId(), "myEditor");
+		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function (editor) {
+			assert.strictEqual(editor.getId(), 'myEditor');
 
-			return inst.createInstance(EditorRegistry.getEditor(inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function(editor) {
-				assert.strictEqual(editor.getId(), "myOtherEditor");
+			return inst.createInstance(EditorRegistry.getEditor(inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function (editor) {
+				assert.strictEqual(editor.getId(), 'myOtherEditor');
 
 				(<any>EditorRegistry).setEditors(oldEditors);
 			});
 		}).done(() => done());
 	});
 
-	test("Editor Lookup favors specific class over superclass (match on super class)", function(done) {
-		let d1 = new EditorDescriptor("id1", "name", "vs/workbench/test/browser/parts/editor/baseEditor.test", "MyOtherEditor");
+	test('Editor Lookup favors specific class over superclass (match on super class)', function (done) {
+		let d1 = new EditorDescriptor('id1', 'name', 'vs/workbench/test/browser/parts/editor/baseEditor.test', 'MyOtherEditor');
 
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
@@ -215,41 +215,41 @@ suite("Workbench BaseEditor", () => {
 
 		let inst = InstantiationService.createInstantiationService({});
 
-		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function(editor) {
-			assert.strictEqual("myOtherEditor", editor.getId());
+		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function (editor) {
+			assert.strictEqual('myOtherEditor', editor.getId());
 
 			(<any>EditorRegistry).setEditors(oldEditors);
 		}).done(() => done());
 	});
 
-	test("Editor Input Action - triggers isEnabled properly", function() {
+	test('Editor Input Action - triggers isEnabled properly', function () {
 		let inst = InstantiationService.createInstantiationService({});
 
-		let action = new MyAction("id", "label");
+		let action = new MyAction('id', 'label');
 		action.input = inst.createInstance(StringEditorInput, 'input', '', '', mime.MIME_TEXT, false);
 		assert.equal(action.didCallIsEnabled, true);
 	});
 
-	test("Editor Input Action Contributor", function() {
+	test('Editor Input Action Contributor', function () {
 		let inst = InstantiationService.createInstantiationService({});
 
 		let contributor = new MyEditorInputActionContributor();
 
 		assert(!contributor.hasActions(null));
-		assert(contributor.hasActions({ editor: new MyEditor("id", NullTelemetryService), input: inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false), position: 0 }));
+		assert(contributor.hasActions({ editor: new MyEditor('id', NullTelemetryService), input: inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false), position: 0 }));
 
-		let actionsFirst = contributor.getActions({ editor: new MyEditor("id", NullTelemetryService), input: inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false), position: 0 });
+		let actionsFirst = contributor.getActions({ editor: new MyEditor('id', NullTelemetryService), input: inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false), position: 0 });
 		assert.strictEqual(actionsFirst.length, 2);
 
 		let input = inst.createInstance(StringEditorInput, 'fake', '', '', mime.MIME_TEXT, false);
-		let actions = contributor.getActions({ editor: new MyEditor("id", NullTelemetryService), input: input, position: 0 });
+		let actions = contributor.getActions({ editor: new MyEditor('id', NullTelemetryService), input: input, position: 0 });
 		assert(actions[0] === actionsFirst[0]);
 		assert(actions[1] === actionsFirst[1]);
 		assert((<any>actions[0]).input === input);
 		assert((<any>actions[1]).input === input);
 
 		// other editor causes new actions to be created
-		actions = contributor.getActions({ editor: new MyOtherEditor("id2", NullTelemetryService), input: input, position: 0 });
+		actions = contributor.getActions({ editor: new MyOtherEditor('id2', NullTelemetryService), input: input, position: 0 });
 		assert(actions[0] !== actionsFirst[0]);
 		assert(actions[1] !== actionsFirst[1]);
 		assert((<any>actions[0]).input === input);
@@ -257,20 +257,20 @@ suite("Workbench BaseEditor", () => {
 
 		// other input causes actions to loose input context
 		let myInput = new MyInput();
-		myInput.getId = function() {
-			return "foo.id";
+		myInput.getId = function () {
+			return 'foo.id';
 		};
 
-		actions = contributor.getActions({ editor: new MyEditor("id3", NullTelemetryService), input: myInput, position: 0 });
+		actions = contributor.getActions({ editor: new MyEditor('id3', NullTelemetryService), input: myInput, position: 0 });
 		assert(!(<any>actionsFirst[0]).input);
 		assert(!(<any>actionsFirst[1]).input);
 	});
 
-	test("Editor Input Factory", function() {
+	test('Editor Input Factory', function () {
 		EditorRegistry.setInstantiationService(InstantiationService.createInstantiationService({}));
-		EditorRegistry.registerEditorInputFactory("myInputId", MyInputFactory);
+		EditorRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
 
-		let factory = EditorRegistry.getEditorInputFactory("myInputId");
+		let factory = EditorRegistry.getEditorInputFactory('myInputId');
 		assert(factory);
 	});
 

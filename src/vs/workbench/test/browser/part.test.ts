@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Build, Dimension, Builder} from 'vs/base/browser/builder';
+import {Build, Builder} from 'vs/base/browser/builder';
 import {Part} from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import * as TestUtils from 'vs/workbench/test/browser/servicesTestUtils';
@@ -46,8 +46,8 @@ class MyPart2 extends Part {
 	public createTitleArea(parent: Builder): Builder {
 		return parent.div(function(div) {
 			div.span({
-				id: "myPart.title",
-				innerHtml: "Title"
+				id: 'myPart.title',
+				innerHtml: 'Title'
 			});
 		});
 	}
@@ -55,8 +55,8 @@ class MyPart2 extends Part {
 	public createContentArea(parent: Builder): Builder {
 		return parent.div(function(div) {
 			div.span({
-				id: "myPart.content",
-				innerHtml: "Content"
+				id: 'myPart.content',
+				innerHtml: 'Content'
 			});
 		});
 	}
@@ -64,8 +64,8 @@ class MyPart2 extends Part {
 	public createStatusArea(parent: Builder): Builder {
 		return parent.div(function(div) {
 			div.span({
-				id: "myPart.status",
-				innerHtml: "Status"
+				id: 'myPart.status',
+				innerHtml: 'Status'
 			});
 		});
 	}
@@ -84,8 +84,8 @@ class MyPart3 extends Part {
 	public createContentArea(parent: Builder): Builder {
 		return parent.div(function(div) {
 			div.span({
-				id: "myPart.content",
-				innerHtml: "Content"
+				id: 'myPart.content',
+				innerHtml: 'Content'
 			});
 		});
 	}
@@ -95,10 +95,10 @@ class MyPart3 extends Part {
 	}
 }
 
-suite("Workbench Part", () => {
+suite('Workbench Part', () => {
 	let fixture: HTMLElement;
 	let fixtureId = 'workbench-part-fixture';
-	let context: IWorkspaceContextService
+	let context: IWorkspaceContextService;
 	let storage: IStorageService;
 
 	setup(() => {
@@ -113,20 +113,20 @@ suite("Workbench Part", () => {
 		document.body.removeChild(fixture);
 	});
 
-	test("Creation", function() {
+	test('Creation', function() {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		let part = new MyPart(b);
 		part.create(b);
 
-		assert.strictEqual(part.getId(), "myPart");
+		assert.strictEqual(part.getId(), 'myPart');
 		assert.strictEqual(part.getContainer(), b);
 
 		// Memento
 		let memento = part.getMemento(storage);
 		assert(memento);
-		memento.foo = "bar";
+		memento.foo = 'bar';
 		memento.bar = [1, 2, 3];
 
 		part.shutdown();
@@ -136,7 +136,7 @@ suite("Workbench Part", () => {
 
 		memento = part.getMemento(storage);
 		assert(memento);
-		assert.strictEqual(memento.foo, "bar");
+		assert.strictEqual(memento.foo, 'bar');
 		assert.strictEqual(memento.bar.length, 3);
 
 		// Empty Memento stores empty object
@@ -150,27 +150,27 @@ suite("Workbench Part", () => {
 		assert.strictEqual(Types.isEmptyObject(memento), true);
 	});
 
-	test("Part Layout with Title, Content and Status", function() {
+	test('Part Layout with Title, Content and Status', function() {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		let part = new MyPart2();
 		part.create(b);
 
-		assert(Build.withElementById("myPart.title"));
-		assert(Build.withElementById("myPart.content"));
-		assert(Build.withElementById("myPart.status"));
+		assert(Build.withElementById('myPart.title'));
+		assert(Build.withElementById('myPart.content'));
+		assert(Build.withElementById('myPart.status'));
 	});
 
-	test("Part Layout with Content only", function() {
+	test('Part Layout with Content only', function() {
 		let b = Build.withElementById(fixtureId);
 		b.div().hide();
 
 		let part = new MyPart3();
 		part.create(b);
 
-		assert(!Build.withElementById("myPart.title"));
-		assert(Build.withElementById("myPart.content"));
-		assert(!Build.withElementById("myPart.status"));
+		assert(!Build.withElementById('myPart.title'));
+		assert(Build.withElementById('myPart.content'));
+		assert(!Build.withElementById('myPart.status'));
 	});
 });

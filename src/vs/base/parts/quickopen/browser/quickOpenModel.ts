@@ -644,6 +644,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 			// Description
 			data.description.set(entry.getDescription(), descriptionHighlights || []);
+			data.description.element.title = entry.getDescription();
 		}
 	}
 

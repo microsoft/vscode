@@ -25,7 +25,7 @@ function createService() {
 
 suite('Service', () => {
 
-	test('createService', function(done: () => void) {
+	test('createService', function (done: () => void) {
 		if (process.env['VSCODE_PID']) {
 			return done(); // TODO@Ben find out why test fails when run from within VS Code
 		}
@@ -40,7 +40,7 @@ suite('Service', () => {
 		});
 	});
 
-	test('cancellation', function(done: () => void) {
+	test('cancellation', function (done: () => void) {
 		const testService = createService();
 		const res = testService.cancelMe();
 

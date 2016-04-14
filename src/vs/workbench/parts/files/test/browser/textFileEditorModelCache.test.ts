@@ -12,7 +12,7 @@ import {EditorModel} from 'vs/workbench/common/editor';
 
 suite('Files - TextFileEditorModelCache', () => {
 
-	test('add, remove, clear', function() {
+	test('add, remove, clear', function () {
 		let cache = new TextFileEditorModelCache();
 
 		let m1 = new EditorModel();

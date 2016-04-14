@@ -8,9 +8,9 @@
 import * as assert from 'assert';
 import {EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 
-suite("Workbench - EditorOptions", () => {
+suite('Workbench - EditorOptions', () => {
 
-	test("EditorOptions", function() {
+	test('EditorOptions', function () {
 		let options = new EditorOptions();
 		let otherOptions = new EditorOptions();
 
@@ -28,7 +28,7 @@ suite("Workbench - EditorOptions", () => {
 		options.forceOpen = true;
 	});
 
-	test("TextEditorOptions", function() {
+	test('TextEditorOptions', function () {
 		let options = new TextEditorOptions();
 		let otherOptions = new TextEditorOptions();
 

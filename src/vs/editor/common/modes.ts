@@ -12,6 +12,7 @@ import {IFilter} from 'vs/base/common/filters';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export interface ITokenizationResult {
 	type?:string;
@@ -756,3 +757,29 @@ export interface IRichEditSupport {
 	 */
 	brackets?: IRichEditBrackets;
 }
+
+// --- feature registries ------
+
+export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
+
+export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
+
+export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
+
+export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>('parameterHintsSupport');
+
+export const ExtraInfoRegistry = new LanguageFeatureRegistry<IExtraInfoSupport>('extraInfoSupport');
+
+export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
+
+export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
+
+export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
+
+export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>('codeLensSupport');
+
+export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>('quickFixSupport');
+
+export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
+
+export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');

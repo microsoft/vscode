@@ -7,7 +7,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import actions = require('vs/base/common/actions');
+import {IAction} from 'vs/base/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
 import {$} from 'vs/base/browser/builder';
@@ -16,7 +16,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
-import {remote} from 'electron';
+import {remote, webFrame} from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -40,7 +40,6 @@ export class ContextMenuService implements IContextMenuService {
 
 			return TPromise.timeout(0).then(() => { // https://github.com/Microsoft/vscode/issues/3638
 				let menu = new remote.Menu();
-				let actionToRun: actions.IAction = null;
 
 				actions.forEach(a => {
 					if (a instanceof Separator) {
@@ -55,7 +54,7 @@ export class ContextMenuService implements IContextMenuService {
 							accelerator,
 							enabled: a.enabled,
 							click: () => {
-								actionToRun = a;
+								this.runAction(a, delegate);
 							}
 						});
 
@@ -78,23 +77,26 @@ export class ContextMenuService implements IContextMenuService {
 					x = pos.x;
 					y = pos.y;
 				}
+				
+				let zoom = webFrame.getZoomFactor();
+				x *= zoom;
+				y *= zoom;
 
 				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
-
-				if (delegate.onHide) {
-					delegate.onHide(false);
-				}
-
-				if (!actionToRun) {
-					return;
-				}
-
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
-
-				const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
-				return actionToRun.run(context) || TPromise.as(null);
 			});
-		})
-		.done(null, e => this.messageService.show(severity.Error, e));
+		});
+	}
+
+	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate): void {
+		if (delegate.onHide) {
+			delegate.onHide(false);
+		}
+
+		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
+
+		const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
+		const res = actionToRun.run(context) || TPromise.as(null);
+
+		res.done(null, e => this.messageService.show(severity.Error, e));
 	}
 }

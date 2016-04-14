@@ -13,7 +13,8 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {FormatOnTypeRegistry, FormatRegistry, formatAfterKeystroke, formatDocument, formatRange} from '../common/format';
+import {FormatOnTypeRegistry, FormatRegistry} from 'vs/editor/common/modes';
+import {formatAfterKeystroke, formatDocument, formatRange} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
 
 interface IFormatOnTypeResult {

@@ -1,0 +1,398 @@
+[
+	{
+		"c": "---",
+		"t": "definition.diff.from-file.header.meta.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.header.diff rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.header rgb(0, 0, 128)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.header.diff rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.header rgb(0, 0, 128)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.header rgb(0, 0, 128)"
+		}
+	},
+	{
+		"c": " lao\tSat Jan 26 23:30:39 1991",
+		"t": "diff.from-file.header.meta",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.header.diff rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.header rgb(0, 0, 128)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.header.diff rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.header rgb(0, 0, 128)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.header rgb(0, 0, 128)"
+		}
+	},
+	{
+		"c": "+++",
+		"t": "definition.diff.header.meta.punctuation.to-file",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.header.diff rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.header rgb(0, 0, 128)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.header.diff rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.header rgb(0, 0, 128)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.header rgb(0, 0, 128)"
+		}
+	},
+	{
+		"c": " tzu\tSat Jan 26 23:30:50 1991",
+		"t": "diff.header.meta.to-file",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.meta.header.diff rgb(86, 156, 214)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.header rgb(0, 0, 128)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.meta.header.diff rgb(86, 156, 214)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.header rgb(0, 0, 128)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.header rgb(0, 0, 128)"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "definition.diff.meta.punctuation.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "diff.meta.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "-1,7 +1,6",
+		"t": "diff.line-number.meta.range.toc-list.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "diff.meta.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "definition.diff.meta.punctuation.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "-",
+		"t": "definition.deleted.diff.inserted.markup.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted rgb(163, 21, 21)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted rgb(163, 21, 21)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted rgb(206, 145, 120)"
+		}
+	},
+	{
+		"c": "The Way that can be told of is not the eternal Way;",
+		"t": "deleted.diff.markup",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted rgb(163, 21, 21)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted rgb(163, 21, 21)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted rgb(206, 145, 120)"
+		}
+	},
+	{
+		"c": "-",
+		"t": "definition.deleted.diff.inserted.markup.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted rgb(163, 21, 21)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted rgb(163, 21, 21)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted rgb(206, 145, 120)"
+		}
+	},
+	{
+		"c": "The name that can be named is not the eternal name.",
+		"t": "deleted.diff.markup",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted rgb(163, 21, 21)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted rgb(163, 21, 21)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted rgb(206, 145, 120)"
+		}
+	},
+	{
+		"c": " The Nameless is the origin of Heaven and Earth;",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "-",
+		"t": "definition.deleted.diff.inserted.markup.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted rgb(163, 21, 21)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted rgb(163, 21, 21)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted rgb(206, 145, 120)"
+		}
+	},
+	{
+		"c": "The Named is the mother of all things.",
+		"t": "deleted.diff.markup",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.deleted rgb(163, 21, 21)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.deleted rgb(206, 145, 120)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.deleted rgb(163, 21, 21)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.deleted rgb(206, 145, 120)"
+		}
+	},
+	{
+		"c": "+",
+		"t": "definition.diff.inserted.markup.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	},
+	{
+		"c": "The named is the mother of all things.",
+		"t": "diff.inserted.markup",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	},
+	{
+		"c": "+",
+		"t": "definition.diff.inserted.markup.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	},
+	{
+		"c": " Therefore let there always be non-being,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "   so we may see their subtlety,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " And let there always be being,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "definition.diff.meta.punctuation.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "diff.meta.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "-9,3 +8,6",
+		"t": "diff.line-number.meta.range.toc-list.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " ",
+		"t": "diff.meta.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "@@",
+		"t": "definition.diff.meta.punctuation.range.unified",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " The two are the same,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": " But after they are produced,",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "   they have different names.",
+		"t": "",
+		"r": {
+			"dark_plus": ".vs-dark .token rgb(212, 212, 212)",
+			"light_plus": ".vs .token rgb(0, 0, 0)",
+			"dark_vs": ".vs-dark .token rgb(212, 212, 212)",
+			"light_vs": ".vs .token rgb(0, 0, 0)",
+			"hc_black": ".hc-black .token rgb(255, 255, 255)"
+		}
+	},
+	{
+		"c": "+",
+		"t": "definition.diff.inserted.markup.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	},
+	{
+		"c": "They both may be called deep and profound.",
+		"t": "diff.inserted.markup",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	},
+	{
+		"c": "+",
+		"t": "definition.diff.inserted.markup.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	},
+	{
+		"c": "Deeper and more profound,",
+		"t": "diff.inserted.markup",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	},
+	{
+		"c": "+",
+		"t": "definition.diff.inserted.markup.punctuation",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	},
+	{
+		"c": "The door of all subtleties!",
+		"t": "diff.inserted.markup",
+		"r": {
+			"dark_plus": ".vs-dark.vscode-theme-defaults-themes-dark_plus-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_plus": ".vs.vscode-theme-defaults-themes-light_plus-json .token.markup.inserted rgb(9, 136, 90)",
+			"dark_vs": ".vs-dark.vscode-theme-defaults-themes-dark_vs-json .token.markup.inserted rgb(181, 206, 168)",
+			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.markup.inserted rgb(9, 136, 90)",
+			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.markup.inserted rgb(181, 206, 168)"
+		}
+	}
+]

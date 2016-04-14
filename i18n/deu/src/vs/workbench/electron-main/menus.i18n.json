@@ -51,7 +51,7 @@
 	"miOpenFile": "&&Datei öffnen...",
 	"miOpenFolder": "&&Ordner öffnen...",
 	"miOpenKeymap": "&&Tastenkombinationen",
-	"miOpenRecent": "Zuletzt &&verwendete öffnen",
+	"miOpenRecent": "Zuletzt &&verwendete Dateien öffnen",
 	"miOpenSettings": "&&Benutzereinstellungen",
 	"miOpenSnippets": "&&Benutzercodeausschnitte",
 	"miOpenWorkspaceSettings": "&&Arbeitsbereichseinstellungen",

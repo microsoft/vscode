@@ -172,19 +172,19 @@ suite('Types', () => {
 	});
 
 	test('validateConstraints', () => {
-		types.validateConstraints([1, 'test', true], [Number, String, Boolean])
-		types.validateConstraints([1, 'test', true], ['number', 'string', 'boolean'])
-		types.validateConstraints([console.log], [Function])
-		types.validateConstraints([undefined], [types.isUndefined])
-		types.validateConstraints([1], [types.isNumber])
+		types.validateConstraints([1, 'test', true], [Number, String, Boolean]);
+		types.validateConstraints([1, 'test', true], ['number', 'string', 'boolean']);
+		types.validateConstraints([console.log], [Function]);
+		types.validateConstraints([undefined], [types.isUndefined]);
+		types.validateConstraints([1], [types.isNumber]);
 
-		function foo() {}
+		function foo() { }
 		types.validateConstraints([new foo()], [foo]);
 
-		function isFoo(f) {}
+		function isFoo(f) { }
 		assert.throws(() => types.validateConstraints([new foo()], [isFoo]));
 
-		function isFoo2(f) { return true}
+		function isFoo2(f) { return true; };
 		types.validateConstraints([new foo()], [isFoo2]);
 
 		assert.throws(() => types.validateConstraints([1, true], [types.isNumber, types.isString]));
@@ -193,12 +193,12 @@ suite('Types', () => {
 	});
 
 	test('create', () => {
-		var zeroConstructor = function() { /**/ };
+		var zeroConstructor = function () { /**/ };
 
 		assert(types.create(zeroConstructor) instanceof zeroConstructor);
 		assert(types.isObject(types.create(zeroConstructor)));
 
-		var manyArgConstructor = function(foo, bar) {
+		var manyArgConstructor = function (foo, bar) {
 			this.foo = foo;
 			this.bar = bar;
 		};

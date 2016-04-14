@@ -30,7 +30,13 @@ export class FileWatcher {
 	private isDisposed: boolean;
 	private restartCounter: number;
 
-	constructor(private basePath: string, private ignored: string[], private eventEmitter: IEventService, private errorLogger: (msg: string) => void, private verboseLogging: boolean) {
+	constructor(
+		private basePath: string,
+		private ignored: string[],
+		private eventEmitter: IEventService,
+		private errorLogger: (msg: string) => void,
+		private verboseLogging: boolean)
+	{
 		this.isDisposed = false;
 		this.restartCounter = 0;
 	}

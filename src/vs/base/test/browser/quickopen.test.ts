@@ -44,7 +44,7 @@ suite('QuickOpen', () => {
 		assert.equal(true, ds.hasChildren(null, model));
 		assert.equal(false, ds.hasChildren(null, entry1));
 
-		ds.getChildren(null, model).then((children:any[])=>{
+		ds.getChildren(null, model).then((children: any[]) => {
 			assert.equal(3, children.length);
 		});
 	});

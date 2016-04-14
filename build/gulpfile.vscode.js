@@ -32,7 +32,7 @@ var baseModules = [
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
 	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
-	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'weak', 'zlib'
+	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib'
 ];
 
 // Build
@@ -116,7 +116,7 @@ var config = {
 gulp.task('electron', function () {
 	// Force windows to use ia32
 	var arch = process.env.VSCODE_ELECTRON_PLATFORM || (process.platform === 'win32' ? 'ia32' : process.arch);
-	return electron.dest(path.join(build, 'electron'), _.extend({}, config, { arch: arch }));
+	return electron.dest(path.join(build, 'electron'), _.extend({}, config, { arch: arch, ffmpegChromium: true }));
 });
 
 function mixinProduct() {
@@ -162,8 +162,10 @@ function packageTask(platform, arch, opts) {
 			'extensions/**',
 			'!extensions/*/src/**',
 			'!extensions/*/out/**/test/**',
+			'!extensions/*/test/**',
 			'!extensions/typescript/bin/**',
 			'!extensions/vscode-api-tests/**',
+			'!extensions/vscode-colorize-tests/**',
 			'!extensions/json/server/.vscode/**',
 			'!extensions/json/server/src/**',
 			'!extensions/json/server/out/**/test/**',
@@ -188,7 +190,7 @@ function packageTask(platform, arch, opts) {
 			version: version
 		}));
 
-		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt'], { base: '.' });
+		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
 		var depsSrc = _.flatten(Object.keys(packageJson.dependencies).concat(Object.keys(packageJson.optionalDependencies))
@@ -199,8 +201,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
 			.pipe(util.cleanNodeModule('oniguruma', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('windows-mutex', ['binding.gyp', 'build/**', 'src/**'], true))
-			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
-			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
+			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true));
 
 		var all = es.merge(
 			api,
@@ -225,7 +226,7 @@ function packageTask(platform, arch, opts) {
 		var result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
-			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch })))
+			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch, ffmpegChromium: true })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {
@@ -315,14 +316,9 @@ function buildDebPackage(arch) {
 	], { cwd: '.build/linux/deb/' + debArch});
 }
 
-function getHomeDir() {
-	if (typeof os.homedir === 'function') {
-		return os.homedir();
-	}
-	return process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
+function getRpmBuildPath(rpmArch) {
+	return '.build/linux/rpm/' + rpmArch + '/rpmbuild';
 }
-
-var rpmBuildPath = path.join(getHomeDir(), 'rpmbuild');
 
 function getRpmPackageArch(arch) {
 	return { x64: 'x86_64', ia32: 'i386' }[arch];
@@ -331,7 +327,6 @@ function getRpmPackageArch(arch) {
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var rpmArch = getRpmPackageArch(arch);
-	var destination = rpmBuildPath;
 	var packageRevision = getEpochTime();
 
 	return function () {
@@ -361,17 +356,18 @@ function prepareRpmPackage(arch) {
 
 		var all = es.merge(code, desktop, icon, spec, specIcon);
 
-		return all.pipe(symdest(destination));
+		return all.pipe(symdest(getRpmBuildPath(rpmArch)));
 	}
 }
 
 function buildRpmPackage(arch) {
 	var rpmArch = getRpmPackageArch(arch);
+	var rpmBuildPath = getRpmBuildPath(rpmArch);
 	var rpmOut = rpmBuildPath + '/RPMS/' + rpmArch;
 	var destination = '.build/linux/rpm/' + rpmArch;
 	return shell.task([
 		'mkdir -p ' + destination,
-		'fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
+		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
 		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/vscode-' + rpmArch + '.rpm',
 		'createrepo ' + destination
 	]);
@@ -386,7 +382,6 @@ gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));
 gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/deb/amd64'));
 gulp.task('clean-vscode-linux-ia32-rpm', util.rimraf('.build/linux/rpm/i386'));
 gulp.task('clean-vscode-linux-x64-rpm', util.rimraf('.build/linux/rpm/x86_64'));
-gulp.task('clean-rpmbuild', util.rimraf(rpmBuildPath));
 
 gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
@@ -405,8 +400,8 @@ gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode
 gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
 gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
 
-gulp.task('vscode-linux-ia32-prepare-rpm', ['clean-rpmbuild', 'clean-vscode-linux-ia32-rpm', 'vscode-linux-ia32-min'], prepareRpmPackage('ia32'));
-gulp.task('vscode-linux-x64-prepare-rpm', ['clean-rpmbuild', 'clean-vscode-linux-x64-rpm', 'vscode-linux-x64-min'], prepareRpmPackage('x64'));
+gulp.task('vscode-linux-ia32-prepare-rpm', ['clean-vscode-linux-ia32-rpm', 'vscode-linux-ia32-min'], prepareRpmPackage('ia32'));
+gulp.task('vscode-linux-x64-prepare-rpm', ['clean-vscode-linux-x64-rpm', 'vscode-linux-x64-min'], prepareRpmPackage('x64'));
 gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage('ia32'));
 gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage('x64'));
 

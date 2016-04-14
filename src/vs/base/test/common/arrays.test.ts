@@ -14,22 +14,22 @@ suite('Arrays', () => {
 		var idx = arrays.findFirst(array, e => e >= 0);
 		assert.equal(array[idx], 1);
 
-		var idx = arrays.findFirst(array, e => e > 1);
+		idx = arrays.findFirst(array, e => e > 1);
 		assert.equal(array[idx], 4);
 
-		var idx = arrays.findFirst(array, e => e >= 8);
+		idx = arrays.findFirst(array, e => e >= 8);
 		assert.equal(array[idx], 55);
 
-		var idx = arrays.findFirst(array, e => e >= 61);
+		idx = arrays.findFirst(array, e => e >= 61);
 		assert.equal(array[idx], 61);
 
-		var idx = arrays.findFirst(array, e => e >= 69);
+		idx = arrays.findFirst(array, e => e >= 69);
 		assert.equal(array[idx], 69);
 
-		var idx = arrays.findFirst(array, e => e >= 70);
+		idx = arrays.findFirst(array, e => e >= 70);
 		assert.equal(idx, array.length);
 
-		var idx = arrays.findFirst([], e => e >= 0);
+		idx = arrays.findFirst([], e => e >= 0);
 		assert.equal(array[idx], 1);
 	});
 

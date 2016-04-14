@@ -11,7 +11,7 @@ import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
+import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {TestFileService, TestLifecycleService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestStorageService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
@@ -22,10 +22,10 @@ function toResource(path) {
 
 suite('Files - FileEditorInput', () => {
 
-	test('FileEditorInput', function(done) {
-		let editorService = new TestEditorService(function() { });
+	test('FileEditorInput', function (done) {
+		let editorService = new TestEditorService(function () { });
 		let eventService = new TestEventService();
-		let telemetryService = new MainTelemetryService();
+		let telemetryService = NullTelemetryService;
 		let contextService = new TestContextService();
 
 		let instantiationService = createInstantiationService({
@@ -65,32 +65,32 @@ suite('Files - FileEditorInput', () => {
 		let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 
-		return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
+		return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 			let resolvedModelA = resolved;
-			return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
+			return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 				assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
 				assert(inputToResolve.getStatus());
 
-				return editorService.resolveEditorModel(sameOtherInput, true).then(function(otherResolved) {
+				return editorService.resolveEditorModel(sameOtherInput, true).then(function (otherResolved) {
 					assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
 
 					inputToResolve.dispose(false);
 
-					return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
+					return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 						assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
 
 						inputToResolve.dispose(true);
 						sameOtherInput.dispose(true);
 
-						return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
+						return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 							assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
 							let stat = (<any>resolved).versionOnDiskStat;
-							return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
+							return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 								assert(stat !== (<any>resolved).versionOnDiskStat); // Different stat, because resolve always goes to the server for refresh
 
 								stat = (<any>resolved).versionOnDiskStat;
-								return editorService.resolveEditorModel(inputToResolve, false).then(function(resolved) {
+								return editorService.resolveEditorModel(inputToResolve, false).then(function (resolved) {
 									assert(stat === (<any>resolved).versionOnDiskStat); // Same stat, because not refreshed
 
 									done();
@@ -103,7 +103,7 @@ suite('Files - FileEditorInput', () => {
 		});
 	});
 
-	test('Input.matches() - FileEditorInput', function() {
+	test('Input.matches() - FileEditorInput', function () {
 		let fileEditorInput = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
 		let contentEditorInput2 = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
 
@@ -112,9 +112,9 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(fileEditorInput.matches(contentEditorInput2), true);
 	});
 
-	test('FileTracker - dispose()', function(done) {
-		let editorService = new TestEditorService(function() { });
-		let telemetryService = new MainTelemetryService();
+	test('FileTracker - dispose()', function (done) {
+		let editorService = new TestEditorService(function () { });
+		let telemetryService = NullTelemetryService;
 		let contextService = new TestContextService();
 
 		let eventService = new TestEventService();
@@ -140,8 +140,8 @@ suite('Files - FileEditorInput', () => {
 
 		let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
-		return editorService.resolveEditorModel(inputToResolve).then(function(resolved) {
-			return editorService.resolveEditorModel(sameOtherInput).then(function(resolved) {
+		return editorService.resolveEditorModel(inputToResolve).then(function (resolved) {
+			return editorService.resolveEditorModel(sameOtherInput).then(function (resolved) {
 				(<any>tracker).disposeAll(toResource('/bar'), []);
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
@@ -156,9 +156,9 @@ suite('Files - FileEditorInput', () => {
 		});
 	});
 
-	test('FileEditorInput - dispose() also works for folders', function(done) {
-		let editorService = new TestEditorService(function() { });
-		let telemetryService = new MainTelemetryService();
+	test('FileEditorInput - dispose() also works for folders', function (done) {
+		let editorService = new TestEditorService(function () { });
+		let telemetryService = NullTelemetryService;
 		let contextService = new TestContextService();
 
 		let eventService = new TestEventService();
@@ -184,8 +184,8 @@ suite('Files - FileEditorInput', () => {
 
 		let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
-		return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
-			return editorService.resolveEditorModel(sameOtherInput, true).then(function(resolved) {
+		return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
+			return editorService.resolveEditorModel(sameOtherInput, true).then(function (resolved) {
 				(<any>tracker).disposeAll(toResource('/bar'), []);
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());

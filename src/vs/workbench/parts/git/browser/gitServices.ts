@@ -689,7 +689,7 @@ export class GitService extends ee.EventEmitter
 			}
 
 			var error: Error;
-			var showOutputAction = new actions.Action('show.gitOutput', nls.localize('showOutput', "Show Output"), null, true, () => this.outputService.showOutput('Git'));
+			var showOutputAction = new actions.Action('show.gitOutput', nls.localize('showOutput', "Show Output"), null, true, () => this.outputService.getChannel('Git').show());
 			var cancelAction = new actions.Action('close.message', nls.localize('cancel', "Cancel"), null, true, ()=>winjs.TPromise.as(true));
 
 			error = errors.create(

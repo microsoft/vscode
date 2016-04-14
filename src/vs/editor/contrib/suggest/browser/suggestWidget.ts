@@ -22,8 +22,9 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {EventType, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import {SuggestRegistry} from 'vs/editor/common/modes';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
-import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, SuggestRegistry} from '../common/suggest';
+import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY} from '../common/suggest';
 import {CompletionItem, CompletionModel} from './completionModel';
 import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
 import {alert} from 'vs/base/browser/ui/aria/aria';

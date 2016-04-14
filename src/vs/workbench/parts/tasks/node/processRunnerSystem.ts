@@ -17,7 +17,7 @@ import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import { TerminateResponse, SuccessData, ErrorData } from 'vs/base/common/processes';
 import { LineProcess, LineData } from 'vs/base/node/processes';
 
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -39,25 +39,24 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	private markerService: IMarkerService;
 	private modelService: IModelService;
 	private outputService: IOutputService;
-	private outputChannel: string;
 	private telemetryService: ITelemetryService;
 
 	private validationStatus: ValidationStatus;
 	private defaultBuildTaskIdentifier: string;
 	private defaultTestTaskIdentifier: string;
 	private configuration: TaskRunnerConfiguration;
+	private outputChannel: IOutputChannel;
 
 	private errorsShown: boolean;
 	private childProcess: LineProcess;
 	private activeTaskIdentifier: string;
 
-	constructor(fileConfig:FileConfig.ExternalTaskRunnerConfiguration, variables:SystemVariables, markerService:IMarkerService, modelService: IModelService, telemetryService: ITelemetryService, outputService:IOutputService, outputChannel:string, clearOutput: boolean = true) {
+	constructor(fileConfig:FileConfig.ExternalTaskRunnerConfiguration, variables:SystemVariables, markerService:IMarkerService, modelService: IModelService, telemetryService: ITelemetryService, outputService:IOutputService, outputChannelId:string, clearOutput: boolean = true) {
 		super();
 		this.fileConfig = fileConfig;
 		this.variables = variables;
 		this.markerService = markerService;
 		this.modelService = modelService;
-		this.outputChannel = outputChannel;
 		this.outputService = outputService;
 		this.telemetryService = telemetryService;
 
@@ -65,6 +64,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.defaultTestTaskIdentifier = null;
 		this.childProcess = null;
 		this.activeTaskIdentifier = null;
+		this.outputChannel = this.outputService.getChannel(outputChannelId);
 
 		if (clearOutput) {
 			this.clearOutput();
@@ -77,7 +77,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		this.defaultTestTaskIdentifier = parseResult.defaultTestTaskIdentifier;
 
 		if (!this.validationStatus.isOK()) {
-			this.outputService.showOutput(this.outputChannel, true);
+			this.showOutput();
 		}
 	}
 
@@ -177,10 +177,10 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				throw err;
 			} else if (err instanceof Error) {
 				let error = <Error>err;
-				this.outputService.append(this.outputChannel, error.message);
+				this.outputChannel.append(error.message);
 				throw new TaskError(Severity.Error, error.message, TaskErrors.UnknownError);
 			} else {
-				this.outputService.append(this.outputChannel, err.toString());
+				this.outputChannel.append(err.toString());
 				throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
 		}
@@ -267,7 +267,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				return this.handleError(task, error);
 			}, (progress: LineData) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputService.append(this.outputChannel, line + '\n');
+				this.outputChannel.append(line + '\n');
 				watchingProblemMatcher.processLine(line);
 				if (delayer === null) {
 					delayer = new Async.Delayer(3000);
@@ -304,7 +304,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				return this.handleError(task, error);
 			}, (progress) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputService.append(this.outputChannel, line + '\n');
+				this.outputChannel.append(line + '\n');
 				startStopProblemMatcher.processLine(line);
 			});
 			return { promise };
@@ -321,16 +321,16 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		if (error.error && !error.terminated) {
 			let args:string = this.configuration.args ? this.configuration.args.join(' ') : '';
 			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', this.configuration.command, args));
-			this.outputService.append(this.outputChannel, error.error.message);
+			this.outputChannel.append(error.error.message);
 			makeVisible = true;
 		}
 
 		if (error.stdout) {
-			this.outputService.append(this.outputChannel, error.stdout);
+			this.outputChannel.append(error.stdout);
 			makeVisible = true;
 		}
 		if (error.stderr) {
-			this.outputService.append(this.outputChannel, error.stderr);
+			this.outputChannel.append(error.stderr);
 			makeVisible = true;
 		}
 		makeVisible = this.checkTerminated(task, error) || makeVisible;
@@ -398,14 +398,14 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	public log(value: string): void  {
-		this.outputService.append(this.outputChannel, value + '\n');
+		this.outputChannel.append(value + '\n');
 	}
 
 	private showOutput(): void {
-		this.outputService.showOutput(this.outputChannel, true);
+		this.outputChannel.show(true);
 	}
 
 	private clearOutput(): void {
-		this.outputService.clearOutput(this.outputChannel);
+		this.outputChannel.clear();
 	}
 }

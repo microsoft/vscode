@@ -47,13 +47,13 @@ suite('ExtHostTypes', function() {
 		d.dispose();
 		assert.equal(count, 1);
 
-		types.Disposable.from(undefined, { dispose() { count += 1 } }).dispose();
+		types.Disposable.from(undefined, { dispose() { count += 1; } }).dispose();
 		assert.equal(count, 2);
 
 
 		assert.throws(() => {
 			new types.Disposable(() => {
-				throw new Error()
+				throw new Error();
 			}).dispose();
 		});
 
@@ -77,7 +77,7 @@ suite('ExtHostTypes', function() {
 
 	test('Position, toJSON', function() {
 		let pos = new types.Position(4, 2);
-		assertToJSON(pos, { line: 4, character: 2 })
+		assertToJSON(pos, { line: 4, character: 2 });
 	});
 
 	test('Position, isBefore(OrEqual)?', function() {
@@ -335,7 +335,7 @@ suite('ExtHostTypes', function() {
 
 		let diag = new types.Diagnostic(new types.Range(0, 1, 2, 3), 'hello');
 		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }] });
-		diag.source = 'me'
+		diag.source = 'me';
 		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }], source: 'me' });
 
 		assertToJSON(new types.DocumentHighlight(new types.Range(2, 3, 4, 5)), { range: [{ line: 2, character: 3 }, { line: 4, character: 5 }], kind: 'Text' });
@@ -358,7 +358,7 @@ suite('ExtHostTypes', function() {
 		assertToJSON(new types.CompletionItem('complete'), { label: 'complete' });
 
 		let item = new types.CompletionItem('complete');
-		item.kind = types.CompletionItemKind.Interface
+		item.kind = types.CompletionItemKind.Interface;
 		assertToJSON(item, { label: 'complete', kind: 'Interface' });
 
 	});

@@ -9,7 +9,7 @@ import { Action, IAction, isAction } from 'vs/base/common/actions';
 
 suite('Actions', () => {
 	test('isAction', function() {
-		assert(isAction(new Action('id', 'label', 'style', true, function() { return null })));
+		assert(isAction(new Action('id', 'label', 'style', true, function() { return null; })));
 		assert(isAction(<IAction> {
 			id: 'id',
 			label: 'label',
@@ -52,5 +52,5 @@ suite('Actions', () => {
 			enabled: true,
 	//		run: function() { return null; }
 		}));
-	})
+	});
 });

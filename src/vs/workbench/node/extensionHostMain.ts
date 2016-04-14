@@ -22,15 +22,14 @@ import {IInstantiationService } from 'vs/platform/instantiation/common/instantia
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {ExtHostThreadService} from 'vs/platform/thread/common/extHostThreadService';
-import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
-import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
+import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Client } from 'vs/base/node/service.net';
-import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
-import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {Client} from 'vs/base/node/service.net';
+import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
+import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
 const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
@@ -59,20 +58,18 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new ExtHostThreadService(remoteCom);
 	threadService.setInstantiationService(InstantiationService.createInstantiationService({ threadService: threadService }));
-	let telemetryService = new ExtHostTelemetryService(threadService);
-	let requestService = new BaseRequestService(contextService, telemetryService);
+	let telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 	let modelService = threadService.getRemotable(ExtHostModelService);
 
 	let extensionService = new ExtHostExtensionService(threadService, telemetryService);
 	let modeService = new ModeServiceImpl(threadService, extensionService);
 	let _services: any = {
-		contextService: contextService,
-		requestService: requestService,
-		modelService: modelService,
-		threadService: threadService,
-		modeService: modeService,
-		extensionService: extensionService,
-		telemetryService: telemetryService
+		contextService,
+		modelService,
+		threadService,
+		modeService,
+		extensionService,
+		telemetryService
 	};
 	let instantiationService = InstantiationService.createInstantiationService(_services);
 	threadService.setInstantiationService(instantiationService);

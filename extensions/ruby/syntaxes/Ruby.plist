@@ -1121,7 +1121,7 @@
 			<key>end</key>
 			<string>(?!\G)</string>
 			<key>name</key>
-			<string>meta.embedded.block.c++</string>
+			<string>meta.embedded.block.cpp</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1136,7 +1136,7 @@
 						</dict>
 					</dict>
 					<key>contentName</key>
-					<string>source.c++</string>
+					<string>source.cpp</string>
 					<key>end</key>
 					<string>\s*\2$\n?</string>
 					<key>endCaptures</key>
@@ -1161,7 +1161,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>source.c++</string>
+							<string>source.cpp</string>
 						</dict>
 						<dict>
 							<key>include</key>

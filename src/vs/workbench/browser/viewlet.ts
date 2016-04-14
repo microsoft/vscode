@@ -16,7 +16,7 @@ import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {CollapsibleView, CollapsibleState, FixedCollapsibleView} from 'vs/base/browser/ui/splitview/splitview';
+import {CollapsibleView, CollapsibleState, FixedCollapsibleView, IView} from 'vs/base/browser/ui/splitview/splitview';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
@@ -270,19 +270,21 @@ export class CollapseAction extends Action {
 	}
 }
 
-export interface IViewletView {
+export interface IViewletView extends IView {
 	create(): TPromise<void>;
 	setVisible(visible: boolean): TPromise<void>;
 	getActions(): IAction[];
 	getSecondaryActions(): IAction[];
 	getActionItem(action: IAction): IActionItem;
 	shutdown(): void;
+	focusBody(): void;
+	isExpanded(): boolean;
 }
 
 /**
  * The AdaptiveCollapsibleViewletView can grow with the content inside dynamically.
  */
-export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView implements IViewletView {
+export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleView implements IViewletView {
 	protected treeContainer: HTMLElement;
 	protected tree: ITree;
 	protected toDispose: IDisposable[];
@@ -407,7 +409,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	}
 }
 
-export class CollapsibleViewletView extends CollapsibleView implements IViewletView {
+export abstract class CollapsibleViewletView extends CollapsibleView implements IViewletView {
 	protected treeContainer: HTMLElement;
 	protected tree: ITree;
 	protected toDispose: IDisposable[];

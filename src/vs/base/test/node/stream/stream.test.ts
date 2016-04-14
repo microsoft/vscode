@@ -11,7 +11,7 @@ import fs = require('fs');
 import stream = require('vs/base/node/stream');
 
 suite('Stream', () => {
-	test('readExactlyByFile - ANSI', function(done: () => void) {
+	test('readExactlyByFile - ANSI', function (done: () => void) {
 		var file = require.toUrl('./fixtures/file.css');
 
 		stream.readExactlyByFile(file, 10, (error: Error, buffer: NodeBuffer, count: number) => {
@@ -23,7 +23,7 @@ suite('Stream', () => {
 		});
 	});
 
-	test('readExactlyByFile - empty', function(done: () => void) {
+	test('readExactlyByFile - empty', function (done: () => void) {
 		var file = require.toUrl('./fixtures/empty.txt');
 
 		stream.readExactlyByFile(file, 10, (error: Error, buffer: NodeBuffer, count: number) => {
@@ -34,7 +34,7 @@ suite('Stream', () => {
 		});
 	});
 
-	test('readExactlyByStream - ANSI', function(done: () => void) {
+	test('readExactlyByStream - ANSI', function (done: () => void) {
 		var file = require.toUrl('./fixtures/file.css');
 
 		stream.readExactlyByStream(fs.createReadStream(file), 10, (error: Error, buffer: NodeBuffer, count: number) => {
@@ -46,7 +46,7 @@ suite('Stream', () => {
 		});
 	});
 
-	test('readExactlyByStream - empty', function(done: () => void) {
+	test('readExactlyByStream - empty', function (done: () => void) {
 		var file = require.toUrl('./fixtures/empty.txt');
 
 		stream.readExactlyByStream(fs.createReadStream(file), 10, (error: Error, buffer: NodeBuffer, count: number) => {

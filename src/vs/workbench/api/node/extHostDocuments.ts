@@ -26,7 +26,6 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {asWinJsPromise} from 'vs/base/common/async';
-import * as weak from 'weak';
 
 export interface IModelAddedData {
 	url: URI;
@@ -170,14 +169,6 @@ export class ExtHostModelService {
 		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token));
 	}
 
-	$isDocumentReferenced(uri: URI): TPromise<boolean> {
-		const key = uri.toString();
-		const document = this._documentData[key];
-		if (document) {
-			return TPromise.as(document.isDocumentReferenced);
-		}
-	}
-
 	public _acceptModelAdd(initData: IModelAddedData): void {
 		let data = new ExtHostDocumentData(this._proxy, initData.url, initData.value.lines, initData.value.EOL, initData.modeId, initData.versionId, initData.isDirty);
 		let key = data.document.uri.toString();
@@ -246,7 +237,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	private _languageId: string;
 	private _isDirty: boolean;
 	private _textLines: vscode.TextLine[];
-	private _documentRef: weak.WeakRef & vscode.TextDocument;
+	private _document: vscode.TextDocument;
 
 	constructor(proxy: MainThreadDocuments, uri: URI, lines: string[], eol: string,
 		languageId: string, versionId: number, isDirty: boolean) {
@@ -265,13 +256,9 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	}
 
 	get document(): vscode.TextDocument {
-		// dereferences or creates the actual document for this
-		// document data. keeps a weak reference only such that
-		// we later when a document isn't needed anymore
-
-		if (!this.isDocumentReferenced) {
+		if (!this._document) {
 			const data = this;
-			const doc = {
+			this._document = {
 				get uri() { return data._uri; },
 				get fileName() { return data._uri.fsPath; },
 				get isUntitled() { return data._uri.scheme !== 'file'; },
@@ -288,13 +275,8 @@ export class ExtHostDocumentData extends MirrorModel2 {
 				validatePosition(pos) { return data.validatePosition(pos); },
 				getWordRangeAtPosition(pos) { return data.getWordRangeAtPosition(pos); }
 			};
-			this._documentRef = weak(doc);
 		}
-		return weak.get(this._documentRef);
-	}
-
-	get isDocumentReferenced(): boolean {
-		return this._documentRef && !weak.isNearDeath(this._documentRef) && !weak.isDead(this._documentRef) ;
+		return this._document;
 	}
 
 	_acceptLanguageId(newLanguageId: string): void {
@@ -507,7 +489,7 @@ export class MainThreadDocuments {
 			}
 		}));
 
-		const handle = setInterval(() => this._runDocumentCleanup(), 30 * 1000);
+		const handle = setInterval(() => this._runDocumentCleanup(), 1000 * 60 * 3);
 		this._toDispose.push({ dispose() { clearInterval(handle); } });
 
 		this._modelToDisposeMap = Object.create(null);
@@ -676,13 +658,9 @@ export class MainThreadDocuments {
 
 		TPromise.join(Object.keys(this._virtualDocumentSet).map(key => {
 			let resource = URI.parse(key);
-			return this._proxy.$isDocumentReferenced(resource).then(referenced => {
-				if (!referenced) {
-					return this._editorService.inputToType({ resource }).then(input => {
-						if (!this._editorService.isVisible(input, true)) {
-							toBeDisposed.push(resource);
-						}
-					});
+			return this._editorService.inputToType({ resource }).then(input => {
+				if (!this._editorService.isVisible(input, true)) {
+					toBeDisposed.push(resource);
 				}
 			});
 		})).then(() => {

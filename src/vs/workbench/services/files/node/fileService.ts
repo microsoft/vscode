@@ -76,15 +76,13 @@ export class FileService implements files.IFileService {
 	private tmpPath: string;
 	private options: IFileServiceOptions;
 
-	private eventEmitter: IEventService;
-
 	private workspaceWatcherToDispose: () => void;
 
 	private activeFileChangesWatchers: { [resource: string]: fs.FSWatcher; };
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	constructor(basePath: string, eventEmitter: IEventService, options: IFileServiceOptions) {
+	constructor(basePath: string, options: IFileServiceOptions, private eventEmitter: IEventService) {
 		this.basePath = basePath ? paths.normalize(basePath) : void 0;
 
 		if (this.basePath && this.basePath.indexOf('\\\\') === 0 && strings.endsWith(this.basePath, paths.sep)) {
@@ -100,7 +98,6 @@ export class FileService implements files.IFileService {
 		}
 
 		this.options = options || Object.create(null);
-		this.eventEmitter = eventEmitter;
 		this.tmpPath = this.options.tmpDir || os.tmpdir();
 
 		if (this.options && !this.options.errorLogger) {

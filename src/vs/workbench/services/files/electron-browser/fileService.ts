@@ -17,8 +17,13 @@ import {FileService as NodeFileService, IFileServiceOptions, IEncodingOverride} 
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {Action} from 'vs/base/common/actions';
+import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 
 import {shell} from 'electron';
+
+// If we run with .NET framework < 4.5, we need to detect this error to inform the user
+const NET_VERSION_ERROR = 'System.MissingMethodException';
 
 export class FileService implements IFileService {
 
@@ -31,7 +36,8 @@ export class FileService implements IFileService {
 	constructor(
 		private configurationService: IConfigurationService,
 		private eventService: IEventService,
-		private contextService: IWorkspaceContextService
+		private contextService: IWorkspaceContextService,
+		private messageService: IMessageService
 	) {
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
@@ -49,7 +55,7 @@ export class FileService implements IFileService {
 
 		// build config
 		let fileServiceConfig: IFileServiceOptions = {
-			errorLogger: (msg: string) => errors.onUnexpectedError(msg),
+			errorLogger: (msg: string) => this.onFileServiceError(msg),
 			encoding: configuration.files && configuration.files.encoding,
 			encodingOverride: encodingOverride,
 			watcherIgnoredPatterns: watcherIgnoredPatterns,
@@ -58,10 +64,28 @@ export class FileService implements IFileService {
 
 		// create service
 		let workspace = this.contextService.getWorkspace();
-		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, this.eventService, fileServiceConfig);
+		this.raw = new NodeFileService(workspace ? workspace.resource.fsPath : void 0, fileServiceConfig, this.eventService);
 
 		// Listeners
 		this.registerListeners();
+	}
+
+	private onFileServiceError(msg: string): void {
+		errors.onUnexpectedError(msg);
+
+		// Detect if we run < .NET Framework 4.5
+		if (msg && msg.indexOf(NET_VERSION_ERROR) >= 0) {
+			this.messageService.show(Severity.Warning, <IMessageWithAction>{
+				message: nls.localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
+				actions: [
+					new Action('install.net', nls.localize('installNet', "Download .NET Framework 4.5"), null, true, () => {
+						shell.openExternal('http://go.microsoft.com/fwlink/?LinkId=786533');
+
+						return TPromise.as(true);
+					})
+				]
+			});
+		}
 	}
 
 	private registerListeners(): void {

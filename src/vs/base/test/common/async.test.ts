@@ -190,7 +190,6 @@ suite('Async', () => {
 		};
 
 		var delayer = new Async.Delayer(0);
-		var promises: Promise[] = [];
 
 		assert(!delayer.isTriggered());
 

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+'use strict';
+
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, IExtensionsService, IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
-
-'use strict';
 
 export function getExtensionId(extension: IExtension): string {
 	return `${ extension.publisher }.${ extension.name }`;

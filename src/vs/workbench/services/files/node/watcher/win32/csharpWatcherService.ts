@@ -19,19 +19,14 @@ export class OutOfProcessWin32FolderWatcher {
 	private static changeTypeMap: FileChangeType[] = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
 
 	private handle: cp.ChildProcess;
-	private watchedFolder: string;
-	private ignored: string[];
-	private verboseLogging: boolean;
-	private eventCallback: (events: IRawFileChange[]) => void;
-	private errorLogger: (msg: string) => void;
 
-	constructor(watchedFolder: string, ignored: string[], errorLogger: (msg: string) => void, eventCallback: (events: IRawFileChange[]) => void, verboseLogging: boolean) {
-		this.watchedFolder = watchedFolder;
-		this.ignored = ignored;
-		this.eventCallback = eventCallback;
-		this.errorLogger = errorLogger;
-		this.verboseLogging = verboseLogging;
-
+	constructor(
+		private watchedFolder: string,
+		private ignored: string[],
+		private eventCallback: (events: IRawFileChange[]) => void,
+		private errorCallback: (error: string) => void,
+		private verboseLogging: boolean
+	) {
 		this.startWatcher();
 	}
 
@@ -92,13 +87,13 @@ export class OutOfProcessWin32FolderWatcher {
 		this.handle.on('exit', (code: any, signal: any) => this.onExit(code, signal));
 	}
 
-	private onError(error: Error|NodeBuffer): void {
-		this.errorLogger('[FileWatcher] process error: ' + error.toString());
+	private onError(error: Error | NodeBuffer): void {
+		this.errorCallback('[FileWatcher] process error: ' + error.toString());
 	}
 
 	private onExit(code: any, signal: any): void {
 		if (this.handle) { // exit while not yet being disposed is unexpected!
-			this.errorLogger('[FileWatcher] terminated unexpectedly (code: ' + code + ', signal: ' + signal + ')');
+			this.errorCallback('[FileWatcher] terminated unexpectedly (code: ' + code + ', signal: ' + signal + ')');
 			this.startWatcher(); // restart
 		}
 	}

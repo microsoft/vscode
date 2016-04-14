@@ -20,9 +20,10 @@ import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {isLineToken} from 'vs/editor/common/modes/supports';
+import {RenameRegistry} from 'vs/editor/common/modes';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {RenameRegistry, rename} from '../common/rename';
+import {rename} from '../common/rename';
 import RenameInputField from './renameInputField';
 
 // ---  register actions and commands

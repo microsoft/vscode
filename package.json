@@ -1,7 +1,7 @@
 {
   "name": "Code",
-  "version": "0.10.12",
-  "electronVersion": "0.35.6",
+  "version": "1.0.0",
+  "electronVersion": "0.37.5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -13,7 +13,7 @@
   "scripts": {
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/ && npm --prefix extensions/php/ install extensions/php/",
+    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/vscode-colorize-tests/ install extensions/vscode-colorize-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/ && npm --prefix extensions/php/ install extensions/php/",
     "watch": "gulp watch"
   },
   "dependencies": {
@@ -30,7 +30,6 @@
     "semver": "^4.2.0",
     "vscode-debugprotocol": "1.8.0-pre.3",
     "vscode-textmate": "^1.0.11",
-    "weak": "^1.0.1",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"
   },
@@ -46,7 +45,7 @@
     "ghooks": "1.0.3",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "^1.5.2",
+    "gulp-atom-electron": "^1.6.0",
     "gulp-azure-storage": "^0.6.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",

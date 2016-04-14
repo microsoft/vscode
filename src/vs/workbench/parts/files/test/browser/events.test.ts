@@ -6,18 +6,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
-import {Event, PropertyChangeEvent} from 'vs/base/common/events';
-import {CommandEvent, EditorEvent} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {FileImportedEvent} from 'vs/workbench/parts/files/browser/fileActions';
 
-suite("Files - Events", () => {
+suite('Files - Events', () => {
 
-	test("File Change Event (simple)", function() {
+	test('File Change Event (simple)', function () {
 		let origEvent: any = {};
-		let oldValue: any = { foo: "bar" };
-		let newValue: any = { foo: "foo" };
+		let oldValue: any = { foo: 'bar' };
+		let newValue: any = { foo: 'foo' };
 		let event = new LocalFileChangeEvent(oldValue, newValue, origEvent);
 
 		assert.strictEqual(event.originalEvent, origEvent);
@@ -26,9 +23,9 @@ suite("Files - Events", () => {
 		assert(event.time);
 	});
 
-	test("File Upload Event", function() {
+	test('File Upload Event', function () {
 		let origEvent: any = {};
-		let value: any = { foo: "bar" };
+		let value: any = { foo: 'bar' };
 		let event = new FileImportedEvent(value, true, origEvent);
 
 		assert.strictEqual(event.originalEvent, origEvent);

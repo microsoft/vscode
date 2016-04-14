@@ -95,7 +95,7 @@ class BranchEntry extends model.QuickOpenEntry {
 
 	public getIcon(): string { return 'git'; }
 	public getLabel(): string { return this.name; }
-	public getAriaLabel(): string { return nls.localize('branchAriaLabel', "{0}, git branch", this.getLabel()); }
+	public getAriaLabel(): string { return nls.localize({ key: 'branchAriaLabel', comment: ['the branch name'] }, "{0}, git branch", this.getLabel()); }
 	public getDescription(): string { return nls.localize('createBranch', "Create branch {0}", this.name); }
 
 	public run(mode: quickopen.Mode, context: model.IContext):boolean {
