@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import uuid = require('vs/base/common/uuid');
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {Registry} from 'vs/platform/platform';
 import {IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
@@ -14,6 +13,8 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 
+	private static _idPool = 1;
+
 	private _proxy: MainThreadOutputService;
 	private _name: string;
 	private _id: string;
@@ -21,7 +22,7 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	constructor(name: string, proxy: MainThreadOutputService) {
 		this._name = name;
-		this._id = uuid.generateUuid();
+		this._id = 'extension-output-#' + (ExtHostOutputChannel._idPool++);
 		this._proxy = proxy;
 	}
 
