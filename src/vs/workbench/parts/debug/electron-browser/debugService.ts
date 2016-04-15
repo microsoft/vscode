@@ -611,7 +611,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				this.viewletService.openViewlet(debug.VIEWLET_ID);
 				this.revealRepl(false).done(undefined, errors.onUnexpectedError);
 			}
-			this.partService.addClass('debugging');
+
+			// Do not change status bar to orange if we are just running without debug.
+			if (!configuration.noDebug) {
+				this.partService.addClass('debugging');
+			}
 			this.extensionService.activateByEvent(`onDebug:${ configuration.type }`).done(null, errors.onUnexpectedError);
 			this.contextService.updateOptions('editor', {
 				glyphMargin: true
