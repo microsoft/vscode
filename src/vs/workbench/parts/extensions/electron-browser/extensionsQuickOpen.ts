@@ -404,39 +404,6 @@ export class LocalExtensionsHandler extends QuickOpenHandler {
 	}
 }
 
-class GalleryExtensionsModel implements IModel<IExtensionEntry> {
-
-	public dataSource = new DataSource();
-	public accessibilityProvider: IAccessiblityProvider<IExtensionEntry> = new AccessibilityProvider();
-	public renderer: IRenderer<IExtensionEntry>;
-	public runner: IRunner<IExtensionEntry>;
-	public entries: IExtensionEntry[];
-
-	constructor(
-		input: string,
-		private galleryExtensions: IExtension[],
-		private localExtensions: IExtension[],
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		this.renderer = instantiationService.createInstance(Renderer);
-		this.runner = instantiationService.createInstance(InstallRunner);
-		this.entries = this.galleryExtensions
-			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension, false) }))
-			.filter(({ highlights }) => !!highlights)
-			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
-				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
-
-				return {
-					extension,
-					highlights,
-					state: local
-						? (local.version === extension.version ? ExtensionState.Installed : ExtensionState.Outdated)
-						: ExtensionState.Uninstalled
-				};
-			});
-	}
-}
-
 export class GalleryExtensionsHandler extends QuickOpenHandler {
 
 	private delayer: ThrottledDelayer<any>;
@@ -456,19 +423,27 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 	}
 
 	getResults(text: string): TPromise<IModel<number>> {
-		return this.delayer.trigger(() => this.galleryService.query({ text })).then((result: IQueryResult) => {
-			const pager = mapPager(result, extension => ({
-				extension,
-				highlights: getHighlights(text.trim(), extension, false),
-				state: ExtensionState.Uninstalled
-			}));
+		return this.extensionsService.getInstalled().then(localExtensions => {
+			return this.delayer.trigger(() => this.galleryService.query({ text })).then((result: IQueryResult) => {
+				const pager = mapPager(result, extension => {
+					const [local] = localExtensions.filter(local => extensionEquals(local, extension));
 
-			return new QuickOpenPagedModel<IExtensionEntry>(
-				new PagedModel(pager),
-				new DataSource(),
-				this.instantiationService.createInstance(Renderer),
-				this.instantiationService.createInstance(InstallRunner)
-			);
+					return {
+						extension,
+						highlights: getHighlights(text.trim(), extension, false),
+						state: local
+							? (local.version === extension.version ? ExtensionState.Installed : ExtensionState.Outdated)
+							: ExtensionState.Uninstalled
+					};
+				});
+
+				return new QuickOpenPagedModel<IExtensionEntry>(
+					new PagedModel(pager),
+					new DataSource(),
+					this.instantiationService.createInstance(Renderer),
+					this.instantiationService.createInstance(InstallRunner)
+				);
+			});
 		});
 	}
 
