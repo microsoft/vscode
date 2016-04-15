@@ -150,6 +150,10 @@ suite('Editor Modes - Link Computer', () => {
 			'For instructions, see http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx.</value>',
 			'                      http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx         '
 		);
+		assertLink(
+			'請參閱 http://go.microsoft.com/fwlink/?LinkId=761051。',
+			'    http://go.microsoft.com/fwlink/?LinkId=761051 '
+		);
 
 		// foo bar (see http://www.w3schools.com/tags/att_iframe_sandbox.asp)
 	});

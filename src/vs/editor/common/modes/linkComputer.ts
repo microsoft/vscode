@@ -33,14 +33,6 @@ var getCharacterClasses = (function() {
 	var CANNOT_END_WITH_CHARACTERS = '.,;';
 	var _cachedResult: CharacterClass[] = null;
 
-	var findLargestCharCode = (str:string):number => {
-		var r = 0;
-		for (var i = 0, len = str.length; i < len; i++) {
-			r = Math.max(r, str.charCodeAt(i));
-		}
-		return r;
-	};
-
 	var set = (str:string, toWhat:CharacterClass): void => {
 		for (var i = 0, len = str.length; i < len; i++) {
 			_cachedResult[str.charCodeAt(i)] = toWhat;
@@ -49,15 +41,9 @@ var getCharacterClasses = (function() {
 
 	return function(): CharacterClass[] {
 		if (_cachedResult === null) {
-			// Find cachedResult size
-			var largestCharCode = Math.max(
-				findLargestCharCode(FORCE_TERMINATION_CHARACTERS),
-				findLargestCharCode(CANNOT_END_WITH_CHARACTERS)
-			);
-
-			// Initialize cachedResult
+			// Initialize cachedResult for ASCII characters
 			_cachedResult = [];
-			for (var i = 0; i < largestCharCode; i++) {
+			for (var i = 0; i < 128; i++) {
 				_cachedResult[i] = CharacterClass.None;
 			}
 
@@ -153,7 +139,7 @@ class LinkComputer {
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
 						default:
-							chClass = (chCode < characterClassesLength ? characterClasses[chCode] : CharacterClass.None);
+							chClass = (chCode < characterClassesLength ? characterClasses[chCode] : CharacterClass.ForceTermination);
 					}
 
 					// Check if character terminates link
