@@ -637,46 +637,34 @@ export function getTotalHeight(element: HTMLElement): number {
 	return element.offsetHeight + margin;
 }
 
-// Adapted from WinJS
 // Gets the left coordinate of the specified element relative to the specified parent.
 export function getRelativeLeft(element: HTMLElement, parent: HTMLElement): number {
 	if (element === null) {
 		return 0;
 	}
 
-	let left = element.offsetLeft;
-	let e = <HTMLElement>element.parentNode;
-	while (e !== null) {
-		left -= e.offsetLeft;
-
-		if (e === parent) {
-			break;
-		}
-		e = <HTMLElement>e.parentNode;
-	}
-
-	return left;
+	let elementPosition = getTopLeftOffset(element);
+	let parentPosition = getTopLeftOffset(parent);
+	return elementPosition.left - parentPosition.left;
 }
 
-// Adapted from WinJS
 // Gets the top coordinate of the element relative to the specified parent.
 export function getRelativeTop(element: HTMLElement, parent: HTMLElement): number {
 	if (element === null) {
 		return 0;
 	}
 
-	let top = element.offsetTop;
-	let e = <HTMLElement>element.parentNode;
-	while (e !== null) {
-		top -= e.offsetTop;
+	let elementPosition = getTopLeftOffset(element);
+	let parentPosition = getTopLeftOffset(parent);
+	return parentPosition.top - elementPosition.top;
+}
 
-		if (e === parent) {
-			break;
-		}
-		e = <HTMLElement>e.parentNode;
-	}
-
-	return top;
+export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[]): number {
+	let childWidths = children.map((child) => {
+		return getTotalWidth(child) + getRelativeLeft(child, parent) || 0;
+	});
+	let maxWidth = Math.max(...childWidths);
+	return maxWidth;
 }
 
 // ----------------------------------------------------------------------------------------

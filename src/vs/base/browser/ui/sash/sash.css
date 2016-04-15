@@ -24,3 +24,11 @@
 .monaco-sash.disabled {
 	cursor: default;
 }
+
+.vertical-cursor-container * {
+	cursor: ew-resize !important;
+}
+
+.horizontal-cursor-container * {
+	cursor: ns-resize !important;
+}

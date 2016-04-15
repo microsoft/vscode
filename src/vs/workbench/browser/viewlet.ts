@@ -25,7 +25,11 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {StructuredSelection} from 'vs/platform/selection/common/selection';
 
-export abstract class Viewlet extends Composite implements IViewlet { }
+export abstract class Viewlet extends Composite implements IViewlet {
+	public getOptimalWidth(): number {
+		return null;
+	}
+}
 
 /**
  * Helper subtype of viewlet for those that use a tree inside.
