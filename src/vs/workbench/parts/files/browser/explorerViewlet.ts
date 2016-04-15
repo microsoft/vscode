@@ -177,9 +177,10 @@ export class ExplorerViewlet extends Viewlet {
 
 	public getOptimalWidth(): number {
 		let additionalMargin = 16;
-		let optimalWidth = Math.max(
-			this.getWorkingFilesView().getOptimalWidth(),
-			this.getExplorerView().getOptimalWidth());
+		let workingFilesViewWidth = this.getWorkingFilesView().getOptimalWidth();
+		let explorerView = this.getExplorerView();
+		let explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
+		let optimalWidth = Math.max(workingFilesViewWidth, explorerViewWidth);
 		return optimalWidth + additionalMargin;
 	}
 
