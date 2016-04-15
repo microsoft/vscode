@@ -127,7 +127,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	}
 
 	private cleanup(exceptVersion: string = null): Promise {
-		let filter = exceptVersion ? one => !(new RegExp(`${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? one => !(new RegExp(`${ quality }-${ exceptVersion }\\.exe$`).test(one)) : () => true;
 
 		return this.cachePath
 			.then(cachePath => pfs.readdir(cachePath)
