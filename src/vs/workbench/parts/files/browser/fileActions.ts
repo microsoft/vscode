@@ -1808,51 +1808,24 @@ export class ReopenClosedFileAction extends Action {
 
 		return viewletPromise.then(() => {
 			let workingFilesModel: Files.IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
-			let resources: Files.IWorkingFileEntry[] = workingFilesModel.popLastClosedEntry();
+			let entry: Files.IWorkingFileEntry = workingFilesModel.popLastClosedEntry();
 
-			if (resources === null) {
+			if (entry === null) {
 				return TPromise.as(true);
 			}
 
-			let resolveFilePromises: TPromise<any>[] = resources.map((r) => { return this.fileService.resolveFile(r.resource); });
-
-			return TPromise.join(resolveFilePromises).then(() => {
-				return this.openEntries(resources, workingFilesModel);
-			}, (e: any[]) => {
-
-				// Don't attempt to reopen files that fail because they no longer exist
-				let exceptions = [];
-				e.forEach(err => {
-					if (err.code === 'ENOENT') {
-						resources = resources.filter(r => r.resource.path !== err.path);
-					} else {
-						exceptions.push(e);
-					}
-				});
-
-				let result: TPromise<any>;
-				if (resources.length > 0) {
-					result = this.openEntries(resources, workingFilesModel);
-				} else if (exceptions.length === 0) {
-					// None of the files exist anymore, run action again
+			return this.fileService.resolveFile(entry.resource).then(() => {
+				workingFilesModel.addEntry(entry.resource);
+				return this.editorService.openEditor(entry);
+			}, (e: any) => {
+				if (e.code === 'ENOENT') {
+					// The files no longer exists, run action again
 					return this.run();
 				}
 
-				if (exceptions.length > 0) {
-					return TPromise.wrapError({ 'exception': e, 'resultPromise': result });
-				}
-
-				return result;
+				return TPromise.wrapError(e);
 			});
 		});
-	}
-
-	private openEntries(resources: Files.IWorkingFileEntry[], workingFilesModel: Files.IWorkingFilesModel): TPromise<any> {
-		let newEntries: Files.IWorkingFileEntry[] = [];
-		resources.forEach(function (resource) {
-			newEntries.push(workingFilesModel.addEntry(resource));
-		});
-		return this.editorService.openEditor(newEntries[0]);
 	}
 }
 

@@ -64,17 +64,14 @@ suite('Files - WorkingFilesModel', () => {
 		model.removeEntry(file3);
 		model.removeEntry(file1);
 
-		let lastClosedEntry1: WorkingFileEntry[] = model.popLastClosedEntry();
-		let lastClosedEntry2: WorkingFileEntry[] = model.popLastClosedEntry();
-		let lastClosedEntry3: WorkingFileEntry[] = model.popLastClosedEntry();
+		let lastClosedEntry1: WorkingFileEntry = model.popLastClosedEntry();
+		let lastClosedEntry2: WorkingFileEntry = model.popLastClosedEntry();
+		let lastClosedEntry3: WorkingFileEntry = model.popLastClosedEntry();
 		assert.equal(model.popLastClosedEntry(), null);
 
-		assert.equal(lastClosedEntry1.length, 1);
-		assert.equal(lastClosedEntry1[0].resource, file1);
-		assert.equal(lastClosedEntry2.length, 1);
-		assert.equal(lastClosedEntry2[0].resource, file3);
-		assert.equal(lastClosedEntry3.length, 1);
-		assert.equal(lastClosedEntry3[0].resource, file2);
+		assert.equal(lastClosedEntry1.resource, file1);
+		assert.equal(lastClosedEntry2.resource, file3);
+		assert.equal(lastClosedEntry3.resource, file2);
 	});
 
 	test("Untitled entries are not added to the closed entries stack", function () {
@@ -85,9 +82,8 @@ suite('Files - WorkingFilesModel', () => {
 		model.addEntry(untitledUri);
 
 		model.removeEntry(fileUri);
-		let lastClosedEntry: WorkingFileEntry[] = model.popLastClosedEntry();
-		assert.equal(lastClosedEntry.length, 1);
-		assert.equal(lastClosedEntry[0].resource, fileUri);
+		let lastClosedEntry: WorkingFileEntry = model.popLastClosedEntry();
+		assert.equal(lastClosedEntry.resource, fileUri);
 
 		model.removeEntry(untitledUri);
 		assert.equal(model.popLastClosedEntry(), null);
@@ -97,14 +93,12 @@ suite('Files - WorkingFilesModel', () => {
 		let model = baseInstantiationService.createInstance(WorkingFilesModel);
 		model.addEntry(URI.create('file', null, '/foo'));
 		model.addEntry(URI.create('file', null, '/bar'));
+
 		assert.equal(model.popLastClosedEntry(), null);
-
 		model.clear();
-		let lastClosedEntry: WorkingFileEntry[] = model.popLastClosedEntry();
-		assert.equal(lastClosedEntry.length, 2);
-		assert.ok(lastClosedEntry[0].isFile);
-		assert.ok(lastClosedEntry[1].isFile);
 
+		assert.ok(model.popLastClosedEntry().isFile);
+		assert.ok(model.popLastClosedEntry().isFile);
 		assert.equal(model.popLastClosedEntry(), null);
 	});
 
@@ -119,8 +113,9 @@ suite('Files - WorkingFilesModel', () => {
 		model.addEntry(URI.create('file', null, '/bar'));
 		model.clear();
 
-		let lastClosedEntry: WorkingFileEntry[] = model.popLastClosedEntry();
-		assert.equal(lastClosedEntry[0].resource.path, '/foo');
+		assert.equal(model.popLastClosedEntry().resource.path, '/foo');
+		assert.equal(model.popLastClosedEntry().resource.path, '/bar');
+		assert.equal(model.popLastClosedEntry(), null);
 
 		// Open /bar then /foo, set /foo as active input
 		model.addEntry(URI.create('file', null, '/bar'));
@@ -130,7 +125,8 @@ suite('Files - WorkingFilesModel', () => {
 		};
 		model.clear();
 
-		lastClosedEntry = model.popLastClosedEntry();
-		assert.equal(lastClosedEntry[0].resource.path, '/foo');
+		assert.equal(model.popLastClosedEntry().resource.path, '/foo');
+		assert.equal(model.popLastClosedEntry().resource.path, '/bar');
+		assert.equal(model.popLastClosedEntry(), null);
 	});
 });

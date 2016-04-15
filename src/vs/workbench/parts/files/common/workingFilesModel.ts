@@ -27,7 +27,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 	private static STORAGE_KEY = 'workingFiles.model.entries';
 
 	private entries: WorkingFileEntry[];
-	private recentlyClosedEntries: WorkingFileEntry[][];
+	private recentlyClosedEntries: WorkingFileEntry[];
 	private pathLabelProvider: labels.PathLabelProvider;
 	private mapEntryToResource: { [resource: string]: WorkingFileEntry; };
 	private _onModelChange: Emitter<IWorkingFileModelChangeEvent>;
@@ -305,7 +305,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		return null;
 	}
 
-	public popLastClosedEntry(): WorkingFileEntry[] {
+	public popLastClosedEntry(): WorkingFileEntry {
 		if (this.recentlyClosedEntries.length > 0) {
 			return this.recentlyClosedEntries.pop();
 		}
@@ -351,20 +351,21 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 			return;
 		}
 
-		// Make the active entry the first entry
-		let recentlyClosedEntry: WorkingFileEntry[] = [];
+		// Put the active entry on the top of the stack
 		let input = this.editorService.getActiveEditorInput();
 		let resource: uri = getUntitledOrFileResource(input);
 		let activeEntry: WorkingFileEntry;
 		if (resource) {
 			activeEntry = this.findEntry(resource);
-			if (activeEntry) {
-				recentlyClosedEntry.push(activeEntry);
-			}
 		}
-		this.recentlyClosedEntries.push(recentlyClosedEntry.concat(resources.filter(e => {
+
+		this.recentlyClosedEntries = this.recentlyClosedEntries.concat(resources.filter(e => {
 			return !activeEntry || e.resource.path !== activeEntry.resource.path;
-		})));
+		}));
+
+		if (activeEntry) {
+			this.recentlyClosedEntries.push(activeEntry);
+		}
 	}
 
 	private indexOf(resource: uri): number {

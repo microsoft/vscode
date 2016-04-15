@@ -393,16 +393,18 @@ export class VSCodeMenu {
 
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedFile', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed File"), 'workbench.files.action.reopenClosedFile'));
-		openRecentMenu.append(__separator__());
 
 		let recentList = this.getOpenedPathsList();
 
 		// Folders
-		recentList.folders.forEach((folder, index) => {
-			if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
-				openRecentMenu.append(this.createOpenRecentMenuItem(folder));
-			}
-		});
+		if (recentList.folders.length > 0) {
+			openRecentMenu.append(__separator__());
+			recentList.folders.forEach((folder, index) => {
+				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
+					openRecentMenu.append(this.createOpenRecentMenuItem(folder));
+				}
+			});
+		}
 
 		// Files
 		let files = recentList.files;
@@ -411,9 +413,7 @@ export class VSCodeMenu {
 		}
 
 		if (files.length > 0) {
-			if (recentList.folders.length > 0) {
-				openRecentMenu.append(__separator__());
-			}
+			openRecentMenu.append(__separator__());
 
 			files.forEach((file, index) => {
 				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
