@@ -11,11 +11,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {IModel, IRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IQuickFix, IQuickFixSupport} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {QuickFixRegistry, IQuickFix, IQuickFixSupport} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
-
-export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>('quickFixSupport');
 
 export interface IQuickFix2 extends IQuickFix {
 	support: IQuickFixSupport;

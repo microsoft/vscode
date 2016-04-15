@@ -605,10 +605,196 @@ export function getParseErrorMessage(errorCode: ParseErrorCode) : string {
 	}
 }
 
+export type NodeType = "object" | "array" | "property" | "string" | "number" | "null";
+
+
+export interface Node {
+	type: NodeType;
+	value: any;
+	offset: number;
+	length: number;
+	columnOffset?: number;
+}
+
+export interface Location {
+	previousNode: Node;
+	segments: string[];
+	completeProperty: boolean;
+}
+
+export function getLocation(text:string, position: number) : Location {
+	let segments: string[] = [];
+	let earlyReturnException = new Object();
+	let previousNode : Node = {
+		value: void 0,
+		offset: void 0,
+		length: void 0,
+		type: void 0
+	};
+	let completeProperty = false;
+	let hasComma = false;
+	try {
+		function setNode(value: string, offset: number, length: number, type: NodeType) {
+			previousNode.value = value;
+			previousNode.offset = offset;
+			previousNode.length = length;
+			previousNode.type = type;
+			previousNode.columnOffset = void 0;
+		}
+		visit(text, {
+			onObjectBegin: (offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				setNode(void 0, void 0, void 0, void 0);
+				completeProperty = position > offset;
+				hasComma = false;
+			},
+			onObjectProperty: (name: string, offset: number, length: number) => {
+				if (position < offset) {
+					throw earlyReturnException;
+				}
+				setNode(name, offset, length, 'property');
+				hasComma = false;
+				segments.push(name);
+				if (position <= offset + length) {
+					throw earlyReturnException;
+				}
+			},
+			onObjectEnd: (offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				setNode(void 0, void 0, void 0, void 0);
+				if (!hasComma) {
+					segments.pop();
+				}
+				hasComma = false;
+			},
+			onArrayBegin: (offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				setNode(void 0, void 0, void 0, void 0);
+				segments.push('[0]');
+				hasComma = false;
+			},
+			onArrayEnd: (offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				setNode(void 0, void 0, void 0, void 0);
+				if (!hasComma) {
+					segments.pop();
+				}
+				hasComma = false;
+			},
+			onLiteralValue: (value: any, offset: number, length: number) => {
+				if (position < offset) {
+					throw earlyReturnException;
+				}
+				setNode(value, offset, length, value === null ? 'null' : (typeof value === 'string' ? 'string' : 'number'));
+				if (position <= offset + length) {
+					throw earlyReturnException;
+				}
+			},
+			onSeparator: (sep: string, offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				if (sep === ':' && previousNode.type === 'property') {
+					previousNode.columnOffset = offset;
+					completeProperty = false;
+					setNode(void 0, void 0, void 0, void 0);
+				} else if (sep === ',') {
+					let last = segments.pop();
+					if (last[0] === '[' && last[last.length - 1] === ']') {
+						segments.push('[' + (parseInt(last.substr(1, last.length - 2)) + 1) + ']');
+					} else {
+						completeProperty = true;
+					}
+					setNode(void 0, void 0, void 0, void 0);
+					hasComma = true;
+				}
+			}
+		});
+	} catch (e) {
+		if (e !== earlyReturnException) {
+			throw e;
+		}
+	}
+	return {
+		segments,
+		previousNode,
+		completeProperty
+	};
+}
+
 
 export function parse(text:string, errors: { error:ParseErrorCode; }[] = []) : any {
-	var noMatch = Object();
+	let currentProperty : string = null;
+	let currentParent : any = [];
+	let previousParents : any[] = [];
+
+	function onValue(value: any) {
+		if (Array.isArray(currentParent)) {
+			(<any[]> currentParent).push(value);
+		} else if (currentProperty) {
+			currentParent[currentProperty] = value;
+		}
+	}
+
+	let visitor = {
+		onObjectBegin: () => {
+			let object = {};
+			onValue(object);
+			previousParents.push(currentParent);
+			currentParent = object;
+			currentProperty = null;
+		},
+		onObjectProperty: (name: string) => {
+			currentProperty = name;
+		},
+		onObjectEnd: () => {
+			currentParent = previousParents.pop();
+		},
+		onArrayBegin: () => {
+			let array = [];
+			onValue(array);
+			previousParents.push(currentParent);
+			currentParent = array;
+			currentProperty = null;
+		},
+		onArrayEnd: () => {
+			currentParent = previousParents.pop();
+		},
+		onLiteralValue: onValue,
+		onError:(error:ParseErrorCode) => {
+			errors.push({error: error});
+		}
+	};
+	visit(text, visitor);
+	return currentParent[0];
+}
+
+export function visit(text:string, visitor: JSONVisitor) : any {
 	var _scanner = createScanner(text, true);
+
+	function toNoArgVisit(visitFunction: (offset: number, length: number) => void) : () => void {
+		return visitFunction ? () => visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
+	}
+	function toOneArgVisit<T>(visitFunction: (arg: T, offset: number, length: number) => void) : (arg: T) => void {
+		return visitFunction ? (arg: T) => visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
+	}
+
+	let onObjectBegin = toNoArgVisit(visitor.onObjectBegin),
+		onObjectProperty = toOneArgVisit(visitor.onObjectProperty),
+		onObjectEnd = toNoArgVisit(visitor.onObjectEnd),
+		onArrayBegin = toNoArgVisit(visitor.onArrayBegin),
+		onArrayEnd = toNoArgVisit(visitor.onArrayEnd),
+		onLiteralValue = toOneArgVisit(visitor.onLiteralValue),
+		onSeparator = toOneArgVisit(visitor.onSeparator),
+		onError = toOneArgVisit(visitor.onError);
 
 	function scanNext() : SyntaxKind {
 		var token = _scanner.scan();
@@ -620,7 +806,7 @@ export function parse(text:string, errors: { error:ParseErrorCode; }[] = []) : a
 	}
 
 	function handleError(error:ParseErrorCode, skipUntilAfter: SyntaxKind[] = [], skipUntil: SyntaxKind[] = []) : void {
-		errors.push({ error: error });
+		onError(error);
 		if (skipUntilAfter.length + skipUntil.length > 0) {
 			var token = _scanner.getToken();
 			while (token !== SyntaxKind.EOF) {
@@ -635,19 +821,24 @@ export function parse(text:string, errors: { error:ParseErrorCode; }[] = []) : a
 		}
 	}
 
-	function parseString() : any {
+	function parseString(isValue: boolean) : boolean {
 		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
-			return noMatch;
+			return false;
 		}
 		var value = _scanner.getTokenValue();
+		if (isValue) {
+			onLiteralValue(value);
+		} else {
+			onObjectProperty(value);
+		}
 		scanNext();
-		return value;
+		return true;
 	}
 
-	function parseLiteral() : any {
-		var value : any;
+	function parseLiteral() : boolean {
 		switch (_scanner.getToken()) {
 			case SyntaxKind.NumericLiteral:
+				let value = 0;
 				try {
 					value = JSON.parse(_scanner.getTokenValue());
 					if (typeof value !== 'number') {
@@ -655,38 +846,36 @@ export function parse(text:string, errors: { error:ParseErrorCode; }[] = []) : a
 						value = 0;
 					}
 				} catch (e) {
-					value = 0;
+					handleError(ParseErrorCode.InvalidNumberFormat);
 				}
+				onLiteralValue(value);
 				break;
 			case SyntaxKind.NullKeyword:
-				value = null;
+				onLiteralValue(null);
 				break;
 			case SyntaxKind.TrueKeyword:
-				value = true;
+				onLiteralValue(true);
 				break;
 			case SyntaxKind.FalseKeyword:
-				value = false;
+				onLiteralValue(false);
 				break;
 			default:
-				return noMatch;
+				return false;
 		}
 		scanNext();
-		return value;
+		return true;
 	}
 
-	function parseProperty(result: any) : any {
-		var key = parseString();
-		if (key === noMatch) {
+	function parseProperty() : boolean {
+		if (!parseString(false)) {
 			handleError(ParseErrorCode.PropertyNameExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
 			return false;
 		}
 		if (_scanner.getToken() === SyntaxKind.ColonToken) {
+			onSeparator(':');
 			scanNext(); // consume colon
 
-			var value = parseValue();
-			if (value !== noMatch) {
-				result[key] = value;
-			} else {
+			if (!parseValue()) {
 				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
 			}
 		} else {
@@ -695,11 +884,11 @@ export function parse(text:string, errors: { error:ParseErrorCode; }[] = []) : a
 		return true;
 	}
 
-	function parseObject() : any {
+	function parseObject() : boolean {
 		if (_scanner.getToken() !== SyntaxKind.OpenBraceToken) {
-			return noMatch;
+			return false;
 		}
-		var obj = {};
+		onObjectBegin();
 		scanNext(); // consume open brace
 
 		var needsComma = false;
@@ -708,30 +897,30 @@ export function parse(text:string, errors: { error:ParseErrorCode; }[] = []) : a
 				if (!needsComma) {
 					handleError(ParseErrorCode.ValueExpected, [], [] );
 				}
+				onSeparator(',');
 				scanNext(); // consume comma
 			} else if (needsComma) {
 				handleError(ParseErrorCode.CommaExpected, [], [] );
 			}
-			var propertyParsed = parseProperty(obj);
-			if (!propertyParsed) {
+			if (!parseProperty()) {
 				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
 			}
 			needsComma = true;
 		}
-
+		onObjectEnd();
 		if (_scanner.getToken() !== SyntaxKind.CloseBraceToken) {
 			handleError(ParseErrorCode.CloseBraceExpected, [SyntaxKind.CloseBraceToken], []);
 		} else {
 			scanNext(); // consume close brace
 		}
-		return obj;
+		return true;
 	}
 
-	function parseArray() : any {
+	function parseArray() : boolean {
 		if (_scanner.getToken() !== SyntaxKind.OpenBracketToken) {
-			return noMatch;
+			return false;
 		}
-		var arr: any[] = [];
+		onArrayBegin();
 		scanNext(); // consume open bracket
 
 		var needsComma = false;
@@ -740,51 +929,52 @@ export function parse(text:string, errors: { error:ParseErrorCode; }[] = []) : a
 				if (!needsComma) {
 					handleError(ParseErrorCode.ValueExpected, [], [] );
 				}
+				onSeparator(',');
 				scanNext(); // consume comma
 			} else if (needsComma) {
 				handleError(ParseErrorCode.CommaExpected, [], [] );
 			}
-			var value = parseValue();
-			if (value === noMatch) {
+			if (!parseValue()) {
 				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBracketToken, SyntaxKind.CommaToken] );
-			} else {
-				arr.push(value);
 			}
 			needsComma = true;
 		}
-
+		onArrayEnd();
 		if (_scanner.getToken() !== SyntaxKind.CloseBracketToken) {
 			handleError(ParseErrorCode.CloseBracketExpected, [SyntaxKind.CloseBracketToken], []);
 		} else {
 			scanNext(); // consume close bracket
 		}
-		return arr;
+		return true;
 	}
 
-	function parseValue() : any {
-		var result = parseArray();
-		if (result !== noMatch) {
-			return result;
-		}
-		result = parseObject();
-		if (result !== noMatch) {
-			return result;
-		}
-		result = parseString();
-		if (result !== noMatch) {
-			return result;
-		}
-		return parseLiteral();
+	function parseValue() : boolean {
+		return parseArray() || parseObject() || parseString(true) || parseLiteral();
 	}
 
 	scanNext();
-	var value = parseValue();
-	if (value === noMatch) {
+	if (!parseValue()) {
 		handleError(ParseErrorCode.ValueExpected, [], []);
-		return void 0;
+		return false;
 	}
 	if (_scanner.getToken() !== SyntaxKind.EOF) {
 		handleError(ParseErrorCode.EndOfFileExpected, [], []);
 	}
-	return value;
+	return true;
+}
+
+export interface JSONVisitor {
+	onObjectBegin?: (offset:number, length:number) => void;
+	onObjectProperty?: (property: string, offset:number, length:number) => void;
+
+	onObjectEnd?: (offset:number, length:number) => void;
+
+	onArrayBegin?: (offset:number, length:number) => void;
+	onArrayEnd?: (offset:number, length:number) => void;
+
+	onLiteralValue?: (value: any, offset:number, length:number) => void;
+
+	onSeparator?: (charcter: string, offset:number, length:number) => void;
+
+	onError?: (error: ParseErrorCode, offset:number, length:number) => void;
 }

@@ -337,6 +337,7 @@ export interface IKeybindingService {
 
 	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
 	executeCommand(commandId: string, args?: any): TPromise<any>;
+	hasCommand(commandId: string): boolean;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

@@ -100,12 +100,12 @@ if (!fs.existsSync(userHome)) {
 	fs.mkdirSync(userHome);
 }
 
-export const userExtensionsHome = cliArgs.pluginHomePath || path.join(userHome, 'extensions');
+export const userExtensionsHome = cliArgs.extensionsHomePath || path.join(userHome, 'extensions');
 if (!fs.existsSync(userExtensionsHome)) {
 	fs.mkdirSync(userExtensionsHome);
 }
 
-// Helper to identify if we have plugin tests to run from the command line without debugger
+// Helper to identify if we have extension tests to run from the command line without debugger
 export const isTestingFromCli = cliArgs.extensionTestsPath && !cliArgs.debugBrkExtensionHost;
 
 export function log(...a: any[]): void {
@@ -125,7 +125,7 @@ export interface ICommandLineArguments {
 	logExtensionHostCommunication: boolean;
 	disableExtensions: boolean;
 
-	pluginHomePath: string;
+	extensionsHomePath: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
@@ -199,13 +199,13 @@ function parseCli(): ICommandLineArguments {
 		verboseLogging: !!opts['verbose'],
 		debugExtensionHostPort: debugExtensionHostPort,
 		debugBrkExtensionHost: debugBrkExtensionHost,
-		logExtensionHostCommunication: !!opts['logPluginHostCommunication'],
+		logExtensionHostCommunication: !!opts['logExtensionHostCommunication'],
 		firstrun: !!opts['squirrel-firstrun'],
 		openNewWindow: !!opts['n'] || !!opts['new-window'],
 		openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
 		gotoLineMode: gotoLineMode,
 		diffMode: (!!opts['d'] || !!opts['diff']) && pathArguments.length === 2,
-		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
+		extensionsHomePath: normalizePath(parseString(args, '--extensionHomePath')),
 		extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
 		extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
 		disableExtensions: !!opts['disableExtensions'] || !!opts['disable-extensions'],

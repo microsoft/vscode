@@ -764,4 +764,22 @@ export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSup
 
 export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
 
-export var SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
+export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
+
+export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>('parameterHintsSupport');
+
+export const ExtraInfoRegistry = new LanguageFeatureRegistry<IExtraInfoSupport>('extraInfoSupport');
+
+export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
+
+export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
+
+export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
+
+export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>('codeLensSupport');
+
+export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>('quickFixSupport');
+
+export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
+
+export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');

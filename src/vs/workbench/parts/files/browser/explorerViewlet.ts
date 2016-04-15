@@ -175,6 +175,15 @@ export class ExplorerViewlet extends Viewlet {
 		return this.actionRunner;
 	}
 
+	public getOptimalWidth(): number {
+		let additionalMargin = 16;
+		let workingFilesViewWidth = this.getWorkingFilesView().getOptimalWidth();
+		let explorerView = this.getExplorerView();
+		let explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
+		let optimalWidth = Math.max(workingFilesViewWidth, explorerViewWidth);
+		return optimalWidth + additionalMargin;
+	}
+
 	public shutdown(): void {
 		this.views.forEach((view) => view.shutdown());
 

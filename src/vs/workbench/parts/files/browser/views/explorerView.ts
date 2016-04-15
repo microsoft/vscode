@@ -24,7 +24,7 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
 import {IEditor} from 'vs/platform/editor/common/editor';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import {CollapseAction, CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -346,6 +346,12 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
 
 		return this.explorerViewer;
+	}
+
+	public getOptimalWidth(): number {
+		let parentNode = this.explorerViewer.getHTMLElement();
+		let childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item-label > a'));
+		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
 	private onLocalFileChange(e: LocalFileChangeEvent): void {

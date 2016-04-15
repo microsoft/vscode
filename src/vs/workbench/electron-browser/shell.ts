@@ -55,7 +55,7 @@ import {MainThreadFileSystemEventService} from 'vs/workbench/api/node/extHostFil
 import {MainThreadQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
 import {MainThreadStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
 import {MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
+import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {MainThreadDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {MainThreadOutputService} from 'vs/workbench/api/node/extHostOutputService';
 import {MainThreadMessageService} from 'vs/workbench/api/node/extHostMessageService';
@@ -92,6 +92,9 @@ import {connect} from 'vs/base/node/service.net';
 import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
 import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
+
+// self registering service
+import 'vs/platform/opener/electron-browser/opener.contribution';
 
 /**
  * Services that we require for the Shell
@@ -243,7 +246,10 @@ export class WorkbenchShell {
 			&& !!this.configuration.env.enableTelemetry) {
 
 			this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
-				cleanupPatterns: [new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi')],
+				cleanupPatterns: [
+					[new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), '<APP_ROOT>'],
+					[new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi'), '<EXT_ROOT>']
+				],
 				version: this.configuration.env.version,
 				commitHash: this.configuration.env.commitHash
 			});
@@ -251,7 +257,7 @@ export class WorkbenchShell {
 			this.telemetryService = NullTelemetryService;
 		}
 
-		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.configurationService, this.telemetryService, <any>window);
+		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, <any>window);
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
 		this.keybindingService.setMessageService(this.messageService);

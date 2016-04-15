@@ -9,15 +9,13 @@ import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
 import {Range} from 'vs/editor/common/core/range';
 import {IEditorRange, IRange} from 'vs/editor/common/editorCommon';
-import {IComputeExtraInfoResult, IMode} from 'vs/editor/common/modes';
+import {ExtraInfoRegistry, IComputeExtraInfoResult, IMode} from 'vs/editor/common/modes';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {ExtraInfoRegistry, getExtraInfoAtPosition} from '../common/hover';
+import {getExtraInfoAtPosition} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
 
@@ -123,18 +121,16 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _hoverOperation: HoverOperation<IComputeExtraInfoResult[]>;
 	private _highlightDecorations:string[];
 	private _isChangingDecorations: boolean;
-	private _editorService: IEditorService;
-	private _keybindingService: IKeybindingService;
+	private _openerService: IOpenerService;
 	private _shouldFocus: boolean;
 
-	constructor(editor: ICodeEditor, editorService: IEditorService, keybindingService: IKeybindingService) {
+	constructor(editor: ICodeEditor, openerService: IOpenerService) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
-		this._editorService = editorService;
-		this._keybindingService = keybindingService;
+		this._openerService = openerService || NullOpenerService;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -246,21 +242,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				msg.htmlContent.forEach((content) => {
 					container.appendChild(renderHtml(content, {
 						actionCallback: (content) => {
-
-							let promise: TPromise<any>;
-							if (KeybindingsRegistry.getCommands()[content]) {
-								promise = this._keybindingService.executeCommand(content);
-							} else {
-								try {
-									let resource = URI.parse(content);
-									promise = this._editorService.openEditor({resource});
-								} catch (e) {
-									// ignore
-								}
-							}
-							if (promise) {
-								promise.then(undefined, err => console.log(err));
-							}
+							this._openerService.open(URI.parse(content));
 						},
 						codeBlockRenderer: (modeId, value) => {
 							let mode: IMode;

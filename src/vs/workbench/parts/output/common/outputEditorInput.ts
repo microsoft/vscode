@@ -11,7 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {EditorModel} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService, MAX_OUTPUT_LENGTH} from 'vs/workbench/parts/output/common/output';
+import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService, MAX_OUTPUT_LENGTH, IOutputChannel} from 'vs/workbench/parts/output/common/output';
 import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -27,7 +27,6 @@ export class OutputEditorInput extends StringEditorInput {
 	private static instances: { [channel: string]: OutputEditorInput; } = Object.create(null);
 
 	private outputSet: boolean;
-	private channel: string;
 	private bufferedOutput: string;
 	private toDispose: lifecycle.IDisposable[];
 	private appendOutputScheduler: RunOnceScheduler;
@@ -36,26 +35,25 @@ export class OutputEditorInput extends StringEditorInput {
 		return Object.keys(OutputEditorInput.instances).map((key) => OutputEditorInput.instances[key]);
 	}
 
-	public static getInstance(instantiationService: IInstantiationService, channel: string): OutputEditorInput {
-		if (OutputEditorInput.instances[channel]) {
-			return OutputEditorInput.instances[channel];
+	public static getInstance(instantiationService: IInstantiationService, channel: IOutputChannel): OutputEditorInput {
+		if (OutputEditorInput.instances[channel.id]) {
+			return OutputEditorInput.instances[channel.id];
 		}
 
-		OutputEditorInput.instances[channel] = instantiationService.createInstance(OutputEditorInput, channel);
+		OutputEditorInput.instances[channel.id] = instantiationService.createInstance(OutputEditorInput, channel);
 
-		return OutputEditorInput.instances[channel];
+		return OutputEditorInput.instances[channel.id];
 	}
 
 	constructor(
-		channel: string,
+		private outputChannel: IOutputChannel,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOutputService private outputService: IOutputService,
 		@IPanelService private panelService: IPanelService,
 		@IEventService private eventService: IEventService
 	) {
-		super(nls.localize('output', "Output"), channel ? nls.localize('outputChannel', "for '{0}'", channel) : '', '', OUTPUT_MIME, true, instantiationService);
+		super(nls.localize('output', "Output"), outputChannel ? nls.localize('outputChannel', "for '{0}'", outputChannel.label) : '', '', OUTPUT_MIME, true, instantiationService);
 
-		this.channel = channel;
 		this.bufferedOutput = '';
 		this.toDispose = [];
 		this.toDispose.push(this.outputService.onOutput(this.onOutputReceived, this));
@@ -75,7 +73,7 @@ export class OutputEditorInput extends StringEditorInput {
 
 	private appendOutput(): void {
 		if (this.value.length + this.bufferedOutput.length > MAX_OUTPUT_LENGTH) {
-			this.setValue(this.outputService.getOutput(this.channel));
+			this.setValue(this.outputChannel.output);
 		} else {
 			this.append(this.bufferedOutput);
 		}
@@ -86,7 +84,7 @@ export class OutputEditorInput extends StringEditorInput {
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {
-		if (this.outputSet && e.channel === this.channel) {
+		if (this.outputSet && e.channelId === this.outputChannel.id) {
 			if (e.output) {
 				this.bufferedOutput = strings.appendWithLimit(this.bufferedOutput, e.output, MAX_OUTPUT_LENGTH);
 				this.scheduleOutputAppend();
@@ -98,7 +96,7 @@ export class OutputEditorInput extends StringEditorInput {
 
 	private isVisible(): boolean {
 		const panel = this.panelService.getActivePanel();
-		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel() === this.channel;
+		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel().id === this.outputChannel.id;
 	}
 
 	private scheduleOutputAppend(): void {
@@ -118,21 +116,17 @@ export class OutputEditorInput extends StringEditorInput {
 				return model;
 			}
 
-			this.setValue(this.outputService.getOutput(this.channel));
+			this.setValue(this.outputChannel.output);
 			this.outputSet = true;
 
 			return model;
 		});
 	}
 
-	public getChannel(): string {
-		return this.channel;
-	}
-
 	public matches(otherInput: any): boolean {
 		if (otherInput instanceof OutputEditorInput) {
 			let otherOutputEditorInput = <OutputEditorInput>otherInput;
-			if (otherOutputEditorInput.getChannel() === this.channel) {
+			if (otherOutputEditorInput.outputChannel.id === this.outputChannel.id) {
 				return super.matches(otherInput);
 			}
 		}

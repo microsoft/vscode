@@ -116,7 +116,7 @@ var config = {
 gulp.task('electron', function () {
 	// Force windows to use ia32
 	var arch = process.env.VSCODE_ELECTRON_PLATFORM || (process.platform === 'win32' ? 'ia32' : process.arch);
-	return electron.dest(path.join(build, 'electron'), _.extend({}, config, { arch: arch }));
+	return electron.dest(path.join(build, 'electron'), _.extend({}, config, { arch: arch, ffmpegChromium: true }));
 });
 
 function mixinProduct() {
@@ -226,7 +226,7 @@ function packageTask(platform, arch, opts) {
 		var result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
-			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch })))
+			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch, ffmpegChromium: true })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {

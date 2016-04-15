@@ -4,8 +4,8 @@
 	<title>Virtual Document</title>
 	<style id="_defaultStyles"></style>
 </head>
-<body style="margin: 0; overflow: hidden;">
-	<iframe id="_target" frameborder="0"></iframe>
+<body style="margin: 0; overflow: hidden; width: 100%; height: 100%">
+	<iframe id="_target" frameborder="0" style="margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%"></iframe>
 	<script>
 		'use strict';
 
@@ -16,12 +16,6 @@
 
 		ipcRenderer.on('baseUrl', function(event, value) {
 			initData.baseUrl = value;
-		});
-
-		// forward layout calls
-		ipcRenderer.on('layout', function(event, width, height) {
-			document.body.style.width = target.style.width = width + 'px';
-			document.body.style.height = target.style.height = height + 'px';
 		});
 
 		ipcRenderer.on('styles', function(event, value) {
@@ -66,6 +60,17 @@
 				newDocument.head.appendChild(defaultStyles);
 			}
 
+			// script to bubble out link-clicks
+			const defaultScripts = newDocument.createElement('script');
+			defaultScripts.innerHTML = `
+				document.body.addEventListener('click', function (event) {
+					if(event.target.tagName === 'A' && event.target.href) {
+						window.parent.postMessage({ command: 'did-click-link', data: event.target.href }, 'file://');
+						event.preventDefault();
+					}
+				});`
+			newDocument.body.appendChild(defaultScripts);
+
 			// write new content onto iframe
 			target.contentDocument.open('text/html', 'replace');
 			target.contentDocument.write(newDocument.documentElement.innerHTML);
@@ -73,12 +78,14 @@
 
 		});
 
-		// signal ready, needs a short timeout for an
-		// unknown reason
-		setTimeout(function() {
-			ipcRenderer.sendToHost('webview-ready', process.pid);
-		}, 10);
+		// forward messages from the embedded iframe
+		window.onmessage = function(message) {
+			const { command, data} = message.data;
+			ipcRenderer.sendToHost(command, data);
+		};
 
+		// signal ready
+		ipcRenderer.sendToHost('webview-ready', process.pid);
 	</script>
 </body>
 </html>

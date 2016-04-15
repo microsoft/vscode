@@ -63,11 +63,12 @@ export class Sash extends EventEmitter {
 
 		this.gesture = new Gesture(this.$e.getHTMLElement());
 
-		this.$e.on('mousedown', (e: MouseEvent) => { this.onMouseDown(e); });
+		this.$e.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => { this.onMouseDown(e); });
+		this.$e.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => { this.emit('reset', e); });
 		this.$e.on(EventType.Start, (e: GestureEvent) => { this.onTouchStart(e); });
 
 		this.orientation = options.orientation || Orientation.VERTICAL;
-		this.$e.addClass(this.orientation === Orientation.HORIZONTAL ? 'horizontal' : 'vertical');
+		this.$e.addClass(this.getOrientation());
 
 		this.size = options.baseSize || 5;
 
@@ -91,6 +92,10 @@ export class Sash extends EventEmitter {
 		return this.$e.getHTMLElement();
 	}
 
+	private getOrientation(): 'horizontal' | 'vertical' {
+		return this.orientation === Orientation.HORIZONTAL ? 'horizontal' : 'vertical';
+	}
+
 	private onMouseDown(e: MouseEvent): void {
 		DOM.EventHelper.stop(e, false);
 
@@ -112,17 +117,8 @@ export class Sash extends EventEmitter {
 		this.$e.addClass('active');
 		this.emit('start', startEvent);
 
-		let overlayDiv = $('div').style({
-			position: 'absolute',
-			top: 0,
-			left: 0,
-			width: '100%',
-			height: '100%',
-			zIndex: 1000000,
-			cursor: this.orientation === Orientation.VERTICAL ? 'ew-resize' : 'ns-resize'
-		});
-
 		let $window = $(window);
+		let containerCssClass = `${this.getOrientation()}-cursor-container`;
 
 		let lastCurrentX = startX;
 		let lastCurrentY = startY;
@@ -148,10 +144,10 @@ export class Sash extends EventEmitter {
 			this.emit('end');
 
 			$window.off('mousemove');
-			overlayDiv.destroy();
+			document.body.classList.remove(containerCssClass);
 		});
 
-		overlayDiv.appendTo(document.body);
+		document.body.classList.add(containerCssClass);
 	}
 
 	private onTouchStart(event: GestureEvent): void {

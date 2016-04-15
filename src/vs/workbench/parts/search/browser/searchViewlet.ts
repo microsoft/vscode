@@ -157,13 +157,22 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 class SearchController extends DefaultController {
 
-	constructor() {
+	constructor(private viewlet: SearchViewlet) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
 		this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
-	private onDelete(tree: ITree, event: any): boolean {
+	protected onEscape(tree: ITree, event:IKeyboardEvent):boolean {
+		if (this.viewlet.cancelSearch()) {
+			return true;
+		}
+
+		return super.onEscape(tree, event);
+	}
+
+	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
 		let result = false;
 		let elements = tree.getSelection();
 		for (let i = 0; i < elements.length; i++) {
@@ -711,13 +720,7 @@ export class SearchViewlet extends Viewlet {
 			if (keyboardEvent.keyCode === KeyCode.Enter) {
 				this.onQueryChanged(true);
 			} else if (keyboardEvent.keyCode === KeyCode.Escape) {
-				this.findInput.focus();
-				this.findInput.select();
-
-				if (this.currentRequest) {
-					this.currentRequest.cancel();
-					this.currentRequest = null;
-				}
+				this.cancelSearch();
 			}
 		};
 
@@ -870,7 +873,7 @@ export class SearchViewlet extends Viewlet {
 				renderer: renderer,
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
-				controller: new SearchController(),
+				controller: new SearchController(this),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
@@ -1013,6 +1016,20 @@ export class SearchViewlet extends Viewlet {
 			this.currentRequest.cancel();
 			this.currentRequest = null;
 		}
+	}
+
+	public cancelSearch(): boolean {
+		if (this.currentRequest) {
+			this.findInput.focus();
+			this.findInput.select();
+
+			this.currentRequest.cancel();
+			this.currentRequest = null;
+
+			return true;
+		}
+
+		return false;
 	}
 
 	private selectTreeIfNotSelected(keyboardEvent: IKeyboardEvent): void {

@@ -80,9 +80,8 @@ export function consolidate(configMap: { [key: string]: IConfigFile; }): { conte
 	// For each config file in .vscode folder
 	Object.keys(configMap).forEach((configFileName) => {
 		let config = objects.clone(configMap[configFileName]);
-
 		let matches = regexp.exec(configFileName);
-		if (!matches) {
+		if (!matches || !config) {
 			return;
 		}
 

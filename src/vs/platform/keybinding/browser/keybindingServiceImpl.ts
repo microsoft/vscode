@@ -163,6 +163,11 @@ export abstract class AbstractKeybindingService {
 		this.getContext(this._myContextId).removeValue(key);
 	}
 
+	public hasCommand(commandId: string): boolean {
+		return !!KeybindingsRegistry.getCommands()[commandId];
+	}
+
+	public abstract executeCommand(commandId: string, args: any): TPromise<any>;
 	public abstract getLabelFor(keybinding: Keybinding): string;
 	public abstract getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	public abstract getAriaLabelFor(keybinding: Keybinding): string;
@@ -173,7 +178,7 @@ export abstract class AbstractKeybindingService {
 	public abstract disposeContext(contextId: number): void;
 	public abstract getDefaultKeybindings(): string;
 	public abstract lookupKeybindings(commandId: string): Keybinding[];
-	public abstract executeCommand(commandId: string, args: any): TPromise<any>;
+
 }
 
 export abstract class KeybindingService extends AbstractKeybindingService implements IKeybindingService {
@@ -373,7 +378,12 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	public executeCommand(commandId: string, args: any = {}): TPromise<any> {
-		if (!args.context) {
+
+		// TODO@{Alex,Joh} we should spec what args should be. adding extra
+		// props on a string will throw errors
+		if ((Array.isArray(args) || typeof args === 'object')
+			&& !args.context) {
+
 			args.context = Object.create(null);
 			this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(args.context);
 			this._configurationContext.fillInContext(args.context);

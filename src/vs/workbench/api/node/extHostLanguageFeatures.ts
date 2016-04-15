@@ -16,20 +16,12 @@ import * as modes from 'vs/editor/common/modes';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
-import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
-import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {QuickFixRegistry} from 'vs/editor/contrib/quickFix/common/quickFix';
-import {OutlineRegistry, IOutlineEntry, IOutlineSupport} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
-import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
-import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
-import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 
 // --- adapter
 
-class OutlineAdapter implements IOutlineSupport {
+class OutlineAdapter implements modes.IOutlineSupport {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentSymbolProvider;
@@ -39,7 +31,7 @@ class OutlineAdapter implements IOutlineSupport {
 		this._provider = provider;
 	}
 
-	getOutline(resource: URI): TPromise<IOutlineEntry[]> {
+	getOutline(resource: URI): TPromise<modes.IOutlineEntry[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -674,7 +666,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$getOutline(handle: number, resource: URI): TPromise<IOutlineEntry[]> {
+	$getOutline(handle: number, resource: URI): TPromise<modes.IOutlineEntry[]> {
 		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.getOutline(resource));
 	}
 
@@ -878,8 +870,8 @@ export class MainThreadLanguageFeatures {
 	// --- outline
 
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = OutlineRegistry.register(selector, <IOutlineSupport>{
-			getOutline: (resource: URI): TPromise<IOutlineEntry[]> => {
+		this._registrations[handle] = modes.OutlineRegistry.register(selector, <modes.IOutlineSupport>{
+			getOutline: (resource: URI): TPromise<modes.IOutlineEntry[]> => {
 				return this._proxy.$getOutline(handle, resource);
 			}
 		});
@@ -889,7 +881,7 @@ export class MainThreadLanguageFeatures {
 	// --- code lens
 
 	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = CodeLensRegistry.register(selector, <modes.ICodeLensSupport>{
+		this._registrations[handle] = modes.CodeLensRegistry.register(selector, <modes.ICodeLensSupport>{
 			findCodeLensSymbols: (resource: URI): TPromise<modes.ICodeLensSymbol[]> => {
 				return this._proxy.$findCodeLensSymbols(handle, resource);
 			},
@@ -903,7 +895,7 @@ export class MainThreadLanguageFeatures {
 	// --- declaration
 
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = DeclarationRegistry.register(selector, <modes.IDeclarationSupport>{
+		this._registrations[handle] = modes.DeclarationRegistry.register(selector, <modes.IDeclarationSupport>{
 			canFindDeclaration() {
 				return true;
 			},
@@ -917,7 +909,7 @@ export class MainThreadLanguageFeatures {
 	// --- extra info
 
 	$registerExtraInfoSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = ExtraInfoRegistry.register(selector, <modes.IExtraInfoSupport>{
+		this._registrations[handle] = modes.ExtraInfoRegistry.register(selector, <modes.IExtraInfoSupport>{
 			computeInfo: (resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> => {
 				return this._proxy.$computeInfo(handle, resource, position);
 			}
@@ -928,7 +920,7 @@ export class MainThreadLanguageFeatures {
 	// --- occurrences
 
 	$registerOccurrencesSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = OccurrencesRegistry.register(selector, <modes.IOccurrencesSupport>{
+		this._registrations[handle] = modes.OccurrencesRegistry.register(selector, <modes.IOccurrencesSupport>{
 			findOccurrences: (resource: URI, position: IPosition): TPromise<modes.IOccurence[]> => {
 				return this._proxy.$findOccurrences(handle, resource, position);
 			}
@@ -953,7 +945,7 @@ export class MainThreadLanguageFeatures {
 	// --- quick fix
 
 	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = QuickFixRegistry.register(selector, <modes.IQuickFixSupport>{
+		this._registrations[handle] = modes.QuickFixRegistry.register(selector, <modes.IQuickFixSupport>{
 			getQuickFixes: (resource: URI, range: IRange): TPromise<modes.IQuickFix[]> => {
 				return this._proxy.$getQuickFixes(handle, resource, range);
 			},
@@ -967,7 +959,7 @@ export class MainThreadLanguageFeatures {
 	// --- formatting
 
 	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = FormatRegistry.register(selector, <modes.IFormattingSupport>{
+		this._registrations[handle] = modes.FormatRegistry.register(selector, <modes.IFormattingSupport>{
 			formatDocument: (resource: URI, options: modes.IFormattingOptions): TPromise <ISingleEditOperation[] > => {
 				return this._proxy.$formatDocument(handle, resource, options);
 			}
@@ -976,7 +968,7 @@ export class MainThreadLanguageFeatures {
 	}
 
 	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = FormatRegistry.register(selector, <modes.IFormattingSupport>{
+		this._registrations[handle] = modes.FormatRegistry.register(selector, <modes.IFormattingSupport>{
 			formatRange: (resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise <ISingleEditOperation[] > => {
 				return this._proxy.$formatRange(handle, resource, range, options);
 			}
@@ -985,7 +977,7 @@ export class MainThreadLanguageFeatures {
 	}
 
 	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any> {
-		this._registrations[handle] = FormatOnTypeRegistry.register(selector, <modes.IFormattingSupport>{
+		this._registrations[handle] = modes.FormatOnTypeRegistry.register(selector, <modes.IFormattingSupport>{
 
 			autoFormatTriggerCharacters,
 
@@ -1044,7 +1036,7 @@ export class MainThreadLanguageFeatures {
 	// --- parameter hints
 
 	$registerParameterHintsSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> {
-		this._registrations[handle] = ParameterHintsRegistry.register(selector, <modes.IParameterHintsSupport>{
+		this._registrations[handle] = modes.ParameterHintsRegistry.register(selector, <modes.IParameterHintsSupport>{
 			getParameterHints: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> => {
 				return this._proxy.$getParameterHints(handle, resource, position, triggerCharacter);
 			},

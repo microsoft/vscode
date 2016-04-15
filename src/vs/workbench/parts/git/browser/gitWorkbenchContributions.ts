@@ -452,7 +452,7 @@ export function registerContributions(): void {
 
 	// Register Output Channel
 	var outputChannelRegistry = <output.IOutputChannelRegistry>platform.Registry.as(output.Extensions.OutputChannels);
-	outputChannelRegistry.registerChannel('Git');
+	outputChannelRegistry.registerChannel('Git', nls.localize('git', "Git"));
 
 	// Register Git Output
 	(<ext.IWorkbenchContributionsRegistry>platform.Registry.as(ext.Extensions.Workbench)).registerWorkbenchContribution(

@@ -5,19 +5,24 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError} from 'vs/base/common/errors';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IOutputService, OUTPUT_EDITOR_INPUT_ID} from 'vs/workbench/parts/output/common/output';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {Registry} from 'vs/platform/platform';
+import {IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 
+	private static _idPool = 1;
+
 	private _proxy: MainThreadOutputService;
 	private _name: string;
+	private _id: string;
 	private _disposed: boolean;
 
 	constructor(name: string, proxy: MainThreadOutputService) {
 		this._name = name;
+		this._id = 'extension-output-#' + (ExtHostOutputChannel._idPool++);
 		this._proxy = proxy;
 	}
 
@@ -27,14 +32,14 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 
 	dispose(): void {
 		if (!this._disposed) {
-			this._proxy.clear(this._name).then(() => {
+			this._proxy.clear(this._id, this._name).then(() => {
 				this._disposed = true;
 			});
 		}
 	}
 
 	append(value: string): void {
-		this._proxy.append(this._name, value);
+		this._proxy.append(this._id, this._name, value);
 	}
 
 	appendLine(value: string): void {
@@ -42,7 +47,7 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 	}
 
 	clear(): void {
-		this._proxy.clear(this._name);
+		this._proxy.clear(this._id, this._name);
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
@@ -50,11 +55,11 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 			preserveFocus = columnOrPreserveFocus;
 		}
 
-		this._proxy.reveal(this._name, preserveFocus);
+		this._proxy.reveal(this._id, this._name, preserveFocus);
 	}
 
 	hide(): void {
-		this._proxy.close(this._name);
+		this._proxy.close(this._id);
 	}
 }
 
@@ -80,35 +85,47 @@ export class ExtHostOutputService {
 export class MainThreadOutputService {
 
 	private _outputService: IOutputService;
-	private _editorService: IWorkbenchEditorService;
+	private _partService: IPartService;
+	private _panelService: IPanelService;
 
-	constructor( @IOutputService outputService: IOutputService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+	constructor(@IOutputService outputService: IOutputService,
+		@IPartService partService: IPartService,
+		@IPanelService panelService: IPanelService
+	) {
 		this._outputService = outputService;
-		this._editorService = editorService;
+		this._partService = partService;
+		this._panelService = panelService;
 	}
 
-	public append(channel: string, value: string): TPromise<void> {
-		this._outputService.append(channel, value);
+	public append(channelId: string, label: string, value: string): TPromise<void> {
+		this._getChannel(channelId, label).append(value);
 		return undefined;
 	}
 
-	public clear(channel: string): TPromise<void> {
-		this._outputService.clearOutput(channel);
+	public clear(channelId: string, label: string): TPromise<void> {
+		this._getChannel(channelId, label).clear();
 		return undefined;
 	}
 
-	public reveal(channel: string, preserveFocus: boolean): TPromise<void> {
-		this._outputService.showOutput(channel, preserveFocus);
+	public reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> {
+		this._getChannel(channelId, label).show(preserveFocus);
 		return undefined;
 	}
 
-	public close(channel: string): TPromise<void> {
-		let editors = this._editorService.getVisibleEditors();
-		for (let editor of editors) {
-			if (editor.input.getId() === OUTPUT_EDITOR_INPUT_ID) {
-				this._editorService.closeEditor(editor).done(null, onUnexpectedError);
-				return undefined;
-			}
+	private _getChannel(channelId: string, label: string): IOutputChannel {
+		if (Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().every(channel => channel.id !== channelId)) {
+			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel(channelId, label);
 		}
+
+		return this._outputService.getChannel(channelId);
+	}
+
+	public close(channelId: string): TPromise<void> {
+		const panel = this._panelService.getActivePanel();
+		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id ) {
+			this._partService.setPanelHidden(true);
+		}
+
+		return undefined;
 	}
 }

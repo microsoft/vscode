@@ -663,8 +663,8 @@ export class WindowsManager {
 			return;
 		}
 
-		// Fill in previously opened workspace unless an explicit path is provided
-		if (openConfig.cli.pathArguments.length === 0) {
+		// Fill in previously opened workspace unless an explicit path is provided and we are not unit testing
+		if (openConfig.cli.pathArguments.length === 0 && !openConfig.cli.extensionTestsPath) {
 			let workspaceToOpen = this.windowsState.lastPluginDevelopmentHostWindow && this.windowsState.lastPluginDevelopmentHostWindow.workspacePath;
 			if (workspaceToOpen) {
 				openConfig.cli.pathArguments = [workspaceToOpen];
@@ -880,7 +880,7 @@ export class WindowsManager {
 				configuration.logExtensionHostCommunication = currentWindowConfig.logExtensionHostCommunication;
 				configuration.debugBrkExtensionHost = currentWindowConfig.debugBrkExtensionHost;
 				configuration.debugExtensionHostPort = currentWindowConfig.debugExtensionHostPort;
-				configuration.pluginHomePath = currentWindowConfig.pluginHomePath;
+				configuration.extensionsHomePath = currentWindowConfig.extensionsHomePath;
 			}
 		}
 

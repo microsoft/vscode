@@ -34,6 +34,7 @@ export class MockKeybindingService implements IKeybindingService {
 
 	public dispose(): void { }
 	public executeCommand(commandId: string, args: any): TPromise<any> { return; }
+	public hasCommand(commandId) { return false; }
 
 	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
 		return new MockKeybindingContextKey(key, defaultValue);
