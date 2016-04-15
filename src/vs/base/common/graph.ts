@@ -16,8 +16,8 @@ export interface Node<T> {
 function newNode<T>(data: T): Node<T> {
 	return {
 		data: data,
-		incoming: {},
-		outgoing: {}
+		incoming: Object.create(null),
+		outgoing: Object.create(null)
 	};
 }
 
@@ -44,7 +44,7 @@ export class Graph<T> {
 		if (!startNode) {
 			return;
 		}
-		this._traverse(startNode, inwards, {}, callback);
+		this._traverse(startNode, inwards, Object.create(null), callback);
 	}
 
 	private _traverse(node: Node<T>, inwards: boolean, seen: { [key: string]: boolean }, callback: (data: T) => void): void {
@@ -93,5 +93,13 @@ export class Graph<T> {
 
 	get length(): number {
 		return Object.keys(this._nodes).length;
+	}
+
+	toString(): string {
+		let data: string[] = [];
+		forEach(this._nodes, entry => {
+			data.push(`${entry.key}, (incoming)[${Object.keys(entry.value.incoming).join(', ')}], (outgoing)[${Object.keys(entry.value.outgoing).join(',')}]`);
+		});
+		return data.join('\n');
 	}
 }
