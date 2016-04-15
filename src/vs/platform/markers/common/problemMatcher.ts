@@ -501,6 +501,14 @@ _defaultPatterns['go'] = {
 	column: 6,
 	message: 7
 };
+_defaultPatterns['haxe'] = {
+	regexp: /^\s*(.+):(\d+): (?:lines \d+-\d+|character(?:s \d+-| )(\d+)) : (?:(Warning) : )?(.*)$/,
+	file: 1,
+	line: 2,
+	column: 3,
+	severity: 4,
+	message: 5
+};
 
 export function defaultPattern(name: 'msCompile'): ProblemPattern;
 export function defaultPattern(name: 'tsc'): ProblemPattern;
@@ -511,6 +519,7 @@ export function defaultPattern(name: 'lessCompile'): ProblemPattern;
 export function defaultPattern(name: 'jshint'): ProblemPattern;
 export function defaultPattern(name: 'gulp-tsc'): ProblemPattern;
 export function defaultPattern(name: 'go'): ProblemPattern;
+export function defaultPattern(name: 'haxe'): ProblemPattern;
 export function defaultPattern(name: 'jshint-stylish'): ProblemPattern[];
 export function defaultPattern(name: string): ProblemPattern | ProblemPattern[];
 export function defaultPattern(name: string): ProblemPattern | ProblemPattern[] {
