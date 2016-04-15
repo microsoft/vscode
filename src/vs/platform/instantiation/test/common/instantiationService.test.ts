@@ -123,6 +123,29 @@ class ServiceLoop2 implements IService2 {
 }
 
 suite('Instantiation Service', () => {
+
+	test('service collection, cannot overwrite', function () {
+		let collection = new instantiation.ServiceCollection();
+		collection.add(IService1, null);
+		assert.throws(() => collection.add(IService1, null));
+	});
+
+	test('service collection, add/has', function () {
+		let collection = new instantiation.ServiceCollection();
+		collection.add(IService1, null);
+		assert.ok(collection.has(IService1));
+
+		collection.add(IService2, null);
+		assert.ok(collection.has(IService1));
+		assert.ok(collection.has(IService2));
+	});
+
+	test('addSingleton - cannot overwrite service', function() {
+		let service = instantiationService.createInstantiationService(Object.create(null));
+		service.addSingleton(IService1, new Service1());
+		assert.throws(() => service.addSingleton(IService1, new Service1()));
+	});
+
 	test('@Param - simple clase', function() {
 		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new Service1());

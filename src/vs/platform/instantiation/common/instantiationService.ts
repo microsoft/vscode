@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as winjs from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import * as types from 'vs/base/common/types';
-import * as collections from 'vs/base/common/collections';
-import * as descriptors from './descriptors';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {illegalArgument, illegalState, canceled} from 'vs/base/common/errors';
+import {create} from 'vs/base/common/types';
+import {forEach} from 'vs/base/common/collections';
 import {Graph} from 'vs/base/common/graph';
+import * as descriptors from './descriptors';
 import * as instantiation from './instantiation';
 
 import IInstantiationService = instantiation.IInstantiationService;
@@ -45,7 +44,7 @@ class AccessLock {
 class ServicesMap {
 
 	constructor(private _services: any, private _lock: AccessLock) {
-		collections.forEach(this._services, (entry) => {
+		forEach(this._services, (entry) => {
 
 			// add a accessor to myselves
 			this.registerService(entry.key, entry.value);
@@ -57,10 +56,10 @@ class ServicesMap {
 		Object.defineProperty(this, name, {
 			get: () => {
 				if (this._lock.locked) {
-					throw errors.illegalState('the services map can only be used during construction');
+					throw illegalState('the services map can only be used during construction');
 				}
 				if (!service) {
-					throw errors.illegalArgument(strings.format('service with \'{0}\' not found', name));
+					throw illegalArgument(`service with '${name}' not found`);
 				}
 				if (service instanceof descriptors.SyncDescriptor) {
 					let cached = this._services[name];
@@ -74,7 +73,7 @@ class ServicesMap {
 				return service;
 			},
 			set: (value: any) => {
-				throw errors.illegalState('services cannot be changed');
+				throw illegalState('services cannot be changed');
 			},
 			configurable: false,
 			enumerable: false
@@ -172,12 +171,12 @@ class ServicesMap {
 		let fixedArguments = descriptor.staticArguments().concat(args);
 		let expectedFirstServiceIndex = fixedArguments.length;
 		let actualFirstServiceIndex = Number.MAX_VALUE;
-		serviceInjections.forEach(si => {
+		serviceInjections.forEach(serviceInjection => {
 			// @IServiceName
-			let {serviceId, index} = si;
+			let {serviceId, index} = serviceInjection;
 			let service = this._lock.runUnlocked(() => this[serviceId]);
 			allArguments[index] = service;
-			actualFirstServiceIndex = Math.min(actualFirstServiceIndex, si.index);
+			actualFirstServiceIndex = Math.min(actualFirstServiceIndex, index);
 		});
 
 		// insert the fixed arguments into the array of all ctor
@@ -209,7 +208,7 @@ class ServicesMap {
 		}
 
 		return this._lock.runUnlocked(() => {
-			const instance = types.create.apply(null, allArguments);
+			const instance = create.apply(null, allArguments);
 			descriptor._validate(instance);
 			return <T>instance;
 		});
@@ -226,17 +225,24 @@ class InstantiationService implements IInstantiationService {
 		this._servicesMap = new ServicesMap(services, lock);
 	}
 
-	createChild(services: any): IInstantiationService {
-		const childServices = {};
-		// copy existing services
-		collections.forEach(this._servicesMap.services, (entry) => {
-			childServices[entry.key] = entry.value;
+	createChild(services: instantiation.ServiceCollection): IInstantiationService {
+
+		const result = new InstantiationService(Object.create(null), this._servicesMap.lock);
+
+		// insert new services
+		services.forEach((id, instanceOrDescriptor) => {
+			result.addSingleton(id, instanceOrDescriptor);
 		});
-		// insert new services (might overwrite)
-		collections.forEach(services, (entry) => {
-			childServices[entry.key] = entry.value;
+
+		// fill gaps existing services
+		forEach(this._servicesMap.services, (entry) => {
+			let id = instantiation.createDecorator(entry.key);
+			if (!services.has(id) && entry.key !== 'instantiationService') {
+				result.addSingleton(id, entry.value);
+			}
 		});
-		return new InstantiationService(childServices, this._servicesMap.lock);
+
+		return result;
 	}
 
 	registerService(name: string, service: any): void {
@@ -274,18 +280,18 @@ class InstantiationService implements IInstantiationService {
 	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(descriptor: descriptors.SyncDescriptor7<A1, A2, A3, A4, A5, A6, A7, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7): T;
 	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(descriptor: descriptors.SyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): T;
 
-	createInstance<T>(descriptor: descriptors.AsyncDescriptor0<T>): winjs.TPromise<T>;
-	createInstance<A1, T>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): winjs.TPromise<T>;
-	createInstance<A1, A2, T>(descriptor: descriptors.AsyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): winjs.TPromise<T>;
-	createInstance<A1, A2, A3, T>(descriptor: descriptors.AsyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): winjs.TPromise<T>;
-	createInstance<A1, A2, A3, A4, T>(descriptor: descriptors.AsyncDescriptor4<A1, A2, A3, A4, T>, a1: A1, a2: A2, a3: A3, a4: A4): winjs.TPromise<T>;
-	createInstance<A1, A2, A3, A4, A5, T>(descriptor: descriptors.AsyncDescriptor5<A1, A2, A3, A4, A5, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5): winjs.TPromise<T>;
-	createInstance<A1, A2, A3, A4, A5, A6, T>(descriptor: descriptors.AsyncDescriptor6<A1, A2, A3, A4, A5, A6, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6): winjs.TPromise<T>;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(descriptor: descriptors.AsyncDescriptor7<A1, A2, A3, A4, A5, A6, A7, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7): winjs.TPromise<T>;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(descriptor: descriptors.AsyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): winjs.TPromise<T>;
+	createInstance<T>(descriptor: descriptors.AsyncDescriptor0<T>): TPromise<T>;
+	createInstance<A1, T>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
+	createInstance<A1, A2, T>(descriptor: descriptors.AsyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): TPromise<T>;
+	createInstance<A1, A2, A3, T>(descriptor: descriptors.AsyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): TPromise<T>;
+	createInstance<A1, A2, A3, A4, T>(descriptor: descriptors.AsyncDescriptor4<A1, A2, A3, A4, T>, a1: A1, a2: A2, a3: A3, a4: A4): TPromise<T>;
+	createInstance<A1, A2, A3, A4, A5, T>(descriptor: descriptors.AsyncDescriptor5<A1, A2, A3, A4, A5, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5): TPromise<T>;
+	createInstance<A1, A2, A3, A4, A5, A6, T>(descriptor: descriptors.AsyncDescriptor6<A1, A2, A3, A4, A5, A6, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6): TPromise<T>;
+	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(descriptor: descriptors.AsyncDescriptor7<A1, A2, A3, A4, A5, A6, A7, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7): TPromise<T>;
+	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(descriptor: descriptors.AsyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): TPromise<T>;
 
 	createInstance<T>(descriptor: descriptors.SyncDescriptor<T>, ...args: any[]): T;
-	createInstance<T>(descriptor: descriptors.AsyncDescriptor<T>, ...args: any[]): winjs.TPromise<T>;
+	createInstance<T>(descriptor: descriptors.AsyncDescriptor<T>, ...args: any[]): TPromise<T>;
 
 	createInstance<T>(param: any): any {
 
@@ -303,18 +309,18 @@ class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	_createInstanceAsync<T>(descriptor: descriptors.AsyncDescriptor<T>, args: any[]): winjs.TPromise<T> {
+	_createInstanceAsync<T>(descriptor: descriptors.AsyncDescriptor<T>, args: any[]): TPromise<T> {
 
-		let canceled: Error;
+		let canceledError: Error;
 
-		return new winjs.TPromise((c, e, p) => {
+		return new TPromise((c, e, p) => {
 			require([descriptor.moduleName], (_module?: any) => {
-				if (canceled) {
-					e(canceled);
+				if (canceledError) {
+					e(canceledError);
 				}
 
 				if (!_module) {
-					return e(errors.illegalArgument('module not found: ' + descriptor.moduleName));
+					return e(illegalArgument('module not found: ' + descriptor.moduleName));
 				}
 
 				let ctor: Function;
@@ -325,7 +331,7 @@ class InstantiationService implements IInstantiationService {
 				}
 
 				if (typeof ctor !== 'function') {
-					return e(errors.illegalArgument('not a function: ' + descriptor.ctorName || descriptor.moduleName));
+					return e(illegalArgument('not a function: ' + descriptor.ctorName || descriptor.moduleName));
 				}
 
 				try {
@@ -336,7 +342,7 @@ class InstantiationService implements IInstantiationService {
 				}
 			}, e);
 		}, () => {
-			canceled = errors.canceled();
+			canceledError = canceled();
 		});
 	}
 

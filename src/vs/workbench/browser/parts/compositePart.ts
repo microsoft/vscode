@@ -30,7 +30,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, ServiceCollection} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -176,10 +176,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			let loaderPromise = this.compositeLoaderPromises[id];
 			if (!loaderPromise) {
 				let progressService = new WorkbenchProgressService(this.eventService, this.progressBar, compositeDescriptor.id, isActive);
-				let services = {
-					progressService: progressService
-				};
-				let compositeInstantiationService = this.instantiationService.createChild(services);
+				let compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
 				loaderPromise = compositeInstantiationService.createInstance(compositeDescriptor).then((composite: Composite) => {
 					this.mapProgressServiceToComposite[composite.getId()] = progressService;

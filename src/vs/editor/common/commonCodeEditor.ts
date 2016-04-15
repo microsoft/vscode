@@ -12,7 +12,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, ServiceCollection} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingScopeLocation, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
@@ -114,9 +114,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this.forcedWidgetFocusCount = 0;
 
 		this._telemetryService = telemetryService;
-		this._instantiationService = instantiationService.createChild({
-			keybindingService: this._keybindingService
-		});
+		this._instantiationService = instantiationService.createChild(new ServiceCollection([IKeybindingService, this._keybindingService]));
 
 		this._attachModel(null);
 

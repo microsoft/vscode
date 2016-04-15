@@ -5,6 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {binarySearch} from 'vs/base/common/arrays';
 import * as descriptors from './descriptors';
 
 // ----------------------- internal util -----------------------
@@ -103,6 +104,11 @@ export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
 	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
 }
 
+export interface IServiceCollection {
+	add<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void;
+	forEach(callback: (id: ServiceIdentifier<any>, instanceOrDescriptor: any) => any): void;
+	has(id: ServiceIdentifier<any>): boolean;
+}
 
 export var IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
 
@@ -175,7 +181,7 @@ export interface IInstantiationService {
 	 * Creates a child of this service which inherts all current services
 	 * and adds/overwrites the given services
 	 */
-	createChild(services: any): IInstantiationService;
+	createChild(services: IServiceCollection): IInstantiationService;
 
 	/**
 	 * Registers a new service to this instantation service.
@@ -223,10 +229,47 @@ export function createDecorator<T>(serviceId: string): { (...args: any[]): void;
 	return <any>ret;
 }
 
-/**
- * A service context which can be used to retrieve services
- * given a valid service identifer is being presented
- */
-export interface Context {
-	get<T>(id: ServiceIdentifier<T>): T;
+type Entry = [ServiceIdentifier<any>, any];
+
+export class ServiceCollection implements IServiceCollection {
+
+	private _entries: Entry[] = [];
+
+	constructor(...entries:[ServiceIdentifier<any>, any][]) {
+		for (let entry of entries) {
+			this.add(entry[0], entry[1]);
+		}
+	}
+
+	add<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void {
+		const entry: Entry = [id, instanceOrDescriptor];
+		const idx = ~binarySearch(this._entries, entry, ServiceCollection._entryCompare);
+		if (idx < 0) {
+			throw new Error(`service with that identifier already registered`);
+		}
+		this._entries.splice(idx, 0, entry);
+	}
+
+	forEach(callback: (id: ServiceIdentifier<any>, instanceOrDescriptor: any) => any): void {
+		for (let entry of this._entries) {
+			let [id, instanceOrDescriptor] = entry;
+			callback(id, instanceOrDescriptor);
+		}
+	}
+
+	has(id: ServiceIdentifier<any>): boolean {
+		return binarySearch(this._entries, <Entry>[id,], ServiceCollection._entryCompare) >= 0;
+	}
+
+	private static _entryCompare(a: Entry, b: Entry): number {
+		const _a = _util.getServiceId(a[0]);
+		const _b = _util.getServiceId(b[0]);
+		if (_a < _b) {
+			return -1;
+		} else if (_a > _b) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
 }

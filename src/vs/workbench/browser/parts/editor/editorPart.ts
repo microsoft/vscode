@@ -35,9 +35,10 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, ServiceCollection} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IProgressService} from 'vs/platform/progress/common/progress';
 
 const EDITOR_STATE_STORAGE_KEY = 'editorpart.editorState';
 
@@ -755,11 +756,10 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private createEditor(editorDescriptor: EditorDescriptor, editorDomNode: HTMLElement, position: Position): TPromise<BaseEditor> {
-		let services = {
-			progressService: new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), editorDescriptor.getId(), true)
-		};
 
-		let editorInstantiationService = this.instantiationService.createChild(services);
+		let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), editorDescriptor.getId(), true);
+
+		let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
 		return editorInstantiationService.createInstance(editorDescriptor);
 	}
