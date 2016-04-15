@@ -92,6 +92,7 @@ class ExtensionHostProcessManager {
 
 	private isExtensionDevelopmentHost: boolean;
 	private isExtensionDevelopmentTestFromCli: boolean;
+	private isExtensionDevelopmentDebugging: boolean;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
@@ -103,6 +104,7 @@ class ExtensionHostProcessManager {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		const config = this.contextService.getConfiguration();
 		this.isExtensionDevelopmentHost = !!config.env.extensionDevelopmentPath;
+		this.isExtensionDevelopmentDebugging = !!config.env.debugBrkExtensionHost;
 		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!config.env.extensionTestsPath && !config.env.debugBrkExtensionHost;
 
 		this.unsentMessages = [];
@@ -112,16 +114,15 @@ class ExtensionHostProcessManager {
 
 	public startExtensionHostProcess(onExtensionHostMessage: (msg: any) => void): void {
 		let config = this.contextService.getConfiguration();
-		let isDev = !config.env.isBuilt || !!config.env.extensionDevelopmentPath;
 
 		let opts: any = {
 			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
 		};
 
 		// Help in case we fail to start it
-		if (isDev) {
+		if (!config.env.isBuilt || this.isExtensionDevelopmentHost) {
 			this.initializeTimer = setTimeout(() => {
-				const msg = config.env.debugBrkExtensionHost ? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+				const msg = this.isExtensionDevelopmentDebugging ? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
 				this.messageService.show(Severity.Warning, msg);
 			}, 10000);
@@ -133,14 +134,14 @@ class ExtensionHostProcessManager {
 			// Resolve additional execution args (e.g. debug)
 			return this.resolveDebugPort(config, (port) => {
 				if (port) {
-					opts.execArgv = ['--nolazy', (config.env.debugBrkExtensionHost ? '--debug-brk=' : '--debug=') + port];
+					opts.execArgv = ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port];
 				}
 
 				// Run Extension Host as fork of current process
 				this.extensionHostProcessHandle = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (config.env.extensionDevelopmentPath && port) {
+				if (this.isExtensionDevelopmentHost && port) {
 					this.windowService.broadcast({
 						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
 						payload: {
@@ -212,7 +213,7 @@ class ExtensionHostProcessManager {
 						}
 
 						// Broadcast to other windows if we are in development mode
-						else if (isDev) {
+						else if (!config.env.isBuilt || this.isExtensionDevelopmentHost) {
 							this.windowService.broadcast({
 								channel: EXTENSION_LOG_BROADCAST_CHANNEL,
 								payload: logEntry
@@ -285,7 +286,7 @@ class ExtensionHostProcessManager {
 					console.warn('%c[Extension Host] %cProvided debugging port ' + config.env.debugExtensionHostPort + ' is not free, using ' + port + ' instead.', 'color: blue', 'color: black');
 				}
 
-				if (config.env.debugBrkExtensionHost) {
+				if (this.isExtensionDevelopmentDebugging) {
 					console.warn('%c[Extension Host] %cSTOPPED on first line for debugging on port ' + port, 'color: blue', 'color: black');
 				} else {
 					console.info('%c[Extension Host] %cdebugger listening on port ' + port, 'color: blue', 'color: black');
@@ -322,7 +323,10 @@ class ExtensionHostProcessManager {
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
-		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli) {
+
+		// If the extension development host was started without debugger attached we need
+		// to communicate this back to the main side to terminate the debug session
+		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !this.isExtensionDevelopmentDebugging) {
 			this.windowService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: true
