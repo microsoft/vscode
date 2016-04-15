@@ -61,7 +61,6 @@ const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 export class DebugService extends ee.EventEmitter implements debug.IDebugService {
 	public serviceId = debug.IDebugService;
 
-	private taskService: ITaskService;
 	private state: debug.State;
 	private session: session.RawDebugSession;
 	private model: model.Model;
@@ -91,7 +90,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService:IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IMarkerService private markerService: IMarkerService
+		@IMarkerService private markerService: IMarkerService,
+		@ITaskService private taskService: ITaskService
 	) {
 		super();
 
@@ -100,8 +100,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.debugStringEditorInputs = [];
 		this.session = null;
 		this.state = debug.State.Inactive;
-		// there is a cycle if taskService gets injected, use a workaround.
-		this.taskService = this.instantiationService.getInstance(ITaskService);
 
 		if (!this.contextService.getWorkspace()) {
 			this.state = debug.State.Disabled;

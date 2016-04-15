@@ -37,7 +37,6 @@ import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/mar
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platform/configuration/common/configuration';
 import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -45,8 +44,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment }  from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -792,16 +789,6 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 }
 
-export class TaskServiceParticipant implements IWorkbenchContribution {
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
-		// Force loading the language worker service
-		this.instantiationService.getInstance(ITaskService);
-	}
-	public getId(): string {
-		return 'vs.taskService';
-	}
-}
-
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), tasksCategory);
@@ -837,7 +824,7 @@ if (Env.enableTasks) {
 	let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
 	outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
 
-	(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
+	// (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 
 	// tasks.json validation
 	let schemaId = 'vscode://schemas/tasks';
