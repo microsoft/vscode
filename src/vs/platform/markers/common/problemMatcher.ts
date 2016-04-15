@@ -502,12 +502,14 @@ _defaultPatterns['go'] = {
 	message: 7
 };
 _defaultPatterns['haxe'] = {
-	regexp: /^\s*(.+):(\d+): (?:lines \d+-\d+|character(?:s \d+-| )(\d+)) : (?:(Warning) : )?(.*)$/,
+	regexp: /^(.+):(\d+): (?:lines \d+-(\d+)|character(?:s (\d+)-| )(\d+)) : (?:(Warning) : )?(.*)$/,
 	file: 1,
 	line: 2,
-	column: 3,
-	severity: 4,
-	message: 5
+	endLine: 3,
+	column: 4,
+	endColumn: 5,
+	severity: 6,
+	message: 7
 };
 
 export function defaultPattern(name: 'msCompile'): ProblemPattern;
