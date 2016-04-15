@@ -257,7 +257,7 @@ export class WorkbenchShell {
 			this.telemetryService = NullTelemetryService;
 		}
 
-		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.configurationService, this.telemetryService, <any>window);
+		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, <any>window);
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
 		this.keybindingService.setMessageService(this.messageService);
