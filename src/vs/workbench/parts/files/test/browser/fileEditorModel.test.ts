@@ -15,7 +15,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {EventType} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, EventType} from 'vs/workbench/parts/files/common/files';
 import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
@@ -52,7 +52,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		textFileService = <TextFileService>baseInstantiationService.createInstance(<any>TextFileService);
 
-		baseInstantiationService.registerService('textFileService', textFileService);
+		baseInstantiationService.addSingleton(ITextFileService, textFileService);
 	});
 
 	teardown(() => {

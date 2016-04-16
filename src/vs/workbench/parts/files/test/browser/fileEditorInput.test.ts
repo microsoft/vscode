@@ -10,6 +10,7 @@ import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
@@ -42,8 +43,8 @@ suite('Files - FileEditorInput', () => {
 			configurationService: new TestConfigurationService()
 		});
 
-		let textFileServices = instantiationService.createInstance(<any>TextFileService);
-		instantiationService.registerService('textFileService', textFileServices);
+		let textFileServices = <ITextFileService> instantiationService.createInstance(<any> TextFileService);
+		instantiationService.addSingleton(ITextFileService, textFileServices);
 
 		let input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
 		let otherInput = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/otherfile.js'), 'text/javascript', void 0);
@@ -133,8 +134,8 @@ suite('Files - FileEditorInput', () => {
 			configurationService: new TestConfigurationService()
 		});
 
-		let textFileServices = instantiationService.createInstance(<any>TextFileService);
-		instantiationService.registerService('textFileService', textFileServices);
+		let textFileServices = <ITextFileService> instantiationService.createInstance(<any>TextFileService);
+		instantiationService.addSingleton(ITextFileService, textFileServices);
 
 		let tracker = instantiationService.createInstance(FileTracker);
 
@@ -177,8 +178,8 @@ suite('Files - FileEditorInput', () => {
 			configurationService: new TestConfigurationService()
 		});
 
-		let textFileServices = instantiationService.createInstance(<any>TextFileService);
-		instantiationService.registerService('textFileService', textFileServices);
+		let textFileServices = <ITextFileService> instantiationService.createInstance(<any>TextFileService);
+		instantiationService.addSingleton(ITextFileService, textFileServices);
 
 		let tracker = instantiationService.createInstance(FileTracker);
 

@@ -184,11 +184,6 @@ export interface IInstantiationService {
 	createChild(services: IServiceCollection): IInstantiationService;
 
 	/**
-	 * Registers a new service to this instantation service.
-	 */
-	registerService(name: string, service: any): void;
-
-	/**
 	 * Adds a service or a descriptor to the collection of services and
 	 * treats it as a singleton which means every consumer will receive
 	 * the same instance.

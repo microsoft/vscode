@@ -245,10 +245,6 @@ class InstantiationService implements IInstantiationService {
 		return result;
 	}
 
-	registerService(name: string, service: any): void {
-		this._servicesMap.registerService(name, service);
-	}
-
 	addSingleton<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void {
 		let name = instantiation._util.getServiceId(id);
 		this._servicesMap.registerService(name, instanceOrDescriptor);
