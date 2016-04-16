@@ -5,8 +5,10 @@
 
 'use strict';
 
-import {app} from 'electron';
 import fs = require('fs');
+import tty = require('tty');
+
+import {app} from 'electron';
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
@@ -260,7 +262,11 @@ function setupIPC(): TPromise<Server> {
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
 getUserEnvironment()
 	.then(userEnv => {
-		assign(process.env, userEnv);
+		if (!tty.isatty(1)) {
+			// Only assign global environment variables when
+			// STDOUT is not attached to terminal.
+			assign(process.env, userEnv);
+		}
 		// Make sure the NLS Config travels to the rendered process
 		// See also https://github.com/Microsoft/vscode/issues/4558
 		userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
