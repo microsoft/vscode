@@ -105,7 +105,7 @@ export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
 }
 
 export interface IServiceCollection {
-	add<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void;
+	put<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void;
 	forEach(callback: (id: ServiceIdentifier<any>, instanceOrDescriptor: any) => any): void;
 	has(id: ServiceIdentifier<any>): boolean;
 }
@@ -237,11 +237,11 @@ export class ServiceCollection implements IServiceCollection {
 
 	constructor(...entries:[ServiceIdentifier<any>, any][]) {
 		for (let entry of entries) {
-			this.add(entry[0], entry[1]);
+			this.put(entry[0], entry[1]);
 		}
 	}
 
-	add<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void {
+	put<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void {
 		const entry: Entry = [id, instanceOrDescriptor];
 		const idx = ~binarySearch(this._entries, entry, ServiceCollection._entryCompare);
 		if (idx < 0) {
@@ -259,6 +259,13 @@ export class ServiceCollection implements IServiceCollection {
 
 	has(id: ServiceIdentifier<any>): boolean {
 		return binarySearch(this._entries, <Entry>[id,], ServiceCollection._entryCompare) >= 0;
+	}
+
+	get<T>(id: ServiceIdentifier<T>): T | descriptors.SyncDescriptor<T> {
+		const idx = binarySearch(this._entries, <Entry> [id,], ServiceCollection._entryCompare);
+		if (idx >= 0) {
+			return this._entries[idx][1];
+		}
 	}
 
 	private static _entryCompare(a: Entry, b: Entry): number {

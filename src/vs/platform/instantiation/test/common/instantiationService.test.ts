@@ -126,16 +126,16 @@ suite('Instantiation Service', () => {
 
 	test('service collection, cannot overwrite', function () {
 		let collection = new instantiation.ServiceCollection();
-		collection.add(IService1, null);
-		assert.throws(() => collection.add(IService1, null));
+		collection.put(IService1, null);
+		assert.throws(() => collection.put(IService1, null));
 	});
 
 	test('service collection, add/has', function () {
 		let collection = new instantiation.ServiceCollection();
-		collection.add(IService1, null);
+		collection.put(IService1, null);
 		assert.ok(collection.has(IService1));
 
-		collection.add(IService2, null);
+		collection.put(IService2, null);
 		assert.ok(collection.has(IService1));
 		assert.ok(collection.has(IService2));
 	});
