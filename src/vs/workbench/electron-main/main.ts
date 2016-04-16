@@ -101,7 +101,7 @@ function quit(arg?: any) {
 		}
 	}
 
-	process.exit(exitCode);
+	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
@@ -165,7 +165,7 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 		env.log('IPC#vscode:exit', code);
 
 		dispose();
-		process.exit(code);
+		process.exit(code); // in main, process.exit === app.exit
 	});
 
 	// Lifecycle
