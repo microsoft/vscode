@@ -119,7 +119,8 @@ class ServicesMap {
 				for (let dependency of dependencies) {
 					let instanceOrDesc = this.services[dependency.serviceId];
 					if (!instanceOrDesc) {
-						throw new Error(`[createInstance] ${serviceId} depends on ${dependency.serviceId} which is NOT registered.`);
+						// throw new Error(`[createInstance] ${serviceId} depends on ${dependency.serviceId} which is NOT registered.`);
+						console.warn(`[createInstance] ${serviceId} depends on ${dependency.serviceId} which is NOT registered.`);
 					}
 
 					if (instanceOrDesc instanceof descriptors.SyncDescriptor) {
