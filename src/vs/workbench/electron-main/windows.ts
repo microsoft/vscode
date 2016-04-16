@@ -359,12 +359,6 @@ export class WindowsManager {
 			console[logEntry.severity].apply(console, args);
 		});
 
-		ipc.on('vscode:exit', (event, code: number) => {
-			env.log('IPC#vscode:exit', code);
-
-			process.exit(code);
-		});
-
 		ipc.on('vscode:closeExtensionHostWindow', (event, extensionDevelopmentPath: string) => {
 			env.log('IPC#vscode:closeExtensionHostWindow', extensionDevelopmentPath);
 
