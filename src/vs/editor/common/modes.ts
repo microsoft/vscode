@@ -705,7 +705,7 @@ export interface ICommentsConfiguration {
 }
 
 /**
- * Interface used to support insertion of matching characters like brackets and qoutes.
+ * Interface used to support insertion of matching characters like brackets and quotes.
  */
 export interface IAutoClosingPair {
 	open:string;
