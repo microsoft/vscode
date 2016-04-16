@@ -105,7 +105,7 @@ export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
 }
 
 export interface IServiceCollection {
-	put<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void;
+	set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void;
 	forEach(callback: (id: ServiceIdentifier<any>, instanceOrDescriptor: any) => any): void;
 	has(id: ServiceIdentifier<any>): boolean;
 }
@@ -237,11 +237,11 @@ export class ServiceCollection implements IServiceCollection {
 
 	constructor(...entries:[ServiceIdentifier<any>, any][]) {
 		for (let entry of entries) {
-			this.put(entry[0], entry[1]);
+			this.set(entry[0], entry[1]);
 		}
 	}
 
-	put<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void {
+	set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void {
 		const entry: Entry = [id, instanceOrDescriptor];
 		const idx = ~binarySearch(this._entries, entry, ServiceCollection._entryCompare);
 		if (idx < 0) {
