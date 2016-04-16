@@ -9,6 +9,7 @@ import 'vs/css!./sash';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
 import {isIPad} from 'vs/base/browser/browser';
+import {isMacintosh} from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
 import {Gesture, EventType, GestureEvent} from 'vs/base/browser/touch';
@@ -60,6 +61,10 @@ export class Sash extends EventEmitter {
 		super();
 
 		this.$e = $('.monaco-sash').appendTo(container);
+
+		if (isMacintosh) {
+			this.$e.addClass('mac');
+		}
 
 		this.gesture = new Gesture(this.$e.getHTMLElement());
 
@@ -118,7 +123,7 @@ export class Sash extends EventEmitter {
 		this.emit('start', startEvent);
 
 		let $window = $(window);
-		let containerCssClass = `${this.getOrientation()}-cursor-container`;
+		let containerCssClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
 
 		let lastCurrentX = startX;
 		let lastCurrentY = startY;
