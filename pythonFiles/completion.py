@@ -281,7 +281,8 @@ class JediCompletion(object):
             return self._write_response(self._serialize_definitions(
                 jedi.api.names(
                     source=request['source'], 
-                    path=request.get('path', '')), 
+                    path=request.get('path', ''),
+                    all_scopes=True),
                 request['id']))
                 
         script = jedi.api.Script(
