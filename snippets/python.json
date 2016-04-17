@@ -12,7 +12,7 @@
         "body": [
             "if ${condition}:",
             "\t${1:suite}",
-            "else:"
+            "else:",
             "\t${2:suite}"
         ],
         "description": "Code snippet for an if statement with else"
@@ -45,7 +45,7 @@
         "prefix": "while/else",
         "body": [
             "while ${expression}:",
-            "\t${1:suite}"
+            "\t${1:suite}",
             "else:",
             "\t${2:suite}"
         ],
@@ -159,6 +159,14 @@
             "\t${suite}"
         ],
         "description": "Code snippet for a static class method"
+    },
+    "def(abstract class method)": {
+        "prefix": "def(abstract class method)",
+        "body": [
+            "def ${funcname}(self, ${parameter_list}):",
+            "\traise NotImplementedError"
+        ],
+        "description": "Code snippet for an abstract class method"
     },
     "class": {
         "prefix": "class",
