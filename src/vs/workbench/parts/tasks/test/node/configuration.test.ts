@@ -171,9 +171,7 @@ class PatternBuilder {
 		this.result = {
 			regexp: regExp,
 			file: 1,
-			message: 4,
-			line: 2,
-			column : 3
+			message: 0
 		}
 	}
 

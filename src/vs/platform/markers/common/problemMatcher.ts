@@ -257,7 +257,7 @@ class AbstractLineMatcher implements ILineMatcher {
 			return this.parseLocationInfo(data.location);
 		}
 		if (!data.line) {
-			return null;
+			return this.createLocation(1, undefined, undefined, undefined);
 		}
 		let startLine = parseInt(data.line);
 		let startColumn = data.column ? parseInt(data.column) : undefined;
@@ -903,17 +903,17 @@ export class ProblemMatcherParser extends Parser {
 			}
 		});
 		if (setDefaults) {
+			// In case if patternMatcher does not have location and message defined
+			// use first line as location and whole line as a message.
 			if (result.location) {
 				result = Objects.mixin(result, {
 					file: 1,
-					message: 4
+					message: 0
 				}, false);
 			} else {
 				result = Objects.mixin(result, {
 					file: 1,
-					line: 2,
-					column: 3,
-					message: 4
+					message: 0
 				}, false);
 			}
 		}
@@ -921,13 +921,10 @@ export class ProblemMatcherParser extends Parser {
 	}
 
 	private validateProblemPattern(values: ProblemPattern[]): void {
-		let file: boolean, message: boolean, location: boolean, line: boolean;
+		let file: boolean;
 		let regexp: number = 0;
 		values.forEach(pattern => {
 			file = file || !!pattern.file;
-			message = message || !!pattern.message;
-			location = location || !!pattern.location;
-			line = line || !!pattern.line;
 			if (pattern.regexp) {
 				regexp++;
 			}
@@ -936,9 +933,9 @@ export class ProblemMatcherParser extends Parser {
 			this.status.state = ValidationState.Error;
 			this.log(NLS.localize('ProblemMatcherParser.problemPattern.missingRegExp', 'The problem pattern is missing a regular expression.'));
 		}
-		if (!(file && message && (location || line))) {
+		if (!file) {
 			this.status.state = ValidationState.Error;
-			this.log(NLS.localize('ProblemMatcherParser.problemPattern.missingProperty', 'The problem pattern is invalid. It must have at least a file, message and line or location match group.'));
+			this.log(NLS.localize('ProblemMatcherParser.problemPattern.missingProperty', 'The problem pattern is invalid. It must have at least a file match group.'));
 		}
 	}
 
