@@ -44,10 +44,14 @@ export class RemoteDebugServer extends BaseDebugServer {
             var languageVersionRead = false;
             var portNumber = this.args.port;
             var debugCommandsAccepted = false;
-            this.socket = net.connect({ port: portNumber }, () => {
+            var options = <any>{ port: portNumber};
+            if (typeof this.args.host === "string" && this.args.host.length > 0) {
+                options.host = this.args.host;
+            }
+            this.socket = net.connect(options, () => {
                 console.log('client connected');
                 console.log(`Debug server started, listening on port ${portNumber}`);
-                resolve({ port: portNumber });
+                resolve(options);
             });
             this.socket.on('end', (ex) => {
                 var msg = `Debugger client disconneced, ex`;

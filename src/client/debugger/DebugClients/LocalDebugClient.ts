@@ -133,6 +133,9 @@ export class LocalDebugClient extends DebugClient {
         return new Promise<any>((resolve, reject) => {
             var fileDir = path.dirname(this.args.program);
             var processCwd = fileDir;
+            if (typeof this.args.cwd === "string" && this.args.cwd.length > 0){
+                processCwd = this.args.cwd;
+            }
             var fileNameWithoutPath = path.basename(this.args.program);
             var pythonPath = "python";
             if (typeof this.args.pythonPath === "string" && this.args.pythonPath.trim().length > 0) {

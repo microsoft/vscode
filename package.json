@@ -178,10 +178,10 @@
                                 "description": "Debug port to attach",
                                 "default": null
                             },
-                            "url": {
+                            "host": {
                                 "type": "string",
-                                "description": "Url of remote server.",
-                                "default": true
+                                "description": "IP Address of the of remote server (default is localhost or use 127.0.0.1).",
+                                "default": "localhost"
                             },
                             "secret": {
                                 "type": "string",

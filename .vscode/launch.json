@@ -12,7 +12,7 @@
             ],
             "stopOnEntry": false,
             "sourceMaps": true,
-            "outDir": "${workspaceRoot}/out/src",
+            "outDir": "${workspaceRoot}/out",
             "preLaunchTask": "npm"
         },
         {

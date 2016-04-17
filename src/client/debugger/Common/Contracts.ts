@@ -49,12 +49,13 @@ export interface AttachRequestArguments extends DebugProtocol.AttachRequestArgum
     localRoot: string;
     remoteRoot: string;
     port?: number;
-    url?: string;
+    host?: string;
     secret?: string;
 }
 
 export interface IDebugServer {
     port: number;
+    host?: string;
 }
 
 export enum FrameKind {
