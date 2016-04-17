@@ -6,18 +6,18 @@
 {
 	"badConfigFile": "Git {0}",
 	"cancel": "取消",
-	"cantOpen": "无法打开此 git 资源。",
-	"cantOpenResource": "无法打开此 git 资源。",
+	"cantOpen": "无法打开此 Git 资源。",
+	"cantOpenResource": "无法打开此 Git 资源。",
 	"changesFromIndex": "{0} - 对索引的更改",
 	"changesFromTree": "{0} - 对 {1} 的更改",
-	"checkNativeConsole": "运行 GIT 操作存在问题。请审阅输出或使用控制台检查你的存储库的状态。",
-	"configureUsernameEmail": "请配置 GIT 用户名和电子邮件。",
+	"checkNativeConsole": "运行 Git 操作存在问题。请审阅输出或使用控制台检查你的存储库的状态。",
+	"configureUsernameEmail": "请配置 Git 用户名和电子邮件。",
 	"download": "下载",
 	"gitIndexChanges": "{0} - 对索引的更改",
 	"gitIndexChangesRenamed": "{0} - 已重命名 - 索引更改",
 	"gitMergeChanges": "{0} - 合并更改",
 	"showOutput": "显示输出",
 	"unmergedChanges": "提交更改前，你应首先解决未合并的更改。",
-	"updateGit": "你似乎已安装 git {0}。在 git >=2.0.0 情况下代码工作最佳。",
+	"updateGit": "你似乎已安装 Git {0}。在 Git >=2.0.0 情况下代码工作最佳。",
 	"workingTreeChanges": "{0} - 对工作树的更改"
 }

@@ -6,7 +6,7 @@
 {
 	"acceptLocalChanges": "使用本地更改并覆盖磁盘内容",
 	"compareChanges": "比较",
-	"conflictingFileHasChanged": "磁盘上的文件内容已更改，比较编辑器的左侧已刷新。请再次审查和解析。",
+	"conflictingFileHasChanged": "磁盘上的文件内容已更改，比较编辑器的左侧已刷新。请再次审查并解决冲突。",
 	"discard": "放弃",
 	"genericSaveError": "未能保存“{0}”: {1}",
 	"overwrite": "覆盖",
