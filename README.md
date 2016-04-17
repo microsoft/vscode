@@ -22,7 +22,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 ##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
 * Support for Virtual Environments (in development)
 
-## Feature Details (with confiuration)
+## Feature Details (with configuration)
 * IDE Features
  + Rename and navigate to symbols
  + Go to, Peek and hover definition
