@@ -1177,6 +1177,8 @@ export class OneCursorOp {
 		var enterAction = r.enterAction;
 		var indentation = r.indentation;
 
+		this._adjustLeftPosition(cursor, range);
+
 		if (enterAction.indentAction === IndentAction.None) {
 			// Nothing special
 			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
@@ -1399,6 +1401,20 @@ export class OneCursorOp {
 				ctx.shouldPushStackElementAfter = true;
 				ctx.executeCommand = new ReplaceCommandWithOffsetCursorState(cursor.getSelection(), appendText, 0, columnDeltaOffset);
 			}
+		}
+	}
+
+	/**
+	 * In case if cursor is at the end of the line and this line
+	 * contains only whitespaces - we will trim it when user press enter.
+	 *
+	 * Scenario covered: when you press 'Enter' multiple time and editor inserts
+	 * auto indent next lines, you don't want to leave previous lines with whitespaces.
+	 */
+	private static _adjustLeftPosition(cursor:OneCursor, range: editorCommon.IEditorRange): void {
+		let lineContent = cursor.getLineContent(range.startLineNumber);
+		if (strings.lastNonWhitespaceIndex(lineContent.substring(0, range.startColumn - 1)) === -1) {
+			range.startColumn = 1;
 		}
 	}
 
@@ -1640,21 +1656,11 @@ export class OneCursorOp {
 		return true;
 	}
 
-	private static _findLastNonWhitespaceChar(str:string, startIndex:number): number {
-		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
-			let ch = str.charAt(chIndex);
-			if (ch !== ' ' && ch !== '\t') {
-				return chIndex;
-			}
-		}
-		return -1;
-	}
-
 	private static deleteWordLeftWhitespace(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 		let position = cursor.getPosition();
 		let lineContent = cursor.getLineContent(position.lineNumber);
 		let startIndex = position.column - 2;
-		let lastNonWhitespace = this._findLastNonWhitespaceChar(lineContent, startIndex);
+		let lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex);
 		if (lastNonWhitespace + 1 < startIndex) {
 			// bingo
 			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, lastNonWhitespace + 2, position.lineNumber, position.column), '');
