@@ -205,18 +205,21 @@ class JediCompletion(object):
 
         _definitions = []
         for definition in definitions:
-            if definition.module_path:
-                if definition.type == 'import':
-                    definition = _top_definition(definition)
+            try:
+                if definition.module_path:
+                    if definition.type == 'import':
+                        definition = _top_definition(definition)
 
-                _definition = {
-                    'text': definition.name,
-                    'type': self._get_definition_type(definition),
-                    'fileName': definition.module_path,
-                    'line': definition.line - 1,
-                    'column': definition.column
-                }
-                _definitions.append(_definition)
+                    _definition = {
+                        'text': definition.name,
+                        'type': self._get_definition_type(definition),
+                        'fileName': definition.module_path,
+                        'line': definition.line - 1,
+                        'column': definition.column
+                    }
+                    _definitions.append(_definition)
+            except Exception as e:
+                pass
         return json.dumps({'id': identifier, 'results': _definitions})
 
     def _serialize_usages(self, usages, identifier=None):
@@ -278,7 +281,8 @@ class JediCompletion(object):
             return self._write_response(self._serialize_definitions(
                 jedi.api.names(
                     source=request['source'], 
-                    path=request.get('path', '')), 
+                    path=request.get('path', ''),
+                    all_scopes=True),
                 request['id']))
                 
         script = jedi.api.Script(
