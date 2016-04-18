@@ -17,7 +17,6 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction, ListSuggestedExtensionsAction } from './extensionsActions';
-import { ExtensionTipsService } from './extensionTipsService';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import {ipcRenderer as ipc} from 'electron';
 
@@ -32,6 +31,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		@IExtensionsService private extensionsService: IExtensionsService,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IExtensionTipsService extenstionTips: IExtensionTipsService, // this is to eagerly start the service
 		@IGalleryService galleryService: IGalleryService
 	) {
 		this.registerListeners();
@@ -41,9 +41,6 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		if (options.extensionsToInstall && options.extensionsToInstall.length) {
 			this.install(options.extensionsToInstall).done(null, errors.onUnexpectedError);
 		}
-
-		// add service
-		instantiationService.addSingleton(IExtensionTipsService, this.instantiationService.createInstance(ExtensionTipsService));
 
 		const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
 		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), ExtensionsLabel);

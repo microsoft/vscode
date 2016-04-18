@@ -80,7 +80,7 @@ export interface IExtensionsService {
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
-	serviceId: ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<IExtensionTipsService>;
 	getRecommendations(): TPromise<IExtension[]>;
 }
 

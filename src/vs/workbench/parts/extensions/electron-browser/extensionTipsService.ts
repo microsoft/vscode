@@ -19,7 +19,8 @@ interface ExtensionRecommendations {
 
 export class ExtensionTipsService implements IExtensionTipsService {
 
-	serviceId: any;
+	serviceId = IExtensionTipsService;
+
 	private _recommendations: { [id: string]: boolean; };
 	private _disposables: IDisposable[] = [];
 	private _availableRecommendations: ExtensionRecommendations;

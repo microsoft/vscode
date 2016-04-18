@@ -268,8 +268,7 @@ suite('Workbench UI Services', () => {
 		services.set(IFileService, <any> TestFileService);
 		let inst = new InstantiationService(services);
 
-		let textFileService = <ITextFileService>inst.createInstance(<any>TextFileService);
-		inst.addSingleton(ITextFileService, textFileService);
+		services.set(ITextFileService, <ITextFileService>inst.createInstance(<any>TextFileService));
 		services['instantiationService'] = inst;
 
 		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
