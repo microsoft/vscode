@@ -18,8 +18,22 @@ import ServiceIdentifier = instantiation.ServiceIdentifier;
 /**
  * Creates a new instance of an instantiation service.
  */
-export function createInstantiationService(services: any = Object.create(null)): IInstantiationService {
-	let result = new InstantiationService(services, new AccessLock());
+export function createInstantiationService(services?: instantiation.IServiceCollection | { [legacyId: string]: any }): IInstantiationService {
+	let map:{ [legacyId: string]: any };
+	if (typeof services === 'undefined') {
+		map = Object.create(null);
+	} else if (typeof (<instantiation.IServiceCollection>services).forEach === 'function') {
+		map = Object.create(null);
+		(<instantiation.IServiceCollection>services).forEach((id, service) => {
+			map[instantiation._util.getServiceId(id)] = service;
+		});
+	} else if(typeof services === 'object') {
+		map = services;
+	} else {
+		throw new Error('invalid arg');
+	}
+
+	let result = new InstantiationService(map, new AccessLock());
 	return result;
 }
 
