@@ -175,8 +175,7 @@ suite('TelemetryService', () => {
 
 	test('TelemetryAppendersRegistry, activate', function() {
 
-		let registry = new Telemetry.TelemetryAppendersRegistry();
-		registry.registerTelemetryAppenderDescriptor(TestTelemetryAppender);
+		Telemetry.Extenstions.TelemetryAppenders.registerTelemetryAppenderDescriptor(TestTelemetryAppender);
 
 		let callCount = 0;
 		let telemetryService: Telemetry.ITelemetryService = <any> {
@@ -188,12 +187,12 @@ suite('TelemetryService', () => {
 
 		let instantiationService = InstantiationService.createInstantiationService();
 		instantiationService.addSingleton(Telemetry.ITelemetryService, telemetryService);
-		registry.activate(instantiationService);
+		instantiationService.invokeFunction(Telemetry.Extenstions.TelemetryAppenders.activate);
 		assert.equal(callCount, 1);
 
 		// registry is now active/read-only
-		assert.throws(() => registry.registerTelemetryAppenderDescriptor(TestTelemetryAppender));
-		assert.throws(() => registry.activate(instantiationService));
+		assert.throws(() => Telemetry.Extenstions.TelemetryAppenders.registerTelemetryAppenderDescriptor(TestTelemetryAppender));
+		assert.throws(() => instantiationService.invokeFunction(Telemetry.Extenstions.TelemetryAppenders.activate));
 	});
 
 	test('Disposing', sinon.test(function() {

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Registry} from 'vs/platform/platform';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
-import {createDecorator, ServiceIdentifier, IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator, ServiceIdentifier, IInstantiationService, ServicesAccessor, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -37,12 +36,28 @@ export interface ITelemetryService {
 	addTelemetryAppender(appender: ITelemetryAppender): IDisposable;
 }
 
-export const Extenstions = {
-	TelemetryAppenders: 'telemetry.appenders'
+export namespace Extenstions {
+
+	let _telemetryAppenderCtors: IConstructorSignature0<ITelemetryAppender>[] = [];
+
+	export const TelemetryAppenders = {
+		activate(accessor: ServicesAccessor): void {
+			const telemetryService = accessor.get(ITelemetryService);
+			const instantiationService = accessor.get(IInstantiationService);
+			for (let ctor of _telemetryAppenderCtors) {
+				const instance = instantiationService.createInstance(ctor);
+				telemetryService.addTelemetryAppender(instance);
+			}
+			// can only be done once
+			_telemetryAppenderCtors = undefined;
+		},
+		registerTelemetryAppenderDescriptor(ctor: IConstructorSignature0<ITelemetryAppender>): void {
+			_telemetryAppenderCtors.push(ctor);
+		}
+	};
 };
 
 export interface ITelemetryAppendersRegistry {
-	registerTelemetryAppenderDescriptor(ctor: IConstructorSignature0<ITelemetryAppender>): void;
 	activate(instantiationService: IInstantiationService): void;
 }
 
@@ -63,32 +78,6 @@ export const NullTelemetryService: ITelemetryService = {
 export interface ITelemetryAppender extends IDisposable {
 	log(eventName: string, data?: any): void;
 }
-
-export class TelemetryAppendersRegistry implements ITelemetryAppendersRegistry {
-
-	private _telemetryAppenderCtors: IConstructorSignature0<ITelemetryAppender>[];
-
-	constructor() {
-		this._telemetryAppenderCtors = [];
-	}
-
-	public registerTelemetryAppenderDescriptor(ctor: IConstructorSignature0<ITelemetryAppender>): void {
-		this._telemetryAppenderCtors.push(ctor);
-	}
-
-	public activate(instantiationService: IInstantiationService): void {
-		const service = instantiationService.getInstance(ITelemetryService);
-		for (let ctor of this._telemetryAppenderCtors) {
-			const instance = instantiationService.createInstance(ctor);
-			service.addTelemetryAppender(instance);
-		}
-
-		// can only be done once
-		this._telemetryAppenderCtors = undefined;
-	}
-}
-
-Registry.add(Extenstions.TelemetryAppenders, new TelemetryAppendersRegistry());
 
 // --- util
 

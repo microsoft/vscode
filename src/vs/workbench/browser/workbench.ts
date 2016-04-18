@@ -427,7 +427,7 @@ export class Workbench implements IPartService {
 		<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench).setInstantiationService(this.instantiationService);
 		<IEditorRegistry>Registry.as(EditorExtensions.Editors).setInstantiationService(this.instantiationService);
 
-		Registry.as<{activate(s:IInstantiationService):void}>(TelemetryExtensions.TelemetryAppenders).activate(this.instantiationService);
+		this.instantiationService.invokeFunction(TelemetryExtensions.TelemetryAppenders.activate);
 	}
 
 	private initSettings(): void {
