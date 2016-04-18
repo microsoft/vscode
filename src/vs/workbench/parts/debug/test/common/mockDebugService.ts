@@ -45,7 +45,9 @@ export class MockDebugService extends ee.EventEmitter implements debug.IDebugSer
 		return TPromise.as(null);
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): void {}
+	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
+		return TPromise.as(null);
+	}
 
 	public setBreakpointsForModel(modelUri: uri, rawData: debug.IRawBreakpoint[]): void {}
 

@@ -258,12 +258,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus);
+						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
 						return this.openOrRevealEditor(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
 					} else {
-						this.setFocusedStackFrameAndEvaluate(null);
+						this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 					}
 				});
 			}, errors.onUnexpectedError);
@@ -272,7 +272,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.CONTINUED, () => {
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.continueThreads();
-			this.setFocusedStackFrameAndEvaluate(null);
+			this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 			this.setStateAndEmit(this.configurationManager.getConfiguration().noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
 
@@ -415,12 +415,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return !!this.contextService.getWorkspace();
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): void {
+	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
 		this.viewModel.setFocusedStackFrame(focusedStackFrame);
 		if (focusedStackFrame) {
-			this.model.evaluateWatchExpressions(this.session, focusedStackFrame);
+			return this.model.evaluateWatchExpressions(this.session, focusedStackFrame);
 		} else {
 			this.model.clearWatchExpressionValues();
+			return TPromise.as(null);
 		}
 	}
 
@@ -544,7 +545,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 			configuration.noDebug = noDebug;
 			if (!this.configurationManager.getAdapter()) {
-				this.emit(debug.ServiceEvents.TYPE_NOT_SUPPORTED, configuration.type);
 				return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 					: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the selected configuration in launch.json."),
 						{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
@@ -736,7 +736,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.editorService.focusEditor();
 
 		this.model.clearThreads(true);
-		this.setFocusedStackFrameAndEvaluate(null);
+		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 		this.setStateAndEmit(debug.State.Inactive);
 
 		// set breakpoints back to unverified since the session ended.

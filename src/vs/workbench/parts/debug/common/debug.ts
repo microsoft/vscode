@@ -150,7 +150,6 @@ export var ViewModelEvents = {
 
 export var ServiceEvents = {
 	STATE_CHANGED: 'StateChanged',
-	TYPE_NOT_SUPPORTED: 'TypeNotSupported',
 	CONFIGURATION_CHANGED: 'ConfigurationChanged'
 };
 
@@ -277,7 +276,10 @@ export interface IDebugService extends ee.IEventEmitter {
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 	loadLaunchConfig(): TPromise<IGlobalConfig>;
 
-	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): void;
+	/**
+	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,
+	 */
+	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): TPromise<void>;
 
 	/**
 	 * Sets breakpoints for a model. Does not send them to the adapter.
