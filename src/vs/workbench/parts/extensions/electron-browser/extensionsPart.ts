@@ -197,15 +197,15 @@ export class ExtensionsPart extends BaseEditor {
 		this.request(version.readmeUrl)
 			.then(opts => assign(opts, { headers }))
 			.then(opts => downloadText(opts))
-			.then(marked.parse)
-			.then(html => data.body.innerHTML = html);
+			.then(marked.parse);
+			// .then(html => data.body.innerHTML = html);
 
 		// set up disposable for later
 		this.highlightDisposable = toDisposable(() => {
 			listener.dispose();
 			container.appendChild(data.container);
 			this.overlay.style.height = '0';
-			data.body.innerHTML = '';
+			// data.body.innerHTML = '';
 		});
 	}
 

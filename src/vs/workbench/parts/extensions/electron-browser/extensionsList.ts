@@ -22,7 +22,6 @@ export interface ITemplateData {
 	version: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
-	body: HTMLElement;
 }
 
 export enum ExtensionState {
@@ -78,8 +77,7 @@ export class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> 
 		const version = append(subtitle, $('span.version'));
 		const author = append(subtitle, $('span.author'));
 		const description = append(details, $('.description'));
-		const body = append(element, $('.body'));
-		const result = { extension: null, container, element, icon, name, version, author, description, body };
+		const result = { extension: null, container, element, icon, name, version, author, description };
 
 		this._templates.push(result);
 		return result;
@@ -88,12 +86,11 @@ export class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> 
 	renderPlaceholder(index: number, data: ITemplateData): void {
 		addClass(data.element, 'loading');
 		data.extension = null;
-		data.icon.style.display = 'none';
+		data.icon.src = '';
 		data.name.textContent = '';
 		data.version.textContent = '';
 		data.author.textContent = '';
 		data.description.textContent = '';
-		data.body.textContent = '';
 	}
 
 	renderElement(entry: IExtensionEntry, index: number, data: ITemplateData): void {
@@ -103,13 +100,11 @@ export class Renderer implements IPagedRenderer<IExtensionEntry, ITemplateData> 
 
 		data.extension = extension;
 		removeClass(data.element, 'loading');
-		data.icon.style.display = 'block';
 		data.icon.src = version.iconUrl;
 		data.name.textContent = extension.displayName;
 		data.version.textContent = ` ${ extension.version }`;
 		data.author.textContent = ` ${ localize('author', "by {0}", publisher)}`;
 		data.description.textContent = extension.description;
-		data.body.textContent = '';
 	}
 
 	disposeTemplate(data: ITemplateData): void {

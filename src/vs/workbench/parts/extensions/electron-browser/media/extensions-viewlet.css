@@ -8,9 +8,87 @@
 }
 
 .extensions-viewlet > .search {
-	height: 50px;
+	height: 38px;
+	box-sizing: border-box;
+	padding: 5px 9px 5px 16px;
+}
+
+.extensions-viewlet > .search > .search-box {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 0 3px;
 }
 
 .extensions-viewlet > .extensions {
-	height: calc(100% - 50px);
+	height: calc(100% - 26px);
+}
+
+.extensions-viewlet > .extensions .extension-container {
+	width: 100%;
+	height: 100%;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension {
+	margin: 10px 20px 10px 17px;
+	width: calc(100% - 30px);
+	height: calc(100% - 20px);
+	overflow: hidden;
+	background-color: white;
+	box-shadow: 2px 2px 5px rgba(0,0,0,.1);
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension:hover {
+	box-shadow: 2px 2px 5px rgba(0,0,0,.25);
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension.loading {
+	background-image: url('loading.svg');
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension > .header {
+	display: flex;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension > .header > .icon {
+	box-sizing: border-box;
+	width: 70px;
+	height: 70px;
+	padding: 8px;
+	flex-shrink: 0;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension.loading > .header > .icon {
+	display: none;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension > .header > .details {
+	flex: 1;
+	padding: 8px;
+	overflow: hidden;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension > .header > .details > .title > .name {
+	font-weight: bold;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension > .header > .details > .subtitle {
+	font-size: 90%;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension > .header > .details > .subtitle > .author {
+	font-style: italic;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension > .header > .details > div {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	width: 100%;
+}
+
+.extensions-viewlet > .extensions .extension-container > .extension > .body {
+	display: none;
 }

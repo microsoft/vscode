@@ -12,13 +12,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
+import { append, emmet as $ } from 'vs/base/browser/dom';
 import { PagedModel, mapPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionEntry, Delegate, Renderer, ExtensionState } from './extensionsList';
 import { IGalleryService } from '../common/extensions';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 const EmptyModel = new PagedModel({
 	firstPage: [],
@@ -41,6 +42,7 @@ export class ExtensionsViewlet extends Viewlet {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IGalleryService private galleryService: IGalleryService,
+		@IProgressService private progressService: IProgressService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(ExtensionsViewlet.ID, telemetryService);
@@ -89,8 +91,8 @@ export class ExtensionsViewlet extends Viewlet {
 
 		const promise = this.searchDelayer.trigger(() => this.doSearch(text), delay);
 
-		addClass(this.extensionsBox, 'loading');
-		always(promise, () => removeClass(this.extensionsBox, 'loading'));
+		const progressRunner = this.progressService.show(true);
+		always(promise, () => progressRunner.done());
 	}
 
 	private doSearch(text: string = ''): TPromise<any> {
