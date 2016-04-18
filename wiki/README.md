@@ -10,7 +10,7 @@ If you are looking for more information on using VS Code, please visit our [the 
 
 - Contributing
   - [How to Contribute](contributing/how-to-contribute.md)
-  - [Submitting Bugs and Suggestions](contributing/submitting-bugs-and-suggestinos.md)
+  - [Submitting Bugs and Suggestions](contributing/submitting-bugs-and-suggestions.md)
   - [Code Organization](contributing/code-organization.md)
   - [Coding Guidelines](contributing/coding-guidelines.md)
   - [Contributor License Agreement](contributing/contributor-license-agreement.md)

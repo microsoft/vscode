@@ -53,13 +53,8 @@
 	line-height: 22px;
 }
 
-.monaco-workbench .debug-select {
-	max-width: 95%;
-}
-
 .monaco-workbench .monaco-action-bar .action-item.select-container {
 	overflow: hidden;
-	max-width: 50%;
 }
 
 .debug-viewlet .line-number {
@@ -103,6 +98,7 @@
 
 .debug-viewlet .debug-call-stack-title {
 	display: flex;
+	width: 100%;
 }
 
 .debug-viewlet .debug-call-stack-title > .pause-message {

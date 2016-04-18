@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {app} from 'electron';
+import {app, ipcMain as ipc} from 'electron';
 import fs = require('fs');
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
@@ -101,7 +101,7 @@ function quit(arg?: any) {
 		}
 	}
 
-	process.exit(exitCode);
+	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
@@ -140,10 +140,7 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	// Set programStart in the global scope
 	global.programStart = env.cliArgs.programStart;
 
-	// Dispose on app quit
-	app.on('will-quit', () => {
-		env.log('App#dispose: deleting running instance handle');
-
+	function dispose() {
 		if (ipcServer) {
 			ipcServer.dispose();
 			ipcServer = null;
@@ -154,6 +151,21 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 		if (windowsMutex) {
 			windowsMutex.release();
 		}
+	}
+
+	// Dispose on app quit
+	app.on('will-quit', () => {
+		env.log('App#will-quit: disposing resources');
+
+		dispose();
+	});
+
+	// Dispose on vscode:exit
+	ipc.on('vscode:exit', (event, code: number) => {
+		env.log('IPC#vscode:exit', code);
+
+		dispose();
+		process.exit(code); // in main, process.exit === app.exit
 	});
 
 	// Lifecycle
