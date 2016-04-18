@@ -7,7 +7,7 @@
 
 import {equal} from 'assert';
 import {WinTerminalService, LinuxTerminalService} from 'vs/workbench/parts/execution/electron-browser/terminalService';
-import {defaultWindowsTerm, defaultLinuxTerm} from 'vs/workbench/parts/execution/common/terminal';
+import {DEFAILT_WINDOWS_TERM, DEFAULT_LINUX_TERM} from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 suite('Execution - TerminalService', () => {
 	let mockOnExit;
@@ -61,7 +61,7 @@ suite('Execution - TerminalService', () => {
 		let mockSpawner = {
 			spawn: (command, args, opts) => {
 				// assert
-				equal(args[args.length - 1], defaultWindowsTerm, 'terminal should equal expected')
+				equal(args[args.length - 1], DEFAILT_WINDOWS_TERM, 'terminal should equal expected')
 				done();
 				return {
 					on: (evt) => evt
@@ -108,7 +108,7 @@ suite('Execution - TerminalService', () => {
 		let mockSpawner = {
 			spawn: (command, args, opts) => {
 				// assert
-				equal(command, defaultLinuxTerm, 'terminal should equal expected')
+				equal(command, DEFAULT_LINUX_TERM, 'terminal should equal expected')
 				done();
 				return {
 					on: (evt) => evt
