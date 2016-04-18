@@ -37,7 +37,7 @@ export class InstantiationService implements IInstantiationService {
 
 	private _services: ServiceCollection;
 
-	constructor(services: ServiceCollection) {
+	constructor(services: ServiceCollection = new ServiceCollection()) {
 		this._services = services;
 
 		this._services.set(IInstantiationService, this);

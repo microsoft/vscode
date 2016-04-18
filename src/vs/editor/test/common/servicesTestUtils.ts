@@ -15,7 +15,8 @@ import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -105,11 +106,11 @@ export function createMockModeService(): IModeService {
 	var threadService = NULL_THREAD_SERVICE;
 	var extensionService = new MockExtensionService();
 	var modeService = new MockModeService(threadService, extensionService);
-	var inst = createInstantiationService({
-		threadService: threadService,
-		extensionService: extensionService,
-		modeService: modeService
-	});
+	var services = new ServiceCollection();
+	services.set(IThreadService, threadService);
+	services.set(IExtensionService, extensionService);
+	services.set(IModeService, modeService);
+	var inst = new InstantiationService(services);
 	threadService.setInstantiationService(inst);
 	return modeService;
 }
@@ -128,14 +129,16 @@ export function createMockModelService(): IModelService {
 	var extensionService = new MockExtensionService();
 	var modeService = new MockModeService(threadService, extensionService);
 	var modelService = new MockModelService(threadService, null, modeService, configurationService, null);
-	var inst = createInstantiationService({
-		threadService: threadService,
-		extensionService: extensionService,
-		modeService: modeService,
-		contextService: contextService,
-		eventService: eventService,
-		configurationService: configurationService
-	});
+
+	var services = new ServiceCollection();
+	services.set(IThreadService, threadService);
+	services.set(IExtensionService, extensionService);
+	services.set(IModeService, modeService);
+	services.set(IWorkspaceContextService, contextService);
+	services.set(IEventService, eventService);
+	services.set(IConfigurationService, configurationService);
+	var inst = new InstantiationService(services);
+
 	threadService.setInstantiationService(inst);
 	return modelService;
 }

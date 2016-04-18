@@ -11,7 +11,10 @@ import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 class MyEditorModel extends EditorModel { }
@@ -44,10 +47,10 @@ suite('Workbench - EditorModel', () => {
 	});
 
 	test('TextDiffEditorModel', function (done) {
-		let inst = InstantiationService.createInstantiationService({
-			modeService: createMockModeService(),
-			modelService: createMockModelService(),
-		});
+		let services = new ServiceCollection();
+		services.set(IModeService, createMockModeService());
+		services.set(IModelService, createMockModelService());
+		let inst = new InstantiationService(services);
 		let input = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'text/plain', false);
 		let otherInput = inst.createInstance(StringEditorInput, 'name2', 'description', 'value2', 'text/plain', false);
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);

@@ -11,7 +11,10 @@ import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebars
 import {HandlebarsMode} from 'vs/languages/handlebars/common/handlebars';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
 
 class HandlebarsMockModeService extends MockModeService {
@@ -54,10 +57,9 @@ suite('Handlebars', () => {
 	(function() {
 		let threadService = NULL_THREAD_SERVICE;
 		let modeService = new HandlebarsMockModeService();
-		let inst = createInstantiationService({
-			threadService: threadService,
-			modeService: modeService
-		});
+		let inst = new InstantiationService(new ServiceCollection(
+			[IThreadService, threadService],
+			[IModeService, modeService]));
 		threadService.setInstantiationService(inst);
 
 		let mode = new HandlebarsMode(

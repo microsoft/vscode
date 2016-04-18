@@ -8,7 +8,11 @@
 import * as assert from 'assert';
 import {AbstractGettingStarted} from 'vs/workbench/parts/gettingStarted/common/abstractGettingStarted';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IStorageService} from 'vs/platform/storage/common/storage';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TPromise} from 'vs/base/common/winjs.base';
 
 class TestGettingStarted extends AbstractGettingStarted {
@@ -27,25 +31,25 @@ suite('Workbench - GettingStarted', () => {
 	let appName: string = null;
 
 	suiteSetup(() => {
-		instantiation = createInstantiationService({
-			contextService: {
-				getConfiguration: () => {
-					return {
-						env: {
-							welcomePage: welcomePageEnvConfig,
-							appName: appName
-						}
+		let services = new ServiceCollection();
+		services.set(IWorkspaceContextService, <any>{
+			getConfiguration: () => {
+				return {
+					env: {
+						welcomePage: welcomePageEnvConfig,
+						appName: appName
 					}
-				}
-			},
-			telemetryService: {
-				getTelemetryInfo: () => TPromise.as({ machineId: machineId })
-			},
-			storageService: {
-				get: () => hideWelcomeSettingsValue,
-				store: (value) => hideWelcomeSettingsValue = value
+				};
 			}
 		});
+		services.set(ITelemetryService, <any>{
+			getTelemetryInfo: () => TPromise.as({ machineId: machineId })
+		});
+		services.set(IStorageService, <any>{
+			get: () => hideWelcomeSettingsValue,
+			store: (value) => hideWelcomeSettingsValue = value
+		});
+		instantiation = new InstantiationService(services);
 	});
 
 	suiteTeardown(() => {

@@ -12,8 +12,21 @@ import paths = require('vs/base/common/paths');
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IEventService} from 'vs/platform/event/common/event';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IStorageService} from 'vs/platform/storage/common/storage';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IFileService} from 'vs/platform/files/common/files';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import PartService = require('vs/workbench/services/part/common/partService');
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {ITextFileService, EventType} from 'vs/workbench/parts/files/common/files';
 import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
@@ -34,25 +47,25 @@ suite('Files - TextFileEditorModel', () => {
 		eventService = new TestEventService();
 		messageService = new TestMessageService();
 
-		baseInstantiationService = createInstantiationService({
-			eventService: eventService,
-			messageService: messageService,
-			fileService: TestFileService,
-			contextService: new TestContextService(),
-			telemetryService: NullTelemetryService,
-			storageService: new TestStorageService(),
-			untitledEditorService: new TestUntitledEditorService(),
-			editorService: new TestEditorService(),
-			partService: new TestPartService(),
-			modeService: createMockModeService(),
-			modelService: createMockModelService(),
-			lifecycleService: new TestLifecycleService(),
-			configurationService: new TestConfigurationService()
-		});
+		let services = new ServiceCollection();
 
-		textFileService = <TextFileService>baseInstantiationService.createInstance(<any>TextFileService);
+		services.set(IEventService, eventService);
+		services.set(IMessageService, messageService);
+		services.set(IFileService, <any> TestFileService);
+		services.set(IWorkspaceContextService, new TestContextService());
+		services.set(ITelemetryService, NullTelemetryService);
+		services.set(IStorageService, new TestStorageService());
+		services.set(IUntitledEditorService, new TestUntitledEditorService());
+		services.set(IWorkbenchEditorService, new TestEditorService());
+		services.set(PartService.IPartService, new TestPartService());
+		services.set(IModeService, createMockModeService());
+		services.set(IModelService, createMockModelService());
+		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(IConfigurationService, new TestConfigurationService());
 
-		baseInstantiationService.addSingleton(ITextFileService, textFileService);
+		baseInstantiationService = new InstantiationService(services);
+		textFileService = <any>baseInstantiationService.createInstance(<any>TextFileService);
+		services.set(ITextFileService, textFileService);
 	});
 
 	teardown(() => {

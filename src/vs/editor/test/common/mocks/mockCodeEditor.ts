@@ -5,10 +5,12 @@
 'use strict';
 
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IKeybindingScopeLocation} from 'vs/platform/keybinding/common/keybindingService';
+import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IKeybindingService, IKeybindingScopeLocation} from 'vs/platform/keybinding/common/keybindingService';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
 import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {Cursor} from 'vs/editor/common/controller/cursor';
@@ -60,11 +62,11 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 	let keybindingService = new MockKeybindingService();
 	let telemetryService = NullTelemetryService;
 
-	let instantiationService = createInstantiationService({
-		codeEditorService: codeEditorService,
-		keybindingService: keybindingService,
-		telemetryService: telemetryService
-	});
+	let services = new ServiceCollection();
+	services.set(ICodeEditorService, codeEditorService);
+	services.set(IKeybindingService, keybindingService);
+	services.set(ITelemetryService, telemetryService);
+	let instantiationService = new InstantiationService(services);
 
 	let model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, keybindingService, telemetryService);
