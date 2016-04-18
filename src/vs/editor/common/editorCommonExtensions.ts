@@ -39,14 +39,15 @@ export class EditorActionDescriptor {
 	public ctor:editorCommon.IEditorActionContributionCtor;
 	public id:string;
 	public label:string;
-
+	public keywords:string[];
 	public kbOpts:IEditorActionKeybindingOptions;
 
-	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions) {
+	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions, keywords?:string[]) {
 		this.ctor = ctor;
 		this.id = id;
 		this.label = label;
 		this.kbOpts = kbOpts;
+		this.keywords = keywords;
 	}
 }
 
@@ -138,10 +139,11 @@ class InternalEditorActionDescriptor implements editorCommon.ICommonEditorContri
 
 	private _descriptor: SyncDescriptor1<editorCommon.ICommonCodeEditor, editorCommon.IEditorContribution>;
 
-	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string) {
+	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, keywords:string[]) {
 		this._descriptor = createSyncDescriptor(ctor, {
-			id: id,
-			label: label
+			id,
+			label,
+			keywords
 		});
 	}
 
@@ -201,7 +203,7 @@ class EditorContributionRegistry {
 		};
 
 		KeybindingsRegistry.registerCommandDesc(commandDesc);
-		this.editorContributions.push(new InternalEditorActionDescriptor(desc.ctor, desc.id, desc.label));
+		this.editorContributions.push(new InternalEditorActionDescriptor(desc.ctor, desc.id, desc.label, desc.keywords));
 	}
 
 	public getEditorContributions2(): editorCommon.ICommonEditorContributionDescriptor[] {
