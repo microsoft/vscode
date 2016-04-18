@@ -9,8 +9,9 @@ import {illegalArgument, illegalState, canceled} from 'vs/base/common/errors';
 import {create} from 'vs/base/common/types';
 import {forEach} from 'vs/base/common/collections';
 import {Graph} from 'vs/base/common/graph';
-import * as descriptors from './descriptors';
-import * as instantiation from './instantiation';
+import * as descriptors from 'vs/platform/instantiation/common/descriptors';
+import * as instantiation from 'vs/platform/instantiation/common/instantiation';
+import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
 
 import IInstantiationService = instantiation.IInstantiationService;
 import ServiceIdentifier = instantiation.ServiceIdentifier;
@@ -18,13 +19,13 @@ import ServiceIdentifier = instantiation.ServiceIdentifier;
 /**
  * Creates a new instance of an instantiation service.
  */
-export function createInstantiationService(services?: instantiation.IServiceCollection | { [legacyId: string]: any }): IInstantiationService {
+export function createInstantiationService(services?: ServiceCollection | { [legacyId: string]: any }): IInstantiationService {
 	let map:{ [legacyId: string]: any };
 	if (typeof services === 'undefined') {
 		map = Object.create(null);
-	} else if (typeof (<instantiation.IServiceCollection>services).forEach === 'function') {
+	} else if (services instanceof ServiceCollection) {
 		map = Object.create(null);
-		(<instantiation.IServiceCollection>services).forEach((id, service) => {
+		services.forEach((id, service) => {
 			map[instantiation._util.getServiceId(id)] = service;
 		});
 	} else if(typeof services === 'object') {
@@ -239,7 +240,7 @@ class InstantiationService implements IInstantiationService {
 		this._servicesMap = new ServicesMap(services, lock);
 	}
 
-	createChild(services: instantiation.ServiceCollection): IInstantiationService {
+	createChild(services: ServiceCollection): IInstantiationService {
 
 		const result = new InstantiationService(Object.create(null), this._servicesMap.lock);
 
