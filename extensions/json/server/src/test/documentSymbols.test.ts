@@ -7,9 +7,8 @@
 import assert = require('assert');
 import Parser = require('../jsonParser');
 import SchemaService = require('../jsonSchemaService');
-import JsonSchema = require('../json-toolbox/jsonSchema');
+import JsonSchema = require('../jsonSchema');
 import {JSONCompletion} from '../jsonCompletion';
-import {IXHROptions, IXHRResponse} from '../utils/httpRequest';
 import {JSONDocumentSymbols} from '../jsonDocumentSymbols';
 
 import {SymbolInformation, SymbolKind, TextDocumentIdentifier, ITextDocument, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';

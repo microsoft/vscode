@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('./json-toolbox/json');
-import {IJSONSchema} from './json-toolbox/jsonSchema';
-import {IXHROptions, IXHRResponse, getErrorStatusDescription} from './utils/httpRequest';
+import Json = require('jsonc-parser');
+import {IJSONSchema} from './jsonSchema';
+import {XHROptions, XHRResponse, getErrorStatusDescription} from 'request-light';
 import URI from './utils/uri';
 import Strings = require('./utils/strings');
 import Parser = require('./jsonParser');
@@ -208,7 +208,7 @@ export interface IWorkspaceContextService {
 }
 
 export interface IRequestService {
-	(options: IXHROptions): Thenable<IXHRResponse>;
+	(options: XHROptions): Thenable<XHRResponse>;
 }
 
 export class JSONSchemaService implements IJSONSchemaService {
@@ -362,7 +362,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				let errors = jsonErrors.length ? [localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), jsonErrors[0])] : [];
 				return new UnresolvedSchema(schemaContent, errors);
 			},
-			(error: IXHRResponse) => {
+			(error: XHRResponse) => {
 				let errorMessage = localize('json.schema.unabletoload', 'Unable to load schema from \'{0}\': {1}', toDisplayString(url), error.responseText || getErrorStatusDescription(error.status) || error.toString());
 				return new UnresolvedSchema(<IJSONSchema>{}, [errorMessage]);
 			}

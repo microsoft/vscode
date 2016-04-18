@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('./json-toolbox/json');
-import JsonSchema = require('./json-toolbox/jsonSchema');
+import Json = require('jsonc-parser');
+import JsonSchema = require('./jsonSchema');
 import {JSONLocation} from './jsonLocation';
 
 import * as nls from 'vscode-nls';
@@ -898,7 +898,7 @@ export function parse(text: string, config = new JSONDocumentConfig()): JSONDocu
 			if (_scanner.getToken() === Json.SyntaxKind.Unknown) {
 				// give a more helpful error message
 				let value = _scanner.getTokenValue();
-				if (value.length > 0 && (value.charAt(0) === '\'' || Json.isLetter(value.charAt(0).charCodeAt(0)))) {
+				if (value.match(/^['\w]/)) {
 					_error(localize('DoubleQuotesExpected', 'Property keys must be doublequoted'));
 				}
 			}

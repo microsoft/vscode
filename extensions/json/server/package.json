@@ -8,8 +8,8 @@
 		"node": "*"
 	},
 	"dependencies": {
-		"http-proxy-agent": "^0.2.6",
-		"https-proxy-agent": "^0.3.5",
+		"request-light": "^0.0.3",
+		"jsonc-parser": "^0.0.1",
 		"vscode-languageserver": "^1.3.0",
 		"vscode-nls": "^1.0.4"
 	},

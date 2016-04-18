@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('./json-toolbox/json');
+import Json = require('jsonc-parser');
 import {ITextDocument, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
 
 export function format(document: ITextDocument, range: Range, options: FormattingOptions): TextEdit[] {

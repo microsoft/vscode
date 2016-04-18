@@ -7,7 +7,7 @@
 import assert = require('assert');
 import Parser = require('../jsonParser');
 import SchemaService = require('../jsonSchemaService');
-import JsonSchema = require('../json-toolbox/jsonSchema');
+import JsonSchema = require('../jsonSchema');
 
 suite('JSON Parser', () => {
 

@@ -2,8 +2,19 @@
 	"name": "javascript",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": {
-		"vscode": "*"
+	"engines": { "vscode": "0.10.x" },
+	"activationEvents": [
+		"onLanguage:javascript", "onLanguage:json"
+	],
+	"main": "./out/javascriptMain",
+	"dependencies": {
+		"vscode-nls": "^1.0.4",
+		"request-light": "^0.0.3",
+		"jsonc-parser": "^0.0.1"
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:javascript",
+		"watch": "gulp watch-extension:javascript"
 	},
 	"contributes": {
 		"languages": [
