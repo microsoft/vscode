@@ -16,8 +16,9 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IFileService} from 'vs/platform/files/common/files';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -204,8 +205,17 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		instantiationService: void 0
 	};
 
-	let instantiationService = createInstantiationService(staticServices);
-	staticServices.instantiationService = createInstantiationService(staticServices);
+	let serviceCollection = new ServiceCollection();
+	for (var legacyServiceId in staticServices) {
+		if (staticServices.hasOwnProperty(legacyServiceId)) {
+			let id = createDecorator(legacyServiceId);
+			let element = staticServices[legacyServiceId];
+			serviceCollection.set(id, element);
+		}
+	}
+	let instantiationService = new InstantiationService(serviceCollection);
+
+	staticServices.instantiationService = instantiationService;
 	if (threadService instanceof MainThreadService) {
 		threadService.setInstantiationService(instantiationService);
 	}

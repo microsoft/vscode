@@ -8,28 +8,11 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {illegalArgument, illegalState, canceled} from 'vs/base/common/errors';
 import {create} from 'vs/base/common/types';
 import * as assert from 'vs/base/common/assert';
-import {forEach} from 'vs/base/common/collections';
 import {Graph} from 'vs/base/common/graph';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceIdentifier, IInstantiationService, ServicesAccessor, _util} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 
-/**
- * Creates a new instance of an instantiation service.
- */
-export function createInstantiationService(param: ServiceCollection | { [legacyId: string]: any } = new ServiceCollection()): IInstantiationService {
-
-	if (param instanceof ServiceCollection) {
-		return new InstantiationService(param);
-	}
-
-	// legacy
-	let services = new ServiceCollection();
-	forEach(param, entry => {
-		services.set(createDecorator(entry.key), entry.value);
-	});
-	return new InstantiationService(services);
-}
 
 export class InstantiationService implements IInstantiationService {
 
