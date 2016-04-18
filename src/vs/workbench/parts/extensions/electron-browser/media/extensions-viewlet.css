@@ -10,7 +10,7 @@
 .extensions-viewlet > .search {
 	height: 38px;
 	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+	padding: 5px 19px 5px 16px;
 }
 
 .extensions-viewlet > .search > .search-box {
@@ -21,7 +21,7 @@
 }
 
 .extensions-viewlet > .extensions {
-	height: calc(100% - 26px);
+	height: calc(100% - 38px);
 }
 
 .extensions-viewlet > .extensions .extension-container {
@@ -31,7 +31,6 @@
 
 .extensions-viewlet > .extensions .extension-container > .extension {
 	margin: 10px 20px 10px 17px;
-	width: calc(100% - 30px);
 	height: calc(100% - 20px);
 	overflow: hidden;
 	background-color: white;
@@ -91,4 +90,21 @@
 
 .extensions-viewlet > .extensions .extension-container > .extension > .body {
 	display: none;
+}
+
+/* List overrides */
+
+.extensions-viewlet .monaco-list-row:hover {
+	background-color: transparent;
+}
+
+.extensions-viewlet .monaco-list-row.selected {
+	background-color: transparent;
+	color: inherit;
+}
+
+.extensions-viewlet .monaco-list-row.selected .extension-container > .extension {
+	box-shadow: 2px 2px 5px rgba(0,0,0,.25);
+	background-color: #4FA7FF;
+	color: white;
 }

@@ -83,7 +83,7 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	layout({ height }: Dimension):void {
-		this.list.layout(height - 50);
+		this.list.layout(height - 38);
 	}
 
 	private triggerSearch(text: string = '', delay = 500): void {
