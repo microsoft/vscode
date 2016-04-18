@@ -11,7 +11,7 @@ import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
+import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {TestFileService, TestLifecycleService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestStorageService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
@@ -25,7 +25,7 @@ suite('Files - FileEditorInput', () => {
 	test('FileEditorInput', function (done) {
 		let editorService = new TestEditorService(function () { });
 		let eventService = new TestEventService();
-		let telemetryService = new MainTelemetryService();
+		let telemetryService = NullTelemetryService;
 		let contextService = new TestContextService();
 
 		let instantiationService = createInstantiationService({
@@ -114,7 +114,7 @@ suite('Files - FileEditorInput', () => {
 
 	test('FileTracker - dispose()', function (done) {
 		let editorService = new TestEditorService(function () { });
-		let telemetryService = new MainTelemetryService();
+		let telemetryService = NullTelemetryService;
 		let contextService = new TestContextService();
 
 		let eventService = new TestEventService();
@@ -158,7 +158,7 @@ suite('Files - FileEditorInput', () => {
 
 	test('FileEditorInput - dispose() also works for folders', function (done) {
 		let editorService = new TestEditorService(function () { });
-		let telemetryService = new MainTelemetryService();
+		let telemetryService = NullTelemetryService;
 		let contextService = new TestContextService();
 
 		let eventService = new TestEventService();

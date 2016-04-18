@@ -37,7 +37,6 @@ import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/mar
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platform/configuration/common/configuration';
 import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -45,8 +44,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment }  from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -58,7 +55,7 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
-import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 
 import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
@@ -182,20 +179,21 @@ class ConfigureTaskRunnerAction extends Action {
 				}
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
-					this.outputService.showOutput(TaskService.OutputChannel);
-					this.outputService.append(TaskService.OutputChannel, nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
+					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
+					outputChannel.show();
+					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
 					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
 					contentPromise = detector.detect(false, selection.id).then((value) => {
 						let config = value.config;
 						if (value.stderr && value.stderr.length > 0) {
 							value.stderr.forEach((line) => {
-								this.outputService.append(TaskService.OutputChannel, line + '\n');
+								outputChannel.append(line + '\n');
 							});
 							this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
 							return selection.content;
 						} else if (config) {
 							if (value.stdout && value.stdout.length > 0) {
-								value.stdout.forEach(line => this.outputService.append(TaskService.OutputChannel, line + '\n'));
+								value.stdout.forEach(line => outputChannel.append(line + '\n'));
 							}
 							let content = JSON.stringify(config, null, '\t');
 							content = [
@@ -287,7 +285,7 @@ class ShowLogAction extends AbstractTaskAction {
 	}
 
 	public run(): Promise {
-		return this.outputService.showOutput(TaskService.OutputChannel);
+		return this.outputService.getChannel(TaskService.OutputChannelId).show();
 	}
 }
 
@@ -452,7 +450,8 @@ interface TaskServiceEventData {
 class TaskService extends EventEmitter implements ITaskService {
 	public serviceId = ITaskService;
 	public static SERVICE_ID: string = 'taskService';
-	public static OutputChannel:string = 'Tasks';
+	public static OutputChannelId:string = 'tasks';
+	public static OutputChannelLabel:string = nls.localize('tasks', "Tasks");
 
 	private modeService: IModeService;
 	private configurationService: IConfigurationService;
@@ -473,6 +472,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private _taskSystem: ITaskSystem;
 	private taskSystemListeners: ListenerUnbind[];
 	private clearTaskSystemPromise: boolean;
+	private outputChannel: IOutputChannel;
 
 	private fileChangesListener: ListenerUnbind;
 
@@ -503,6 +503,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
+		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, () => {
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._taskSystem && this._taskSystem.isActiveSync()) {
@@ -544,8 +545,8 @@ class TaskService extends EventEmitter implements ITaskService {
 						}
 					}
 					if (isAffected) {
-						this.outputService.append(TaskService.OutputChannel, nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
-						this.outputService.showOutput(TaskService.OutputChannel, true);
+						this.outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+						this.outputChannel.show(true);
 						return TPromise.wrapError({});
 					}
 				}
@@ -593,7 +594,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (config.buildSystem === 'service') {
 						result = new LanguageServiceTaskSystem(<LanguageServiceTaskConfiguration>config, this.telemetryService, this.modeService);
 					} else if (this.isRunnerConfig(config)) {
-						result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, variables, this.markerService, this.modelService, this.telemetryService, this.outputService, TaskService.OutputChannel, clearOutput);
+						result = new ProcessRunnerSystem(<FileConfig.ExternalTaskRunnerConfiguration>config, variables, this.markerService, this.modelService, this.telemetryService, this.outputService, TaskService.OutputChannelId, clearOutput);
 					}
 					if (result === null) {
 						this._taskSystemPromise = null;
@@ -617,9 +618,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (stderr && stderr.length > 0) {
 			stderr.forEach((line) => {
 				result = false;
-				this.outputService.append(TaskService.OutputChannel, line + '\n');
+				this.outputChannel.append(line + '\n');
 			});
-			this.outputService.showOutput(TaskService.OutputChannel, true);
+			this.outputChannel.show(true);
 		}
 		return result;
 	}
@@ -783,18 +784,8 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputService.showOutput(TaskService.OutputChannel, true);
+			this.outputChannel.show(true);
 		}
-	}
-}
-
-export class TaskServiceParticipant implements IWorkbenchContribution {
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
-		// Force loading the language worker service
-		this.instantiationService.getInstance(ITaskService);
-	}
-	public getId(): string {
-		return 'vs.taskService';
 	}
 }
 
@@ -831,9 +822,9 @@ if (Env.enableTasks) {
 
 	// Output channel
 	let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
-	outputChannelRegistry.registerChannel(TaskService.OutputChannel);
+	outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
 
-	(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
+	// (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 
 	// tasks.json validation
 	let schemaId = 'vscode://schemas/tasks';
@@ -867,7 +858,7 @@ if (Env.enableTasks) {
 					'anyOf': [
 						{
 							'type': 'string',
-							'enum': ['$tsc', '$tsc-watch' ,'$msCompile', '$lessCompile', '$gulp-tsc', '$cpp', '$csc', '$vb', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish']
+							'enum': ['$tsc', '$tsc-watch' ,'$msCompile', '$lessCompile', '$gulp-tsc', '$cpp', '$csc', '$vb', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
 						},
 						{
 							'$ref': '#/definitions/pattern'
@@ -939,7 +930,7 @@ if (Env.enableTasks) {
 					'oneOf': [
 						{
 							'type': 'string',
-							'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish']
+							'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
 						},
 						{
 							'$ref': '#/definitions/problemMatcher'
@@ -953,7 +944,7 @@ if (Env.enableTasks) {
 									},
 									{
 										'type': 'string',
-										'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish']
+										'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go']
 									}
 								]
 							}
@@ -980,7 +971,7 @@ if (Env.enableTasks) {
 					'properties': {
 						'base': {
 							'type': 'string',
-							'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish'],
+							'enum': ['$tsc', '$tsc-watch', '$msCompile', '$lessCompile', '$gulp-tsc', '$jshint', '$jshint-stylish', '$eslint-compact', '$eslint-stylish', '$go'],
 							'description': nls.localize('JsonSchema.problemMatcher.base', 'The name of a base problem matcher to use.')
 						},
 						'owner': {

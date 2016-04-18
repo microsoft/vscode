@@ -80,7 +80,7 @@ export class BaseDropdown extends ActionRunner {
 			e.preventDefault();
 			e.stopPropagation();
 
-			this.toggleDropdown();
+			this.show();
 		}).appendTo(this.$el);
 
 		let cleanupFn = labelRenderer(this.$label.getHTMLElement());
@@ -94,14 +94,6 @@ export class BaseDropdown extends ActionRunner {
 
 	public set tooltip(tooltip: string) {
 		this.$label.title(tooltip);
-	}
-
-	/*protected*/ toggleDropdown(): void {
-		if (this.$el.hasClass('active')) {
-			this.hide();
-		} else {
-			this.show();
-		}
 	}
 
 	/*protected*/ show(): void {
@@ -219,7 +211,6 @@ export class DropdownMenu extends BaseDropdown {
 
 	/*protected*/ _contextMenuProvider: IContextMenuProvider;
 	private _menuOptions: IMenuOptions;
-	/*protected*/ currentContainer: HTMLElement;
 	/*protected*/ _actions: IAction[];
 	/*protected*/ actionProvider: IActionProvider;
 	private menuClassName: string;
@@ -228,7 +219,6 @@ export class DropdownMenu extends BaseDropdown {
 		super(container, options);
 
 		this._contextMenuProvider = options.contextMenuProvider;
-		this.currentContainer = null;
 		this.actions = options.actions || [];
 		this.actionProvider = options.actionProvider;
 		this.menuClassName = options.menuClassName || '';
@@ -273,7 +263,6 @@ export class DropdownMenu extends BaseDropdown {
 			getMenuClassName: () => this.menuClassName,
 			onHide: () => {
 				this.$el.removeClass('active');
-				this.currentContainer = null;
 			}
 		});
 	}

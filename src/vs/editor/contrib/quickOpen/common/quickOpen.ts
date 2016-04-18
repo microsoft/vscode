@@ -11,17 +11,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IOutlineEntry, IOutlineSupport} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {IOutlineEntry, OutlineRegistry} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
-
-const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
-
-export {
-	OutlineRegistry,
-	IOutlineEntry,
-	IOutlineSupport
-}
 
 export interface IOutline {
 	entries: IOutlineEntry[];

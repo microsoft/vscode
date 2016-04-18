@@ -16,7 +16,8 @@ import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {Range} from 'vs/editor/common/core/range';
 import {EventType, ICursorPositionChangedEvent, IModeSupportChangedEvent, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {IQuickFix2, QuickFixRegistry, getQuickFixes} from '../common/quickFix';
+import {QuickFixRegistry} from 'vs/editor/common/modes';
+import {IQuickFix2, getQuickFixes} from '../common/quickFix';
 import {LightBulpWidget} from './lightBulpWidget';
 
 enum QuickFixSuggestState {

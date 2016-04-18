@@ -12,8 +12,8 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {IOpenerService} from 'vs/platform/opener/common/opener';
+import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -39,8 +39,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	constructor(editor: ICodeEditor,
-		@IEditorService editorService: IEditorService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IOpenerService openerService: IOpenerService
 	) {
 		this._editor = editor;
 
@@ -55,7 +54,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.ModelDecorationsChanged, () => this._onModelDecorationsChanged()));
 			this._toUnhook.push(this._editor.addListener('scroll', () => this._hideWidgets()));
 
-			this._contentWidget = new ModesContentHoverWidget(editor, editorService, keybindingService);
+			this._contentWidget = new ModesContentHoverWidget(editor, openerService);
 			this._glyphWidget = new ModesGlyphHoverWidget(editor);
 		}
 	}

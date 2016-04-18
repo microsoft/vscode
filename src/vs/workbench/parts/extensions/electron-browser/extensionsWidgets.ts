@@ -15,7 +15,7 @@ import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IExtensionService, IMessage } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsService, ExtensionsLabel, IExtension, IExtensionManifest } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, ExtensionsLabel, ExtensionsChannelId, IExtension, IExtensionManifest } from 'vs/workbench/parts/extensions/common/extensions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { getOutdatedExtensions } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 
@@ -115,8 +115,9 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 				const name = extension && extension.name;
 				const message = name ? `${ name }: ${ m.message }` : m.message;
 
-				this.outputService.append(ExtensionsLabel, message);
-				this.outputService.showOutput(ExtensionsLabel, true);
+				const outputChannel = this.outputService.getChannel(ExtensionsChannelId);
+				outputChannel.append(message);
+				outputChannel.show(true);
 			});
 		});
 	}

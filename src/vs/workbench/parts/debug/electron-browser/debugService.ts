@@ -61,7 +61,6 @@ const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 export class DebugService extends ee.EventEmitter implements debug.IDebugService {
 	public serviceId = debug.IDebugService;
 
-	private taskService: ITaskService;
 	private state: debug.State;
 	private session: session.RawDebugSession;
 	private model: model.Model;
@@ -91,7 +90,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService:IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IMarkerService private markerService: IMarkerService
+		@IMarkerService private markerService: IMarkerService,
+		@ITaskService private taskService: ITaskService
 	) {
 		super();
 
@@ -100,8 +100,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.debugStringEditorInputs = [];
 		this.session = null;
 		this.state = debug.State.Inactive;
-		// there is a cycle if taskService gets injected, use a workaround.
-		this.taskService = this.instantiationService.getInstance(ITaskService);
 
 		if (!this.contextService.getWorkspace()) {
 			this.state = debug.State.Disabled;
@@ -111,6 +109,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
+		this.toDispose.push(this.model);
 		this.viewModel = new viewmodel.ViewModel();
 
 		this.registerListeners(eventService, lifecycleService);
@@ -136,7 +135,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		lifecycleService.onShutdown(this.store, this);
 		lifecycleService.onShutdown(this.dispose, this);
 
-		this.windowService.onBroadcast(this.onBroadcast, this);
+		this.toDispose.push(this.windowService.onBroadcast(this.onBroadcast, this));
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -231,6 +230,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private registerSessionListeners(): void {
+		this.toDisposeOnSessionEnd.push(this.session);
 		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
@@ -558,10 +558,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				}
 
 				this.messageService.show(severity.Error, {
-					message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Errors detected while running the preLaunchTask '{0}'.", configuration.preLaunchTask) :
-						errorCount === 1 ?  nls.localize('preLaunchTaskError', "Error detected while running the preLaunchTask '{0}'.", configuration.preLaunchTask) :
+					message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+						errorCount === 1 ?  nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
 						nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-					actions: [CloseAction, new Action('debug.continue', nls.localize('continue', "Continue"), null, true, () => {
+					actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 						this.messageService.hideAll();
 						return this.doCreateSession(configuration, changeViewState);
 					})]
@@ -609,7 +609,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				this.viewletService.openViewlet(debug.VIEWLET_ID);
 				this.revealRepl(false).done(undefined, errors.onUnexpectedError);
 			}
-			this.partService.addClass('debugging');
+
+			// Do not change status bar to orange if we are just running without debug.
+			if (!configuration.noDebug) {
+				this.partService.addClass('debugging');
+			}
+			this.extensionService.activateByEvent(`onDebug:${ configuration.type }`).done(null, errors.onUnexpectedError);
 			this.contextService.updateOptions('editor', {
 				glyphMargin: true
 			});
@@ -709,15 +714,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private onSessionEnd(): void {
-		try {
-			this.debugStringEditorInputs = lifecycle.dispose(this.debugStringEditorInputs);
-		} catch (e) {
-			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
-		}
-
 		if (this.session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
-			this.session.dispose();
 			this.telemetryService.publicLog('debugSessionStop', {
 				type: this.session.getType(),
 				success: this.session.emittedStopped || !bpsExist,
@@ -728,7 +726,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 
 		this.session = null;
-		this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
+		try {
+			this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
+		} catch (e) {
+			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
+		}
+
 		this.partService.removeClass('debugging');
 		this.editorService.focusEditor();
 
@@ -824,7 +827,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	public revealRepl(focus = true): TPromise<void> {
 		return this.panelService.openPanel(debug.REPL_ID, focus).then((repl: Repl) => {
 			const elements = this.model.getReplElements();
-			if (elements.length > 0) {
+			if (repl && elements.length > 0) {
 				return repl.reveal(elements[elements.length - 1]);
 			}
 		});
@@ -856,6 +859,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		if (filtered.length === 0) {
 			const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
 			this.debugStringEditorInputs.push(result);
+			this.toDisposeOnSessionEnd.push(result);
+
 			return result;
 		} else {
 			return filtered[0];
@@ -932,12 +937,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public dispose(): void {
-		if (this.session) {
-			this.session.disconnect();
-			this.session = null;
-		}
-		this.model.dispose();
-		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }

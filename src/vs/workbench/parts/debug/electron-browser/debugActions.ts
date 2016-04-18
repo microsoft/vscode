@@ -110,7 +110,7 @@ export class SelectConfigAction extends AbstractDebugAction {
 
 export class StartDebugAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
-	static LABEL = nls.localize('startDebug', "Start");
+	static LABEL = nls.localize('startDebug', "Start Debugging");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
@@ -761,7 +761,7 @@ export class ToggleReplAction extends AbstractDebugAction {
 
 export class RunAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.run';
-	static LABEL = nls.localize('run', "Run");
+	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, null, debugService, keybindingService);

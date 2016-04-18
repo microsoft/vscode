@@ -96,6 +96,12 @@ class ServicesMap {
 		let seen: { [n: string]: boolean } = Object.create(null);
 		let graph = new Graph<{ serviceId: string, desc: descriptors.SyncDescriptor<any> }>(i => i.serviceId);
 
+		function throwCycleError() {
+			const err = new Error('[createInstance cyclic dependency between services]');
+			err.message = graph.toString();
+			throw err;
+		}
+
 		let stack = [{ serviceId, desc }];
 		while (stack.length) {
 			let item = stack.pop();
@@ -103,7 +109,7 @@ class ServicesMap {
 
 			// check for cycles between the descriptors
 			if (seen[item.serviceId]) {
-				throw new Error(`[createInstance] cyclic dependency: ${Object.keys(seen).join('>>')}`);
+				throwCycleError();
 			}
 			seen[item.serviceId] = true;
 
@@ -113,7 +119,8 @@ class ServicesMap {
 				for (let dependency of dependencies) {
 					let instanceOrDesc = this.services[dependency.serviceId];
 					if (!instanceOrDesc) {
-						throw new Error(`[createInstance] ${serviceId} depends on ${dependency.serviceId} which is NOT registered.`);
+						// throw new Error(`[createInstance] ${serviceId} depends on ${dependency.serviceId} which is NOT registered.`);
+						console.warn(`[createInstance] ${serviceId} depends on ${dependency.serviceId} which is NOT registered.`);
 					}
 
 					if (instanceOrDesc instanceof descriptors.SyncDescriptor) {
@@ -132,7 +139,7 @@ class ServicesMap {
 			// nodes in the graph we have a cycle
 			if (roots.length === 0) {
 				if (graph.length !== 0) {
-					throw new Error('[createInstance] cyclinc dependency!');
+					throwCycleError();
 				}
 				break;
 			}

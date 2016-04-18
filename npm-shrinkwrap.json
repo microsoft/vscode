@@ -1,6 +1,6 @@
 {
   "name": "Code",
-  "version": "0.8.0-preview",
+  "version": "0.10.12",
   "dependencies": {
     "applicationinsights": {
       "version": "0.15.6",
@@ -305,9 +305,9 @@
           "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-0.3.8.tgz",
           "dependencies": {
             "nan": {
-              "version": "2.0.8",
+              "version": "2.2.0",
               "from": "nan@>=2.0.2 <3.0.0",
-              "resolved": "https://registry.npmjs.org/nan/-/nan-2.0.8.tgz"
+              "resolved": "https://registry.npmjs.org/nan/-/nan-2.2.0.tgz"
             }
           }
         }
@@ -431,9 +431,9 @@
           "resolved": "https://registry.npmjs.org/oniguruma/-/oniguruma-6.0.1.tgz",
           "dependencies": {
             "nan": {
-              "version": "2.0.9",
+              "version": "2.2.0",
               "from": "nan@>=2.0.9 <3.0.0",
-              "resolved": "https://registry.npmjs.org/nan/-/nan-2.0.9.tgz"
+              "resolved": "https://registry.npmjs.org/nan/-/nan-2.2.0.tgz"
             }
           }
         },
@@ -448,23 +448,6 @@
       "version": "0.1.2",
       "from": "native-keymap@0.1.2",
       "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-0.1.2.tgz"
-    },
-    "weak": {
-      "version": "1.0.1",
-      "from": "weak@1.0.1",
-      "resolved": "https://registry.npmjs.org/weak/-/weak-1.0.1.tgz",
-      "dependencies": {
-        "bindings": {
-          "version": "1.2.1",
-          "from": "bindings@>=1.2.1 <2.0.0",
-          "resolved": "https://registry.npmjs.org/bindings/-/bindings-1.2.1.tgz"
-        },
-        "nan": {
-          "version": "2.2.0",
-          "from": "nan@>=2.0.5 <3.0.0",
-          "resolved": "https://registry.npmjs.org/nan/-/nan-2.2.0.tgz"
-        }
-      }
     },
     "winreg": {
       "version": "0.0.12",
@@ -498,9 +481,9 @@
           "resolved": "https://registry.npmjs.org/bindings/-/bindings-1.2.1.tgz"
         },
         "nan": {
-          "version": "2.1.0",
-          "from": "nan@>=2.1.0 <3.0.0",
-          "resolved": "https://registry.npmjs.org/nan/-/nan-2.1.0.tgz"
+          "version": "2.2.0",
+          "from": "nan@>=2.0.5 <3.0.0",
+          "resolved": "https://registry.npmjs.org/nan/-/nan-2.2.0.tgz"
         }
       }
     }

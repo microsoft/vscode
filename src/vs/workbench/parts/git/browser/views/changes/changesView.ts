@@ -264,7 +264,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				this.instantiationService.createInstance(GitActions.GlobalUnstageAction),
 				this.instantiationService.createInstance(GitActions.GlobalUndoAction),
 				new ActionBar.Separator(),
-				new Actions.Action('show.gitOutput', nls.localize('showOutput', "Show Git Output"), null, true, () => this.outputService.showOutput('Git'))
+				new Actions.Action('show.gitOutput', nls.localize('showOutput', "Show Git Output"), null, true, () => this.outputService.getChannel('Git').show())
 			];
 
 			this.secondaryActions.forEach(a => this.toDispose.push(a));

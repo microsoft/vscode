@@ -209,6 +209,13 @@ suite('Instantiation Service', () => {
 
 		assert.throws(() => service.getInstance(IService1));
 		assert.throws(() => service.getInstance(IService2));
+
+		try {
+			service.getInstance(IService1);
+		} catch (err) {
+			assert.ok(err.name);
+			assert.ok(err.message);
+		}
 	});
 
 	test('Invoke - get services', function() {

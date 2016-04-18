@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IActionRunner } from 'vs/base/common/actions';
 import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
-import { AdaptiveCollapsibleViewletView, CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
+import { IViewletView } from 'vs/workbench/browser/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
@@ -351,7 +351,7 @@ export interface IDebugEditorContribution extends editor.IEditorContribution {
 // Debug view registration
 
 export interface IDebugViewConstructorSignature {
-	new (actionRunner: IActionRunner, viewletSetings: any, ...services: { serviceId: ServiceIdentifier<any>; }[]): AdaptiveCollapsibleViewletView | CollapsibleViewletView;
+	new (actionRunner: IActionRunner, viewletSetings: any, ...services: { serviceId: ServiceIdentifier<any>; }[]): IViewletView;
 }
 
 export interface IDebugViewRegistry {

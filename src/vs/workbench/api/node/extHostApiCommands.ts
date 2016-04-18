@@ -87,7 +87,7 @@ class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`' }
+				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' }
 			],
 			returns: 'A promise that resolves to SignatureHelp.'
 		});
@@ -103,7 +103,7 @@ class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`' }
+				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`', constraint: value => value === void 0 || typeof value === 'string' }
 			],
 			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
@@ -156,9 +156,14 @@ class ExtHostApiCommands {
 				typeof position === 'number' ? typeConverters.fromViewColumn(position) : void 0);
 
 		}, {
-			description: 'Preview an html document.',
+				description: `
+					Render the html of the resource in an editor view.
+
+					Links contained in the document will be handled by VS Code whereby it supports file-resources and virtual resources
+					as well as triggering commands using the 'command'-scheme.
+				`,
 			args: [
-				{ name: 'uri', description: 'Uri of the document to preview.', constraint: URI },
+				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
 				{ name: 'column', description: '(optional) Column in which to preview.' },
 			]
 		});
@@ -172,8 +177,8 @@ class ExtHostApiCommands {
 		}, {
 			description: 'Open a folder in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder unless the newWindow parameter is set to true.',
 			args: [
-				{ name: 'uri', description: '(optional) Uri of the folder to open. If not provided, a native dialog will ask the user for the folder' },
-				{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.' }
+				{ name: 'uri', description: '(optional) Uri of the folder to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
+				{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
 			]
 		});
 	}

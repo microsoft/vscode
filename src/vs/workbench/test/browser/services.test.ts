@@ -20,7 +20,7 @@ import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices
 import {TestEventService, TestLifecycleService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
-import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
+import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
 import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
@@ -238,7 +238,7 @@ suite('Workbench UI Services', () => {
 
 			return null;
 		});
-		let telemetryService = new MainTelemetryService();
+		let telemetryService = NullTelemetryService;
 
 		let services = {
 			eventService: eventService,
@@ -341,7 +341,7 @@ suite('Workbench UI Services', () => {
 		let contextService = new TestContextService(TestWorkspace);
 		let eventService = new TestEventService();
 		let requestService = new TestRequestService();
-		let telemetryService = new MainTelemetryService();
+		let telemetryService = NullTelemetryService;
 
 		let services = {
 			eventService: eventService,

@@ -26,7 +26,7 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
+import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -165,7 +165,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		let config = contextService.getConfiguration();
 		let enableTelemetry = config && config.env ? !!config.env.enableTelemetry: false;
 		telemetryService = enableTelemetry
-			? new MainTelemetryService()
+			? new TelemetryService()
 			: NullTelemetryService;
 	}
 
@@ -209,10 +209,6 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	if (threadService instanceof MainThreadService) {
 		threadService.setInstantiationService(instantiationService);
 	}
-	if (telemetryService instanceof MainTelemetryService) {
-		telemetryService.setInstantiationService(instantiationService);
-	}
-
 
 	return staticServices;
 }

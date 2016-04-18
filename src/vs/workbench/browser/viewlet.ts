@@ -16,7 +16,7 @@ import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {CollapsibleView, CollapsibleState, FixedCollapsibleView} from 'vs/base/browser/ui/splitview/splitview';
+import {CollapsibleView, CollapsibleState, FixedCollapsibleView, IView} from 'vs/base/browser/ui/splitview/splitview';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
@@ -25,7 +25,11 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {StructuredSelection} from 'vs/platform/selection/common/selection';
 
-export abstract class Viewlet extends Composite implements IViewlet { }
+export abstract class Viewlet extends Composite implements IViewlet {
+	public getOptimalWidth(): number {
+		return null;
+	}
+}
 
 /**
  * Helper subtype of viewlet for those that use a tree inside.
@@ -270,13 +274,15 @@ export class CollapseAction extends Action {
 	}
 }
 
-export interface IViewletView {
+export interface IViewletView extends IView {
 	create(): TPromise<void>;
 	setVisible(visible: boolean): TPromise<void>;
 	getActions(): IAction[];
 	getSecondaryActions(): IAction[];
 	getActionItem(action: IAction): IActionItem;
 	shutdown(): void;
+	focusBody(): void;
+	isExpanded(): boolean;
 }
 
 /**

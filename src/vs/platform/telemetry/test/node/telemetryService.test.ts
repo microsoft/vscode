@@ -6,19 +6,16 @@
 
 import * as assert from 'assert';
 import IdleMonitor = require('vs/base/browser/idleMonitor');
-import AbstractTelemetryService = require('vs/platform/telemetry/common/abstractTelemetryService');
-import MainTelemetryService = require('vs/platform/telemetry/browser/mainTelemetryService');
-import TelemetryService = require('vs/platform/telemetry/common/telemetry');
+import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
+import Telemetry = require('vs/platform/telemetry/common/telemetry');
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import Errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
-import Platform = require('vs/platform/platform');
 import * as sinon from 'sinon';
-import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 const optInStatusEventName: string = 'optInStatus';
 
-class TestTelemetryAppender implements TelemetryService.ITelemetryAppender {
+class TestTelemetryAppender implements Telemetry.ITelemetryAppender {
 
 	public events: any[];
 	public isDisposed: boolean;
@@ -88,9 +85,15 @@ class ErrorTestingSettings {
 
 suite('TelemetryService', () => {
 
+	class AppenderCountTelemetryService extends TelemetryService {
+		getAppendersCount() {
+			return this._appenders.length;
+		}
+	}
+
 	// Appenders
 	test('No appenders', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new AppenderCountTelemetryService();
 		assert.equal(service.getAppendersCount(), 0);
 
 		// log events
@@ -103,7 +106,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Add appender', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new AppenderCountTelemetryService();
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender = new TestTelemetryAppender();
@@ -114,7 +117,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Remove appender', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new AppenderCountTelemetryService();
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender = new TestTelemetryAppender();
@@ -137,7 +140,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Multiple appenders', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new AppenderCountTelemetryService();
 		assert.equal(service.getAppendersCount(), 0);
 
 		let testAppender1 = new TestTelemetryAppender();
@@ -170,32 +173,31 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('load appenders from registry', sinon.test(function() {
+	test('TelemetryAppendersRegistry, activate', function() {
 
+		let registry = new Telemetry.TelemetryAppendersRegistry();
+		registry.registerTelemetryAppenderDescriptor(TestTelemetryAppender);
 
-		let testAppenderDescriptor = createSyncDescriptor<TelemetryService.ITelemetryAppender>(TestTelemetryAppender);
-		let registry = (<AbstractTelemetryService.ITelemetryAppendersRegistry>Platform.Registry.as(AbstractTelemetryService.Extenstions.TelemetryAppenders));
-		registry.registerTelemetryAppenderDescriptor(testAppenderDescriptor);
+		let callCount = 0;
+		let telemetryService: Telemetry.ITelemetryService = <any> {
+			addTelemetryAppender(appender) {
+				assert.ok(appender);
+				callCount += 1;
+			}
+		};
 
-		let telemetryService = new MainTelemetryService.MainTelemetryService();
+		let instantiationService = InstantiationService.createInstantiationService();
+		instantiationService.addSingleton(Telemetry.ITelemetryService, telemetryService);
+		registry.activate(instantiationService);
+		assert.equal(callCount, 1);
 
-
-		let instantiationService = InstantiationService.createInstantiationService({});
-		telemetryService.setInstantiationService(instantiationService);
-		assert.equal(telemetryService.getAppendersCount(), 1);
-		let testAppender1 = <TestTelemetryAppender>telemetryService.getAppenders()[0];
-		//report event
-		telemetryService.publicLog('testEvent');
-		assert.equal(testAppender1.getEventsCount(), 1);
-
-		telemetryService.dispose();
-
-		//clean up registry for other tests
-		(<any>registry).telemetryAppenderDescriptors = [];
-	}));
+		// registry is now active/read-only
+		assert.throws(() => registry.registerTelemetryAppenderDescriptor(TestTelemetryAppender));
+		assert.throws(() => registry.activate(instantiationService));
+	});
 
 	test('Disposing', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
@@ -208,7 +210,7 @@ suite('TelemetryService', () => {
 
 	// event reporting
 	test('Simple event', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 
 		return service.getTelemetryInfo().then(info => {
@@ -227,7 +229,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Event with data', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 
 		return service.getTelemetryInfo().then(info => {
@@ -259,7 +261,7 @@ suite('TelemetryService', () => {
 	test('Telemetry Timer events', sinon.test(function() {
 		Timer.ENABLE_TIMER = true;
 
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
@@ -292,7 +294,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('enableTelemetry on by default', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
@@ -309,7 +311,7 @@ suite('TelemetryService', () => {
 		Errors.setUnexpectedErrorHandler(() => { });
 
 		try {
-			let service = new MainTelemetryService.MainTelemetryService();
+			let service = new TelemetryService();
 			let testAppender = new TestTelemetryAppender();
 			service.addTelemetryAppender(testAppender);
 
@@ -321,7 +323,7 @@ suite('TelemetryService', () => {
 			}
 
 			Errors.onUnexpectedError(e);
-			this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 			assert.equal(testAppender.getEventsCount(), 1);
 			assert.equal(testAppender.events[0].eventName, 'UnhandledError');
 			assert.equal(testAppender.events[0].data.message, 'This is a test.');
@@ -338,7 +340,7 @@ suite('TelemetryService', () => {
 	// 		Errors.setUnexpectedErrorHandler(() => {});
 	//
 	// 		try {
-	// 			let service = new MainTelemetryService.MainTelemetryService();
+	// 			let service = new MainTelemetryService();
 	// 			let testAppender = new TestTelemetryAppender();
 	// 			service.addTelemetryAppender(testAppender);
 	//
@@ -349,7 +351,7 @@ suite('TelemetryService', () => {
 	// 			// prevent console output from failing the test
 	// 			this.stub(console, 'log');
 	// 			// allow for the promise to finish
-	// 			this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+	// 			this.clock.tick(MainTelemetryService.ERROR_FLUSH_TIMEOUT);
 	//
 	// 			assert.equal(testAppender.getEventsCount(), 1);
 	// 			assert.equal(testAppender.events[0].eventName, 'UnhandledError');
@@ -364,13 +366,13 @@ suite('TelemetryService', () => {
 	test('Handle global errors', sinon.test(function() {
 		let errorStub = this.stub(window, 'onerror');
 
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
 		let testError = new Error('test');
 		(<any>window.onerror)('Error Message', 'file.js', 2, 42, testError);
-		this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
 		assert.equal(errorStub.callCount, 1);
@@ -389,14 +391,14 @@ suite('TelemetryService', () => {
 	test('Uncaught Error Telemetry removes PII from filename', sinon.test(function() {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
 		let dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
 		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
-		this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
 		assert.equal(testAppender.events[0].data.filename.indexOf(settings.dangerousPathWithImportantInfo), -1);
@@ -404,11 +406,11 @@ suite('TelemetryService', () => {
 		dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
 		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
-		this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 2);
 		assert.equal(testAppender.events[0].data.filename.indexOf(settings.dangerousPathWithImportantInfo), -1);
-		assert.equal(testAppender.events[0].data.filename, settings.importantInfo + '/test.js');
+		assert.equal(testAppender.events[0].data.filename, '<APP_ROOT>' + settings.importantInfo + '/test.js');
 
 		service.dispose();
 	}));
@@ -418,14 +420,14 @@ suite('TelemetryService', () => {
 		Errors.setUnexpectedErrorHandler(() => { });
 		try {
 			let settings = new ErrorTestingSettings();
-			let service = new MainTelemetryService.MainTelemetryService();
+			let service = new TelemetryService();
 			let testAppender = new TestTelemetryAppender();
 			service.addTelemetryAppender(testAppender);
 
 			let dangerousPathWithoutImportantInfoError: any = new Error(settings.dangerousPathWithoutImportantInfo);
 			dangerousPathWithoutImportantInfoError.stack = settings.stack;
 			Errors.onUnexpectedError(dangerousPathWithoutImportantInfoError);
-			this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.filePrefix), -1);
@@ -445,14 +447,14 @@ suite('TelemetryService', () => {
 	test('Uncaught Error Telemetry removes PII', sinon.test(function() {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
 		let dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
 		dangerousPathWithoutImportantInfoError.stack = settings.stack;
 		(<any>window.onerror)(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
-		this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that no file information remains, esp. personal info
@@ -473,7 +475,7 @@ suite('TelemetryService', () => {
 
 		try {
 			let settings = new ErrorTestingSettings();
-			let service = new MainTelemetryService.MainTelemetryService();
+			let service = new TelemetryService();
 			let testAppender = new TestTelemetryAppender();
 			service.addTelemetryAppender(testAppender);
 
@@ -482,7 +484,7 @@ suite('TelemetryService', () => {
 
 			// Test that important information remains but personal info does not
 			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
-			this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.importantInfo), -1);
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
@@ -503,14 +505,14 @@ suite('TelemetryService', () => {
 	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(function() {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
 		let dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
 		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
-		this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that important information remains but personal info does not
@@ -533,7 +535,7 @@ suite('TelemetryService', () => {
 
 		try {
 			let settings = new ErrorTestingSettings();
-			let service = new MainTelemetryService.MainTelemetryService();
+			let service = new TelemetryService();
 			let testAppender = new TestTelemetryAppender();
 			service.addTelemetryAppender(testAppender);
 
@@ -543,7 +545,7 @@ suite('TelemetryService', () => {
 			// Test that no file information remains, but this particular
 			// error message does (Received model events for missing model)
 			Errors.onUnexpectedError(missingModelError);
-			this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.missingModelPrefix), -1);
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
@@ -563,14 +565,14 @@ suite('TelemetryService', () => {
 	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function() {
 		let errorStub = this.stub(window, 'onerror');
 		let settings = new ErrorTestingSettings();
-		let service = new MainTelemetryService.MainTelemetryService();
+		let service = new TelemetryService();
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
 		let missingModelError: any = new Error('missingModelMessage');
 		missingModelError.stack = settings.stack;
 		(<any>window.onerror)(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
-		this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+		this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 		assert.equal(errorStub.callCount, 1);
 		// Test that no file information remains, but this particular
@@ -594,7 +596,7 @@ suite('TelemetryService', () => {
 
 		try {
 			let settings = new ErrorTestingSettings();
-			let service = new MainTelemetryService.MainTelemetryService();
+			let service = new TelemetryService();
 			let testAppender = new TestTelemetryAppender();
 			service.addTelemetryAppender(testAppender);
 
@@ -604,7 +606,7 @@ suite('TelemetryService', () => {
 			// Test that no file information remains, but this particular
 			// error message does (ENOENT: no such file or directory)
 			Errors.onUnexpectedError(noSuchFileError);
-			this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 			assert.notEqual(testAppender.events[0].data.message.indexOf(settings.noSuchFilePrefix), -1);
 			assert.equal(testAppender.events[0].data.message.indexOf(settings.personalInfo), -1);
@@ -628,14 +630,14 @@ suite('TelemetryService', () => {
 		try {
 			let errorStub = this.stub(window, 'onerror');
 			let settings = new ErrorTestingSettings();
-			let service = new MainTelemetryService.MainTelemetryService();
+			let service = new TelemetryService();
 			let testAppender = new TestTelemetryAppender();
 			service.addTelemetryAppender(testAppender);
 
 			let noSuchFileError: any = new Error('noSuchFileMessage');
 			noSuchFileError.stack = settings.stack;
 			(<any>window.onerror)(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
-			this.clock.tick(AbstractTelemetryService.AbstractTelemetryService.ERROR_FLUSH_TIMEOUT);
+			this.clock.tick(TelemetryService.ERROR_FLUSH_TIMEOUT);
 
 			assert.equal(errorStub.callCount, 1);
 			// Test that no file information remains, but this particular
@@ -658,7 +660,7 @@ suite('TelemetryService', () => {
 
 	test('Test hard idle does not affect sending normal events in active state', sinon.test(function() {
 
-		let service = new MainTelemetryService.MainTelemetryService({ enableHardIdle: true, enableSoftIdle: false });
+		let service = new TelemetryService({ enableHardIdle: true, enableSoftIdle: false });
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
@@ -674,7 +676,7 @@ suite('TelemetryService', () => {
 
 	test('Test hard idle stops events from being sent in idle state', sinon.test(function() {
 
-		let service = new MainTelemetryService.MainTelemetryService({ enableHardIdle: true, enableSoftIdle: false });
+		let service = new TelemetryService({ enableHardIdle: true, enableSoftIdle: false });
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
@@ -696,7 +698,7 @@ suite('TelemetryService', () => {
 		let idleListener: () => void = null;
 
 		function MockIdleMonitor(timeout: number): void {
-			assert.equal(timeout, MainTelemetryService.MainTelemetryService.SOFT_IDLE_TIME);
+			assert.equal(timeout, TelemetryService.SOFT_IDLE_TIME);
 		}
 
 		MockIdleMonitor.prototype.addOneTimeActiveListener = function(callback: () => void): void {
@@ -713,7 +715,7 @@ suite('TelemetryService', () => {
 
 		this.stub(IdleMonitor, 'IdleMonitor', MockIdleMonitor);
 
-		let service = new MainTelemetryService.MainTelemetryService({ enableHardIdle: false, enableSoftIdle: true });
+		let service = new TelemetryService({ enableHardIdle: false, enableSoftIdle: true });
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
@@ -728,11 +730,11 @@ suite('TelemetryService', () => {
 		//verify that two idle happened
 		assert.equal(testAppender.getEventsCount(), 4);
 		//first idle
-		assert.equal(testAppender.events[0].eventName, MainTelemetryService.MainTelemetryService.IDLE_START_EVENT_NAME);
-		assert.equal(testAppender.events[1].eventName, MainTelemetryService.MainTelemetryService.IDLE_STOP_EVENT_NAME);
+		assert.equal(testAppender.events[0].eventName, TelemetryService.IDLE_START_EVENT_NAME);
+		assert.equal(testAppender.events[1].eventName, TelemetryService.IDLE_STOP_EVENT_NAME);
 		//second idle
-		assert.equal(testAppender.events[2].eventName, MainTelemetryService.MainTelemetryService.IDLE_START_EVENT_NAME);
-		assert.equal(testAppender.events[3].eventName, MainTelemetryService.MainTelemetryService.IDLE_STOP_EVENT_NAME);
+		assert.equal(testAppender.events[2].eventName, TelemetryService.IDLE_START_EVENT_NAME);
+		assert.equal(testAppender.events[3].eventName, TelemetryService.IDLE_STOP_EVENT_NAME);
 
 		service.dispose();
 	}));
@@ -740,7 +742,7 @@ suite('TelemetryService', () => {
 	test('Telemetry Service uses provided session ID', sinon.test(function() {
 
 		let testSessionId = 'test session id';
-		let service = new MainTelemetryService.MainTelemetryService({ sessionID: testSessionId });
+		let service = new TelemetryService({ sessionID: testSessionId });
 
 		return service.getTelemetryInfo().then(info => {
 			assert.equal(info.sessionId, testSessionId);
@@ -749,7 +751,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Telemetry Service respects user opt-in settings', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService({userOptIn: false });
+		let service = new TelemetryService({userOptIn: false });
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
@@ -760,7 +762,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Telemetry Service sends events when enableTelemetry is on even user optin is on', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService({userOptIn: true });
+		let service = new TelemetryService({userOptIn: true });
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 
@@ -771,7 +773,7 @@ suite('TelemetryService', () => {
 	}));
 
 	test('Telemetry Service allows optin friendly events', sinon.test(function() {
-		let service = new MainTelemetryService.MainTelemetryService({userOptIn: false });
+		let service = new TelemetryService({userOptIn: false });
 		let testAppender = new TestTelemetryAppender();
 		service.addTelemetryAppender(testAppender);
 

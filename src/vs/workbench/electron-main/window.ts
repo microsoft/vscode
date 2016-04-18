@@ -6,7 +6,6 @@
 'use strict';
 
 import path = require('path');
-import os = require('os');
 
 import {shell, screen, BrowserWindow} from 'electron';
 
@@ -166,7 +165,7 @@ export class VSCodeWindow {
 
 		// For VS theme we can show directly because background is white
 		const usesLightTheme = /vs($| )/.test(storage.getItem<string>(VSCodeWindow.themeStorageKey));
-		let showDirectly = usesLightTheme;
+		let showDirectly = true; // set to false to prevent background color flash (flash should be fixed for Electron >= 0.37.x)
 		if (showDirectly && !global.windowShow) {
 			global.windowShow = new Date().getTime();
 		}
@@ -176,7 +175,7 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesLightTheme ? '#FFFFFF' : '#1E1E1E',
+			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#131313' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
@@ -236,20 +235,11 @@ export class VSCodeWindow {
 			return;
 		}
 
-		// Windows 10: https://github.com/Microsoft/vscode/issues/929
-		if (platform.isWindows && os.release() && os.release().indexOf('10.') === 0 && !this._win.isFocused()) {
-			this._win.minimize();
-			this._win.focus();
+		if (this._win.isMinimized()) {
+			this._win.restore();
 		}
 
-		// Mac / Linux / Windows 7 & 8
-		else {
-			if (this._win.isMinimized()) {
-				this._win.restore();
-			}
-
-			this._win.focus();
-		}
+		this._win.focus();
 	}
 
 	public get lastFocusTime(): number {
@@ -407,7 +397,7 @@ export class VSCodeWindow {
 			configuration.logExtensionHostCommunication = cli.logExtensionHostCommunication;
 			configuration.debugExtensionHostPort = cli.debugExtensionHostPort;
 			configuration.debugBrkExtensionHost = cli.debugBrkExtensionHost;
-			configuration.pluginHomePath = cli.pluginHomePath;
+			configuration.extensionsHomePath = cli.extensionsHomePath;
 		}
 
 		// Load config

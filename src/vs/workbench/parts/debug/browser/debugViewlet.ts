@@ -10,9 +10,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
-import splitview = require('vs/base/browser/ui/splitview/splitview');
+import { SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import memento = require('vs/workbench/common/memento');
-import viewlet = require('vs/workbench/browser/viewlet');
+import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import dbgactionitems = require('vs/workbench/parts/debug/browser/debugActionItems');
@@ -25,7 +25,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import IDebugService = debug.IDebugService;
 const $ = builder.$;
 
-export class DebugViewlet extends viewlet.Viewlet {
+export class DebugViewlet extends Viewlet {
 
 	private toDispose: lifecycle.IDisposable[];
 	private actions: actions.IAction[];
@@ -33,10 +33,10 @@ export class DebugViewlet extends viewlet.Viewlet {
 	private viewletSettings: any;
 
 	private $el: builder.Builder;
-	private splitView: splitview.SplitView;
-	private views: (viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView)[];
+	private splitView: SplitView;
+	private views: IViewletView[];
 
-	private lastFocusedView: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView;
+	private lastFocusedView: IViewletView;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -70,12 +70,12 @@ export class DebugViewlet extends viewlet.Viewlet {
 				this.viewletSettings)
 			);
 
-			this.splitView = new splitview.SplitView(this.$el.getHTMLElement());
+			this.splitView = new SplitView(this.$el.getHTMLElement());
 			this.toDispose.push(this.splitView);
 			this.views.forEach(v => this.splitView.addView(v));
 
 			// Track focus
-			this.toDispose.push(this.splitView.onFocus((view: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView) => {
+			this.toDispose.push(this.splitView.onFocus((view: IViewletView) => {
 				this.lastFocusedView = view;
 			}));
 		} else {
@@ -92,7 +92,7 @@ export class DebugViewlet extends viewlet.Viewlet {
 
 	public setVisible(visible: boolean): TPromise<any> {
 		return super.setVisible(visible).then(() => {
-			return TPromise.join(this.views.map((view) => view.setVisible && view.setVisible(visible)));
+			return TPromise.join(this.views.map(view => view.setVisible(visible)));
 		});
 	}
 

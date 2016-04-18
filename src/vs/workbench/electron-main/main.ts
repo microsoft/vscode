@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {app} from 'electron';
+import {app, ipcMain as ipc} from 'electron';
 import fs = require('fs');
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
@@ -101,7 +101,7 @@ function quit(arg?: any) {
 		}
 	}
 
-	process.exit(exitCode);
+	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
@@ -140,10 +140,7 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	// Set programStart in the global scope
 	global.programStart = env.cliArgs.programStart;
 
-	// Dispose on app quit
-	app.on('will-quit', () => {
-		env.log('App#dispose: deleting running instance handle');
-
+	function dispose() {
 		if (ipcServer) {
 			ipcServer.dispose();
 			ipcServer = null;
@@ -154,6 +151,21 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 		if (windowsMutex) {
 			windowsMutex.release();
 		}
+	}
+
+	// Dispose on app quit
+	app.on('will-quit', () => {
+		env.log('App#will-quit: disposing resources');
+
+		dispose();
+	});
+
+	// Dispose on vscode:exit
+	ipc.on('vscode:exit', (event, code: number) => {
+		env.log('IPC#vscode:exit', code);
+
+		dispose();
+		process.exit(code); // in main, process.exit === app.exit
 	});
 
 	// Lifecycle
@@ -196,7 +208,13 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 
 function setupIPC(): TPromise<Server> {
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(env.mainIPCHandle).then(null, err => {
+		return serve(env.mainIPCHandle).then(server => {
+			if (platform.isMacintosh) {
+				app.dock.show(); // dock might be hidden at this case due to a retry
+			}
+
+			return server;
+		}, err => {
 			if (err.code !== 'EADDRINUSE') {
 				return TPromise.wrapError(err);
 			}
@@ -206,17 +224,18 @@ function setupIPC(): TPromise<Server> {
 				app.dock.hide();
 			}
 
-			// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
-			if (env.isTestingFromCli) {
-				const errorMsg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
-				console.error(errorMsg);
-
-				return TPromise.wrapError(errorMsg);
-			}
-
 			// there's a running instance, let's connect to it
 			return connect(env.mainIPCHandle).then(
 				client => {
+
+					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
+					if (env.isTestingFromCli) {
+						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
+						console.error(msg);
+						client.dispose();
+						return TPromise.wrapError(msg);
+					}
+
 					env.log('Sending env to running instance...');
 
 					const service = client.getService<LaunchService>('LaunchService', LaunchService);

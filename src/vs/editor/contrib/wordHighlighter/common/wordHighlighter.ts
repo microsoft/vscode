@@ -10,10 +10,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IOccurence, IOccurrencesSupport} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-
-export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
+import {IOccurence, OccurrencesRegistry} from 'vs/editor/common/modes';
 
 export function getOccurrencesAtPosition(model: editorCommon.IModel, position: editorCommon.IPosition):TPromise<IOccurence[]> {
 
