@@ -16,7 +16,7 @@ import { ExtensionsWorkbenchExtension } from 'vs/workbench/parts/extensions/elec
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/parts/output/common/output';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
+import { ExtensionsInput, ExtensionsInput2 } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsPart } from 'vs/workbench/parts/extensions/electron-browser/extensionsPart';
 import { GlobalExtensionsActionContributor } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IActionBarRegistry, Scope as ActionBarScope, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
@@ -60,6 +60,16 @@ const editorDescriptor = new EditorDescriptor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ExtensionsInput)]);
+
+const editorDescriptor2 = new EditorDescriptor(
+	'workbench.editor.extensionsPart2',
+	localize('extension', "Extension"),
+	'vs/workbench/parts/extensions/electron-browser/extensionsPart',
+	'ExtensionsPart2'
+);
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors)
+	.registerEditor(editorDescriptor2, [new SyncDescriptor(ExtensionsInput2)]);
 
 Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar)
 	.registerActionBarContributor(ActionBarScope.GLOBAL, GlobalExtensionsActionContributor);

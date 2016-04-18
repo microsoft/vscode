@@ -19,7 +19,9 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionEntry, Delegate, Renderer, ExtensionState } from './extensionsList';
 import { IGalleryService } from '../common/extensions';
+import { ExtensionsInput2 } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const EmptyModel = new PagedModel({
 	firstPage: [],
@@ -32,7 +34,7 @@ export class ExtensionsViewlet extends Viewlet {
 
 	static ID: string = 'workbench.viewlet.extensions';
 
-	private toDispose: IDisposable[];
+	private disposables: IDisposable[];
 	private searchDelayer: ThrottledDelayer<any>;
 	private root: HTMLElement;
 	private searchBox: HTMLInputElement;
@@ -43,11 +45,12 @@ export class ExtensionsViewlet extends Viewlet {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IGalleryService private galleryService: IGalleryService,
 		@IProgressService private progressService: IProgressService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(ExtensionsViewlet.ID, telemetryService);
 		this.searchDelayer = new ThrottledDelayer(500);
-		this.toDispose = [];
+		this.disposables = [];
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -65,6 +68,16 @@ export class ExtensionsViewlet extends Viewlet {
 		this.list = new PagedList(this.extensionsBox, delegate, [renderer]);
 
 		this.searchBox.oninput = () => this.triggerSearch(this.searchBox.value);
+
+		this.list.onSelectionChange(e => {
+			const [entry] = e.elements;
+
+			if (!entry) {
+				return;
+			}
+
+			return this.editorService.openEditor(new ExtensionsInput2(entry.extension));
+		}, null, this.disposables);
 
 		return TPromise.as(null);
 	}
@@ -102,7 +115,7 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
 }

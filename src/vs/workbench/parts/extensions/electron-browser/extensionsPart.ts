@@ -21,12 +21,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IGalleryService } from '../common/extensions';
 import { getExtensionId } from '../common/extensionsUtil';
+import { ExtensionsInput2 } from '../common/extensionsInput';
 import { PagedModel, mapPager } from 'vs/base/common/paging';
 import { text as downloadText, IRequestOptions } from 'vs/base/node/request';
 import { UserSettings } from 'vs/workbench/node/userSettings';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IExtensionEntry, ITemplateData, Delegate, Renderer, ExtensionState } from './extensionsList';
+import { EditorOptions } from 'vs/workbench/common/editor';
 
 const EmptyModel = new PagedModel({
 	firstPage: [],
@@ -207,6 +209,76 @@ export class ExtensionsPart extends BaseEditor {
 			this.overlay.style.height = '0';
 			// data.body.innerHTML = '';
 		});
+	}
+
+	// Helper for proxy business... shameful.
+	// This should be pushed down and not rely on the context service
+	private request(url: string): TPromise<IRequestOptions> {
+		const settings = TPromise.join([
+			UserSettings.getValue(this.contextService, 'http.proxy'),
+			UserSettings.getValue(this.contextService, 'http.proxyStrictSSL')
+		]);
+
+		return settings.then(settings => {
+			const proxyUrl: string = settings[0];
+			const strictSSL: boolean = settings[1];
+			const agent = getProxyAgent(url, { proxyUrl, strictSSL });
+
+			return { url, agent, strictSSL };
+		});
+	}
+
+	dispose(): void {
+		this._highlight = null;
+		this.toDispose = dispose(this.toDispose);
+		super.dispose();
+	}
+}
+
+export class ExtensionsPart2 extends BaseEditor {
+
+	static ID: string = 'workbench.editor.extensionsPart2';
+
+	private root: HTMLElement;
+
+	private _highlight: ITemplateData;
+	private highlightDisposable: IDisposable;
+
+	private toDispose: IDisposable[];
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IGalleryService private galleryService: IGalleryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(ExtensionsPart2.ID, telemetryService);
+		this._highlight = null;
+		this.highlightDisposable = empty;
+		this.toDispose = [];
+	}
+
+	createEditor(parent: Builder): void {
+		const container = parent.getHTMLElement();
+		this.root = append(container, $('.extension'));
+	}
+
+	setInput(input: ExtensionsInput2, options: EditorOptions): TPromise<void> {
+		this.root.innerHTML = '';
+
+		const [version] = input.extension.galleryInformation.versions;
+		const headers = version.downloadHeaders;
+
+		return super.setInput(input, options)
+			.then(() => this.request(version.readmeUrl))
+			.then(opts => assign(opts, { headers }))
+			.then(opts => downloadText(opts))
+			.then(marked.parse)
+			.then<void>(html => this.root.innerHTML = html);
+	}
+
+	layout(): void {
+		return;
 	}
 
 	// Helper for proxy business... shameful.
