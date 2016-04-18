@@ -179,12 +179,14 @@ export class VSCodeWindow {
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
-			title: env.product.nameLong
+			title: env.product.nameLong,
+			webPreferences: {
+				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
+			}
 		};
 
 		if (platform.isLinux) {
-			// Windows and Mac are better off using the embedded icon(s)
-			options.icon = path.join(env.appRoot, 'resources/linux/code.png');
+			options.icon = path.join(env.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
 		// Create the browser window.
