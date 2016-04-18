@@ -8,7 +8,6 @@ import platform = require('vs/base/common/platform');
 import { serve, Server, connect } from 'vs/base/node/service.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createInstantiationService as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 // Services
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -55,15 +54,15 @@ function main(server: Server, initData: IInitData): void {
 	const contextService = new WorkspaceContextService(eventService, null, initData.configuration, initData.contextServiceOptions);
 	const configurationService = new ConfigurationService(contextService, eventService);
 	const requestService = new RequestService(contextService, configurationService);
+	const extensionService = new ExtensionsService(contextService);
 
 	const instantiationService = createInstantiationService();
 	instantiationService.addSingleton(IEventService, eventService);
 	instantiationService.addSingleton(IWorkspaceContextService, contextService);
 	instantiationService.addSingleton(IConfigurationService, configurationService);
 	instantiationService.addSingleton(IRequestService, requestService);
+	instantiationService.addSingleton(IExtensionsService, extensionService);
 
-	instantiationService.addSingleton(IExtensionsService, new SyncDescriptor(ExtensionsService));
-	const extensionService = <ExtensionsService> instantiationService.getInstance(IExtensionsService);
 	server.registerService('ExtensionService', extensionService);
 
 	// eventually clean up old extensions
