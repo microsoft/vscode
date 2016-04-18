@@ -231,5 +231,5 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FormatActio
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 	linux: { primary:KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
-}));
+}, ['format', 'code']));
 CommonEditorRegistry.registerEditorContribution(FormatOnType);

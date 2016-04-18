@@ -100,17 +100,17 @@ class BlockCommentAction extends EditorAction {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleCommentLineAction, ToggleCommentLineAction.ID, nls.localize('comment.line', "Toggle Line Comment"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
-}));
+}, ['line', 'comment']));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddLineCommentAction, AddLineCommentAction.ID, nls.localize('comment.line.add', "Add Line Comment"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
-}));
+}, ['add', 'line', 'comment']));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RemoveLineCommentAction, RemoveLineCommentAction.ID, nls.localize('comment.line.remove', "Remove Line Comment"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
-}));
+}, ['remove', 'line', 'comment']));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(BlockCommentAction, BlockCommentAction.ID, nls.localize('comment.block', "Toggle Block Comment"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
-}));
+}, ['block', 'comment']));

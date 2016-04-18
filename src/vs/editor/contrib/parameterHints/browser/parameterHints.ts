@@ -95,7 +95,7 @@ EditorBrowserRegistry.registerEditorContribution(ParameterHintsController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerParameterHintsAction, TriggerParameterHintsAction.ID, nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
-}));
+}, ['parameter', 'hints']));
 CommonEditorRegistry.registerEditorCommand('closeParameterHints', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
 	ParameterHintsController.get(editor).closeWidget();
 });

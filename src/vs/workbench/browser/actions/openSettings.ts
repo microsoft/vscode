@@ -231,6 +231,6 @@ let actionRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchA
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL, {
 	primary: null,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }
-}), category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL), category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), category);
+}), category, ['user', 'settings', 'configuration', 'customize']);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL), category, ['keyboard', 'shortcuts', 'keybindings', 'settings', 'configuration', 'customize']);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), category, ['workspace', 'settings', 'configuration', 'customize']);

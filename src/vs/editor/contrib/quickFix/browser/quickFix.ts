@@ -167,7 +167,7 @@ var weight = CommonEditorRegistry.commandWeight(80);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickFixAction, QuickFixAction.ID, nls.localize('quickfix.trigger.label', "Quick Fix"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.US_DOT
-}));
+}, ['quick', 'fix']));
 CommonEditorRegistry.registerEditorCommand('acceptQuickFixSuggestion', weight, { primary: KeyCode.Enter, secondary: [KeyCode.Tab] }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.acceptSelectedSuggestion();

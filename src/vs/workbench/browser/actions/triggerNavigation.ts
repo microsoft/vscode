@@ -51,11 +51,11 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateForwardAction,
 	win: { primary: KeyMod.Alt | KeyCode.RightArrow },
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_MINUS },
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS }
-}));
+}), ['go', 'forward']);
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBackwardsAction, NAVIGATE_BACKWARDS_ID, NAVIGATE_BACKWARDS_LABEL, {
 	primary: null,
 	win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS }
-}));
+}), ['go', 'backward']);
