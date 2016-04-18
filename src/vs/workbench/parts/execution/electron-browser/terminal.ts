@@ -15,4 +15,4 @@ if (env.isLinux
 	DEFAULT_LINUX_TERM = 'gnome-terminal';
 }
 
-export const DEFAILT_WINDOWS_TERM = 'cmd';
+export const DEFAULT_WINDOWS_TERM = 'cmd';

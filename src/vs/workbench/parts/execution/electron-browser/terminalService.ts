@@ -9,7 +9,7 @@ import uri from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {DEFAILT_WINDOWS_TERM, DEFAULT_LINUX_TERM} from 'vs/workbench/parts/execution/electron-browser/terminal';
+import {DEFAULT_WINDOWS_TERM, DEFAULT_LINUX_TERM} from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 import cp = require('child_process');
 import processes = require('vs/base/node/processes');
@@ -42,7 +42,7 @@ export class WinTerminalService implements ITerminalService {
 
 	private spawnTerminal(spawner, configuration, command: string, path: string, onExit, onError) {
 		let terminalConfig = configuration.terminal;
-		let exec = terminalConfig.windows.exec || DEFAILT_WINDOWS_TERM;
+		let exec = terminalConfig.windows.exec || DEFAULT_WINDOWS_TERM;
 		let cmdArgs = ['/c', 'start', '/wait', exec];
 
 		let child = spawner.spawn(command, cmdArgs, { cwd: path });
