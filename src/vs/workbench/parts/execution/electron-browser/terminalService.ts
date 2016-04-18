@@ -41,8 +41,8 @@ export class WinTerminalService implements ITerminalService {
 	}
 
 	private spawnTerminal(spawner, configuration, command: string, path: string, onExit, onError) {
-		let terminalConfig = configuration.terminal;
-		let exec = terminalConfig.windows.exec || DEFAULT_WINDOWS_TERM;
+		let terminalConfig = configuration.terminal.external;
+		let exec = terminalConfig.windowsExec || DEFAULT_WINDOWS_TERM;
 		let cmdArgs = ['/c', 'start', '/wait', exec];
 
 		let child = spawner.spawn(command, cmdArgs, { cwd: path });
@@ -102,8 +102,8 @@ export class LinuxTerminalService implements ITerminalService {
 	}
 
 	private spawnTerminal(spawner, configuration, path: string, onExit, onError) {
-		let terminalConfig = configuration.terminal;
-		let exec = terminalConfig.linux.exec || DEFAULT_LINUX_TERM;
+		let terminalConfig = configuration.terminal.external;
+		let exec = terminalConfig.linuxExec || DEFAULT_LINUX_TERM;
 		const child = spawner.spawn(exec, [], { cwd: path });
 		child.on('error', onError);
 		child.on('exit', onExit);

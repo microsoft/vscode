@@ -17,11 +17,9 @@ suite('Execution - TerminalService', () => {
 	setup(() => {
 		mockConfig = {
 			terminal: {
-				windows: {
-					exec: 'testWindowsShell'
-				},
-				linux: {
-					exec: 'testLinuxShell'
+				external: {
+					windowsExec: 'testWindowsShell',
+					linuxExec: 'testLinuxShell'
 				}
 			}
 		};
@@ -36,7 +34,7 @@ suite('Execution - TerminalService', () => {
 			spawn: (command, args, opts) => {
 				// assert
 				equal(command, testShell, 'shell should equal expected');
-				equal(args[args.length - 1], mockConfig.terminal.windows.exec, 'terminal should equal expected')
+				equal(args[args.length - 1], mockConfig.terminal.external.windowsExec, 'terminal should equal expected')
 				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
 				done();
 				return {
@@ -55,7 +53,7 @@ suite('Execution - TerminalService', () => {
 		);
 	});
 
-	test("WinTerminalService - uses default terminal when configuration.terminal.windows.exec is undefined", done => {
+	test("WinTerminalService - uses default terminal when configuration.terminal.external.windowsExec is undefined", done => {
 		let testShell = 'cmd';
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {
@@ -68,7 +66,7 @@ suite('Execution - TerminalService', () => {
 				}
 			}
 		};
-		mockConfig.terminal.windows.exec = undefined;
+		mockConfig.terminal.external.windowsExec = undefined;
 		let testService = new WinTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
@@ -85,7 +83,7 @@ suite('Execution - TerminalService', () => {
 		let mockSpawner = {
 			spawn: (command, args, opts) => {
 				// assert
-				equal(command, mockConfig.terminal.linux.exec, 'terminal should equal expected');
+				equal(command, mockConfig.terminal.external.linuxExec, 'terminal should equal expected');
 				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
 				done();
 				return {
@@ -103,7 +101,7 @@ suite('Execution - TerminalService', () => {
 		);
 	});
 
-	test("LinuxTerminalService - uses default terminal when configuration.terminal.linux.exec is undefined", done => {
+	test("LinuxTerminalService - uses default terminal when configuration.terminal.external.linuxExec is undefined", done => {
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {
 			spawn: (command, args, opts) => {
@@ -115,7 +113,7 @@ suite('Execution - TerminalService', () => {
 				}
 			}
 		};
-		mockConfig.terminal.linux.exec = undefined;
+		mockConfig.terminal.external.linuxExec = undefined;
 		let testService = new LinuxTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,

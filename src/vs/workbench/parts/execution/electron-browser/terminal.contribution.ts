@@ -29,24 +29,18 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('terminalConfigurationTitle', "Terminal configuration"),
 	'type': 'object',
 	'properties': {
-		'terminal.windows': {
-			'description': nls.localize('terminal.windows', "Windows specific settings."),
+		'terminal.external': {
+			'description': nls.localize('terminal.external', "External terminal settings."),
 			'type': 'object',
 			'properties': {
-				'exec': {
+				'windowsExec': {
 					'type': 'string',
-					'description': nls.localize('terminal.windows.exec', "Customizes which terminal to run."),
+					'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
 					'default': DEFAULT_WINDOWS_TERM
-				}
-			}
-		},
-		'terminal.linux': {
-			'description': nls.localize('terminal.linux', "Linux specific settings."),
-			'type': 'object',
-			'properties': {
-				'exec': {
+				},
+				'linuxExec': {
 					'type': 'string',
-					'description': nls.localize('terminal.linux.exec', "Customizes which terminal to run."),
+					'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to on Linux."),
 					'default': DEFAULT_LINUX_TERM
 				}
 			}
