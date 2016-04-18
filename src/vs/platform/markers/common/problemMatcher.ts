@@ -1155,3 +1155,10 @@ registry.add('go', {
 	filePrefix: '${cwd}',
 	pattern: defaultPattern('go')
 });
+
+registry.add('haxe', {
+	owner: 'haxe',
+	applyTo: ApplyToKind.allDocuments,
+	fileLocation: FileLocationKind.Relative,
+	pattern: defaultPattern('haxe')
+});
