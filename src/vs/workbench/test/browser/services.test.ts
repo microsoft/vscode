@@ -16,6 +16,7 @@ import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {TestEventService, TestLifecycleService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
@@ -257,8 +258,8 @@ suite('Workbench UI Services', () => {
 		};
 		let inst = createInstantiationService(services);
 
-		let textFileService = inst.createInstance(<any>TextFileService);
-		inst.registerService('textFileService', textFileService);
+		let textFileService = <ITextFileService>inst.createInstance(<any>TextFileService);
+		inst.addSingleton(ITextFileService, textFileService);
 		services['instantiationService'] = inst;
 
 		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
@@ -358,8 +359,8 @@ suite('Workbench UI Services', () => {
 		};
 
 		let inst = createInstantiationService(services);
-		let textFileService = inst.createInstance(<any>TextFileService);
-		inst.registerService('textFileService', textFileService);
+		let textFileService = <ITextFileService> inst.createInstance(<any>TextFileService);
+		inst.addSingleton(ITextFileService, textFileService);
 		services['instantiationService'] = inst;
 		let activeInput: EditorInput = inst.createInstance(FileEditorInput, toResource('/something.js'), 'text/javascript', void 0);
 

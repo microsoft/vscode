@@ -8,7 +8,8 @@ import * as assert from 'assert';
 import IdleMonitor = require('vs/base/browser/idleMonitor');
 import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
 import Telemetry = require('vs/platform/telemetry/common/telemetry');
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
 import Errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
 import * as sinon from 'sinon';
@@ -175,8 +176,7 @@ suite('TelemetryService', () => {
 
 	test('TelemetryAppendersRegistry, activate', function() {
 
-		let registry = new Telemetry.TelemetryAppendersRegistry();
-		registry.registerTelemetryAppenderDescriptor(TestTelemetryAppender);
+		Telemetry.Extenstions.TelemetryAppenders.registerTelemetryAppenderDescriptor(TestTelemetryAppender);
 
 		let callCount = 0;
 		let telemetryService: Telemetry.ITelemetryService = <any> {
@@ -186,14 +186,13 @@ suite('TelemetryService', () => {
 			}
 		};
 
-		let instantiationService = InstantiationService.createInstantiationService();
-		instantiationService.addSingleton(Telemetry.ITelemetryService, telemetryService);
-		registry.activate(instantiationService);
+		let instantiationService = new InstantiationService(new ServiceCollection([Telemetry.ITelemetryService, telemetryService]));
+		instantiationService.invokeFunction(Telemetry.Extenstions.TelemetryAppenders.activate);
 		assert.equal(callCount, 1);
 
 		// registry is now active/read-only
-		assert.throws(() => registry.registerTelemetryAppenderDescriptor(TestTelemetryAppender));
-		assert.throws(() => registry.activate(instantiationService));
+		assert.throws(() => Telemetry.Extenstions.TelemetryAppenders.registerTelemetryAppenderDescriptor(TestTelemetryAppender));
+		assert.throws(() => instantiationService.invokeFunction(Telemetry.Extenstions.TelemetryAppenders.activate));
 	});
 
 	test('Disposing', sinon.test(function() {
