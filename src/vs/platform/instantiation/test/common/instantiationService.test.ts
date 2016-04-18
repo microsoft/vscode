@@ -63,7 +63,7 @@ class DependentService implements IDependentService {
 	name = 'farboo';
 }
 
-class ParameterTarget {
+class Target1Dep {
 
 	constructor( @IService1 service1: IService1) {
 		assert.ok(service1);
@@ -71,7 +71,15 @@ class ParameterTarget {
 	}
 }
 
-class ParameterTarget2 {
+class Target2Dep {
+
+	constructor( @IService1 service1: IService1, @IService2 service2) {
+		assert.ok(service1 instanceof Service1);
+		assert.ok(service2 instanceof Service2);
+	}
+}
+
+class TargetWithStaticParam {
 	constructor(v: boolean, @IService1 service1: IService1) {
 		assert.ok(v);
 		assert.ok(service1);
@@ -126,8 +134,10 @@ suite('Instantiation Service', () => {
 
 	test('service collection, cannot overwrite', function () {
 		let collection = new ServiceCollection();
-		collection.set(IService1, null);
-		assert.throws(() => collection.set(IService1, null));
+		let result = collection.set(IService1, null);
+		assert.equal(result, undefined);
+		result = collection.set(IService1, new Service1());
+		assert.equal(result, null);
 	});
 
 	test('service collection, add/has', function () {
@@ -152,7 +162,7 @@ suite('Instantiation Service', () => {
 		service.addSingleton(IService2, new Service2());
 		service.addSingleton(IService3, new Service3());
 
-		service.createInstance(ParameterTarget);
+		service.createInstance(Target1Dep);
 	});
 
 	test('@Param - fixed args', function() {
@@ -161,7 +171,31 @@ suite('Instantiation Service', () => {
 		service.addSingleton(IService2, new Service2());
 		service.addSingleton(IService3, new Service3());
 
-		service.createInstance(ParameterTarget2, true);
+		service.createInstance(TargetWithStaticParam, true);
+	});
+
+	test('service collection is live', function () {
+
+		let collection = new ServiceCollection();
+		collection.set(IService1, new Service1());
+
+		let service = instantiationService.createInstantiationService(collection);
+		service.createInstance(Target1Dep);
+
+		// no IService2
+		assert.throws(() => service.createInstance(Target2Dep));
+		service.invokeFunction(function (a) {
+			assert.ok(a.get(IService1));
+			assert.ok(!a.get(IService2));
+		});
+
+		collection.set(IService2, new Service2());
+
+		service.createInstance(Target2Dep);
+		service.invokeFunction(function (a) {
+			assert.ok(a.get(IService1));
+			assert.ok(a.get(IService2));
+		});
 	});
 
 	test('@Param - optional', function() {

@@ -8,25 +8,19 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import ServiceCollection from './serviceCollection';
 import * as descriptors from './descriptors';
 
-// ----------------------- internal util -----------------------
+// ------ internal util
 
 export namespace _util {
 
 	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
-	export const DI_PROVIDES = '$di$provides_service';
 
-	export function getServiceId(id: ServiceIdentifier<any>): string {
-		return id[DI_PROVIDES];
-	}
-
-	export function getServiceDependencies(ctor: any): { serviceId: string, index: number }[] {
-		return ctor[DI_DEPENDENCIES];
+	export function getServiceDependencies(ctor: any): { id: ServiceIdentifier<any>, index: number }[] {
+		return ctor[DI_DEPENDENCIES] || [];
 	}
 }
 
-// ----------------------- interfaces -----------------------
-
+// --- interfaces ------
 
 export interface IConstructorSignature0<T> {
 	new (...services: { serviceId: ServiceIdentifier<any>; }[]): T;
@@ -199,21 +193,21 @@ export interface ServiceIdentifier<T> {
  */
 export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
 
-	let ret = function(target: any, key: string, index: number): any {
+	let id = function(target: any, key: string, index: number): any {
 
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
 
 		if (target[_util.DI_TARGET] === target) {
-			target[_util.DI_DEPENDENCIES].push({ serviceId, index });
+			target[_util.DI_DEPENDENCIES].push({ id, index });
 		} else {
-			target[_util.DI_DEPENDENCIES] = [{ serviceId, index }];
+			target[_util.DI_DEPENDENCIES] = [{ id, index }];
 			target[_util.DI_TARGET] = target;
 		}
 	};
 
-	ret[_util.DI_PROVIDES] = serviceId;
-	// ret['type'] = undefined;
-	return <any>ret;
+	id.toString = () => serviceId;
+
+	return <any>id;
 }
