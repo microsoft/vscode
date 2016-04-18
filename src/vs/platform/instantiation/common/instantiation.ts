@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import ServiceCollection from './serviceCollection';
+import {ServiceCollection} from './serviceCollection';
 import * as descriptors from './descriptors';
 
 // ------ internal util

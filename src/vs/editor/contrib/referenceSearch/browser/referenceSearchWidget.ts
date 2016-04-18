@@ -26,7 +26,7 @@ import {DefaultController, LegacyRenderer} from 'vs/base/parts/tree/browser/tree
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';

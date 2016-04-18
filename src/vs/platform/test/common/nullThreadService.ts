@@ -7,7 +7,7 @@
 import winjs = require('vs/base/common/winjs.base');
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 

@@ -10,7 +10,7 @@ import {SyncDescriptor} from './descriptors';
 
 type Entry = [ServiceIdentifier<any>, any];
 
-export default class ServiceCollection {
+export class ServiceCollection {
 
 	private _entries: Entry[] = [];
 

@@ -12,7 +12,7 @@ import {forEach} from 'vs/base/common/collections';
 import {Graph} from 'vs/base/common/graph';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 
 /**
  * Creates a new instance of an instantiation service.

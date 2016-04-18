@@ -8,7 +8,7 @@
 import assert = require('assert');
 import instantiation = require('vs/platform/instantiation/common/instantiation');
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 let IService1 = instantiation.createDecorator<IService1>('service1');

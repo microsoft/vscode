@@ -15,7 +15,7 @@ import {EventService} from 'vs/platform/event/common/eventService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription, IExtensionService} from 'vs/platform/extensions/common/extensions';
-import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';

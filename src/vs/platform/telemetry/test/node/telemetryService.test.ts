@@ -9,7 +9,7 @@ import IdleMonitor = require('vs/base/browser/idleMonitor');
 import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
 import Telemetry = require('vs/platform/telemetry/common/telemetry');
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import Errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
 import * as sinon from 'sinon';
