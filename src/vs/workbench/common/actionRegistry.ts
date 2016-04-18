@@ -32,6 +32,8 @@ export interface IWorkbenchActionRegistry {
 	 * visible by default and can only be invoked through a keybinding if provided.
 	 */
 	registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string): void;
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, keywords?: string[]): void;
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string, keywords?: string[]): void;
 
 	/**
 	 * Unregisters a workbench action from the platform.
@@ -52,24 +54,40 @@ export interface IWorkbenchActionRegistry {
 	 * Returns the category for the given action or null iff none.
 	 */
 	getCategory(actionId: string): string;
+
+	/**
+	 * Returns the keywords associated with the given action or null iff none.
+	 */
+	getKeywords(actionId: string): string[];
 }
 
 class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 	private workbenchActions: collections.IStringDictionary<SyncActionDescriptor>;
 	private mapActionIdToCategory: { [id: string]: string; };
+	private mapActionIdToKeywords: { [id: string]: string[]; };
 
 	constructor() {
 		this.workbenchActions = Object.create(null);
 		this.mapActionIdToCategory = Object.create(null);
+		this.mapActionIdToKeywords = Object.create(null);
 	}
 
-	public registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string): void {
+	public registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string): void;
+	public registerWorkbenchAction(descriptor: SyncActionDescriptor, keywords?: string[]): void;
+	public registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string, keywords?: string[]): void;
+	public registerWorkbenchAction(descriptor: SyncActionDescriptor, categoryOrKeywords?: string|string[], keywords?: string[]): void {
 		if (!this.workbenchActions[descriptor.id]) {
 			this.workbenchActions[descriptor.id] = descriptor;
 			registerWorkbenchCommandFromAction(descriptor);
 
-			if (category) {
-				this.mapActionIdToCategory[descriptor.id] = category;
+			if (typeof categoryOrKeywords === 'string') {
+				this.mapActionIdToCategory[descriptor.id] = categoryOrKeywords;
+
+				if (keywords) {
+					this.mapActionIdToKeywords[descriptor.id] = keywords;
+				}
+			} else {
+				this.mapActionIdToKeywords[descriptor.id] = categoryOrKeywords;
 			}
 		}
 	}
@@ -81,6 +99,7 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 
 		delete this.workbenchActions[id];
 		delete this.mapActionIdToCategory[id];
+		delete this.mapActionIdToKeywords[id];
 
 		return true;
 	}
@@ -93,6 +112,10 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 		return this.mapActionIdToCategory[id] || null;
 	}
 
+	public getKeywords(id: string): string[] {
+		return this.mapActionIdToKeywords[id] || null;
+	}
+
 	public getWorkbenchActions(): SyncActionDescriptor[] {
 		return collections.values(this.workbenchActions);
 	}
@@ -100,6 +123,7 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 	public setWorkbenchActions(actions: SyncActionDescriptor[]): void {
 		this.workbenchActions = Object.create(null);
 		this.mapActionIdToCategory = Object.create(null);
+		this.mapActionIdToKeywords = Object.create(null);
 
 		actions.forEach(action => this.registerWorkbenchAction(action), this);
 	}
