@@ -8,7 +8,8 @@ import * as assert from 'assert';
 import IdleMonitor = require('vs/base/browser/idleMonitor');
 import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
 import Telemetry = require('vs/platform/telemetry/common/telemetry');
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
 import Errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
 import * as sinon from 'sinon';
@@ -185,8 +186,7 @@ suite('TelemetryService', () => {
 			}
 		};
 
-		let instantiationService = InstantiationService.createInstantiationService();
-		instantiationService.addSingleton(Telemetry.ITelemetryService, telemetryService);
+		let instantiationService = new InstantiationService(new ServiceCollection([Telemetry.ITelemetryService, telemetryService]));
 		instantiationService.invokeFunction(Telemetry.Extenstions.TelemetryAppenders.activate);
 		assert.equal(callCount, 1);
 

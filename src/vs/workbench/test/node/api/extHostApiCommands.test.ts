@@ -13,7 +13,8 @@ import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
 import {TestThreadService} from './testThreadService';
-import {createInstantiationService as createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -50,18 +51,19 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		let instantiationService = createInstantiationService();
+		let services = new ServiceCollection();
+		let instantiationService = new InstantiationService(services);
 		threadService = new TestThreadService(instantiationService);
 
-		instantiationService.addSingleton(IKeybindingService, <IKeybindingService>{
+		services.set(IKeybindingService, <IKeybindingService>{
 			executeCommand(id, args): any {
 				let handler = KeybindingsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
 		});
-		instantiationService.addSingleton(IMarkerService, new MainProcessMarkerService(threadService));
-		instantiationService.addSingleton(IThreadService, threadService);
-		instantiationService.addSingleton(IModelService, <IModelService>{
+		services.set(IMarkerService, new MainProcessMarkerService(threadService));
+		services.set(IThreadService, threadService);
+		services.set(IModelService, <IModelService>{
 			serviceId: IModelService,
 			getModel(): any { return model; },
 			createModel(): any { throw new Error(); },
