@@ -35,7 +35,6 @@ import model = require('vs/workbench/parts/debug/common/debugModel');
 import { DebugStringEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
-import { Repl } from 'vs/workbench/parts/debug/browser/repl';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -607,7 +606,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}).then((result: DebugProtocol.Response) => {
 			if (changeViewState) {
 				this.viewletService.openViewlet(debug.VIEWLET_ID);
-				this.revealRepl(false).done(undefined, errors.onUnexpectedError);
+				this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 			}
 
 			// Do not change status bar to orange if we are just running without debug.
@@ -822,15 +821,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		const editorInput = this.getDebugStringEditorInput(source, nls.localize('debugSourceNotAvailable', "Source {0} is not available.", source.uri.fsPath), 'text/plain');
 
 		return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({ preserveFocus: true }), sideBySide);
-	}
-
-	public revealRepl(focus = true): TPromise<void> {
-		return this.panelService.openPanel(debug.REPL_ID, focus).then((repl: Repl) => {
-			const elements = this.model.getReplElements();
-			if (repl && elements.length > 0) {
-				return repl.reveal(elements[elements.length - 1]);
-			}
-		});
 	}
 
 	public canSetBreakpointsIn(model: editor.IModel): boolean {

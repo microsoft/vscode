@@ -134,10 +134,6 @@ export class MockDebugService extends ee.EventEmitter implements debug.IDebugSer
 	public openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
-
-	public revealRepl(focus?: boolean): TPromise<void> {
-		return TPromise.as(null);
-	}
 }
 
 

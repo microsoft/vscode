@@ -591,13 +591,19 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 export class SelectionToReplAction extends EditorAction {
 	static ID = 'editor.debug.action.selectionToRepl';
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
+	constructor(
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
+		@IDebugService private debugService: IDebugService,
+		@IPanelService private panelService: IPanelService
+	) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	public run(): TPromise<any> {
 		const text = this.editor.getModel().getValueInRange(this.editor.getSelection());
-		return this.debugService.addReplExpression(text).then(() => this.debugService.revealRepl());
+		return this.debugService.addReplExpression(text)
+			.then(() => this.panelService.openPanel(debug.REPL_ID, true));
 	}
 
 	public getGroupId(): string {
@@ -693,7 +699,11 @@ export class ClearReplAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.panel.action.clearReplAction';
 	static LABEL = nls.localize('clearRepl', "Clear Console");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IPanelService private panelService: IPanelService
+	) {
 		super(id, label, 'debug-action clear-repl', debugService, keybindingService);
 	}
 
@@ -701,7 +711,7 @@ export class ClearReplAction extends AbstractDebugAction {
 		this.debugService.clearReplExpressions();
 
 		// focus back to repl
-		return this.debugService.revealRepl();
+		return this.panelService.openPanel(debug.REPL_ID, true);
 	}
 }
 
@@ -737,7 +747,7 @@ export class ToggleReplAction extends AbstractDebugAction {
 			return TPromise.as(null);
 		}
 
-		return this.debugService.revealRepl();
+		return this.panelService.openPanel(debug.REPL_ID, true);
 	}
 
 	private registerListeners(): void {

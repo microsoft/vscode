@@ -338,11 +338,6 @@ export interface IDebugService extends ee.IEventEmitter {
 	 * Opens a new or reveals an already visible editor showing the source.
 	 */
 	openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
-
-	/**
-	 * Reveals the repl.
-	 */
-	revealRepl(focus?: boolean): TPromise<void>;
 }
 
 // Editor interfaces
