@@ -6,7 +6,7 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import debug = require('vs/workbench/parts/debug/common/debug');
 
-export class ViewModel implements debug.IViewModel, debug.ITreeElement {
+export class ViewModel implements debug.IViewModel {
 
 	private focusedStackFrame: debug.IStackFrame;
 	private selectedExpression: debug.IExpression;

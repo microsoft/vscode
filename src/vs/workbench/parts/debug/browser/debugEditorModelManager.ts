@@ -8,7 +8,7 @@ import objects = require('vs/base/common/objects');
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, ModelEvents, IBreakpoint, IRawBreakpoint, State, ServiceEvents } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, IRawBreakpoint, State, ServiceEvents } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toMap(arr: string[]): { [key: string]: boolean; } {
@@ -80,7 +80,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		this.modelService.getModels().forEach(model => this.onModelAdded(model));
 		this.toDispose.push(this.modelService.onModelRemoved(this.onModelRemoved, this));
 
-		this.toDispose.push(this.debugService.getModel().addListener2(ModelEvents.BREAKPOINTS_UPDATED, () => this.onBreakpointsChanged()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
 		this.toDispose.push(this.debugService.addListener2(ServiceEvents.STATE_CHANGED, () => {
 			if (this.debugService.getState() === State.Inactive) {
@@ -226,7 +226,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		this.debugService.setBreakpointsForModel(modelUrl, data);
 	}
 
-	private onBreakpointsChanged(): void {
+	private onBreakpointsChange(): void {
 		const breakpointsMap: { [key: string]: IBreakpoint[] } = {};
 		this.debugService.getModel().getBreakpoints().forEach(bp => {
 			const uriStr = bp.source.uri.toString();

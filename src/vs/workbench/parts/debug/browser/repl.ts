@@ -73,8 +73,8 @@ export class Repl extends Panel {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.REPL_ELEMENTS_UPDATED, (re: debug.ITreeElement|debug.ITreeElement[]) => {
-			this.onReplElementsUpdated(re);
+		this.toDispose.push(this.debugService.getModel().onDidChangeREPLElements(() => {
+			this.onReplElementsUpdated();
 		}));
 		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === debug.REPL_ID) {
@@ -86,7 +86,7 @@ export class Repl extends Panel {
 		}));
 	}
 
-	private onReplElementsUpdated(re: debug.ITreeElement | debug.ITreeElement[]): void {
+	private onReplElementsUpdated(): void {
 		if (this.tree) {
 			if (this.refreshTimeoutHandle) {
 				return; // refresh already triggered

@@ -282,7 +282,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove-all', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED,() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
@@ -313,7 +313,7 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action enable-all-breakpoints', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
@@ -332,7 +332,7 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action disable-all-breakpoints', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
@@ -354,7 +354,7 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 		super(id, label, 'debug-action breakpoints-activate', debugService, keybindingService);
 		this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
 
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => {
 			this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
 			this.updateEnablement();
 		}));
@@ -375,7 +375,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, null, debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
@@ -552,7 +552,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-watch-expression', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
@@ -682,7 +682,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action remove-all', debugService, keybindingService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
@@ -751,7 +751,7 @@ export class ToggleReplAction extends AbstractDebugAction {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.REPL_ELEMENTS_UPDATED, () => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeREPLElements(() => {
 			if (!this.isReplVisible()) {
 				this.class = 'debug-action toggle-repl notification';
 			}

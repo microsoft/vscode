@@ -134,21 +134,6 @@ export interface IExceptionBreakpoint extends IEnablement {
 	label: string;
 }
 
-// events
-
-export var ModelEvents = {
-	BREAKPOINTS_UPDATED: 'BreakpointsUpdated',
-	CALLSTACK_UPDATED: 'CallStackUpdated',
-	WATCH_EXPRESSIONS_UPDATED: 'WatchExpressionsUpdated',
-	REPL_ELEMENTS_UPDATED: 'ReplElementsUpdated'
-};
-
-export var ViewModelEvents = {
-	FOCUSED_STACK_FRAME_UPDATED: 'FocusedStackFrameUpdated',
-	SELECTED_EXPRESSION_UPDATED: 'SelectedExpressionUpdated',
-	SELECTED_FUNCTION_BREAKPOINT_UPDATED: 'SelectedFunctionBreakpointUpdated'
-};
-
 export var ServiceEvents = {
 	STATE_CHANGED: 'StateChanged'
 };
@@ -166,7 +151,7 @@ export var SessionEvents = {
 
 // model interfaces
 
-export interface IViewModel {
+export interface IViewModel extends ITreeElement {
 	getFocusedStackFrame(): IStackFrame;
 	getSelectedExpression(): IExpression;
 	getFocusedThreadId(): number;
@@ -179,7 +164,7 @@ export interface IViewModel {
 	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 }
 
-export interface IModel extends ee.IEventEmitter, ITreeElement {
+export interface IModel extends ITreeElement {
 	getThreads(): { [threadId: number]: IThread; };
 	getBreakpoints(): IBreakpoint[];
 	areBreakpointsActivated(): boolean;
@@ -187,7 +172,12 @@ export interface IModel extends ee.IEventEmitter, ITreeElement {
 	getExceptionBreakpoints(): IExceptionBreakpoint[];
 	getWatchExpressions(): IExpression[];
 	getReplElements(): ITreeElement[];
-}
+
+	onDidChangeBreakpoints: Event<void>;
+	onDidChangeCallStack: Event<void>;
+	onDidChangeWatchExpressions: Event<IExpression>;
+	onDidChangeREPLElements: Event<void>;
+};
 
 // service enums
 

@@ -126,7 +126,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, contextMenuService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we) => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			// only expand when a new watch expression is added.
 			if (we instanceof model.Expression) {
 				this.expand();
@@ -160,7 +160,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL);
 		this.toolBar.setActions(actionbarregistry.prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we: model.Expression) => this.onWatchExpressionsUpdated(we)));
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => this.onWatchExpressionsUpdated(we)));
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (!expression || !(expression instanceof model.Expression)) {
 				return;
@@ -177,9 +177,9 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		}));
 	}
 
-	private onWatchExpressionsUpdated(we: model.Expression): void {
+	private onWatchExpressionsUpdated(expression: debug.IExpression): void {
 		this.tree.refresh().done(() => {
-			return we instanceof model.Expression ? this.tree.reveal(we): TPromise.as(true);
+			return expression instanceof model.Expression ? this.tree.reveal(expression): TPromise.as(true);
 		}, errors.onUnexpectedError);
 	}
 
@@ -275,7 +275,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			}
 		}));
 
-		this.toDispose.push(debugModel.addListener2(debug.ModelEvents.CALLSTACK_UPDATED, () => {
+		this.toDispose.push(debugModel.onDidChangeCallStack(() => {
 			this.tree.refresh().done(null, errors.onUnexpectedError);
 		}));
 
@@ -322,7 +322,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
 			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), messageService, contextMenuService);
 
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED,() => this.onBreakpointsChange()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
 	public renderHeader(container: HTMLElement): void {

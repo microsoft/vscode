@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import ee = require('vs/base/common/eventEmitter');
+import Event, { Emitter } from 'vs/base/common/event';
 import uuid = require('vs/base/common/uuid');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
@@ -381,23 +381,46 @@ export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 	}
 }
 
-export class Model extends ee.EventEmitter implements debug.IModel {
+export class Model implements debug.IModel {
 
 	private threads: { [reference: number]: debug.IThread; };
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: debug.ITreeElement[];
+	private _onDidChangeBreakpoints: Emitter<void>;
+	private _onDidChangeCallStack: Emitter<void>;
+	private _onDidChangeWatchExpressions: Emitter<debug.IExpression>;
+	private _onDidChangeREPLElements: Emitter<void>;
 
 	constructor(private breakpoints: debug.IBreakpoint[], private breakpointsActivated: boolean, private functionBreakpoints: debug.IFunctionBreakpoint[],
 		private exceptionBreakpoints: debug.IExceptionBreakpoint[], private watchExpressions: Expression[]) {
 
-		super();
 		this.threads = {};
 		this.replElements = [];
 		this.toDispose = [];
+		this._onDidChangeBreakpoints = new Emitter<void>();
+		this._onDidChangeCallStack = new Emitter<void>();
+		this._onDidChangeWatchExpressions = new Emitter<debug.IExpression>();
+		this._onDidChangeREPLElements = new Emitter<void>();
 	}
 
 	public getId(): string {
 		return 'root';
+	}
+
+	public get onDidChangeBreakpoints(): Event<void> {
+		return this._onDidChangeBreakpoints.event;
+	}
+
+	public get onDidChangeCallStack(): Event<void> {
+		return this._onDidChangeCallStack.event;
+	}
+
+	public get onDidChangeWatchExpressions(): Event<debug.IExpression> {
+		return this._onDidChangeWatchExpressions.event;
+	}
+
+	public get onDidChangeREPLElements(): Event<void> {
+		return this._onDidChangeREPLElements.event;
 	}
 
 	public getThreads(): { [reference: number]: debug.IThread; } {
@@ -426,7 +449,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			}
 		}
 
-		this.emit(debug.ModelEvents.CALLSTACK_UPDATED);
+		this._onDidChangeCallStack.fire();
 	}
 
 	public continueThreads(): void {
@@ -466,19 +489,19 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 	public toggleBreakpointsActivated(): void {
 		this.breakpointsActivated = !this.breakpointsActivated;
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
 			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
 		this.breakpointsActivated = true;
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public removeBreakpoints(toRemove: debug.IBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public updateBreakpoints(data: { [id: string]: DebugProtocol.Breakpoint }): void {
@@ -491,7 +514,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				bp.message = bpData.message;
 			}
 		});
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public toggleEnablement(element: debug.IEnablement): void {
@@ -502,7 +525,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			breakpoint.verified = false;
 		}
 
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public enableOrDisableAllBreakpoints(enabled: boolean): void {
@@ -516,12 +539,12 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enabled);
 		this.functionBreakpoints.forEach(fbp => fbp.enabled = enabled);
 
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public addFunctionBreakpoint(functionName: string): void {
 		this.functionBreakpoints.push(new FunctionBreakpoint(functionName, true));
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number } }): void {
@@ -534,12 +557,12 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			}
 		});
 
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public removeFunctionBreakpoints(id?: string): void {
 		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() !== id) : [];
-		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public getReplElements(): debug.ITreeElement[] {
@@ -549,9 +572,8 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	public addReplExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name, true);
 		this.addReplElements([expression]);
-		return evaluateExpression(session, stackFrame, expression, 'repl').then(() =>
-			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED, expression)
-		);
+		return evaluateExpression(session, stackFrame, expression, 'repl')
+			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
 	public logToRepl(value: string, severity?: severity): void;
@@ -579,7 +601,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 		if (elements.length) {
 			this.addReplElements(elements);
-			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED, elements);
+			this._onDidChangeREPLElements.fire();
 		}
 	}
 
@@ -603,7 +625,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		});
 
 		this.addReplElements(elements);
-		this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED, elements);
+		this._onDidChangeREPLElements.fire();
 	}
 
 	private addReplElements(newElements: debug.ITreeElement[]): void {
@@ -616,7 +638,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	public clearReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
-			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED);
+			this._onDidChangeREPLElements.fire();
 		}
 	}
 
@@ -628,7 +650,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		const we = new Expression(name, false);
 		this.watchExpressions.push(we);
 		if (!name) {
-			this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, we);
+			this._onDidChangeWatchExpressions.fire(we);
 			return TPromise.as(null);
 		}
 
@@ -640,7 +662,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
 			return evaluateExpression(session, stackFrame, filtered[0], 'watch').then(() => {
-				this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, filtered[0]);
+				this._onDidChangeWatchExpressions.fire(filtered[0]);
 			});
 		}
 
@@ -655,12 +677,12 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			}
 
 			return evaluateExpression(session, stackFrame, filtered[0], 'watch').then(() => {
-				this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, filtered[0]);
+				this._onDidChangeWatchExpressions.fire(filtered[0]);
 			});
 		}
 
 		return TPromise.join(this.watchExpressions.map(we => evaluateExpression(session, stackFrame, we, 'watch'))).then(() => {
-			this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED);
+			this._onDidChangeWatchExpressions.fire();
 		});
 	}
 
@@ -671,12 +693,12 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			we.reference = 0;
 		});
 
-		this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED);
+		this._onDidChangeWatchExpressions.fire();
 	}
 
 	public clearWatchExpressions(id: string = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
-		this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED);
+		this._onDidChangeWatchExpressions.fire();
 	}
 
 	public sourceIsUnavailable(source: Source): void {
@@ -690,7 +712,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			}
 		});
 
-		this.emit(debug.ModelEvents.CALLSTACK_UPDATED);
+		this._onDidChangeCallStack.fire();
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
@@ -719,11 +741,10 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			this.threads[data.threadId].stopped = true;
 		}
 
-		this.emit(debug.ModelEvents.CALLSTACK_UPDATED);
+		this._onDidChangeCallStack.fire();
 	}
 
 	public dispose(): void {
-		super.dispose();
 		this.threads = null;
 		this.breakpoints = null;
 		this.exceptionBreakpoints = null;
