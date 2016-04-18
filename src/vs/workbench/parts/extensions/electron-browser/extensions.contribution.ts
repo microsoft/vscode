@@ -22,6 +22,7 @@ import { GlobalExtensionsActionContributor } from 'vs/workbench/parts/extensions
 import { IActionBarRegistry, Scope as ActionBarScope, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
 class ExtensionsInputFactory implements IEditorInputFactory {
 
@@ -62,3 +63,15 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 
 Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar)
 	.registerActionBarContributor(ActionBarScope.GLOBAL, GlobalExtensionsActionContributor);
+
+const viewletDescriptor = new ViewletDescriptor(
+	'vs/workbench/parts/extensions/electron-browser/extensionsViewlet',
+	'ExtensionsViewlet',
+	'workbench.viewlet.extensions',
+	localize('extensions', "Extensions"),
+	'extensions',
+	100
+);
+
+Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
+	.registerViewlet(viewletDescriptor);
