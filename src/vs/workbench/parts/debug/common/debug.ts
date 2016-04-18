@@ -134,10 +134,6 @@ export interface IExceptionBreakpoint extends IEnablement {
 	label: string;
 }
 
-export var ServiceEvents = {
-	STATE_CHANGED: 'StateChanged'
-};
-
 export var SessionEvents = {
 	INITIALIZED: 'initialized',
 	STOPPED: 'stopped',
@@ -273,13 +269,18 @@ export interface IConfigurationManager {
 
 export var IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
-export interface IDebugService extends ee.IEventEmitter {
+export interface IDebugService {
 	serviceId: ServiceIdentifier<any>;
 
 	/**
 	 * Gets the current debug state.
 	 */
 	getState(): State;
+
+	/**
+	 * Allows to register on debug state changes.
+	 */
+	onDidChangeState: Event<State>;
 
 	/**
 	 * Gets the current configuration manager.

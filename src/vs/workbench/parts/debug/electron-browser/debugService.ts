@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import mime = require('vs/base/common/mime');
-import ee = require('vs/base/common/eventEmitter');
+import Event, { Emitter } from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
@@ -56,10 +56,11 @@ const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 
-export class DebugService extends ee.EventEmitter implements debug.IDebugService {
+export class DebugService implements debug.IDebugService {
 	public serviceId = debug.IDebugService;
 
 	private state: debug.State;
+	private _onDidChangeState: Emitter<debug.State>;
 	private session: session.RawDebugSession;
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
@@ -91,13 +92,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		@IMarkerService private markerService: IMarkerService,
 		@ITaskService private taskService: ITaskService
 	) {
-		super();
-
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = [];
 		this.debugStringEditorInputs = [];
 		this.session = null;
 		this.state = debug.State.Inactive;
+		this._onDidChangeState = new Emitter<debug.State>();
 
 		if (!this.contextService.getWorkspace()) {
 			this.state = debug.State.Disabled;
@@ -404,9 +404,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.state;
 	}
 
+	public get onDidChangeState(): Event<debug.State> {
+		return this._onDidChangeState.event;
+	}
+
 	private setStateAndEmit(newState: debug.State): void {
 		this.state = newState;
-		this.emit(debug.ServiceEvents.STATE_CHANGED);
+		this._onDidChangeState.fire(newState);
 	}
 
 	public get enabled(): boolean {

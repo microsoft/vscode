@@ -8,7 +8,7 @@ import objects = require('vs/base/common/objects');
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, IBreakpoint, IRawBreakpoint, State, ServiceEvents } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toMap(arr: string[]): { [key: string]: boolean; } {
@@ -82,8 +82,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
-		this.toDispose.push(this.debugService.addListener2(ServiceEvents.STATE_CHANGED, () => {
-			if (this.debugService.getState() === State.Inactive) {
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			if (state === State.Inactive) {
 				Object.keys(this.modelData).forEach(key => this.modelData[key].dirty = false);
 			}
 		}));

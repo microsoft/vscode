@@ -83,8 +83,8 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		this.toolBar.setActions(actionbarregistry.prepareActions([collapseAction]))();
 
 		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => this.onFocusStackFrame(sf)));
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
-			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			collapseAction.enabled = state === debug.State.Running || state === debug.State.Stopped;
 		}));
 
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {

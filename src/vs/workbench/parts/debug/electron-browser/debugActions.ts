@@ -35,7 +35,7 @@ export class AbstractDebugAction extends actions.Action {
 		this.debugService = debugService;
 		this.keybindingService = keybindingService;
 		this.toDispose = [];
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidChangeState(() => this.updateEnablement()));
 
 		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
 		if (keys && keys.length) {
@@ -134,7 +134,7 @@ export class RestartDebugAction extends AbstractDebugAction {
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action restart', debugService, keybindingService);
 		this.updateEnablement();
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
 				this.updateLabel(session.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL);
@@ -209,7 +209,7 @@ export class StopDebugAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action stop', debugService, keybindingService);
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
+		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
 				this.updateLabel(session.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL);
