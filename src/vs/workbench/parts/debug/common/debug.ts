@@ -166,13 +166,17 @@ export var SessionEvents = {
 
 // model interfaces
 
-export interface IViewModel extends ee.EventEmitter {
+export interface IViewModel {
 	getFocusedStackFrame(): IStackFrame;
 	getSelectedExpression(): IExpression;
 	getFocusedThreadId(): number;
 	setSelectedExpression(expression: IExpression);
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
+
+	onDidFocusStackFrame: Event<IStackFrame>;
+	onDidSelectExpression: Event<IExpression>;
+	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 }
 
 export interface IModel extends ee.IEventEmitter, ITreeElement {
@@ -281,6 +285,10 @@ export var IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
 export interface IDebugService extends ee.IEventEmitter {
 	serviceId: ServiceIdentifier<any>;
+
+	/**
+	 * Gets the current debug state.
+	 */
 	getState(): State;
 
 	/**

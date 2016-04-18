@@ -8,7 +8,7 @@ import objects = require('vs/base/common/objects');
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint, State, ServiceEvents } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, ModelEvents, IBreakpoint, IRawBreakpoint, State, ServiceEvents } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toMap(arr: string[]): { [key: string]: boolean; } {
@@ -81,7 +81,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		this.toDispose.push(this.modelService.onModelRemoved(this.onModelRemoved, this));
 
 		this.toDispose.push(this.debugService.getModel().addListener2(ModelEvents.BREAKPOINTS_UPDATED, () => this.onBreakpointsChanged()));
-		this.toDispose.push(this.debugService.getViewModel().addListener2(ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.onFocusStackFrame()));
 		this.toDispose.push(this.debugService.addListener2(ServiceEvents.STATE_CHANGED, () => {
 			if (this.debugService.getState() === State.Inactive) {
 				Object.keys(this.modelData).forEach(key => this.modelData[key].dirty = false);
@@ -123,7 +123,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	// call stack management. Represent data coming from the debug service.
 
-	private onFocusedStackFrameUpdated(): void {
+	private onFocusStackFrame(): void {
 		Object.keys(this.modelData).forEach(modelUrlStr => {
 			const modelData = this.modelData[modelUrlStr];
 			modelData.currentStackDecorations = modelData.model.deltaDecorations(modelData.currentStackDecorations, this.createCallStackDecorations(modelUrlStr));

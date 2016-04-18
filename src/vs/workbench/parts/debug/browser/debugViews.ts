@@ -82,7 +82,7 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		const collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
 		this.toolBar.setActions(actionbarregistry.prepareActions([collapseAction]))();
 
-		this.toDispose.push(viewModel.addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));
+		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => this.onFocusStackFrame(sf)));
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
 		}));
@@ -97,9 +97,8 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		}));
 	}
 
-	private onFocusedStackFrameUpdated(): void {
+	private onFocusStackFrame(stackFrame: debug.IStackFrame): void {
 		this.tree.refresh().then(() => {
-			const stackFrame = this.debugService.getViewModel().getFocusedStackFrame();
 			if (stackFrame) {
 				return stackFrame.getScopes(this.debugService).then(scopes => {
 					if (scopes.length > 0) {
@@ -162,7 +161,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		this.toolBar.setActions(actionbarregistry.prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we: model.Expression) => this.onWatchExpressionsUpdated(we)));
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.SELECTED_EXPRESSION_UPDATED, (expression: debug.IExpression) => {
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (!expression || !(expression instanceof model.Expression)) {
 				return;
 			}
@@ -280,8 +279,8 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			this.tree.refresh().done(null, errors.onUnexpectedError);
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
-			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
+			const focussedThread = sf ? this.debugService.getModel().getThreads()[sf.threadId] : null;
 			if (!focussedThread) {
 				this.pauseMessage.hide();
 				return;
@@ -398,7 +397,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 			}
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.SELECTED_FUNCTION_BREAKPOINT_UPDATED, (fbp: debug.IFunctionBreakpoint) => {
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
 			if (!fbp || !(fbp instanceof model.FunctionBreakpoint)) {
 				return;
 			}
