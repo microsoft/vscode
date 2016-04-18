@@ -6,6 +6,7 @@
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IActionRunner } from 'vs/base/common/actions';
+import Event from 'vs/base/common/event';
 import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
 import { IViewletView } from 'vs/workbench/browser/viewlet';
@@ -149,8 +150,7 @@ export var ViewModelEvents = {
 };
 
 export var ServiceEvents = {
-	STATE_CHANGED: 'StateChanged',
-	CONFIGURATION_CHANGED: 'ConfigurationChanged'
+	STATE_CHANGED: 'StateChanged'
 };
 
 export var SessionEvents = {
@@ -264,17 +264,29 @@ export interface IRawDebugSession extends ee.EventEmitter {
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
 }
 
+export interface IConfigurationManager {
+	configurationName: string;
+	setConfiguration(name: string): TPromise<void>;
+	openConfigFile(sideBySide: boolean): TPromise<boolean>;
+	loadLaunchConfig(): TPromise<IGlobalConfig>;
+	canSetBreakpointsIn(model: editor.IModel): boolean;
+
+	/**
+	 * Allows to register on change of debug configuration.
+	 */
+	onDidConfigurationChange: Event<string>;
+}
+
 export var IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
 export interface IDebugService extends ee.IEventEmitter {
 	serviceId: ServiceIdentifier<any>;
 	getState(): State;
-	canSetBreakpointsIn(model: editor.IModel): boolean;
 
-	getConfigurationName(): string;
-	setConfiguration(name: string): TPromise<void>;
-	openConfigFile(sideBySide: boolean): TPromise<boolean>;
-	loadLaunchConfig(): TPromise<IGlobalConfig>;
+	/**
+	 * Gets the current configuration manager.
+	 */
+	getConfigurationManager(): IConfigurationManager;
 
 	/**
 	 * Sets the focused stack frame and evaluates all expresions against the newly focused stack frame,

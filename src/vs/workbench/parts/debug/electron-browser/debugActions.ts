@@ -80,14 +80,14 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
-		this.toDispose.push(debugService.addListener2(debug.ServiceEvents.CONFIGURATION_CHANGED, e  => {
-			this.class = this.debugService.getConfigurationName() ? 'debug-action configure' : 'debug-action configure notification';
+		this.toDispose.push(debugService.getConfigurationManager().onDidConfigurationChange((configurationName) => {
+			this.class = configurationName ? 'debug-action configure' : 'debug-action configure notification';
 		}));
 	}
 
 	public run(event?: any): TPromise<any> {
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		return this.debugService.openConfigFile(sideBySide);
+		return this.debugService.getConfigurationManager().openConfigFile(sideBySide);
 	}
 }
 
@@ -100,7 +100,7 @@ export class SelectConfigAction extends AbstractDebugAction {
 	}
 
 	public run(configName: string): TPromise<any> {
-		return this.debugService.setConfiguration(configName);
+		return this.debugService.getConfigurationManager().setConfiguration(configName);
 	}
 
 	protected isEnabled(): boolean {
@@ -453,7 +453,7 @@ export class ToggleBreakpointAction extends EditorAction {
 		if (this.debugService.getState() !== debug.State.Disabled) {
 			const lineNumber = this.editor.getPosition().lineNumber;
 			const modelUrl = this.editor.getModel().getAssociatedResource();
-			if (this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
+			if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
 				return this.debugService.toggleBreakpoint({ uri: modelUrl, lineNumber: lineNumber });
 			}
 		}
@@ -472,7 +472,7 @@ export class EditorConditionalBreakpointAction extends EditorAction {
 	public run(): TPromise<any> {
 		if (this.debugService.getState() !== debug.State.Disabled) {
 			const lineNumber = this.editor.getPosition().lineNumber;
-			if (this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
+			if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
 				return this.debugService.editBreakpoint(<editorbrowser.ICodeEditor>this.editor, lineNumber);
 			}
 		}
@@ -584,7 +584,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 		const selection = this.editor.getSelection();
 		const text = this.editor.getModel().getValueInRange(selection);
 
-		return !!selection && !selection.isEmpty() && this.debugService.getConfigurationName() && text && /\S/.test(text);
+		return !!selection && !selection.isEmpty() && this.debugService.getConfigurationManager().configurationName && text && /\S/.test(text);
 	}
 }
 

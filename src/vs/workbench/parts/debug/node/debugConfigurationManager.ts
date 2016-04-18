@@ -7,6 +7,7 @@ import path = require('path');
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
+import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -143,12 +144,13 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platfor
 jsonRegistry.registerSchema(schemaId, schema);
 jsonRegistry.addSchemaFileAssociation('/.vscode/launch.json', schemaId);
 
-export class ConfigurationManager {
+export class ConfigurationManager implements debug.IConfigurationManager {
 
-	private configuration: debug.IConfig;
+	public configuration: debug.IConfig;
 	private systemVariables: SystemVariables;
 	private adapters: Adapter[];
 	private allModeIdsForBreakpoints: { [key: string]: boolean };
+	private _onDidConfigurationChange: Emitter<string>;
 
 	constructor(
 		configName: string,
@@ -159,6 +161,7 @@ export class ConfigurationManager {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
+		this._onDidConfigurationChange = new Emitter<string>();
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
 		this.setConfiguration(configName);
 		this.adapters = [];
@@ -214,15 +217,15 @@ export class ConfigurationManager {
 		});
 	}
 
-	public getConfiguration(): debug.IConfig {
-		return this.configuration;
+	public get onDidConfigurationChange(): Event<string> {
+		return this._onDidConfigurationChange.event;
 	}
 
-	public getConfigurationName(): string {
+	public get configurationName(): string {
 		return this.configuration ? this.configuration.name : null;
 	}
 
-	public getAdapter(): Adapter {
+	public get adapter(): Adapter {
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
 	}
 
@@ -246,7 +249,7 @@ export class ConfigurationManager {
 				}
 				this.configuration.debugServer = config.debugServer;
 			}
-		});
+		}).then(() => this._onDidConfigurationChange.fire(this.configurationName));
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {

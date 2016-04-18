@@ -14,7 +14,6 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import editor = require('vs/editor/common/editorCommon');
 import aria = require('vs/base/browser/ui/aria/aria');
 import { AIAdapter } from 'vs/base/node/aiAdapter';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
@@ -272,7 +271,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.continueThreads();
 			this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
-			this.setStateAndEmit(this.configurationManager.getConfiguration().noDebug ? debug.State.RunningNoDebug : debug.State.Running);
+			this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
 
 		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.THREAD, (event: DebugProtocol.ThreadEvent) => {
@@ -531,9 +530,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		return this.textFileService.saveAll()
 		.then(() => this.extensionService.onReady()
-		.then(() => this.setConfiguration(this.configurationManager.getConfigurationName())
+		.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
 		.then(() => {
-			const configuration = this.configurationManager.getConfiguration();
+			const configuration = this.configurationManager.configuration;
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {
 					if (openend) {
@@ -543,7 +542,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 
 			configuration.noDebug = noDebug;
-			if (!this.configurationManager.getAdapter()) {
+			if (!this.configurationManager.adapter) {
 				return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
 					: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the selected configuration in launch.json."),
 						{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
@@ -580,14 +579,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
 		this.setStateAndEmit(debug.State.Initializing);
-		const key = this.configurationManager.getAdapter().aiKey;
+		const key = this.configurationManager.adapter.aiKey;
 		const telemetryInfo = Object.create(null);
 		this.telemetryService.getTelemetryInfo().then(info => {
 			telemetryInfo['common.vscodemachineid'] = info.machineId;
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 		}, errors.onUnexpectedError);
-		this.telemetryAdapter = new AIAdapter(key, this.configurationManager.getAdapter().type, null, telemetryInfo);
-		this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, this.configurationManager.getAdapter(), this.telemetryAdapter);
+		this.telemetryAdapter = new AIAdapter(key, this.configurationManager.adapter.type, null, telemetryInfo);
+		this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, this.configurationManager.adapter, this.telemetryAdapter);
 
 		this.registerSessionListeners();
 
@@ -686,8 +685,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.session.disconnect().done(null, errors.onUnexpectedError);
 		}
 
-		const configuration = this.configurationManager.getConfiguration();
 		this.setStateAndEmit(debug.State.Initializing);
+		const configuration = this.configurationManager.configuration;
 		return this.doCreateSession({
 			type: configuration.type,
 			request: 'attach',
@@ -823,24 +822,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({ preserveFocus: true }), sideBySide);
 	}
 
-	public canSetBreakpointsIn(model: editor.IModel): boolean {
-		return this.configurationManager.canSetBreakpointsIn(model);
-	}
-
-	public getConfigurationName(): string {
-		return this.configurationManager.getConfigurationName();
-	}
-
-	public setConfiguration(name: string): TPromise<void> {
-		return this.configurationManager.setConfiguration(name).then(() => this.emit(debug.ServiceEvents.CONFIGURATION_CHANGED));
-	}
-
-	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
-		return this.configurationManager.openConfigFile(sideBySide);
-	}
-
-	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
-		return this.configurationManager.loadLaunchConfig();
+	public getConfigurationManager(): debug.IConfigurationManager {
+		return this.configurationManager;
 	}
 
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {
@@ -922,7 +905,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.storageService.store(DEBUG_BREAKPOINTS_ACTIVATED_KEY, this.model.areBreakpointsActivated() ? 'true' : 'false', StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_FUNCTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getFunctionBreakpoints()), StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_EXCEPTION_BREAKPOINTS_KEY, JSON.stringify(this.model.getExceptionBreakpoints()), StorageScope.WORKSPACE);
-		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.configurationManager.getConfigurationName(), StorageScope.WORKSPACE);
+		this.storageService.store(DEBUG_SELECTED_CONFIG_NAME_KEY, this.configurationManager.configurationName, StorageScope.WORKSPACE);
 		this.storageService.store(DEBUG_WATCH_EXPRESSIONS_KEY, JSON.stringify(this.model.getWatchExpressions()), StorageScope.WORKSPACE);
 	}
 

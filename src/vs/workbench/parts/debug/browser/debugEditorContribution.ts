@@ -77,7 +77,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			if (e.target.type !== editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
 				return;
 			}
-			if (!this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
+			if (!this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
 				return;
 			}
 
@@ -100,7 +100,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IEditorMouseEvent) => {
 			var showBreakpointHintAtLineNumber = -1;
-			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
+			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
 				if (!e.target.detail) {
 					// is not after last line
 					showBreakpointHintAtLineNumber = e.target.position.lineNumber;

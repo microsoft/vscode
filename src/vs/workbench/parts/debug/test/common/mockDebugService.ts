@@ -25,24 +25,8 @@ export class MockDebugService extends ee.EventEmitter implements debug.IDebugSer
 		return null;
 	}
 
-	public canSetBreakpointsIn(model: editor.IModel): boolean {
-		return false;
-	}
-
-	public getConfigurationName(): string {
+	public getConfigurationManager(): debug.IConfigurationManager {
 		return null;
-	}
-
-	public setConfiguration(name: string): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
-		return TPromise.as(false);
-	}
-
-	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
-		return TPromise.as(null);
 	}
 
 	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
