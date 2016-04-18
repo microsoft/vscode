@@ -253,7 +253,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	private actionDescriptorsToEntries(actionDescriptors: SyncActionDescriptor[], searchValue: string): CommandEntry[] {
 		let entries: CommandEntry[] = [];
-		let registry = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions));
+		let registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			let actionDescriptor = actionDescriptors[i];
@@ -268,7 +268,13 @@ export class CommandsHandler extends QuickOpenHandler {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
-				let highlights = wordFilter(searchValue, label);
+				let searchTarget = label;
+				let keywords = registry.getKeywords(actionDescriptor.id);
+				if (keywords) {
+					searchTarget = [searchTarget, ...keywords].join(' ');
+				}
+
+				let highlights = wordFilter(searchValue, searchTarget);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, highlights, actionDescriptor));
 				}
