@@ -7,20 +7,13 @@ import * as fs from 'fs';
 import platform = require('vs/base/common/platform');
 import { serve, Server, connect } from 'vs/base/node/service.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { createInstantiationService as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 
 // Services
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestService } from 'vs/workbench/services/request/node/requestService';
-import { IWorkspaceContextService, IConfiguration } from 'vs/platform/workspace/common/workspace';
+import { IConfiguration } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 
 // Extra services
-import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
 
 interface IInitData {
@@ -50,18 +43,10 @@ function setupPlanB(parentPid: number): void {
 }
 
 function main(server: Server, initData: IInitData): void {
+
 	const eventService = new EventService();
 	const contextService = new WorkspaceContextService(eventService, null, initData.configuration, initData.contextServiceOptions);
-	const configurationService = new ConfigurationService(contextService, eventService);
-	const requestService = new RequestService(contextService, configurationService);
 	const extensionService = new ExtensionsService(contextService);
-
-	const instantiationService = createInstantiationService();
-	instantiationService.addSingleton(IEventService, eventService);
-	instantiationService.addSingleton(IWorkspaceContextService, contextService);
-	instantiationService.addSingleton(IConfigurationService, configurationService);
-	instantiationService.addSingleton(IRequestService, requestService);
-	instantiationService.addSingleton(IExtensionsService, extensionService);
 
 	server.registerService('ExtensionService', extensionService);
 
