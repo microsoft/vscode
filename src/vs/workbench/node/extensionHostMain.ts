@@ -18,8 +18,8 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
 import {IMainProcessExtHostIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import ServiceCollection from 'vs/platform/instantiation/common/serviceCollection';
 import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -58,7 +58,7 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new ExtHostThreadService(remoteCom);
-	threadService.setInstantiationService(InstantiationService.createInstantiationService(new ServiceCollection([IThreadService, threadService])));
+	threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, threadService])));
 	let telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
 
 	let services = new ServiceCollection();
@@ -68,7 +68,7 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	services.set(IExtensionService, new ExtHostExtensionService(threadService, telemetryService));
 	services.set(IExtensionsService, sharedProcessClient.getService<IExtensionsService>('ExtensionService', ExtensionsService)); // Connect to shared process services
 
-	let instantiationService = InstantiationService.createInstantiationService(services);
+	let instantiationService = new InstantiationService(services);
 	threadService.setInstantiationService(instantiationService);
 
 	// Create the monaco API
