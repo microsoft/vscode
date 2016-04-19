@@ -6,7 +6,6 @@
 
 import { globals } from 'vs/base/common/platform';
 
-export const enableTasks = environment('enableTasks');
 export const enableSendASmile = environment('enableSendASmile');
 
 // Telemetry endpoint (used in the standalone editor) for hosts that want to collect editor telemetry
