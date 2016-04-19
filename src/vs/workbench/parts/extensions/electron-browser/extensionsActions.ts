@@ -183,6 +183,10 @@ export class UninstallAction extends Action {
 		return this.extensionsService.getInstalled().then(localExtensions => {
 			const [local] = localExtensions.filter(local => extensionEquals(local, extension));
 
+			if (!local) {
+				return TPromise.wrapError(nls.localize('notFound', "Extension '{0}' not installed.", extension.displayName));
+			}
+
 			return this.extensionsService.uninstall(local)
 				.then(() => this.onSuccess(local), err => this.onError(err, local))
 				.then(() => this.enabled = true)
