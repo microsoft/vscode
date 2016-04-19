@@ -14,28 +14,25 @@ import { GalleryService } from 'vs/workbench/parts/extensions/common/vsoGalleryS
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ExtensionsWorkbenchExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsWorkbenchExtension';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/parts/output/common/output';
-import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ExtensionsInput, ExtensionsInput2 } from 'vs/workbench/parts/extensions/common/extensionsInput';
-import { ExtensionsPart } from 'vs/workbench/parts/extensions/electron-browser/extensionsPart';
-import { GlobalExtensionsActionContributor } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
-import { IActionBarRegistry, Scope as ActionBarScope, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
+// import { EditorInput } from 'vs/workbench/common/editor';
+// import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
-class ExtensionsInputFactory implements IEditorInputFactory {
+// class ExtensionsInputFactory implements IEditorInputFactory {
 
-	constructor() {}
+// 	constructor() {}
 
-	public serialize(editorInput: EditorInput): string {
-		return '';
-	}
+// 	public serialize(editorInput: EditorInput): string {
+// 		return '';
+// 	}
 
-	public deserialize(instantiationService: IInstantiationService, resourceRaw: string): EditorInput {
-		return instantiationService.createInstance(ExtensionsInput);
-	}
-}
+// 	public deserialize(instantiationService: IInstantiationService, resourceRaw: string): EditorInput {
+// 		return instantiationService.createInstance(ExtensionsInput);
+// 	}
+// }
 
 registerSingleton(IGalleryService, GalleryService);
 
@@ -48,31 +45,18 @@ Registry.as<IStatusbarRegistry>(StatusbarExtensions.Statusbar)
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
 	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditorInputFactory(ExtensionsInput.ID, ExtensionsInputFactory);
+// Registry.as<IEditorRegistry>(EditorExtensions.Editors)
+// 	.registerEditorInputFactory(ExtensionsInput.ID, ExtensionsInputFactory);
 
 const editorDescriptor = new EditorDescriptor(
-	ExtensionsPart.ID,
-	localize('extensions', "Extensions"),
-	'vs/workbench/parts/extensions/electron-browser/extensionsPart',
-	'ExtensionsPart'
+	'workbench.editor.extension',
+	localize('extension', "Extension"),
+	'vs/workbench/parts/extensions/electron-browser/extensionEditor',
+	'ExtensionEditor'
 );
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ExtensionsInput)]);
-
-const editorDescriptor2 = new EditorDescriptor(
-	'workbench.editor.extensionsPart2',
-	localize('extension', "Extension"),
-	'vs/workbench/parts/extensions/electron-browser/extensionsPart',
-	'ExtensionsPart2'
-);
-
-Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(editorDescriptor2, [new SyncDescriptor(ExtensionsInput2)]);
-
-Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar)
-	.registerActionBarContributor(ActionBarScope.GLOBAL, GlobalExtensionsActionContributor);
 
 const viewletDescriptor = new ViewletDescriptor(
 	'vs/workbench/parts/extensions/electron-browser/extensionsViewlet',

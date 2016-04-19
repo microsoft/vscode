@@ -5,38 +5,12 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { extensionEquals } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 
 export class ExtensionsInput extends EditorInput {
-
-	static get ID()  { return 'workbench.extensions.input'; }
-
-	constructor() {
-		super();
-	}
-
-	getId(): string {
-		return ExtensionsInput.ID;
-	}
-
-	getName(): string {
-		return localize('extension', 'Extensions');
-	}
-
-	matches(other: any): boolean {
-		return other instanceof ExtensionsInput;
-	}
-
-	resolve(refresh?: boolean): TPromise<any> {
-		return TPromise.as(null);
-	}
-}
-
-export class ExtensionsInput2 extends EditorInput {
 
 	static get ID()  { return 'workbench.extensions.input2'; }
 	get extension(): IExtension { return this._extension; }
@@ -54,11 +28,11 @@ export class ExtensionsInput2 extends EditorInput {
 	}
 
 	matches(other: any): boolean {
-		if (!(other instanceof ExtensionsInput2)) {
+		if (!(other instanceof ExtensionsInput)) {
 			return false;
 		}
 
-		const otherExtensionInput = other as ExtensionsInput2;
+		const otherExtensionInput = other as ExtensionsInput;
 		return extensionEquals(this.extension, otherExtensionInput.extension);
 	}
 

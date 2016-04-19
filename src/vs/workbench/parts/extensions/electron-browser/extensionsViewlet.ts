@@ -19,7 +19,7 @@ import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionEntry, Delegate, Renderer, ExtensionState } from './extensionsList';
 import { IGalleryService } from '../common/extensions';
-import { ExtensionsInput2 } from '../common/extensionsInput';
+import { ExtensionsInput } from '../common/extensionsInput';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -76,7 +76,7 @@ export class ExtensionsViewlet extends Viewlet {
 				return;
 			}
 
-			return this.editorService.openEditor(new ExtensionsInput2(entry.extension));
+			return this.editorService.openEditor(new ExtensionsInput(entry.extension));
 		}, null, this.disposables);
 
 		return TPromise.as(null);
