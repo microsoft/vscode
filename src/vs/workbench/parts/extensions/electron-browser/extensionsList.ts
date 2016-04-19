@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/extensions2';
 import { localize } from 'vs/nls';
 import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

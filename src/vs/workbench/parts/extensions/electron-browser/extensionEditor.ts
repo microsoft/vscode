@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./media/extensions2';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { assign } from 'vs/base/common/objects';
