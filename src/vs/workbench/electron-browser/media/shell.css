@@ -19,11 +19,13 @@
 	user-select: none;
 }
 
-/* Font Families */
+/* Font Families (with CJK support) */
 
-.monaco-shell {
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
-}
+.monaco-shell { font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback"; }
+.monaco-shell:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.monaco-shell:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "PingFang TC", "Microsoft Jhenghei", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
+.monaco-shell:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Hiragino Kaku Gothic Pro", "Meiryo", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
+.monaco-shell:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Apple SD Gothic Neo", "AppleGothic", "Malgun Gothic", "Nanum Gothic", "Dotom", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
 @-webkit-keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @-moz-keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
