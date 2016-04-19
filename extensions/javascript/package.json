@@ -9,8 +9,8 @@
 	"main": "./out/javascriptMain",
 	"dependencies": {
 		"vscode-nls": "^1.0.4",
-		"request-light": "^0.0.3",
-		"jsonc-parser": "^0.0.1"
+		"request-light": "^0.1.0",
+		"jsonc-parser": "^0.1.0"
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:javascript",
