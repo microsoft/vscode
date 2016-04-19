@@ -14,6 +14,15 @@ import {DEFAULT_WINDOWS_TERM, DEFAULT_LINUX_TERM} from 'vs/workbench/parts/execu
 import cp = require('child_process');
 import processes = require('vs/base/node/processes');
 
+interface ITerminalConfiguration {
+	terminal: {
+		external: {
+			windowsExec: string;
+			linuxExec: string;
+		};
+	};
+}
+
 export class WinTerminalService implements ITerminalService {
 	public serviceId = ITerminalService;
 
@@ -23,31 +32,22 @@ export class WinTerminalService implements ITerminalService {
 	}
 
 	public openTerminal(path: string): void {
-		this._configurationService.loadConfiguration().done(configuration => {
-			return new Promise((success, failed) => {
-				this.spawnTerminal(
-					cp,
-					configuration,
-					processes.getWindowsShell(),
-					path,
-					success,
-					err => {
-						errors.onUnexpectedError(err);
-						failed(err);
-					}
-				);
-			});
-		}, errors.onUnexpectedError);
+		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+
+		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), path)
+			.done(null, errors.onUnexpectedError);
 	}
 
-	private spawnTerminal(spawner, configuration, command: string, path: string, onExit, onError) {
+	private spawnTerminal(spawner, configuration: ITerminalConfiguration, command: string, path: string): TPromise<void> {
 		let terminalConfig = configuration.terminal.external;
 		let exec = terminalConfig.windowsExec || DEFAULT_WINDOWS_TERM;
 		let cmdArgs = ['/c', 'start', '/wait', exec];
 
-		let child = spawner.spawn(command, cmdArgs, { cwd: path });
-		child.on('error', onError);
-		child.on('exit', onExit);
+		return new TPromise<void>((c, e) => {
+			let child = spawner.spawn(command, cmdArgs, { cwd: path });
+			child.on('error', e);
+			child.on('exit', () => c(null));
+		});
 	}
 }
 
@@ -103,28 +103,20 @@ export class LinuxTerminalService implements ITerminalService {
 
 
 	public openTerminal(path: string): void {
-		this._configurationService.loadConfiguration().done(configuration => {
-			return new Promise((success, failed) => {
-				this.spawnTerminal(
-					cp,
-					configuration,
-					path,
-					success,
-					err => {
-						errors.onUnexpectedError(err);
-						failed(err);
-					}
-				);
-			});
-		}, errors.onUnexpectedError);
+		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+
+		this.spawnTerminal(cp, configuration, path)
+			.done(null, errors.onUnexpectedError);
 	}
 
-	private spawnTerminal(spawner, configuration, path: string, onExit, onError) {
+	private spawnTerminal(spawner, configuration: ITerminalConfiguration, path: string): TPromise<void> {
 		let terminalConfig = configuration.terminal.external;
 		let exec = terminalConfig.linuxExec || DEFAULT_LINUX_TERM;
-		const child = spawner.spawn(exec, [], { cwd: path });
-		child.on('error', onError);
-		child.on('exit', onExit);
-	}
 
+		return new TPromise<void>((c, e) => {
+			const child = spawner.spawn(exec, [], { cwd: path });
+			child.on('error', e);
+			child.on('exit', () => c(null));
+		});
+	}
 }
