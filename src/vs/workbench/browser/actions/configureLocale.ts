@@ -9,6 +9,7 @@ import nls = require('vs/nls');
 import * as Path from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import * as Labels from 'vs/base/common/labels';
+import * as Platform from 'vs/base/common/platform';
 import { Action } from 'vs/base/common/actions';
 
 import { Registry } from 'vs/platform/platform';
@@ -29,7 +30,7 @@ class ConfigureLocaleAction extends Action {
 		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
 		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'http://go.microsoft.com/fwlink/?LinkId=761051')}`,
 		`\t// ${nls.localize('restart', 'Changing the value requires to restart VSCode.')}`,
-		`\t"locale":"en-US"`,
+		`\t"locale":"${Platform.language}"`,
 		'}'
 	].join('\n');
 
