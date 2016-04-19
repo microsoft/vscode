@@ -304,7 +304,6 @@ export interface IDebugService {
 	/**
 	 * General breakpoints manipulation.
 	 */
-	setBreakpointsForModel(modelUri: uri, rawData: IRawBreakpoint[]): void;
 	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void[]>;
 	enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>;
 	toggleEnablement(element: IEnablement): TPromise<void>;

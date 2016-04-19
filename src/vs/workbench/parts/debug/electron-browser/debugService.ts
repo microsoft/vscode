@@ -426,12 +426,6 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public setBreakpointsForModel(modelUri: uri, rawData: debug.IRawBreakpoint[]): void {
-		this.model.removeBreakpoints(
-			this.model.getBreakpoints().filter(bp => bp.source.uri.toString() === modelUri.toString()));
-		this.model.addBreakpoints(rawData);
-	}
-
 	public enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>{
 		this.model.enableOrDisableAllBreakpoints(enabled);
 		return this.sendAllBreakpoints();

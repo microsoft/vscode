@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import { TPromise } from 'vs/base/common/winjs.base';
 import objects = require('vs/base/common/objects');
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
@@ -223,7 +224,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}
 		modelData.dirty = !!this.debugService.getActiveSession();
 
-		this.debugService.setBreakpointsForModel(modelUrl, data);
+		const toRemove = this.debugService.getModel().getBreakpoints()
+			.filter(bp => bp.source.uri.toString() === modelUrl.toString());
+
+		TPromise.join(toRemove.map(bp => this.debugService.removeBreakpoints(bp.getId()))).then(() => {
+			this.debugService.addBreakpoints(data);
+		});
 	}
 
 	private onBreakpointsChange(): void {
