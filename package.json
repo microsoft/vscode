@@ -26,7 +26,7 @@
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.13",
     "native-keymap": "0.1.2",
-    "pty.js": "^0.3.0",
+    "pty.js": "0.3.0",
     "sax": "1.1.2",
     "semver": "4.3.6",
     "term.js": "0.0.7",
