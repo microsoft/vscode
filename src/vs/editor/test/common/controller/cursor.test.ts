@@ -2086,6 +2086,34 @@ suite('Editor Controller - Cursor Configuration', () => {
 		});
 	});
 
+	test('Trim whitespaces off', () => {
+		usingCursor({
+			text: [
+				'    some  line abc  '
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: true,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		}, (model, cursor) => {
+			cursor.configuration.editor.trimWhitespace = false;
+
+			// Move cursor to the end, verify that we do not trim whitespaces if line has values
+			moveTo(cursor, 1, model.getLineContent(1).length + 1);
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '    some  line abc  ');
+			assert.equal(model.getLineContent(2), '    ');
+
+			// Try to enter again, we should trimmed previous line
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '    some  line abc  ');
+			assert.equal(model.getLineContent(2), '    ');
+			assert.equal(model.getLineContent(3), '    ');
+		});
+	});
+
 	test('Trim whitespaces on enter, when empty line left', () => {
 		usingCursor({
 			text: [
@@ -2098,6 +2126,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 				defaultEOL: DefaultEndOfLine.LF
 			}
 		}, (model, cursor) => {
+			cursor.configuration.editor.trimWhitespace = true;
+
 			// Move cursor to the end, verify that we do not trim whitespaces if line has values
 			moveTo(cursor, 1, model.getLineContent(1).length + 1);
 			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
@@ -2144,6 +2174,29 @@ suite('Editor Controller - Cursor Configuration', () => {
 		});
 	});
 
+	test('UseTabStops is off', () => {
+		usingCursor({
+			text: [
+				'    x',
+				'        a    ',
+				'    '
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: true,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		}, (model, cursor) => {
+			cursor.configuration.editor.useTabStops = false;
+
+			// DeleteLeft removes just one whitespace
+			moveTo(cursor, 2, 9);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), '       a    ');
+		});
+	});
+
 	test('Backspace removes whitespaces with tab size', () => {
 		usingCursor({
 			text: [
@@ -2158,6 +2211,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				defaultEOL: DefaultEndOfLine.LF
 			}
 		}, (model, cursor) => {
+			cursor.configuration.editor.useTabStops = true;
+			cursor.configuration.editor.trimWhitespace = true;
+
 			// DeleteLeft does not remove tab size, because some text exists before
 			moveTo(cursor, 2, model.getLineContent(2).length + 1);
 			cursorCommand(cursor, H.DeleteLeft, {});

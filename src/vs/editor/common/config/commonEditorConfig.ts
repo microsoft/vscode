@@ -108,6 +108,8 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	folding: boolean;
 	renderWhitespace: boolean;
 	indentGuides: boolean;
+	useTabStops: boolean;
+	trimWhitespace: boolean;
 	layoutInfo: editorCommon.IEditorLayoutInfo;
 	stylingInfo: editorCommon.IEditorStyling;
 	wrappingInfo: editorCommon.IEditorWrappingInfo;
@@ -368,6 +370,8 @@ class InternalEditorOptionsHelper {
 			folding: toBoolean(opts.folding),
 			renderWhitespace: toBoolean(opts.renderWhitespace),
 			indentGuides: toBoolean(opts.indentGuides),
+			useTabStops: toBoolean(opts.useTabStops),
+			trimWhitespace: toBoolean(opts.trimWhitespace),
 
 			layoutInfo: layoutInfo,
 			stylingInfo: {
@@ -463,6 +467,8 @@ class InternalEditorOptionsHelper {
 			folding:						(prevOpts.folding !== newOpts.folding),
 			renderWhitespace:				(prevOpts.renderWhitespace !== newOpts.renderWhitespace),
 			indentGuides:					(prevOpts.indentGuides !== newOpts.indentGuides),
+			useTabStops:					(prevOpts.useTabStops !== newOpts.useTabStops),
+			trimWhitespace:					(prevOpts.trimWhitespace !== newOpts.trimWhitespace),
 
 			layoutInfo: 					(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
 			stylingInfo: 					(!this._stylingInfoEqual(prevOpts.stylingInfo, newOpts.stylingInfo)),
@@ -950,6 +956,16 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+		},
+		'editor.useTabStops' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.useTabStops,
+			'description': nls.localize('useTabStops', "Controls whether the editor deletes up to next tabstop on backspace")
+		},
+		'editor.trimWhitespace' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.trimWhitespace,
+			'description': nls.localize('trimWhitespace', "Controls whether the editor trims whitespace when moving to next line.")
 		},
 		'diffEditor.renderSideBySide' : {
 			'type': 'boolean',

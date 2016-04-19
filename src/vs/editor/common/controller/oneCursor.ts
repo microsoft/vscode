@@ -1412,6 +1412,10 @@ export class OneCursorOp {
 	 * auto indent next lines, you don't want to leave previous lines with whitespaces.
 	 */
 	private static _adjustLeftPosition(cursor:OneCursor, range: editorCommon.IEditorRange): void {
+		if (!cursor.configuration.editor.trimWhitespace) {
+			return;
+		}
+
 		let lineContent = cursor.getLineContent(range.startLineNumber);
 		if (strings.lastNonWhitespaceIndex(lineContent.substring(0, range.startColumn - 1)) === -1) {
 			range.startColumn = 1;
@@ -1653,7 +1657,7 @@ export class OneCursorOp {
 
 		if (deleteSelection.startLineNumber !== deleteSelection.endLineNumber) {
 			ctx.shouldPushStackElementBefore = true;
-		} else if (justCursor && deleteSelection.startColumn > 1) {
+		} else if (cursor.configuration.editor.useTabStops && justCursor && deleteSelection.startColumn > 1) {
 			// In case if this is just simple cursor (not a selection) we want to help user to delete
 			// indented spaces when he is pressing backspace. Instead of deleting spaces one by one
 			// we will remove whole tab size.

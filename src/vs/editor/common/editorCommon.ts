@@ -525,6 +525,14 @@ export interface IEditorOptions {
 	 */
 	indentGuides?: boolean;
 	/**
+	 * Backspace delete up to next tabstop
+	 */
+	useTabStops?: boolean;
+	/**
+	 * Trim whitespace when moving to next line
+	 */
+	trimWhitespace?: boolean;
+	/**
 	 * The font family
 	 */
 	fontFamily?: string;
@@ -649,6 +657,8 @@ export interface IInternalEditorOptions {
 	folding: boolean;
 	renderWhitespace: boolean;
 	indentGuides: boolean;
+	useTabStops: boolean;
+	trimWhitespace: boolean;
 
 	// ---- Options that are computed
 
@@ -742,6 +752,8 @@ export interface IConfigurationChangedEvent {
 	folding: boolean;
 	renderWhitespace: boolean;
 	indentGuides: boolean;
+	useTabStops: boolean;
+	trimWhitespace: boolean;
 
 	// ---- Options that are computed
 	layoutInfo: boolean;
