@@ -203,7 +203,7 @@
 
 /* Global action */
 
-.manage-extensions-action {
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.extensions {
 	background: url('extensions-status.svg');
 	background-size: 22px;
 	background-repeat: no-repeat;
