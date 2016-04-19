@@ -51,15 +51,11 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public toggleBreakpointsActivated(): TPromise<void> {
+	public setBreakpointsActivated(): TPromise<void> {
 		return TPromise.as(null);
 	}
 
 	public removeAllBreakpoints(): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public sendAllBreakpoints(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -115,7 +111,7 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
+	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
 }

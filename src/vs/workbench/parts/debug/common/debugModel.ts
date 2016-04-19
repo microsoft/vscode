@@ -487,8 +487,8 @@ export class Model implements debug.IModel {
 		return this.breakpointsActivated;
 	}
 
-	public toggleBreakpointsActivated(): void {
-		this.breakpointsActivated = !this.breakpointsActivated;
+	public setBreakpointsActivated(activated: boolean): void {
+		this.breakpointsActivated = activated;
 		this._onDidChangeBreakpoints.fire();
 	}
 
@@ -576,9 +576,7 @@ export class Model implements debug.IModel {
 			.then(() => this._onDidChangeREPLElements.fire());
 	}
 
-	public logToRepl(value: string, severity?: severity): void;
-	public logToRepl(value: { [key: string]: any }, severity?: severity): void;
-	public logToRepl(value: any, severity?: severity): void {
+	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
 		let elements:OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 
@@ -596,7 +594,7 @@ export class Model implements debug.IModel {
 
 		// key-value output
 		else {
-			elements.push(new KeyValueOutputElement(value.prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
+			elements.push(new KeyValueOutputElement((<any>value).prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
 		}
 
 		if (elements.length) {

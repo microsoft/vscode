@@ -249,7 +249,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 				}
 
 				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+				this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
 
 			// user clicked on 'Load More Stack Frames', get those stack frames and refresh the tree.
@@ -393,7 +393,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 				}
 
 				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				this.debugService.openOrRevealEditor(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+				this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
 		}));
 

@@ -308,9 +308,8 @@ export interface IDebugService {
 	toggleBreakpoint(IRawBreakpoint): TPromise<void>;
 	enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>;
 	toggleEnablement(element: IEnablement): TPromise<void>;
-	toggleBreakpointsActivated(): TPromise<void>;
+	setBreakpointsActivated(activated: boolean): TPromise<void>;
 	removeAllBreakpoints(): TPromise<any>;
-	sendAllBreakpoints(): TPromise<any>;
 
 	addFunctionBreakpoint(): void;
 	renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void>;
@@ -318,10 +317,7 @@ export interface IDebugService {
 
 	addReplExpression(name: string): TPromise<void>;
 	clearReplExpressions(): void;
-
-	logToRepl(value: string, severity?: severity): void;
-	logToRepl(value: { [key: string]: any }, severity?: severity): void;
-
+	logToRepl(value: string | { [key: string]: any }, severity?: severity): void;
 	appendReplOutput(value: string, severity?: severity): void;
 
 	addWatchExpression(name?: string): TPromise<void>;
@@ -356,7 +352,7 @@ export interface IDebugService {
 	/**
 	 * Opens a new or reveals an already visible editor showing the source.
 	 */
-	openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
+	openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
 }
 
 // Editor interfaces

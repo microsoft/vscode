@@ -258,7 +258,7 @@ export class DebugService implements debug.IDebugService {
 						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
-						return this.openOrRevealEditor(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
+						return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
 					} else {
 						this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 					}
@@ -467,8 +467,8 @@ export class DebugService implements debug.IDebugService {
 		return TPromise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}
 
-	public toggleBreakpointsActivated(): TPromise<void> {
-		this.model.toggleBreakpointsActivated();
+	public setBreakpointsActivated(activated: boolean): TPromise<void> {
+		this.model.setBreakpointsActivated(activated);
 		return this.sendAllBreakpoints();
 	}
 
@@ -491,9 +491,7 @@ export class DebugService implements debug.IDebugService {
 		return this.model.addReplExpression(this.session, this.viewModel.getFocusedStackFrame(), name);
 	}
 
-	public logToRepl(value: string, severity?: severity): void;
-	public logToRepl(value: { [key: string]: any }, severity?: severity): void;
-	public logToRepl(value: any, severity?: severity): void {
+	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
 		this.model.logToRepl(value, severity);
 	}
 
@@ -753,7 +751,7 @@ export class DebugService implements debug.IDebugService {
 		return this.viewModel;
 	}
 
-	public openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
+	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		const visibleEditors = this.editorService.getVisibleEditors();
 		for (let i = 0; i < visibleEditors.length; i++) {
 			const fileInput = wbeditorcommon.asFileEditorInput(visibleEditors[i].input);
@@ -832,7 +830,7 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public sendAllBreakpoints(): TPromise<any> {
+	private sendAllBreakpoints(): TPromise<any> {
 		return TPromise.join(arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri)))
 			.then(() => this.sendFunctionBreakpoints())
 			// send exception breakpoints at the end since some debug adapters rely on the order

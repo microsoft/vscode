@@ -361,7 +361,7 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.toggleBreakpointsActivated();
+		return this.debugService.setBreakpointsActivated(!this.debugService.getModel().areBreakpointsActivated());
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -379,7 +379,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.sendAllBreakpoints();
+		return this.debugService.setBreakpointsActivated(true);
 	}
 
 	protected isEnabled(state: debug.State): boolean {

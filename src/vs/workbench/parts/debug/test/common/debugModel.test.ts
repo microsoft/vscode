@@ -44,9 +44,9 @@ suite('Debug - Model', () => {
 		model.removeBreakpoints([model.getBreakpoints().pop()]);
 		assert.equal(model.getBreakpoints().length, 2);
 
-		model.toggleBreakpointsActivated();
+		model.setBreakpointsActivated(false);
 		assert.equal(model.areBreakpointsActivated(), false);
-		model.toggleBreakpointsActivated();
+		model.setBreakpointsActivated(true);
 		assert.equal(model.areBreakpointsActivated(), true);
 	});
 
