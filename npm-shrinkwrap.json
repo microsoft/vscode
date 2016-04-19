@@ -47,6 +47,11 @@
       "from": "binary-extensions@>=1.0.0 <2.0.0",
       "resolved": "https://registry.npmjs.org/binary-extensions/-/binary-extensions-1.4.0.tgz"
     },
+    "bindings": {
+      "version": "1.2.1",
+      "from": "bindings@>=1.2.1 <2.0.0",
+      "resolved": "https://registry.npmjs.org/bindings/-/bindings-1.2.1.tgz"
+    },
     "braces": {
       "version": "1.8.3",
       "from": "braces@>=1.8.2 <2.0.0",
@@ -394,6 +399,11 @@
       "version": "1.0.11",
       "from": "vscode-textmate@1.0.11",
       "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.11.tgz"
+    },
+    "windows-mutex": {
+      "version": "0.2.0",
+      "from": "windows-mutex@>=0.2.0 <0.3.0",
+      "resolved": "https://registry.npmjs.org/windows-mutex/-/windows-mutex-0.2.0.tgz"
     },
     "winreg": {
       "version": "0.0.12",
