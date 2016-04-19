@@ -92,7 +92,7 @@ export class ExtensionsViewlet extends Viewlet {
 	}
 
 	focus(): void {
-		super.focus();
+		this.searchBox.focus();
 	}
 
 	layout({ height }: Dimension):void {
