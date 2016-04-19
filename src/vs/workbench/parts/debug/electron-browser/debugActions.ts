@@ -535,10 +535,11 @@ export class RunToCursorAction extends EditorAction {
 		const lineNumber = this.editor.getPosition().lineNumber;
 		const uri = this.editor.getModel().getAssociatedResource();
 
-		this.debugService.getActiveSession().addOneTimeListener(debug.SessionEvents.STOPPED, () => {
+		const oneTimeListener = this.debugService.getActiveSession().onDidStop(() => {
 			const toRemove = this.debugService.getModel().getBreakpoints()
 				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 			this.debugService.removeBreakpoints(toRemove.getId());
+			oneTimeListener.dispose();
 		});
 
 		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {

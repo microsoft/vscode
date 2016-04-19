@@ -7,7 +7,6 @@ import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IActionRunner } from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
-import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
 import { IViewletView } from 'vs/workbench/browser/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -144,17 +143,6 @@ export interface IExceptionBreakpoint extends IEnablement {
 	label: string;
 }
 
-export var SessionEvents = {
-	INITIALIZED: 'initialized',
-	STOPPED: 'stopped',
-	DEBUGEE_TERMINATED: 'terminated',
-	SERVER_EXIT: 'exit',
-	CONTINUED: 'continued',
-	THREAD: 'thread',
-	OUTPUT: 'output',
-	BREAKPOINT: 'breakpoint'
-};
-
 // model interfaces
 
 export interface IViewModel extends ITreeElement {
@@ -246,7 +234,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	linux?: IRawEnvAdapter;
 }
 
-export interface IRawDebugSession extends ee.EventEmitter {
+export interface IRawDebugSession {
 	configuration: { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites };
 
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
@@ -261,6 +249,11 @@ export interface IRawDebugSession extends ee.EventEmitter {
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
+
+	/**
+	 * Allows to register on each debug session stop event.
+	 */
+	onDidStop: Event<DebugProtocol.StoppedEvent>;
 }
 
 export interface IConfigurationManager {
