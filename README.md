@@ -104,6 +104,12 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 
 ## Change Log
 
+### Version 0.3.4
+* Updated snippets
+* Fixes to remote debugging [#65](https://github.com/DonJayamanne/pythonVSCode/issues/65)
+* Fixes related to code navigation [#58](https://github.com/DonJayamanne/pythonVSCode/issues/58) and [#78](https://github.com/DonJayamanne/pythonVSCode/pull/78)
+* Changes to allow code navigation for methods
+
 ### Version 0.3.2
 * Ability to control how debugger breaks into exceptions raised (always break, never break or only break if unhandled)
 * Disabled displaying of errors, as there are a few instances when errors are displayed in the IDE when not required
