@@ -1,17 +1,19 @@
 <!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
 <!DOCTYPE html>
-<html lang="en">
+<html>
 	<head>
-		<meta charset="utf-8" />
+	<meta charset="utf-8" />
 
-		<!-- Theming (do not remove, we want to early load it to avoid flashing background) -->
-		<style>
-			.monaco-shell.vs-dark { background-color: #1E1E1E; }
-		</style>
+	<!-- Theming (do not remove, we want to early load it to avoid flashing background) -->
+	<style>
+		.monaco-shell.vs-dark {
+			background-color: #1E1E1E;
+		}
+	</style>
 
-		<!-- Helpers -->
-		<script type="text/javascript">
-			var fs = require('fs');
+	<!-- Helpers -->
+	<script type="text/javascript">
+		var fs = require('fs');
 			var path = require('path');
 			var electron = require('electron');
 			var remote = electron.remote;
@@ -97,11 +99,11 @@
 
 				process.on('uncaughtException', function(error) { onError(error, enableDeveloperTools) });
 			}
-		</script>
+	</script>
 
-		<!-- Startup Code -->
-		<script type="text/javascript">
-			var webFrame = require('electron').webFrame;
+	<!-- Startup Code -->
+	<script type="text/javascript">
+		var webFrame = require('electron').webFrame;
 
 			var mainStarted = false;
 			var args = parseURLQueryArgs();
@@ -124,15 +126,13 @@
 				} catch (e) {
 				}
 			}
-			var uiLanguage = nlsConfig.availableLanguages['*'];
-			if (uiLanguage) {
-				if (uiLanguage === 'zh-tw') {
-					uiLanguage = 'zh-Hant'
-				} else if (uiLanguage === 'zh-cn') {
-					uiLanguage = 'zh-Hans'
-				}
-				window.document.getElementsByTagName('html')[0].setAttribute('lang', uiLanguage)
+			var locale = nlsConfig.availableLanguages['*'] || 'en';
+			if (locale === 'zh-tw') {
+				locale = 'zh-Hant';
+			} else if (locale === 'zh-cn') {
+				locale = 'zh-Hans';
 			}
+			window.document.documentElement.setAttribute('lang', locale);
 
 			registerListeners(enableDeveloperTools);
 
@@ -212,23 +212,23 @@
 				});
 			});
 
-		</script>
+	</script>
 	</head>
-	<body class="monaco-shell vs-dark" aria-label=""> <!-- setting aria label to empty here seems to prevent NVDA from reading the full URL of the application on start/reload -->
+	<body class="monaco-shell vs-dark" aria-label=""><!-- setting aria label to empty here seems to prevent NVDA from reading the full URL of the application on start/reload -->
 		<script>
 			(function() {
-				try {
-					var theme = window.localStorage.getItem('storage://global/workbench.theme');
-					if (theme) {
-						var baseTheme = theme.split(' ')[0];
-						if (baseTheme !== 'vs-dark') {
-							window.document.body.className = 'monaco-shell ' + baseTheme;
+					try {
+						var theme = window.localStorage.getItem('storage://global/workbench.theme');
+						if (theme) {
+							var baseTheme = theme.split(' ')[0];
+							if (baseTheme !== 'vs-dark') {
+								window.document.body.className = 'monaco-shell ' + baseTheme;
+							}
 						}
+					} catch (error) {
+						console.error(error);
 					}
-				} catch (error) {
-					console.error(error);
-				}
-			})();
+				})();
 		</script>
 	</body>
 </html>
