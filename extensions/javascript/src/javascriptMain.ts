@@ -18,7 +18,7 @@ export function activate(context: ExtensionContext): any {
 	configureHttpRequest();
 	workspace.onDidChangeConfiguration(e => configureHttpRequest());
 
-	addJSONProviders(httpRequest.xhr, context.subscriptions);
+	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
 
 function configureHttpRequest() {

@@ -11,7 +11,7 @@ import {PackageJSONContribution} from './packageJSONContribution';
 import {XHRRequest} from 'request-light';
 
 import {CompletionItem, CompletionItemProvider, CompletionList, TextDocument, Position, Hover, HoverProvider,
-		CancellationToken, Range, TextEdit, MarkedString, DocumentSelector, languages} from 'vscode';
+		CancellationToken, Range, TextEdit, MarkedString, DocumentSelector, languages, Disposable} from 'vscode';
 
 export interface ISuggestionsCollector {
 	add(suggestion: CompletionItem): void;
@@ -29,13 +29,15 @@ export interface IJSONContribution {
 	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem>;
 }
 
-export function addJSONProviders(xhr: XHRRequest, subscriptions: { dispose(): any }[]) {
+export function addJSONProviders(xhr: XHRRequest) : Disposable {
 	let contributions = [new PackageJSONContribution(xhr), new BowerJSONContribution(xhr)];
+	let subscriptions : Disposable[] = [];
 	contributions.forEach(contribution => {
 		let selector = contribution.getDocumentSelector();
 		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '.', '$'));
 		subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
 	});
+	return Disposable.from(...subscriptions);
 }
 
 export class JSONHoverProvider implements HoverProvider {
