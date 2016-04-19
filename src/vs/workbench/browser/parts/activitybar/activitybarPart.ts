@@ -35,6 +35,7 @@ import events = require('vs/base/common/events');
 export class ActivitybarPart extends Part implements IActivityService {
 	public serviceId = IActivityService;
 	private viewletSwitcherBar: ActionBar;
+	private globalViewletSwitcherBar: ActionBar;
 	private globalToolBar: ToolBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
@@ -126,34 +127,53 @@ export class ActivitybarPart extends Part implements IActivityService {
 		});
 		this.viewletSwitcherBar.getContainer().addClass('position-top');
 
+		// Global viewlet switcher is right below
+		this.globalViewletSwitcherBar = new ActionBar(div, {
+			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
+			orientation: ActionsOrientation.VERTICAL,
+			ariaLabel: nls.localize('globalActivityBarAriaLabel', "Active Global View Switcher")
+		});
+		this.globalViewletSwitcherBar.getContainer().addClass('position-bottom');
+
 		// Build Viewlet Actions in correct order
-		let activeViewlet = this.viewletService.getActiveViewlet();
-		let registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
-		let viewletActions: Action[] = registry.getViewlets()
-			.sort((v1: ViewletDescriptor, v2: ViewletDescriptor) => v1.order - v2.order)
-			.map((viewlet: ViewletDescriptor) => {
-				let action = this.instantiationService.createInstance(ViewletActivityAction, viewlet.id + '.activity-bar-action', viewlet);
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		const registry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
+		const allViewletActions = registry.getViewlets();
+		const actionOptions = { label: true, icon: true };
 
-				let keybinding: string = null;
-				let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => this.keybindingService.getLabelFor(k));
-				if (keys && keys.length) {
-					keybinding = keys[0];
-				}
+		const toAction = (viewlet: ViewletDescriptor) => {
+			let action = this.instantiationService.createInstance(ViewletActivityAction, viewlet.id + '.activity-bar-action', viewlet);
 
-				this.activityActionItems[action.id] = new ActivityActionItem(action, viewlet.name, keybinding);
-				this.viewletIdToActions[viewlet.id] = action;
-
-				// Mark active viewlet action as active
-				if (activeViewlet && activeViewlet.getId() === viewlet.id) {
-					action.activate();
-				}
-
-				return action;
+			let keybinding: string = null;
+			let keys = this.keybindingService.lookupKeybindings(viewlet.id).map(k => this.keybindingService.getLabelFor(k));
+			if (keys && keys.length) {
+				keybinding = keys[0];
 			}
-				);
+
+			this.activityActionItems[action.id] = new ActivityActionItem(action, viewlet.name, keybinding);
+			this.viewletIdToActions[viewlet.id] = action;
+
+			// Mark active viewlet action as active
+			if (activeViewlet && activeViewlet.getId() === viewlet.id) {
+				action.activate();
+			}
+
+			return action;
+		};
 
 		// Add to viewlet switcher
-		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
+		this.viewletSwitcherBar.push(allViewletActions
+			.filter(v => !v.isGlobal)
+			.sort((v1, v2) => v1.order - v2.order)
+			.map(toAction)
+		, actionOptions);
+
+		// Add to viewlet switcher
+		this.globalViewletSwitcherBar.push(allViewletActions
+			.filter(v => v.isGlobal)
+			.sort((v1, v2) => v1.order - v2.order)
+			.map(toAction),
+		actionOptions);
 	}
 
 	private createGlobalToolBarArea(div: Builder): void {
