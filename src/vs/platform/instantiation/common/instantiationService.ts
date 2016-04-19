@@ -106,52 +106,35 @@ export class InstantiationService implements IInstantiationService {
 
 	private _createInstance<T>(desc: SyncDescriptor<T>, args: any[]): T {
 
-		let allArguments: any[] = [];
-		let serviceInjections = _util.getServiceDependencies(desc.ctor);
-		let fixedArguments = desc.staticArguments().concat(args);
-		let expectedFirstServiceIndex = fixedArguments.length;
-		let actualFirstServiceIndex = Number.MAX_VALUE;
-		serviceInjections.forEach(serviceInjection => {
-			// @IServiceName
-			let {id, index} = serviceInjection;
-			// let service = this._lock.runUnlocked(() => this[serviceId]);
-			allArguments[index] = this._getOrCreateServiceInstance(id);
-			actualFirstServiceIndex = Math.min(actualFirstServiceIndex, index);
-		});
+		// arguments given by createInstance-call and/or the descriptor
+		let staticArgs = desc.staticArguments().concat(args);
 
-		// insert the fixed arguments into the array of all ctor
-		// arguments. don't overwrite existing values tho it indicates
-		// something is off
-		let i = 0;
-		for (let arg of fixedArguments) {
-			let hasValue = allArguments[i] !== void 0;
-			if (!hasValue) {
-				allArguments[i] = arg;
+		// arguments defined by service decorators
+		let serviceDependencies = _util.getServiceDependencies(desc.ctor).sort((a, b) => a.index - b.index);
+		let serviceArgs = serviceDependencies.map(dependency => this._getOrCreateServiceInstance(dependency.id));
+		let firstServiceArgPos = serviceDependencies.length > 0 ? serviceDependencies[0].index : staticArgs.length;
+
+		// check for argument mismatches, adjust static args if needed
+		if (staticArgs.length !== firstServiceArgPos) {
+			console.warn(`[createInstance] First service dependency of ${desc.ctor.name} at position ${
+				firstServiceArgPos + 1} conflicts with ${staticArgs.length} static arguments`);
+
+			let delta = firstServiceArgPos - staticArgs.length;
+			if (delta > 0) {
+				staticArgs = staticArgs.concat(new Array(delta));
+			} else {
+				staticArgs = staticArgs.slice(0, firstServiceArgPos);
 			}
-			i += 1;
 		}
 
-		allArguments.unshift(desc.ctor); // ctor is first arg
+		// now create the instance
+		const argArray = [desc.ctor];
+		argArray.push(...staticArgs);
+		argArray.push(...serviceArgs);
 
-		// services are the last arguments of ctor-calls. We check if static ctor arguments
-		// (like those from a [sync|async] desriptor) or args that are passed by createInstance
-		// don't override positions of those arguments
-		if (actualFirstServiceIndex !== Number.MAX_VALUE
-			&& actualFirstServiceIndex !== expectedFirstServiceIndex) {
-
-			let msg = `[createInstance] constructor '${desc.ctor.name}' has first` +
-				` service dependency at position ${actualFirstServiceIndex + 1} but is called with` +
-				` ${expectedFirstServiceIndex - 1} static arguments that are expected to come first`;
-
-			// throw new Error(msg);
-			console.warn(msg);
-		}
-
-		// return this._lock.runUnlocked(() => {
-			const instance = create.apply(null, allArguments);
-			desc._validate(instance);
-			return <T>instance;
-		// });
+		const instance = create.apply(null, argArray);
+		desc._validate(instance);
+		return <T>instance;
 	}
 
 	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>): T {
