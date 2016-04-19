@@ -232,5 +232,5 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettin
 	primary: null,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }
 }), category, ['user', 'settings', 'configuration', 'customize']);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL), category, ['keyboard', 'shortcuts', 'keybindings', 'settings', 'configuration', 'customize']);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL), category, ['keyboard', 'shortcuts', 'keybindings', 'configuration', 'customize']);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), category, ['workspace', 'settings', 'configuration', 'customize']);
