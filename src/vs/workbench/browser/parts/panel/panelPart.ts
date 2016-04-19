@@ -35,14 +35,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 
 	constructor(
-		messageService: IMessageService,
-		storageService: IStorageService,
-		eventService: IEventService,
-		telemetryService: ITelemetryService,
-		contextMenuService: IContextMenuService,
-		partService: IPartService,
-		keybindingService: IKeybindingService,
-		id: string
+		id: string,
+		@IMessageService messageService: IMessageService,
+		@IStorageService storageService: IStorageService,
+		@IEventService eventService: IEventService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IPartService partService: IPartService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(
 			messageService,

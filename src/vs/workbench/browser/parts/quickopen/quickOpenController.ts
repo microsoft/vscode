@@ -87,14 +87,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private visibilityChangeTimeoutHandle: number;
 
 	constructor(
-		private eventService: IEventService,
-		private storageService: IStorageService,
-		private editorService: IWorkbenchEditorService,
-		private viewletService: IViewletService,
-		private messageService: IMessageService,
-		private telemetryService: ITelemetryService,
-		private contextService: IWorkspaceContextService,
-		keybindingService: IKeybindingService
+		@IEventService private eventService: IEventService,
+		@IStorageService private storageService: IStorageService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IViewletService private viewletService: IViewletService,
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(ID);
 

@@ -33,14 +33,14 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	private blockOpeningViewlet: boolean;
 
 	constructor(
-		messageService: IMessageService,
-		storageService: IStorageService,
-		eventService: IEventService,
-		telemetryService: ITelemetryService,
-		contextMenuService: IContextMenuService,
-		partService: IPartService,
-		keybindingService: IKeybindingService,
-		id: string
+		id: string,
+		@IMessageService messageService: IMessageService,
+		@IStorageService storageService: IStorageService,
+		@IEventService eventService: IEventService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IPartService partService: IPartService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(
 			messageService,

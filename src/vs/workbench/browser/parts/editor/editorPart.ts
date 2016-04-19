@@ -85,12 +85,12 @@ export class EditorPart extends Part implements IEditorPart {
 	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
-		private messageService: IMessageService,
-		private eventService: IEventService,
-		private telemetryService: ITelemetryService,
-		private storageService: IStorageService,
-		private partService: IPartService,
-		id: string
+		id: string,
+		@IMessageService private messageService: IMessageService,
+		@IEventService private eventService: IEventService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IStorageService private storageService: IStorageService,
+		@IPartService private partService: IPartService
 	) {
 		super(id);
 
