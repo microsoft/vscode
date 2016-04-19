@@ -10,7 +10,6 @@
 	margin: 0;
 	padding: 0;
 	overflow: hidden;
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	font-size: 11px;
 	-webkit-user-select: none;
 	-ms-user-select: none;
@@ -18,6 +17,12 @@
 	-moz-user-select: -moz-none;
 	-o-user-select: none;
 	user-select: none;
+}
+
+/* Font Families */
+
+.monaco-shell {
+	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 }
 
 @-webkit-keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -190,12 +195,12 @@ a:active {
 }
 
 .monaco-shell input {
-	font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	color: inherit;
+	font-family: inherit;
 }
 
 .monaco-shell select {
-	font-family: "Segoe UI","SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	font-family: inherit;
 }
 
 .monaco-shell .pointer {
@@ -227,84 +232,6 @@ a:active {
 
 .monaco-shell .monaco-menu .action-label.uncheck {
 	font-weight: normal;
-}
-
-/* Notifications */
-
-.monaco-shell .monaco-notification-container {
-	position: absolute;
-	width: 100%;
-	height: 400px;
-	top: calc(50% - 200px);
-	top: -moz-calc(50% - 200px);
-	top: -webkit-calc(50% - 200px);
-	top: -ms-calc(50% - 200px);
-	top: -o-calc(50% - 200px);
-	background-color: #0E6198;
-	color: white;
-	border-top: 2px solid transparent;
-	border-bottom: 2px solid transparent;
-}
-
-.monaco-shell .monaco-notification-container a {
-	color: inherit;
-	opacity: 0.6;
-	text-decoration: underline;
-}
-
-.monaco-shell .monaco-notification-container .buttons {
-	margin-top: 2em;
-}
-
-.monaco-shell .monaco-notification-container button {
-	color: inherit;
-	text-decoration: none;
-	display: inline-block;
-	padding: 6px 16px;
-	margin-right: 12px;
-	font-family: 'Segoe UI Semibold', "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
-	font-weight: 400;
-	font-size: 12px;
-	min-width: 65px;
-	border: 2px solid #fff;
-	background-color: transparent;
-	-moz-box-sizing: border-box;
-	box-sizing: border-box;
-	cursor: pointer;
-}
-
-.monaco-shell .monaco-notification-container button.default {
-	background-color: rgba(255, 255, 255, 0.2);
-}
-
-.monaco-shell .monaco-notification-container button:disabled {
-	opacity: 0.4;
-}
-
-.monaco-shell .monaco-notification-container button:not(:disabled):hover {
-	color: inherit;
-	background-color: rgba(255, 255, 255, 0.1);
-}
-
-.monaco-shell .monaco-notification-container button.default:not(:disabled)hover {
-	background-color: rgba(255, 255, 255, 0.3);
-}
-
-.monaco-shell .monaco-notification-container > .notification {
-	max-width: 800px;
-	height: 100%;
-	margin: 0 auto;
-	padding: 0 16px;
-	overflow-y: auto;
-	overflow-x: hidden;
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
-	font-size: 14px;
-}
-
-.monaco-shell .monaco-notification-container > .notification > .notification-title {
-	font-family: "Segoe UI Light", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Helvetica Neue", sans-serif, "Droid Sans Fallback";
-	font-weight: 300;
-	font-size: 2.5em;
 }
 
 .monaco-shell input:disabled {
@@ -344,21 +271,6 @@ a:active {
  * High Contrast Theme
  */
 .monaco-shell.hc-black { color: #fff; background-color: #000; }
-
-.monaco-shell.hc-black .monaco-modal-view.visible .monaco-modal-view-background {
-	opacity: 0.6;
-}
-
-.monaco-shell.hc-black .monaco-notification-container {
-	background-color: #0C141F;
-	color: white;
-	border-top: 2px solid #6FC3DF;
-	border-bottom: 2px solid  #6FC3DF;
-}
-
-.monaco-shell.hc-black .monaco-notification-container input {
-	background-color: #000;
-}
 
 .monaco-shell.hc-black .context-view .tooltip {
 	background-color: black;

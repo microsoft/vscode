@@ -19,8 +19,11 @@
 	vertical-align: top;
 }
 
-.monaco-editor .reference-zone-widget .label {
+.monaco-editor .reference-zone-widget {
 	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+}
+
+.monaco-editor .reference-zone-widget .label {
 	font-size: 0.9em;
 	text-align: center;
 	color: #646465;
@@ -32,7 +35,6 @@
 	width: 100%;
 	text-align: center;
 	padding: 3em 0;
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 }
 
 .monaco-editor .reference-zone-widget .preview {
@@ -56,7 +58,6 @@
 	background-color: #F3F3F3;
 	width: 20%;
 	color: #646465;
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	line-height: 22px;
 	font-size: 13px;
 }
