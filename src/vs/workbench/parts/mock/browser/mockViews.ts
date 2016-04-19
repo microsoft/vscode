@@ -83,7 +83,11 @@ export class InformationView extends splitview.CollapsibleView implements IViewl
 				this.debugSession = session;
 				this.sessionDuration = 0;
 				// listen for our custom event
-				this.customEventListener = session.addListener2('heartbeatEvent', (event: DebugProtocol.Event) => this.onCustomEvent(event) );
+				this.customEventListener = session.onDidEvent(event => {
+					if (event.event === 'heartbeatEvent') {
+						this.onHeartbeatEvent(event);
+					}
+				});
 			}
 
 			if (session) {
@@ -115,7 +119,7 @@ export class InformationView extends splitview.CollapsibleView implements IViewl
 	/**
 	 * Custom 'heartbeat' event is used to update a duration counter.
 	 */
-	private onCustomEvent(event: DebugProtocol.Event): void {
+	private onHeartbeatEvent(event: DebugProtocol.Event): void {
 		this.sessionDuration++;
 		this.renderContent();
 	}
