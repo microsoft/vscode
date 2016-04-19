@@ -302,34 +302,78 @@ export interface IDebugService {
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): TPromise<void>;
 
 	/**
-	 * General breakpoints manipulation.
+	 * Adds new breakpoints to the model. Notifies debug adapter of breakpoint changes.
 	 */
 	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void[]>;
-	enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>;
-	toggleEnablement(element: IEnablement): TPromise<void>;
+
+	/**
+	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
+	enableOrDisableBreakpoints(enable: boolean, breakpoint?: IEnablement): TPromise<void>;
+
+	/**
+	 * Sets the global activated property for all breakpoints.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
 	setBreakpointsActivated(activated: boolean): TPromise<void>;
+
+	/**
+	 * Removes all breakpoints. If id is passed only removes the breakpoint associated with that id.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
 	removeBreakpoints(id?: string): TPromise<any>;
 
 	/**
-	 * Function breakpoints manipulation.
+	 * Adds a new no name function breakpoint. The function breakpoint should be renamed once user enters the name.
 	 */
 	addFunctionBreakpoint(): void;
+
+	/**
+	 * Renames an already existing function breakpoint.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
 	renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void>;
+
+	/**
+	 * Removes all function breakpoints. If id is passed only removes the function breakpoint with the passed id.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
 	removeFunctionBreakpoints(id?: string): TPromise<void>;
 
 	/**
-	 * Repl expressions manipulation.
+	 * Adds a new expression to the repl.
 	 */
 	addReplExpression(name: string): TPromise<void>;
+
+	/**
+	 * Removes all repl expressions.
+	 */
 	removeReplExpressions(): void;
+
+	/**
+	 * Adds a new log to the repl. Either a string value or a dictionary (used to inspect complex objects printed to the repl).
+	 */
 	logToRepl(value: string | { [key: string]: any }, severity?: severity): void;
+
+	/**
+	 * Appends new output to the repl.
+	 */
 	appendReplOutput(value: string, severity?: severity): void;
 
 	/**
-	 * Watch expressions manipulation.
+	 * Adds a new watch expression and evaluates it against the debug adapter.
 	 */
 	addWatchExpression(name?: string): TPromise<void>;
+
+	/**
+	 * Renames a watch expression and evaluates it against the debug adapter.
+	 */
 	renameWatchExpression(id: string, newName: string): TPromise<void>;
+
+	/**
+	 * Removes all watch expressions. If id is passed only removes the watch expression with the passed id.
+	 */
 	removeWatchExpressions(id?: string): void;
 
 	/**

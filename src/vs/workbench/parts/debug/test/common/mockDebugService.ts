@@ -41,11 +41,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public toggleEnablement(element: debug.IEnablement): TPromise<void> {
+	public enableOrDisableBreakpoints(enabled: boolean): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -73,9 +69,7 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeReplExpressions(): void {}
 
-	public logToRepl(value: string, severity?: severity): void;
-	public logToRepl(value: { [key: string]: any }, severity?: severity): void;
-	public logToRepl(value: any, severity?: severity): void {}
+	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {}
 
 	public appendReplOutput(value: string, severity?: severity): void {}
 

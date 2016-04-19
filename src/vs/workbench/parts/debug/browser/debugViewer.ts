@@ -905,7 +905,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
 		templateData.toDisposeBeforeRender = lifecycle.dispose(templateData.toDisposeBeforeRender);
 		templateData.toDisposeBeforeRender.push(dom.addStandardDisposableListener(templateData.checkbox, 'change', (e) => {
-			this.debugService.toggleEnablement(element);
+			this.debugService.enableOrDisableBreakpoints(!element.enabled, element);
 		}));
 
 		if (templateId === BreakpointsRenderer.EXCEPTION_BREAKPOINT_TEMPLATE_ID) {
@@ -989,7 +989,7 @@ export class BreakpointsController extends BaseDebugController {
 	protected onSpace(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		super.onSpace(tree, event);
 		const element = <debug.IEnablement>tree.getFocus();
-		this.debugService.toggleEnablement(element).done(null, errors.onUnexpectedError);
+		this.debugService.enableOrDisableBreakpoints(!element.enabled, element).done(null, errors.onUnexpectedError);
 
 		return true;
 	}

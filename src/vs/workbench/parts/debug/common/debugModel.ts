@@ -517,8 +517,8 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public toggleEnablement(element: debug.IEnablement): void {
-		element.enabled = !element.enabled;
+	public setEnablement(element: debug.IEnablement, enable: boolean): void {
+		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
 			var breakpoint = <Breakpoint> element;
 			breakpoint.lineNumber = breakpoint.desiredLineNumber;
@@ -528,16 +528,16 @@ export class Model implements debug.IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public enableOrDisableAllBreakpoints(enabled: boolean): void {
+	public enableOrDisableAllBreakpoints(enable: boolean): void {
 		this.breakpoints.forEach(bp => {
-			bp.enabled = enabled;
-			if (!enabled) {
+			bp.enabled = enable;
+			if (!enable) {
 				bp.lineNumber = bp.desiredLineNumber;
 				bp.verified = false;
 			}
 		});
-		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enabled);
-		this.functionBreakpoints.forEach(fbp => fbp.enabled = enabled);
+		this.exceptionBreakpoints.forEach(ebp => ebp.enabled = enable);
+		this.functionBreakpoints.forEach(fbp => fbp.enabled = enable);
 
 		this._onDidChangeBreakpoints.fire();
 	}

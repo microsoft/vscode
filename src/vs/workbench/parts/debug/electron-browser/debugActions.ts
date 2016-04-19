@@ -303,7 +303,7 @@ export class ToggleEnablementAction extends AbstractDebugAction {
 	}
 
 	public run(element: debug.IEnablement): TPromise<any> {
-		return this.debugService.toggleEnablement(element);
+		return this.debugService.enableOrDisableBreakpoints(!element.enabled, element);
 	}
 }
 
@@ -317,7 +317,7 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.enableOrDisableAllBreakpoints(true);
+		return this.debugService.enableOrDisableBreakpoints(true);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -336,7 +336,7 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.enableOrDisableAllBreakpoints(false);
+		return this.debugService.enableOrDisableBreakpoints(false);
 	}
 
 	protected isEnabled(state: debug.State): boolean {

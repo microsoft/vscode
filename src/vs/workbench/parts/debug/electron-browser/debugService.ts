@@ -426,21 +426,20 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>{
-		this.model.enableOrDisableAllBreakpoints(enabled);
-		return this.sendAllBreakpoints();
-	}
+	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void>{
+		if (breakpoint) {
+			this.model.setEnablement(breakpoint, enable);
+			if (breakpoint instanceof model.Breakpoint) {
+				return this.sendBreakpoints((<model.Breakpoint> breakpoint).source.uri);
+			} else if (breakpoint instanceof model.FunctionBreakpoint) {
+				return this.sendFunctionBreakpoints();
+			}
 
-	public toggleEnablement(element: debug.IEnablement): TPromise<void> {
-		this.model.toggleEnablement(element);
-		if (element instanceof model.Breakpoint) {
-			const breakpoint = <model.Breakpoint> element;
-			return this.sendBreakpoints(breakpoint.source.uri);
-		} else if (element instanceof model.FunctionBreakpoint) {
-			return this.sendFunctionBreakpoints();
+			return this.sendExceptionBreakpoints();
 		}
 
-		return this.sendExceptionBreakpoints();
+		this.model.enableOrDisableAllBreakpoints(enable);
+		return this.sendAllBreakpoints();
 	}
 
 	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void[]> {

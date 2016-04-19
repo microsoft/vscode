@@ -69,7 +69,7 @@ suite('Debug - Model', () => {
 		model.getBreakpoints().forEach(bp => {
 			assert.equal(bp.enabled, false);
 		});
-		model.toggleEnablement(bp);
+		model.setEnablement(bp, true);
 		assert.equal(bp.enabled, true);
 
 		model.removeBreakpoints(model.getBreakpoints().filter(bp => bp.source.uri.toString() === modelUri1.toString()));
