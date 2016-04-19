@@ -35,28 +35,12 @@ export class InstantiationService implements IInstantiationService {
 		return new InstantiationService(services);
 	}
 
-	addSingleton<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): void {
-		if (this._services.has(id)) {
-			throw new Error('duplicate service');
-		}
-		this._services.set(id, instanceOrDescriptor);
-	}
-
-	getInstance<T>(id: ServiceIdentifier<T>): T {
-		let thing = this._services.get(id);
-		if (thing instanceof SyncDescriptor) {
-			return this._createAndCacheServiceInstance(id, thing);
-		} else {
-			return thing;
-		}
-	}
-
 	invokeFunction<R>(signature: (accessor: ServicesAccessor, ...more: any[]) => R, ...args: any[]): R {
 		let accessor: ServicesAccessor;
 		try {
 			accessor = {
 				get: <T>(id: ServiceIdentifier<T>) => {
-					return this.getInstance(id);
+					return this._getOrCreateServiceInstance(id);
 				}
 			};
 			return signature.apply(undefined, [accessor].concat(args));
@@ -131,7 +115,7 @@ export class InstantiationService implements IInstantiationService {
 			// @IServiceName
 			let {id, index} = serviceInjection;
 			// let service = this._lock.runUnlocked(() => this[serviceId]);
-			allArguments[index] = this.getInstance(id);
+			allArguments[index] = this._getOrCreateServiceInstance(id);
 			actualFirstServiceIndex = Math.min(actualFirstServiceIndex, index);
 		});
 
@@ -168,6 +152,15 @@ export class InstantiationService implements IInstantiationService {
 			desc._validate(instance);
 			return <T>instance;
 		// });
+	}
+
+	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>): T {
+		let thing = this._services.get(id);
+		if (thing instanceof SyncDescriptor) {
+			return this._createAndCacheServiceInstance(id, thing);
+		} else {
+			return thing;
+		}
 	}
 
 	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>): T {

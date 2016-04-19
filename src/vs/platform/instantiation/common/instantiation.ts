@@ -101,16 +101,8 @@ export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
 export var IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
 
 export interface IInstantiationService {
+
 	serviceId: ServiceIdentifier<any>;
-
-	/**
-	 * Returns an instance of the service identified by
-	 * {{id}}. If the service is not known {{undefined}}
-	 * is returned. If the service has not been created
-	 * yet it will be created.
-	 */
-	getInstance<T>(id: ServiceIdentifier<T>): T;
-
 
 	/**
 	 * Synchronously creates an instance that is denoted by
@@ -170,13 +162,6 @@ export interface IInstantiationService {
 	 * and adds/overwrites the given services
 	 */
 	createChild(services: ServiceCollection): IInstantiationService;
-
-	/**
-	 * Adds a service or a descriptor to the collection of services and
-	 * treats it as a singleton which means every consumer will receive
-	 * the same instance.
-	 */
-	addSingleton<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void;
 }
 
 

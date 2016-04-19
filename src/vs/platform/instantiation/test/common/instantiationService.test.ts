@@ -150,13 +150,6 @@ suite('Instantiation Service', () => {
 		assert.ok(collection.has(IService2));
 	});
 
-	test('addSingleton - cannot overwrite service', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new Service1());
-		assert.throws(() => service.addSingleton(IService1, new Service1()));
-	});
-
 	test('@Param - simple clase', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
@@ -234,12 +227,15 @@ suite('Instantiation Service', () => {
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
 
-		let service1 = service.getInstance(IService1);
-		assert.ok(service1);
-		assert.equal(service1.c, 1);
+		service.invokeFunction(accessor => {
 
-		let service2 = service.getInstance(IService1);
-		assert.ok(service1 === service2);
+			let service1 = accessor.get(IService1);
+			assert.ok(service1);
+			assert.equal(service1.c, 1);
+
+			let service2 = accessor.get(IService1);
+			assert.ok(service1 === service2);
+		});
 	});
 
 	test('SyncDesc - service with service dependency', function() {
@@ -248,9 +244,11 @@ suite('Instantiation Service', () => {
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
 		collection.set(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
-		let d = service.getInstance(IDependentService);
-		assert.ok(d);
-		assert.equal(d.name, 'farboo');
+		service.invokeFunction(accessor => {
+			let d = accessor.get(IDependentService);
+			assert.ok(d);
+			assert.equal(d.name, 'farboo');
+		});
 	});
 
 	test('SyncDesc - target depends on service future', function() {
@@ -272,11 +270,21 @@ suite('Instantiation Service', () => {
 		collection.set(IService1, new SyncDescriptor<IService1>(ServiceLoop1));
 		collection.set(IService2, new SyncDescriptor<IService2>(ServiceLoop2));
 
-		assert.throws(() => service.getInstance(IService1));
-		assert.throws(() => service.getInstance(IService2));
+		assert.throws(() => {
+			service.invokeFunction(accessor => {
+				accessor.get(IService1);
+			});
+		});
+		assert.throws(() => {
+			service.invokeFunction(accessor => {
+				accessor.get(IService2);
+			});
+		});
 
 		try {
-			service.getInstance(IService1);
+			service.invokeFunction(accessor => {
+				accessor.get(IService1);
+			});
 		} catch (err) {
 			assert.ok(err.name);
 			assert.ok(err.message);
