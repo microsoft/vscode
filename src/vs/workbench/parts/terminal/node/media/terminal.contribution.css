@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .integrated-terminal {
+	align-items: flex-end;
+	display: flex;
+}
+
+.monaco-workbench .integrated-terminal .terminal {
+	background-color: #1e1e1e!important;
+}
+
+.monaco-workbench .terminal-cursor {
+	background-color: #1e1e1e;
+}
+
+.monaco-workbench .reverse-video {
+	color: #CCC;
+}
+
+.vs-dark .monaco-workbench .terminal-cursor {
+	background-color: #CCC;
+}
+
+.vs-dark .monaco-workbench .reverse-video {
+	color: #252526;
+}
+
+/* High Contrast Theming */
+
+.hc-dark .monaco-workbench .integrated-terminal .terminal {
+	background-color: black!important;
+}
+
+.hc-dark .monaco-workbench .terminal-cursor {
+	background-color: white;
+}
+
+.hc-dark .monaco-workbench .reverse-video {
+	color: black;
+}
