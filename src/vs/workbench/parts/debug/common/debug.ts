@@ -12,7 +12,6 @@ import severity from 'vs/base/common/severity';
 import { IViewletView } from 'vs/workbench/browser/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
-import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 export const VIEWLET_ID = 'workbench.view.debug';
@@ -312,7 +311,6 @@ export interface IDebugService {
 	toggleBreakpointsActivated(): TPromise<void>;
 	removeAllBreakpoints(): TPromise<any>;
 	sendAllBreakpoints(): TPromise<any>;
-	editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): TPromise<void>;
 
 	addFunctionBreakpoint(): void;
 	renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void>;

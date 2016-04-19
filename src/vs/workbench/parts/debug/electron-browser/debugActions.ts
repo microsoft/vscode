@@ -17,9 +17,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingServ
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
+import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { clipboard } from 'electron';
 import IDebugService = debug.IDebugService;
 
@@ -419,12 +421,19 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
 	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
 
-	constructor(id: string, label: string, private editor: editorbrowser.ICodeEditor, private lineNumber: number, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		private editor: editorbrowser.ICodeEditor,
+		private lineNumber: number,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.editBreakpoint(this.editor, this.lineNumber);
+		BreakpointWidget.createInstance(this.editor, this.lineNumber, this.instantiationService);
+		return TPromise.as(null);
 	}
 }
 
@@ -432,12 +441,19 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.editConditionalBreakpointAction';
 	static LABEL = nls.localize('editConditionalBreakpoint', "Edit Breakpoint");
 
-	constructor(id: string, label: string, private editor: editorbrowser.ICodeEditor, private lineNumber: number, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		private editor: editorbrowser.ICodeEditor,
+		private lineNumber: number,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super(id, label, null, debugService, keybindingService);
 	}
 
 	public run(breakpoint: debug.IBreakpoint): TPromise<any> {
-		return this.debugService.editBreakpoint(this.editor, this.lineNumber);
+		BreakpointWidget.createInstance(this.editor, this.lineNumber, this.instantiationService);
+		return TPromise.as(null);
 	}
 }
 
@@ -464,7 +480,12 @@ export class ToggleBreakpointAction extends EditorAction {
 export class EditorConditionalBreakpointAction extends EditorAction {
 	static ID = 'editor.debug.action.conditionalBreakpoint';
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
+	constructor(
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
+		@IDebugService private debugService: IDebugService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
@@ -472,7 +493,7 @@ export class EditorConditionalBreakpointAction extends EditorAction {
 		if (this.debugService.state !== debug.State.Disabled) {
 			const lineNumber = this.editor.getPosition().lineNumber;
 			if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
-				return this.debugService.editBreakpoint(<editorbrowser.ICodeEditor>this.editor, lineNumber);
+				BreakpointWidget.createInstance(<editorbrowser.ICodeEditor>this.editor, lineNumber, this.instantiationService);
 			}
 		}
 

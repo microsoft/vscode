@@ -16,6 +16,7 @@ import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import editorcommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -46,6 +47,15 @@ export class BreakpointWidget extends ZoneWidget {
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
 		this.toDispose.push(editor.addListener2(editorcommon.EventType.ModelChanged, () => this.dispose()));
+	}
+
+	public static createInstance(editor: editorbrowser.ICodeEditor, lineNumber: number, instantiationService: IInstantiationService): void {
+		if (BreakpointWidget.INSTANCE) {
+			BreakpointWidget.INSTANCE.dispose();
+		}
+
+		instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
+		BreakpointWidget.INSTANCE.show({ lineNumber, column: 1 }, 2);
 	}
 
 	public fillContainer(container: HTMLElement): void {

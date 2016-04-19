@@ -63,10 +63,6 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): TPromise<void> {
-		return TPromise.as(null);
-	}
-
 	public addFunctionBreakpoint(): void {}
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {

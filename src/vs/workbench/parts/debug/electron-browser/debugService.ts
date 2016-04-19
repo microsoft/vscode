@@ -34,7 +34,6 @@ import model = require('vs/workbench/parts/debug/common/debugModel');
 import { DebugStringEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
-import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
@@ -471,17 +470,6 @@ export class DebugService implements debug.IDebugService {
 	public toggleBreakpointsActivated(): TPromise<void> {
 		this.model.toggleBreakpointsActivated();
 		return this.sendAllBreakpoints();
-	}
-
-	public editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): TPromise<void> {
-		if (BreakpointWidget.INSTANCE) {
-			BreakpointWidget.INSTANCE.dispose();
-		}
-
-		this.instantiationService.createInstance(BreakpointWidget, editor, lineNumber);
-		BreakpointWidget.INSTANCE.show({ lineNumber, column: 1 }, 2);
-
-		return TPromise.as(null);
 	}
 
 	public addFunctionBreakpoint(): void {
