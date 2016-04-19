@@ -180,10 +180,18 @@ export class UninstallAction extends Action {
 
 		this.enabled = false;
 
-		return this.extensionsService.uninstall(extension)
-			.then(() => this.onSuccess(extension), err => this.onError(err, extension))
-			.then(() => this.enabled = true)
-			.then(() => null);
+		return this.extensionsService.getInstalled().then(localExtensions => {
+			const [local] = localExtensions.filter(local => extensionEquals(local, extension));
+
+			if (!local) {
+				return TPromise.wrapError(nls.localize('notFound', "Extension '{0}' not installed.", extension.displayName));
+			}
+
+			return this.extensionsService.uninstall(local)
+				.then(() => this.onSuccess(local), err => this.onError(err, local))
+				.then(() => this.enabled = true)
+				.then(() => null);
+		});
 	}
 
 	private onSuccess(extension: IExtension) {
@@ -204,7 +212,7 @@ export class UninstallAction extends Action {
 
 	private reportTelemetry(extension: IExtension, success: boolean) {
 		const data = assign(getTelemetryData(extension), { success });
-		
+
 		this.telemetryService.publicLog('extensionGallery:uninstall', data);
 	}
 }
