@@ -13,7 +13,7 @@
 
 .extension-editor > .header {
 	height: 40px;
-	background: #E2E2E2; /* TODO */
+	background: rgba(128, 128, 128, 0.15); /* TODO */
 	padding: 20px;
 }
 

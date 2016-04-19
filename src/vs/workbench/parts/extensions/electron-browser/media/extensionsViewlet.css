@@ -103,8 +103,27 @@
 	color: inherit;
 }
 
+/* Themeing */
+
+.vs-dark .extensions-viewlet > .extensions .extension-container > .extension {
+	background-color: #333333;
+	box-shadow: 2px 2px 5px rgba(0,0,0,.3);
+}
+
+.vs-dark .extensions-viewlet > .extensions .extension-container > .extension:hover {
+	box-shadow: 2px 2px 5px rgba(0,0,0,.7);
+}
+
+/* Selection */
+
 .extensions-viewlet .monaco-list-row.selected .extension-container > .extension {
 	box-shadow: 2px 2px 5px rgba(0,0,0,.25);
 	background-color: #4FA7FF;
+	color: white;
+}
+
+.vs-dark .extensions-viewlet .monaco-list-row.selected .extension-container > .extension {
+	box-shadow: 2px 2px 5px rgba(0,0,0,.7);
+	background-color: #0E639C;
 	color: white;
 }
