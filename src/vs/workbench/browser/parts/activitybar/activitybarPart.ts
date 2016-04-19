@@ -34,7 +34,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private globalToolBar: ToolBar;
 	private activityActionItems: { [actionId: string]: IActionItem; };
 	private viewletIdToActions: { [viewletId: string]: ActivityAction; };
-	private instantiationService: IInstantiationService;
 
 	constructor(
 		id: string,
@@ -43,7 +42,8 @@ export class ActivitybarPart extends Part implements IActivityService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEventService private eventService: IEventService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
 
@@ -51,10 +51,6 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.viewletIdToActions = {};
 
 		this.registerListeners();
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
 	}
 
 	private registerListeners(): void {

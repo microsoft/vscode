@@ -38,8 +38,6 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 export abstract class CompositePart<T extends Composite> extends Part {
-
-	protected instantiationService: IInstantiationService;
 	private activeCompositeListeners: { (): void; }[];
 	private instantiatedCompositeListeners: { (): void; }[];
 	private mapCompositeToCompositeContainer: { [compositeId: string]: Builder; };
@@ -64,6 +62,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private contextMenuService: IContextMenuService,
 		protected partService: IPartService,
 		private keybindingService: IKeybindingService,
+		protected instantiationService: IInstantiationService,
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
 		private nameForTelemetry: string,
@@ -81,10 +80,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.activeComposite = null;
 		this.instantiatedComposits = [];
 		this.compositeLoaderPromises = {};
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
 	}
 
 	protected openComposite(id: string, focus?: boolean): TPromise<Composite> {

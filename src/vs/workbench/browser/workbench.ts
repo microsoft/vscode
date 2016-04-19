@@ -340,7 +340,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
 
 		// Status bar
-		this.statusbarPart = new StatusbarPart(Identifiers.STATUSBAR_PART);
+		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
 		this.toDispose.push(this.statusbarPart);
 		this.toShutdown.push(this.statusbarPart);
 		serviceCollection.set(IStatusbarService, this.statusbarPart);
@@ -361,12 +361,6 @@ export class Workbench implements IPartService {
 		if (this.messageService instanceof WorkbenchMessageService) {
 			(<WorkbenchMessageService>this.messageService).setWorkbenchServices(this.quickOpen, this.statusbarPart);
 		}
-		this.quickOpen.setInstantiationService(this.instantiationService);
-		this.statusbarPart.setInstantiationService(this.instantiationService);
-		this.activitybarPart.setInstantiationService(this.instantiationService);
-		this.sidebarPart.setInstantiationService(this.instantiationService);
-		this.panelPart.setInstantiationService(this.instantiationService);
-		this.editorPart.setInstantiationService(this.instantiationService);
 		(<UntitledEditorService>this.untitledEditorService).setInstantiationService(this.instantiationService);
 		this.editorService.setInstantiationService(this.instantiationService);
 

@@ -218,7 +218,8 @@ suite('Workbench QuickOpen', () => {
 			null,
 			null,
 			contextService,
-			new MockKeybindingService()
+			new MockKeybindingService(),
+			null
 		);
 
 		controller.create();

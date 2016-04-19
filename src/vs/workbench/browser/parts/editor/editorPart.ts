@@ -64,7 +64,6 @@ interface IEditorState {
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
  */
 export class EditorPart extends Part implements IEditorPart {
-	private instantiationService: IInstantiationService;
 	private dimension: Dimension;
 	private sideBySideControl: SideBySideEditorControl;
 	private memento: any;
@@ -90,7 +89,8 @@ export class EditorPart extends Part implements IEditorPart {
 		@IEventService private eventService: IEventService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
 
@@ -118,10 +118,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 		this.pendingEditorInputsToClose = [];
 		this.pendingEditorInputCloseTimeout = null;
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
 	}
 
 	private createPositionArray(multiArray: boolean): any[] {

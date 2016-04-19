@@ -23,6 +23,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -40,7 +41,8 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(
 			messageService,
@@ -50,6 +52,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			contextMenuService,
 			partService,
 			keybindingService,
+			instantiationService,
 			(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)),
 			SidebarPart.activeViewletSettingsKey,
 			'sideBar',
