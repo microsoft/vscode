@@ -126,6 +126,11 @@
 			}
 			var uiLanguage = nlsConfig.availableLanguages['*'];
 			if (uiLanguage) {
+				if (uiLanguage === 'zh-tw') {
+					uiLanguage = 'zh-Hant'
+				} else if (uiLanguage === 'zh-cn') {
+					uiLanguage = 'zh-Hans'
+				}
 				window.document.getElementsByTagName('html')[0].setAttribute('lang', uiLanguage)
 			}
 
