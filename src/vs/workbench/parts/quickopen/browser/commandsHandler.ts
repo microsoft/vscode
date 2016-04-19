@@ -228,7 +228,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		let activeEditor = this.editorService.getActiveEditor();
 		let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
 
-		let editorActions: IAction[] = [];
+		let editorActions: EditorAction[] = [];
 		if (activeEditorControl && types.isFunction(activeEditorControl.getActions)) {
 			editorActions = activeEditorControl.getActions();
 		}
@@ -253,7 +253,7 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	private actionDescriptorsToEntries(actionDescriptors: SyncActionDescriptor[], searchValue: string): CommandEntry[] {
 		let entries: CommandEntry[] = [];
-		let registry = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions));
+		let registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			let actionDescriptor = actionDescriptors[i];
@@ -268,7 +268,13 @@ export class CommandsHandler extends QuickOpenHandler {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
-				let highlights = wordFilter(searchValue, label);
+				let searchTarget = label;
+				let keywords = registry.getKeywords(actionDescriptor.id);
+				if (keywords) {
+					searchTarget = [searchTarget, ...keywords].join(' ');
+				}
+
+				let highlights = wordFilter(searchValue, searchTarget);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, highlights, actionDescriptor));
 				}
@@ -278,14 +284,13 @@ export class CommandsHandler extends QuickOpenHandler {
 		return entries;
 	}
 
-	private editorActionsToEntries(actions: IAction[], searchValue: string): EditorActionCommandEntry[] {
+	private editorActionsToEntries(actions: EditorAction[], searchValue: string): EditorActionCommandEntry[] {
 		let entries: EditorActionCommandEntry[] = [];
 
 		for (let i = 0; i < actions.length; i++) {
 			let action = actions[i];
 
 			let editorAction = <EditorAction>action;
-
 			if (!editorAction.isSupported()) {
 				continue; // do not show actions that are not supported in this context
 			}
@@ -295,7 +300,14 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
 
 			if (action.label) {
-				let highlights = wordFilter(searchValue, action.label);
+				let searchTarget = action.label;
+
+				let keywords = action.getKeywords();
+				if (keywords) {
+					searchTarget = [searchTarget, ...keywords].join(' ');
+				}
+
+				let highlights = wordFilter(searchValue, searchTarget);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', action.label, highlights, action));
 				}

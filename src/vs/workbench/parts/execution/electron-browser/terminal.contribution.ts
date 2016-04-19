@@ -122,4 +122,5 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionCon
 		OpenConsoleAction.Label,
 		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
 	)
+	, ['open', 'console', 'terminal', 'shell']
 );

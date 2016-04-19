@@ -43,7 +43,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		}
 
 		const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
-		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), ExtensionsLabel);
+		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), ExtensionsLabel, ['installed', 'extensions']);
 
 		(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 			new QuickOpenHandlerDescriptor(
@@ -56,7 +56,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 		if (galleryService.isEnabled()) {
 
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), ExtensionsLabel, ['install', 'extension']);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
@@ -68,7 +68,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 				)
 			);
 
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), ExtensionsLabel, ['outdated', 'extensions']);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
@@ -80,7 +80,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			);
 
 			// add extension tips services
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), ExtensionsLabel, ['suggested', 'extensions']);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
