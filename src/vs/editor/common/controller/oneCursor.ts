@@ -1632,7 +1632,10 @@ export class OneCursorOp {
 
 		var deleteSelection: editorCommon.IEditorRange = cursor.getSelection();
 
+		var justCursor = false;
+
 		if (deleteSelection.isEmpty()) {
+			justCursor = true;
 			var position = cursor.getPosition();
 			var leftOfPosition = cursor.getLeftOfPosition(position.lineNumber, position.column);
 			deleteSelection = new Range(
@@ -1650,6 +1653,15 @@ export class OneCursorOp {
 
 		if (deleteSelection.startLineNumber !== deleteSelection.endLineNumber) {
 			ctx.shouldPushStackElementBefore = true;
+		} else if (justCursor && deleteSelection.startColumn > 1) {
+			// In case if this is just simple cursor (not a selection) we want to help user to delete
+			// indented spaces when he is pressing backspace. Instead of deleting spaces one by one
+			// we will remove whole tab size.
+			let lineContent = cursor.getLineContent(deleteSelection.startLineNumber);
+			if (strings.lastNonWhitespaceIndex(lineContent, deleteSelection.startColumn - 1, [' ']) === -1) {
+				let tabSize = cursor.model.getOptions().tabSize;
+				deleteSelection.startColumn -= (((deleteSelection.startColumn % tabSize) || tabSize) - 1);
+			}
 		}
 
 		ctx.executeCommand = new ReplaceCommand(deleteSelection, '');

@@ -1172,6 +1172,7 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'var x = (3 + (5-7));'
 			],
+
 			mode: new BracketMode()
 		}, (model, cursor) => {
 			// ensure is tokenized
@@ -2140,6 +2141,60 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(3), '');
 			assert.equal(model.getLineContent(4), '');
 			assert.equal(model.getLineContent(5), '          ');
+		});
+	});
+
+	test('Backspace removes whitespaces with tab size', () => {
+		usingCursor({
+			text: [
+				'    x',
+				'        a    ',
+				'    '
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: true,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		}, (model, cursor) => {
+			// DeleteLeft does not remove tab size, because some text exists before
+			moveTo(cursor, 2, model.getLineContent(2).length + 1);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), '        a   ');
+
+			// DeleteLeft removes tab size = 4
+			moveTo(cursor, 2, 9);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), '    a   ');
+
+			// DeleteLeft removes tab size = 4
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), 'a   ');
+
+			// Undo DeleteLeft - get us back to original indentation
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), '        a   ');
+
+			// Nothing is broken when cursor is in (1,1)
+			moveTo(cursor, 1, 1);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(1), '    x');
+
+			// DeleteLeft on last line
+			moveTo(cursor, 3, model.getLineContent(3).length + 1);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(3), '');
+
+			// DeleteLeft with removing new line symbol
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getValue(EndOfLinePreference.LF), '    x\n        a   ');
+
+			// In case of selection DeleteLeft only deletes selected text
+			moveTo(cursor, 2, 3);
+			moveTo(cursor, 2, 4, true);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), '       a   ');
 		});
 	});
 });
