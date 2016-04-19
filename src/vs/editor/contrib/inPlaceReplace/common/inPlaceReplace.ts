@@ -148,8 +148,8 @@ class InPlaceReplaceDown extends InPlaceReplace {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InPlaceReplaceUp, InPlaceReplaceUp.ID, nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
-}, ['replace', 'with', 'next', 'value']));
+}, ['replace', 'with', 'previous', 'value']));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InPlaceReplaceDown, InPlaceReplaceDown.ID, nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
-}, ['replace', 'with', 'previous', 'value']));
+}, ['replace', 'with', 'next', 'value']));
