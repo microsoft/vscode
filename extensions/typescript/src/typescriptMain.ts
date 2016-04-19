@@ -107,6 +107,7 @@ class LanguageProvider {
 
 		client.onReady().then(() => {
 			this.registerProviders(client);
+			this.bufferSyncSupport.listen();
 		}, () => {
 			// Nothing to do here. The client did show a message;
 		});
@@ -241,7 +242,6 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
-
 	}
 
 	public triggerAllDiagnostics(): void {
