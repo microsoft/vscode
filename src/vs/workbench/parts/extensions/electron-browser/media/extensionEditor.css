@@ -1,0 +1,35 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.extension-editor {
+	height: 100%;
+	overflow-y: scroll;
+	display: flex;
+	flex-direction: column;
+	/*padding: 20px;*/
+}
+
+.extension-editor > .header {
+	height: 40px;
+	background: #E2E2E2; /* TODO */
+	padding: 20px;
+}
+
+.extension-editor > .body {
+	flex: 1;
+	overflow-y: scroll;
+	overflow-x: hidden;
+	padding: 20px;
+}
+
+.extension-editor > .body img {
+	max-width: 100%;
+}
+
+.extension-editor > .body.loading {
+	background-image: url('loading.svg');
+	background-position: center center;
+	background-repeat: no-repeat;
+}

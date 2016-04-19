@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/extensions-viewlet';
+import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { ThrottledDelayer, always } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
