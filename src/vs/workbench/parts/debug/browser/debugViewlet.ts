@@ -116,7 +116,7 @@ export class DebugViewlet extends Viewlet {
 	}
 
 	public getActions(): actions.IAction[] {
-		if (this.debugService.getState() === debug.State.Disabled) {
+		if (this.debugService.state === debug.State.Disabled) {
 			return [];
 		}
 

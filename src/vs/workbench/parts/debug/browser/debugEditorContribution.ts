@@ -175,7 +175,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 	}
 
 	private onEditorMouseMove(mouseEvent: editorbrowser.IEditorMouseEvent): void {
-		if (this.debugService.getState() !== debug.State.Stopped) {
+		if (this.debugService.state !== debug.State.Stopped) {
 			return;
 		}
 

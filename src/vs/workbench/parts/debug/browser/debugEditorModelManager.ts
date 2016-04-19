@@ -266,7 +266,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): editorcommon.IModelDecorationOptions {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
-		const state = this.debugService.getState();
+		const state = this.debugService.state;
 		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
 		const modelData = this.modelData[breakpoint.source.uri.toString()];
 		const session = this.debugService.getActiveSession();

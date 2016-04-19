@@ -285,7 +285,7 @@ export interface IDebugService {
 	/**
 	 * Gets the current debug state.
 	 */
-	getState(): State;
+	state: State;
 
 	/**
 	 * Allows to register on debug state changes.

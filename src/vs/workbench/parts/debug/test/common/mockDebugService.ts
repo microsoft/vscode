@@ -21,7 +21,7 @@ export class MockDebugService implements debug.IDebugService {
 		this.session = new MockRawSession();
 	}
 
-	public getState(): debug.State {
+	public get state(): debug.State {
 		return null;
 	}
 

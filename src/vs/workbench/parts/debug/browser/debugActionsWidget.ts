@@ -81,7 +81,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		}
 
 		this.actionBar.clear();
-		this.actionBar.push(this.getActions(this.instantiationService, this.debugService.getState()), { icon: true, label: false });
+		this.actionBar.push(this.getActions(this.instantiationService, this.debugService.state), { icon: true, label: false });
 		this.show();
 	}
 

@@ -59,7 +59,7 @@ const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 export class DebugService implements debug.IDebugService {
 	public serviceId = debug.IDebugService;
 
-	private state: debug.State;
+	private _state: debug.State;
 	private _onDidChangeState: Emitter<debug.State>;
 	private session: session.RawDebugSession;
 	private model: model.Model;
@@ -96,11 +96,11 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd = [];
 		this.debugStringEditorInputs = [];
 		this.session = null;
-		this.state = debug.State.Inactive;
+		this._state = debug.State.Inactive;
 		this._onDidChangeState = new Emitter<debug.State>();
 
 		if (!this.contextService.getWorkspace()) {
-			this.state = debug.State.Disabled;
+			this._state = debug.State.Disabled;
 		}
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
 		this.inDebugMode = keybindingService.createKey(debug.CONTEXT_IN_DEBUG_MODE, false);
@@ -327,7 +327,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (this.session.configuration.type === 'extensionHost' && this.state === debug.State.RunningNoDebug) {
+			if (this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (this.session && this.session.getId() === event.sessionId) {
@@ -400,8 +400,8 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public getState(): debug.State {
-		return this.state;
+	public get state(): debug.State {
+		return this._state;
 	}
 
 	public get onDidChangeState(): Event<debug.State> {
@@ -409,7 +409,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private setStateAndEmit(newState: debug.State): void {
-		this.state = newState;
+		this._state = newState;
 		this._onDidChangeState.fire(newState);
 	}
 
