@@ -126,11 +126,13 @@ export class MockDebugService implements debug.IDebugService {
 
 
 class MockRawSession extends ee.EventEmitter implements debug.IRawDebugSession {
-	public isAttach: boolean = false;
-	public capabilities: DebugProtocol.Capabilites;
 
-	public getType(): string {
-		return null;
+	public get configuration(): { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites } {
+		return {
+			type: 'mock',
+			isAttach: false,
+			capabilities: {}
+		};
 	}
 
 	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {

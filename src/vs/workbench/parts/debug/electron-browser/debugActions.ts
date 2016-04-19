@@ -137,7 +137,7 @@ export class RestartDebugAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
-				this.updateLabel(session.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL);
+				this.updateLabel(session.configuration.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL);
 			}
 		}));
 	}
@@ -212,7 +212,7 @@ export class StopDebugAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.onDidChangeState(() => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
-				this.updateLabel(session.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL);
+				this.updateLabel(session.configuration.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL);
 			}
 		}));
 	}
@@ -493,7 +493,7 @@ export class CopyValueAction extends AbstractDebugAction {
 		if (this.value instanceof model.Variable) {
 			const frameId = this.debugService.getViewModel().getFocusedStackFrame().frameId;
 			const session = this.debugService.getActiveSession();
-			return session.evaluate({ expression: model.getFullExpressionName(this.value, session.getType()), frameId }).then(result => {
+			return session.evaluate({ expression: model.getFullExpressionName(this.value, session.configuration.type), frameId }).then(result => {
 				clipboard.writeText(result.body.result);
 			}, err => clipboard.writeText(this.value.value));
 		}
@@ -644,7 +644,7 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.getActiveSession().getType()));
+		return this.debugService.addWatchExpression(model.getFullExpressionName(this.expression, this.debugService.getActiveSession().configuration.type));
 	}
 }
 

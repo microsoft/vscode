@@ -151,7 +151,7 @@ export class DebugService implements debug.IDebugService {
 
 		// from this point on we require an active session
 		let session = this.getActiveSession();
-		if (!session || session.getType() !== 'extensionHost') {
+		if (!session || session.configuration.type !== 'extensionHost') {
 			return; // we are only intersted if we have an active debug session for extensionHost
 		}
 
@@ -232,7 +232,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
-				if (this.session.capabilities.supportsConfigurationDoneRequest) {
+				if (this.session.configuration.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, errors.onUnexpectedError);
 				}
 			});
@@ -327,7 +327,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (this.session.getType() === 'extensionHost' && this.state === debug.State.RunningNoDebug) {
+			if (this.session.configuration.type === 'extensionHost' && this.state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
 			if (this.session && this.session.getId() === event.sessionId) {
@@ -604,7 +604,7 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
 			}
 
-			this.model.setExceptionBreakpoints(this.session.capabilities.exceptionBreakpointFilters);
+			this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
 			if (changeViewState) {
@@ -682,7 +682,7 @@ export class DebugService implements debug.IDebugService {
 
 	private rawAttach(port: number): TPromise<any> {
 		if (this.session) {
-			if (!this.session.isAttach) {
+			if (!this.session.configuration.isAttach) {
 				return this.session.attach({ port });
 			}
 
@@ -719,7 +719,7 @@ export class DebugService implements debug.IDebugService {
 		if (this.session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
 			this.telemetryService.publicLog('debugSessionStop', {
-				type: this.session.getType(),
+				type: this.session.configuration.type,
 				success: this.session.emittedStopped || !bpsExist,
 				sessionLengthInSeconds: this.session.getLengthInSeconds(),
 				breakpointCount: this.model.getBreakpoints().length,
@@ -875,7 +875,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private sendFunctionBreakpoints(): TPromise<void> {
-		if (!this.session || !this.session.readyForBreakpoints || !this.session.capabilities.supportsFunctionBreakpoints) {
+		if (!this.session || !this.session.readyForBreakpoints || !this.session.configuration.capabilities.supportsFunctionBreakpoints) {
 			return TPromise.as(null);
 		}
 

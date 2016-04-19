@@ -22,15 +22,17 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { shell } from 'electron';
 
 export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSession {
+
+	public restarted: boolean;
+
 	private serverProcess: cp.ChildProcess;
 	private socket: net.Socket = null;
 	private cachedInitServer: TPromise<void>;
 	private startTime: number;
 	private stopServerPending: boolean;
 	private sentPromises: TPromise<DebugProtocol.Response>[];
-	public isAttach: boolean;
-	public restarted: boolean;
-	public capabilities: DebugProtocol.Capabilites;
+	private isAttach: boolean;
+	private capabilities: DebugProtocol.Capabilites;
 
 	constructor(
 		private messageService: IMessageService,
@@ -40,7 +42,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		private telemtryAdapter: AIAdapter
 	) {
 		super();
-		this.capabilities = {};
 		this.sentPromises = [];
 	}
 
@@ -87,9 +88,17 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		});
 	}
 
+	public get configuration(): { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites } {
+		return {
+			type: this.adapter.type,
+			isAttach: this.isAttach,
+			capabilities: this.capabilities || {}
+		};
+	}
+
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
 		return this.send('initialize', args).then(response => {
-			this.capabilities = response.body || this.capabilities;
+			this.capabilities = response.body;
 			return response;
 		});
 	}
@@ -204,10 +213,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public getLengthInSeconds(): number {
 		return (new Date().getTime() - this.startTime) / 1000;
-	}
-
-	public getType(): string {
-		return this.adapter.type;
 	}
 
 	private connectServer(port: number): TPromise<void> {
