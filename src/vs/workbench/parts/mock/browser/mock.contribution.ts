@@ -10,7 +10,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import panel = require('vs/workbench/browser/panel');
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import { InformationView } from 'vs/workbench/parts/mock/browser/mockViews';
-import { ShowInformationAction } from 'vs/workbench/parts/mock/electron-browser/mockActions';
+import { ShowInformationAction } from 'vs/workbench/parts/mock/browser/mockActions';
 import { InformationPanel } from 'vs/workbench/parts/mock/browser/mockPanels';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 
