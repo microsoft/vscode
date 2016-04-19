@@ -55,7 +55,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public removeAllBreakpoints(): TPromise<any> {
+	public removeBreakpoints(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -73,7 +73,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public clearReplExpressions(): void {}
+	public removeReplExpressions(): void {}
 
 	public logToRepl(value: string, severity?: severity): void;
 	public logToRepl(value: { [key: string]: any }, severity?: severity): void;
@@ -89,7 +89,7 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
-	public clearWatchExpressions(id?: string): void {}
+	public removeWatchExpressions(id?: string): void {}
 
 	public createSession(noDebug: boolean): TPromise<any> {
 		return TPromise.as(null);

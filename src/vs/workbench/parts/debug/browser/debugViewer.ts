@@ -100,7 +100,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 			if (element instanceof model.Expression && renamed && inputBox.value) {
 				debugService.renameWatchExpression(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.Expression && !element.name) {
-				debugService.clearWatchExpressions(element.getId());
+				debugService.removeWatchExpressions(element.getId());
 			} else if (element instanceof model.FunctionBreakpoint && renamed && inputBox.value) {
 				debugService.renameFunctionBreakpoint(element.getId(), inputBox.value).done(null, errors.onUnexpectedError);
 			} else if (element instanceof model.FunctionBreakpoint && !element.name) {
@@ -730,7 +730,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		const element = tree.getFocus();
 		if (element instanceof model.Expression) {
 			const we = <model.Expression> element;
-			this.debugService.clearWatchExpressions(we.getId());
+			this.debugService.removeWatchExpressions(we.getId());
 
 			return true;
 		}

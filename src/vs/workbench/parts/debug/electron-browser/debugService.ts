@@ -460,9 +460,10 @@ export class DebugService implements debug.IDebugService {
 		return this.sendExceptionBreakpoints();
 	}
 
-	public removeAllBreakpoints(): TPromise<any> {
-		const urisToClear = arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => bp.source.uri);
-		this.model.removeBreakpoints(this.model.getBreakpoints());
+	public removeBreakpoints(id?: string): TPromise<any> {
+		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
+		const urisToClear = arrays.distinct(toRemove, bp => bp.source.uri.toString()).map(bp => bp.source.uri);
+		this.model.removeBreakpoints(toRemove);
 
 		return TPromise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}
@@ -499,8 +500,8 @@ export class DebugService implements debug.IDebugService {
 		this.model.appendReplOutput(value, severity);
 	}
 
-	public clearReplExpressions(): void {
-		this.model.clearReplExpressions();
+	public removeReplExpressions(): void {
+		this.model.removeReplExpressions();
 	}
 
 	public addWatchExpression(name: string): TPromise<void> {
@@ -511,12 +512,12 @@ export class DebugService implements debug.IDebugService {
 		return this.model.renameWatchExpression(this.session, this.viewModel.getFocusedStackFrame(), id, newName);
 	}
 
-	public clearWatchExpressions(id?: string): void {
-		this.model.clearWatchExpressions(id);
+	public removeWatchExpressions(id?: string): void {
+		this.model.removeWatchExpressions(id);
 	}
 
 	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
-		this.clearReplExpressions();
+		this.removeReplExpressions();
 
 		return this.textFileService.saveAll()
 		.then(() => this.extensionService.onReady()

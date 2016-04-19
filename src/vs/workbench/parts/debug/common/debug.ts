@@ -182,7 +182,7 @@ export interface IModel extends ITreeElement {
 	onDidChangeBreakpoints: Event<void>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
-	onDidChangeREPLElements: Event<void>;
+	onDidChangeReplElements: Event<void>;
 };
 
 // service enums
@@ -302,27 +302,36 @@ export interface IDebugService {
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): TPromise<void>;
 
 	/**
-	 * Sets breakpoints for a model. Does not send them to the adapter.
+	 * General breakpoints manipulation.
 	 */
 	setBreakpointsForModel(modelUri: uri, rawData: IRawBreakpoint[]): void;
 	toggleBreakpoint(IRawBreakpoint): TPromise<void>;
 	enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>;
 	toggleEnablement(element: IEnablement): TPromise<void>;
 	setBreakpointsActivated(activated: boolean): TPromise<void>;
-	removeAllBreakpoints(): TPromise<any>;
+	removeBreakpoints(id?: string): TPromise<any>;
 
+	/**
+	 * Function breakpoints manipulation.
+	 */
 	addFunctionBreakpoint(): void;
 	renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void>;
 	removeFunctionBreakpoints(id?: string): TPromise<void>;
 
+	/**
+	 * Repl expressions manipulation.
+	 */
 	addReplExpression(name: string): TPromise<void>;
-	clearReplExpressions(): void;
+	removeReplExpressions(): void;
 	logToRepl(value: string | { [key: string]: any }, severity?: severity): void;
 	appendReplOutput(value: string, severity?: severity): void;
 
+	/**
+	 * Watch expressions manipulation.
+	 */
 	addWatchExpression(name?: string): TPromise<void>;
 	renameWatchExpression(id: string, newName: string): TPromise<void>;
-	clearWatchExpressions(id?: string): void;
+	removeWatchExpressions(id?: string): void;
 
 	/**
 	 * Creates a new debug session. Depending on the configuration will either 'launch' or 'attach'.

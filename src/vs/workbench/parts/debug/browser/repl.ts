@@ -73,7 +73,7 @@ export class Repl extends Panel {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().onDidChangeREPLElements(() => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.onReplElementsUpdated();
 		}));
 		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {

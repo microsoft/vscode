@@ -419,7 +419,7 @@ export class Model implements debug.IModel {
 		return this._onDidChangeWatchExpressions.event;
 	}
 
-	public get onDidChangeREPLElements(): Event<void> {
+	public get onDidChangeReplElements(): Event<void> {
 		return this._onDidChangeREPLElements.event;
 	}
 
@@ -633,7 +633,7 @@ export class Model implements debug.IModel {
 		}
 	}
 
-	public clearReplExpressions(): void {
+	public removeReplExpressions(): void {
 		if (this.replElements.length > 0) {
 			this.replElements = [];
 			this._onDidChangeREPLElements.fire();
@@ -694,7 +694,7 @@ export class Model implements debug.IModel {
 		this._onDidChangeWatchExpressions.fire();
 	}
 
-	public clearWatchExpressions(id: string = null): void {
+	public removeWatchExpressions(id: string = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire();
 	}

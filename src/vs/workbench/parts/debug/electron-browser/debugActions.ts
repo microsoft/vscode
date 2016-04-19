@@ -285,7 +285,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return TPromise.join([this.debugService.removeAllBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
+		return TPromise.join([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -691,7 +691,7 @@ export class RemoveWatchExpressionAction extends AbstractDebugAction {
 	}
 
 	public run(expression: model.Expression): TPromise<any> {
-		this.debugService.clearWatchExpressions(expression.getId());
+		this.debugService.removeWatchExpressions(expression.getId());
 		return TPromise.as(null);
 	}
 }
@@ -706,7 +706,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		this.debugService.clearWatchExpressions();
+		this.debugService.removeWatchExpressions();
 		return TPromise.as(null);
 	}
 
@@ -728,7 +728,7 @@ export class ClearReplAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		this.debugService.clearReplExpressions();
+		this.debugService.removeReplExpressions();
 
 		// focus back to repl
 		return this.panelService.openPanel(debug.REPL_ID, true);
@@ -771,7 +771,7 @@ export class ToggleReplAction extends AbstractDebugAction {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().onDidChangeREPLElements(() => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			if (!this.isReplVisible()) {
 				this.class = 'debug-action toggle-repl notification';
 			}

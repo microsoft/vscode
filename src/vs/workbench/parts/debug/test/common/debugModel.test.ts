@@ -299,7 +299,7 @@ suite('Debug - Model', () => {
 		model.clearWatchExpressionValues();
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
-		model.clearWatchExpressions();
+		model.removeWatchExpressions();
 		assert.equal(model.getWatchExpressions().length, 0);
 	});
 
@@ -317,7 +317,7 @@ suite('Debug - Model', () => {
 			assert.equal((<debugmodel.Expression> re).reference, 0);
 		});
 
-		model.clearReplExpressions();
+		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
 	});
 
@@ -352,7 +352,7 @@ suite('Debug - Model', () => {
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 
-		model.clearReplExpressions();
+		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
 	});
 
