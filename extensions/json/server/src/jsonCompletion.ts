@@ -7,7 +7,7 @@
 
 import Parser = require('./jsonParser');
 import SchemaService = require('./jsonSchemaService');
-import JsonSchema = require('./json-toolbox/jsonSchema');
+import JsonSchema = require('./jsonSchema');
 import {IJSONWorkerContribution} from './jsonContributions';
 
 import {CompletionItem, CompletionItemKind, CompletionList, ITextDocument, TextDocumentPosition, Range, TextEdit, RemoteConsole} from 'vscode-languageserver';

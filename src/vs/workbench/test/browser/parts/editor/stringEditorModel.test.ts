@@ -7,16 +7,20 @@
 
 import * as assert from 'assert';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
-import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 suite('Workbench - StringEditorModel', () => {
 
 	test('StringEditorModel', function (done) {
-		let inst = InstantiationService.createInstantiationService({
-			modeService: createMockModeService(),
-			modelService: createMockModelService(),
-		});
+		let services = new ServiceCollection();
+		services.set(IModeService, createMockModeService());
+		services.set(IModelService, createMockModelService());
+		let inst = new InstantiationService(services);
 		let m = inst.createInstance(StringEditorModel, 'value', 'mime', null);
 		m.load().then(function (model) {
 			assert(model === m);
@@ -38,10 +42,10 @@ suite('Workbench - StringEditorModel', () => {
 	});
 
 	test('StringEditorModel - setValue, clearValue, append, trim', function (done) {
-		let inst = InstantiationService.createInstantiationService({
-			modeService: createMockModeService(),
-			modelService: createMockModelService(),
-		});
+		let services = new ServiceCollection();
+		services.set(IModeService, createMockModeService());
+		services.set(IModelService, createMockModelService());
+		let inst = new InstantiationService(services);
 		let m = inst.createInstance(StringEditorModel, 'value', 'mime', null);
 		m.load().then(function (model) {
 			assert(model === m);

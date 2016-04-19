@@ -44,9 +44,9 @@ suite('Debug - Model', () => {
 		model.removeBreakpoints([model.getBreakpoints().pop()]);
 		assert.equal(model.getBreakpoints().length, 2);
 
-		model.toggleBreakpointsActivated();
+		model.setBreakpointsActivated(false);
 		assert.equal(model.areBreakpointsActivated(), false);
-		model.toggleBreakpointsActivated();
+		model.setBreakpointsActivated(true);
 		assert.equal(model.areBreakpointsActivated(), true);
 	});
 
@@ -69,7 +69,7 @@ suite('Debug - Model', () => {
 		model.getBreakpoints().forEach(bp => {
 			assert.equal(bp.enabled, false);
 		});
-		model.toggleEnablement(bp);
+		model.setEnablement(bp, true);
 		assert.equal(bp.enabled, true);
 
 		model.removeBreakpoints(model.getBreakpoints().filter(bp => bp.source.uri.toString() === modelUri1.toString()));
@@ -299,7 +299,7 @@ suite('Debug - Model', () => {
 		model.clearWatchExpressionValues();
 		assertWatchExpressions(model.getWatchExpressions(), 'new_name');
 
-		model.clearWatchExpressions();
+		model.removeWatchExpressions();
 		assert.equal(model.getWatchExpressions().length, 0);
 	});
 
@@ -317,7 +317,7 @@ suite('Debug - Model', () => {
 			assert.equal((<debugmodel.Expression> re).reference, 0);
 		});
 
-		model.clearReplExpressions();
+		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
 	});
 
@@ -352,7 +352,7 @@ suite('Debug - Model', () => {
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 
-		model.clearReplExpressions();
+		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
 	});
 

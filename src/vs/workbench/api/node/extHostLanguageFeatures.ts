@@ -511,7 +511,12 @@ class SuggestAdapter implements modes.ISuggestSupport {
 			} else if (value instanceof CompletionList) {
 				list = value;
 				defaultSuggestions.incomplete = list.isIncomplete;
+			} else if (!value) {
+				// undefined and null are valid results
+				return;
 			} else {
+				// warn about everything else
+				console.warn('INVALID result from completion provider. expected CompletionItem-array or CompletionList but got:', value);
 				return;
 			}
 

@@ -64,7 +64,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				null,
 				true,
-				() =>  this.debugService.toggleBreakpoint({ uri, lineNumber })
+				() =>  this.debugService.addBreakpoints([{ uri, lineNumber }])
 			));
 			actions.push(this.instantiationService.createInstance(debugactions.AddConditionalBreakpointAction, debugactions.AddConditionalBreakpointAction.ID, debugactions.AddConditionalBreakpointAction.LABEL, this.editor, lineNumber));
 		}
@@ -77,7 +77,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			if (e.target.type !== editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
 				return;
 			}
-			if (!this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
+			if (!this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
 				return;
 			}
 
@@ -94,13 +94,20 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 					getActionsContext: () => breakpoint
 				});
 			} else {
-				this.debugService.toggleBreakpoint({ uri, lineNumber });
+				const breakpoint = this.debugService.getModel().getBreakpoints()
+					.filter(bp => bp.source.uri.toString() === uri.toString() && bp.lineNumber === lineNumber).pop();
+
+				if (breakpoint) {
+					this.debugService.removeBreakpoints(breakpoint.getId());
+				} else {
+					this.debugService.addBreakpoints([{ uri, lineNumber }]);
+				}
 			}
 		}));
 
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IEditorMouseEvent) => {
 			var showBreakpointHintAtLineNumber = -1;
-			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
+			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
 				if (!e.target.detail) {
 					// is not after last line
 					showBreakpointHintAtLineNumber = e.target.position.lineNumber;
@@ -111,7 +118,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IEditorMouseEvent) => {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.onDebugStateUpdate()));
+		this.toDispose.push(this.debugService.onDidChangeState(state => this.onDebugStateUpdate(state)));
 
 		// hover listeners & hover widget
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseDown, (e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseDown(e)));
@@ -147,12 +154,12 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		this.breakpointHintDecoration = this.editor.deltaDecorations(this.breakpointHintDecoration, newDecoration);
 	}
 
-	private onDebugStateUpdate(): void {
-		if (this.debugService.getState() !== debug.State.Stopped) {
+	private onDebugStateUpdate(state: debug.State): void {
+		if (state !== debug.State.Stopped) {
 			this.hideHoverWidget();
 		}
 		this.contextService.updateOptions('editor', {
-			hover: this.debugService.getState() !== debug.State.Stopped
+			hover: state !== debug.State.Stopped
 		});
 	}
 
@@ -175,7 +182,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 	}
 
 	private onEditorMouseMove(mouseEvent: editorbrowser.IEditorMouseEvent): void {
-		if (this.debugService.getState() !== debug.State.Stopped) {
+		if (this.debugService.state !== debug.State.Stopped) {
 			return;
 		}
 

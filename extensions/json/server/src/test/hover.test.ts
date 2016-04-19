@@ -7,9 +7,9 @@
 import assert = require('assert');
 import Parser = require('../jsonParser');
 import SchemaService = require('../jsonSchemaService');
-import JsonSchema = require('../json-toolbox/jsonSchema');
+import JsonSchema = require('../jsonSchema');
 import {JSONCompletion} from '../jsonCompletion';
-import {IXHROptions, IXHRResponse} from '../utils/httpRequest';
+import {XHROptions, XHRResponse} from 'request-light';
 import {JSONHover} from '../jsonHover';
 
 import {Hover, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
@@ -30,8 +30,8 @@ suite('JSON Hover', () => {
 		return hoverProvider.doHover(document, textDocumentLocation, jsonDoc);
 	}
 
-	var requestService = function(options: IXHROptions): Promise<IXHRResponse> {
-		return Promise.reject<IXHRResponse>({ responseText: '', status: 404 });
+	var requestService = function(options: XHROptions): Promise<XHRResponse> {
+		return Promise.reject<XHRResponse>({ responseText: '', status: 404 });
 	}
 
 	test('Simple schema', function(testDone) {

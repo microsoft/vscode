@@ -141,7 +141,7 @@
 .monaco-workbench .monaco-tree-row .expression {
 	overflow: hidden;
 	text-overflow: ellipsis;
-	white-space: pre;
+	white-space: pre-wrap;
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 

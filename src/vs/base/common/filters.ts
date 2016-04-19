@@ -61,7 +61,7 @@ export let matchesStrictPrefix: IFilter = (word: string, wordToMatchAgainst: str
 export let matchesPrefix: IFilter = (word: string, wordToMatchAgainst: string): IMatch[] => { return _matchesPrefix(true, word, wordToMatchAgainst); };
 
 function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: string): IMatch[] {
-	if (wordToMatchAgainst.length === 0 || wordToMatchAgainst.length < word.length) {
+	if (!wordToMatchAgainst || wordToMatchAgainst.length === 0 || wordToMatchAgainst.length < word.length) {
 		return null;
 	}
 	if (ignoreCase) {
@@ -80,7 +80,6 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 
 export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] {
 	let index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
-
 	if (index === -1) {
 		return null;
 	}
@@ -220,7 +219,7 @@ function isCamelCasePattern(word: string): boolean {
 }
 
 export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] {
-	if (camelCaseWord.length === 0) {
+	if (!camelCaseWord || camelCaseWord.length === 0) {
 		return null;
 	}
 
@@ -247,7 +246,7 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 // Useful in cases where the target is words (e.g. command labels)
 
 export function matchesWords(word: string, target: string): IMatch[] {
-	if (target.length === 0) {
+	if (!target || target.length === 0) {
 		return null;
 	}
 

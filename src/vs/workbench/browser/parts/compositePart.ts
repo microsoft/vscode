@@ -31,14 +31,13 @@ import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage'
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 export abstract class CompositePart<T extends Composite> extends Part {
-
-	protected instantiationService: IInstantiationService;
 	private activeCompositeListeners: { (): void; }[];
 	private instantiatedCompositeListeners: { (): void; }[];
 	private mapCompositeToCompositeContainer: { [compositeId: string]: Builder; };
@@ -63,6 +62,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private contextMenuService: IContextMenuService,
 		protected partService: IPartService,
 		private keybindingService: IKeybindingService,
+		protected instantiationService: IInstantiationService,
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
 		private nameForTelemetry: string,
@@ -80,10 +80,6 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.activeComposite = null;
 		this.instantiatedComposits = [];
 		this.compositeLoaderPromises = {};
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
 	}
 
 	protected openComposite(id: string, focus?: boolean): TPromise<Composite> {
@@ -176,10 +172,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			let loaderPromise = this.compositeLoaderPromises[id];
 			if (!loaderPromise) {
 				let progressService = new WorkbenchProgressService(this.eventService, this.progressBar, compositeDescriptor.id, isActive);
-				let services = {
-					progressService: progressService
-				};
-				let compositeInstantiationService = this.instantiationService.createChild(services);
+				let compositeInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
 				loaderPromise = compositeInstantiationService.createInstance(compositeDescriptor).then((composite: Composite) => {
 					this.mapProgressServiceToComposite[composite.getId()] = progressService;

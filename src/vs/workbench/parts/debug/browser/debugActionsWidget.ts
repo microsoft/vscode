@@ -55,8 +55,8 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
-			this.onDebugStateChange();
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			this.onDebugStateChange(state);
 		}));
 		this.toDispose.push(this.actionBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
 			// check for error
@@ -75,14 +75,13 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 		return DebugActionsWidget.ID;
 	}
 
-	private onDebugStateChange(): void {
-		const state = this.debugService.getState();
+	private onDebugStateChange(state: debug.State): void {
 		if (state === debug.State.Disabled || state === debug.State.Inactive || state === debug.State.Initializing) {
 			return this.hide();
 		}
 
 		this.actionBar.clear();
-		this.actionBar.push(this.getActions(this.instantiationService, this.debugService.getState()), { icon: true, label: false });
+		this.actionBar.push(this.getActions(this.instantiationService, this.debugService.state), { icon: true, label: false });
 		this.show();
 	}
 

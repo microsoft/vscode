@@ -42,4 +42,4 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleWordW
 	primary: KeyMod.Alt | KeyCode.KEY_Z,
 	mac: { primary: KeyMod.Alt |  KeyCode.KEY_Z },
 	linux: { primary: KeyMod.Alt | KeyCode.KEY_Z }
-}));
+}, ['word', 'wrap']));

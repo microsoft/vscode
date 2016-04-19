@@ -6,7 +6,8 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
-import instantiationService = require('vs/platform/instantiation/common/instantiationService');
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 
@@ -15,9 +16,7 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 
 	constructor() {
 		super(true);
-		this.setInstantiationService(instantiationService.createInstantiationService({
-			threadService: this
-		}));
+		this.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, this])));
 	}
 
 	protected _doCreateInstance(params: any[]): any {

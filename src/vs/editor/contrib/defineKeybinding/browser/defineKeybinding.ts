@@ -487,4 +487,4 @@ EditorBrowserRegistry.registerEditorContribution(DefineKeybindingController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DefineKeybindingAction, DefineKeybindingAction.ID, NLS_DEFINE_ACTION_LABEL, {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
-}));
+}, ['define', 'keybinding']));

@@ -12,8 +12,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -349,7 +350,16 @@ export function createDiffEditor(domElement:HTMLElement, options:IDiffEditorCons
 function prepareServices(domElement: HTMLElement, services: IEditorOverrideServices): { ctx: IEditorOverrideServices; toDispose: IDisposable[]; } {
 	services = ensureStaticPlatformServices(services);
 	var toDispose = ensureDynamicPlatformServices(domElement, services);
-	services.instantiationService = createInstantiationService(services);
+
+	var collection = new ServiceCollection();
+	for (var legacyServiceId in services) {
+		if (services.hasOwnProperty(legacyServiceId)) {
+			let id = createDecorator(legacyServiceId);
+			let service = services[legacyServiceId];
+			collection.set(id, service);
+		}
+	}
+	services.instantiationService = new InstantiationService(collection);
 
 	return {
 		ctx: services,

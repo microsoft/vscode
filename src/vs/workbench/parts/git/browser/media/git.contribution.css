@@ -95,47 +95,6 @@
 	padding: 0.8em 1em;
 }
 
-.monaco-shell .git-credentials > .monaco-credentials {
-	width: 300px;
-	overflow: hidden;
-	padding: 1em;
-	border-top: none;
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
-	outline: 0;
-	box-shadow: 0 2px 8px #A8A8A8;
-	border: none;
-	color: #646465;
-	background-color: white;
-	-webkit-animation: fadeIn 0.083s linear;
-	-o-animation: fadeIn 0.083s linear;
-	-moz-animation: fadeIn 0.083s linear;
-	-ms-animation: fadeIn 0.083s linear;
-	animation: fadeIn 0.083s linear;
-}
-
-.monaco-shell .git-credentials .credentials {
-	margin: 10px 0 0 0;
-}
-
-.monaco-shell .git-credentials .credentials > .field {
-	margin: 4px 0 0;
-}
-
-.monaco-shell .git-credentials .credentials > .field .label {
-	display: inline-block;
-	width: 110px;
-}
-
-.monaco-shell.vs-dark .git-credentials > .monaco-credentials {
-	box-shadow: 0 2px 8px #000;
-	color: #BBB;
-	background-color: #2D2F31;
-}
-
-.monaco-shell.vs-dark .git-credentials > .monaco-credentials input {
-	background-color: #3C3C3C;
-}
-
 /* Quick Open */
 
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.git {

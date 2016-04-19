@@ -9,15 +9,15 @@ import jsonworker = require('vs/languages/json/common/jsonWorker');
 import jsonSchema = require('vs/base/common/jsonSchema');
 import resourceService = require('vs/editor/common/services/resourceServiceImpl');
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import instantiationService = require('vs/platform/instantiation/common/instantiationService');
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import mirrorModel = require('vs/editor/common/model/mirrorModel');
 import URI from 'vs/base/common/uri';
 import SchemaService = require('vs/languages/json/common/jsonSchemaService');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
-import strings = require('vs/base/common/strings');
+
 
 suite('JSON - Worker', () => {
 
@@ -38,9 +38,7 @@ suite('JSON - Worker', () => {
 		var resourceModelMock: IResourceService = new resourceService.ResourceService();
 		resourceModelMock.insert(url, mm);
 
-		var _instantiationService = instantiationService.createInstantiationService({
-			resourceService: resourceModelMock
-		});
+		var _instantiationService = new InstantiationService(new ServiceCollection([IResourceService, resourceModelMock]));
 		var worker = _instantiationService.createInstance(jsonworker.JSONWorker, mm.getMode().getId());
 
 		return { worker: worker, model: mm };

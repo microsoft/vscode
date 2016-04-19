@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .defineKeybindingLauncher {
-	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
 	background: rgb(179,255,179);
 	padding: 10px;
 	border-radius: 5px;
@@ -16,9 +15,14 @@
 }
 
 .monaco-editor .defineKeybindingWidget {
-	font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", HelveticaNeue-Light, sans-serif, "Droid Sans Fallback";
 	padding: 10px;
 }
+
+.monaco-editor .defineKeybindingWidget, .monaco-editor .defineKeybindingLauncher { font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback"; }
+.monaco-editor:lang(zh-Hans) .defineKeybindingWidget, .monaco-editor:lang(zh-Hans) .defineKeybindingLauncher { font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.monaco-editor:lang(zh-Hant) .defineKeybindingWidget, .monaco-editor:lang(zh-Hant) .defineKeybindingLauncher { font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "PingFang TC", "Microsoft Jhenghei", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
+.monaco-editor:lang(ja) .defineKeybindingWidget, .monaco-editor:lang(ja) .defineKeybindingLauncher { font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Hiragino Kaku Gothic Pro", "Meiryo", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
+.monaco-editor:lang(ko) .defineKeybindingWidget, .monaco-editor:lang(ko) .defineKeybindingLauncher { font-family: 'Segoe WPC', 'Segoe UI', "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Apple SD Gothic Neo", "AppleGothic", "Malgun Gothic", "Nanum Gothic", "Dotom", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
 .monaco-editor .defineKeybindingWidget .message {
 	width: 320px;

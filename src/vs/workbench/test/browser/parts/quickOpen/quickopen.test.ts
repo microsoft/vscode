@@ -20,7 +20,9 @@ import {isEmptyObject} from 'vs/base/common/types';
 import {join} from 'vs/base/common/paths';
 import {Extensions, IEditorRegistry} from 'vs/workbench/browser/parts/editor/baseEditor';
 import URI from 'vs/base/common/uri';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import {Position} from 'vs/platform/editor/common/editor';
 
@@ -38,7 +40,7 @@ suite('Workbench QuickOpen', () => {
 	test('EditorHistoryEntry', () => {
 		let editorService = new TestEditorService();
 		let contextService = new TestContextService();
-		let inst = createInstantiationService({});
+		let inst = new InstantiationService();
 
 		let model = new EditorHistoryModel(editorService, null, contextService);
 
@@ -76,7 +78,7 @@ suite('Workbench QuickOpen', () => {
 	test('EditorHistoryEntry is removed when open fails', () => {
 		let editorService = new TestEditorService();
 		let contextService = new TestContextService();
-		let inst = createInstantiationService({});
+		let inst = new InstantiationService();
 
 		let model = new EditorHistoryModel(editorService, null, contextService);
 
@@ -92,12 +94,12 @@ suite('Workbench QuickOpen', () => {
 	});
 
 	test('EditorHistoryModel', () => {
-		Registry.as('workbench.contributions.editors').setInstantiationService(createInstantiationService({}));
+		Registry.as('workbench.contributions.editors').setInstantiationService(new InstantiationService());
 
 		let editorService = new TestEditorService();
 		let contextService = new TestContextService();
 
-		let inst = createInstantiationService({ editorService: editorService });
+		let inst = new InstantiationService(new ServiceCollection([IWorkbenchEditorService, editorService]));
 
 		let model = new EditorHistoryModel(editorService, inst, contextService);
 
@@ -206,7 +208,7 @@ suite('Workbench QuickOpen', () => {
 		let storageService = new TestStorageService();
 		let contextService = new TestContextService();
 
-		let inst = createInstantiationService({ editorService: editorService });
+		let inst = new InstantiationService(new ServiceCollection([IWorkbenchEditorService, editorService]));
 
 		let controller = new QuickOpenController(
 			eventService,
@@ -216,7 +218,8 @@ suite('Workbench QuickOpen', () => {
 			null,
 			null,
 			contextService,
-			new MockKeybindingService()
+			new MockKeybindingService(),
+			null
 		);
 
 		controller.create();

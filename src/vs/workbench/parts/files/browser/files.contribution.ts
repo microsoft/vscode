@@ -71,7 +71,8 @@ let openViewletKb: IKeybindings = {
 const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
-	nls.localize('view', "View")
+	nls.localize('view', "View"),
+	['show', 'explorer']
 );
 
 // Register file editors
@@ -291,4 +292,4 @@ class OpenWorkingFileByNameAction extends QuickOpenAction {
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkingFileByNameAction, OpenWorkingFileByNameAction.ID, OpenWorkingFileByNameAction.LABEL, {
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P)
-}), nls.localize('filesCategory', "Files"));
+}), nls.localize('filesCategory', "Files"), ['working', 'files', 'name', 'search']);

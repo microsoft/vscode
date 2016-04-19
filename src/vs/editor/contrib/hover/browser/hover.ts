@@ -162,4 +162,4 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowHoverAc
 	context: ContextKey.EditorTextFocus,
 	kbExpr: KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
-}));
+}, ['hover', 'tooltip']));

@@ -12,18 +12,27 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkerServer} from 'vs/base/common/worker/workerServer';
 import {EventService} from 'vs/platform/event/common/eventService';
+import {IEventService} from 'vs/platform/event/common/event';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IExtensionDescription, IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
+import {IRequestService} from 'vs/platform/request/common/request';
 import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemetryService';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {ModeServiceImpl, ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
 import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
+import {IResourceService} from 'vs/editor/common/services/resourceService';
+
 
 export interface IInitData {
 	contextService: {
@@ -86,35 +95,29 @@ export class EditorWorkerServer {
 
 	public initialize(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, initData:IInitData):void {
 
-		var extensionService = new WorkerExtensionService();
+		const services = new ServiceCollection();
 
-		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
-
+		const extensionService = new WorkerExtensionService();
+		const contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
-		this.threadService.setInstantiationService(createInstantiationService({ threadService: this.threadService }));
+		this.threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, this.threadService])));
+		const telemetryServiceInstance = new RemoteTelemetryService('workerTelemetry', this.threadService);
+		const resourceService = new ResourceService();
+		const markerService = new SecondaryMarkerService(this.threadService);
+		const modeService = new ModeServiceImpl(this.threadService, extensionService);
+		const requestService = new BaseRequestService(contextService, telemetryServiceInstance);
 
-		var telemetryServiceInstance = new RemoteTelemetryService('workerTelemetry', this.threadService);
+		services.set(IExtensionService, extensionService);
+		services.set(IThreadService, this.threadService);
+		services.set(IModeService, modeService);
+		services.set(IWorkspaceContextService, contextService);
+		services.set(IEventService, new EventService());
+		services.set(IResourceService, resourceService);
+		services.set(IMarkerService, markerService);
+		services.set(ITelemetryService, telemetryServiceInstance);
+		services.set(IRequestService, requestService);
 
-		var resourceService = new ResourceService();
-		var markerService = new SecondaryMarkerService(this.threadService);
-
-		var modeService = new ModeServiceImpl(this.threadService, extensionService);
-
-		var requestService = new BaseRequestService(contextService, telemetryServiceInstance);
-
-		var _services : any = {
-			threadService: this.threadService,
-			extensionService: extensionService,
-			modeService: modeService,
-			contextService: contextService,
-			eventService: new EventService(),
-			resourceService: resourceService,
-			markerService: markerService,
-			telemetryService: telemetryServiceInstance,
-			requestService: requestService
-		};
-
-		var instantiationService = createInstantiationService(_services);
+		const instantiationService = new InstantiationService(services);
 		this.threadService.setInstantiationService(instantiationService);
 
 		// Instantiate thread actors

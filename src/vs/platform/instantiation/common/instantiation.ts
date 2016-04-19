@@ -5,27 +5,22 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {ServiceCollection} from './serviceCollection';
 import * as descriptors from './descriptors';
 
-// ----------------------- internal util -----------------------
+// ------ internal util
 
 export namespace _util {
 
 	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
-	export const DI_PROVIDES = '$di$provides_service';
 
-	export function getServiceId(id: ServiceIdentifier<any>): string {
-		return id[DI_PROVIDES];
-	}
-
-	export function getServiceDependencies(ctor: any): { serviceId: string, index: number }[] {
-		return ctor[DI_DEPENDENCIES];
+	export function getServiceDependencies(ctor: any): { id: ServiceIdentifier<any>, index: number }[] {
+		return ctor[DI_DEPENDENCIES] || [];
 	}
 }
 
-// ----------------------- interfaces -----------------------
-
+// --- interfaces ------
 
 export interface IConstructorSignature0<T> {
 	new (...services: { serviceId: ServiceIdentifier<any>; }[]): T;
@@ -103,20 +98,11 @@ export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
 	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
 }
 
-
 export var IInstantiationService = createDecorator<IInstantiationService>('instantiationService');
 
 export interface IInstantiationService {
+
 	serviceId: ServiceIdentifier<any>;
-
-	/**
-	 * Returns an instance of the service identified by
-	 * {{id}}. If the service is not known {{undefined}}
-	 * is returned. If the service has not been created
-	 * yet it will be created.
-	 */
-	getInstance<T>(id: ServiceIdentifier<T>): T;
-
 
 	/**
 	 * Synchronously creates an instance that is denoted by
@@ -175,19 +161,7 @@ export interface IInstantiationService {
 	 * Creates a child of this service which inherts all current services
 	 * and adds/overwrites the given services
 	 */
-	createChild(services: any): IInstantiationService;
-
-	/**
-	 * Registers a new service to this instantation service.
-	 */
-	registerService(name: string, service: any): void;
-
-	/**
-	 * Adds a service or a descriptor to the collection of services and
-	 * treats it as a singleton which means every consumer will receive
-	 * the same instance.
-	 */
-	addSingleton<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | descriptors.SyncDescriptor<T>): void;
+	createChild(services: ServiceCollection): IInstantiationService;
 }
 
 
@@ -204,29 +178,21 @@ export interface ServiceIdentifier<T> {
  */
 export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
 
-	let ret = function(target: any, key: string, index: number): any {
+	let id = function(target: any, key: string, index: number): any {
 
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
 		}
 
 		if (target[_util.DI_TARGET] === target) {
-			target[_util.DI_DEPENDENCIES].push({ serviceId, index });
+			target[_util.DI_DEPENDENCIES].push({ id, index });
 		} else {
-			target[_util.DI_DEPENDENCIES] = [{ serviceId, index }];
+			target[_util.DI_DEPENDENCIES] = [{ id, index }];
 			target[_util.DI_TARGET] = target;
 		}
 	};
 
-	ret[_util.DI_PROVIDES] = serviceId;
-	// ret['type'] = undefined;
-	return <any>ret;
-}
+	id.toString = () => serviceId;
 
-/**
- * A service context which can be used to retrieve services
- * given a valid service identifer is being presented
- */
-export interface Context {
-	get<T>(id: ServiceIdentifier<T>): T;
+	return <any>id;
 }

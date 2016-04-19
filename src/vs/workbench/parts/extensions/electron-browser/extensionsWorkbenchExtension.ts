@@ -17,7 +17,6 @@ import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction, ListSuggestedExtensionsAction } from './extensionsActions';
-import { ExtensionTipsService } from './extensionTipsService';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import {ipcRenderer as ipc} from 'electron';
 
@@ -32,6 +31,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		@IExtensionsService private extensionsService: IExtensionsService,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IExtensionTipsService extenstionTips: IExtensionTipsService, // this is to eagerly start the service
 		@IGalleryService galleryService: IGalleryService
 	) {
 		this.registerListeners();
@@ -42,11 +42,8 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			this.install(options.extensionsToInstall).done(null, errors.onUnexpectedError);
 		}
 
-		// add service
-		instantiationService.addSingleton(IExtensionTipsService, this.instantiationService.createInstance(ExtensionTipsService));
-
 		const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
-		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), ExtensionsLabel);
+		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), ExtensionsLabel, ['installed', 'extensions']);
 
 		(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 			new QuickOpenHandlerDescriptor(
@@ -59,7 +56,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 		if (galleryService.isEnabled()) {
 
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), ExtensionsLabel, ['install', 'extension']);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
@@ -71,7 +68,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 				)
 			);
 
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListOutdatedExtensionsAction, ListOutdatedExtensionsAction.ID, ListOutdatedExtensionsAction.LABEL), ExtensionsLabel, ['outdated', 'extensions']);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
@@ -83,7 +80,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			);
 
 			// add extension tips services
-			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), ExtensionsLabel);
+			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), ExtensionsLabel, ['suggested', 'extensions']);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
 				new QuickOpenHandlerDescriptor(
