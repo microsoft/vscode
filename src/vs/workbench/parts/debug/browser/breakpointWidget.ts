@@ -88,11 +88,13 @@ export class BreakpointWidget extends ZoneWidget {
 					};
 
 					// if there is already a breakpoint on this location - remove it.
-					if (this.debugService.getModel().getBreakpoints().some(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString())) {
-						this.debugService.toggleBreakpoint(raw).done(null, errors.onUnexpectedError);
+					const oldBreakpoint = this.debugService.getModel().getBreakpoints()
+						.filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+					if (oldBreakpoint) {
+						this.debugService.removeBreakpoints(oldBreakpoint.getId()).done(null, errors.onUnexpectedError);
 					}
 
-					this.debugService.toggleBreakpoint(raw).done(null, errors.onUnexpectedError);
+					this.debugService.addBreakpoints([raw]).done(null, errors.onUnexpectedError);
 				}
 
 				this.dispose();

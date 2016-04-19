@@ -432,17 +432,6 @@ export class DebugService implements debug.IDebugService {
 		this.model.addBreakpoints(rawData);
 	}
 
-	public toggleBreakpoint(rawBreakpoint: debug.IRawBreakpoint): TPromise<void> {
-		const breakpoint = this.model.getBreakpoints().filter(bp => bp.lineNumber === rawBreakpoint.lineNumber && bp.source.uri.toString() === rawBreakpoint.uri.toString()).pop();
-		if (breakpoint) {
-			this.model.removeBreakpoints([breakpoint]);
-		} else {
-			this.model.addBreakpoints([rawBreakpoint]);
-		}
-
-		return this.sendBreakpoints(rawBreakpoint.uri);
-	}
-
 	public enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>{
 		this.model.enableOrDisableAllBreakpoints(enabled);
 		return this.sendAllBreakpoints();
@@ -458,6 +447,13 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		return this.sendExceptionBreakpoints();
+	}
+
+	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void[]> {
+		this.model.addBreakpoints(rawBreakpoints);
+		const uris = arrays.distinct(rawBreakpoints, raw => raw.uri.toString()).map(raw => raw.uri);
+
+		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri)));
 	}
 
 	public removeBreakpoints(id?: string): TPromise<any> {

@@ -39,7 +39,7 @@ export class MockDebugService implements debug.IDebugService {
 
 	public setBreakpointsForModel(modelUri: uri, rawData: debug.IRawBreakpoint[]): void {}
 
-	public toggleBreakpoint(IRawBreakpoint): TPromise<void> {
+	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void[]> {
 		return TPromise.as(null);
 	}
 

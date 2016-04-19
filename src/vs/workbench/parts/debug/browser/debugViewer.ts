@@ -998,9 +998,7 @@ export class BreakpointsController extends BaseDebugController {
 	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Breakpoint) {
-			const bp = <model.Breakpoint> element;
-			this.debugService.toggleBreakpoint({ uri: bp.source.uri, lineNumber: bp.lineNumber }).done(null, errors.onUnexpectedError);
-
+			this.debugService.removeBreakpoints((<model.Breakpoint> element).getId()).done(null, errors.onUnexpectedError);
 			return true;
 		} else if (element instanceof model.FunctionBreakpoint) {
 			const fbp = <model.FunctionBreakpoint> element;

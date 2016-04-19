@@ -270,7 +270,7 @@ export class RemoveBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(breakpoint: debug.IBreakpoint): TPromise<any> {
-		return breakpoint instanceof model.Breakpoint ? this.debugService.toggleBreakpoint({ uri: breakpoint.source.uri, lineNumber: breakpoint.lineNumber })
+		return breakpoint instanceof model.Breakpoint ? this.debugService.removeBreakpoints(breakpoint.getId())
 			: this.debugService.removeFunctionBreakpoints(breakpoint.getId());
 	}
 }
@@ -465,15 +465,15 @@ export class ToggleBreakpointAction extends EditorAction {
 	}
 
 	public run(): TPromise<any> {
-		if (this.debugService.state !== debug.State.Disabled) {
-			const lineNumber = this.editor.getPosition().lineNumber;
-			const modelUrl = this.editor.getModel().getAssociatedResource();
-			if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
-				return this.debugService.toggleBreakpoint({ uri: modelUrl, lineNumber: lineNumber });
-			}
-		}
+		const lineNumber = this.editor.getPosition().lineNumber;
+		const modelUrl = this.editor.getModel().getAssociatedResource();
+		if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
+			const bp = this.debugService.getModel().getBreakpoints()
+				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === modelUrl.toString()).pop();
 
-		return TPromise.as(null);
+			return bp ? this.debugService.removeBreakpoints(bp.getId())
+				: this.debugService.addBreakpoints([{ uri: modelUrl, lineNumber: lineNumber }]);
+		}
 	}
 }
 
@@ -490,11 +490,9 @@ export class EditorConditionalBreakpointAction extends EditorAction {
 	}
 
 	public run(): TPromise<any> {
-		if (this.debugService.state !== debug.State.Disabled) {
-			const lineNumber = this.editor.getPosition().lineNumber;
-			if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
-				BreakpointWidget.createInstance(<editorbrowser.ICodeEditor>this.editor, lineNumber, this.instantiationService);
-			}
+		const lineNumber = this.editor.getPosition().lineNumber;
+		if (this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
+			BreakpointWidget.createInstance(<editorbrowser.ICodeEditor>this.editor, lineNumber, this.instantiationService);
 		}
 
 		return TPromise.as(null);
@@ -533,18 +531,18 @@ export class RunToCursorAction extends EditorAction {
 		this.debugService = debugService;
 	}
 
-	public run(): TPromise<boolean> {
+	public run(): TPromise<void> {
 		const lineNumber = this.editor.getPosition().lineNumber;
 		const uri = this.editor.getModel().getAssociatedResource();
 
 		this.debugService.getActiveSession().addOneTimeListener(debug.SessionEvents.STOPPED, () => {
-			this.debugService.toggleBreakpoint({ uri, lineNumber });
+			const toRemove = this.debugService.getModel().getBreakpoints()
+				.filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
+			this.debugService.removeBreakpoints(toRemove.getId());
 		});
 
-		return this.debugService.toggleBreakpoint({ uri, lineNumber }).then(() => {
-			return this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() }).then(response => {
-				return response.success;
-			});
+		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {
+			this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
 		});
 	}
 

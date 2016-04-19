@@ -119,7 +119,7 @@ export interface IEnablement extends ITreeElement {
 export interface IRawBreakpoint {
 	uri: uri;
 	lineNumber: number;
-	enabled: boolean;
+	enabled?: boolean;
 	condition?: string;
 }
 
@@ -305,7 +305,7 @@ export interface IDebugService {
 	 * General breakpoints manipulation.
 	 */
 	setBreakpointsForModel(modelUri: uri, rawData: IRawBreakpoint[]): void;
-	toggleBreakpoint(IRawBreakpoint): TPromise<void>;
+	addBreakpoints(rawBreakpoints: IRawBreakpoint[]): TPromise<void[]>;
 	enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>;
 	toggleEnablement(element: IEnablement): TPromise<void>;
 	setBreakpointsActivated(activated: boolean): TPromise<void>;
