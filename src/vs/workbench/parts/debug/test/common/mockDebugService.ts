@@ -123,6 +123,14 @@ class MockRawSession extends ee.EventEmitter implements debug.IRawDebugSession {
 		return null;
 	}
 
+	public get onDidEvent(): Event<DebugProtocol.Event> {
+		return null;
+	}
+
+	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
+		return TPromise.as(null);
+	}
+
 	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
 		return TPromise.as(null);
 	}

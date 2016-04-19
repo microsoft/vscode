@@ -46,6 +46,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
+	private _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
 		private messageService: IMessageService,
@@ -68,6 +69,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
+		this._onDidEvent = new Emitter<DebugProtocol.Event>();
 	}
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
@@ -102,6 +104,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this._onDidBreakpoint.event;
 	}
 
+	public get onDidEvent(): Event<DebugProtocol.Event> {
+		return this._onDidEvent.event;
+	}
+
 	private initServer(): TPromise<void> {
 		if (this.cachedInitServer) {
 			return this.cachedInitServer;
@@ -117,6 +123,10 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		);
 
 		return this.cachedInitServer;
+	}
+
+	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
+		return this.send(request, args);
 	}
 
 	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
@@ -175,6 +185,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			this.flowEventsCount++;
 			this._onDidContinue.fire();
 		}
+
+		this._onDidEvent.fire(event);
 	}
 
 	public get configuration(): { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites } {

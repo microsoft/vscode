@@ -250,10 +250,14 @@ export interface IRawDebugSession {
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
 
+	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
+
 	/**
 	 * Allows to register on each debug session stop event.
 	 */
 	onDidStop: Event<DebugProtocol.StoppedEvent>;
+
+	onDidEvent: Event<DebugProtocol.Event>;
 }
 
 export interface IConfigurationManager {
