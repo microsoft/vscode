@@ -329,7 +329,8 @@ export class Workbench implements IPartService {
 		this.toShutdown.push(this.editorPart);
 		this.editorService = new WorkbenchEditorService(
 			this.editorPart,
-			this.untitledEditorService
+			this.untitledEditorService,
+			this.instantiationService
 		);
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
 
@@ -362,7 +363,6 @@ export class Workbench implements IPartService {
 			(<WorkbenchMessageService>this.messageService).setWorkbenchServices(this.quickOpen, this.statusbarPart);
 		}
 		(<UntitledEditorService>this.untitledEditorService).setInstantiationService(this.instantiationService);
-		this.editorService.setInstantiationService(this.instantiationService);
 
 		// Set the some services to registries that have been created eagerly
 		(<AbstractKeybindingService><any>this.keybindingService).setInstantiationService(this.instantiationService);

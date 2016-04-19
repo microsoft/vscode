@@ -276,7 +276,6 @@ suite('Workbench UI Services', () => {
 		let testEditorPart = new TestEditorPart();
 		testEditorPart.setActiveEditorInput(activeInput);
 		let service: WorkbenchEditorService = <any>inst.createInstance(<any>WorkbenchEditorService, testEditorPart);
-		service.setInstantiationService(inst);
 
 		assert.strictEqual(service.getActiveEditor(), activeEditor);
 		assert.strictEqual(service.getActiveEditorInput(), activeInput);

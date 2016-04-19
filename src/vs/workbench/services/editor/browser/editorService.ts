@@ -52,10 +52,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		this.fileInputDescriptor = (<IEditorRegistry>Registry.as(Extensions.Editors)).getDefaultFileInput();
 	}
 
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
-	}
-
 	public getActiveEditor(): IEditor {
 		return this.editorPart.getActiveEditor();
 	}
