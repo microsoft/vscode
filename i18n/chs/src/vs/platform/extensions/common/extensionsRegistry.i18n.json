@@ -6,7 +6,7 @@
 {
 	"extensionDescription.activationEvents1": "属性“{0}”可以省略或其类型必须是 \"string[]\"",
 	"extensionDescription.activationEvents2": "必须同时指定或同时省略属性”{0}“和”{1}“",
-	"extensionDescription.empty": "已获得空扩展说明",
+	"extensionDescription.empty": "扩展功能描述为空",
 	"extensionDescription.engines": "属性”{0}“为必需且其类型必须为 \"object\"",
 	"extensionDescription.engines.vscode": "属性“{0}”是必需的，其类型必须是“字符串”",
 	"extensionDescription.extensionDependencies": "属性“{0}”可以省略或其类型必须是 \"string[]\"",
@@ -24,6 +24,6 @@
 	"vscode.extension.galleryBanner": "VS Code 商城使用的横幅。",
 	"vscode.extension.galleryBanner.color": "VS Code 商城页标题上的横幅颜色。",
 	"vscode.extension.galleryBanner.theme": "横幅中使用的字体颜色主题。",
-	"vscode.extension.publisher": "VS Code 扩展的发布服务器。",
+	"vscode.extension.publisher": "VS Code 扩展的发布者。",
 	"vscode.extension.scripts.prepublish": "包作为 VS Code 扩展发布前执行的脚本。"
 }

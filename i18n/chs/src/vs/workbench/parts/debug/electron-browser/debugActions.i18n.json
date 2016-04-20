@@ -7,7 +7,7 @@
 	"activateBreakpoints": "激活断点",
 	"addConditionalBreakpoint": "添加条件断点",
 	"addFunctionBreakpoint": "添加函数断点",
-	"addToWatchExpressions": "添加到监视",
+	"addToWatchExpressions": "添加到监视列表",
 	"addWatchExpression": "添加表达式",
 	"clearRepl": "清除控制台",
 	"continueDebug": "继续",

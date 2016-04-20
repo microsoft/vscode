@@ -7,7 +7,7 @@
 	"schema.json": "使用架构描述 JSON 文件。参见 json-schema.org 了解详细信息。",
 	"schema.json.$schema": "验证此文档的架构",
 	"schema.json.additionalItems": "对于数组，仅适用于项目被设置为一个数组。如果是一个架构，则在项目数组指定项目后，由此架构进行验证。如果为 false，则其他项目将导致验证失败。",
-	"schema.json.additionalProperties": "架构或布尔。如果是架构，则将用于验证与 \"properties\" 或 \"patternProperties\" 不匹配的所有属性。如果是 false，则与两者均不匹配的任何属性都将导致此架构失败。",
+	"schema.json.additionalProperties": "架构或布尔值。如果是架构，则将用于验证与 \"properties\" 或 \"patternProperties\" 不匹配的所有属性。如果是 false，则与两者均不匹配的任何属性都将导致此架构失败。",
 	"schema.json.allOf": "架构的数组，全部都必须匹配。",
 	"schema.json.anyOf": "架构的数组，必须至少有一个匹配。",
 	"schema.json.default": "默认值。由建议使用。",
