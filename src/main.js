@@ -134,6 +134,9 @@ if (process.env.VSCODE_DEV) {
 	configDir += '-dev';
 }
 var userDataDir = path.join(configDir, 'user-data');
+if (process.getuid() === 0) {
+	userDataDir += '-root';
+}
 
 // Attempt migrations if userDataDir does not exist
 if (!fs.existsSync(userDataDir)) {
