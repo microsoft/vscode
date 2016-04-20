@@ -241,9 +241,9 @@ export class DebugService implements debug.IDebugService {
 			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
-			this.getThreadData(threadId).done(() => {
+			this.getThreadData().done(() => {
 				this.model.rawUpdate({
-					threadId: threadId,
+					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
 				});
@@ -272,7 +272,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.getThreadData(event.body.threadId).done(null, errors.onUnexpectedError);
+				this.getThreadData().done(null, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(true, event.body.threadId);
 			}
@@ -329,19 +329,10 @@ export class DebugService implements debug.IDebugService {
 		this.appendReplOutput(event.body.output, outputSeverity);
 	}
 
-	private getThreadData(threadId: number): TPromise<void> {
-		return this.model.getThreads()[threadId] ? TPromise.as(undefined) :
-			this.session.threads().then((response: DebugProtocol.ThreadsResponse) => {
-				const thread = response.body.threads.filter(t => t.id === threadId).pop();
-				if (!thread) {
-					throw new Error(nls.localize('debugNoThread', "Did not get a thread from debug adapter with id {0}.", threadId));
-				}
-
-				this.model.rawUpdate({
-					threadId: thread.id,
-					thread: thread
-				});
-			});
+	private getThreadData(): TPromise<void> {
+		return this.session.threads().then(response => {
+			response.body.threads.forEach(thread => this.model.rawUpdate({ threadId: thread.id, thread }));
+		});
 	}
 
 	private loadBreakpoints(): debug.IBreakpoint[] {

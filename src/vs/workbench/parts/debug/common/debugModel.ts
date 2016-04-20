@@ -714,7 +714,8 @@ export class Model implements debug.IModel {
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
-		if (data.thread) {
+		if (data.thread && !this.threads[data.threadId]) {
+			// A new thread came in, initialize it.
 			this.threads[data.threadId] = new Thread(data.thread.name, data.thread.id);
 		}
 
