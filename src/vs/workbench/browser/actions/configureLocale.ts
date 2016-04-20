@@ -70,6 +70,7 @@ let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), ['configure', 'language', 'locale', 'nls', 'i18n']);
 
 let schemaId = 'vscode://schemas/locale';
+// Keep en-US since we generated files with that content.
 let schema : IJSONSchema =
 {
 	id: schemaId,
@@ -82,7 +83,7 @@ let schema : IJSONSchema =
 	properties: {
 		locale: {
 			type: 'string',
-			enum: ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-tw'],
+			enum: ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-tw'],
 			description: nls.localize('JsonSchema.locale', 'The UI Language to use.')
 		}
 	}
