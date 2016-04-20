@@ -10,6 +10,7 @@ import mime = require('vs/base/node/mime');
 import pfs = require('vs/base/node/pfs');
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import { IGitChannel } from 'vs/workbench/parts/git/common/gitIpc';
 
 export class RawGitService implements IRawGitService {
 
@@ -261,5 +262,36 @@ export class DelayedRawGitService implements IRawGitService {
 
 	public onOutput(): Promise {
 		return this.raw.then(raw => raw.onOutput());
+	}
+}
+
+export class GitChannel implements IGitChannel {
+
+	constructor(private rawGitService: IRawGitService) { }
+
+	call(command: string, ...args: any[]): TPromise<any> {
+		switch (command) {
+			case 'getVersion': return this.rawGitService.getVersion();
+			case 'serviceState': return this.rawGitService.serviceState();
+			case 'status': return this.rawGitService.status();
+			case 'status': return this.rawGitService.status();
+			case 'init': return this.rawGitService.init();
+			case 'add': return this.rawGitService.add(args[0]);
+			case 'stage': return this.rawGitService.stage(args[0], args[1]);
+			case 'branch': return this.rawGitService.branch(args[0], args[1]);
+			case 'checkout': return this.rawGitService.checkout(args[0], args[1]);
+			case 'clean': return this.rawGitService.clean(args[0]);
+			case 'undo': return this.rawGitService.undo();
+			case 'reset': return this.rawGitService.reset(args[0], args[1]);
+			case 'revertFiles': return this.rawGitService.revertFiles(args[0], args[1]);
+			case 'fetch': return this.rawGitService.fetch();
+			case 'pull': return this.rawGitService.pull(args[0]);
+			case 'push': return this.rawGitService.push(args[0], args[1], args[2]);
+			case 'sync': return this.rawGitService.sync();
+			case 'commit': return this.rawGitService.commit(args[0], args[1], args[2]);
+			case 'detectMimetypes': return this.rawGitService.detectMimetypes(args[0], args[1]);
+			case 'show': return this.rawGitService.show(args[0], args[1]);
+			case 'onOutput': return this.rawGitService.onOutput();
+		}
 	}
 }

@@ -139,7 +139,7 @@ function createNativeRawGitService(workspaceRoot: string, path: string, defaultE
 			}
 		);
 
-		return client.getChannel('GitService', RawGitService);
+		return client.getChannel('git');
 	}, () => new UnavailableRawGitService());
 }
 
