@@ -141,7 +141,7 @@ export class Thread implements debug.IThread {
 	private getCallStackImpl(debugService: debug.IDebugService, startFrame: number): TPromise<debug.IStackFrame[]> {
 		let session = debugService.getActiveSession();
 		return session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
-			this.stoppedDetails.totalFrames = response.body.totalFrames || response.body.stackFrames.length;
+			this.stoppedDetails.totalFrames = response.body.totalFrames;
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
 					return new StackFrame(this.threadId, 0, new Source({ name: 'unknown' }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
