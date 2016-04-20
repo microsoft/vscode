@@ -429,23 +429,21 @@ export class Model implements debug.IModel {
 
 	public clearThreads(removeThreads: boolean, reference: number = undefined): void {
 		if (reference) {
+			this.threads[reference].clearCallStack();
+			this.threads[reference].stoppedDetails = undefined;
+
 			if (removeThreads) {
-				delete this.threads[reference];
-			} else {
-				this.threads[reference].clearCallStack();
-				this.threads[reference].stoppedDetails = undefined;
+				this.threads[reference] = null;
 			}
 		} else {
+			Object.keys(this.threads).forEach(ref => {
+				this.threads[ref].clearCallStack();
+				this.threads[ref].stoppedDetails = undefined;
+			});
+
 			if (removeThreads) {
 				this.threads = {};
 				ExpressionContainer.allValues = {};
-			} else {
-				for (let ref in this.threads) {
-					if (this.threads.hasOwnProperty(ref)) {
-						this.threads[ref].clearCallStack();
-						this.threads[ref].stoppedDetails = undefined;
-					}
-				}
 			}
 		}
 
