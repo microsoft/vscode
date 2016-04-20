@@ -9,6 +9,7 @@ import {parse} from 'vs/base/common/json';
 import {readFile} from 'vs/base/node/pfs';
 import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IAutoClosingPair} from 'vs/editor/common/modes';
 
 type CharacterPair = [string, string];
 
@@ -20,6 +21,8 @@ interface ICommentRule {
 interface ILanguageConfiguration {
 	comments?: ICommentRule;
 	brackets?: CharacterPair[];
+	autoClosingPairs?: CharacterPair[];
+	surroundingPairs?: CharacterPair[];
 }
 
 export class LanguageConfigurationFileHandler {
@@ -75,15 +78,29 @@ export class LanguageConfigurationFileHandler {
 
 		if (configuration.brackets) {
 			richEditConfig.brackets = configuration.brackets;
+		}
 
+		if (configuration.autoClosingPairs) {
 			richEditConfig.__characterPairSupport = {
-				autoClosingPairs: configuration.brackets.map(pair => {
-					let [open, close] = pair;
-					return { open: open, close: close };
-				})
+				autoClosingPairs: this._mapCharacterPairs(configuration.autoClosingPairs)
+			};
+		} else if (configuration.brackets) {
+			richEditConfig.__characterPairSupport = {
+				autoClosingPairs: this._mapCharacterPairs(configuration.brackets)
 			};
 		}
 
+		if (richEditConfig.__characterPairSupport && configuration.surroundingPairs) {
+			richEditConfig.__characterPairSupport.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
+		}
+
 		this._modeService.registerRichEditSupport(modeId, richEditConfig);
+	}
+
+	private _mapCharacterPairs(pairs:CharacterPair[]): IAutoClosingPair[] {
+		return pairs.map(pair => {
+			let [open, close] = pair;
+			return { open: open, close: close };
+		});
 	}
 }
