@@ -1058,6 +1058,7 @@ export class PasteFileAction extends BaseFileAction {
 
 		return pasteAction.run().then(() => {
 			this.tree.DOMFocus();
+			fileToCopy = null;
 		});
 	}
 }
