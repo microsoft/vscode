@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
@@ -20,7 +20,7 @@ export interface IBeforeShutdownParticipant {
 	 * Note: It is absolutely important to avoid long running promises on this call. Please try hard to return
 	 * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
 	 */
-	beforeShutdown(): boolean | winjs.TPromise<boolean>;
+	beforeShutdown(): boolean | TPromise<boolean>;
 }
 
 /**
@@ -42,3 +42,9 @@ export interface ILifecycleService {
 	 */
 	onShutdown: Event<void>;
 }
+
+export const NullLifecycleService: ILifecycleService = {
+	serviceId: null,
+	onShutdown() { return { dispose() { } };},
+	addBeforeShutdownParticipant() { }
+};

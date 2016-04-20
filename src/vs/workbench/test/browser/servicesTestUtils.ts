@@ -174,8 +174,6 @@ export class TestEventService extends EventEmitter.EventEmitter implements IEven
 	public serviceId = IEventService;
 }
 
-export class TestLifecycleService extends LifecycleService.BaseLifecycleService { }
-
 export class TestStorageService extends EventEmitter.EventEmitter implements IStorageService {
 	public serviceId = IStorageService;
 

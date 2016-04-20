@@ -20,7 +20,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -29,7 +29,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import PartService = require('vs/workbench/services/part/common/partService');
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {ITextFileService, EventType} from 'vs/workbench/parts/files/common/files';
-import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {
@@ -60,7 +60,7 @@ suite('Files - TextFileEditorModel', () => {
 		services.set(PartService.IPartService, new TestPartService());
 		services.set(IModeService, createMockModeService());
 		services.set(IModelService, createMockModelService());
-		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
 
 		baseInstantiationService = new InstantiationService(services);
