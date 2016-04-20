@@ -6,7 +6,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "jade",
-			"extensions": [ ".jade" ],
+			"extensions": [ ".jade", ".pug" ],
 			"aliases": [ "Jade", "jade" ],
 			"configuration": "./jade.configuration.json"
 		}],
