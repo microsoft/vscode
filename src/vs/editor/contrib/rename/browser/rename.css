@@ -8,6 +8,7 @@
 }
 
 .monaco-editor .rename-box {
+	font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	box-shadow: 0 2px 8px #A8A8A8;
 	color: inherit;
 }
