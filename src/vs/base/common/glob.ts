@@ -247,6 +247,10 @@ function toRegExp(regEx: string): RegExp {
 	}
 }
 
+// regexes to check for trival glob patterns that just check for String#endsWith
+const trivia1 = /^\*\*\/\*\.\w+$/;
+const trivia2 = /^{\*\*\/\*\.\w+(,\*\*\/\*\.\w+)*}$/;
+
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
  * - * matches anything inside a path segment
@@ -264,6 +268,16 @@ export function match(arg1: string | IExpression, path: string, siblings?: strin
 
 	// Glob with String
 	if (typeof arg1 === 'string') {
+
+		if (trivia1.test(arg1)) {
+			// common pattern: **/*.txt just need endsWith check
+			return strings.endsWith(path, arg1.substr(4)); // '**/*'.length === 4
+
+		} else if (trivia2.test(arg1)) {
+			// repetition of common patterns (see above) {**/*.txt,**/*.png}
+			return arg1.slice(1, -1).split(',').some(pattern => match(pattern, path));
+		}
+
 		var regExp = globToRegExp(arg1);
 		return regExp && regExp.test(path);
 	}
