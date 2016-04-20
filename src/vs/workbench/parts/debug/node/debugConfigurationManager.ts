@@ -287,12 +287,16 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				return null;
 			}
 
-			return this.massageInitialConfigurations(adapter).then(() =>
-				JSON.stringify({
-					version: '0.2.0',
-					configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
-				}, null, '\t')
-			);
+			return this.massageInitialConfigurations(adapter).then(() => {
+				let editorConfig = this.configurationService.getConfiguration<any>();
+				return JSON.stringify(
+					{
+						version: '0.2.0',
+						configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
+					},
+					null,
+					editorConfig.insertSpaces ? strings.repeat(' ', editorConfig.tabSize) : '\t');
+			});
 		});
 	}
 

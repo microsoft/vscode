@@ -10,6 +10,7 @@ import URI from 'vs/base/common/uri';
 import labels = require('vs/base/common/labels');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
+import strings = require('vs/base/common/strings');
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
@@ -85,7 +86,7 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 	}
 
 	protected open(emptySettingsContents: string, settingsResource: URI): TPromise<IEditor> {
-		return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService), settingsResource, emptySettingsContents);
+		return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents);
 	}
 }
 
@@ -190,9 +191,10 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 class DefaultSettingsInput extends StringEditorInput {
 	private static INSTANCE: DefaultSettingsInput;
 
-	public static getInstance(instantiationService: IInstantiationService): DefaultSettingsInput {
+	public static getInstance(instantiationService: IInstantiationService, configurationService: IConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
-			let defaults = getDefaultValuesContent();
+			let editorConfig = configurationService.getConfiguration<any>();
+			let defaults = getDefaultValuesContent(editorConfig.insertSpaces ? strings.repeat(' ', editorConfig.tabSize) : '\t');
 
 			let defaultsHeader = '// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file.");
 			DefaultSettingsInput.INSTANCE = instantiationService.createInstance(DefaultSettingsInput, nls.localize('defaultName', "Default Settings"), null, defaultsHeader + '\n' + defaults, 'application/json', false);
