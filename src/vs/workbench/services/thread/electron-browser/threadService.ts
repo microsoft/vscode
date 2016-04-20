@@ -18,7 +18,7 @@ import {IMainProcessExtHostIPC, create} from 'vs/platform/extensions/common/ipcR
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {MainThreadService as CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {IConfiguration, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {ChildProcess, fork} from 'child_process';
@@ -109,7 +109,7 @@ class ExtensionHostProcessManager {
 
 		this.unsentMessages = [];
 		this.extensionHostProcessReady = false;
-		lifecycleService.addBeforeShutdownParticipant(this);
+		lifecycleService.onWillShutdown(this._onWillShutdown, this);
 	}
 
 	public startExtensionHostProcess(onExtensionHostMessage: (msg: any) => void): void {
@@ -322,7 +322,7 @@ class ExtensionHostProcessManager {
 		}
 	}
 
-	public beforeShutdown(): boolean | TPromise<boolean> {
+	private _onWillShutdown(event: ShutdownEvent): void{
 
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
@@ -332,9 +332,7 @@ class ExtensionHostProcessManager {
 				payload: true
 			}, this.contextService.getConfiguration().env.extensionDevelopmentPath /* target */);
 
-			return TPromise.timeout(100 /* wait a bit for IPC to get delivered */).then(() => false);
+			event.veto(TPromise.timeout(100 /* wait a bit for IPC to get delivered */).then(() => false));
 		}
-
-		return false;
 	}
 }

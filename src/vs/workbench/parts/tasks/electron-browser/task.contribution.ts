@@ -600,7 +600,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.disposeTaskSystemListeners();
 		});
 
-		lifecycleService.addBeforeShutdownParticipant(this);
+		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 	}
 
 	private disposeTaskSystemListeners(): void {
