@@ -66,7 +66,7 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	services.set(ITelemetryService, telemetryService);
 	services.set(IThreadService, threadService);
 	services.set(IExtensionService, new ExtHostExtensionService(threadService, telemetryService));
-	services.set(IExtensionsService, sharedProcessClient.getService<IExtensionsService>('ExtensionService', ExtensionsService)); // Connect to shared process services
+	services.set(IExtensionsService, sharedProcessClient.getChannel<IExtensionsService>('ExtensionService', ExtensionsService)); // Connect to shared process services
 
 	let instantiationService = new InstantiationService(services);
 	threadService.setInstantiationService(instantiationService);

@@ -87,7 +87,7 @@ import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/servic
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
-import {getService} from 'vs/base/parts/ipc/common/ipc';
+import {getChannel} from 'vs/base/parts/ipc/common/ipc';
 import {connect} from 'vs/base/parts/ipc/node/ipc.net';
 import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
 import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
@@ -180,7 +180,7 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		serviceCollection.set(IExtensionsService, getService<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
+		serviceCollection.set(IExtensionsService, getChannel<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
 
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, serviceCollection);

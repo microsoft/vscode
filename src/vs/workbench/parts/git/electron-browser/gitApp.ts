@@ -58,4 +58,4 @@ class IPCRawGitService extends DelayedRawGitService {
 }
 
 const server = new Server();
-server.registerService('GitService', new IPCRawGitService(process.argv[2], process.argv[3], process.argv[4], process.argv[5], process.argv[6]));
+server.registerChannel('GitService', new IPCRawGitService(process.argv[2], process.argv[3], process.argv[4], process.argv[5], process.argv[6]));

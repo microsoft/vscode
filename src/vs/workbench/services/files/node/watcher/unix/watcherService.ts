@@ -55,7 +55,7 @@ export class FileWatcher {
 			}
 		);
 
-		const service = client.getService<WatcherService>('WatcherService', WatcherService);
+		const service = client.getChannel<WatcherService>('WatcherService', WatcherService);
 
 		// Start watching
 		service.watch({ basePath: this.basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {

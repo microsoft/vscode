@@ -49,7 +49,7 @@ function main(argv: string[]): void {
 
 	connect(process.env['VSCODE_IPC_HOOK'])
 		.then(client => {
-			const service = client.getService<GitAskpassServiceStub>('GitAskpassService', GitAskpassServiceStub);
+			const service = client.getChannel<GitAskpassServiceStub>('GitAskpassService', GitAskpassServiceStub);
 
 			return service.askpass(id, host, process.env['MONACO_GIT_COMMAND']).then(result => {
 				if (result) {

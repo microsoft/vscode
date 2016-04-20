@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promise} from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
-import { IServiceCtor, Server as IPCServer, Client as IPCClient, IServiceMap } from 'vs/base/parts/ipc/common/ipc';
+import { Server as IPCServer, Client as IPCClient, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class Server extends IPCServer {
 	constructor() {
@@ -21,7 +21,7 @@ export class Server extends IPCServer {
 	}
 }
 
-export interface IServiceOptions {
+export interface IIPCOptions {
 
 	/**
 	 * A descriptive name for the server this connection is to. Used in logging.
@@ -29,7 +29,7 @@ export interface IServiceOptions {
 	serverName: string;
 
 	/**
-	 * Time in millies before killing the service process. The next request after killing will start it again.
+	 * Time in millies before killing the ipc process. The next request after killing will start it again.
 	 */
 	timeout?:number;
 
@@ -39,7 +39,7 @@ export interface IServiceOptions {
 	args?:string[];
 
 	/**
-	 * Environment key-value pairs to be passed to the process that gets spawned for the service.
+	 * Environment key-value pairs to be passed to the process that gets spawned for the ipc.
 	 */
 	env?:any;
 
@@ -54,43 +54,41 @@ export interface IServiceOptions {
 	debugBrk?:number;
 }
 
-export class Client implements IDisposable {
+export class Client implements IClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
 	private activeRequests: Promise[];
 	private child: ChildProcess;
 	private _client: IPCClient;
-	private services: IServiceMap;
+	private channels: { [name: string]: IChannel };
 
-	constructor(private modulePath: string, private options: IServiceOptions) {
-		const timeout = options && options.timeout ? options.timeout : Number.MAX_VALUE;
+	constructor(private modulePath: string, private options: IIPCOptions) {
+		const timeout = options && options.timeout ? options.timeout : 60000;
 		this.disposeDelayer = new Delayer<void>(timeout);
 		this.activeRequests = [];
 		this.child = null;
 		this._client = null;
-		this.services = Object.create(null);
+		this.channels = Object.create(null);
 	}
 
-	getService<TService>(serviceName: string, serviceCtor: IServiceCtor<TService>): TService {
-		return <TService>Object.keys(serviceCtor.prototype)
-			.filter(key => key !== 'constructor')
-			.reduce((service, key) => assign(service, { [key]: (...args) => this.request(serviceName, serviceCtor, key, ...args) }), {});
+	getChannel<T extends IChannel>(channelName: string): T {
+		const call = (command, args) => this.request(channelName, command, ...args);
+		return { call } as T;
 	}
 
-	protected request<TService>(serviceName: string, serviceCtor: IServiceCtor<TService>, name: string, ...args: any[]): Promise {
+	protected request(channelName: string, name: string, ...args: any[]): Promise {
 		this.disposeDelayer.cancel();
 
-		let service = this.services[serviceName];
-
-		if (!service) {
-			service = this.services[serviceName] = this.client.getService(serviceName, serviceCtor);
-		}
-
-		const request: Promise = service[name].apply(service, args);
+		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
+		const request: Promise = channel.call(name, args);
 
 		// Progress doesn't propagate across 'then', we need to create a promise wrapper
 		const result = new Promise((c, e, p) => {
 			request.then(c, e, p).done(() => {
+				if (!this.activeRequests) {
+					return;
+				}
+
 				this.activeRequests.splice(this.activeRequests.indexOf(result), 1);
 				this.disposeDelayer.trigger(() => this.disposeClient());
 			});
@@ -129,7 +127,7 @@ export class Client implements IDisposable {
 
 						// Handle console logs specially
 						if (msg && msg.type === '__$console') {
-							let args = ['%c[Service Library: ' + this.options.serverName + ']', 'color: darkgreen'];
+							let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
 							try {
 								const parsed = JSON.parse(msg.arguments);
 								args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
@@ -151,7 +149,7 @@ export class Client implements IDisposable {
 			const onExit = () => this.disposeClient();
 			process.once('exit', onExit);
 
-			this.child.on('error', err => console.warn('Service "' + this.options.serverName + '" errored with ' + err));
+			this.child.on('error', err => console.warn('IPC "' + this.options.serverName + '" errored with ' + err));
 
 			this.child.on('exit', (code: any, signal: any) => {
 				process.removeListener('exit', onExit);
@@ -162,7 +160,7 @@ export class Client implements IDisposable {
 				}
 
 				if (code && signal !== 'SIGTERM') {
-					console.warn('Service "' + this.options.serverName + '" crashed with exit code ' + code);
+					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
 					this.disposeDelayer.cancel();
 					this.disposeClient();
 				}
@@ -177,7 +175,7 @@ export class Client implements IDisposable {
 			this.child.kill();
 			this.child = null;
 			this._client = null;
-			this.services = Object.create(null);
+			this.channels = Object.create(null);
 		}
 	}
 

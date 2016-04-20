@@ -8,4 +8,4 @@ import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import {ChokidarWatcherService} from 'vs/workbench/services/files/node/watcher/unix/chokidarWatcherService';
 
 const server = new Server();
-server.registerService('WatcherService', new ChokidarWatcherService());
+server.registerChannel('WatcherService', new ChokidarWatcherService());

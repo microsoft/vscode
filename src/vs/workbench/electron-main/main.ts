@@ -238,7 +238,7 @@ function setupIPC(): TPromise<Server> {
 
 					env.log('Sending env to running instance...');
 
-					const service = client.getService<LaunchService>('LaunchService', LaunchService);
+					const service = client.getChannel<LaunchService>('LaunchService', LaunchService);
 
 					return service.start(env.cliArgs, process.env)
 						.then(() => client.dispose())

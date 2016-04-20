@@ -204,7 +204,7 @@ class DiskSearch {
 			}
 		);
 
-		this.raw = client.getService<IRawSearchService>('SearchService', RawSearchService);
+		this.raw = client.getChannel<IRawSearchService>('SearchService', RawSearchService);
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {

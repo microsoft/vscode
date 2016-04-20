@@ -9,7 +9,7 @@ import { Socket, Server as NetServer, createConnection, createServer } from 'net
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
-import { Server as IPCServer, Client as IPCClient, IServiceCtor, IServiceMap, IMessagePassingProtocol, IClient } from 'vs/base/parts/ipc/common/ipc';
+import { Server as IPCServer, Client as IPCClient, IMessagePassingProtocol, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 	while (start < buffer.length && buffer[start] !== value) {
@@ -64,35 +64,35 @@ class Protocol implements IMessagePassingProtocol {
 	}
 }
 
-export class Server implements IDisposable {
+export class Server implements IServer, IDisposable {
 
-	private services: IServiceMap;
+	private channels: { [name: string]: IChannel };
 
 	constructor(private server: NetServer) {
-		this.services = Object.create(null);
+		this.channels = Object.create(null);
 
 		this.server.on('connection', (socket: Socket) => {
 			const ipcServer = new IPCServer(new Protocol(socket));
 
-			Object.keys(this.services)
-				.forEach(name => ipcServer.registerService(name, this.services[name]));
+			Object.keys(this.channels)
+				.forEach(name => ipcServer.registerChannel(name, this.channels[name]));
 
 			socket.once('close', () => ipcServer.dispose());
 		});
 	}
 
-	registerService<TService>(serviceName: string, service: TService) {
-		this.services[serviceName] = service;
+	registerChannel(channelName: string, channel: IChannel): void {
+		this.channels[channelName] = channel;
 	}
 
 	dispose(): void {
-		this.services = null;
+		this.channels = null;
 		this.server.close();
 		this.server = null;
 	}
 }
 
-export class Client implements IDisposable, IClient {
+export class Client implements IClient, IDisposable {
 
 	private ipcClient: IPCClient;
 	private _onClose = new Emitter<void>();
@@ -103,8 +103,8 @@ export class Client implements IDisposable, IClient {
 		socket.once('close', () => this._onClose.fire());
 	}
 
-	getService<TService>(serviceName: string, serviceCtor: IServiceCtor<TService>): TService {
-		return this.ipcClient.getService(serviceName, serviceCtor);
+	getChannel<T extends IChannel>(channelName: string): T {
+		return this.ipcClient.getChannel(channelName) as T;
 	}
 
 	dispose(): void {
