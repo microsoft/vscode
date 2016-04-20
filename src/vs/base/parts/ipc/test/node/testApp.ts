@@ -5,7 +5,8 @@
 'use strict';
 
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { TestChannel } from './testService';
+import { TestChannel, TestService } from './testService';
 
 const server = new Server();
-server.registerChannel('test', new TestChannel());
+const service = new TestService();
+server.registerChannel('test', new TestChannel(service));

@@ -19,27 +19,10 @@ export interface ITestService {
 	cancelMe(): TPromise<boolean>;
 }
 
-export interface ITestChannel extends IChannel {
-	call(command: 'marco'): TPromise<any>;
-	call(command: 'pong', ping: string): TPromise<any>;
-	call(command: 'cancelMe'): TPromise<any>;
-	call(command: string, ...args: any[]): TPromise<any>;
-}
-
-export class TestChannel implements ITestService, ITestChannel {
+export class TestService implements ITestService {
 
 	private _onMarco = new Emitter<IMarcoPoloEvent>();
 	onMarco: Event<IMarcoPoloEvent> = this._onMarco.event;
-
-	call(command: string, ...args: any[]): TPromise<any> {
-		switch (command) {
-			case 'pong': return this.pong(args[0]);
-			case 'cancelMe': return this.cancelMe();
-			case 'marco': return this.marco();
-			case 'event:marco': return eventToCall(this.onMarco);
-			default: return TPromise.wrapError(new Error('command not found'));
-		}
-	}
 
 	marco(): TPromise<string> {
 		this._onMarco.fire({ answer: 'polo' });
@@ -55,7 +38,29 @@ export class TestChannel implements ITestService, ITestChannel {
 	}
 }
 
-export class TestService implements ITestService {
+export interface ITestChannel extends IChannel {
+	call(command: 'marco'): TPromise<any>;
+	call(command: 'pong', ping: string): TPromise<any>;
+	call(command: 'cancelMe'): TPromise<any>;
+	call(command: string, ...args: any[]): TPromise<any>;
+}
+
+export class TestChannel implements ITestChannel {
+
+	constructor(private testService: ITestService) { }
+
+	call(command: string, ...args: any[]): TPromise<any> {
+		switch (command) {
+			case 'pong': return this.testService.pong(args[0]);
+			case 'cancelMe': return this.testService.cancelMe();
+			case 'marco': return this.testService.marco();
+			case 'event:marco': return eventToCall(this.testService.onMarco);
+			default: return TPromise.wrapError(new Error('command not found'));
+		}
+	}
+}
+
+export class TestServiceClient implements ITestService {
 
 	private _onMarco: Event<IMarcoPoloEvent>;
 	get onMarco(): Event<IMarcoPoloEvent> { return this._onMarco; };

@@ -11,7 +11,7 @@ import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
 import { always } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { ITestChannel, TestService } from './testService';
+import { ITestChannel, TestServiceClient } from './testService';
 
 function createClient(): Client {
 	return new Client(uri.parse(require.toUrl('bootstrap')).fsPath, {
@@ -30,7 +30,7 @@ suite('IPC', () => {
 
 			const client = createClient();
 			const channel = client.getChannel<ITestChannel>('test');
-			const service = new TestService(channel);
+			const service = new TestServiceClient(channel);
 
 			const result = service.pong('ping').then(r => {
 				assert.equal(r.incoming, 'ping');
@@ -47,7 +47,7 @@ suite('IPC', () => {
 
 			const client = createClient();
 			const channel = client.getChannel<ITestChannel>('test');
-			const service = new TestService(channel);
+			const service = new TestServiceClient(channel);
 			const res = service.cancelMe();
 
 			setTimeout(() => res.cancel(), 50);
@@ -67,7 +67,7 @@ suite('IPC', () => {
 
 			const client = createClient();
 			const channel = client.getChannel<ITestChannel>('test');
-			const service = new TestService(channel);
+			const service = new TestServiceClient(channel);
 
 			const event = new TPromise((c, e) => {
 				service.onMarco(({ answer }) => {
@@ -93,7 +93,7 @@ suite('IPC', () => {
 
 			const client = createClient();
 			const channel = client.getChannel<ITestChannel>('test');
-			const service = new TestService(channel);
+			const service = new TestServiceClient(channel);
 
 			let count = 0;
 			const disposable = service.onMarco(() => count++);
