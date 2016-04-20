@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken }  from 'vscode';
+import { workspace, window, Uri, CancellationToken, OutputChannel }  from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost }  from './typescriptService';
 
@@ -45,15 +45,35 @@ interface IPackageInfo {
 	aiKey: string;
 }
 
-export default class TypeScriptServiceClient implements ITypescriptServiceClient {
+enum Trace {
+	Off, Messages, Verbose
+}
 
-	public static Trace: boolean = process.env.TSS_TRACE || false;
+namespace Trace {
+	export function fromString(value: string): Trace {
+		value = value.toLowerCase();
+		switch (value) {
+			case 'off':
+				return Trace.Off;
+			case 'messages':
+				return Trace.Messages;
+			case 'verbose':
+				return Trace.Verbose;
+			default:
+				return Trace.Off;
+		}
+	}
+}
+
+export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 
 	private host: ITypescriptServiceClientHost;
 	private pathSeparator: string;
 
 	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private tsdk: string;
+	private trace: Trace;
+	private output: OutputChannel;
 	private servicePromise: Promise<cp.ChildProcess>;
 	private lastError: Error;
 	private reader: Reader<Proto.Response>;
@@ -90,7 +110,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.pendingResponses = 0;
 		this.callbacks = Object.create(null);
 		this.tsdk = workspace.getConfiguration().get<string>('typescript.tsdk', null);
+		this.trace = this.readTrace();
 		workspace.onDidChangeConfiguration(() => {
+			this.trace = this.readTrace();
 			let oldTask = this.tsdk;
 			this.tsdk = workspace.getConfiguration().get<string>('typescript.tsdk', null);
 			if (this.servicePromise === null && oldTask !== this.tsdk) {
@@ -103,12 +125,19 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.startService();
 	}
 
-	public onReady(): Promise<void> {
-		return this._onReady.promise;
+	private readTrace(): Trace {
+		let result: Trace = Trace.fromString(workspace.getConfiguration().get<string>('typescript.tsserver.trace', 'off'));
+		if (result === Trace.Off && !!process.env.TSS_TRACE) {
+			result = Trace.Messages;
+		}
+		if (result !== Trace.Off && !this.output) {
+			this.output = window.createOutputChannel(localize('channelName', 'TypeScript'));
+		}
+		return result;
 	}
 
-	public get trace(): boolean {
-		return TypeScriptServiceClient.Trace;
+	public onReady(): Promise<void> {
+		return this._onReady.promise;
 	}
 
 	private get packageInfo(): IPackageInfo {
@@ -326,9 +355,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private sendRequest(requestItem: RequestItem): void {
 		let serverRequest = requestItem.request;
-		if (TypeScriptServiceClient.Trace) {
-			console.log('TypeScript Service: sending request ' + serverRequest.command + '(' + serverRequest.seq + '). Response expected: ' + (requestItem.callbacks ? 'yes' : 'no') + '. Current queue length: ' + this.requestQueue.length);
-		}
+		this.traceRequest(serverRequest, !!requestItem.callbacks);
 		if (requestItem.callbacks) {
 			this.callbacks[serverRequest.seq] = requestItem.callbacks;
 			this.pendingResponses++;
@@ -349,14 +376,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		for (let i = 0; i < this.requestQueue.length; i++) {
 			if (this.requestQueue[i].request.seq === seq) {
 				this.requestQueue.splice(i, 1);
-				if (TypeScriptServiceClient.Trace) {
-					console.log('TypeScript Service: canceled request with sequence number ' + seq);
+				if (this.trace !== Trace.Off) {
+					this.output.append(`TypeScript Service: canceled request with sequence number ${seq}\n`);
 				}
 				return true;
 			}
 		}
-		if (TypeScriptServiceClient.Trace) {
-			console.log('TypeScript Service: tried to cancel request with sequence number ' + seq + '. But request got already delivered.');
+		if (this.trace !== Trace.Off) {
+			this.output.append(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 		}
 		return false;
 	}
@@ -367,9 +394,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				let response: Proto.Response = <Proto.Response>message;
 				let p = this.callbacks[response.request_seq];
 				if (p) {
-					if (TypeScriptServiceClient.Trace) {
-						console.log('TypeScript Service: request ' + response.command + '(' + response.request_seq + ') took ' + (Date.now() - p.start) + 'ms. Success: ' + response.success + ((!response.success) ? ('. Message: ' + response.message) : ''));
-					}
+					this.traceResponse(response, p.start);
 					delete this.callbacks[response.request_seq];
 					this.pendingResponses--;
 					if (response.success) {
@@ -385,6 +410,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 			} else if (message.type === 'event') {
 				let event: Proto.Event = <Proto.Event>message;
+				this.traceEvent(event);
 				if (event.event === 'syntaxDiag') {
 					this.host.syntaxDiagnosticsReceived(event);
 				}
@@ -396,6 +422,36 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		} finally {
 			this.sendNextRequests();
+		}
+	}
+
+	private traceRequest(request: Proto.Request, responseExpected: boolean): void {
+		if (this.trace === Trace.Off) {
+			return;
+		}
+		this.output.append(`Sending request: ${request.command} (${request.seq}). Response expected: ${responseExpected ? 'yes' : 'no'}. Current queue length: ${this.requestQueue.length}\n`);
+		if (this.trace === Trace.Verbose && request.arguments) {
+			this.output.append(`Arguments: ${JSON.stringify(request.arguments, null, 4)}\n\n`);
+		}
+	}
+
+	private traceResponse(response: Proto.Response, startTime: number): void {
+		if (this.trace === Trace.Off) {
+			return;
+		}
+		this.output.append(`Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - startTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}\n`);
+		if (this.trace === Trace.Verbose && response.body) {
+			this.output.append(`Result: ${JSON.stringify(response.body, null, 4)}\n\n`);
+		}
+	}
+
+	private traceEvent(event: Proto.Event): void {
+		if (this.trace === Trace.Off) {
+			return;
+		}
+		this.output.append(`Event received: ${event.event} (${event.seq}).\n`);
+		if (this.trace === Trace.Verbose && event.body) {
+			this.output.append(`Data: ${JSON.stringify(event.body, null, 4)}\n\n`);
 		}
 	}
 }
