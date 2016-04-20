@@ -142,7 +142,6 @@ const schema: IJSONSchema = {
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
-jsonRegistry.addSchemaFileAssociation('/.vscode/launch.json', schemaId);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
 

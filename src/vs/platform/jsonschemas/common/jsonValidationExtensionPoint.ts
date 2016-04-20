@@ -6,9 +6,7 @@
 
 import nls = require('vs/nls');
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {Registry} from 'vs/platform/platform';
 import URI from 'vs/base/common/uri';
-import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 
@@ -16,8 +14,6 @@ interface IJSONValidationExtensionPoint {
 	fileMatch: string;
 	url: string;
 }
-
-let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
 
 let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', {
 	description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
@@ -72,11 +68,6 @@ export class JSONValidationExtensionPoint {
 						collector.error(nls.localize('invalid.url.schema', "'configuration.jsonValidation.url' must start with 'http:', 'https:' or './' to reference schemas located in the extension"));
 						return;
 					}
-					let fileMatch = extension.fileMatch;
-					if (!strings.startsWith(extension.fileMatch, '/')) {
-						fileMatch = '/' + fileMatch;
-					}
-					schemaRegistry.addSchemaFileAssociation(fileMatch, uri);
 				});
 			}
 		});

@@ -62,10 +62,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this._onDidRegisterConfiguration = new Emitter<IConfigurationRegistry>();
 
 		contributionRegistry.registerSchema(schemaId, this.configurationSchema);
-
-		contributionRegistry.addSchemaFileAssociation('vscode://defaultsettings/settings.json', schemaId);
-		contributionRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/settings.json', schemaId);
-		contributionRegistry.addSchemaFileAssociation('/.vscode/settings.json', schemaId);
 	}
 
 	public get onDidRegisterConfiguration() {

@@ -266,25 +266,6 @@ export class JSONSchemaService implements IJSONSchemaService {
 				this.contributionSchemas[id] = this.addSchemaHandle(id, schemas[id]);
 			}
 		}
-		if (schemaContributions.schemaAssociations) {
-			var schemaAssociations = schemaContributions.schemaAssociations;
-			for (let pattern in schemaAssociations) {
-				var associations = schemaAssociations[pattern];
-				if (this.contextService) {
-					let env = this.contextService.getConfiguration().env;
-					if (env) {
-						pattern = pattern.replace(/%APP_SETTINGS_HOME%/, URI.file(env.appSettingsHome).toString());
-					}
-				}
-				this.contributionAssociations[pattern] = associations;
-
-				var fpa = this.getOrAddFilePatternAssociation(pattern);
-				associations.forEach(schemaId => {
-					var id = this.normalizeId(schemaId);
-					fpa.addSchema(id);
-				});
-			}
-		}
 	}
 
 	private addSchemaHandle(id:string, unresolvedSchemaContent?: IJSONSchema) : SchemaHandle {

@@ -1308,4 +1308,3 @@ let schema : IJSONSchema =
 	};
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
-jsonRegistry.addSchemaFileAssociation('/.vscode/tasks.json', schemaId);
