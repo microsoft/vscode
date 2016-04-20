@@ -242,16 +242,13 @@ export class DebugService implements debug.IDebugService {
 			const threadId = event.body.threadId;
 
 			this.getThreadData(threadId).done(() => {
-				let thread = this.model.getThreads()[threadId];
-
 				this.model.rawUpdate({
 					threadId: threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
-				thread.getCallStack(this).then(callStack => {
-					this.windowService.getWindow().focus();
+				this.model.getThreads()[threadId].getCallStack(this).then(callStack => {
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
@@ -275,15 +272,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.session.threads().done((result) => {
-					const thread = result.body.threads.filter(thread => thread.id === event.body.threadId).pop();
-					if (thread) {
-						this.model.rawUpdate({
-							threadId: thread.id,
-							thread: thread
-						});
-					}
-				}, errors.onUnexpectedError);
+				this.getThreadData(event.body.threadId).done(null, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(true, event.body.threadId);
 			}
@@ -418,6 +407,7 @@ export class DebugService implements debug.IDebugService {
 
 	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
 		this.viewModel.setFocusedStackFrame(focusedStackFrame);
+		this.windowService.getWindow().focus();
 		if (focusedStackFrame) {
 			return this.model.evaluateWatchExpressions(this.session, focusedStackFrame);
 		} else {
