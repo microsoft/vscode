@@ -294,7 +294,9 @@ export class QuickFixSelectionWidget implements IContentWidget {
 
 			if (focus) {
 				elementsToRefresh.push(focus);
-				this._ariaAlert(getAriaAlertLabel(focus));
+				if (isQuickFix(focus)) {
+					this._ariaAlert(getAriaAlertLabel(focus));
+				}
 			}
 
 			oldFocus = focus;
