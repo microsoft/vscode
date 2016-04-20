@@ -90,4 +90,3 @@ let schema : IJSONSchema =
 
 let jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
-jsonRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/locale.json', schemaId);
