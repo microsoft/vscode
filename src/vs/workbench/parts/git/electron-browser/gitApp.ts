@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Server } from 'vs/base/node/service.cp';
+import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { GitErrorCodes } from 'vs/workbench/parts/git/common/git';

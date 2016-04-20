@@ -6,7 +6,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Client} from 'vs/base/node/service.cp';
+import {Client} from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
 import {EventType} from 'vs/platform/files/common/files';
 import {toFileChangesEvent, IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';

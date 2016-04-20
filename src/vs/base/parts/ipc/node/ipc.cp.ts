@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import cp = require('child_process');
+import { ChildProcess, fork } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promise} from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
-import { IServiceCtor, Server as IPCServer, Client as IPCClient, IServiceMap } from 'vs/base/common/service';
+import { IServiceCtor, Server as IPCServer, Client as IPCClient, IServiceMap } from 'vs/base/parts/ipc/common/ipc';
 
 export class Server extends IPCServer {
 	constructor() {
@@ -58,7 +58,7 @@ export class Client implements IDisposable {
 
 	private disposeDelayer: Delayer<void>;
 	private activeRequests: Promise[];
-	private child: cp.ChildProcess;
+	private child: ChildProcess;
 	private _client: IPCClient;
 	private services: IServiceMap;
 
@@ -121,7 +121,7 @@ export class Client implements IDisposable {
 				}
 			}
 
-			this.child = cp.fork(this.modulePath, args, forkOpts);
+			this.child = fork(this.modulePath, args, forkOpts);
 			this._client = new IPCClient({
 				send: r => this.child && this.child.connected && this.child.send(r),
 				onMessage: cb => {

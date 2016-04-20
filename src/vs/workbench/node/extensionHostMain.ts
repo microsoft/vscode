@@ -28,7 +28,7 @@ import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemet
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Client} from 'vs/base/node/service.net';
+import {Client} from 'vs/base/parts/ipc/node/ipc.net';
 import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
 import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
 

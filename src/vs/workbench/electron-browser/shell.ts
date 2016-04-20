@@ -87,8 +87,8 @@ import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/servic
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
-import {getService } from 'vs/base/common/service';
-import {connect} from 'vs/base/node/service.net';
+import {getService} from 'vs/base/parts/ipc/common/ipc';
+import {connect} from 'vs/base/parts/ipc/node/ipc.net';
 import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
 import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';

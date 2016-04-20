@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { connect } from 'vs/base/node/service.net';
+import { connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as fs from 'fs';
 

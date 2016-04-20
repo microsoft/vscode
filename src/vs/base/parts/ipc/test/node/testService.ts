@@ -4,19 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export class TestService {
-	public pong(ping:string): winjs.TPromise<{ incoming:string, outgoing:string }> {
-		return winjs.TPromise.as({
-			incoming: ping,
-			outgoing: 'pong'
-		});
+
+	pong(ping:string): TPromise<{ incoming:string, outgoing:string }> {
+		return TPromise.as({ incoming: ping, outgoing: 'pong' });
 	}
 
-	public cancelMe(): winjs.TPromise<boolean> {
-		return winjs.TPromise.timeout(100).then(() => {
-			return true;
-		});
+	cancelMe(): TPromise<boolean> {
+		return TPromise.timeout(100).then(() => true);
 	}
 }

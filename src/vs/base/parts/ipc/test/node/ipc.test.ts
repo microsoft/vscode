@@ -6,17 +6,17 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Client } from 'vs/base/node/service.cp';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
-import {isPromiseCanceledError} from 'vs/base/common/errors';
-import {TestService} from 'vs/base/test/node/service/testService';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { TestService } from './testService';
 
 function createService() {
 	const server = new Client(
 		uri.parse(require.toUrl('bootstrap')).fsPath,
 		{
 			serverName: 'TestServer',
-			env: { AMD_ENTRYPOINT: 'vs/base/test/node/service/testApp', verbose: true }
+			env: { AMD_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true }
 		}
 	);
 

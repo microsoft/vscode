@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { tmpdir } from 'os';
 import * as path from 'path';
 import types = require('vs/base/common/types');
-import { ServiceEvent } from 'vs/base/common/service';
+import { ServiceEvent } from 'vs/base/parts/ipc/common/ipc';
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { flatten } from 'vs/base/common/arrays';

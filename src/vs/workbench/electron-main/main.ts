@@ -17,7 +17,7 @@ import lifecycle = require('vs/workbench/electron-main/lifecycle');
 import menu = require('vs/workbench/electron-main/menus');
 import settings = require('vs/workbench/electron-main/settings');
 import {Instance as UpdateManager} from 'vs/workbench/electron-main/update-manager';
-import {Server, serve, connect} from 'vs/base/node/service.net';
+import {Server, serve, connect} from 'vs/base/parts/ipc/node/ipc.net';
 import {getUserEnvironment} from 'vs/base/node/env';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
