@@ -276,10 +276,7 @@ export class Client implements IClient {
 	}
 }
 
-/**
- * Useful when the channel itself is needed right away but the client is wrapped within a promise.
- */
-export function getChannel<T extends IChannel>(clientPromise: TPromise<IClient>, channelName: string): T {
+export function getDelayedChannel<T extends IChannel>(clientPromise: TPromise<IClient>, channelName: string): T {
 	let _channelPromise: TPromise<T>;
 
 	const channelPromise = () => {
@@ -291,40 +288,6 @@ export function getChannel<T extends IChannel>(clientPromise: TPromise<IClient>,
 
 	const call = (command, args) => channelPromise().then(c => c.call(command, ...args));
 	return { call } as T;
-
-
-	// return Object.keys(serviceCtor.prototype)
-	// 	.filter(key => key !== 'constructor')
-	// 	.reduce((result, key) => {
-	// 		if (isServiceEvent(serviceCtor.prototype[key])) {
-	// 			let promise: TPromise<void>;
-	// 			let disposable: IDisposable;
-
-	// 			const emitter = new Emitter<any>({
-	// 				onFirstListenerAdd: () => {
-	// 					promise = channelPromise().then(service => {
-	// 						disposable = service[key](e => emitter.fire(e));
-	// 					});
-	// 				},
-	// 				onLastListenerRemove: () => {
-	// 					if (disposable) {
-	// 						disposable.dispose();
-	// 						disposable = null;
-	// 					}
-	// 					promise.cancel();
-	// 					promise = null;
-	// 				}
-	// 			});
-
-	// 			return assign(result, { [key]: emitter.event });
-	// 		}
-
-	// 		return assign(result, {
-	// 			[key]: (...args) => {
-	// 				return channelPromise().then(service => service[key](...args));
-	// 			}
-	// 		});
-	// 	}, {} as T);
 }
 
 export function eventToCall(event: Event<any>): TPromise<any> {
