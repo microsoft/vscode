@@ -12,9 +12,9 @@ import {StatusbarAlignment} from 'vs/workbench/browser/parts/statusbar/statusbar
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
+import Event from 'vs/base/common/event';
 
 interface IBufferedMessage {
 	severity: Severity;
@@ -23,8 +23,6 @@ interface IBufferedMessage {
 }
 
 export class WorkbenchMessageService implements IMessageService {
-
-	public static GLOBAL_MESSAGES_SHOWING_CONTEXT = 'globalMessageVisible';
 
 	public serviceId = IMessageService;
 
@@ -38,20 +36,14 @@ export class WorkbenchMessageService implements IMessageService {
 	private quickOpenService: IQuickOpenService;
 	private statusbarService: IStatusbarService;
 
-	private messagesShowingContextKey: IKeybindingContextKey<boolean>;
-
 	constructor(
-		private telemetryService: ITelemetryService,
-		keybindingService: IKeybindingService
+		private telemetryService: ITelemetryService
 	) {
-		this.messagesShowingContextKey = keybindingService.createKey(WorkbenchMessageService.GLOBAL_MESSAGES_SHOWING_CONTEXT, false);
 		this.handler = new MessageList(Identifiers.WORKBENCH_CONTAINER, telemetryService);
 
 		this.messageBuffer = [];
 		this.canShowMessages = true;
 		this.disposeables = [];
-
-		this.registerListeners();
 	}
 
 	public setWorkbenchServices(quickOpenService: IQuickOpenService, statusbarService: IStatusbarService): void {
@@ -62,17 +54,12 @@ export class WorkbenchMessageService implements IMessageService {
 		this.disposeables.push(this.quickOpenService.onHide(this.onQuickOpenHiding, this));
 	}
 
-	private registerListeners(): void {
-		this.disposeables.push(this.handler.onMessagesShowing(this.onMessagesShowing, this));
-		this.disposeables.push(this.handler.onMessagesCleared(this.onMessagesCleared, this));
+	public get onMessagesShowing(): Event<void> {
+		return this.handler.onMessagesShowing;
 	}
 
-	private onMessagesShowing(): void {
-		this.messagesShowingContextKey.set(true);
-	}
-
-	private onMessagesCleared(): void {
-		this.messagesShowingContextKey.reset();
+	public get onMessagesCleared(): Event<void> {
+		return this.handler.onMessagesCleared;
 	}
 
 	private onQuickOpenShowing(): void {
@@ -135,7 +122,7 @@ export class WorkbenchMessageService implements IMessageService {
 
 		// Check flag if we can show a message now
 		if (!this.canShowMessages) {
-			const messageObj:IBufferedMessage = { severity: sev, message, disposeFn: () => this.messageBuffer.splice(this.messageBuffer.indexOf(messageObj), 1) };
+			const messageObj: IBufferedMessage = { severity: sev, message, disposeFn: () => this.messageBuffer.splice(this.messageBuffer.indexOf(messageObj), 1) };
 			this.messageBuffer.push(messageObj);
 
 			// Return function that allows to remove message from buffer
@@ -166,19 +153,21 @@ export class WorkbenchMessageService implements IMessageService {
 			let hideHandle: number;
 
 			// Dispose function takes care of timeouts and actual entry
-			const dispose = { dispose: () => {
-				if (showHandle) {
-					clearTimeout(showHandle);
-				}
+			const dispose = {
+				dispose: () => {
+					if (showHandle) {
+						clearTimeout(showHandle);
+					}
 
-				if (hideHandle) {
-					clearTimeout(hideHandle);
-				}
+					if (hideHandle) {
+						clearTimeout(hideHandle);
+					}
 
-				if (statusDispose) {
-					statusDispose.dispose();
+					if (statusDispose) {
+						statusDispose.dispose();
+					}
 				}
-			}};
+			};
 			this.statusMsgDispose = dispose;
 
 			if (typeof autoDisposeAfter === 'number' && autoDisposeAfter > 0) {

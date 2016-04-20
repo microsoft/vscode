@@ -72,7 +72,7 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -111,7 +111,7 @@ export interface ICoreServices {
  */
 export class WorkbenchShell {
 	private storageService: IStorageService;
-	private messageService: IMessageService;
+	private messageService: MessageService;
 	private eventService: IEventService;
 	private contextViewService: ContextViewService;
 	private windowService: IWindowService;
@@ -134,6 +134,8 @@ export class WorkbenchShell {
 	private workspace: IWorkspace;
 	private options: IOptions;
 	private workbench: Workbench;
+
+	private messagesShowingContextKey: IKeybindingContextKey<boolean>;
 
 	constructor(container: HTMLElement, workspace: IWorkspace, services: ICoreServices, configuration: IConfiguration, options: IOptions) {
 		this.container = container;
@@ -242,10 +244,7 @@ export class WorkbenchShell {
 		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
-		if (this.configuration.env.isBuilt
-			&& !this.configuration.env.extensionDevelopmentPath // no telemetry in a window for extension development!
-			&& !!this.configuration.env.enableTelemetry) {
-
+		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
 				cleanupPatterns: [
 					[new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), '<APP_ROOT>'],
@@ -258,10 +257,7 @@ export class WorkbenchShell {
 			this.telemetryService = NullTelemetryService;
 		}
 
-		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, <any>window);
-
-		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
-		this.keybindingService.setMessageService(this.messageService);
+		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService);
 
 		let fileService = new FileService(
 			this.configurationService,
@@ -270,12 +266,19 @@ export class WorkbenchShell {
 			this.messageService
 		);
 
-		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
-
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
 		lifecycleService.onShutdown(() => fileService.dispose());
 
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
+
+		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
+
+		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, this.messageService, extensionService, <any>window);
+		this.messagesShowingContextKey = this.keybindingService.createKey('globalMessageVisible', false);
+		this.messageService.onMessagesShowing(() => this.messagesShowingContextKey.set(true));
+		this.messageService.onMessagesCleared(() => this.messagesShowingContextKey.reset());
+
+		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
 		let requestService = new RequestService(
 			this.contextService,
@@ -285,9 +288,6 @@ export class WorkbenchShell {
 		lifecycleService.onShutdown(() => requestService.dispose());
 
 		let markerService = new MainProcessMarkerService(this.threadService);
-
-		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
-		this.keybindingService.setExtensionService(extensionService);
 
 		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService, this.configurationService);
 		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, this.configurationService, this.messageService);
