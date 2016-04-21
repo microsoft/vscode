@@ -338,8 +338,12 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		for (let pattern of ReplExpressionsRenderer.FILE_LOCATION_PATTERNS) {
 			pattern.lastIndex = 0; // the holy grail of software development
 
-			var match = pattern.exec(text);
-			var resource = match && URI.file(match[1]);
+			const match = pattern.exec(text);
+			let resource = null;
+			try {
+				resource = match && URI.file(match[1]);
+			} catch (e) { }
+
 			if (resource) {
 				linkContainer = document.createElement('span');
 
