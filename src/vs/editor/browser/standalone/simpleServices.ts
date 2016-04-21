@@ -218,8 +218,8 @@ export class StandaloneKeybindingService extends KeybindingService {
 	private _dynamicKeybindings: IKeybindingItem[];
 	private _dynamicCommands: ICommandsMap;
 
-	constructor(configurationService: IConfigurationService, domNode: HTMLElement) {
-		super(configurationService);
+	constructor(configurationService: IConfigurationService, messageService: IMessageService, domNode: HTMLElement) {
+		super(configurationService, messageService);
 
 		this._dynamicKeybindings = [];
 		this._dynamicCommands = Object.create(null);

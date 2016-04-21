@@ -10,13 +10,14 @@ import glob = require('vs/base/common/glob');
 import objects = require('vs/base/common/objects');
 import scorer = require('vs/base/common/scorer');
 import strings = require('vs/base/common/strings');
-import {Client} from 'vs/base/node/service.cp';
+import {Client} from 'vs/base/parts/ipc/node/ipc.cp';
 import {IProgress, LineMatch, FileMatch, ISearchComplete, ISearchProgressItem, QueryType, IFileMatch, ISearchQuery, ISearchConfiguration, ISearchService} from 'vs/platform/search/common/search';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, IRawSearchService, SearchService as RawSearchService} from 'vs/workbench/services/search/node/rawSearchService';
+import {IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, IRawSearchService} from './search';
+import {ISearchChannel, SearchChannelClient} from './searchIpc';
 
 export class SearchService implements ISearchService {
 	public serviceId = ISearchService;
@@ -204,7 +205,8 @@ class DiskSearch {
 			}
 		);
 
-		this.raw = client.getService<IRawSearchService>('SearchService', RawSearchService);
+		const channel = client.getChannel<ISearchChannel>('search');
+		this.raw = new SearchChannelClient(channel);
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {

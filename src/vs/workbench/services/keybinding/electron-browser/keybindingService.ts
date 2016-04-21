@@ -24,6 +24,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
+import {IMessageService} from 'vs/platform/message/common/message';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -121,11 +122,12 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	private _extensionService: IExtensionService;
 	private _eventService: IEventService;
 
-	constructor(configurationService: IConfigurationService, contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, domNode: HTMLElement) {
-		super(configurationService);
+	constructor(configurationService: IConfigurationService, contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, messageService: IMessageService, extensionService: IExtensionService, domNode: HTMLElement) {
+		super(configurationService, messageService);
 		this.contextService = contextService;
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
+		this._extensionService = extensionService;
 		this.toDispose = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
 		this._eventService = eventService;
 		keybindingsExtPoint.setHandler((extensions) => {
@@ -141,10 +143,6 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		});
 
 		this._beginListening(domNode);
-	}
-
-	setExtensionService(extensionService: IExtensionService): void {
-		this._extensionService = extensionService;
 	}
 
 	public customKeybindingsCount(): number {
@@ -316,5 +314,3 @@ let schema : IJSONSchema = {
 
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
-schemaRegistry.addSchemaFileAssociation('vscode://defaultsettings/keybindings.json', schemaId);
-schemaRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/keybindings.json', schemaId);

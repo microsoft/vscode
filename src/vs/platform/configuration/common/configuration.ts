@@ -6,6 +6,7 @@
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import Event from 'vs/base/common/event';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -17,6 +18,12 @@ export interface IConfigurationService extends IEventEmitter {
 	 * This will be an object keyed off the section name.
 	 */
 	getConfiguration<T>(section?: string): T;
+
+	/**
+	 * Similar to #getConfiguration() but ensures that the latest configuration
+	 * from disk is fetched.
+	 */
+	loadConfiguration<T>(section?: string): TPromise<T>;
 
 	/**
 	 * Returns iff the workspace has configuration or not.

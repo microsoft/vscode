@@ -90,7 +90,7 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 	}
 
 	public initialize(): TPromise<void> {
-		return this.loadConfiguration().then(() => null);
+		return this.doLoadConfiguration().then(() => null);
 	}
 
 	protected abstract resolveContents(resource: uri[]): TPromise<IContent[]>;
@@ -117,15 +117,17 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 		return result;
 	}
 
-	private loadConfiguration(section?: string): TPromise<any> {
-		return this.doLoadConfiguration().then((res: ILoadConfigResult) => {
-			this.cachedConfig = res;
+	public loadConfiguration(section?: string): TPromise<any> {
 
-			return this.getConfiguration(section);
-		});
+		// Reset caches to ensure we are hitting the disk
+		this.bulkFetchFromWorkspacePromise = null;
+		this.workspaceFilePathToConfiguration = Object.create(null);
+
+		// Load configuration
+		return this.doLoadConfiguration(section);
 	}
 
-	private doLoadConfiguration(): TPromise<ILoadConfigResult> {
+	private doLoadConfiguration(section?: string): TPromise<any> {
 
 		// Load globals
 		const globals = this.loadGlobalConfiguration();
@@ -148,6 +150,10 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 				consolidated: consolidated,
 				globals: globals
 			};
+		}).then((res: ILoadConfigResult) => {
+			this.cachedConfig = res;
+
+			return this.getConfiguration(section);
 		});
 	}
 
@@ -192,7 +198,7 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 	protected handleConfigurationChange(): void {
 		if (!this.reloadConfigurationScheduler) {
 			this.reloadConfigurationScheduler = new RunOnceScheduler(() => {
-				this.loadConfiguration().then((config) => this.emit(ConfigurationServiceEventTypes.UPDATED, { config: config })).done(null, errors.onUnexpectedError);
+				this.doLoadConfiguration().then((config) => this.emit(ConfigurationServiceEventTypes.UPDATED, { config: config })).done(null, errors.onUnexpectedError);
 			}, ConfigurationService.RELOAD_CONFIGURATION_DELAY);
 		}
 

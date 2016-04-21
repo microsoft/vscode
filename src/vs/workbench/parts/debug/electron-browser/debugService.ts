@@ -42,6 +42,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITextFileService } from 'vs/workbench/parts/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
@@ -89,7 +90,8 @@ export class DebugService implements debug.IDebugService {
 		@IInstantiationService private instantiationService:IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
-		@ITaskService private taskService: ITaskService
+		@ITaskService private taskService: ITaskService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = [];
@@ -241,21 +243,19 @@ export class DebugService implements debug.IDebugService {
 			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
-			this.getThreadData(threadId).done(() => {
-				let thread = this.model.getThreads()[threadId];
-
+			this.getThreadData().done(() => {
 				this.model.rawUpdate({
-					threadId: threadId,
+					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
-				thread.getCallStack(this).then(callStack => {
-					this.windowService.getWindow().focus();
+				this.model.getThreads()[threadId].getCallStack(this).then(callStack => {
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
 						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+						this.windowService.getWindow().focus();
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
 						return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
@@ -266,24 +266,16 @@ export class DebugService implements debug.IDebugService {
 			}, errors.onUnexpectedError);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidContinue(() => {
+		this.toDisposeOnSessionEnd.push(this.session.onDidContinue(threadID => {
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-			this.model.continueThreads();
+			this.model.clearThreads(false, threadID);
 			this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 			this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.session.threads().done((result) => {
-					const thread = result.body.threads.filter(thread => thread.id === event.body.threadId).pop();
-					if (thread) {
-						this.model.rawUpdate({
-							threadId: thread.id,
-							thread: thread
-						});
-					}
-				}, errors.onUnexpectedError);
+				this.getThreadData().done(null, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(true, event.body.threadId);
 			}
@@ -291,7 +283,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
-			if (this.session && this.session.getId() === (<any>event).sessionId) {
+			if (this.session && this.session.getId() === event.body.sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
 					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
@@ -329,7 +321,7 @@ export class DebugService implements debug.IDebugService {
 			if (this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
-			if (this.session && this.session.getId() === (<any>event.body).sessionId) {
+			if (this.session && this.session.getId() === event.body.sessionId) {
 				this.onSessionEnd();
 			}
 		}));
@@ -340,19 +332,10 @@ export class DebugService implements debug.IDebugService {
 		this.appendReplOutput(event.body.output, outputSeverity);
 	}
 
-	private getThreadData(threadId: number): TPromise<void> {
-		return this.model.getThreads()[threadId] ? TPromise.as(undefined) :
-			this.session.threads().then((response: DebugProtocol.ThreadsResponse) => {
-				const thread = response.body.threads.filter(t => t.id === threadId).pop();
-				if (!thread) {
-					throw new Error(nls.localize('debugNoThread', "Did not get a thread from debug adapter with id {0}.", threadId));
-				}
-
-				this.model.rawUpdate({
-					threadId: thread.id,
-					thread: thread
-				});
-			});
+	private getThreadData(): TPromise<void> {
+		return this.session.threads().then(response => {
+			response.body.threads.forEach(thread => this.model.rawUpdate({ threadId: thread.id, thread }));
+		});
 	}
 
 	private loadBreakpoints(): debug.IBreakpoint[] {
@@ -508,7 +491,8 @@ export class DebugService implements debug.IDebugService {
 	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
 		this.removeReplExpressions();
 
-		return this.textFileService.saveAll()
+		return this.textFileService.saveAll()						// make sure all dirty files are saved
+		.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
 		.then(() => this.extensionService.onReady()
 		.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
 		.then(() => {
@@ -554,7 +538,7 @@ export class DebugService implements debug.IDebugService {
 					actions: [CloseAction, this.taskService.configureAction()]
 				});
 			});
-		})));
+		}))));
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {

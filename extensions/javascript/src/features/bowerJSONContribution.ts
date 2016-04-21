@@ -111,12 +111,14 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	public collectValueSuggestions(resource: string, location: Location, collector: ISuggestionsCollector): Thenable<any> {
-		// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
-		let proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
-		proposal.insertText = '"{{latest}}"';
-		proposal.kind = CompletionItemKind.Value;
-		proposal.documentation = 'The latest version of the package';
-		collector.add(proposal);
+		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
+			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
+			let proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
+			proposal.insertText = '"{{latest}}"';
+			proposal.kind = CompletionItemKind.Value;
+			proposal.documentation = 'The latest version of the package';
+			collector.add(proposal);
+		}
 		return Promise.resolve(null);
 	}
 
@@ -162,15 +164,17 @@ export class BowerJSONContribution implements IJSONContribution {
 
 	public getInfoContribution(resource: string, location: Location): Thenable<MarkedString[]> {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
-			let pack = location.segments[location.segments.length - 1];
-			let htmlContent : MarkedString[] = [];
-			htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
-			return this.getInfo(pack).then(documentation => {
-				if (documentation) {
-					htmlContent.push(documentation);
-				}
-				return htmlContent;
-			});
+			let pack = location.path[location.path.length - 1];
+			if (typeof pack === 'string') {
+				let htmlContent : MarkedString[] = [];
+				htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
+				return this.getInfo(pack).then(documentation => {
+					if (documentation) {
+						htmlContent.push(documentation);
+					}
+					return htmlContent;
+				});
+			}
 		}
 		return null;
 	}

@@ -610,7 +610,16 @@ export class VSCodeMenu {
 					}
 				}
 			}) : null,
-			env.product.privacyStatementUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => openUrl(env.product.privacyStatementUrl, 'openPrivacyStatement') }) : null,
+			env.product.privacyStatementUrl ? new MenuItem({
+				label: mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => {
+					if (platform.language) {
+						let queryArgChar = env.product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+						openUrl(`${env.product.privacyStatementUrl}${queryArgChar}lang=${platform.language}`, 'openPrivacyStatement');
+					} else {
+						openUrl(env.product.privacyStatementUrl, 'openPrivacyStatement');
+					}
+				}
+			}) : null,
 			(env.product.licenseUrl || env.product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
 		]).forEach((item) => helpMenu.append(item));

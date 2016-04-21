@@ -1,4 +1,7 @@
+package foo;
+
 import org.junit.Test;
+import org.junit.runners.*;
 
 /*
  * Multi line comment

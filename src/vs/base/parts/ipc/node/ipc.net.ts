@@ -5,11 +5,11 @@
 
 'use strict';
 
-import net = require('net');
+import { Socket, Server as NetServer, createConnection, createServer } from 'net';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
-import { Server as IPCServer, Client as IPCClient, IServiceCtor, IServiceMap, IMessagePassingProtocol, IClient } from 'vs/base/common/service';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { Server as IPCServer, Client as IPCClient, IMessagePassingProtocol, IServer, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 
 function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
 	while (start < buffer.length && buffer[start] !== value) {
@@ -24,7 +24,7 @@ class Protocol implements IMessagePassingProtocol {
 	private static Boundary = new Buffer([0]);
 	private buffer: Buffer;
 
-	constructor(private socket: net.Socket) {
+	constructor(private socket: Socket) {
 		this.buffer = null;
 	}
 
@@ -64,47 +64,47 @@ class Protocol implements IMessagePassingProtocol {
 	}
 }
 
-export class Server implements IDisposable {
+export class Server implements IServer, IDisposable {
 
-	private services: IServiceMap;
+	private channels: { [name: string]: IChannel };
 
-	constructor(private server: net.Server) {
-		this.services = Object.create(null);
+	constructor(private server: NetServer) {
+		this.channels = Object.create(null);
 
-		this.server.on('connection', (socket: net.Socket) => {
+		this.server.on('connection', (socket: Socket) => {
 			const ipcServer = new IPCServer(new Protocol(socket));
 
-			Object.keys(this.services)
-				.forEach(name => ipcServer.registerService(name, this.services[name]));
+			Object.keys(this.channels)
+				.forEach(name => ipcServer.registerChannel(name, this.channels[name]));
 
 			socket.once('close', () => ipcServer.dispose());
 		});
 	}
 
-	registerService<TService>(serviceName: string, service: TService) {
-		this.services[serviceName] = service;
+	registerChannel(channelName: string, channel: IChannel): void {
+		this.channels[channelName] = channel;
 	}
 
 	dispose(): void {
-		this.services = null;
+		this.channels = null;
 		this.server.close();
 		this.server = null;
 	}
 }
 
-export class Client implements IDisposable, IClient {
+export class Client implements IClient, IDisposable {
 
 	private ipcClient: IPCClient;
 	private _onClose = new Emitter<void>();
 	get onClose(): Event<void> { return this._onClose.event; }
 
-	constructor(private socket: net.Socket) {
+	constructor(private socket: Socket) {
 		this.ipcClient = new IPCClient(new Protocol(socket));
 		socket.once('close', () => this._onClose.fire());
 	}
 
-	getService<TService>(serviceName: string, serviceCtor: IServiceCtor<TService>): TService {
-		return this.ipcClient.getService(serviceName, serviceCtor);
+	getChannel<T extends IChannel>(channelName: string): T {
+		return this.ipcClient.getChannel(channelName) as T;
 	}
 
 	dispose(): void {
@@ -118,7 +118,7 @@ export function serve(port: number): TPromise<Server>;
 export function serve(namedPipe: string): TPromise<Server>;
 export function serve(hook: any): TPromise<Server> {
 	return new TPromise<Server>((c, e) => {
-		const server = net.createServer();
+		const server = createServer();
 
 		server.on('error', e);
 		server.listen(hook, () => {
@@ -132,7 +132,7 @@ export function connect(port: number): TPromise<Client>;
 export function connect(namedPipe: string): TPromise<Client>;
 export function connect(hook: any): TPromise<Client> {
 	return new TPromise<Client>((c, e) => {
-		const socket = net.createConnection(hook, () => {
+		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
 			c(new Client(socket));
 		});

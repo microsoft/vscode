@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import { tmpdir } from 'os';
 import * as path from 'path';
 import types = require('vs/base/common/types');
-import { ServiceEvent } from 'vs/base/common/service';
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { flatten } from 'vs/base/common/arrays';
@@ -92,16 +91,16 @@ export class ExtensionsService implements IExtensionsService {
 	private obsoleteFileLimiter: Limiter<void>;
 
 	private _onInstallExtension = new Emitter<IExtensionManifest>();
-	@ServiceEvent onInstallExtension: Event<IExtensionManifest> = this._onInstallExtension.event;
+	onInstallExtension: Event<IExtensionManifest> = this._onInstallExtension.event;
 
 	private _onDidInstallExtension = new Emitter<{ extension: IExtension; error?: Error; }>();
-	@ServiceEvent onDidInstallExtension: Event<{ extension: IExtension; error?: Error; }> = this._onDidInstallExtension.event;
+	onDidInstallExtension: Event<{ extension: IExtension; error?: Error; }> = this._onDidInstallExtension.event;
 
 	private _onUninstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onUninstallExtension: Event<IExtension> = this._onUninstallExtension.event;
+	onUninstallExtension: Event<IExtension> = this._onUninstallExtension.event;
 
 	private _onDidUninstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onDidUninstallExtension: Event<IExtension> = this._onDidUninstallExtension.event;
+	onDidUninstallExtension: Event<IExtension> = this._onDidUninstallExtension.event;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService

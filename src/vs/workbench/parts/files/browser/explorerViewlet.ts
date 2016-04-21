@@ -21,7 +21,6 @@ import {WorkingFilesView} from 'vs/workbench/parts/files/browser/views/workingFi
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {StructuredSelection} from 'vs/platform/selection/common/selection';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 export class ExplorerViewlet extends Viewlet {
@@ -161,10 +160,6 @@ export class ExplorerViewlet extends Viewlet {
 
 	public layout(dimension: Dimension): void {
 		this.splitView.layout(dimension.height);
-	}
-
-	public getSelection(): StructuredSelection {
-		return this.explorerView ? this.explorerView.getSelection() : this.workingFilesView.getSelection();
 	}
 
 	public getActionRunner(): IActionRunner {

@@ -117,44 +117,45 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any> {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
-			let currentKey = location.segments[location.segments.length - 1];
-			let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(currentKey) + '/latest';
+			let currentKey = location.path[location.path.length - 1];
+			if (typeof currentKey === 'string') {
+				let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(currentKey) + '/latest';
+				return this.xhr({
+					url : queryUrl
+				}).then((success) => {
+					try {
+						let obj = JSON.parse(success.responseText);
+						if (obj && obj.version) {
+							let version = obj.version;
+							let name = JSON.stringify(version);
+							let proposal = new CompletionItem(name);
+							proposal.kind = CompletionItemKind.Property;
+							proposal.insertText = name;
+							proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
+							result.add(proposal);
 
-			return this.xhr({
-				url : queryUrl
-			}).then((success) => {
-				try {
-					let obj = JSON.parse(success.responseText);
-					if (obj && obj.version) {
-						let version = obj.version;
-						let name = JSON.stringify(version);
-						let proposal = new CompletionItem(name);
-						proposal.kind = CompletionItemKind.Property;
-						proposal.insertText = name;
-						proposal.documentation = localize('json.npm.latestversion', 'The currently latest version of the package');
-						result.add(proposal);
+							name = JSON.stringify('^' + version);
+							proposal = new CompletionItem(name);
+							proposal.kind = CompletionItemKind.Property;
+							proposal.insertText = name;
+							proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
+							result.add(proposal);
 
-						name = JSON.stringify('^' + version);
-						proposal = new CompletionItem(name);
-						proposal.kind = CompletionItemKind.Property;
-						proposal.insertText = name;
-						proposal.documentation = localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)');
-						result.add(proposal);
-
-						name = JSON.stringify('~' + version);
-						proposal = new CompletionItem(name);
-						proposal.kind = CompletionItemKind.Property;
-						proposal.insertText = name;
-						proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
-						result.add(proposal);
+							name = JSON.stringify('~' + version);
+							proposal = new CompletionItem(name);
+							proposal.kind = CompletionItemKind.Property;
+							proposal.insertText = name;
+							proposal.documentation = localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)');
+							result.add(proposal);
+						}
+					} catch (e) {
+						// ignore
 					}
-				} catch (e) {
-					// ignore
-				}
-				return 0;
-			}, (error) => {
-				return 0;
-			});
+					return 0;
+				}, (error) => {
+					return 0;
+				});
+			}
 		}
 		return null;
 	}
@@ -204,16 +205,17 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[]> {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
-			let pack = location.segments[location.segments.length - 1];
-
-			let htmlContent : MarkedString[] = [];
-			htmlContent.push(localize('json.npm.package.hover', '{0}', pack));
-			return this.getInfo(pack).then(infos => {
-				infos.forEach(info => {
-					htmlContent.push(info);
+			let pack = location.path[location.path.length - 1];
+			if (typeof pack === 'string') {
+				let htmlContent : MarkedString[] = [];
+				htmlContent.push(localize('json.npm.package.hover', '{0}', pack));
+				return this.getInfo(pack).then(infos => {
+					infos.forEach(info => {
+						htmlContent.push(info);
+					});
+					return htmlContent;
 				});
-				return htmlContent;
-			});
+			}
 		}
 		return null;
 	}

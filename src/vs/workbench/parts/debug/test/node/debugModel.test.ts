@@ -7,9 +7,6 @@ import assert = require('assert');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { DebugService } from 'vs/workbench/parts/debug/electron-browser/debugService';
 import * as sinon from 'sinon';
 import { MockDebugService } from 'vs/workbench/parts/debug/test/common/mockDebugService';
 
@@ -177,10 +174,6 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.stopped, true);
 		assert.equal(thread2.getCachedCallStack(), undefined);
 
-		model.continueThreads();
-		assert.equal(thread1.stopped, false);
-		assert.equal(thread2.stopped, false);
-
 		model.clearThreads(true);
 		assert.equal(model.getThreads[threadId1], null);
 		assert.equal(model.getThreads[threadId2], null);
@@ -263,10 +256,6 @@ suite('Debug - Model', () => {
 		stoppedThread.clearCallStack();
 		assert.equal(stoppedThread.stopped, true);
 		assert.equal(stoppedThread.getCachedCallStack(), undefined);
-
-		model.continueThreads();
-		assert.equal(runningThread.stopped, false);
-		assert.equal(stoppedThread.stopped, false);
 
 		model.clearThreads(true);
 		assert.equal(model.getThreads[stoppedThreadId], null);

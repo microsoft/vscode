@@ -73,6 +73,44 @@ suite('JSON Schema', () => {
 		});
 
 	});
+	
+	test('Resolving $refs 2', function(testDone) {
+		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		service.setSchemaContributions({ schemas: {
+			"http://json.schemastore.org/swagger-2.0" : {
+				id: 'http://json.schemastore.org/swagger-2.0',
+				type: 'object',
+					properties: {
+						"responseValue": {
+							"$ref": "#/definitions/jsonReference"
+						}
+					},
+					definitions: {
+						"jsonReference": {
+							"type": "object",
+							"required": [ "$ref" ],
+							"properties": {
+								"$ref": {
+									"type": "string"
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+
+		service.getResolvedSchema('http://json.schemastore.org/swagger-2.0').then(fs => {
+			assert.deepEqual(fs.schema.properties['responseValue'], {
+				type: 'object',
+				required: [ "$ref" ],
+				properties: { $ref: { type: 'string' }}
+			});
+		}).then(() => testDone(), (error) => {
+			testDone(error);
+		});
+
+	});
 
 	test('FileSchema', function(testDone) {
 		var service = new SchemaService.JSONSchemaService(requestServiceMock);

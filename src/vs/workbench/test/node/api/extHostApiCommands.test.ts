@@ -25,6 +25,7 @@ import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/
 import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
 import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
+import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -95,6 +96,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 		threadService.getRemotable(MainThreadCommands);
 		commands = threadService.getRemotable(ExtHostCommands);
+		ExtHostTypeConverters.Command.initialize(commands);
+
 		registerApiCommands(threadService);
 		mainThread = threadService.getRemotable(MainThreadLanguageFeatures);
 		extHost = threadService.getRemotable(ExtHostLanguageFeatures);
@@ -314,28 +317,27 @@ suite('ExtHostLanguageFeatureCommands', function() {
 
 	// --- quickfix
 
-	test('QuickFix, back and forth', function(done) {
+	test('QuickFix, back and forth', function() {
 		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
 			provideCodeActions(): any {
 				return [{ command: 'testing', title: 'Title', arguments: [1, 2, true] }];
 			}
 		}));
 
-		threadService.sync().then(() => {
-			commands.executeCommand<vscode.Command[]>('vscode.executeCodeActionProvider', model.getAssociatedResource(), new types.Range(0, 0, 1, 1)).then(value => {
+		return threadService.sync().then(() => {
+			return commands.executeCommand<vscode.Command[]>('vscode.executeCodeActionProvider', model.getAssociatedResource(), new types.Range(0, 0, 1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.title, 'Title');
 				assert.equal(first.command, 'testing');
 				assert.deepEqual(first.arguments, [1, 2, true]);
-				done();
-			}, done);
+			});
 		});
 	});
 
 	// --- code lens
 
-	test('CodeLens, back and forth', function(done) {
+	test('CodeLens, back and forth', function() {
 
 		const complexArg = {
 			foo() { },
@@ -349,8 +351,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			}
 		}));
 
-		threadService.sync().then(() => {
-			commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.getAssociatedResource()).then(value => {
+		return threadService.sync().then(() => {
+			return commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.getAssociatedResource()).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 
@@ -359,8 +361,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				assert.equal(first.command.arguments[0], 1);
 				assert.equal(first.command.arguments[1], true);
 				assert.equal(first.command.arguments[2], complexArg);
-				done();
-			}, done);
+			});
 		});
 	});
 });

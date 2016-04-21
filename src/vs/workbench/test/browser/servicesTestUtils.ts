@@ -14,7 +14,6 @@ import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import Event from 'vs/base/common/event';
-import LifecycleService = require('vs/platform/lifecycle/common/baseLifecycleService');
 import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
 import http = require('vs/base/common/http');
@@ -173,8 +172,6 @@ export class TestPartService implements PartService.IPartService {
 export class TestEventService extends EventEmitter.EventEmitter implements IEventService {
 	public serviceId = IEventService;
 }
-
-export class TestLifecycleService extends LifecycleService.BaseLifecycleService { }
 
 export class TestStorageService extends EventEmitter.EventEmitter implements IStorageService {
 	public serviceId = IStorageService;
@@ -455,6 +452,10 @@ export const TestFileService = {
 
 export class TestConfigurationService extends EventEmitter.EventEmitter implements IConfigurationService {
 	public serviceId = IConfigurationService;
+
+	public loadConfiguration<T>(section?: string): TPromise<T> {
+		return TPromise.as(this.getConfiguration());
+	}
 
 	public getConfiguration(): any {
 		return {};

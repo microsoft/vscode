@@ -5,7 +5,6 @@
 
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IAction, IActionItem} from 'vs/base/common/actions';
-import {ISelection} from 'vs/platform/selection/common/selection';
 
 export interface IComposite {
 
@@ -38,11 +37,6 @@ export interface IComposite {
 	 * Returns the underlying control of this composite.
 	 */
 	getControl(): IEventEmitter;
-
-	/**
-	 * Returns the selection of this composite.
-	 */
-	getSelection(): ISelection;
 
 	/**
 	 * Asks the underlying control to focus.

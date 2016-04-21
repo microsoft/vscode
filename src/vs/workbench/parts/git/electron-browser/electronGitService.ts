@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { RawServiceState } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState } from 'vs/workbench/parts/git/common/git';
 import { NoOpGitService } from 'vs/workbench/parts/git/common/noopGitService';
 import { GitService } from 'vs/workbench/parts/git/browser/gitServices';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -15,8 +15,10 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Client } from 'vs/base/node/service.cp';
-import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node/rawGitService';
+import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { GitChannelClient, UnavailableGitChannel } from 'vs/workbench/parts/git/common/gitIpc';
+import { RawGitService } from 'vs/workbench/parts/git/node/rawGitService';
 import URI from 'vs/base/common/uri';
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
@@ -112,6 +114,10 @@ class UnavailableRawGitService extends RawGitService {
 	constructor() {
 		super(null);
 	}
+
+	serviceState(): TPromise<RawServiceState> {
+		return TPromise.as(RawServiceState.GitNotFound);
+	}
 }
 
 class DisabledRawGitService extends RawGitService {
@@ -119,44 +125,8 @@ class DisabledRawGitService extends RawGitService {
 		super(null);
 	}
 
-	public serviceState(): TPromise<RawServiceState> {
-		return TPromise.as<RawServiceState>(RawServiceState.Disabled);
-	}
-}
-
-function createNativeRawGitService(workspaceRoot: string, path: string, defaultEncoding: string): TPromise<RawGitService> {
-	return findGit(path).then(({ path, version }) => {
-		const client = new Client(
-			URI.parse(require.toUrl('bootstrap')).fsPath,
-			{
-				serverName: 'Git',
-				timeout: 1000 * 60,
-				args: [path, workspaceRoot, defaultEncoding, remote.process.execPath, version],
-				env: {
-					ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
-					AMD_ENTRYPOINT: 'vs/workbench/parts/git/electron-browser/gitApp'
-				}
-			}
-		);
-
-		return client.getService('GitService', RawGitService);
-	}, () => new UnavailableRawGitService());
-}
-
-class ElectronRawGitService extends DelayedRawGitService {
-	constructor(workspaceRoot: string, @IConfigurationService configurationService: IConfigurationService) {
-		super(TPromise.as(configurationService.getConfiguration<any>()).then(conf => {
-			var enabled = conf.git ? conf.git.enabled : true;
-
-			if (!enabled) {
-				return TPromise.as(new DisabledRawGitService());
-			}
-
-			var gitPath = (conf.git && conf.git.path) || null;
-			var encoding = (conf.files && conf.files.encoding) || 'utf8';
-
-			return createNativeRawGitService(workspaceRoot, gitPath, encoding);
-		}));
+	serviceState(): TPromise<RawServiceState> {
+		return TPromise.as(RawServiceState.Disabled);
 	}
 }
 
@@ -169,12 +139,47 @@ export class ElectronGitService extends GitService {
 		@IOutputService outputService: IOutputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		let workspace = contextService.getWorkspace();
-		let raw = !workspace
-			? new NoOpGitService()
-			: instantiationService.createInstance(ElectronRawGitService, workspace.resource.fsPath);
+		const conf = configurationService.getConfiguration<any>();
+		const enabled = conf.git ? conf.git.enabled : true;
+		const workspace = contextService.getWorkspace();
+
+		let raw: IRawGitService;
+
+		if (!enabled) {
+			raw = new DisabledRawGitService();
+		} else if (!workspace) {
+			raw = new NoOpGitService();
+		} else {
+			const gitPath = (conf.git && conf.git.path) || null;
+			const encoding = (conf.files && conf.files.encoding) || 'utf8';
+			const workspaceRoot = workspace.resource.fsPath;
+
+			const promise = findGit(gitPath)
+				.then(({ path, version }) => {
+					const client = new Client(
+						URI.parse(require.toUrl('bootstrap')).fsPath,
+						{
+							serverName: 'Git',
+							timeout: 1000 * 60,
+							args: [path, workspaceRoot, encoding, remote.process.execPath, version],
+							env: {
+								ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+								PIPE_LOGGING: 'true',
+								AMD_ENTRYPOINT: 'vs/workbench/parts/git/node/gitApp'
+							}
+						}
+					);
+
+					return client.getChannel('git');
+				})
+				.then(null, () => new UnavailableGitChannel());
+
+			const channel = getDelayedChannel(promise);
+			raw = new GitChannelClient(channel);
+		}
 
 		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService, storageService);
 	}

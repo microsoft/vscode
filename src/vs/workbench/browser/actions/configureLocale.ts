@@ -20,6 +20,10 @@ import { IEditor } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+
+
 
 class ConfigureLocaleAction extends Action {
 	public static ID = 'workbench.action.configureLocale';
@@ -64,3 +68,26 @@ class ConfigureLocaleAction extends Action {
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), ['configure', 'language', 'locale', 'nls', 'i18n']);
+
+let schemaId = 'vscode://schemas/locale';
+// Keep en-US since we generated files with that content.
+let schema : IJSONSchema =
+{
+	id: schemaId,
+	description: 'Locale Definition file',
+	type: 'object',
+	default: {
+		'locale': 'en'
+	},
+	required: ['locale'],
+	properties: {
+		locale: {
+			type: 'string',
+			enum: ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-tw'],
+			description: nls.localize('JsonSchema.locale', 'The UI Language to use.')
+		}
+	}
+};
+
+let jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
+jsonRegistry.registerSchema(schemaId, schema);

@@ -23,6 +23,7 @@ import {ExtHostMessageService} from 'vs/workbench/api/node/extHostMessageService
 import {ExtHostEditors} from 'vs/workbench/api/node/extHostEditors';
 import {ExtHostLanguages} from 'vs/workbench/api/node/extHostLanguages';
 import {ExtHostLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
+import * as ExtHostTypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import Modes = require('vs/editor/common/modes');
@@ -147,6 +148,10 @@ export class ExtHostAPIImplementation {
 		const extHostQuickOpen = this._threadService.getRemotable(ExtHostQuickOpen);
 		const extHostStatusBar = new ExtHostStatusBar(this._threadService);
 		const extHostOutputService = new ExtHostOutputService(this._threadService);
+
+		// the converter might create delegate commands to avoid sending args
+		// around all the time
+		ExtHostTypeConverters.Command.initialize(extHostCommands);
 
 		// env namespace
 		let telemetryInfo: ITelemetryInfo;
