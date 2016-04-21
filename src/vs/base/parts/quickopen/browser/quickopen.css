@@ -75,6 +75,7 @@
 
 .quick-open-widget .quick-open-tree .quick-open-entry-meta {
 	opacity: 0.7;
+	line-height: normal;
 }
 
 .quick-open-widget .quick-open-tree .quick-open-entry-description {
