@@ -453,6 +453,10 @@ export const TestFileService = {
 export class TestConfigurationService extends EventEmitter.EventEmitter implements IConfigurationService {
 	public serviceId = IConfigurationService;
 
+	public loadConfiguration<T>(section?: string): TPromise<T> {
+		return TPromise.as(this.getConfiguration());
+	}
+
 	public getConfiguration(): any {
 		return {};
 	}

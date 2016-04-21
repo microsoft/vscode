@@ -753,44 +753,46 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskRunResult): TPromise<ITaskSummary> {
-		return this.textFileService.saveAll().then((value) => {
-			return this.taskSystemPromise.
-				then((taskSystem) => {
-					return taskSystem.isActive().then((active) => {
-						if (!active) {
-							return fn(taskSystem);
-						} else {
-							throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
-						}
-					});
-				}).
-				then((runResult: ITaskRunResult) => {
-					if (runResult.restartOnFileChanges) {
-						let pattern = runResult.restartOnFileChanges;
-						this.fileChangesListener = this.eventService.addListener(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
-							let needsRestart = event.changes.some((change) => {
-								return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
-							});
-							if (needsRestart) {
-								this.terminate().done(() => {
-									// We need to give the child process a change to stop.
-									setTimeout(() => {
-										this.executeTarget(fn);
-									}, 2000);
-								});
+		return this.textFileService.saveAll().then((value) => { 				// make sure all dirty files are saved
+			return this.configurationService.loadConfiguration().then(() => { 	// make sure configuration is up to date
+				return this.taskSystemPromise.
+					then((taskSystem) => {
+						return taskSystem.isActive().then((active) => {
+							if (!active) {
+								return fn(taskSystem);
+							} else {
+								throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 							}
 						});
-					}
-					return runResult.promise.then((value) => {
-						if (this.clearTaskSystemPromise) {
-							this._taskSystemPromise = null;
-							this.clearTaskSystemPromise = false;
+					}).
+					then((runResult: ITaskRunResult) => {
+						if (runResult.restartOnFileChanges) {
+							let pattern = runResult.restartOnFileChanges;
+							this.fileChangesListener = this.eventService.addListener(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+								let needsRestart = event.changes.some((change) => {
+									return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
+								});
+								if (needsRestart) {
+									this.terminate().done(() => {
+										// We need to give the child process a change to stop.
+										setTimeout(() => {
+											this.executeTarget(fn);
+										}, 2000);
+									});
+								}
+							});
 						}
-						return value;
+						return runResult.promise.then((value) => {
+							if (this.clearTaskSystemPromise) {
+								this._taskSystemPromise = null;
+								this.clearTaskSystemPromise = false;
+							}
+							return value;
+						});
+					}, (err: any) => {
+						this.handleError(err);
 					});
-				}, (err: any) => {
-					this.handleError(err);
-				});
+			});
 		});
 	}
 

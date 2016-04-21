@@ -111,12 +111,14 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	public collectValueSuggestions(resource: string, location: Location, collector: ISuggestionsCollector): Thenable<any> {
-		// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
-		let proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
-		proposal.insertText = '"{{latest}}"';
-		proposal.kind = CompletionItemKind.Value;
-		proposal.documentation = 'The latest version of the package';
-		collector.add(proposal);
+		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
+			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
+			let proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
+			proposal.insertText = '"{{latest}}"';
+			proposal.kind = CompletionItemKind.Value;
+			proposal.documentation = 'The latest version of the package';
+			collector.add(proposal);
+		}
 		return Promise.resolve(null);
 	}
 

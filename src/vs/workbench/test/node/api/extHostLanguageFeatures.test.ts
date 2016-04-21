@@ -638,7 +638,7 @@ suite('ExtHostLanguageFeatures', function() {
 		});
 	});
 
-	test('Quick Fix, invoke command+args', function(done) {
+	test('Quick Fix, invoke command+args', function() {
 		let actualArgs: any;
 		let commands = threadService.getRemotable(ExtHostCommands);
 		disposables.push(commands.registerCommand('test1', function(...args: any[]) {
@@ -651,8 +651,8 @@ suite('ExtHostLanguageFeatures', function() {
 			}
 		}));
 
-		threadService.sync().then(() => {
-			getQuickFixes(model, model.getFullModelRange()).then(value => {
+		return threadService.sync().then(() => {
+			return getQuickFixes(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 1);
 
 				let [entry] = value;
@@ -664,7 +664,6 @@ suite('ExtHostLanguageFeatures', function() {
 					assert.equal(actualArgs[1], 1);
 					assert.deepEqual(actualArgs[2], { bar: 'boo', foo: 'far' });
 					assert.equal(actualArgs[3], null);
-					done();
 				});
 			});
 		});

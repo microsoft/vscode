@@ -267,6 +267,13 @@
 			"settings": {
 				"foreground": "#09885a"
 			}
+		},
+		{
+			"name": "coloring of the Java import and package identifiers",
+			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
+			"settings": {
+				"foreground": "#000000"
+			}
 		}
 	]
 }

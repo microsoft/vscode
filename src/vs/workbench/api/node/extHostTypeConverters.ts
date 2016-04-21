@@ -494,10 +494,23 @@ export namespace SignatureHelp {
 
 export namespace Command {
 
+	const _delegateId = '_internal_delegate_command';
 	const _cache: { [id: string]: vscode.Command } = Object.create(null);
 	let _idPool = 1;
 
-	export function from(command: vscode.Command, context: { commands: ExtHostCommands; disposables: IDisposable[]; }): modes.ICommand {
+	export function initialize(commands: ExtHostCommands) {
+		return commands.registerCommand(_delegateId, (args: [string]) => {
+			const [id] = args;
+			const command = _cache[id];
+			if (!command) {
+				// handle already disposed delegations graceful
+				return;
+			}
+			return commands.executeCommand(command.command, ...command.arguments);
+		});
+	}
+
+	export function from(command: vscode.Command, disposables: IDisposable[]): modes.ICommand {
 
 		if (!command) {
 			return;
@@ -510,22 +523,29 @@ export namespace Command {
 
 		if (!isFalsyOrEmpty(command.arguments)) {
 
-			// keep command around
-			const id = `${command.command}-no-args-wrapper-${_idPool++}`;
-			result.id = id;
+			// redirect to delegate command and store actual command
+			const id = `delegate/${_idPool++}/for/${command.command}`;
+
+			result.id = _delegateId;
+			result.arguments = [id];
 			_cache[id] = command;
 
-			const disposable1 = context.commands.registerCommand(id, () => context.commands.executeCommand(command.command, ..._cache[id].arguments));
-			const disposable2 = { dispose() { delete _cache[id]; } };
-			context.disposables.push(disposable1, disposable2);
+			disposables.push({
+				dispose() {
+					delete _cache[id];
+				}
+			});
 		}
 
 		return result;
 	}
 
 	export function to(command: modes.ICommand): vscode.Command {
-
-		let result = _cache[command.id];
+		let result: vscode.Command;
+		if (command.id === _delegateId) {
+			let [key] = command.arguments;
+			result = _cache[key];
+		}
 		if (!result) {
 			result = {
 				command: command.id,

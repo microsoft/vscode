@@ -523,7 +523,8 @@ export abstract class BaseGlobalNewAction extends Action {
 		id: string,
 		label: string,
 		@IViewletService private viewletService: IViewletService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}
@@ -535,6 +536,11 @@ export abstract class BaseGlobalNewAction extends Action {
 
 				let explorer = <ExplorerViewlet>viewlet;
 				let explorerView = explorer.getExplorerView();
+
+				// Not having a folder opened
+				if (!explorerView) {
+					return this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create files or folders within."));
+				}
 
 				if (!explorerView.isExpanded()) {
 					explorerView.expand();
@@ -560,9 +566,9 @@ export abstract class BaseGlobalNewAction extends Action {
 }
 
 /* Create new file from anywhere: Open untitled */
-export class GlobalNewFileAction extends Action {
+export class GlobalNewUntitledFileAction extends Action {
 	public static ID = 'workbench.action.files.newUntitledFile';
-	public static LABEL = nls.localize('newFile', "New File");
+	public static LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 	constructor(
 		id: string,
@@ -582,6 +588,16 @@ export class GlobalNewFileAction extends Action {
 		this.textFileService.getWorkingFilesModel().addEntry(input.getResource());
 
 		return this.editorService.openEditor(input);
+	}
+}
+
+/* Create new file from anywhere */
+export class GlobalNewFileAction extends BaseGlobalNewAction {
+	public static ID = 'workbench.action.files.newFile';
+	public static LABEL = nls.localize('newFile', "New File");
+
+	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
+		return NewFileAction;
 	}
 }
 
@@ -2337,7 +2353,7 @@ export class ShowActiveFileInExplorer extends Action {
 
 export function keybindingForAction(id: string): Keybinding {
 	switch (id) {
-		case GlobalNewFileAction.ID:
+		case GlobalNewUntitledFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
 		case TriggerRenameFileAction.ID:
 			return new Keybinding(isMacintosh ? KeyCode.Enter : KeyCode.F2);

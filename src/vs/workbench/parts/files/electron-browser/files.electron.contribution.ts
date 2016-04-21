@@ -14,7 +14,7 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import env = require('vs/base/common/platform');
 import {ITextFileService, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
-import {GlobalNewFileAction, SaveFileAsAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {GlobalNewUntitledFileAction, SaveFileAsAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {FileTracker} from 'vs/workbench/parts/files/electron-browser/electronFileTracker';
 import {TextFileService} from 'vs/workbench/parts/files/electron-browser/textFileServices';
 import {OpenFolderAction, OPEN_FOLDER_ID, OPEN_FOLDER_LABEL, OpenFileAction, OPEN_FILE_ID, OPEN_FILE_LABEL, OpenFileFolderAction, OPEN_FILE_FOLDER_ID, OPEN_FILE_FOLDER_LABEL, ShowOpenedFileInNewWindow, GlobalRevealInOSAction, GlobalCopyPathAction, CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
@@ -57,7 +57,7 @@ const category = nls.localize('filesCategory', "Files");
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }), category, ['save', 'as']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewFileAction, GlobalNewFileAction.ID, GlobalNewFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), category, ['new', 'file']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewUntitledFileAction, GlobalNewUntitledFileAction.ID, GlobalNewUntitledFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), category, ['new', 'untitled', 'file']);
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalCopyPathAction, GlobalCopyPathAction.ID, GlobalCopyPathAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P) }), category, ['copy', 'path']);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRevealInOSAction, GlobalRevealInOSAction.ID, GlobalRevealInOSAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R) }), category, ['reveal', 'file']);
