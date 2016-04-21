@@ -562,7 +562,7 @@ export abstract class BaseGlobalNewAction extends Action {
 /* Create new file from anywhere: Open untitled */
 export class GlobalNewUntitledFileAction extends Action {
 	public static ID = 'workbench.action.files.newUntitledFile';
-	public static LABEL = nls.localize('newFile', "New File");
+	public static LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 	constructor(
 		id: string,
