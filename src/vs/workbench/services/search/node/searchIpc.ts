@@ -12,17 +12,17 @@ import { IRawSearchService, IRawSearch, ISerializedSearchComplete, ISerializedSe
 export interface ISearchChannel extends IChannel {
 	call(command: 'fileSearch', search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
 	call(command: 'textSearch', search: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>;
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: string, arg: any): TPromise<any>;
 }
 
 export class SearchChannel implements ISearchChannel {
 
 	constructor(private service: IRawSearchService) { }
 
-	call(command: string, ...args: any[]): TPromise<any> {
+	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
-			case 'fileSearch': return this.service.fileSearch(args[0]);
-			case 'textSearch': return this.service.textSearch(args[0]);
+			case 'fileSearch': return this.service.fileSearch(arg);
+			case 'textSearch': return this.service.textSearch(arg);
 		}
 	}
 }

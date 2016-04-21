@@ -72,15 +72,15 @@ export class Client implements IClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command, args) => this.request(channelName, command, ...args);
+		const call = (command, arg) => this.request(channelName, command, arg);
 		return { call } as T;
 	}
 
-	protected request(channelName: string, name: string, ...args: any[]): Promise {
+	protected request(channelName: string, name: string, arg: any): Promise {
 		this.disposeDelayer.cancel();
 
 		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
-		const request: Promise = channel.call(name, args);
+		const request: Promise = channel.call(name, arg);
 
 		// Progress doesn't propagate across 'then', we need to create a promise wrapper
 		const result = new Promise((c, e, p) => {

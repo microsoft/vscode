@@ -11,16 +11,16 @@ import { IWatcherRequest, IWatcherService } from './watcher';
 
 export interface IWatcherChannel extends IChannel {
 	call(command: 'watch', request: IWatcherRequest): TPromise<void>;
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: string, arg: any): TPromise<any>;
 }
 
 export class WatcherChannel implements IWatcherChannel {
 
 	constructor(private service: IWatcherService) { }
 
-	call(command: string, ...args: any[]): TPromise<any> {
+	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
-			case 'watch': return this.service.watch(args[0]);
+			case 'watch': return this.service.watch(arg);
 		}
 	}
 }

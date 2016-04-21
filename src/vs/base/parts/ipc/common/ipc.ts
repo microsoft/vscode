@@ -19,7 +19,7 @@ interface IRawRequest {
 	type: RequestType;
 	channelName?: string;
 	name?: string;
-	args?: any[];
+	arg?: any;
 }
 
 interface IRequest {
@@ -57,7 +57,7 @@ enum State {
 }
 
 export interface IChannel {
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: string, arg: any): TPromise<any>;
 }
 
 export interface IServer {
@@ -101,7 +101,7 @@ export class Server {
 		let promise: Promise;
 
 		try {
-			promise = channel.call(request.name, ...request.args);
+			promise = channel.call(request.name, request.arg);
 		} catch (err) {
 			promise = Promise.wrapError(err);
 		}
@@ -164,18 +164,18 @@ export class Client implements IClient {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command, ...args) => this.request(channelName, command, ...args);
+		const call = (command, arg) => this.request(channelName, command, arg);
 		return { call } as T;
 	}
 
-	protected request(channelName: string, name: string, ...args: any[]): Promise {
+	private request(channelName: string, name: string, arg: any): Promise {
 		const request = {
 			raw: {
 				id: this.lastRequestId++,
 				type: RequestType.Common,
 				channelName,
 				name,
-				args
+				arg
 			}
 		};
 
@@ -277,7 +277,7 @@ export class Client implements IClient {
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: TPromise<IChannel>): T {
-	const call = (command, ...args) => promise.then(c => c.call(command, ...args));
+	const call = (command, arg) => promise.then(c => c.call(command, arg));
 	return { call } as T;
 }
 
@@ -295,7 +295,7 @@ export function eventFromCall<T>(channel: IChannel, name: string): Event<T> {
 
 	const emitter = new Emitter<any>({
 		onFirstListenerAdd: () => {
-			promise = channel.call(name).then(null, err => null, e => emitter.fire(e));
+			promise = channel.call(name, null).then(null, err => null, e => emitter.fire(e));
 		},
 		onLastListenerRemove: () => {
 			promise.cancel();

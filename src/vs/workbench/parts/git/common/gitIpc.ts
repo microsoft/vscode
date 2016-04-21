@@ -15,45 +15,45 @@ export interface IGitChannel extends IChannel {
 	call(command: 'status'): TPromise<IRawStatus>;
 	call(command: 'init'): TPromise<IRawStatus>;
 	call(command: 'add', filesPaths?: string[]): TPromise<IRawStatus>;
-	call(command: 'stage', filePath: string, content: string): TPromise<IRawStatus>;
-	call(command: 'branch', name: string, checkout?: boolean): TPromise<IRawStatus>;
-	call(command: 'checkout', treeish?: string, filePaths?: string[]): TPromise<IRawStatus>;
+	call(command: 'stage', args: [string, string]): TPromise<IRawStatus>;
+	call(command: 'branch', args: [string, boolean]): TPromise<IRawStatus>;
+	call(command: 'checkout', args: [string, string[]]): TPromise<IRawStatus>;
 	call(command: 'clean', filePaths: string[]): TPromise<IRawStatus>;
 	call(command: 'undo'): TPromise<IRawStatus>;
-	call(command: 'reset', treeish:string, hard?: boolean): TPromise<IRawStatus>;
-	call(command: 'revertFiles', treeish:string, filePaths?: string[]): TPromise<IRawStatus>;
+	call(command: 'reset', args: [string, boolean]): TPromise<IRawStatus>;
+	call(command: 'revertFiles', args: [string, string[]]): TPromise<IRawStatus>;
 	call(command: 'fetch'): TPromise<IRawStatus>;
 	call(command: 'pull', rebase?: boolean): TPromise<IRawStatus>;
-	call(command: 'push', remote?: string, name?: string, options?: IPushOptions): TPromise<IRawStatus>;
+	call(command: 'push', args: [string, string, IPushOptions]): TPromise<IRawStatus>;
 	call(command: 'sync'): TPromise<IRawStatus>;
-	call(command: 'commit', message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
-	call(command: 'detectMimetypes', path: string, treeish?: string): TPromise<string[]>;
-	call(command: 'show', path: string, treeish?: string): TPromise<string>;
+	call(command: 'commit', args: [string, boolean, boolean]): TPromise<IRawStatus>;
+	call(command: 'detectMimetypes', args: [string, string]): TPromise<string[]>;
+	call(command: 'show', args: [string, string]): TPromise<string>;
 	call(command: 'onOutput'): TPromise<void>;
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: string, args: any): TPromise<any>;
 }
 
 export class GitChannel implements IGitChannel {
 
 	constructor(private service: TPromise<IRawGitService>) { }
 
-	call(command: string, ...args: any[]): TPromise<any> {
+	call(command: string, args: any): TPromise<any> {
 		switch (command) {
 			case 'getVersion': return this.service.then(s => s.getVersion());
 			case 'serviceState': return this.service.then(s => s.serviceState());
 			case 'status': return this.service.then(s => s.status());
 			case 'status': return this.service.then(s => s.status());
 			case 'init': return this.service.then(s => s.init());
-			case 'add': return this.service.then(s => s.add(args[0]));
+			case 'add': return this.service.then(s => s.add(args));
 			case 'stage': return this.service.then(s => s.stage(args[0], args[1]));
 			case 'branch': return this.service.then(s => s.branch(args[0], args[1]));
 			case 'checkout': return this.service.then(s => s.checkout(args[0], args[1]));
-			case 'clean': return this.service.then(s => s.clean(args[0]));
+			case 'clean': return this.service.then(s => s.clean(args));
 			case 'undo': return this.service.then(s => s.undo());
 			case 'reset': return this.service.then(s => s.reset(args[0], args[1]));
 			case 'revertFiles': return this.service.then(s => s.revertFiles(args[0], args[1]));
 			case 'fetch': return this.service.then(s => s.fetch());
-			case 'pull': return this.service.then(s => s.pull(args[0]));
+			case 'pull': return this.service.then(s => s.pull(args));
 			case 'push': return this.service.then(s => s.push(args[0], args[1], args[2]));
 			case 'sync': return this.service.then(s => s.sync());
 			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2]));
@@ -99,15 +99,15 @@ export class GitChannelClient implements IRawGitService {
 	}
 
 	stage(filePath: string, content: string): TPromise<IRawStatus> {
-		return this.channel.call('stage', filePath, content);
+		return this.channel.call('stage', [filePath, content]);
 	}
 
 	branch(name: string, checkout?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('branch', name, checkout);
+		return this.channel.call('branch', [name, checkout]);
 	}
 
 	checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus> {
-		return this.channel.call('checkout', treeish, filePaths);
+		return this.channel.call('checkout', [treeish, filePaths]);
 	}
 
 	clean(filePaths: string[]): TPromise<IRawStatus> {
@@ -119,11 +119,11 @@ export class GitChannelClient implements IRawGitService {
 	}
 
 	reset(treeish:string, hard?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('reset', treeish, hard);
+		return this.channel.call('reset', [treeish, hard]);
 	}
 
 	revertFiles(treeish:string, filePaths?: string[]): TPromise<IRawStatus> {
-		return this.channel.call('revertFiles', treeish, filePaths);
+		return this.channel.call('revertFiles', [treeish, filePaths]);
 	}
 
 	fetch(): TPromise<IRawStatus> {
@@ -135,7 +135,7 @@ export class GitChannelClient implements IRawGitService {
 	}
 
 	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus> {
-		return this.channel.call('push', remote, name, options);
+		return this.channel.call('push', [remote, name, options]);
 	}
 
 	sync(): TPromise<IRawStatus> {
@@ -143,15 +143,15 @@ export class GitChannelClient implements IRawGitService {
 	}
 
 	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
-		return this.channel.call('commit', message, amend, stage);
+		return this.channel.call('commit', [message, amend, stage]);
 	}
 
 	detectMimetypes(path: string, treeish?: string): TPromise<string[]> {
-		return this.channel.call('detectMimetypes', path, treeish);
+		return this.channel.call('detectMimetypes', [path, treeish]);
 	}
 
 	show(path: string, treeish?: string): TPromise<string> {
-		return this.channel.call('show', path, treeish);
+		return this.channel.call('show', [path, treeish]);
 	}
 
 	onOutput(): TPromise<void> {

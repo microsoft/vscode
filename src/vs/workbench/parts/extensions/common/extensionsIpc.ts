@@ -15,26 +15,25 @@ export interface IExtensionsChannel extends IChannel {
 	call(command: 'event:onDidInstallExtension'): TPromise<void>;
 	call(command: 'event:onUninstallExtension'): TPromise<void>;
 	call(command: 'event:onDidUninstallExtension'): TPromise<void>;
-	call(command: 'install', extension: IExtension): TPromise<IExtension>;
-	call(command: 'install', zipPath: string): TPromise<IExtension>;
+	call(command: 'install', extensionOrPath: IExtension | string): TPromise<IExtension>;
 	call(command: 'uninstall', extension: IExtension): TPromise<void>;
-	call(command: 'getInstalled', includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
-	call(command: string, ...args: any[]): TPromise<any>;
+	call(command: 'getInstalled', includeDuplicateVersions: boolean): TPromise<IExtension[]>;
+	call(command: string, arg: any): TPromise<any>;
 }
 
 export class ExtensionsChannel implements IExtensionsChannel {
 
 	constructor(private service: IExtensionsService) { }
 
-	call(command: string, ...args: any[]): TPromise<any> {
+	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
 			case 'event:onInstallExtension': return eventToCall(this.service.onInstallExtension);
 			case 'event:onDidInstallExtension': return eventToCall(this.service.onDidInstallExtension);
 			case 'event:onUninstallExtension': return eventToCall(this.service.onUninstallExtension);
 			case 'event:onDidUninstallExtension': return eventToCall(this.service.onDidUninstallExtension);
-			case 'install': return this.service.install(args[0]);
-			case 'uninstall': return this.service.uninstall(args[0]);
-			case 'getInstalled': return this.service.getInstalled(args[0]);
+			case 'install': return this.service.install(arg);
+			case 'uninstall': return this.service.uninstall(arg);
+			case 'getInstalled': return this.service.getInstalled(arg);
 		}
 	}
 }
