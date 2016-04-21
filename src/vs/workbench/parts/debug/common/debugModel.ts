@@ -720,22 +720,21 @@ export class Model implements debug.IModel {
 		if (data.stoppedDetails) {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
-			for (let ref in this.threads) {
-				if (this.threads.hasOwnProperty(ref)) {
-					if (data.allThreadsStopped) {
-						// Only update the details if all the threads are stopped
-						// because we don't want to overwrite the details of other
-						// threads that have stopped for a different reason
-						this.threads[ref].stoppedDetails = data.stoppedDetails;
-					}
-
-					this.threads[ref].stopped = data.allThreadsStopped;
+			if (data.allThreadsStopped) {
+				Object.keys(this.threads).forEach(ref => {
+					// Only update the details if all the threads are stopped
+					// because we don't want to overwrite the details of other
+					// threads that have stopped for a different reason
+					this.threads[ref].stoppedDetails = data.stoppedDetails;
+					this.threads[ref].stopped = true;
 					this.threads[ref].clearCallStack();
-				}
+				});
+			} else {
+				// One thread is stopped, only update that thread.
+				this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
+				this.threads[data.threadId].clearCallStack();
+				this.threads[data.threadId].stopped = true;
 			}
-
-			this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
-			this.threads[data.threadId].stopped = true;
 		}
 
 		this._onDidChangeCallStack.fire();
