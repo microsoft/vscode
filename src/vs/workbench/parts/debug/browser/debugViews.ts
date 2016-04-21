@@ -239,7 +239,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 				const stackFrame = <debug.IStackFrame> element;
 				this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
 
-				const isMouse = (e.payload.origin === 'mouse');
+				const isMouse = (e.payload && e.payload.origin === 'mouse');
 				let preserveFocus = isMouse;
 
 				const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;

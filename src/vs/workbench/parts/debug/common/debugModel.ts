@@ -433,7 +433,7 @@ export class Model implements debug.IModel {
 			this.threads[reference].stoppedDetails = undefined;
 
 			if (removeThreads) {
-				this.threads[reference] = null;
+				delete this.threads[reference];
 			}
 		} else {
 			Object.keys(this.threads).forEach(ref => {
