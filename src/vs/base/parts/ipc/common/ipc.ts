@@ -164,7 +164,7 @@ export class Client implements IClient {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command, args) => this.request(channelName, command, ...args);
+		const call = (command, ...args) => this.request(channelName, command, ...args);
 		return { call } as T;
 	}
 
@@ -277,7 +277,7 @@ export class Client implements IClient {
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: TPromise<IChannel>): T {
-	const call = (command, args) => promise.then(c => c.call(command, ...args));
+	const call = (command, ...args) => promise.then(c => c.call(command, ...args));
 	return { call } as T;
 }
 
