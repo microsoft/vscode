@@ -266,9 +266,9 @@ export class DebugService implements debug.IDebugService {
 			}, errors.onUnexpectedError);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidContinue(() => {
+		this.toDisposeOnSessionEnd.push(this.session.onDidContinue(threadID => {
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-			this.model.clearThreads(false, this.viewModel.getFocusedThreadId());
+			this.model.clearThreads(false, threadID);
 			this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
 			this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}));

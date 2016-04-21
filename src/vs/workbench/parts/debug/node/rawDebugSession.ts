@@ -41,8 +41,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	public restarted: boolean;
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
-	private flowEventsCount: number;
 
+	private lastThreadId: number;
+	private flowEventsCount: number;
 	private serverProcess: cp.ChildProcess;
 	private socket: net.Socket = null;
 	private cachedInitServer: TPromise<void>;
@@ -56,7 +57,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
 	private _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
 	private _onDidExitAdapter: Emitter<SessionExitedEvent>;
-	private _onDidContinue: Emitter<void>;
+	private _onDidContinue: Emitter<number>;
 	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
@@ -79,7 +80,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
 		this._onDidExitAdapter = new Emitter<SessionExitedEvent>();
-		this._onDidContinue = new Emitter<void>();
+		this._onDidContinue = new Emitter<number>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
@@ -102,7 +103,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		return this._onDidExitAdapter.event;
 	}
 
-	public get onDidContinue(): Event<void> {
+	public get onDidContinue(): Event<number> {
 		return this._onDidContinue.event;
 	}
 
@@ -198,7 +199,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		} else if (event.event === 'continued') {
 			// TODO@Isidor continued event needs to come from the adapter
 			this.flowEventsCount++;
-			this._onDidContinue.fire();
+			this._onDidContinue.fire(this.lastThreadId);
 		}
 
 		this._onDidEvent.fire(event);
@@ -250,6 +251,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	// we do not emit straight away to reduce viewlet flickering.
 	private sendAndLazyContinue(command: string, args: any): TPromise<DebugProtocol.Response> {
 		const count = this.flowEventsCount;
+		this.lastThreadId = args.threadId;
 		return this.send(command, args).then(response => {
 			setTimeout(() => {
 				if (this.flowEventsCount === count) {
