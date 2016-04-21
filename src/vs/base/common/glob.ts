@@ -288,7 +288,9 @@ export function match(arg1: string | IExpression, path: string, siblings?: strin
 
 		// common pattern: **/some.txt just need basename check
 		if (testWithCache(arg1, trivia2, T2_CACHE)) {
-			return paths.basename(path) === arg1.substr(3); // '**/'.length === 3
+			const base = arg1.substr(3); // '**/'.length === 3
+
+			return path === base || strings.endsWith(path, `/${base}`) || strings.endsWith(path, `\\${base}`);
 		}
 
 		// repetition of common patterns (see above) {**/*.txt,**/*.png}
