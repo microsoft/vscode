@@ -141,7 +141,7 @@ export class Thread implements debug.IThread {
 	private getCallStackImpl(debugService: debug.IDebugService, startFrame: number): TPromise<debug.IStackFrame[]> {
 		let session = debugService.getActiveSession();
 		return session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
-			this.stoppedDetails.totalFrames = response.body.totalFrames || response.body.stackFrames.length;
+			this.stoppedDetails.totalFrames = response.body.totalFrames;
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
 					return new StackFrame(this.threadId, 0, new Source({ name: 'unknown' }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
@@ -429,23 +429,21 @@ export class Model implements debug.IModel {
 
 	public clearThreads(removeThreads: boolean, reference: number = undefined): void {
 		if (reference) {
+			this.threads[reference].clearCallStack();
+			this.threads[reference].stoppedDetails = undefined;
+
 			if (removeThreads) {
-				delete this.threads[reference];
-			} else {
-				this.threads[reference].clearCallStack();
-				this.threads[reference].stoppedDetails = undefined;
+				this.threads[reference] = null;
 			}
 		} else {
+			Object.keys(this.threads).forEach(ref => {
+				this.threads[ref].clearCallStack();
+				this.threads[ref].stoppedDetails = undefined;
+			});
+
 			if (removeThreads) {
 				this.threads = {};
 				ExpressionContainer.allValues = {};
-			} else {
-				for (let ref in this.threads) {
-					if (this.threads.hasOwnProperty(ref)) {
-						this.threads[ref].clearCallStack();
-						this.threads[ref].stoppedDetails = undefined;
-					}
-				}
 			}
 		}
 
@@ -714,7 +712,8 @@ export class Model implements debug.IModel {
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
-		if (data.thread) {
+		if (data.thread && !this.threads[data.threadId]) {
+			// A new thread came in, initialize it.
 			this.threads[data.threadId] = new Thread(data.thread.name, data.thread.id);
 		}
 

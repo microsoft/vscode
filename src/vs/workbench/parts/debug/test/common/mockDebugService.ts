@@ -4,12 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Event from 'vs/base/common/event';
-import ee = require('vs/base/common/eventEmitter');
-import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import editor = require('vs/editor/common/editorCommon');
-import editorbrowser = require('vs/editor/browser/editorBrowser');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
@@ -109,7 +105,7 @@ export class MockDebugService implements debug.IDebugService {
 }
 
 
-class MockRawSession extends ee.EventEmitter implements debug.IRawDebugSession {
+class MockRawSession implements debug.IRawDebugSession {
 
 	public get configuration(): { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites } {
 		return {

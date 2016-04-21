@@ -76,7 +76,7 @@ export abstract class TextFileService implements ITextFileService {
 	private registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.addBeforeShutdownParticipant(this);
+		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration changes

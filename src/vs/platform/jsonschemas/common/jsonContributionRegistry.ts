@@ -16,7 +16,6 @@ export const Extensions = {
 
 export interface ISchemaContributions {
 	schemas?: { [id: string]: IJSONSchema };
-	schemaAssociations?: { [pattern: string]: string[] };
 }
 
 export interface IJSONContributionRegistry {
@@ -25,11 +24,6 @@ export interface IJSONContributionRegistry {
 	 * Register a schema to the registry.
 	 */
 	registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void;
-
-	/**
-	 * Register a schema association
-	 */
-	addSchemaFileAssociation(pattern: string, uri: string): void;
 
 	/**
 	 * Get all schemas
@@ -58,12 +52,10 @@ function normalizeId(id: string) {
 
 class JSONContributionRegistry implements IJSONContributionRegistry {
 	private schemasById: { [id: string]: IJSONSchema };
-	private schemaAssociations: { [pattern: string]: string[] };
 	private eventEmitter: IEventEmitter;
 
 	constructor() {
 		this.schemasById = {};
-		this.schemaAssociations = {};
 		this.eventEmitter = new EventEmitter();
 	}
 
@@ -76,20 +68,9 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 		this.eventEmitter.emit('registryChanged', {});
 	}
 
-	public addSchemaFileAssociation(pattern: string, uri: string): void {
-		let uris = this.schemaAssociations[pattern];
-		if (!uris) {
-			uris = [];
-			this.schemaAssociations[pattern] = uris;
-		}
-		uris.push(uri);
-		this.eventEmitter.emit('registryChanged', {});
-	}
-
 	public getSchemaContributions(): ISchemaContributions {
 		return {
 			schemas: this.schemasById,
-			schemaAssociations: this.schemaAssociations
 		};
 	}
 

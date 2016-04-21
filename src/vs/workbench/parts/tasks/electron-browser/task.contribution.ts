@@ -600,7 +600,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.disposeTaskSystemListeners();
 		});
 
-		lifecycleService.addBeforeShutdownParticipant(this);
+		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 	}
 
 	private disposeTaskSystemListeners(): void {
@@ -1308,4 +1308,3 @@ let schema : IJSONSchema =
 	};
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
-jsonRegistry.addSchemaFileAssociation('/.vscode/tasks.json', schemaId);

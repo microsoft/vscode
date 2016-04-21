@@ -16,7 +16,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IFileService} from 'vs/platform/files/common/files';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -25,7 +25,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {TestFileService, TestLifecycleService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestStorageService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestStorageService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {
@@ -52,7 +52,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(IModeService, createMockModeService());
 		services.set(IModelService, createMockModelService());
 		services.set(ITelemetryService, telemetryService);
-		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
 		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
 
@@ -142,7 +142,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(IModeService, createMockModeService());
 		services.set(IModelService, createMockModelService());
 		services.set(ITelemetryService, telemetryService);
-		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
 		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
 
@@ -185,7 +185,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(IModeService, createMockModeService());
 		services.set(IModelService, createMockModelService());
 		services.set(ITelemetryService, telemetryService);
-		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
 		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
 

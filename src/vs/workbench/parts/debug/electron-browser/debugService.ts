@@ -241,17 +241,14 @@ export class DebugService implements debug.IDebugService {
 			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
-			this.getThreadData(threadId).done(() => {
-				let thread = this.model.getThreads()[threadId];
-
+			this.getThreadData().done(() => {
 				this.model.rawUpdate({
-					threadId: threadId,
+					threadId,
 					stoppedDetails: event.body,
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
-				thread.getCallStack(this).then(callStack => {
-					this.windowService.getWindow().focus();
+				this.model.getThreads()[threadId].getCallStack(this).then(callStack => {
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
@@ -275,15 +272,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidThread(event => {
 			if (event.body.reason === 'started') {
-				this.session.threads().done((result) => {
-					const thread = result.body.threads.filter(thread => thread.id === event.body.threadId).pop();
-					if (thread) {
-						this.model.rawUpdate({
-							threadId: thread.id,
-							thread: thread
-						});
-					}
-				}, errors.onUnexpectedError);
+				this.getThreadData().done(null, errors.onUnexpectedError);
 			} else if (event.body.reason === 'exited') {
 				this.model.clearThreads(true, event.body.threadId);
 			}
@@ -340,19 +329,10 @@ export class DebugService implements debug.IDebugService {
 		this.appendReplOutput(event.body.output, outputSeverity);
 	}
 
-	private getThreadData(threadId: number): TPromise<void> {
-		return this.model.getThreads()[threadId] ? TPromise.as(undefined) :
-			this.session.threads().then((response: DebugProtocol.ThreadsResponse) => {
-				const thread = response.body.threads.filter(t => t.id === threadId).pop();
-				if (!thread) {
-					throw new Error(nls.localize('debugNoThread', "Did not get a thread from debug adapter with id {0}.", threadId));
-				}
-
-				this.model.rawUpdate({
-					threadId: thread.id,
-					thread: thread
-				});
-			});
+	private getThreadData(): TPromise<void> {
+		return this.session.threads().then(response => {
+			response.body.threads.forEach(thread => this.model.rawUpdate({ threadId: thread.id, thread }));
+		});
 	}
 
 	private loadBreakpoints(): debug.IBreakpoint[] {
@@ -418,6 +398,7 @@ export class DebugService implements debug.IDebugService {
 
 	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
 		this.viewModel.setFocusedStackFrame(focusedStackFrame);
+		this.windowService.getWindow().focus();
 		if (focusedStackFrame) {
 			return this.model.evaluateWatchExpressions(this.session, focusedStackFrame);
 		} else {

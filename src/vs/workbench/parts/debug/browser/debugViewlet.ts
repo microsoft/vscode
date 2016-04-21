@@ -51,6 +51,7 @@ export class DebugViewlet extends Viewlet {
 		this.progressRunner = null;
 		this.viewletSettings = this.getMemento(storageService, memento.Scope.WORKSPACE);
 		this.toDispose = [];
+		this.views = [];
 		this.toDispose.push(this.debugService.onDidChangeState((state) => {
 			this.onDebugServiceStateChange(state);
 		}));

@@ -8,6 +8,15 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
+# Node modules
+test -d node_modules || ./scripts/npm.sh install
+
+# Get electron
+./node_modules/.bin/gulp electron
+
+# Build
+test -d out || ./node_modules/.bin/gulp compile
+
 # Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \

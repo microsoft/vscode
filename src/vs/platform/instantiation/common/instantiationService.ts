@@ -201,7 +201,7 @@ export class InstantiationService implements IInstantiationService {
 			for (let root of roots) {
 				// create instance and overwrite the service collections
 				const instance = this._createInstance(root.data.desc, []);
-				this._services.set(id, instance);
+				this._services.set(root.data.id, instance);
 				graph.removeNode(root.data);
 			}
 		}

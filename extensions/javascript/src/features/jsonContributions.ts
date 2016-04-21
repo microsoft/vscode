@@ -120,7 +120,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 
 		let collectPromise : Thenable<any> = null;
 
-		if (location.completeProperty) {
+		if (location.isAtPropertyKey) {
 			let addValue = !location.previousNode || !location.previousNode.columnOffset;
 			let scanner = createScanner(document.getText(), true);
 			scanner.setPosition(offset);
@@ -128,7 +128,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			let isLast = scanner.getToken() === SyntaxKind.CloseBraceToken || scanner.getToken() === SyntaxKind.EOF;
 			collectPromise = this.jsonContribution.collectPropertySuggestions(fileName, location, currentWord, addValue, isLast, collector);
 		} else {
-			if (location.segments.length === 0) {
+			if (location.path.length === 0) {
 				collectPromise = this.jsonContribution.collectDefaultSuggestions(fileName, collector);
 			} else {
 				collectPromise = this.jsonContribution.collectValueSuggestions(fileName, location, collector);

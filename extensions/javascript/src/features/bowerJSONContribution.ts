@@ -162,15 +162,17 @@ export class BowerJSONContribution implements IJSONContribution {
 
 	public getInfoContribution(resource: string, location: Location): Thenable<MarkedString[]> {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
-			let pack = location.segments[location.segments.length - 1];
-			let htmlContent : MarkedString[] = [];
-			htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
-			return this.getInfo(pack).then(documentation => {
-				if (documentation) {
-					htmlContent.push(documentation);
-				}
-				return htmlContent;
-			});
+			let pack = location.path[location.path.length - 1];
+			if (typeof pack === 'string') {
+				let htmlContent : MarkedString[] = [];
+				htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
+				return this.getInfo(pack).then(documentation => {
+					if (documentation) {
+						htmlContent.push(documentation);
+					}
+					return htmlContent;
+				});
+			}
 		}
 		return null;
 	}

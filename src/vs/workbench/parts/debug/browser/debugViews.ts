@@ -276,28 +276,27 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 		}));
 
 		this.toDispose.push(debugModel.onDidChangeCallStack(() => {
-			this.tree.refresh().done(null, errors.onUnexpectedError);
-		}));
-
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
-			const focussedThread = sf ? this.debugService.getModel().getThreads()[sf.threadId] : null;
-			if (!focussedThread) {
-				this.pauseMessage.hide();
-				return;
-			}
-
-			this.tree.expand(focussedThread);
-			this.tree.setFocus(this.debugService.getViewModel().getFocusedStackFrame());
-			if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
-				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
-				if (focussedThread.stoppedDetails.text) {
-					this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
+			this.tree.refresh().done(() => {
+				const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
+				if (!focussedThread) {
+					this.pauseMessage.hide();
+					return;
 				}
-				focussedThread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
-				this.pauseMessage.show();
-			} else {
-				this.pauseMessage.hide();
-			}
+
+				return this.tree.expand(focussedThread).then(() => {
+					this.tree.setSelection([this.debugService.getViewModel().getFocusedStackFrame()]);
+					if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
+						this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
+						if (focussedThread.stoppedDetails.text) {
+							this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
+						}
+						focussedThread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+						this.pauseMessage.show();
+					} else {
+						this.pauseMessage.hide();
+					}
+				});
+			}, errors.onUnexpectedError);
 		}));
 	}
 

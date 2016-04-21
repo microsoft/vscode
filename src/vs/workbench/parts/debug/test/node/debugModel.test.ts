@@ -7,9 +7,6 @@ import assert = require('assert');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { DebugService } from 'vs/workbench/parts/debug/electron-browser/debugService';
 import * as sinon from 'sinon';
 import { MockDebugService } from 'vs/workbench/parts/debug/test/common/mockDebugService';
 

@@ -5,100 +5,91 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import Severity from 'vs/base/common/severity';
 import errors = require('vs/base/common/errors');
+import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {BaseLifecycleService} from 'vs/platform/lifecycle/common/baseLifecycleService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
-import severity from 'vs/base/common/severity';
-
 import {ipcRenderer as ipc} from 'electron';
+import Event, {Emitter} from 'vs/base/common/event';
 
-export class LifecycleService extends BaseLifecycleService {
+export class LifecycleService implements ILifecycleService {
+
+	public serviceId = ILifecycleService;
+
+	private _onWillShutdown = new Emitter<ShutdownEvent>();
+	private _onShutdown = new Emitter<void>();
 
 	constructor(
-		private messageService: IMessageService,
+		private _messageService: IMessageService,
 		private windowService: IWindowService
 	) {
-		super();
-
-		this.registerListeners();
+		this._registerListeners();
 	}
 
-	private registerListeners(): void {
-		let windowId = this.windowService.getWindowId();
+	public get onWillShutdown(): Event<ShutdownEvent> {
+		return this._onWillShutdown.event;
+	}
+
+	public get onShutdown(): Event<void> {
+		return this._onShutdown.event;
+	}
+
+	private _registerListeners(): void {
+
+		const windowId = this.windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string }) => {
-			let veto = this.beforeUnload();
 
-			if (typeof veto === 'boolean') {
-				ipc.send(veto ? reply.cancelChannel : reply.okChannel, windowId);
-			}
-
-			else {
-				veto.done(v => ipc.send(v ? reply.cancelChannel : reply.okChannel, windowId));
-			}
+			this._onBeforeUnload().done(veto => {
+				if (veto) {
+					ipc.send(reply.cancelChannel, windowId);
+				} else {
+					this._onShutdown.fire();
+					ipc.send(reply.okChannel, windowId);
+				}
+			});
 		});
 	}
 
-	private beforeUnload(): boolean|TPromise<boolean> {
-		let veto = this.vetoShutdown();
+	private _onBeforeUnload(): TPromise<boolean> {
 
-		if (typeof veto === 'boolean') {
-			return this.handleVeto(veto);
-		}
+		const vetos: (boolean | TPromise<boolean>)[] = [];
 
-		else {
-			return veto.then(v => this.handleVeto(v));
-		}
-	}
-
-	private handleVeto(veto: boolean): boolean {
-		if (!veto) {
-			try {
-				this.fireShutdown();
-			} catch (error) {
-				errors.onUnexpectedError(error); // unexpected program error and we cause shutdown to cancel in this case
-
-				return false;
+		this._onWillShutdown.fire({
+			veto(value) {
+				vetos.push(value);
 			}
+		});
+
+		if (vetos.length === 0) {
+			return TPromise.as(false);
 		}
 
-		return veto;
-	}
+		const promises: TPromise<void>[] = [];
+		let lazyValue = false;
 
-	private vetoShutdown(): boolean|TPromise<boolean> {
-		let participants = this.beforeShutdownParticipants;
-		let vetoPromises: TPromise<void>[] = [];
-		let hasPromiseWithVeto = false;
+		for (let valueOrPromise of vetos) {
 
-		for (let i = 0; i < participants.length; i++) {
-			let participantVeto = participants[i].beforeShutdown();
-			if (participantVeto === true) {
-				return true; // return directly when any veto was provided
+			// veto, done
+			if (valueOrPromise === true) {
+				return TPromise.as(true);
 			}
 
-			else if (participantVeto === false) {
-				continue; // skip
+			if (TPromise.is(valueOrPromise)) {
+				promises.push(valueOrPromise.then(value => {
+					if (value) {
+						// veto, done
+						lazyValue = true;
+					}
+				}, err => {
+					// error, treated like a veto, done
+					this._messageService.show(Severity.Error, errors.toErrorMessage(err));
+					lazyValue = true;
+				}));
 			}
-
-			// We have a promise
-			let vetoPromise = (<TPromise<boolean>>participantVeto).then(veto => {
-				if (veto) {
-					hasPromiseWithVeto = true;
-				}
-			}, (error) => {
-				hasPromiseWithVeto = true;
-				this.messageService.show(severity.Error, errors.toErrorMessage(error));
-			});
-
-			vetoPromises.push(vetoPromise);
 		}
-
-		if (vetoPromises.length === 0) {
-			return false; // return directly when no veto was provided
-		}
-
-		return TPromise.join(vetoPromises).then(() => hasPromiseWithVeto);
+		return TPromise.join(promises).then(() => lazyValue);
 	}
 }

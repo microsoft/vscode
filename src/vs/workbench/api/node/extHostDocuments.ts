@@ -613,6 +613,9 @@ export class MainThreadDocuments {
 				if (input.getResource().toString() !== uri.toString()) {
 					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);
 				}
+				if (!this._modelIsSynced[uri.toString()]) {
+					throw new Error(`expected URI ${uri.toString()} to have come to LIFE`);
+				}
 				return this._proxy._acceptModelDirty(uri.toString()); // mark as dirty
 			}).then(() => {
 				return true;
