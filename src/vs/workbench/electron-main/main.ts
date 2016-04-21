@@ -23,10 +23,41 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {AskpassChannel} from 'vs/workbench/parts/git/common/gitIpc';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
 import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
+import {IChannel} from 'vs/base/parts/ipc/common/ipc';
 import {Mutex} from 'windows-mutex';
 
-export class LaunchService {
-	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
+interface ILaunchService {
+	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void>;
+}
+
+export interface ILaunchChannel extends IChannel {
+	call(command: 'start', args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void>;
+	call(command: string, ...args: any[]): TPromise<any>;
+}
+
+class LaunchChannel implements ILaunchChannel {
+
+	constructor(private service: ILaunchService) { }
+
+	call(command: string, ...args: any[]): TPromise<any> {
+		switch (command) {
+			case 'start': return this.service.start(args[0], args[1]);
+		}
+	}
+}
+
+class LaunchChannelClient implements ILaunchService {
+
+	constructor(private channel: ILaunchChannel) { }
+
+	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
+		return this.channel.call('start', args, userEnv);
+	}
+}
+
+
+class LaunchService {
+	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
 		env.log('Received data from other instance', args);
 
 		// Otherwise handle in windows manager
@@ -119,7 +150,9 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	}
 
 	// Register IPC services
-	ipcServer.registerService('LaunchService', new LaunchService());
+	const launchService = new LaunchService();
+	const launchChannel = new LaunchChannel(launchService);
+	ipcServer.registerChannel('launch', launchChannel);
 
 	const askpassService = new GitAskpassService();
 	const askpassChannel = new AskpassChannel(askpassService);
@@ -242,7 +275,8 @@ function setupIPC(): TPromise<Server> {
 
 					env.log('Sending env to running instance...');
 
-					const service = client.getChannel<LaunchService>('LaunchService', LaunchService);
+					const channel = client.getChannel<ILaunchChannel>('launch');
+					const service = new LaunchChannelClient(channel);
 
 					return service.start(env.cliArgs, process.env)
 						.then(() => client.dispose())
