@@ -6,7 +6,8 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
+import Event from 'vs/base/common/event';
 import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials } from './git';
 
 export interface IGitChannel extends IChannel {
@@ -59,7 +60,7 @@ export class GitChannel implements IGitChannel {
 			case 'commit': return this.service.then(s => s.commit(args[0], args[1], args[2]));
 			case 'detectMimetypes': return this.service.then(s => s.detectMimetypes(args[0], args[1]));
 			case 'show': return this.service.then(s => s.show(args[0], args[1]));
-			case 'onOutput': return this.service.then(s => s.onOutput());
+			case 'onOutput': return this.service.then(s => eventToCall(s.onOutput));
 		}
 	}
 }
@@ -77,6 +78,9 @@ export class UnavailableGitChannel implements IGitChannel {
 export class GitChannelClient implements IRawGitService {
 
 	constructor(private channel: IGitChannel) { }
+
+	private _onOutput = eventFromCall(this.channel, 'onOutput');
+	get onOutput(): Event<string> { return this._onOutput; }
 
 	getVersion(): TPromise<string> {
 		return this.channel.call('getVersion');
@@ -152,10 +156,6 @@ export class GitChannelClient implements IRawGitService {
 
 	show(path: string, treeish?: string): TPromise<string> {
 		return this.channel.call('show', [path, treeish]);
-	}
-
-	onOutput(): TPromise<void> {
-		return this.channel.call('onOutput');
 	}
 }
 

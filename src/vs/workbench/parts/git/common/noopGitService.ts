@@ -5,9 +5,15 @@
 'use strict';
 
 import git = require('vs/workbench/parts/git/common/git');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event, { Emitter } from 'vs/base/common/event';
 
+// TODO: remove
 export class NoOpGitService implements git.IRawGitService {
+
+	private _onOutput = new Emitter<string>();
+	get onOutput(): Event<string> { return this._onOutput.event; }
+
 	private static STATUS:git.IRawStatus = {
 		repositoryRoot: null,
 		state: git.ServiceState.NotAWorkspace,
@@ -92,9 +98,5 @@ export class NoOpGitService implements git.IRawGitService {
 
 	public show(path: string, treeish?: string): TPromise<string> {
 		return TPromise.as(null);
-	}
-
-	public onOutput(): Promise {
-		return TPromise.as(() => null);
 	}
 }

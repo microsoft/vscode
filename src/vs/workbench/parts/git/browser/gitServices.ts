@@ -36,6 +36,7 @@ import URI from 'vs/base/common/uri';
 import * as semver from 'semver';
 import { shell } from 'electron';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import Event from 'vs/base/common/event';
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -396,6 +397,8 @@ export class GitService extends ee.EventEmitter
 	private needsRefresh: boolean;
 	private refreshDelayer: async.ThrottledDelayer<void>;
 	private autoFetcher: AutoFetcher;
+
+	get onOutput(): Event<string> { return this.raw.onOutput; }
 
 	constructor(
 		raw: git.IRawGitService,
@@ -769,10 +772,6 @@ export class GitService extends ee.EventEmitter
 
 	public getRunningOperations(): git.IGitOperation[] {
 		return this.operations;
-	}
-
-	public onOutput(): winjs.Promise {
-		return this.raw.onOutput();
 	}
 
 	public getAutoFetcher(): git.IAutoFetcher {

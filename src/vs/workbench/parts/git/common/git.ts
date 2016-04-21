@@ -8,6 +8,7 @@ import WinJS = require('vs/base/common/winjs.base');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Lifecycle = require('vs/base/common/lifecycle');
+import Event from 'vs/base/common/event';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 // Model raw interfaces
@@ -257,6 +258,7 @@ export interface IPushOptions {
 }
 
 export interface IRawGitService {
+	onOutput: Event<string>;
 	getVersion(): WinJS.TPromise<string>;
 	serviceState(): WinJS.TPromise<RawServiceState>;
 	status(): WinJS.TPromise<IRawStatus>;
@@ -276,7 +278,6 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): WinJS.TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): WinJS.TPromise<string[]>;
 	show(path: string, treeish?: string): WinJS.TPromise<string>;
-	onOutput(): WinJS.Promise; // TODO: make this an event
 }
 
 export var GIT_SERVICE_ID = 'gitService';
@@ -285,6 +286,7 @@ export var IGitService = createDecorator<IGitService>(GIT_SERVICE_ID);
 
 export interface IGitService extends EventEmitter.IEventEmitter {
 	serviceId: ServiceIdentifier<any>;
+	onOutput: Event<string>;
 	status(): WinJS.TPromise<IModel>;
 	init(): WinJS.TPromise<IModel>;
 	add(files?: IFileStatus[]): WinJS.TPromise<IModel>;
@@ -311,8 +313,6 @@ export interface IGitService extends EventEmitter.IEventEmitter {
 	isIdle(): boolean;
 	getRunningOperations(): IGitOperation[];
 	getAutoFetcher(): IAutoFetcher;
-
-	onOutput(): WinJS.Promise;
 }
 
 export interface IAskpassService {

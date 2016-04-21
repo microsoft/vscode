@@ -10,14 +10,29 @@ import mime = require('vs/base/node/mime');
 import pfs = require('vs/base/node/pfs');
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class RawGitService implements IRawGitService {
 
 	private repo: Repository;
 	private _repositoryRoot: TPromise<string>;
+	private _onOutput: Emitter<string>;
+	get onOutput(): Event<string> { return this._onOutput.event; }
 
 	constructor(repo: Repository) {
 		this.repo = repo;
+
+		let listener: () => void;
+
+		this._onOutput = new Emitter<string>({
+			onFirstListenerAdd: () => {
+				listener = this.repo.onOutput(output => this._onOutput.fire(output));
+			},
+			onLastListenerRemove: () => {
+				listener();
+				listener = null;
+			}
+		});
 	}
 
 	getVersion(): TPromise<string> {
@@ -168,13 +183,5 @@ export class RawGitService implements IRawGitService {
 
 			return TPromise.wrapError<string>(e);
 		});
-	}
-
-	onOutput(): Promise {
-		let cancel: () => void;
-
-		return new Promise((c, e, p) => {
-			cancel = this.repo.onOutput(p);
-		}, () => cancel());
 	}
 }
