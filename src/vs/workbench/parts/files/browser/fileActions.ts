@@ -2362,7 +2362,7 @@ export function keybindingForAction(id: string): Keybinding {
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
 		case DeleteFileAction.ID:
 		case MoveFileToTrashAction.ID:
-			return new Keybinding(KeyCode.Delete);
+			return new Keybinding(isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete);
 		case CopyFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_C);
 		case PasteFileAction.ID:
