@@ -74,20 +74,25 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			return;
 		}
 
-		forEach(this._availableRecommendations, entry => {
-			let {key: pattern, value: ids} = entry;
-			if (match(pattern, uri.fsPath)) {
-				for (let id of ids) {
-					this._recommendations[id] = true;
-				}
-			}
-		});
+		// re-schedule this bit of the operation to be off
+		// the critical path - in case glob-match is slow
+		setImmediate(() => {
 
-		this._storageService.store(
-			'extensionsAssistant/recommendations',
-			JSON.stringify(Object.keys(this._recommendations)),
-			StorageScope.GLOBAL
-		);
+			forEach(this._availableRecommendations, entry => {
+				let {key: pattern, value: ids} = entry;
+				if (match(pattern, uri.fsPath)) {
+					for (let id of ids) {
+						this._recommendations[id] = true;
+					}
+				}
+			});
+
+			this._storageService.store(
+				'extensionsAssistant/recommendations',
+				JSON.stringify(Object.keys(this._recommendations)),
+				StorageScope.GLOBAL
+			);
+		});
 	}
 
 	dispose() {
