@@ -1,5 +1,4 @@
 {
-  // Check https://github.com/facebook/mention-bot on how to configure this file
   "maxReviewers": 2,
   "userBlacklistForPR": ["alexandrudima", "aeschli", "weinand", "bpasero", "isidorn", "joaomoreno", "jrieken", "dbaeumer", "egamma"]
 }
