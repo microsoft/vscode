@@ -19,6 +19,7 @@ import {Event, EventType as CommonEventType} from 'vs/base/common/events';
 import {getPathLabel} from 'vs/base/common/labels';
 import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
+import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
@@ -1466,7 +1467,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				let selectionOfSource: IEditorSelection;
 				if (positionsOfSource.length) {
 					const activeEditor = this.editorService.getActiveEditor();
-					if (activeEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
+					if (activeEditor instanceof BaseTextEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
 						selectionOfSource = <IEditorSelection>activeEditor.getSelection();
 					}
 				}

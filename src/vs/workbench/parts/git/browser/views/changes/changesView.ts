@@ -38,7 +38,6 @@ import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ISelection, StructuredSelection} from 'vs/platform/selection/common/selection';
 import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
@@ -224,10 +223,6 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			this.tree.onHidden();
 			return WinJS.TPromise.as(null);
 		}
-	}
-
-	public getSelection():ISelection {
-		return new StructuredSelection(this.tree.getSelection());
 	}
 
 	public getControl(): Tree.ITree {

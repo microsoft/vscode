@@ -13,7 +13,6 @@ import {CompositeEvent} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IComposite} from 'vs/workbench/common/composite';
-import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 
 /**
  * Internal composite events to communicate with composite container.
@@ -176,13 +175,6 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	 */
 	protected updateTitleArea(): void {
 		this.emit(EventType.INTERNAL_COMPOSITE_TITLE_AREA_UPDATE, new CompositeEvent(this.getId()));
-	}
-
-	/**
-	 * Returns an array of elements that are selected in the composite.
-	 */
-	public getSelection(): ISelection {
-		return Selection.EMPTY;
 	}
 
 	/**

@@ -16,7 +16,6 @@ import {CollapsibleView} from 'vs/base/browser/ui/splitview/splitview';
 import {Registry} from 'vs/platform/platform';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {StructuredSelection} from 'vs/platform/selection/common/selection';
 
 export class EmptyView extends CollapsibleView {
 
@@ -70,10 +69,6 @@ export class EmptyView extends CollapsibleView {
 
 	public focusBody(): void {
 		// Ignore
-	}
-
-	public getSelection(): StructuredSelection {
-		return new StructuredSelection([]);
 	}
 
 	protected reveal(element: any, relativeTop?: number): TPromise<void> {
