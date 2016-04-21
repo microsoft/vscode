@@ -523,7 +523,8 @@ export abstract class BaseGlobalNewAction extends Action {
 		id: string,
 		label: string,
 		@IViewletService private viewletService: IViewletService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}
@@ -535,6 +536,11 @@ export abstract class BaseGlobalNewAction extends Action {
 
 				let explorer = <ExplorerViewlet>viewlet;
 				let explorerView = explorer.getExplorerView();
+
+				// Not having a folder opened
+				if (!explorerView) {
+					return this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create files or folders within."));
+				}
 
 				if (!explorerView.isExpanded()) {
 					explorerView.expand();
