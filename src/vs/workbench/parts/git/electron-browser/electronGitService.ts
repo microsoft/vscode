@@ -167,6 +167,7 @@ export class ElectronGitService extends GitService {
 							args: [path, workspaceRoot, encoding, remote.process.execPath, version],
 							env: {
 								ATOM_SHELL_INTERNAL_RUN_AS_NODE: 1,
+								PIPE_LOGGING: 'true',
 								AMD_ENTRYPOINT: 'vs/workbench/parts/git/node/gitApp'
 							}
 						}
