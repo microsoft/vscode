@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 const cp = require('child_process');
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 const extensions = [
 	'vscode-api-tests',
@@ -15,7 +16,7 @@ const extensions = [
 ];
 
 extensions.forEach(extension => {
-	cp.spawnSync('npm', ['install'], {
+	cp.spawnSync(npm, ['install'], {
 		cwd: `extensions/${ extension }`,
 		stdio: 'inherit'
 	});
