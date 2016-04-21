@@ -256,10 +256,12 @@ function testWithCache(glob: string, pattern: RegExp, cache: { [glob: string]: b
 }
 
 // regexes to check for trival glob patterns that just check for String#endsWith
-const trivia1 = /^\*\*\/\*\.\w+$/;
-const trivia2 = /^{\*\*\/\*\.\w+(,\*\*\/\*\.\w+)*}$/;
+const trivia1 = /^\*\*\/\*\.[\w\.-]+$/; 						// **/*.something
+const trivia2 = /^\*\*\/[\w\.-]+$/; 							// **/something
+const trivia3 = /^{\*\*\/\*\.[\w\.-]+(,\*\*\/\*\.[\w\.-]+)*}$/; // {**/*.something,**/*.else}
 const T1_CACHE: { [glob: string]: boolean } = Object.create(null);
 const T2_CACHE: { [glob: string]: boolean } = Object.create(null);
+const T3_CACHE: { [glob: string]: boolean } = Object.create(null);
 
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
@@ -284,8 +286,13 @@ export function match(arg1: string | IExpression, path: string, siblings?: strin
 			return strings.endsWith(path, arg1.substr(4)); // '**/*'.length === 4
 		}
 
-		// repetition of common patterns (see above) {**/*.txt,**/*.png}
+		// common pattern: **/some.txt just need basename check
 		if (testWithCache(arg1, trivia2, T2_CACHE)) {
+			return paths.basename(path) === arg1.substr(3); // '**/'.length === 3
+		}
+
+		// repetition of common patterns (see above) {**/*.txt,**/*.png}
+		if (testWithCache(arg1, trivia3, T3_CACHE)) {
 			return arg1.slice(1, -1).split(',').some(pattern => match(pattern, path));
 		}
 
