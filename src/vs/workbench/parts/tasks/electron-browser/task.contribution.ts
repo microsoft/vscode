@@ -24,6 +24,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { match } from 'vs/base/common/glob';
 import { setTimeout } from 'vs/base/common/platform';
 import { TerminateResponse } from 'vs/base/common/processes';
+import * as strings from 'vs/base/common/strings';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -239,6 +240,10 @@ class ConfigureTaskRunnerAction extends Action {
 					contentPromise = TPromise.as(selection.content);
 				}
 				return contentPromise.then(content => {
+					let editorConfig = this.configurationService.getConfiguration<any>();
+					if (editorConfig.editor.insertSpaces) {
+						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
+					}
 					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
 				});
 			});
