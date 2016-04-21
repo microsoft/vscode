@@ -241,8 +241,8 @@ class ConfigureTaskRunnerAction extends Action {
 				}
 				return contentPromise.then(content => {
 					let editorConfig = this.configurationService.getConfiguration<any>();
-					if (editorConfig.insertSpaces) {
-						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.tabSize));
+					if (editorConfig.editor.insertSpaces) {
+						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 					}
 					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
 				});

@@ -194,7 +194,7 @@ class DefaultSettingsInput extends StringEditorInput {
 	public static getInstance(instantiationService: IInstantiationService, configurationService: IConfigurationService): DefaultSettingsInput {
 		if (!DefaultSettingsInput.INSTANCE) {
 			let editorConfig = configurationService.getConfiguration<any>();
-			let defaults = getDefaultValuesContent(editorConfig.insertSpaces ? strings.repeat(' ', editorConfig.tabSize) : '\t');
+			let defaults = getDefaultValuesContent(editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
 
 			let defaultsHeader = '// ' + nls.localize('defaultSettingsHeader', "Overwrite settings by placing them into your settings file.");
 			DefaultSettingsInput.INSTANCE = instantiationService.createInstance(DefaultSettingsInput, nls.localize('defaultName', "Default Settings"), null, defaultsHeader + '\n' + defaults, 'application/json', false);

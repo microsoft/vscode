@@ -295,7 +295,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 						configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
 					},
 					null,
-					editorConfig.insertSpaces ? strings.repeat(' ', editorConfig.tabSize) : '\t');
+					editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
 			});
 		});
 	}
