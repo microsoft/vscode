@@ -196,6 +196,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			this.flowEventsCount++;
 			this._onDidExitAdapter.fire(<SessionExitedEvent>event);
 		} else if (event.event === 'continued') {
+			// TODO@Isidor continued event needs to come from the adapter
 			this.flowEventsCount++;
 			this._onDidContinue.fire();
 		}

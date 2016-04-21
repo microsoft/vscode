@@ -174,10 +174,6 @@ suite('Debug - Model', () => {
 		assert.equal(thread2.stopped, true);
 		assert.equal(thread2.getCachedCallStack(), undefined);
 
-		model.continueThreads();
-		assert.equal(thread1.stopped, false);
-		assert.equal(thread2.stopped, false);
-
 		model.clearThreads(true);
 		assert.equal(model.getThreads[threadId1], null);
 		assert.equal(model.getThreads[threadId2], null);
@@ -260,10 +256,6 @@ suite('Debug - Model', () => {
 		stoppedThread.clearCallStack();
 		assert.equal(stoppedThread.stopped, true);
 		assert.equal(stoppedThread.getCachedCallStack(), undefined);
-
-		model.continueThreads();
-		assert.equal(runningThread.stopped, false);
-		assert.equal(stoppedThread.stopped, false);
 
 		model.clearThreads(true);
 		assert.equal(model.getThreads[stoppedThreadId], null);

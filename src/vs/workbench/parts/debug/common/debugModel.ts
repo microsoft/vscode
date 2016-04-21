@@ -431,6 +431,7 @@ export class Model implements debug.IModel {
 		if (reference) {
 			this.threads[reference].clearCallStack();
 			this.threads[reference].stoppedDetails = undefined;
+			this.threads[reference].stopped = false;
 
 			if (removeThreads) {
 				delete this.threads[reference];
@@ -439,6 +440,7 @@ export class Model implements debug.IModel {
 			Object.keys(this.threads).forEach(ref => {
 				this.threads[ref].clearCallStack();
 				this.threads[ref].stoppedDetails = undefined;
+				this.threads[ref].stopped = false;
 			});
 
 			if (removeThreads) {
@@ -448,16 +450,6 @@ export class Model implements debug.IModel {
 		}
 
 		this._onDidChangeCallStack.fire();
-	}
-
-	public continueThreads(): void {
-		for (let ref in this.threads) {
-			if (this.threads.hasOwnProperty(ref)) {
-				this.threads[ref].stopped = false;
-			}
-		}
-
-		this.clearThreads(false);
 	}
 
 	public getBreakpoints(): debug.IBreakpoint[] {
