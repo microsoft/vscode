@@ -8,6 +8,7 @@ import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 
 const CACHE: { [glob: string]: RegExp } = Object.create(null);
+const MAX_CACHED = 10000;
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause | any;
@@ -233,8 +234,10 @@ function globToRegExp(pattern: string): RegExp {
 	// Convert to regexp and be ready for errors
 	let result = toRegExp(regEx);
 
-	// Make sure to cache
-	CACHE[pattern] = result;
+	// Make sure to cache (bounded)
+	if (Object.getOwnPropertyNames(CACHE).length < MAX_CACHED) {
+		CACHE[pattern] = result;
+	}
 
 	return result;
 }
@@ -248,11 +251,17 @@ function toRegExp(regEx: string): RegExp {
 }
 
 function testWithCache(glob: string, pattern: RegExp, cache: { [glob: string]: boolean }): boolean {
-	if (typeof cache[glob] !== 'boolean') {
-		cache[glob] = pattern.test(glob);
+	let res = cache[glob];
+	if (typeof res !== 'boolean') {
+		res = pattern.test(glob);
+
+		// Make sure to cache (bounded)
+		if (Object.getOwnPropertyNames(cache).length < MAX_CACHED) {
+			cache[glob] = res;
+		}
 	}
 
-	return cache[glob];
+	return res;
 }
 
 // regexes to check for trival glob patterns that just check for String#endsWith
