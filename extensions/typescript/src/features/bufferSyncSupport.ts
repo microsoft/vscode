@@ -89,6 +89,9 @@ export default class BufferSyncSupport {
 		this.diagnosticDelayer = new Delayer<any>(100);
 
 		this.syncedBuffers = Object.create(null);
+	}
+
+	public listen(): void {
 		workspace.onDidOpenTextDocument(this.onDidAddDocument, this, this.disposables);
 		workspace.onDidCloseTextDocument(this.onDidRemoveDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeDocument, this, this.disposables);

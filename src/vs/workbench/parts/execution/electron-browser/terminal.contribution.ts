@@ -19,6 +19,34 @@ import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
+import {DEFAULT_WINDOWS_TERM, DEFAULT_LINUX_TERM} from 'vs/workbench/parts/execution/electron-browser/terminal';
+
+let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': 'terminal',
+	'order': 100,
+	'title': nls.localize('terminalConfigurationTitle', "Terminal configuration"),
+	'type': 'object',
+	'properties': {
+		'terminal.external': {
+			'description': nls.localize('terminal.external', "External terminal settings."),
+			'type': 'object',
+			'properties': {
+				'windowsExec': {
+					'type': 'string',
+					'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
+					'default': DEFAULT_WINDOWS_TERM
+				},
+				'linuxExec': {
+					'type': 'string',
+					'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to on Linux."),
+					'default': DEFAULT_LINUX_TERM
+				}
+			}
+		}
+	}
+});
 
 export class OpenConsoleAction extends Action {
 
@@ -94,4 +122,5 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionCon
 		OpenConsoleAction.Label,
 		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
 	)
+	, ['open', 'console', 'terminal', 'shell']
 );

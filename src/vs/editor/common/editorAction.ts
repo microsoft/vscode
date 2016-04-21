@@ -103,6 +103,10 @@ export class EditorAction extends Action implements IEditorContribution {
 	public getEnablementState(): boolean {
 		return true;
 	}
+
+	public getKeywords(): string[] {
+		return this._descriptor.keywords;
+	}
 }
 
 export class HandlerEditorAction extends EditorAction {

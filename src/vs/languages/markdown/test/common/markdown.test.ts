@@ -7,10 +7,12 @@
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import Modes = require('vs/editor/common/modes');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
-import {cssTokenTypes} from 'vs/languages/css/common/css';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MarkdownMode} from 'vs/languages/markdown/common/markdown';
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
 
@@ -54,10 +56,10 @@ suite('Markdown - tokenization', () => {
 	(function() {
 		let threadService = NULL_THREAD_SERVICE;
 		let modeService = new MarkdownMockModeService();
-		let inst = createInstantiationService({
-			threadService: threadService,
-			modeService: modeService
-		});
+		let services = new ServiceCollection();
+		services.set(IThreadService, threadService);
+		services.set(IModeService, modeService);
+		let inst = new InstantiationService(services);
 		threadService.setInstantiationService(inst);
 
 		let mode = new MarkdownMode(

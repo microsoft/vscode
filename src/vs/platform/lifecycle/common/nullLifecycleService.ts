@@ -6,7 +6,6 @@
 
 import Event, {Emitter} from 'vs/base/common/event';
 import {ILifecycleService, IBeforeShutdownParticipant} from 'vs/platform/lifecycle/common/lifecycle';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 
 class NullLifecycleService implements ILifecycleService {
 
@@ -19,10 +18,6 @@ class NullLifecycleService implements ILifecycleService {
 
 	public get onShutdown(): Event<any> {
 		return this._onShutdown.event;
-	}
-
-	public setThreadService(service: IThreadService): void {
-
 	}
 }
 

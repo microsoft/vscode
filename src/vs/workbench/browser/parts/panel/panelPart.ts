@@ -26,6 +26,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -35,14 +36,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 
 	constructor(
-		messageService: IMessageService,
-		storageService: IStorageService,
-		eventService: IEventService,
-		telemetryService: ITelemetryService,
-		contextMenuService: IContextMenuService,
-		partService: IPartService,
-		keybindingService: IKeybindingService,
-		id: string
+		id: string,
+		@IMessageService messageService: IMessageService,
+		@IStorageService storageService: IStorageService,
+		@IEventService eventService: IEventService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IPartService partService: IPartService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(
 			messageService,
@@ -52,6 +54,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			contextMenuService,
 			partService,
 			keybindingService,
+			instantiationService,
 			(<PanelRegistry>Registry.as(PanelExtensions.Panels)),
 			PanelPart.activePanelSettingsKey,
 			'panel',
@@ -145,4 +148,4 @@ class TogglePanelAction extends Action {
 }
 
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), nls.localize('view', "View"), ['panel', 'visibility']);

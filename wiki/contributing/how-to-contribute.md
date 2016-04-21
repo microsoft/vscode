@@ -10,9 +10,7 @@ If you want to understand how Code works or want to debug an issue, you'll want 
 
 ### Installing Prerequisites
 
-You'll need [Node.JS](https://nodejs.org/en/), at least `v4`.
-
-We suggest to use `npm@2`, you can install it with `npm install -g npm@2`.
+You'll need [Node.JS](https://nodejs.org/en/), at least `v5.10`.
 
 Code includes node module dependencies that require native compilation. To ensure the compilation is picking up the right version of header files from the Electron Shell, we have our own script to run the installation via `npm`.
 

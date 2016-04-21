@@ -10,13 +10,14 @@ import path = require('path');
 import os = require('os');
 import cp = require('child_process');
 import pfs = require('vs/base/node/pfs');
-import {mkdirp} from 'vs/base/node/extfs';
-import {isString} from 'vs/base/common/types';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {download, json } from 'vs/base/node/request';
+import { mkdirp } from 'vs/base/node/extfs';
+import { isString } from 'vs/base/common/types';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import {manager as Settings} from 'vs/workbench/electron-main/settings';
-import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
+import { manager as Settings } from 'vs/workbench/electron-main/settings';
+import { manager as Lifecycle } from 'vs/workbench/electron-main/lifecycle';
+import { quality } from './env';
 
 export interface IUpdate {
 	url: string;
@@ -109,7 +110,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	}
 
 	private getUpdatePackagePath(version: string): TPromise<string> {
-		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${version}.exe`));
+		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${ quality }-${ version }.exe`));
 	}
 
 	private quitAndUpdate(updatePackagePath: string): void {
@@ -126,7 +127,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	}
 
 	private cleanup(exceptVersion: string = null): Promise {
-		let filter = exceptVersion ? one => !(new RegExp(`${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? one => !(new RegExp(`${ quality }-${ exceptVersion }\\.exe$`).test(one)) : () => true;
 
 		return this.cachePath
 			.then(cachePath => pfs.readdir(cachePath)

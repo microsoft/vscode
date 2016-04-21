@@ -13,7 +13,7 @@ import {
 	DocumentRangeFormattingParams, NotificationType, RequestType
 } from 'vscode-languageserver';
 
-import {xhr, IXHROptions, IXHRResponse, configure as configureHttpRequests} from './utils/httpRequest';
+import {xhr, XHROptions, XHRResponse, configure as configureHttpRequests} from 'request-light';
 import path = require('path');
 import fs = require('fs');
 import URI from './utils/uri';
@@ -22,12 +22,10 @@ import {JSONSchemaService, ISchemaAssociations} from './jsonSchemaService';
 import {parse as parseJSON, ObjectASTNode, JSONDocument} from './jsonParser';
 import {JSONCompletion} from './jsonCompletion';
 import {JSONHover} from './jsonHover';
-import {IJSONSchema} from './json-toolbox/jsonSchema';
+import {IJSONSchema} from './jsonSchema';
 import {JSONDocumentSymbols} from './jsonDocumentSymbols';
 import {format as formatJSON} from './jsonFormatter';
 import {schemaContributions} from './configuration';
-import {BowerJSONContribution} from './jsoncontributions/bowerJSONContribution';
-import {PackageJSONContribution} from './jsoncontributions/packageJSONContribution';
 import {ProjectJSONContribution} from './jsoncontributions/projectJSONContribution';
 import {GlobPatternContribution} from './jsoncontributions/globPatternContribution';
 import {FileAssociationContribution} from './jsoncontributions/fileAssociationContribution';
@@ -94,10 +92,10 @@ let telemetry = {
 	}
 };
 
-let request = (options: IXHROptions): Thenable<IXHRResponse>  => {
+let request = (options: XHROptions): Thenable<XHRResponse> => {
 	if (Strings.startsWith(options.url, 'file://')) {
 		let fsPath = URI.parse(options.url).fsPath;
-		return new Promise<IXHRResponse>((c, e) => {
+		return new Promise<XHRResponse>((c, e) => {
 			fs.readFile(fsPath, 'UTF-8', (err, result) => {
 				err ? e({ responseText: '', status: 404 }) : c({ responseText: result.toString(), status: 200 });
 			});
@@ -120,8 +118,6 @@ let request = (options: IXHROptions): Thenable<IXHRResponse>  => {
 
 let contributions = [
 	new ProjectJSONContribution(request),
-	new PackageJSONContribution(request),
-	new BowerJSONContribution(request),
 	new GlobPatternContribution(),
 	filesAssociationContribution
 ];

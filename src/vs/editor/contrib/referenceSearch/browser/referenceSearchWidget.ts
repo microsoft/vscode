@@ -26,6 +26,7 @@ import {DefaultController, LegacyRenderer} from 'vs/base/parts/tree/browser/tree
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
@@ -34,7 +35,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {ICodeEditor, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import {PeekViewWidget} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import {PeekViewWidget, IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {EventType, FileReferences, OneReference, ReferencesModel} from './referenceSearchModel';
 
 class DecorationsManager implements IDisposable {
@@ -398,7 +399,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		super(editor, keybindingService, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, { frameColor: '#007ACC', showFrame: false, showArrow: true });
 		this.editorService = editorService;
 		this.contextService = contextService;
-		this.instantiationService = instantiationService.createChild({ peekViewService: this });
+		this.instantiationService = instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 
 		this.callOnModel = [];
 

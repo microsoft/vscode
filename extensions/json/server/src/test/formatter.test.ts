@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('../json-toolbox/json');
+import Json = require('jsonc-parser');
 import {ITextDocument, DocumentFormattingParams, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
 import Formatter = require('../jsonFormatter');
 import assert = require('assert');

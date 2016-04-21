@@ -6,12 +6,12 @@
 
 import assert = require('assert');
 import SchemaService = require('../jsonSchemaService');
-import JsonSchema = require('../json-toolbox/jsonSchema');
-import Json = require('../json-toolbox/json');
+import JsonSchema = require('../jsonSchema');
+import Json = require('jsonc-parser');
 import Parser = require('../jsonParser');
 import fs = require('fs');
 import path = require('path');
-import {IXHROptions, IXHRResponse} from '../utils/httpRequest';
+import {XHROptions, XHRResponse} from 'request-light';
 
 
 suite('JSON Schema', () => {
@@ -26,21 +26,21 @@ suite('JSON Schema', () => {
 		'http://schema.management.azure.com/schemas/2015-08-01/Microsoft.Compute.json': 'Microsoft.Compute.json'
 	}
 
-	var requestServiceMock = function (options:IXHROptions) : Promise<IXHRResponse>  {
+	var requestServiceMock = function (options:XHROptions) : Promise<XHRResponse>  {
 		var uri = options.url;
 		if (uri.length && uri[uri.length - 1] === '#') {
 			uri = uri.substr(0, uri.length - 1);
 		}
 		var fileName = fixureDocuments[uri];
 		if (fileName) {
-			return new Promise<IXHRResponse>((c, e) => {
+			return new Promise<XHRResponse>((c, e) => {
 				var fixturePath = path.join(__dirname, '../../src/test/fixtures', fileName);
 				fs.readFile(fixturePath, 'UTF-8', (err, result) => {
 					err ? e({ responseText: '', status: 404 }) : c({ responseText: result.toString(), status: 200 })
 				});
 			});
 		}
-		return Promise.reject<IXHRResponse>({ responseText: '', status: 404 });
+		return Promise.reject<XHRResponse>({ responseText: '', status: 404 });
 	}
 
 	test('Resolving $refs', function(testDone) {

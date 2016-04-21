@@ -36,18 +36,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private toDispose: IDisposable[];
 	private statusItemsContainer: Builder;
 
-	private instantiationService: IInstantiationService;
-
 	constructor(
-		id: string
+		id: string,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
 
 		this.toDispose = [];
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
 	}
 
 	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {

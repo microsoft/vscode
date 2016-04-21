@@ -517,11 +517,11 @@ var CONTEXT_MARKERS_NAVIGATION_VISIBLE = 'markersNavigationVisible';
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(NextMarkerAction, NextMarkerAction.ID, nls.localize('markerAction.next.label', "Go to Next Error or Warning"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyCode.F8
-}));
+}, ['next', 'error', 'warning', 'problem']));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PrevMarkerAction, PrevMarkerAction.ID, nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.Shift | KeyCode.F8
-}));
+}, ['previous', 'error', 'warning', 'problem']));
 CommonEditorRegistry.registerEditorCommand('closeMarkersNavigation', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_MARKERS_NAVIGATION_VISIBLE, (ctx, editor, args) => {
 	var controller = MarkerController.getMarkerController(editor);
 	controller.closeMarkersNavigation();

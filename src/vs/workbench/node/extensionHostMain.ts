@@ -17,14 +17,15 @@ import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/c
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
 import {IMainProcessExtHostIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
-import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
-import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostThreadService} from 'vs/platform/thread/common/extHostThreadService';
 import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Client} from 'vs/base/node/service.net';
@@ -57,28 +58,21 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new ExtHostThreadService(remoteCom);
-	threadService.setInstantiationService(InstantiationService.createInstantiationService({ threadService: threadService }));
+	threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, threadService])));
 	let telemetryService = new RemoteTelemetryService('pluginHostTelemetry', threadService);
-	let modelService = threadService.getRemotable(ExtHostModelService);
 
-	let extensionService = new ExtHostExtensionService(threadService, telemetryService);
-	let modeService = new ModeServiceImpl(threadService, extensionService);
-	let _services: any = {
-		contextService,
-		modelService,
-		threadService,
-		modeService,
-		extensionService,
-		telemetryService
-	};
-	let instantiationService = InstantiationService.createInstantiationService(_services);
+	let services = new ServiceCollection();
+	services.set(IWorkspaceContextService, contextService);
+	services.set(ITelemetryService, telemetryService);
+	services.set(IThreadService, threadService);
+	services.set(IExtensionService, new ExtHostExtensionService(threadService, telemetryService));
+	services.set(IExtensionsService, sharedProcessClient.getService<IExtensionsService>('ExtensionService', ExtensionsService)); // Connect to shared process services
+
+	let instantiationService = new InstantiationService(services);
 	threadService.setInstantiationService(instantiationService);
 
 	// Create the monaco API
 	instantiationService.createInstance(ExtHostAPIImplementation);
-
-	// Connect to shared process services
-	instantiationService.addSingleton(IExtensionsService, sharedProcessClient.getService<IExtensionsService>('ExtensionService', ExtensionsService));
 
 	return instantiationService;
 }

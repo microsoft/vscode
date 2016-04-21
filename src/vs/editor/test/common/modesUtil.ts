@@ -5,7 +5,6 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Model} from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';

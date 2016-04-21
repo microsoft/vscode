@@ -156,9 +156,9 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize('tabFocusModeOffMsgNoKb', "Pressing Tab in this editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
 
 		if (opts.tabFocusMode) {
-			text += '\n\n -' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
 		} else {
-			text += '\n\n -' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
 		}
 
 		const NLS_EXPERIMENTAL_SCREENREADER_OPTS_ON = nls.localize('experimentalScreenReaderOptsOn', "Experimental screen reader support is turned on due to editor.experimentalScreenReader settings key.");
@@ -171,9 +171,9 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			text += '\n\n - ' + NLS_EXPERIMENTAL_SCREENREADER_OPTS_ON;
 		} else {
 			if (GlobalScreenReaderNVDA.getValue()) {
-				text += '\n\n -' + this._descriptionForCommand(TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID, NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON, NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON_NO_KB);
+				text += '\n\n - ' + this._descriptionForCommand(TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID, NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON, NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON_NO_KB);
 			} else {
-				text += '\n\n -' + this._descriptionForCommand(TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID, NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF, NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF_NO_KB);
+				text += '\n\n - ' + this._descriptionForCommand(TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID, NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF, NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF_NO_KB);
 			}
 		}
 
@@ -226,7 +226,7 @@ EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowAccessibilityHelpAction, SHOW_ACCESSIBILITY_HELP_ACTION_ID, NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL, {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.Alt | KeyCode.F1
-}));
+}, ['accessibility', 'help', 'a11y']));
 CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEditorRegistry.commandWeight(100), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, (ctx, editor, args) => {
 	AccessibilityHelpController.get(editor).hide();
 });

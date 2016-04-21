@@ -69,7 +69,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private _onShow: Emitter<void>;
 	private _onHide: Emitter<void>;
 
-	private instantiationService: IInstantiationService;
 	private quickOpenWidget: QuickOpenWidget;
 	private pickOpenWidget: QuickOpenWidget;
 	private layoutDimensions: Dimension;
@@ -87,14 +86,15 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	private visibilityChangeTimeoutHandle: number;
 
 	constructor(
-		private eventService: IEventService,
-		private storageService: IStorageService,
-		private editorService: IWorkbenchEditorService,
-		private viewletService: IViewletService,
-		private messageService: IMessageService,
-		private telemetryService: ITelemetryService,
-		private contextService: IWorkspaceContextService,
-		keybindingService: IKeybindingService
+		@IEventService private eventService: IEventService,
+		@IStorageService private storageService: IStorageService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IViewletService private viewletService: IViewletService,
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(ID);
 
@@ -115,10 +115,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 	public get onHide(): Event<void> {
 		return this._onHide.event;
-	}
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
 	}
 
 	public getEditorHistoryModel(): EditorHistoryModel {

@@ -72,6 +72,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		this.sash.addListener('start', () => this.onSashDragStart());
 		this.sash.addListener('change', (e: ISashEvent) => this.onSashDrag(e));
 		this.sash.addListener('end', () => this.onSashDragEnd());
+		this.sash.addListener('reset', () => this.onSashReset());
 
 		// Right Container for Binary
 		let rightBinaryContainerElement = document.createElement('div');
@@ -196,6 +197,12 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 	}
 
 	private onSashDragEnd(): void {
+		this.sash.layout();
+	}
+
+	private onSashReset(): void {
+		this.leftContainerWidth = this.dimension.width / 2;
+		this.layoutContainers();
 		this.sash.layout();
 	}
 

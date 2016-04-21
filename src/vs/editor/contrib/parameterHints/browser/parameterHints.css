@@ -105,9 +105,14 @@
 .monaco-editor .parameter-hints-widget .documentation {
 	max-height: 3.2em;
 	overflow: hidden;
-	font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", sans-serif, "Droid Sans Fallback";
 	color: #A21B1B;
 }
+
+.monaco-editor .parameter-hints-widget .documentation { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", sans-serif, "Droid Sans Fallback"; }
+.monaco-editor:lang(zh-Hans) .parameter-hints-widget .documentation { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.monaco-editor:lang(zh-Hant) .parameter-hints-widget .documentation { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "PingFang TC", "Microsoft Jhenghei", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
+.monaco-editor:lang(ja) .parameter-hints-widget .documentation { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Hiragino Kaku Gothic Pro", "Meiryo", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
+.monaco-editor:lang(ko) .parameter-hints-widget .documentation { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Apple SD Gothic Neo", "AppleGothic", "Malgun Gothic", "Nanum Gothic", "Dotom", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
 .monaco-editor .parameter-hints-widget .documentation .parameter {
 	color: black;

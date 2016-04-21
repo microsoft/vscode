@@ -15,6 +15,7 @@ For discussions on specific extensions and to add more information, link a newly
 - [ ] [atom-typescript](https://atom.io/packages/atom-typescript). Feature that is missing is compile on save with no task runner configuration. Good task candidate.
 - [ ] [color-picker](https://atom.io/packages/color-picker). Sleek color picking UI widget.
 - [ ] [hex](https://atom.io/packages/hex). View the hex of any dump file.
+- [ ] [qmake / Qt project file](http://doc.qt.io/qt-5/qmake-project-files.html).  Syntax highlighting and auto-complete.
 
 ## Complete
 

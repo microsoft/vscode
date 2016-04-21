@@ -11,17 +11,21 @@ import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import {TestEditorService} from 'vs/workbench/test/browser/servicesTestUtils';
-import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 suite('Workbench - StringEditorInput', () => {
 
 	test('StringEditorInput', function (done) {
 		let editorService = new TestEditorService(function () { });
-		let inst = InstantiationService.createInstantiationService({
-			modeService: createMockModeService(),
-			modelService: createMockModelService()
-		});
+		let services = new ServiceCollection();
+		services.set(IModeService, createMockModeService());
+		services.set(IModelService, createMockModelService());
+		let inst = new InstantiationService(services);
 
 		let input = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 		let otherInput = inst.createInstance(StringEditorInput, 'name', 'description', 'othervalue', 'mime', false);
@@ -69,11 +73,10 @@ suite('Workbench - StringEditorInput', () => {
 	});
 
 	test('StringEditorInput - setValue, clearValue, append', function () {
-		let inst = InstantiationService.createInstantiationService({
-			modeService: createMockModeService(),
-			modelService: createMockModelService()
-		});
-
+		let services = new ServiceCollection();
+		services.set(IModeService, createMockModeService());
+		services.set(IModelService, createMockModelService());
+		let inst = new InstantiationService(services);
 		let input = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 
 		assert.strictEqual(input.getValue(), 'value');
@@ -88,7 +91,7 @@ suite('Workbench - StringEditorInput', () => {
 	});
 
 	test('Input.matches() - StringEditorInput', function () {
-		let inst = InstantiationService.createInstantiationService({});
+		let inst = new InstantiationService();
 
 		let stringEditorInput = inst.createInstance(StringEditorInput, 'name', 'description', 'value', 'mime', false);
 		let promiseEditorInput = inst.createInstance(ResourceEditorInput, 'name', 'description', URI.create('inMemory', null, 'thePath'));
@@ -109,10 +112,10 @@ suite('Workbench - StringEditorInput', () => {
 	test('ResourceEditorInput', function (done) {
 		let modelService = createMockModelService();
 		let modeService = createMockModeService();
-		let inst = InstantiationService.createInstantiationService({
-			modeService: modeService,
-			modelService: modelService
-		});
+		let services = new ServiceCollection();
+		services.set(IModeService, modeService);
+		services.set(IModelService, modelService);
+		let inst = new InstantiationService(services);
 
 		let resource = URI.create('inMemory', null, 'thePath');
 		modelService.createModel('function test() {}', modeService.getOrCreateMode('text'), resource);

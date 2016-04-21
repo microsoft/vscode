@@ -175,16 +175,18 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#131313' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
-			title: env.product.nameLong
+			title: env.product.nameLong,
+			webPreferences: {
+				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
+			}
 		};
 
 		if (platform.isLinux) {
-			// Windows and Mac are better off using the embedded icon(s)
-			options.icon = path.join(env.appRoot, 'resources/linux/code.png');
+			options.icon = path.join(env.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
 		// Create the browser window.

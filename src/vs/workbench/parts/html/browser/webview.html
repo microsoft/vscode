@@ -84,12 +84,8 @@
 			ipcRenderer.sendToHost(command, data);
 		};
 
-		// signal ready, needs a short timeout for an
-		// unknown reason
-		setTimeout(function() {
-			ipcRenderer.sendToHost('webview-ready', process.pid);
-		}, 10);
-
+		// signal ready
+		ipcRenderer.sendToHost('webview-ready', process.pid);
 	</script>
 </body>
 </html>

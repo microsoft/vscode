@@ -204,7 +204,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				});
 			} catch (error) {
 				reject(error);
-				this._onReady.reject();
 			}
 		});
 		this.serviceStarted(resendModels);

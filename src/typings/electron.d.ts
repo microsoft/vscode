@@ -502,6 +502,7 @@ declare module Electron {
 		sharedWorker?: boolean;
 		directWrite?: boolean;
 		pageVisibility?: boolean;
+		backgroundThrottling?: boolean;
 	}
 
 	// Includes all options BrowserWindow can take as of this writing

@@ -9,7 +9,10 @@ import modesUtil = require('vs/editor/test/common/modesUtil');
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {LESSMode} from 'vs/languages/less/common/less';
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
 
@@ -44,10 +47,10 @@ suite('LESS-tokenization', () => {
 	(function() {
 		let threadService = NULL_THREAD_SERVICE;
 		let modeService = new LESSMockModeService();
-		let inst = createInstantiationService({
-			threadService: threadService,
-			modeService: modeService
-		});
+		let services = new ServiceCollection();
+		services.set(IThreadService, threadService);
+		services.set(IModeService, modeService);
+		let inst = new InstantiationService(services);
 		threadService.setInstantiationService(inst);
 
 		let mode = new LESSMode(

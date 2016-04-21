@@ -82,9 +82,9 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		const collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
 		this.toolBar.setActions(actionbarregistry.prepareActions([collapseAction]))();
 
-		this.toDispose.push(viewModel.addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
-			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
+		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => this.onFocusStackFrame(sf)));
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
+			collapseAction.enabled = state === debug.State.Running || state === debug.State.Stopped;
 		}));
 
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
@@ -97,9 +97,8 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		}));
 	}
 
-	private onFocusedStackFrameUpdated(): void {
+	private onFocusStackFrame(stackFrame: debug.IStackFrame): void {
 		this.tree.refresh().then(() => {
-			const stackFrame = this.debugService.getViewModel().getFocusedStackFrame();
 			if (stackFrame) {
 				return stackFrame.getScopes(this.debugService).then(scopes => {
 					if (scopes.length > 0) {
@@ -127,7 +126,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, contextMenuService);
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we) => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
 			// only expand when a new watch expression is added.
 			if (we instanceof model.Expression) {
 				this.expand();
@@ -161,8 +160,8 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL);
 		this.toolBar.setActions(actionbarregistry.prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we: model.Expression) => this.onWatchExpressionsUpdated(we)));
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.SELECTED_EXPRESSION_UPDATED, (expression: debug.IExpression) => {
+		this.toDispose.push(this.debugService.getModel().onDidChangeWatchExpressions(we => this.onWatchExpressionsUpdated(we)));
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (!expression || !(expression instanceof model.Expression)) {
 				return;
 			}
@@ -178,9 +177,9 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		}));
 	}
 
-	private onWatchExpressionsUpdated(we: model.Expression): void {
+	private onWatchExpressionsUpdated(expression: debug.IExpression): void {
 		this.tree.refresh().done(() => {
-			return we instanceof model.Expression ? this.tree.reveal(we): TPromise.as(true);
+			return expression instanceof model.Expression ? this.tree.reveal(expression): TPromise.as(true);
 		}, errors.onUnexpectedError);
 	}
 
@@ -238,7 +237,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 
 			if (element instanceof model.StackFrame) {
 				const stackFrame = <debug.IStackFrame> element;
-				this.debugService.setFocusedStackFrameAndEvaluate(stackFrame);
+				this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
 
 				const isMouse = (e.payload.origin === 'mouse');
 				let preserveFocus = isMouse;
@@ -250,7 +249,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 				}
 
 				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+				this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
 
 			// user clicked on 'Load More Stack Frames', get those stack frames and refresh the tree.
@@ -276,12 +275,12 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			}
 		}));
 
-		this.toDispose.push(debugModel.addListener2(debug.ModelEvents.CALLSTACK_UPDATED, () => {
+		this.toDispose.push(debugModel.onDidChangeCallStack(() => {
 			this.tree.refresh().done(null, errors.onUnexpectedError);
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
-			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
+			const focussedThread = sf ? this.debugService.getModel().getThreads()[sf.threadId] : null;
 			if (!focussedThread) {
 				this.pauseMessage.hide();
 				return;
@@ -323,7 +322,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
 			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), messageService, contextMenuService);
 
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED,() => this.onBreakpointsChange()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -394,11 +393,11 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 				}
 
 				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				this.debugService.openOrRevealEditor(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+				this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.SELECTED_FUNCTION_BREAKPOINT_UPDATED, (fbp: debug.IFunctionBreakpoint) => {
+		this.toDispose.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
 			if (!fbp || !(fbp instanceof model.FunctionBreakpoint)) {
 				return;
 			}

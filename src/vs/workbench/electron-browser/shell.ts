@@ -67,8 +67,8 @@ import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageF
 import {IOptions} from 'vs/workbench/common/options';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
-import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import {createInstantiationService as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
@@ -159,7 +159,8 @@ export class WorkbenchShell {
 		let workbenchContainer = $(parent).div();
 
 		// Instantiation service with services
-		let instantiationService = this.initInstantiationService();
+		let serviceCollection = this.initServiceCollection();
+		let instantiationService = new InstantiationService(serviceCollection);
 
 		//crash reporting
 		if (!!this.configuration.env.crashReporter) {
@@ -177,10 +178,10 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		instantiationService.addSingleton(IExtensionsService, getService<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
+		serviceCollection.set(IExtensionsService, getService<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
 
 		// Workbench
-		this.workbench = new Workbench(workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, instantiationService);
+		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, serviceCollection);
 		this.workbench.startup({
 			onServicesCreated: () => {
 				this.initExtensionSystem();
@@ -235,7 +236,7 @@ export class WorkbenchShell {
 		}
 	}
 
-	private initInstantiationService(): IInstantiationService {
+	private initServiceCollection(): ServiceCollection {
 		this.windowService = new WindowService();
 
 		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
@@ -257,7 +258,7 @@ export class WorkbenchShell {
 			this.telemetryService = NullTelemetryService;
 		}
 
-		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.configurationService, this.telemetryService, <any>window);
+		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, <any>window);
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
 		this.keybindingService.setMessageService(this.messageService);
@@ -295,32 +296,31 @@ export class WorkbenchShell {
 		let untitledEditorService = new UntitledEditorService();
 		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService);
 
-		let result = createInstantiationService();
-		result.addSingleton(ITelemetryService, this.telemetryService);
-		result.addSingleton(IEventService, this.eventService);
-		result.addSingleton(IRequestService, requestService);
-		result.addSingleton(IWorkspaceContextService, this.contextService);
-		result.addSingleton(IContextViewService, this.contextViewService);
-		result.addSingleton(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
-		result.addSingleton(IMessageService, this.messageService);
-		result.addSingleton(IStorageService, this.storageService);
-		result.addSingleton(ILifecycleService, lifecycleService);
-		result.addSingleton(IThreadService, this.threadService);
-		result.addSingleton(IExtensionService, extensionService);
-		result.addSingleton(IModeService, modeService);
-		result.addSingleton(IFileService, fileService);
-		result.addSingleton(IUntitledEditorService, untitledEditorService);
-		result.addSingleton(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, this.configurationService));
-		result.addSingleton(IWindowService, this.windowService);
-		result.addSingleton(IConfigurationService, this.configurationService);
-		result.addSingleton(IKeybindingService, this.keybindingService);
-		result.addSingleton(IMarkerService, markerService);
-		result.addSingleton(IModelService, modelService);
-		result.addSingleton(ICodeEditorService, new CodeEditorServiceImpl());
-		result.addSingleton(IEditorWorkerService, editorWorkerService);
-		result.addSingleton(IThemeService, this.themeService);
-		result.addSingleton(IActionsService, new ActionsService(extensionService, this.keybindingService));
-
+		let result = new ServiceCollection();
+		result.set(ITelemetryService, this.telemetryService);
+		result.set(IEventService, this.eventService);
+		result.set(IRequestService, requestService);
+		result.set(IWorkspaceContextService, this.contextService);
+		result.set(IContextViewService, this.contextViewService);
+		result.set(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
+		result.set(IMessageService, this.messageService);
+		result.set(IStorageService, this.storageService);
+		result.set(ILifecycleService, lifecycleService);
+		result.set(IThreadService, this.threadService);
+		result.set(IExtensionService, extensionService);
+		result.set(IModeService, modeService);
+		result.set(IFileService, fileService);
+		result.set(IUntitledEditorService, untitledEditorService);
+		result.set(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, this.configurationService));
+		result.set(IWindowService, this.windowService);
+		result.set(IConfigurationService, this.configurationService);
+		result.set(IKeybindingService, this.keybindingService);
+		result.set(IMarkerService, markerService);
+		result.set(IModelService, modelService);
+		result.set(ICodeEditorService, new CodeEditorServiceImpl());
+		result.set(IEditorWorkerService, editorWorkerService);
+		result.set(IThemeService, this.themeService);
+		result.set(IActionsService, new ActionsService(extensionService, this.keybindingService));
 
 		return result;
 	}

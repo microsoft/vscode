@@ -13,7 +13,7 @@ import {IAction, IActionRunner} from 'vs/base/common/actions';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, LocalFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
-import dom = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {EventType as WorkbenchEventType, UntitledEditorEvent, EditorEvent} from 'vs/workbench/common/events';
@@ -82,7 +82,7 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
-		dom.addClass(this.treeContainer, 'explorer-working-files');
+		DOM.addClass(this.treeContainer, 'explorer-working-files');
 
 		this.createViewer($(this.treeContainer));
 	}
@@ -301,6 +301,12 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		this.tree.setInput(this.model);
 
 		return this.tree;
+	}
+
+	public getOptimalWidth():number {
+		let parentNode = this.tree.getHTMLElement();
+		let childNodes = [].slice.call(parentNode.querySelectorAll('.monaco-file-label > .file-name'));
+		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
 	public shutdown(): void {

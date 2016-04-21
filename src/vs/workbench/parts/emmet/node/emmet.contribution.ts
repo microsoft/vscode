@@ -19,7 +19,7 @@ import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ExpandAbbreviationAction,
 	ExpandAbbreviationAction.ID,
 	nls.localize('expandAbbreviationAction',
-	"Emmet: Expand Abbreviation")));
+	"Emmet: Expand Abbreviation"), void 0, ['expand', 'abbreviations']));
 
 KeybindingsRegistry.registerCommandRule({
 	id: ExpandAbbreviationAction.ID,

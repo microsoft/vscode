@@ -9,7 +9,21 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IEventService} from 'vs/platform/event/common/event';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IStorageService} from 'vs/platform/storage/common/storage';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IFileService} from 'vs/platform/files/common/files';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IPartService} from 'vs/workbench/services/part/common/partService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
@@ -28,23 +42,23 @@ suite('Files - WorkingFilesModel', () => {
 		editorService = new TestEditorService();
 		eventService = new TestEventService();
 
-		baseInstantiationService = createInstantiationService({
-			eventService: eventService,
-			messageService: new TestMessageService(),
-			fileService: TestFileService,
-			contextService: new TestContextService(),
-			storageService: new TestStorageService(),
-			untitledEditorService: new TestUntitledEditorService(),
-			editorService: editorService,
-			partService: new TestPartService(),
-			modeService: createMockModeService(),
-			modelService: createMockModelService(),
-			lifecycleService: new TestLifecycleService(),
-			configurationService: new TestConfigurationService()
-		});
+		let services = new ServiceCollection();
 
-		textFileService = <TextFileService>baseInstantiationService.createInstance(<any>TextFileService);
-		baseInstantiationService.registerService('textFileService', textFileService);
+		services.set(IEventService, eventService);
+		services.set(IMessageService, new TestMessageService());
+		services.set(IFileService, <any> TestFileService);
+		services.set(IWorkspaceContextService, new TestContextService());
+		services.set(ITelemetryService, NullTelemetryService);
+		services.set(IStorageService, new TestStorageService());
+		services.set(IUntitledEditorService, new TestUntitledEditorService());
+		services.set(IWorkbenchEditorService, editorService);
+		services.set(IPartService, new TestPartService());
+		services.set(IModeService, createMockModeService());
+		services.set(IModelService, createMockModelService());
+		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(IConfigurationService, new TestConfigurationService());
+
+		baseInstantiationService = new InstantiationService(services);
 	});
 
 	teardown(() => {

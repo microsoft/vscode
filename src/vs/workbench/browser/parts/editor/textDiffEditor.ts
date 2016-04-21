@@ -32,6 +32,7 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -111,9 +112,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		let diffEditorInstantiator = this.instantiationService.createChild({
-			editorService: delegatingService
-		});
+		let diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingService]));
 
 		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}

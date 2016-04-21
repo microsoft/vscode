@@ -5,9 +5,7 @@
 
 'use strict';
 
-import Platform = require('vs/platform/platform');
-import {Extenstions, ITelemetryAppendersRegistry} from 'vs/platform/telemetry/common/telemetry';
+import {Extenstions} from 'vs/platform/telemetry/common/telemetry';
 import AppInsightsTelemetryAppender = require('vs/workbench/parts/telemetry/node/nodeAppInsightsTelemetryAppender');
 
-Platform.Registry.as<ITelemetryAppendersRegistry>(Extenstions.TelemetryAppenders)
-	.registerTelemetryAppenderDescriptor(AppInsightsTelemetryAppender.NodeAppInsightsTelemetryAppender);
+Extenstions.TelemetryAppenders.registerTelemetryAppenderDescriptor(AppInsightsTelemetryAppender.NodeAppInsightsTelemetryAppender);

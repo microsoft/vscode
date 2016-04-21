@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import cssMode = require('vs/languages/css/common/css');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {cssTokenTypes, CSSMode} from 'vs/languages/css/common/css';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 
 suite('CSS Colorizing', () => {
 
@@ -21,9 +21,7 @@ suite('CSS Colorizing', () => {
 
 	(function() {
 		let threadService = NULL_THREAD_SERVICE;
-		let inst = createInstantiationService({
-			threadService: threadService,
-		});
+		let inst = new InstantiationService(new ServiceCollection([IThreadService, threadService]));
 		threadService.setInstantiationService(inst);
 
 		let mode = new CSSMode(

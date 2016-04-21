@@ -157,10 +157,10 @@ function navigateKeybinding(shift: boolean): IKeybindings {
 
 // Contribute Quick Open
 let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction, GlobalQuickOpenAction.ID, GlobalQuickOpenAction.LABEL, quickOpenKb));
+registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction, GlobalQuickOpenAction.ID, GlobalQuickOpenAction.LABEL, quickOpenKb), ['go', 'to', 'file']);
 
 // Contribute Quick Navigate
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorAction, OpenPreviousEditorAction.ID, OpenPreviousEditorAction.LABEL, prevEditorKb));
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorAction, OpenPreviousEditorAction.ID, OpenPreviousEditorAction.LABEL, prevEditorKb), ['navigate', 'history']);
 
 // Contribute Quick Navigate in Quick Open
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), KbExpr.has('inQuickOpen')));

@@ -359,12 +359,6 @@ export class WindowsManager {
 			console[logEntry.severity].apply(console, args);
 		});
 
-		ipc.on('vscode:exit', (event, code: number) => {
-			env.log('IPC#vscode:exit', code);
-
-			process.exit(code);
-		});
-
 		ipc.on('vscode:closeExtensionHostWindow', (event, extensionDevelopmentPath: string) => {
 			env.log('IPC#vscode:closeExtensionHostWindow', extensionDevelopmentPath);
 
@@ -859,6 +853,8 @@ export class WindowsManager {
 			WindowsManager.WINDOWS.push(vscodeWindow);
 
 			// Window Events
+			vscodeWindow.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
+			vscodeWindow.win.webContents.on('devtools-reload-page', () => this.reload(vscodeWindow));
 			vscodeWindow.win.webContents.on('crashed', () => this.onWindowError(vscodeWindow, WindowError.CRASHED));
 			vscodeWindow.win.on('unresponsive', () => this.onWindowError(vscodeWindow, WindowError.UNRESPONSIVE));
 			vscodeWindow.win.on('close', () => this.onBeforeWindowClose(vscodeWindow));

@@ -14,6 +14,8 @@ import dom = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
+import { IEventService } from 'vs/platform/event/common/event';
+import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import viewer = require('vs/workbench/parts/debug/browser/replViewer');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
@@ -61,7 +63,8 @@ export class Repl extends Panel {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IEventService private eventService: IEventService
 	) {
 		super(debug.REPL_ID, telemetryService);
 
@@ -70,12 +73,20 @@ export class Repl extends Panel {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.REPL_ELEMENTS_UPDATED, (re: debug.ITreeElement|debug.ITreeElement[]) => {
-			this.onReplElementsUpdated(re);
+		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
+			this.onReplElementsUpdated();
+		}));
+		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
+			if (e.compositeId === debug.REPL_ID) {
+				const elements = this.debugService.getModel().getReplElements();
+				if (elements.length > 0) {
+					return this.reveal(elements[elements.length - 1]);
+				}
+			}
 		}));
 	}
 
-	private onReplElementsUpdated(re: debug.ITreeElement | debug.ITreeElement[]): void {
+	private onReplElementsUpdated(): void {
 		if (this.tree) {
 			if (this.refreshTimeoutHandle) {
 				return; // refresh already triggered

@@ -157,9 +157,9 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GrowSelecti
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
-}));
+}, ['expand', 'select']));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShrinkSelectionAction, ShrinkSelectionAction.ID, nls.localize('smartSelect.shrink', "Shrink Select"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
-}));
+}, ['shrink', 'select']));

@@ -322,7 +322,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		}
 
 		if (line < 0 || line >= this._lines.length) {
-			throw new Error('Illegal value ' + line + ' for `line`');
+			throw new Error('Illegal value for `line`');
 		}
 
 		let result = this._textLines[line];

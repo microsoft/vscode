@@ -11,7 +11,10 @@ import {htmlTokenTypes} from 'vs/languages/html/common/html';
 import {RAZORMode} from 'vs/languages/razor/common/razor';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {MockModeService} from 'vs/editor/test/common/mocks/mockModeService';
-import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
 suite('Syntax Highlighting - Razor', () => {
 
@@ -21,10 +24,10 @@ suite('Syntax Highlighting - Razor', () => {
 
 		let threadService = NULL_THREAD_SERVICE;
 		let modeService = new MockModeService();
-		let inst = createInstantiationService({
-			threadService: threadService,
-			modeService: modeService
-		});
+		let services = new ServiceCollection();
+		services.set(IThreadService, threadService);
+		services.set(IModeService, modeService);
+		let inst = new InstantiationService(services);
 		threadService.setInstantiationService(inst);
 
 		let mode = new RAZORMode(

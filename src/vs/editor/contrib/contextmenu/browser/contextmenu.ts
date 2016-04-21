@@ -276,4 +276,4 @@ EditorBrowserRegistry.registerEditorContribution(ContextMenuController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowContextMenu, ShowContextMenu.ID, nls.localize('action.showContextMenu.label', "Show Editor Context Menu"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyCode.F10
-}));
+}, ['context', 'menu']));

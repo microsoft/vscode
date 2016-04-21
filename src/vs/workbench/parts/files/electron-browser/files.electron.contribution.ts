@@ -56,18 +56,18 @@ class FileViewerActionContributor extends ActionBarContributor {
 const category = nls.localize('filesCategory', "Files");
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }), category);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewFileAction, GlobalNewFileAction.ID, GlobalNewFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), category);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S }), category, ['save', 'as']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewFileAction, GlobalNewFileAction.ID, GlobalNewFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), category, ['new', 'file']);
 
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalCopyPathAction, GlobalCopyPathAction.ID, GlobalCopyPathAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P) }), category);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRevealInOSAction, GlobalRevealInOSAction.ID, GlobalRevealInOSAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R) }), category);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowOpenedFileInNewWindow, ShowOpenedFileInNewWindow.ID, ShowOpenedFileInNewWindow.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), category);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalCopyPathAction, GlobalCopyPathAction.ID, GlobalCopyPathAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P) }), category, ['copy', 'path']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRevealInOSAction, GlobalRevealInOSAction.ID, GlobalRevealInOSAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R) }), category, ['reveal', 'file']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowOpenedFileInNewWindow, ShowOpenedFileInNewWindow.ID, ShowOpenedFileInNewWindow.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), category, ['file', 'new', 'window']);
 
 if (env.isMacintosh) {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OPEN_FILE_FOLDER_ID, OPEN_FILE_FOLDER_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), category);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OPEN_FILE_FOLDER_ID, OPEN_FILE_FOLDER_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), category, ['open', 'file', 'folder']);
 } else {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OPEN_FILE_ID, OPEN_FILE_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), category);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OPEN_FOLDER_ID, OPEN_FOLDER_LABEL), category);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OPEN_FILE_ID, OPEN_FILE_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), category, ['open', 'file']);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OPEN_FOLDER_ID, OPEN_FOLDER_LABEL), category, ['open', 'folder']);
 }
 
 // Contribute to File Viewers
