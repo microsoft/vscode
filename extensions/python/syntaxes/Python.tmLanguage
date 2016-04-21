@@ -2,17 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>bundleUUID</key>
-	<string>E3BADC20-6B0E-11D9-9DC9-000D93589AF6</string>
-	<key>comment</key>
-	<string>
-	todo:
-		list comprehension / generator comprehension scope.
-
-	</string>
 	<key>fileTypes</key>
 	<array>
 		<string>py</string>
+		<string>py3</string>
 		<string>rpy</string>
 		<string>pyw</string>
 		<string>cpy</string>
@@ -32,77 +25,74 @@
 	<key>patterns</key>
 	<array>
 		<dict>
-			<key>begin</key>
-			<string>(^[ \t]+)?(?=#)</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.whitespace.comment.leading.python</string>
-				</dict>
-			</dict>
-			<key>end</key>
-			<string>(?!\G)</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>begin</key>
-					<string>#</string>
-					<key>beginCaptures</key>
-					<dict>
-						<key>0</key>
-						<dict>
-							<key>name</key>
-							<string>punctuation.definition.comment.python</string>
-						</dict>
-					</dict>
-					<key>end</key>
-					<string>\n</string>
-					<key>name</key>
-					<string>comment.line.number-sign.python</string>
-				</dict>
-			</array>
-		</dict>
-		<dict>
 			<key>match</key>
-			<string>\b(?i:(0x\h*)L)</string>
+			<string>(?&lt;!^from\s|^import\s)(\.{3})</string>
 			<key>name</key>
-			<string>constant.numeric.integer.long.hexadecimal.python</string>
+			<string>support.type.ellipsis.python</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#comment</string>
+		</dict>
+		<dict>
+			<key>comment</key>
+			<string>Match identifiers in ALL_CAPS as constants, except when followed by `.`, `(`, `'`, or `"`.</string>
+			<key>match</key>
+			<string>\b([[:upper:]_][[:upper:][:digit:]_]*)\b(?![\.\(\'\"])</string>
+			<key>name</key>
+			<string>constant.other.allcaps.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(?i:(0x\h*))</string>
+			<string>\b(?i:(0x\h+)L)</string>
+			<key>name</key>
+			<string>constant.numeric.integer.hexadecimal.long.python</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\b(?i:(0x\h+))</string>
 			<key>name</key>
 			<string>constant.numeric.integer.hexadecimal.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(?i:(0[0-7]+)L)</string>
+			<string>\b(?i:(0b[01]+)L)</string>
 			<key>name</key>
-			<string>constant.numeric.integer.long.octal.python</string>
+			<string>constant.numeric.integer.binary.long.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(0[0-7]+)</string>
+			<string>\b(?i:(0b[01]+))</string>
+			<key>name</key>
+			<string>constant.numeric.integer.binary.python</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\b(?i:(0[o]?[0-7]+)L)</string>
+			<key>name</key>
+			<string>constant.numeric.integer.octal.long.python</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\b(?i:(0[o]?[0-7]+))</string>
 			<key>name</key>
 			<string>constant.numeric.integer.octal.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(?i:(((\d+(\.(?=[^a-zA-Z_])\d*)?|(?&lt;=[^0-9a-zA-Z_])\.\d+)(e[\-\+]?\d+)?))J)</string>
+			<string>\b(?i:(((\d+(\.(?=[^[:alpha:]_])\d*)?|(?&lt;=[^[:alnum:]_])\.\d+)(e[\-\+]?\d+)?))J)</string>
 			<key>name</key>
 			<string>constant.numeric.complex.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(?i:(\d+\.\d*(e[\-\+]?\d+)?))(?=[^a-zA-Z_])</string>
+			<string>\b(?i:(\d+\.\d*(e[\-\+]?\d+)?))(?=[^[:alpha:]_])</string>
 			<key>name</key>
 			<string>constant.numeric.float.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>(?&lt;=[^0-9a-zA-Z_])(?i:(\.\d+(e[\-\+]?\d+)?))</string>
+			<string>(?&lt;=[^[:alnum:]_])(?i:(\.\d+(e[\-\+]?\d+)?))</string>
 			<key>name</key>
 			<string>constant.numeric.float.python</string>
 		</dict>
@@ -116,7 +106,7 @@
 			<key>match</key>
 			<string>\b(?i:([1-9]+[0-9]*|0)L)</string>
 			<key>name</key>
-			<string>constant.numeric.integer.long.decimal.python</string>
+			<string>constant.numeric.integer.decimal.long.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
@@ -125,41 +115,22 @@
 			<string>constant.numeric.integer.decimal.python</string>
 		</dict>
 		<dict>
-			<key>captures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>storage.modifier.global.python</string>
-				</dict>
-			</dict>
 			<key>match</key>
-			<string>\b(global)\b</string>
-		</dict>
-		<dict>
-			<key>captures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.control.import.python</string>
-				</dict>
-				<key>2</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.control.import.from.python</string>
-				</dict>
-			</dict>
-			<key>match</key>
-			<string>\b(?:(import)|(from))\b</string>
-		</dict>
-		<dict>
-			<key>comment</key>
-			<string>keywords that delimit flow blocks or alter flow from within a block</string>
-			<key>match</key>
-			<string>\b(elif|else|except|finally|for|if|try|while|with|break|continue|pass|raise|return|yield)\b</string>
+			<string>\b(None|True|False|Ellipsis|NotImplemented)\b</string>
 			<key>name</key>
-			<string>keyword.control.flow.python</string>
+			<string>constant.language.python</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\b(global|nonlocal)\b</string>
+			<key>name</key>
+			<string>storage.modifier.$1.python</string>
+		</dict>
+		<dict>
+			<key>match</key>
+			<string>\b(?:(import|from|as))\b</string>
+			<key>name</key>
+			<string>keyword.control.import.$1.python</string>
 		</dict>
 		<dict>
 			<key>comment</key>
@@ -170,18 +141,12 @@
 			<string>keyword.operator.logical.python</string>
 		</dict>
 		<dict>
-			<key>captures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.other.python</string>
-				</dict>
-			</dict>
 			<key>comment</key>
-			<string>keywords that haven't fit into other groups (yet).</string>
+			<string>keywords that do not fit into other groups.</string>
 			<key>match</key>
-			<string>\b(as|assert|del|exec|print)\b</string>
+			<string>\b(assert|del)\b</string>
+			<key>name</key>
+			<string>keyword.other.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
@@ -191,19 +156,25 @@
 		</dict>
 		<dict>
 			<key>match</key>
+			<string>(?&lt;!\.)(apply|buffer|coerce|intern)\s*(?=\()</string>
+			<key>name</key>
+			<string>invalid.deprecated.function.python</string>
+		</dict>
+		<dict>
+			<key>match</key>
 			<string>&lt;\=|&gt;\=|\=\=|&lt;|&gt;|\!\=</string>
 			<key>name</key>
 			<string>keyword.operator.comparison.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\+\=|-\=|\*\=|/\=|//\=|%\=|&amp;\=|\|\=|\^\=|&gt;&gt;\=|&lt;&lt;\=|\*\*\=</string>
+			<string>\+\=|-\=|\*\=|/\=|//\=|%\=|&amp;\=|\|\=|\^\=|&gt;&gt;\=|&lt;&lt;\=|\*\*\=|@\=</string>
 			<key>name</key>
 			<string>keyword.operator.assignment.augmented.python</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\+|\-|\*|\*\*|/|//|%|&lt;&lt;|&gt;&gt;|&amp;|\||\^|~</string>
+			<string>\+|\-|\*|\*\*|/|//|%|&lt;&lt;|&gt;&gt;|&amp;|\||\^|~|(?!^)@</string>
 			<key>name</key>
 			<string>keyword.operator.arithmetic.python</string>
 		</dict>
@@ -215,7 +186,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*(class)\s+(?=[a-zA-Z_][a-zA-Z_0-9]*\s*\:)</string>
+			<string>^\s*(class)\s+(?=[[:alpha:]_][[:alnum:]_]*\s*\:)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -248,7 +219,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*(class)\s+(?=[a-zA-Z_][a-zA-Z_0-9]*\s*\()</string>
+			<string>^\s*(class)\s+(?=[[:alpha:]_][[:alnum:]_]*\s*\()</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -283,11 +254,11 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?=[A-Za-z_][A-Za-z0-9_]*)</string>
+					<string>(?=[[:alpha:]_][[:alnum:]_]*)</string>
 					<key>contentName</key>
 					<string>entity.name.type.class.python</string>
 					<key>end</key>
-					<string>(?![A-Za-z0-9_])</string>
+					<string>(?![[:alnum:]_])</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -342,7 +313,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*(class)\s+(?=[a-zA-Z_][a-zA-Z_0-9])</string>
+			<string>^\s*(class)\s+(?=[[:alpha:]_][[:alnum:]_]*)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -372,11 +343,11 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?=[A-Za-z_][A-Za-z0-9_]*)</string>
+					<string>(?=[[:alpha:]_][[:alnum:]_]*)</string>
 					<key>contentName</key>
 					<string>entity.name.type.class.python</string>
 					<key>end</key>
-					<string>(?![A-Za-z0-9_])</string>
+					<string>(?![[:alnum:]_])</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -389,33 +360,28 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*(def)\s+(?=[A-Za-z_][A-Za-z0-9_]*\s*\()</string>
+			<string>\s*(?:(async)\s+)?(def)\s+(?=[[:alpha:]_][[:alnum:]_]*\s*\()</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>storage.modifier.async.python</string>
+				</dict>
+				<key>2</key>
 				<dict>
 					<key>name</key>
 					<string>storage.type.function.python</string>
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>(\))\s*(?:(\:)|(.*$\n?))</string>
+			<string>(\:)</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.parameters.end.python</string>
-				</dict>
-				<key>2</key>
-				<dict>
-					<key>name</key>
 					<string>punctuation.section.function.begin.python</string>
-				</dict>
-				<key>3</key>
-				<dict>
-					<key>name</key>
-					<string>invalid.illegal.missing-section-begin.python</string>
 				</dict>
 			</dict>
 			<key>name</key>
@@ -424,11 +390,11 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?=[A-Za-z_][A-Za-z0-9_]*)</string>
+					<string>(?=[[:alpha:]_][[:alnum:]_]*)</string>
 					<key>contentName</key>
 					<string>entity.name.function.python</string>
 					<key>end</key>
-					<string>(?![A-Za-z0-9_])</string>
+					<string>(?![[:alnum:]_])</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -451,12 +417,20 @@
 					<key>contentName</key>
 					<string>meta.function.parameters.python</string>
 					<key>end</key>
-					<string>(?=\)\s*\:)</string>
+					<string>(?=\)\s*(?:\:|-\&gt;))</string>
 					<key>patterns</key>
 					<array>
 						<dict>
 							<key>include</key>
+							<string>#annotated_arguments</string>
+						</dict>
+						<dict>
+							<key>include</key>
 							<string>#keyword_arguments</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#comment</string>
 						</dict>
 						<dict>
 							<key>captures</key>
@@ -464,16 +438,47 @@
 								<key>1</key>
 								<dict>
 									<key>name</key>
-									<string>variable.parameter.function.python</string>
+									<string>variable.parameter.function.language.python</string>
 								</dict>
 								<key>2</key>
+								<dict>
+									<key>name</key>
+									<string>variable.parameter.function.python</string>
+								</dict>
+								<key>3</key>
 								<dict>
 									<key>name</key>
 									<string>punctuation.separator.parameters.python</string>
 								</dict>
 							</dict>
 							<key>match</key>
-							<string>\b([a-zA-Z_][a-zA-Z_0-9]*)\s*(?:(,)|(?=[\n\)]))</string>
+							<string>\b(?:(self|cls)|([[:alpha:]_][[:alnum:]_]*))\s*(?:(,)|(?=[\n\)]))</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>(\))\s*(\-&gt;)</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.parameters.end.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.separator.annotation.result.python</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>(?=\:)</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>$self</string>
 						</dict>
 					</array>
 				</dict>
@@ -481,10 +486,15 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*(def)\s+(?=[A-Za-z_][A-Za-z0-9_]*)</string>
+			<string>\s*(?:(async)\s+)?(def)\s+(?=[[:alpha:]_][[:alnum:]_]*)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>storage.modifier.async.python</string>
+				</dict>
+				<key>2</key>
 				<dict>
 					<key>name</key>
 					<string>storage.type.function.python</string>
@@ -511,11 +521,11 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?=[A-Za-z_][A-Za-z0-9_]*)</string>
+					<string>(?=[[:alpha:]_][[:alnum:]_]*)</string>
 					<key>contentName</key>
 					<string>entity.name.function.python</string>
 					<key>end</key>
-					<string>(?![A-Za-z0-9_])</string>
+					<string>(?![[:alnum:]_])</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -527,8 +537,48 @@
 			</array>
 		</dict>
 		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>storage.modifier.async.python</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.function.python</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.function.python</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>\b(?:(?:(async)\s+)?(def)|(lambda))\b</string>
+		</dict>
+		<dict>
+			<key>comment</key>
+			<string>Keywords that delimit flow blocks or alter flow from within a
+					   block.
+
+					   This block should be matched *after* meta.function.python to
+					   let 'async def' be matched *first*.
+					   </string>
+			<key>match</key>
+			<string>(?x) \b(
+						async | await | break | continue | elif | else | except | finally | for |
+						if | pass | raise | return | try | while | with |
+						(yield(?:\s+from)?)
+					)\b
+					</string>
+			<key>name</key>
+			<string>keyword.control.flow.python</string>
+		</dict>
+		<dict>
 			<key>begin</key>
-			<string>(lambda)(?=\s+)</string>
+			<string>(lambda)(?=\s+|:)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -589,7 +639,7 @@
 								</dict>
 							</dict>
 							<key>match</key>
-							<string>\b([a-zA-Z_][a-zA-Z_0-9]*)\s*(?:(,)|(?=[\n\)\:]))</string>
+							<string>\b([[:alpha:]_][[:alnum:]_]*)\s*(?:(,)|(?=[\n\)\:]))</string>
 						</dict>
 					</array>
 				</dict>
@@ -597,7 +647,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*(?=@\s*[A-Za-z_][A-Za-z0-9_]*(?:\.[a-zA-Z_][a-zA-Z_0-9]*)*\s*\()</string>
+			<string>^\s*(?=@\s*[[:alpha:]_][[:alnum:]_]*(?:\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*\s*\()</string>
 			<key>comment</key>
 			<string>a decorator may be a function call which returns a decorator.</string>
 			<key>end</key>
@@ -616,7 +666,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?=(@)\s*[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\s*\()</string>
+					<string>(?=(@)\s*[[:alpha:]_][[:alnum:]_]*(?:\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*\s*\()</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>1</key>
@@ -668,7 +718,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*(?=@\s*[A-Za-z_][A-Za-z0-9_]*(?:\.[a-zA-Z_][a-zA-Z_0-9]*)*)</string>
+			<string>^\s*(?=@\s*[[:alpha:]_][[:alnum:]_]*(?:\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*)</string>
 			<key>contentName</key>
 			<string>entity.name.function.decorator.python</string>
 			<key>end</key>
@@ -679,7 +729,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?=(@)\s*[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*)</string>
+					<string>(?=(@)\s*[[:alpha:]_][[:alnum:]_]*(\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>1</key>
@@ -738,8 +788,53 @@
 			</array>
 		</dict>
 		<dict>
+			<key>include</key>
+			<string>#builtin_types</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#builtin_functions_name</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#builtin_functions_call</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#errors_warnings_exceptions</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#magic_function_names</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#magic_function_calls</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#docstrings</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#magic_variable_names</string>
+		</dict>
+		<dict>
 			<key>begin</key>
-			<string>(?=[A-Za-z_][A-Za-z0-9_]*(?:\.[a-zA-Z_][a-zA-Z_0-9]*)*\s*\()</string>
+			<string>\b(self|cls)\b\s*(?=(\())</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>variable.language.python</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.arguments.begin.python</string>
+				</dict>
+			</dict>
 			<key>end</key>
 			<string>(\))</string>
 			<key>endCaptures</key>
@@ -756,17 +851,74 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?=[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\s*\()</string>
+					<string>(\()</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.arguments.begin.python</string>
+						</dict>
+					</dict>
+					<key>contentName</key>
+					<string>meta.function-call.arguments.python</string>
 					<key>end</key>
-					<string>(?=\s*\()</string>
+					<string>(?=(\)))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.arguments.end.python</string>
+						</dict>
+					</dict>
 					<key>patterns</key>
 					<array>
 						<dict>
 							<key>include</key>
-							<string>#dotted_name</string>
+							<string>#keyword_arguments</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>$self</string>
 						</dict>
 					</array>
 				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#language_variables</string>
+		</dict>
+		<dict>
+			<key>include</key>
+			<string>#generic_object_names</string>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>(?:\.)?([[:alpha:]_][[:alnum:]_]*)\s*(?=(\())</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>meta.function-call.generic.python</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>(\))</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.arguments.end.python</string>
+				</dict>
+			</dict>
+			<key>name</key>
+			<string>meta.function-call.python</string>
+			<key>patterns</key>
+			<array>
 				<dict>
 					<key>begin</key>
 					<string>(\()</string>
@@ -797,8 +949,16 @@
 			</array>
 		</dict>
 		<dict>
+			<key>comment</key>
+			<string>Py2 print statement that should only be matched after function calls</string>
+			<key>match</key>
+			<string>(?&lt;!\.)\b(print)(?=\s|$)</string>
+			<key>name</key>
+			<string>keyword.other.print.python</string>
+		</dict>
+		<dict>
 			<key>begin</key>
-			<string>(?=[A-Za-z_][A-Za-z0-9_]*(?:\.[a-zA-Z_][a-zA-Z_0-9]*)*\s*\[)</string>
+			<string>(?=[[:alpha:]_][[:alnum:]_]*(?:\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*\s*\[)</string>
 			<key>end</key>
 			<string>(\])</string>
 			<key>endCaptures</key>
@@ -815,7 +975,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?=[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\s*\[)</string>
+					<string>(?=[[:alpha:]_][[:alnum:]_]*(?:\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*\s*\[)</string>
 					<key>end</key>
 					<string>(?=\s*\[)</string>
 					<key>patterns</key>
@@ -849,52 +1009,20 @@
 						</dict>
 					</array>
 				</dict>
-			</array>
-		</dict>
-		<dict>
-			<key>begin</key>
-			<string>(?&lt;=\)|\])\s*(\[)</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>1</key>
 				<dict>
-					<key>name</key>
-					<string>punctuation.definition.arguments.begin.python</string>
-				</dict>
-			</dict>
-			<key>contentName</key>
-			<string>meta.item-access.arguments.python</string>
-			<key>end</key>
-			<string>(\])</string>
-			<key>endCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.arguments.end.python</string>
-				</dict>
-			</dict>
-			<key>name</key>
-			<string>meta.item-access.python</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>include</key>
-					<string>$self</string>
+					<key>begin</key>
+					<string>\G</string>
+					<key>end</key>
+					<string>(?=\[)</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#dotted_name</string>
+						</dict>
+					</array>
 				</dict>
 			</array>
-		</dict>
-		<dict>
-			<key>captures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>storage.type.function.python</string>
-				</dict>
-			</dict>
-			<key>match</key>
-			<string>\b(def|lambda)\b</string>
 		</dict>
 		<dict>
 			<key>captures</key>
@@ -911,16 +1039,6 @@
 		<dict>
 			<key>include</key>
 			<string>#line_continuation</string>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>#language_variables</string>
-		</dict>
-		<dict>
-			<key>match</key>
-			<string>\b(None|True|False|Ellipsis|NotImplemented)\b</string>
-			<key>name</key>
-			<string>constant.language.python</string>
 		</dict>
 		<dict>
 			<key>include</key>
@@ -1143,54 +1261,299 @@
 	</array>
 	<key>repository</key>
 	<dict>
-		<key>builtin_exceptions</key>
+		<key>annotated_arguments</key>
 		<dict>
-			<key>match</key>
-			<string>(?x)\b(
-				(
-					Arithmetic|Assertion|Attribute|BlockingIO|BrokenPipe|Buffer|ChildProcess|
-					Connection(Aborted|Refused|Reset)?|EOF|Environment|FileExists|
-					FileNotFound|FloatingPoint|Interrupted|IO|IsADirectoryError|
-					Import|Indentation|Index|Key|Lookup|Memory|Name|NotADirectory|
-					NotImplemented|OS|Overflow|Permission|ProcessLookup|Reference|
-					Runtime|Standard|Syntax|System|Tab|Timeout|Type|UnboundLocal|
-					Unicode(Encode|Decode|Translate)?|Value|VMS|Windows|ZeroDivision
-				)Error|
-				((Pending)?Deprecation|Runtime|Syntax|User|Future|Import|Unicode|Bytes)?Warning|
-				(Base)?Exception|
-				SystemExit|StopIteration|NotImplemented|KeyboardInterrupt|GeneratorExit
-			)\b</string>
-			<key>name</key>
-			<string>support.type.exception.python</string>
+			<key>begin</key>
+			<string>\b([[:alpha:]_][[:alnum:]_]*)\s*(:)|(?=\()</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>variable.parameter.function.python</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.separator.annotation.python</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>\s*(?:(,)|(?=$\n?|[\)\:]))</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.separator.parameters.python</string>
+				</dict>
+			</dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#annotated_group</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>=</string>
+					<key>name</key>
+					<string>keyword.operator.assignment.python</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>$self</string>
+				</dict>
+			</array>
 		</dict>
-		<key>builtin_functions</key>
+		<key>annotated_group</key>
+		<dict>
+			<key>begin</key>
+			<string>(\()</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.parameters-group.begin.python</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>(\))</string>
+			<key>endCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.parameters-group.end.python</string>
+				</dict>
+			</dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>\b([[:alpha:]_][[:alnum:]_]*)\s*(:)</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>variable.parameter.function.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.separator.annotation.python</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>\s*(?:(,)|(?=$\n?|\)))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.separator.parameters.python</string>
+						</dict>
+					</dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>$self</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>\b([[:alpha:]_][[:alnum:]_]*)</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>variable.parameter.function.python</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>\s*(?:(,)|(?=$\n?|\)))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.separator.parameters.python</string>
+						</dict>
+					</dict>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#comments</string>
+				</dict>
+			</array>
+		</dict>
+		<key>builtin_functions_call</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>(?x)
+							(?&lt;!\.)\b(
+								__import__ | abs | all | any | ascii | basestring | bin | bool |
+								bytearray | bytes | callable | chr | classmethod | cmp | compile |
+								complex | delattr | dict | dir | divmod | enumerate | eval | exec |
+								execfile | file | filter | float | format | frozenset | getattr |
+								globals | hasattr | hash | help | hex | id | input | int |
+								isinstance | issubclass | iter | len | list | locals | long | map |
+								max | memoryview | min | next | object | oct | open | ord | pow |
+								print | property | range | raw_input | reduce | reload | repr |
+								reversed | round | set | setattr | slice | sorted | staticmethod |
+								str | sum | super | tuple | type | unichr | unicode | vars |
+								xrange | zip)
+							\b\s*(?=\()
+							</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>support.function.builtin.call.python</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>(\))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.arguments.end.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>meta.function-call.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(?=[[:alpha:]_][[:alnum:]_]*(?:\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*\s*\()</string>
+							<key>end</key>
+							<string>(?=\s*\()</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>#dotted_name</string>
+								</dict>
+							</array>
+						</dict>
+						<dict>
+							<key>begin</key>
+							<string>(\()</string>
+							<key>beginCaptures</key>
+							<dict>
+								<key>1</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.arguments.begin.python</string>
+								</dict>
+							</dict>
+							<key>contentName</key>
+							<string>meta.function-call.arguments.python</string>
+							<key>end</key>
+							<string>(?=\))</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>#keyword_arguments</string>
+								</dict>
+								<dict>
+									<key>include</key>
+									<string>$self</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+			</array>
+		</dict>
+		<key>builtin_functions_name</key>
 		<dict>
 			<key>match</key>
-			<string>(?x)\b(
-				__import__|all|abs|any|apply|ascii|bin|callable|chr|classmethod|cmp|coerce|
-				compile|delattr|dir|divmod|enumerate|eval|execfile|filter|format|getattr|
-				globals|hasattr|hash|help|hex|id|input|intern|isinstance|issubclass|iter|
-				len|locals|map|max|min|next|oct|open|ord|pow|print|property|range|
-				raw_input|reduce|reload|repr|reversed|round|setattr|sorted|staticmethod|
-				sum|super|type|unichr|vars|zip
-			)\b</string>
+			<string>(?x)
+					(?&lt;!\.|@)
+			        \b(
+						__import__ | abs | all | any | ascii | basestring | bin | bool |
+						bytearray | bytes | callable | chr | classmethod | cmp | compile |
+						complex | delattr | dict | dir | divmod | enumerate | eval | exec |
+						execfile | file | filter | float | format | frozenset | getattr |
+						globals | hasattr | hash | help | hex | id | input | int |
+						isinstance | issubclass | iter | len | list | locals | long | map |
+						max | memoryview | min | next | object | oct | open | ord | pow |
+						property | range | raw_input | reduce | reload | repr |
+						reversed | round | set | setattr | slice | sorted | staticmethod |
+						str | sum | super | tuple | type | unichr | unicode | vars |
+						xrange | zip)
+					\b\s*(?!(\())</string>
 			<key>name</key>
-			<string>support.function.builtin.python</string>
+			<string>support.function.builtin.name.python</string>
 		</dict>
 		<key>builtin_types</key>
 		<dict>
+			<key>comment</key>
+			<string>These are from https://docs.python.org/X/library/stdtypes.html
+      	  				where X is 2.7 or 3.5.</string>
 			<key>match</key>
-			<string>(?x)\b(
-				basestring|bool|buffer|bytearray|bytes|complex|dict|float|frozenset|int|
-				list|long|memoryview|object|range|set|slice|str|tuple|unicode|xrange
-			)\b</string>
+			<string>(?x)
+						(?&lt;!\.)
+						\b(
+							bool | buffer | bytearray | bytes | complex | dict | float |
+							frozenset | int | list | long | memoryview | object | property |
+							range | set | slice | str | tuple | type | unicode | xrange)
+						\b(?!(\s*\())</string>
 			<key>name</key>
 			<string>support.type.python</string>
+		</dict>
+		<key>comment</key>
+		<dict>
+			<key>begin</key>
+			<string>(^[ \t]+)?(?=#)</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.whitespace.comment.leading.python</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>(?!\G)</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>#</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.comment.python</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>\n</string>
+					<key>name</key>
+					<string>comment.line.number-sign.python</string>
+				</dict>
+			</array>
 		</dict>
 		<key>constant_placeholder</key>
 		<dict>
 			<key>match</key>
-			<string>(?i:(%(\([a-z_]+\))?#?0?\-?[ ]?\+?([0-9]*|\*)(\.([0-9]*|\*))?[hL]?[a-z%])|(\{([!\[\].:\w ]+)?\}))</string>
+			<string>(?i:(%(\([[:lower:]_]+\))?#?0?\-?[ ]?\+?([0-9]*|\*)(\.([0-9]*|\*))?[hL]?[[:lower:]%])|(\{([!\[\].:\w ]+)?\}))</string>
 			<key>name</key>
 			<string>constant.other.placeholder.python</string>
 		</dict>
@@ -1233,18 +1596,30 @@
 		<key>dotted_name</key>
 		<dict>
 			<key>begin</key>
-			<string>(?=[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)</string>
+			<string>(?=(?:\.(?!\s+import)\s*)?[[:alpha:]_][[:alnum:]_]*(?:\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*)</string>
 			<key>end</key>
-			<string>(?![A-Za-z0-9_\.])</string>
+			<string>(?![[:alnum:]_\.\s])|(?=(?&lt;!\.)\s+[^.])|$</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(\.)(?=[A-Za-z_][A-Za-z0-9_]*)</string>
+					<string>(\.)(?=[[:alpha:]_][[:alnum:]_]*)</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>meta.dot.python</string>
+						</dict>
+					</dict>
 					<key>end</key>
-					<string>(?![A-Za-z0-9_])</string>
+					<string>(?![[:alnum:]_])</string>
 					<key>patterns</key>
 					<array>
+						<dict>
+							<key>include</key>
+							<string>#builtin_functions_name</string>
+						</dict>
 						<dict>
 							<key>include</key>
 							<string>#magic_function_names</string>
@@ -1255,40 +1630,44 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#illegal_names</string>
+							<string>#generic_names</string>
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#generic_names</string>
+							<string>#illegal_names</string>
 						</dict>
 					</array>
 				</dict>
 				<dict>
 					<key>begin</key>
-					<string>(?&lt;!\.)(?=[A-Za-z_][A-Za-z0-9_]*)</string>
+					<string>(?&lt;!\.)(?=[[:alpha:]_][[:alnum:]_]*)</string>
 					<key>end</key>
-					<string>(?![A-Za-z0-9_])</string>
+					<string>(?![[:alnum:]_])</string>
 					<key>patterns</key>
 					<array>
-						<dict>
-							<key>include</key>
-							<string>#builtin_functions</string>
-						</dict>
 						<dict>
 							<key>include</key>
 							<string>#builtin_types</string>
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#builtin_exceptions</string>
+							<string>#builtin_functions_name</string>
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#illegal_names</string>
+							<string>#builtin_functions_call</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#errors_warnings_exceptions</string>
 						</dict>
 						<dict>
 							<key>include</key>
 							<string>#magic_function_names</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#magic_function_calls</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -1302,6 +1681,10 @@
 							<key>include</key>
 							<string>#generic_names</string>
 						</dict>
+						<dict>
+							<key>include</key>
+							<string>#illegal_names</string>
+						</dict>
 					</array>
 				</dict>
 			</array>
@@ -1312,11 +1695,11 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#illegal_names</string>
+					<string>#generic_names</string>
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#generic_names</string>
+					<string>#illegal_names</string>
 				</dict>
 			</array>
 		</dict>
@@ -1326,17 +1709,49 @@
 			<array>
 				<dict>
 					<key>include</key>
+					<string>#builtin_functions_name</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#magic_function_names</string>
 				</dict>
 				<dict>
 					<key>include</key>
 					<string>#illegal_names</string>
 				</dict>
-				<dict>
-					<key>include</key>
-					<string>#generic_names</string>
-				</dict>
 			</array>
+		</dict>
+		<key>errors_warnings_exceptions</key>
+		<dict>
+			<key>match</key>
+			<string>(?x)
+						\b(
+							(
+								Arithmetic | Assertion | Attribute | Buffer | BlockingIO |
+								BrokenPipe | ChildProcess | (Connection(Aborted | Refused | Reset)?) |
+								EOF | Environment | FileExists | FileNotFound | FloatingPoint | IO |
+								Import | Indentation | Index | Interrupted | IsADirectory |
+								NotADirectory | Permission | ProcessLookup | Timeout | Key | Lookup |
+								Memory | Name | NotImplemented | OS | Overflow | Reference | Runtime |
+								Recursion | Standard | Syntax | System | Tab | Type | UnboundLocal |
+								Unicode(Encode | Decode | Translate)? | Value | VMS | Windows |
+								ZeroDivision | ([[:alpha:]_][[:alnum:]_]*))
+							?Error
+							|
+							(
+								(Pending)?Deprecation | Bytes | Future | Import | Resource |
+								Runtime | Syntax | Unicode | User | [[:alpha:]_][[:alnum:]_]*)
+							?Warning
+							|
+							SystemExit | Stop(Async)?Iteration | NotImplemented |
+							KeyboardInterrupt | GeneratorExit
+							|
+							([[:alpha:]_][[:alnum:]_]*)
+							?Exception
+						)
+						\b</string>
+			<key>name</key>
+			<string>support.type.exception.python</string>
 		</dict>
 		<key>escaped_char</key>
 		<dict>
@@ -1380,7 +1795,7 @@
 				<key>4</key>
 				<dict>
 					<key>name</key>
-					<string>constant.character.escape.backlash.python</string>
+					<string>constant.character.escape.backslash.python</string>
 				</dict>
 				<key>5</key>
 				<dict>
@@ -1409,7 +1824,21 @@
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>(\\x[0-9A-F]{2})|(\\[0-7]{3})|(\\\n)|(\\\\)|(\\\")|(\\')|(\\a)|(\\b)|(\\f)|(\\n)|(\\r)|(\\t)|(\\v)</string>
+			<string>(\\x[\h]{2})|(\\[0-7]{3})|(\\\n)|(\\\\)|(\\\")|(\\')|(\\a)|(\\b)|(\\f)|(\\n)|(\\r)|(\\t)|(\\v)</string>
+		</dict>
+		<key>escaped_char_raw_double</key>
+		<dict>
+			<key>match</key>
+			<string>\\"</string>
+			<key>name</key>
+			<string>constant.character.escape.quote.python</string>
+		</dict>
+		<key>escaped_char_raw_single</key>
+		<dict>
+			<key>match</key>
+			<string>\\'</string>
+			<key>name</key>
+			<string>constant.character.escape.quote.python</string>
 		</dict>
 		<key>escaped_unicode_char</key>
 		<dict>
@@ -1418,12 +1847,12 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>constant.character.escape.unicode.16-bit-hex.python</string>
+					<string>constant.character.escape.unicode.32-bit-hex.python</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>constant.character.escape.unicode.32-bit-hex.python</string>
+					<string>constant.character.escape.unicode.16-bit-hex.python</string>
 				</dict>
 				<key>3</key>
 				<dict>
@@ -1432,60 +1861,45 @@
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>(\\U[0-9A-Fa-f]{8})|(\\u[0-9A-Fa-f]{4})|(\\N\{[a-zA-Z ]+\})</string>
-		</dict>
-		<key>function_name</key>
-		<dict>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>include</key>
-					<string>#magic_function_names</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#magic_variable_names</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#builtin_exceptions</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#builtin_functions</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#builtin_types</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#generic_names</string>
-				</dict>
-			</array>
+			<string>(\\U[\h]{8})|(\\u[\h]{4})|(\\N\{[a-zA-Z0-9\, ]+\})</string>
 		</dict>
 		<key>generic_names</key>
 		<dict>
 			<key>match</key>
-			<string>[A-Za-z_][A-Za-z0-9_]*</string>
+			<string>[[:alpha:]_][[:alnum:]_]*</string>
+			<key>name</key>
+			<string>meta.identifier.python</string>
+		</dict>
+		<key>generic_object_names</key>
+		<dict>
+			<key>match</key>
+			<string>(\.\b([[:alpha:]_][[:alnum:]_]*)\b(?!\(|\[)|\b([[:alpha:]_][[:alnum:]_]*)\b\.)</string>
 		</dict>
 		<key>illegal_names</key>
 		<dict>
+			<key>comment</key>
+			<string>from Lib/keyword.py, in kwlist. `async` and `await` not keywords until Python 3.7 (according to PEP-0492)</string>
 			<key>match</key>
-			<string>\b(and|as|assert|break|class|continue|def|del|elif|else|except|exec|finally|for|from|global|if|import|in|is|lambda|not|or|pass|print|raise|return|try|while|with|yield)\b</string>
+			<string>(?x)
+				      \b (
+				        False | None | True | and | as | assert | break | class | continue | def |
+				        del | elif | else | except | exec | finally | for | from | global | if |
+				        import | in | is | lambda | nonlocal | not | or | pass | print | raise |
+				        return | try | while | with | yield)
+				      \b</string>
 			<key>name</key>
 			<string>invalid.illegal.name.python</string>
 		</dict>
 		<key>keyword_arguments</key>
 		<dict>
 			<key>begin</key>
-			<string>\b([a-zA-Z_][a-zA-Z_0-9]*)\s*(=)(?!=)</string>
+			<string>\b([[:alpha:]_][[:alnum:]_]*)\s*(=)(?!=)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>variable.parameter.function.python</string>
+					<string>variable.parameter.function.keyword.python</string>
 				</dict>
 				<key>2</key>
 				<dict>
@@ -1494,7 +1908,7 @@
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>\s*(?:(,)|(?=$\n?|[\)\:]))</string>
+			<string>\s*(?:(,)|(?=[\)\:]))</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1513,10 +1927,16 @@
 		</dict>
 		<key>language_variables</key>
 		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>variable.language.python</string>
+				</dict>
+			</dict>
 			<key>match</key>
-			<string>\b(self|cls)\b</string>
-			<key>name</key>
-			<string>variable.language.python</string>
+			<string>(?&lt;!\.)\b(self|cls)\b(?:\.|\()?</string>
 		</dict>
 		<key>line_continuation</key>
 		<dict>
@@ -1536,33 +1956,166 @@
 			<key>match</key>
 			<string>(\\)(.*)$\n?</string>
 		</dict>
+		<key>magic_function_calls</key>
+		<dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>begin</key>
+					<string>(?x)
+								(\.)?
+								\b(
+									__(?:
+									abs | add | aenter | aexit | aiter | and | anext | await | bool |
+									bytes | call | ceil | cmp | coerce | complex | contains | copy |
+									deepcopy | del | delattr | delete | delitem | delslice | dir | div |
+									divmod | enter | eq | exit | float | floor | floordiv | format | ge |
+									get | getattr | getattribute | getinitargs | getitem | getnewargs |
+									getnewargs_ex | getslice | getstate | gt | hash | hex | iadd | iand |
+									idiv | idivmod | ifloordiv | ilshift | imatmul | imod | imul | index |
+									init | instancecheck | int | invert | iop | ior | ipow | irshift |
+									isub | iter | itruediv | ixor | le | len | length_hint | long |
+									lshift | lt | matmul | missing | mod | mul | ne | neg | new | next |
+									nonzero | oct | op | or | pos | pow | prepare | radd | rand | rcmp |
+									rdiv | rdivmod | reduce | reduce_ex | repr | reversed | rfloordiv |
+									rlshift | rmatmul | rmod | rmul | rop | ror | round | rpow | rrshift |
+									rshift | rsub | rtruediv | rxor | set | setattr | setitem | setslice |
+									setstate | sizeof | str | sub | subclasscheck | truediv | trunc |
+									unicode | xor)
+								__)
+								\s*(?=(\())</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>support.function.magic.call.python</string>
+						</dict>
+						<key>4</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.arguments.begin.python</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>(\))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.arguments.end.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>meta.function-call.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>begin</key>
+							<string>(?=[[:alpha:]_][[:alnum:]_]*(?:\s*\.\s*[[:alpha:]_][[:alnum:]_]*)*\s*\()</string>
+							<key>end</key>
+							<string>(?=\s*\()</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>#dotted_name</string>
+								</dict>
+							</array>
+						</dict>
+						<dict>
+							<key>begin</key>
+							<string>(\()</string>
+							<key>beginCaptures</key>
+							<dict>
+								<key>1</key>
+								<dict>
+									<key>name</key>
+									<string>punctuation.definition.arguments.begin.python</string>
+								</dict>
+							</dict>
+							<key>contentName</key>
+							<string>meta.function-call.arguments.python</string>
+							<key>end</key>
+							<string>(?=\))</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>#keyword_arguments</string>
+								</dict>
+								<dict>
+									<key>include</key>
+									<string>$self</string>
+								</dict>
+							</array>
+						</dict>
+					</array>
+				</dict>
+			</array>
+		</dict>
 		<key>magic_function_names</key>
 		<dict>
+			<key>captures</key>
+			<dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>support.function.magic.name.python</string>
+				</dict>
+			</dict>
 			<key>comment</key>
-			<string>these methods have magic interpretation by python and are generally called indirectly through syntactic constructs</string>
+			<string>These methods have magic interpretation by python and are generally
+					   called indirectly through syntactic constructs. Names are from
+					   https://docs.python.org/X/reference/datamodel.html where X is 2.7 and 3.5
+					   See also http://www.rafekettler.com/magicmethods.html</string>
 			<key>match</key>
-			<string>(?x)\b(__(?:
-						abs|add|and|call|cmp|coerce|complex|contains|del|delattr|
-						delete|delitem|delslice|div|divmod|enter|eq|exit|float|
-						floordiv|ge|get|getattr|getattribute|getitem|getslice|gt|
-						hash|hex|iadd|iand|idiv|ifloordiv|ilshift|imod|imul|init|
-						int|invert|ior|ipow|irshift|isub|iter|itruediv|ixor|le|len|
-						long|lshift|lt|mod|mul|ne|neg|new|nonzero|oct|or|pos|pow|
-						radd|rand|rdiv|rdivmod|repr|rfloordiv|rlshift|rmod|rmul|ror|
-						rpow|rrshift|rshift|rsub|rtruediv|rxor|set|setattr|setitem|
-						setslice|str|sub|truediv|unicode|xor
-					)__)\b</string>
-			<key>name</key>
-			<string>support.function.magic.python</string>
+			<string>(?x)
+						(def|\.)?
+						\s*\b(
+							__(?:
+								abs | add | aenter | aexit | aiter | and | anext | await | bool |
+								bytes | call | ceil | cmp | coerce | complex | contains | copy |
+								deepcopy | del | delattr | delete | delitem | delslice | dir | div |
+								divmod | enter | eq | exit | float | floor | floordiv | format | ge |
+								get | getattr | getattribute | getinitargs | getitem | getnewargs |
+								getnewargs_ex | getslice | getstate | gt | hash | hex | iadd | iand |
+								idiv | idivmod | ifloordiv | ilshift | imatmul | imod | imul | index |
+								init | instancecheck | int | invert | iop | ior | ipow | irshift |
+								isub | iter | itruediv | ixor | le | len | length_hint | long |
+								lshift | lt | matmul | missing | mod | mul | ne | neg | new | next |
+								nonzero | oct | op | or | pos | pow | prepare | radd | rand | rcmp |
+								rdiv | rdivmod | reduce | reduce_ex | repr | reversed | rfloordiv |
+								rlshift | rmatmul | rmod | rmul | rop | ror | round | rpow | rrshift |
+								rshift | rsub | rtruediv | rxor | set | setattr | setitem | setslice |
+								setstate | sizeof | str | sub | subclasscheck | truediv | trunc |
+								unicode | xor)
+						__)
+						\b</string>
 		</dict>
 		<key>magic_variable_names</key>
 		<dict>
+			<key>captures</key>
+			<dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>support.variable.magic.python</string>
+				</dict>
+			</dict>
 			<key>comment</key>
-			<string>magic variables which a class/module may have.</string>
+			<string>magic attributes which a class/module may have.</string>
 			<key>match</key>
-			<string>\b__(all|bases|class|debug|dict|doc|file|members|metaclass|methods|name|slots|weakref)__\b</string>
-			<key>name</key>
-			<string>support.variable.magic.python</string>
+			<string>(?x)
+						(\.)?
+						\b(
+							__(?:
+							all | annotations | bases | class | closure | code | debug |
+							defaults | dict | doc | file | func | globals | kwdefaults |
+							members | metaclass | methods | module | mro | name | qualname |
+							self | slots | subclasses | version | weakref)
+						__) \b</string>
 		</dict>
 		<key>regular_expressions</key>
 		<dict>
@@ -1620,11 +2173,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_unicode_char</string>
-						</dict>
-						<dict>
-							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_double</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -1670,11 +2219,95 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_unicode_char</string>
+							<string>#escaped_char_raw_double</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([bB]r)(""")</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>single quoted bytes-raw string</string>
+					<key>end</key>
+					<string>"""</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.double.block.bytes-raw-regex.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_double</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#regular_expressions</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([bB]R)(""")</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>single quoted bytes-raw string without regular expression highlighting</string>
+					<key>end</key>
+					<string>"""</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.double.block.bytes-raw.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char_raw_double</string>
 						</dict>
 					</array>
 				</dict>
@@ -1716,7 +2349,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_double</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -1762,7 +2395,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_double</string>
 						</dict>
 					</array>
 				</dict>
@@ -1813,6 +2446,52 @@
 					</array>
 				</dict>
 				<dict>
+					<key>begin</key>
+					<string>([bB])(""")</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>double quoted bytes string</string>
+					<key>end</key>
+					<string>"""</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.double.block.bytes.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_unicode_char</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
 					<key>captures</key>
 					<dict>
 						<key>1</key>
@@ -1835,11 +2514,7 @@
 								</dict>
 								<dict>
 									<key>include</key>
-									<string>#escaped_unicode_char</string>
-								</dict>
-								<dict>
-									<key>include</key>
-									<string>#escaped_char</string>
+									<string>#escaped_char_raw_double</string>
 								</dict>
 								<dict>
 									<key>include</key>
@@ -1903,11 +2578,105 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_unicode_char</string>
+							<string>#escaped_char_raw_double</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([bB]r)(")</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>double-quoted raw string</string>
+					<key>end</key>
+					<string>(")|(\n)</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>invalid.illegal.unclosed-string.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.double.single-line.bytes-raw-regex.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_double</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#regular_expressions</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([bB]R)(")</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>double-quoted raw string</string>
+					<key>end</key>
+					<string>(")|(\n)</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>invalid.illegal.unclosed-string.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.double.single-line.bytes-raw.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char_raw_double</string>
 						</dict>
 					</array>
 				</dict>
@@ -1934,7 +2703,7 @@
 								</dict>
 								<dict>
 									<key>include</key>
-									<string>#escaped_char</string>
+									<string>#escaped_char_raw_double</string>
 								</dict>
 								<dict>
 									<key>include</key>
@@ -1998,7 +2767,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_double</string>
 						</dict>
 					</array>
 				</dict>
@@ -2055,6 +2824,57 @@
 				</dict>
 				<dict>
 					<key>begin</key>
+					<string>([bB])(")</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>double quoted bytes string</string>
+					<key>end</key>
+					<string>(")|(\n)</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>invalid.illegal.unclosed-string.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.double.single-line.bytes.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_unicode_char</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
 					<string>(""")(?=\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER))</string>
 					<key>beginCaptures</key>
 					<dict>
@@ -2083,6 +2903,10 @@
 						<dict>
 							<key>include</key>
 							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_unicode_char</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -2127,16 +2951,33 @@
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>#constant_placeholder</string>
-						</dict>
-						<dict>
-							<key>include</key>
-							<string>#escaped_char</string>
-						</dict>
-						<dict>
-							<key>include</key>
-							<string>source.sql</string>
+							<key>captures</key>
+							<dict>
+								<key>0</key>
+								<dict>
+									<key>patterns</key>
+									<array>
+										<dict>
+											<key>include</key>
+											<string>#constant_placeholder</string>
+										</dict>
+										<dict>
+											<key>include</key>
+											<string>#escaped_unicode_char</string>
+										</dict>
+										<dict>
+											<key>include</key>
+											<string>#escaped_char</string>
+										</dict>
+										<dict>
+											<key>include</key>
+											<string>source.sql</string>
+										</dict>
+									</array>
+								</dict>
+							</dict>
+							<key>match</key>
+							<string>(\G|^)([^"\\]|\\.)*(?="|$)</string>
 						</dict>
 					</array>
 				</dict>
@@ -2170,6 +3011,10 @@
 						<dict>
 							<key>include</key>
 							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_unicode_char</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -2212,6 +3057,10 @@
 						<dict>
 							<key>include</key>
 							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_unicode_char</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -2263,11 +3112,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_unicode_char</string>
-						</dict>
-						<dict>
-							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_single</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -2313,11 +3158,95 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_unicode_char</string>
+							<string>#escaped_char_raw_single</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([bB]r)(''')</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>single quoted bytes-raw string</string>
+					<key>end</key>
+					<string>'''</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.single.block.bytes-raw-regex.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_single</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#regular_expressions</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([bB]R)(''')</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>single quoted bytes-raw string</string>
+					<key>end</key>
+					<string>'''</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>0</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.single.block.bytes-raw.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char_raw_single</string>
 						</dict>
 					</array>
 				</dict>
@@ -2359,7 +3288,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_single</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -2405,7 +3334,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_single</string>
 						</dict>
 					</array>
 				</dict>
@@ -2456,56 +3385,8 @@
 					</array>
 				</dict>
 				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>storage.type.string.python</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>punctuation.definition.string.begin.python</string>
-						</dict>
-						<key>3</key>
-						<dict>
-							<key>patterns</key>
-							<array>
-								<dict>
-									<key>include</key>
-									<string>#constant_placeholder</string>
-								</dict>
-								<dict>
-									<key>include</key>
-									<string>#escaped_unicode_char</string>
-								</dict>
-								<dict>
-									<key>include</key>
-									<string>#escaped_char</string>
-								</dict>
-								<dict>
-									<key>include</key>
-									<string>#regular_expressions</string>
-								</dict>
-							</array>
-						</dict>
-						<key>4</key>
-						<dict>
-							<key>name</key>
-							<string>punctuation.definition.string.end.python</string>
-						</dict>
-					</dict>
-					<key>comment</key>
-					<string>single quoted raw string</string>
-					<key>match</key>
-					<string>([uU]r)(')((?:[^'\\]|\\.)*)(')</string>
-					<key>name</key>
-					<string>string.quoted.single.single-line.unicode-raw-regex.python</string>
-				</dict>
-				<dict>
 					<key>begin</key>
-					<string>([uU]R)(')</string>
+					<string>([bB])(''')</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>1</key>
@@ -2520,24 +3401,19 @@
 						</dict>
 					</dict>
 					<key>comment</key>
-					<string>single quoted raw string</string>
+					<string>single quoted bytes string</string>
 					<key>end</key>
-					<string>(')|(\n)</string>
+					<string>'''</string>
 					<key>endCaptures</key>
 					<dict>
-						<key>1</key>
+						<key>0</key>
 						<dict>
 							<key>name</key>
 							<string>punctuation.definition.string.end.python</string>
 						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>invalid.illegal.unclosed-string.python</string>
-						</dict>
 					</dict>
 					<key>name</key>
-					<string>string.quoted.single.single-line.unicode-raw.python</string>
+					<string>string.quoted.single.block.bytes.python</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -2577,7 +3453,7 @@
 								</dict>
 								<dict>
 									<key>include</key>
-									<string>#escaped_char</string>
+									<string>#escaped_char_raw_single</string>
 								</dict>
 								<dict>
 									<key>include</key>
@@ -2593,6 +3469,193 @@
 					</dict>
 					<key>comment</key>
 					<string>single quoted raw string</string>
+					<key>match</key>
+					<string>([uU]r)(')((?:[^'\\]|\\.)*)(')</string>
+					<key>name</key>
+					<string>string.quoted.single.single-line.unicode-raw-regex.python</string>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([uU]R)(')</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>single quoted unicode-raw string</string>
+					<key>end</key>
+					<string>(')|(\n)</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>invalid.illegal.unclosed-string.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.single.single-line.unicode-raw.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char_raw_single</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([bB]r)(')</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>single quoted bytes-raw string</string>
+					<key>end</key>
+					<string>(')|(\n)</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>invalid.illegal.unclosed-string.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.single.single-line.bytes-raw-regex.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char_raw_single</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#regular_expressions</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
+					<string>([bB]R)(')</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>single quoted bytes-raw string</string>
+					<key>end</key>
+					<string>(')|(\n)</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>invalid.illegal.unclosed-string.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.single.single-line.bytes-raw.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char_raw_single</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+						<key>3</key>
+						<dict>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>#constant_placeholder</string>
+								</dict>
+								<dict>
+									<key>include</key>
+									<string>#escaped_char_raw_single</string>
+								</dict>
+								<dict>
+									<key>include</key>
+									<string>#regular_expressions</string>
+								</dict>
+							</array>
+						</dict>
+						<key>4</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+					</dict>
 					<key>match</key>
 					<string>(r)(')((?:[^'\\]|\\.)*)(')</string>
 					<key>name</key>
@@ -2641,7 +3704,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#escaped_char</string>
+							<string>#escaped_char_raw_single</string>
 						</dict>
 					</array>
 				</dict>
@@ -2698,6 +3761,57 @@
 				</dict>
 				<dict>
 					<key>begin</key>
+					<string>([bB])(')</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.string.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.python</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>single quoted bytes string</string>
+					<key>end</key>
+					<string>(')|(\n)</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.end.python</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>invalid.illegal.unclosed-string.python</string>
+						</dict>
+					</dict>
+					<key>name</key>
+					<string>string.quoted.single.single-line.bytes.python</string>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_unicode_char</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_char</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
+					<key>begin</key>
 					<string>(''')(?=\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER))</string>
 					<key>beginCaptures</key>
 					<dict>
@@ -2726,6 +3840,10 @@
 						<dict>
 							<key>include</key>
 							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_unicode_char</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -2770,16 +3888,33 @@
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>#constant_placeholder</string>
-						</dict>
-						<dict>
-							<key>include</key>
-							<string>#escaped_char</string>
-						</dict>
-						<dict>
-							<key>include</key>
-							<string>source.sql</string>
+							<key>captures</key>
+							<dict>
+								<key>0</key>
+								<dict>
+									<key>patterns</key>
+									<array>
+										<dict>
+											<key>include</key>
+											<string>#constant_placeholder</string>
+										</dict>
+										<dict>
+											<key>include</key>
+											<string>#escaped_unicode_char</string>
+										</dict>
+										<dict>
+											<key>include</key>
+											<string>#escaped_char</string>
+										</dict>
+										<dict>
+											<key>include</key>
+											<string>source.sql</string>
+										</dict>
+									</array>
+								</dict>
+							</dict>
+							<key>match</key>
+							<string>(\G|^)([^'\\]|\\.)*(?='|$)</string>
 						</dict>
 					</array>
 				</dict>
@@ -2813,6 +3948,10 @@
 						<dict>
 							<key>include</key>
 							<string>#constant_placeholder</string>
+						</dict>
+						<dict>
+							<key>include</key>
+							<string>#escaped_unicode_char</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -2858,6 +3997,10 @@
 						</dict>
 						<dict>
 							<key>include</key>
+							<string>#escaped_unicode_char</string>
+						</dict>
+						<dict>
+							<key>include</key>
 							<string>#escaped_char</string>
 						</dict>
 					</array>
@@ -2885,3 +4028,4 @@
 	<string>F23DB5B2-7D08-11D9-A709-000D93B6E43C</string>
 </dict>
 </plist>
+
