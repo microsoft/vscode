@@ -14,6 +14,7 @@ import { WorkspaceContextService } from 'vs/workbench/services/workspace/common/
 import { EventService } from 'vs/platform/event/common/eventService';
 
 // Extra services
+import { ExtensionsChannel } from 'vs/workbench/parts/extensions/common/extensionsIpc';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
 
 interface IInitData {
@@ -43,12 +44,12 @@ function setupPlanB(parentPid: number): void {
 }
 
 function main(server: Server, initData: IInitData): void {
-
 	const eventService = new EventService();
 	const contextService = new WorkspaceContextService(eventService, null, initData.configuration, initData.contextServiceOptions);
 	const extensionService = new ExtensionsService(contextService);
+	const channel = new ExtensionsChannel(extensionService);
 
-	server.registerService('ExtensionService', extensionService);
+	server.registerChannel('extensions', channel);
 
 	// eventually clean up old extensions
 	setTimeout(() => extensionService.removeDeprecatedExtensions(), 5000);
