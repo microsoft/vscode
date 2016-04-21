@@ -429,12 +429,14 @@ export class Model implements debug.IModel {
 
 	public clearThreads(removeThreads: boolean, reference: number = undefined): void {
 		if (reference) {
-			this.threads[reference].clearCallStack();
-			this.threads[reference].stoppedDetails = undefined;
-			this.threads[reference].stopped = false;
+			if (this.threads[reference]) {
+				this.threads[reference].clearCallStack();
+				this.threads[reference].stoppedDetails = undefined;
+				this.threads[reference].stopped = false;
 
-			if (removeThreads) {
-				delete this.threads[reference];
+				if (removeThreads) {
+					delete this.threads[reference];
+				}
 			}
 		} else {
 			Object.keys(this.threads).forEach(ref => {

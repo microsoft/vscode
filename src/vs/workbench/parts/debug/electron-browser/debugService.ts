@@ -269,8 +269,17 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.push(this.session.onDidContinue(threadID => {
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.clearThreads(false, threadID);
-			this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
-			this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
+			
+			// Get a top stack frame of a stopped thread if there is any.
+			const threads = this.model.getThreads();
+			const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
+			const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
+			const stackFrameToFocus = stoppedThread && stoppedThread.getCachedCallStack().length > 0 ? stoppedThread.getCachedCallStack()[0] : null;
+
+			this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+			if (!stoppedThread) {
+				this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
+			}
 		}));
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidThread(event => {
