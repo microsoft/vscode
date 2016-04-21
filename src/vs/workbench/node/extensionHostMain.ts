@@ -160,14 +160,14 @@ export class ExtensionHostMain {
 			});
 			userExtensions.forEach((userExtension) => {
 				if (result.hasOwnProperty(userExtension.id)) {
-					collector.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extesion {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+					collector.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
 				}
 				result[userExtension.id] = userExtension;
 			});
 			developedExtensions.forEach(developedExtension => {
 				collector.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
 				if (result.hasOwnProperty(developedExtension.id)) {
-					collector.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extesion {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+					collector.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
 				}
 				result[developedExtension.id] = developedExtension;
 			});
