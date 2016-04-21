@@ -1814,12 +1814,18 @@ export class ReopenClosedFileAction extends Action {
 				return TPromise.as(true);
 			}
 
+			// If the current resource is the recently closed resource, run action again
+			let activeResource = getUntitledOrFileResource(this.editorService.getActiveEditorInput());
+			if (activeResource && activeResource.path === entry.resource.path) {
+				return this.run();
+			}
+
 			return this.fileService.resolveFile(entry.resource).then(() => {
 				workingFilesModel.addEntry(entry.resource);
 				return this.editorService.openEditor(entry);
 			}, (e: any) => {
+				// If the files no longer exists, run action again
 				if (e.code === 'ENOENT') {
-					// The files no longer exists, run action again
 					return this.run();
 				}
 
