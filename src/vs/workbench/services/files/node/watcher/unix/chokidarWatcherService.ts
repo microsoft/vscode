@@ -15,11 +15,10 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {FileChangeType} from 'vs/platform/files/common/files';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
-
-import {IWatcherRequest, WatcherService} from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import watcher = require('vs/workbench/services/files/node/watcher/common');
+import { IWatcherRequest, IWatcherService } from './watcher';
 
-export class ChokidarWatcherService extends WatcherService {
+export class ChokidarWatcherService implements IWatcherService {
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
