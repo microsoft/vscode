@@ -16,7 +16,8 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, IRawSearchService, SearchService as RawSearchService} from 'vs/workbench/services/search/node/rawSearchService';
+import {IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, IRawSearchService} from './search';
+import {ISearchChannel, SearchChannelClient} from './searchIpc';
 
 export class SearchService implements ISearchService {
 	public serviceId = ISearchService;
@@ -204,7 +205,8 @@ class DiskSearch {
 			}
 		);
 
-		this.raw = client.getChannel<IRawSearchService>('SearchService', RawSearchService);
+		const channel = client.getChannel<ISearchChannel>('search');
+		this.raw = new SearchChannelClient(channel);
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {

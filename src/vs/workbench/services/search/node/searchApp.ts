@@ -6,7 +6,10 @@
 'use strict';
 
 import {Server} from 'vs/base/parts/ipc/node/ipc.cp';
-import {SearchService} from 'vs/workbench/services/search/node/rawSearchService';
+import {SearchChannel} from './searchIpc';
+import {SearchService} from './rawSearchService';
 
 const server = new Server();
-server.registerChannel('SearchService', new SearchService());
+const service = new SearchService();
+const channel = new SearchChannel(service);
+server.registerChannel('search', channel);
