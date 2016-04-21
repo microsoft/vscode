@@ -118,14 +118,6 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 	}
 
 	private loadConfiguration(section?: string): TPromise<any> {
-		return this.doLoadConfiguration().then((res: ILoadConfigResult) => {
-			this.cachedConfig = res;
-
-			return this.getConfiguration(section);
-		});
-	}
-
-	private doLoadConfiguration(): TPromise<ILoadConfigResult> {
 
 		// Load globals
 		const globals = this.loadGlobalConfiguration();
@@ -148,6 +140,10 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 				consolidated: consolidated,
 				globals: globals
 			};
+		}).then((res: ILoadConfigResult) => {
+			this.cachedConfig = res;
+
+			return this.getConfiguration(section);
 		});
 	}
 
