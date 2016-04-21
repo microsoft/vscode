@@ -6,19 +6,8 @@
 'use strict';
 
 import { connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IAskpassChannel, AskpassChannelClient } from 'vs/workbench/parts/git/common/gitIpc';
 import * as fs from 'fs';
-
-export interface ICredentials {
-	username: string;
-	password: string;
-}
-
-export class GitAskpassServiceStub {
-	public askpass(id: string, host: string, command: string): TPromise<ICredentials> {
-		throw new Error('not implemented');
-	}
-}
 
 function fatal(err: any): void {
 	console.error(err);
@@ -49,7 +38,8 @@ function main(argv: string[]): void {
 
 	connect(process.env['VSCODE_IPC_HOOK'])
 		.then(client => {
-			const service = client.getChannel<GitAskpassServiceStub>('GitAskpassService', GitAskpassServiceStub);
+			const channel = client.getChannel<IAskpassChannel>('askpass');
+			const service = new AskpassChannelClient(channel);
 
 			return service.askpass(id, host, process.env['MONACO_GIT_COMMAND']).then(result => {
 				if (result) {

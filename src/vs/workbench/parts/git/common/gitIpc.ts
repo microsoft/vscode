@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IRawGitService, RawServiceState, IRawStatus, IPushOptions } from './git';
+import { IRawGitService, RawServiceState, IRawStatus, IPushOptions, IAskpassService, ICredentials } from './git';
 
 export interface IGitChannel extends IChannel {
 	call(command: 'getVersion'): TPromise<string>;
@@ -156,5 +156,30 @@ export class GitChannelClient implements IRawGitService {
 
 	onOutput(): TPromise<void> {
 		return this.channel.call('onOutput');
+	}
+}
+
+export interface IAskpassChannel extends IChannel {
+	call(command: 'askpass', id: string, host: string, gitCommand: string): TPromise<ICredentials>;
+	call(command: string, ...args: any[]): TPromise<any>;
+}
+
+export class AskpassChannel implements IAskpassChannel {
+
+	constructor(private service: IAskpassService) { }
+
+	call(command: string, ...args: any[]): TPromise<any> {
+		switch (command) {
+			case 'askpass': return this.service.askpass(args[0], args[1], args[2]);
+		}
+	}
+}
+
+export class AskpassChannelClient implements IAskpassService {
+
+	constructor(private channel: IAskpassChannel) { }
+
+	askpass(id: string, host: string, command: string): TPromise<ICredentials> {
+		return this.channel.call('askpass', id, host, command);
 	}
 }

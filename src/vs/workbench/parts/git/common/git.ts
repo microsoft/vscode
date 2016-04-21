@@ -243,10 +243,9 @@ export interface IGitCredentialScope {
 	path: string;
 }
 
-export interface IGitCredentials {
+export interface ICredentials {
 	username: string;
 	password: string;
-	store: boolean;
 }
 
 export interface IGitServiceError extends Error {
@@ -314,6 +313,10 @@ export interface IGitService extends EventEmitter.IEventEmitter {
 	getAutoFetcher(): IAutoFetcher;
 
 	onOutput(): WinJS.Promise;
+}
+
+export interface IAskpassService {
+	askpass(id: string, host: string, command: string): WinJS.TPromise<ICredentials>;
 }
 
 // Utils

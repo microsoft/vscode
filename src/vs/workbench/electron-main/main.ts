@@ -20,6 +20,7 @@ import {Instance as UpdateManager} from 'vs/workbench/electron-main/update-manag
 import {Server, serve, connect} from 'vs/base/parts/ipc/node/ipc.net';
 import {getUserEnvironment} from 'vs/base/node/env';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {AskpassChannel} from 'vs/workbench/parts/git/common/gitIpc';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
 import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
 import {Mutex} from 'windows-mutex';
@@ -119,7 +120,10 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 
 	// Register IPC services
 	ipcServer.registerService('LaunchService', new LaunchService());
-	ipcServer.registerService('GitAskpassService', new GitAskpassService());
+
+	const askpassService = new GitAskpassService();
+	const askpassChannel = new AskpassChannel(askpassService);
+	ipcServer.registerChannel('askpass', askpassChannel);
 
 	// Used by sub processes to communicate back to the main instance
 	process.env['VSCODE_PID'] = '' + process.pid;
