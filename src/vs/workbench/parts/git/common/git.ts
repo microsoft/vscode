@@ -277,7 +277,7 @@ export interface IRawGitService {
 	commit(message:string, amend?: boolean, stage?: boolean): WinJS.TPromise<IRawStatus>;
 	detectMimetypes(path: string, treeish?: string): WinJS.TPromise<string[]>;
 	show(path: string, treeish?: string): WinJS.TPromise<string>;
-	onOutput(): WinJS.Promise;
+	onOutput(): WinJS.Promise; // TODO: make this an event
 }
 
 export var GIT_SERVICE_ID = 'gitService';

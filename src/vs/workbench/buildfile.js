@@ -27,8 +27,8 @@ exports.collectModules= function(excludes) {
 		createModuleDescription('vs/workbench/parts/search/browser/openAnythingHandler', excludes),
 
 		createModuleDescription('vs/workbench/parts/git/browser/gitViewlet', excludes),
-		createModuleDescription('vs/workbench/parts/git/electron-browser/gitApp', []),
-		createModuleDescription('vs/workbench/parts/git/electron-main/askpass', []),
+		createModuleDescription('vs/workbench/parts/git/node/gitApp', []),
+		createModuleDescription('vs/workbench/parts/git/node/askpass', []),
 
 		createModuleDescription('vs/workbench/parts/output/common/outputMode', languageMainExcludes),
 		createModuleDescription('vs/workbench/parts/output/common/outputWorker', languageWorkerExcludes),

@@ -276,17 +276,8 @@ export class Client implements IClient {
 	}
 }
 
-export function getDelayedChannel<T extends IChannel>(clientPromise: TPromise<IClient>, channelName: string): T {
-	let _channelPromise: TPromise<T>;
-
-	const channelPromise = () => {
-		if (!_channelPromise) {
-			_channelPromise = clientPromise.then(client => client.getChannel(channelName));
-		}
-		return _channelPromise;
-	};
-
-	const call = (command, args) => channelPromise().then(c => c.call(command, ...args));
+export function getDelayedChannel<T extends IChannel>(promise: TPromise<IChannel>): T {
+	const call = (command, args) => promise.then(c => c.call(command, ...args));
 	return { call } as T;
 }
 
