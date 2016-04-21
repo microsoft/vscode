@@ -211,17 +211,8 @@ export class CallStackDataSource implements tree.IDataSource {
 			return this.getThreadChildren(element);
 		}
 
-		const threads = (<model.Model> element).getThreads();
-		const threadsArray: debug.IThread[] = [];
-		Object.keys(threads).forEach(threadId => {
-			threadsArray.push(threads[threadId]);
-		});
-
-		if (threadsArray.length === 1) {
-			return this.getThreadChildren(threadsArray[0]);
-		} else {
-			return TPromise.as(threadsArray);
-		}
+		const threads = (<model.Model>element).getThreads();
+		return TPromise.as(Object.keys(threads).map(ref => threads[ref]));
 	}
 
 	private getThreadChildren(thread: debug.IThread): TPromise<any> {
