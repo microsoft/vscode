@@ -42,6 +42,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITextFileService } from 'vs/workbench/parts/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
@@ -89,7 +90,8 @@ export class DebugService implements debug.IDebugService {
 		@IInstantiationService private instantiationService:IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
-		@ITaskService private taskService: ITaskService
+		@ITaskService private taskService: ITaskService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = [];
@@ -489,7 +491,8 @@ export class DebugService implements debug.IDebugService {
 	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
 		this.removeReplExpressions();
 
-		return this.textFileService.saveAll()
+		return this.textFileService.saveAll()						// make sure all dirty files are saved
+		.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
 		.then(() => this.extensionService.onReady()
 		.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
 		.then(() => {
@@ -535,7 +538,7 @@ export class DebugService implements debug.IDebugService {
 					actions: [CloseAction, this.taskService.configureAction()]
 				});
 			});
-		})));
+		}))));
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
