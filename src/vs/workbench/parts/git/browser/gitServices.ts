@@ -438,27 +438,33 @@ export class GitService extends ee.EventEmitter
 		this.triggerStatus(true); // trigger initial status
 
 		if (!storageService.getBoolean(IgnoreOldGitStorageKey, StorageScope.GLOBAL, false)) {
-			this.raw.getVersion().done(version => {
-				version = version || '';
-				version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
-				version = semver.valid(version);
-
-				if (version && semver.satisfies(version, '<2.0.0')) {
-					messageService.show(severity.Warning, {
-						message: nls.localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
-						actions: [
-							CloseAction,
-							new actions.Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {
-								storageService.store(IgnoreOldGitStorageKey, true, StorageScope.GLOBAL);
-								return null;
-							}),
-							new actions.Action('downloadLatest', nls.localize('download', "Download"), '', true, () => {
-								shell.openExternal('https://git-scm.com/');
-								return null;
-							})
-						]
-					});
+			this.raw.serviceState().done(state => {
+				if (state !== git.RawServiceState.OK) {
+					return;
 				}
+
+				return this.raw.getVersion().then(version => {
+					version = version || '';
+					version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
+					version = semver.valid(version);
+
+					if (version && semver.satisfies(version, '<2.0.0')) {
+						messageService.show(severity.Warning, {
+							message: nls.localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
+							actions: [
+								CloseAction,
+								new actions.Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {
+									storageService.store(IgnoreOldGitStorageKey, true, StorageScope.GLOBAL);
+									return null;
+								}),
+								new actions.Action('downloadLatest', nls.localize('download', "Download"), '', true, () => {
+									shell.openExternal('https://git-scm.com/');
+									return null;
+								})
+							]
+						});
+					}
+				});
 			});
 		}
 	}
