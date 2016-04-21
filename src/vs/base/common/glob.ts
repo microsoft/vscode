@@ -247,9 +247,19 @@ function toRegExp(regEx: string): RegExp {
 	}
 }
 
+function testWithCache(glob: string, pattern: RegExp, cache: { [glob: string]: boolean }): boolean {
+	if (typeof cache[glob] !== 'boolean') {
+		cache[glob] = pattern.test(glob);
+	}
+
+	return cache[glob];
+}
+
 // regexes to check for trival glob patterns that just check for String#endsWith
 const trivia1 = /^\*\*\/\*\.\w+$/;
 const trivia2 = /^{\*\*\/\*\.\w+(,\*\*\/\*\.\w+)*}$/;
+const T1_CACHE: { [glob: string]: boolean } = Object.create(null);
+const T2_CACHE: { [glob: string]: boolean } = Object.create(null);
 
 /**
  * Simplified glob matching. Supports a subset of glob patterns:
@@ -269,16 +279,18 @@ export function match(arg1: string | IExpression, path: string, siblings?: strin
 	// Glob with String
 	if (typeof arg1 === 'string') {
 
-		if (trivia1.test(arg1)) {
-			// common pattern: **/*.txt just need endsWith check
+		// common pattern: **/*.txt just need endsWith check
+		if (testWithCache(arg1, trivia1, T1_CACHE)) {
 			return strings.endsWith(path, arg1.substr(4)); // '**/*'.length === 4
+		}
 
-		} else if (trivia2.test(arg1)) {
-			// repetition of common patterns (see above) {**/*.txt,**/*.png}
+		// repetition of common patterns (see above) {**/*.txt,**/*.png}
+		if (testWithCache(arg1, trivia2, T2_CACHE)) {
 			return arg1.slice(1, -1).split(',').some(pattern => match(pattern, path));
 		}
 
-		var regExp = globToRegExp(arg1);
+		const regExp = globToRegExp(arg1);
+
 		return regExp && regExp.test(path);
 	}
 
