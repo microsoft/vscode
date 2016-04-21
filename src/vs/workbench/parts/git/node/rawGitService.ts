@@ -160,7 +160,7 @@ export class RawGitService implements IRawGitService {
 
 	// careful, this buffers the whole object into memory
 	show(filePath: string, treeish?: string): TPromise<string> {
-		treeish = treeish === '~' ? '' : treeish;
+		treeish = (!treeish || treeish === '~') ? '' : treeish;
 		return this.repo.buffer(treeish + ':' + filePath).then(null, e => {
 			if (e instanceof GitError) {
 				return ''; // mostly untracked files end up in a git error
