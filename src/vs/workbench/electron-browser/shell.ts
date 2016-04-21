@@ -89,8 +89,8 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
 import {getDelayedChannel} from 'vs/base/parts/ipc/common/ipc';
 import {connect} from 'vs/base/parts/ipc/node/ipc.net';
+import {IExtensionsChannel, ExtensionsChannelClient} from 'vs/workbench/parts/extensions/common/extensionsIpc';
 import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
-import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 
 // self registering service
@@ -171,6 +171,7 @@ export class WorkbenchShell {
 		}
 
 		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
+
 		sharedProcessClientPromise.done(service => {
 			service.onClose(() => {
 				this.messageService.show(Severity.Error, {
@@ -180,7 +181,13 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		serviceCollection.set(IExtensionsService, getDelayedChannel<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
+		const extensionsChannelPromise = sharedProcessClientPromise
+			.then(client => client.getChannel<IExtensionsChannel>('extensions'));
+
+		const channel = getDelayedChannel<IExtensionsChannel>(extensionsChannelPromise);
+		const extensionsService = new ExtensionsChannelClient(channel);
+
+		serviceCollection.set(IExtensionsService, extensionsService);
 
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, serviceCollection);
