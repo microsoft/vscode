@@ -283,7 +283,7 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
-			if (this.session && this.session.getId() === (<any>event).sessionId) {
+			if (this.session && this.session.getId() === event.body.sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
 					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
@@ -321,7 +321,7 @@ export class DebugService implements debug.IDebugService {
 			if (this.session.configuration.type === 'extensionHost' && this._state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
 			}
-			if (this.session && this.session.getId() === (<any>event.body).sessionId) {
+			if (this.session && this.session.getId() === event.body.sessionId) {
 				this.onSessionEnd();
 			}
 		}));
