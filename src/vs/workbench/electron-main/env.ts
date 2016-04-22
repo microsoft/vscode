@@ -17,6 +17,31 @@ import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+
+export interface IEnv {
+	cliArgs: ICommandLineArguments;
+}
+
+export const IEnvService = createDecorator<IEnvService>('environmentService');
+
+export interface IEnvService {
+	serviceId: ServiceIdentifier<any>;
+	getEnv(): IEnv;
+}
+
+export class EnvService implements IEnvService {
+
+	serviceId = IEnvService;
+
+	constructor() {
+
+	}
+
+	getEnv(): IEnv {
+		return null;
+	}
+}
 
 export interface IProductConfiguration {
 	nameShort: string;

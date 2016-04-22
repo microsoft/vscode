@@ -24,6 +24,10 @@ import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassSer
 import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
 import {Mutex} from 'windows-mutex';
 import {LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient} from './launch';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {ILogService, MainLogService} from './log';
 
 // We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 process.on('uncaughtException', (err: any) => {
@@ -63,6 +67,16 @@ function quit(arg?: any) {
 	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
+export function createServices(): IInstantiationService {
+	const services = new ServiceCollection();
+	const envService = new env.EnvService();
+
+	services.set(env.IEnvService, envService);
+	services.set(ILogService, new MainLogService(envService));
+
+	return new InstantiationService(services);
+}
+
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	env.log('### VSCode main.js ###');
 	env.log(env.appRoot, env.cliArgs);
@@ -75,6 +89,9 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	} catch (e) {
 		// noop
 	}
+
+	const instantiationService = createServices();
+	instantiationService.invokeFunction(() => {});
 
 	// Register IPC services
 	const launchService = new LaunchService();
