@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
-import objects = require('vs/base/common/objects');
-import instantiation = require('./instantiation');
+import {illegalArgument} from 'vs/base/common/errors';
+import * as instantiation from './instantiation';
 
 export class AbstractDescriptor<T> {
 
@@ -30,12 +29,12 @@ export class AbstractDescriptor<T> {
 
 	_validate(type: T): void {
 		if (!type) {
-			throw errors.illegalArgument('can not be falsy');
+			throw illegalArgument('can not be falsy');
 		}
 	}
 }
 
-export class SyncDescriptor<T> extends AbstractDescriptor<T> implements objects.IEqualable {
+export class SyncDescriptor<T> extends AbstractDescriptor<T> {
 
 	constructor(private _ctor: any, ...staticArguments: any[]) {
 		super(staticArguments);
@@ -43,16 +42,6 @@ export class SyncDescriptor<T> extends AbstractDescriptor<T> implements objects.
 
 	public get ctor(): any {
 		return this._ctor;
-	}
-
-	public equals(other: any): boolean {
-		if (other === this) {
-			return true;
-		}
-		if (!(other instanceof SyncDescriptor)) {
-			return false;
-		}
-		return (<SyncDescriptor<T>>other).ctor === this.ctor;
 	}
 
 	protected bind(...moreStaticArguments): SyncDescriptor<T> {
@@ -188,7 +177,7 @@ export interface SyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
 	bind(a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): SyncDescriptor0<T>;
 }
 
-export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements AsyncDescriptor0<T>, objects.IEqualable {
+export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements AsyncDescriptor0<T> {
 
 	public static create<T>(moduleName: string, ctorName: string): AsyncDescriptor<T> {
 		return new AsyncDescriptor<T>(moduleName, ctorName);
@@ -207,17 +196,6 @@ export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements AsyncDe
 
 	public get ctorName(): string {
 		return this._ctorName;
-	}
-
-	public equals(other: any): boolean {
-		if (other === this) {
-			return true;
-		}
-		if (!(other instanceof AsyncDescriptor)) {
-			return false;
-		}
-		return (<AsyncDescriptor<any>>other).moduleName === this.moduleName &&
-			(<AsyncDescriptor<any>>other).ctorName === this.ctorName;
 	}
 
 	bind(...moreStaticArguments): AsyncDescriptor<T> {
