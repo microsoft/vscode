@@ -105,7 +105,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 ## Change Log
 
 ### Version 0.3.5
-* Fixed printing of unicode characters when evaulating expressions
+* Fixed printing of unicode characters when evaulating expressions [#73](https://github.com/DonJayamanne/pythonVSCode/issues/73)
 
 ### Version 0.3.4
 * Updated snippets
