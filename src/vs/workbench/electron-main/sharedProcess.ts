@@ -10,12 +10,16 @@ import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
 import env = require('vs/workbench/electron-main/env');
 import { manager as SettingsManager } from 'vs/workbench/electron-main/settings';
-import { Instance as UpdateManager } from 'vs/workbench/electron-main/update-manager';
+import { IUpdateManager } from 'vs/workbench/electron-main/update-manager';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 
-function getEnvironment(): IEnvironment {
-	let configuration: IEnvironment = assign({}, env.cliArgs);
+function getEnvironment(accessor: ServicesAccessor): IEnvironment {
+	const envService = accessor.get(env.IEnvService);
+	const updateManager = accessor.get(IUpdateManager);
+
+	let configuration: IEnvironment = assign({}, envService.cliArgs);
 	configuration.execPath = process.execPath;
 	configuration.appName = env.product.nameLong;
 	configuration.appRoot = env.appRoot;
@@ -24,16 +28,16 @@ function getEnvironment(): IEnvironment {
 	configuration.appSettingsHome = env.appSettingsHome;
 	configuration.appSettingsPath = env.appSettingsPath;
 	configuration.appKeybindingsPath = env.appKeybindingsPath;
-	configuration.userExtensionsHome = env.userExtensionsHome;
+	configuration.userExtensionsHome = envService.userExtensionsHome;
 	configuration.isBuilt = env.isBuilt;
-	configuration.updateFeedUrl = UpdateManager.feedUrl;
-	configuration.updateChannel = UpdateManager.channel;
+	configuration.updateFeedUrl = updateManager.feedUrl;
+	configuration.updateChannel = updateManager.channel;
 	configuration.extensionsGallery = env.product.extensionsGallery;
 
 	return configuration;
 }
 
-function _spawnSharedProcess(): cp.ChildProcess {
+function _spawnSharedProcess(accessor: ServicesAccessor): cp.ChildProcess {
 	// Make sure the nls configuration travels to the shared process.
 	const opts = {
 		env: assign(assign({}, process.env), {
@@ -47,7 +51,7 @@ function _spawnSharedProcess(): cp.ChildProcess {
 	result.once('message', () => {
 		result.send({
 			configuration: {
-				env: getEnvironment()
+				env: getEnvironment(accessor)
 			},
 			contextServiceOptions: {
 				globalSettings: SettingsManager.globalSettings
@@ -60,7 +64,7 @@ function _spawnSharedProcess(): cp.ChildProcess {
 
 let spawnCount = 0;
 
-export function spawnSharedProcess(): IDisposable {
+export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
 	let child: cp.ChildProcess;
 
 	const spawn = () => {
@@ -68,7 +72,7 @@ export function spawnSharedProcess(): IDisposable {
 			return;
 		}
 
-		child = _spawnSharedProcess();
+		child = _spawnSharedProcess(accessor);
 		child.on('exit', spawn);
 	};
 

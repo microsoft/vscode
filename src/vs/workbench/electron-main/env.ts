@@ -27,19 +27,93 @@ export const IEnvService = createDecorator<IEnvService>('environmentService');
 
 export interface IEnvService {
 	serviceId: ServiceIdentifier<any>;
-	getEnv(): IEnv;
+
+	cliArgs: ICommandLineArguments;
+	userExtensionsHome: string;
+	isTestingFromCli: boolean;
 }
 
 export class EnvService implements IEnvService {
 
 	serviceId = IEnvService;
 
-	constructor() {
+	private _cliArgs: ICommandLineArguments;
+	private _userExtensionsHome: string;
+	private _isTestingFromCli: boolean;
 
+	constructor() {
+		// Remove the Electron executable
+		let [, ...args] = process.argv;
+
+		// Id dev, remove the first argument: it's the app location
+		if (!isBuilt) {
+			[, ...args] = args;
+		}
+
+		// Finally, prepend any extra arguments from the 'argv' file
+		if (fs.existsSync(path.join(appRoot, 'argv'))) {
+			const extraargs: string[] = JSON.parse(fs.readFileSync(path.join(appRoot, 'argv'), 'utf8'));
+			args = [...extraargs, ...args];
+		}
+
+		const opts = parseOpts(args);
+
+		const gotoLineMode = !!opts['g'] || !!opts['goto'];
+
+		const debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
+		let debugExtensionHostPort: number;
+		let debugBrkExtensionHost: boolean;
+
+		if (debugBrkExtensionHostPort) {
+			debugExtensionHostPort = debugBrkExtensionHostPort;
+			debugBrkExtensionHost = true;
+		} else {
+			debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
+		}
+
+		const pathArguments = parsePathArguments(args, gotoLineMode);
+
+		this._cliArgs = Object.freeze({
+			pathArguments: pathArguments,
+			programStart: parseNumber(args, '--timestamp', 0, 0),
+			enablePerformance: !!opts['p'],
+			verboseLogging: !!opts['verbose'],
+			debugExtensionHostPort: debugExtensionHostPort,
+			debugBrkExtensionHost: debugBrkExtensionHost,
+			logExtensionHostCommunication: !!opts['logExtensionHostCommunication'],
+			firstrun: !!opts['squirrel-firstrun'],
+			openNewWindow: !!opts['n'] || !!opts['new-window'],
+			openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
+			gotoLineMode: gotoLineMode,
+			diffMode: (!!opts['d'] || !!opts['diff']) && pathArguments.length === 2,
+			extensionsHomePath: normalizePath(parseString(args, '--extensionHomePath')),
+			extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
+			extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
+			disableExtensions: !!opts['disableExtensions'] || !!opts['disable-extensions'],
+			locale: parseString(args, '--locale'),
+			waitForWindowClose: !!opts['w'] || !!opts['wait']
+		});
+
+		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(userHome, 'extensions');
+
+		// TODO move out of here!
+		if (!fs.existsSync(this.userExtensionsHome)) {
+			fs.mkdirSync(this.userExtensionsHome);
+		}
+
+		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
 	}
 
-	getEnv(): IEnv {
-		return null;
+	get cliArgs(): ICommandLineArguments {
+		return this._cliArgs;
+	}
+
+	get userExtensionsHome(): string {
+		return this._userExtensionsHome;
+	}
+
+	get isTestingFromCli(): boolean {
+		return this._isTestingFromCli;
 	}
 }
 
@@ -105,7 +179,6 @@ export const quality = product.quality;
 export const mainIPCHandle = getMainIPCHandle();
 export const sharedIPCHandle = getSharedIPCHandle();
 export const version = app.getVersion();
-export const cliArgs = parseCli();
 
 export const appHome = app.getPath('userData');
 
@@ -119,20 +192,6 @@ export const appKeybindingsPath = path.join(appSettingsHome, 'keybindings.json')
 export const userHome = path.join(app.getPath('home'), product.dataFolderName);
 if (!fs.existsSync(userHome)) {
 	fs.mkdirSync(userHome);
-}
-
-export const userExtensionsHome = cliArgs.extensionsHomePath || path.join(userHome, 'extensions');
-if (!fs.existsSync(userExtensionsHome)) {
-	fs.mkdirSync(userExtensionsHome);
-}
-
-// Helper to identify if we have extension tests to run from the command line without debugger
-export const isTestingFromCli = cliArgs.extensionTestsPath && !cliArgs.debugBrkExtensionHost;
-
-export function log(...a: any[]): void {
-	if (cliArgs.verboseLogging) {
-		console.log.call(null, `(${new Date().toLocaleTimeString()})`, ...a);
-	}
 }
 
 export interface IProcessEnvironment {
@@ -158,60 +217,6 @@ export interface ICommandLineArguments {
 	diffMode?: boolean;
 	locale?: string;
 	waitForWindowClose?: boolean;
-}
-
-function parseCli(): ICommandLineArguments {
-	// Remove the Electron executable
-	let [, ...args] = process.argv;
-
-	// Id dev, remove the first argument: it's the app location
-	if (!isBuilt) {
-		[, ...args] = args;
-	}
-
-	// Finally, prepend any extra arguments from the 'argv' file
-	if (fs.existsSync(path.join(appRoot, 'argv'))) {
-		const extraargs: string[] = JSON.parse(fs.readFileSync(path.join(appRoot, 'argv'), 'utf8'));
-		args = [...extraargs, ...args];
-	}
-
-	const opts = parseOpts(args);
-
-	const gotoLineMode = !!opts['g'] || !!opts['goto'];
-
-	const debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
-	let debugExtensionHostPort: number;
-	let debugBrkExtensionHost: boolean;
-
-	if (debugBrkExtensionHostPort) {
-		debugExtensionHostPort = debugBrkExtensionHostPort;
-		debugBrkExtensionHost = true;
-	} else {
-		debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
-	}
-
-	const pathArguments = parsePathArguments(args, gotoLineMode);
-
-	return {
-		pathArguments: pathArguments,
-		programStart: parseNumber(args, '--timestamp', 0, 0),
-		enablePerformance: !!opts['p'],
-		verboseLogging: !!opts['verbose'],
-		debugExtensionHostPort: debugExtensionHostPort,
-		debugBrkExtensionHost: debugBrkExtensionHost,
-		logExtensionHostCommunication: !!opts['logExtensionHostCommunication'],
-		firstrun: !!opts['squirrel-firstrun'],
-		openNewWindow: !!opts['n'] || !!opts['new-window'],
-		openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
-		gotoLineMode: gotoLineMode,
-		diffMode: (!!opts['d'] || !!opts['diff']) && pathArguments.length === 2,
-		extensionsHomePath: normalizePath(parseString(args, '--extensionHomePath')),
-		extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
-		extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
-		disableExtensions: !!opts['disableExtensions'] || !!opts['disable-extensions'],
-		locale: parseString(args, '--locale'),
-		waitForWindowClose: !!opts['w'] || !!opts['wait']
-	};
 }
 
 function getIPCHandleName(): string {

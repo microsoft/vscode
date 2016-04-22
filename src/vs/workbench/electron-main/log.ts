@@ -24,10 +24,10 @@ export class MainLogService implements ILogService {
 	}
 
 	log(...args: any[]): void {
-		const { cliArgs } = this.envService.getEnv();
+		const { verboseLogging } = this.envService.cliArgs;
 
-		if (cliArgs.verboseLogging) {
-			console.log.call(null, `(${new Date().toLocaleTimeString()})`, ...args);
+		if (verboseLogging) {
+			console.log(`(${new Date().toLocaleTimeString()})`, ...args);
 		}
 	}
 }

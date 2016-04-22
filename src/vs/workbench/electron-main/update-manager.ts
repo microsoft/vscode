@@ -15,7 +15,8 @@ import env = require('vs/workbench/electron-main/env');
 import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.win32';
 import {LinuxAutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.linux';
-import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
+import {ILifecycleService} from 'vs/workbench/electron-main/lifecycle';
+import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export enum State {
 	Uninitialized,
@@ -42,7 +43,23 @@ interface IAutoUpdater extends NodeJS.EventEmitter {
 	checkForUpdates(): void;
 }
 
-export class UpdateManager extends events.EventEmitter {
+export const IUpdateManager = createDecorator<IUpdateManager>('updateManager');
+
+export interface IUpdateManager {
+	serviceId: ServiceIdentifier<any>;
+	feedUrl: string;
+	channel: string;
+	initialize(): void;
+	state: State;
+	availableUpdate: IUpdate;
+	lastCheckDate: Date;
+	checkForUpdates(explicit: boolean): void;
+	on(event: string, listener: Function): this;
+}
+
+export class UpdateManager extends events.EventEmitter implements IUpdateManager {
+
+	serviceId = IUpdateManager;
 
 	private _state: State;
 	private explicitState: ExplicitState;
@@ -52,7 +69,10 @@ export class UpdateManager extends events.EventEmitter {
 	private _feedUrl: string;
 	private _channel: string;
 
-	constructor() {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILifecycleService private lifecycleService: ILifecycleService
+	) {
 		super();
 
 		this._state = State.Uninitialized;
@@ -63,7 +83,7 @@ export class UpdateManager extends events.EventEmitter {
 		this._channel = null;
 
 		if (platform.isWindows) {
-			this.raw = new Win32AutoUpdaterImpl();
+			this.raw = instantiationService.createInstance(Win32AutoUpdaterImpl);
 		} else if (platform.isLinux) {
 			this.raw = new LinuxAutoUpdaterImpl();
 		} else if (platform.isMacintosh) {
@@ -122,7 +142,7 @@ export class UpdateManager extends events.EventEmitter {
 	}
 
 	private quitAndUpdate(rawQuitAndUpdate: () => void): void {
-		Lifecycle.quit().done(vetod => {
+		this.lifecycleService.quit().done(vetod => {
 			if (vetod) {
 				return;
 			}
@@ -224,5 +244,3 @@ export class UpdateManager extends events.EventEmitter {
 		return `${ env.updateUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
 	}
 }
-
-export const Instance = new UpdateManager();

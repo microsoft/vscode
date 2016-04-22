@@ -5,11 +5,12 @@
 
 'use strict';
 
-import { log, ICommandLineArguments, IProcessEnvironment } from 'vs/workbench/electron-main/env';
-import { manager as WindowManager, onClose as onWindowClose } from 'vs/workbench/electron-main/windows';
+import { ICommandLineArguments, IProcessEnvironment } from 'vs/workbench/electron-main/env';
+import { IWindowsManager } from 'vs/workbench/electron-main/windows';
 import { VSCodeWindow } from 'vs/workbench/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ILogService } from './log';
 
 export interface ILaunchService {
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void>;
@@ -41,19 +42,25 @@ export class LaunchChannelClient implements ILaunchService {
 }
 
 export class LaunchService implements ILaunchService {
+
+	constructor(
+		@ILogService private logService: ILogService,
+		@IWindowsManager private windowsManager: IWindowsManager
+	) {}
+
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
-		log('Received data from other instance', args);
+		this.logService.log('Received data from other instance', args);
 
 		// Otherwise handle in windows manager
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
-			WindowManager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
+			this.windowsManager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			usedWindows = WindowManager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
+			usedWindows = this.windowsManager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args.pathArguments.length === 0) {
-			usedWindows = [WindowManager.focusLastActive(args)];
+			usedWindows = [this.windowsManager.focusLastActive(args)];
 		} else {
-			usedWindows = WindowManager.open({
+			usedWindows = this.windowsManager.open({
 				cli: args,
 				userEnv: userEnv,
 				forceNewWindow: args.waitForWindowClose || args.openNewWindow,
@@ -69,7 +76,7 @@ export class LaunchService implements ILaunchService {
 
 			return new TPromise<void>((c, e) => {
 
-				const unbind = onWindowClose(id => {
+				const unbind = this.windowsManager.onClose(id => {
 					if (id === windowId) {
 						unbind();
 						c(null);

@@ -14,6 +14,7 @@ import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
 import env = require('vs/workbench/electron-main/env');
 import storage = require('vs/workbench/electron-main/storage');
+import { ILogService } from './log';
 
 export interface IWindowState {
 	width?: number;
@@ -154,7 +155,11 @@ export class VSCodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	constructor(config: IWindowCreationOptions) {
+	constructor(
+		config: IWindowCreationOptions,
+		@ILogService private logService: ILogService,
+		@storage.IStorageService private storageService: storage.IStorageService
+	) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
@@ -164,7 +169,7 @@ export class VSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const usesLightTheme = /vs($| )/.test(storage.getItem<string>(VSCodeWindow.themeStorageKey));
+		const usesLightTheme = /vs($| )/.test(this.storageService.getItem<string>(VSCodeWindow.themeStorageKey));
 		let showDirectly = true; // set to false to prevent background color flash (flash should be fixed for Electron >= 0.37.x)
 		if (showDirectly && !global.windowShow) {
 			global.windowShow = new Date().getTime();
@@ -205,7 +210,7 @@ export class VSCodeWindow {
 			this._lastFocusTime = new Date().getTime(); // since we show directly, we need to set the last focus time too
 		}
 
-		if (storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
+		if (this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
 			this.setMenuBarVisibility(false); // respect configured menu bar visibility
 		}
 
@@ -458,7 +463,7 @@ export class VSCodeWindow {
 			try {
 				state = this.validateWindowState(state);
 			} catch (err) {
-				env.log(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
+				this.logService.log(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
 
@@ -558,7 +563,7 @@ export class VSCodeWindow {
 			if (willBeFullScreen) {
 				this.setMenuBarVisibility(false);
 			} else {
-				this.setMenuBarVisibility(!storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
+				this.setMenuBarVisibility(!this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
 			}
 		}
 	}

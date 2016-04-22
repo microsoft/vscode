@@ -16,7 +16,7 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { manager as Settings } from 'vs/workbench/electron-main/settings';
-import { manager as Lifecycle } from 'vs/workbench/electron-main/lifecycle';
+import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
 import { quality } from './env';
 
 export interface IUpdate {
@@ -31,7 +31,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	private url: string;
 	private currentRequest: Promise;
 
-	constructor() {
+	constructor(@ILifecycleService private lifecycleService: ILifecycleService) {
 		super();
 
 		this.url = null;
@@ -114,7 +114,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	}
 
 	private quitAndUpdate(updatePackagePath: string): void {
-		Lifecycle.quit().done(vetod => {
+		this.lifecycleService.quit().done(vetod => {
 			if (vetod) {
 				return;
 			}
