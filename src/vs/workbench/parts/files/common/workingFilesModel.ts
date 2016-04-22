@@ -309,6 +309,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		if (this.recentlyClosedEntries.length > 0) {
 			return this.recentlyClosedEntries.pop();
 		}
+
 		return null;
 	}
 
@@ -332,6 +333,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 
 	public clear(): void {
 		this.recordRecentlyClosedEntries(this.entries);
+		
 		let deleted = this.entries;
 		this.entries = [];
 		this.mapEntryToResource = Object.create(null);

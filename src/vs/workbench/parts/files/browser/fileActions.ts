@@ -1818,36 +1818,29 @@ export class ReopenClosedFileAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let viewletPromise = TPromise.as(null);
-		if (!this.partService.isSideBarHidden()) {
-			viewletPromise = this.viewletService.openViewlet(Files.VIEWLET_ID, false);
+		let workingFilesModel: Files.IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
+		let entry: Files.IWorkingFileEntry = workingFilesModel.popLastClosedEntry();
+
+		if (entry === null) {
+			return TPromise.as(true);
 		}
 
-		return viewletPromise.then(() => {
-			let workingFilesModel: Files.IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
-			let entry: Files.IWorkingFileEntry = workingFilesModel.popLastClosedEntry();
+		// If the current resource is the recently closed resource, run action again
+		let activeResource = getUntitledOrFileResource(this.editorService.getActiveEditorInput());
+		if (activeResource && activeResource.path === entry.resource.path) {
+			return this.run();
+		}
 
-			if (entry === null) {
-				return TPromise.as(true);
+		return this.fileService.existsFile(entry.resource).then((exists) => {
+			if (!exists) {
+				return this.run(); // repeat in case the last closed file got deleted meanwhile
 			}
 
-			// If the current resource is the recently closed resource, run action again
-			let activeResource = getUntitledOrFileResource(this.editorService.getActiveEditorInput());
-			if (activeResource && activeResource.path === entry.resource.path) {
-				return this.run();
-			}
+			// Make it a working file again
+			workingFilesModel.addEntry(entry.resource);
 
-			return this.fileService.resolveFile(entry.resource).then(() => {
-				workingFilesModel.addEntry(entry.resource);
-				return this.editorService.openEditor(entry);
-			}, (e: any) => {
-				// If the files no longer exists, run action again
-				if (e.code === 'ENOENT') {
-					return this.run();
-				}
-
-				return TPromise.wrapError(e);
-			});
+			// Open in editor
+			return this.editorService.openEditor(entry);
 		});
 	}
 }
