@@ -141,8 +141,7 @@ export class WorkbenchShell {
 		let workbenchContainer = $(parent).div();
 
 		// Instantiation service with services
-		let serviceCollection = this.initServiceCollection();
-		let instantiationService = new InstantiationService(serviceCollection);
+		let [instantiationService, serviceCollection] = this.initServiceCollection();
 
 		//crash reporting
 		if (!!this.configuration.env.crashReporter) {
@@ -222,7 +221,11 @@ export class WorkbenchShell {
 		}
 	}
 
-	private initServiceCollection(): ServiceCollection {
+	private initServiceCollection(): [InstantiationService, ServiceCollection] {
+
+		let serviceCollection = new ServiceCollection();
+		let instantiationService = new InstantiationService(serviceCollection);
+
 		this.windowService = new WindowService();
 
 		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
@@ -280,33 +283,32 @@ export class WorkbenchShell {
 		let untitledEditorService = new UntitledEditorService();
 		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService);
 
-		let result = new ServiceCollection();
-		result.set(ITelemetryService, this.telemetryService);
-		result.set(IEventService, this.eventService);
-		result.set(IRequestService, requestService);
-		result.set(IWorkspaceContextService, this.contextService);
-		result.set(IContextViewService, this.contextViewService);
-		result.set(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
-		result.set(IMessageService, this.messageService);
-		result.set(IStorageService, this.storageService);
-		result.set(ILifecycleService, lifecycleService);
-		result.set(IThreadService, this.threadService);
-		result.set(IExtensionService, extensionService);
-		result.set(IModeService, modeService);
-		result.set(IFileService, fileService);
-		result.set(IUntitledEditorService, untitledEditorService);
-		result.set(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, this.configurationService));
-		result.set(IWindowService, this.windowService);
-		result.set(IConfigurationService, this.configurationService);
-		result.set(IKeybindingService, this.keybindingService);
-		result.set(IMarkerService, markerService);
-		result.set(IModelService, modelService);
-		result.set(ICodeEditorService, new CodeEditorServiceImpl());
-		result.set(IEditorWorkerService, editorWorkerService);
-		result.set(IThemeService, this.themeService);
-		result.set(IActionsService, new ActionsService(extensionService, this.keybindingService));
+		serviceCollection.set(ITelemetryService, this.telemetryService);
+		serviceCollection.set(IEventService, this.eventService);
+		serviceCollection.set(IRequestService, requestService);
+		serviceCollection.set(IWorkspaceContextService, this.contextService);
+		serviceCollection.set(IContextViewService, this.contextViewService);
+		serviceCollection.set(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
+		serviceCollection.set(IMessageService, this.messageService);
+		serviceCollection.set(IStorageService, this.storageService);
+		serviceCollection.set(ILifecycleService, lifecycleService);
+		serviceCollection.set(IThreadService, this.threadService);
+		serviceCollection.set(IExtensionService, extensionService);
+		serviceCollection.set(IModeService, modeService);
+		serviceCollection.set(IFileService, fileService);
+		serviceCollection.set(IUntitledEditorService, untitledEditorService);
+		serviceCollection.set(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, this.configurationService));
+		serviceCollection.set(IWindowService, this.windowService);
+		serviceCollection.set(IConfigurationService, this.configurationService);
+		serviceCollection.set(IKeybindingService, this.keybindingService);
+		serviceCollection.set(IMarkerService, markerService);
+		serviceCollection.set(IModelService, modelService);
+		serviceCollection.set(ICodeEditorService, new CodeEditorServiceImpl());
+		serviceCollection.set(IEditorWorkerService, editorWorkerService);
+		serviceCollection.set(IThemeService, this.themeService);
+		serviceCollection.set(IActionsService, new ActionsService(extensionService, this.keybindingService));
 
-		return result;
+		return [instantiationService, serviceCollection];
 	}
 
 	public open(): void {
