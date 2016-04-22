@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { spawn } from 'child_process';
 import uri from 'vs/base/common/uri';
+import { assign } from 'vs/base/common/objects';
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
 const packageJsonPath = path.join(rootPath, 'package.json');
@@ -49,27 +50,28 @@ ${ indent }-w, --wait            Wait for the window to be closed before returni
 
 export function main(argv: string[]) {
 	const argParser = new ArgParser(argv);
-	let exit = true;
 
 	if (argParser.hasFlag('help', 'h')) {
 		console.log(argParser.help());
 	} else if (argParser.hasFlag('version', 'v')) {
 		console.log(packageJson.version);
 	} else {
-		delete process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
-		if (argParser.hasFlag('wait', 'w')) {
-			exit = false;
+		const env = assign({}, process.env);
+		delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 
-			let child = spawn(process.execPath, process.argv.slice(2), { detached: true, stdio: 'ignore' });
+		const child = spawn(process.execPath, process.argv.slice(2), {
+			detached: true,
+			stdio: 'ignore',
+			env
+		});
+
+		if (argParser.hasFlag('wait', 'w')) {
 			child.on('exit', process.exit);
-		} else {
-			spawn(process.execPath, process.argv.slice(2), { detached: true, stdio: 'ignore' });
+			return;
 		}
 	}
 
-	if (exit) {
-		process.exit(0);
-	}
+	process.exit(0);
 }
 
 main(process.argv.slice(2));
