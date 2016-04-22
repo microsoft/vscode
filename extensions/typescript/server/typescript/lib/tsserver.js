@@ -11111,6 +11111,7 @@ var ts;
         var hasAsyncFunctions;
         var hasDecorators;
         var hasParameterDecorators;
+        var hasJsxSpreadAttribute;
         var inStrictMode;
         var symbolCount = 0;
         var Symbol;
@@ -11141,6 +11142,7 @@ var ts;
             hasAsyncFunctions = false;
             hasDecorators = false;
             hasParameterDecorators = false;
+            hasJsxSpreadAttribute = false;
         }
         return bindSourceFile;
         function createSymbol(flags, name) {
@@ -11353,6 +11355,9 @@ var ts;
                 }
                 if (hasAsyncFunctions) {
                     flags |= 33554432;
+                }
+                if (hasJsxSpreadAttribute) {
+                    flags |= 1073741824;
                 }
             }
             node.flags = flags;
@@ -11916,6 +11921,9 @@ var ts;
                     return bindPropertyOrMethodOrAccessor(node, 4, 107455);
                 case 250:
                     return bindPropertyOrMethodOrAccessor(node, 8, 107455);
+                case 242:
+                    hasJsxSpreadAttribute = true;
+                    return;
                 case 148:
                 case 149:
                 case 150:
@@ -27298,6 +27306,7 @@ var ts;
     };
     function emitFiles(resolver, host, targetSourceFile) {
         var extendsHelper = "\nvar __extends = (this && this.__extends) || function (d, b) {\n    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];\n    function __() { this.constructor = d; }\n    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());\n};";
+        var assignHelper = "\nvar __assign = (this && this.__assign) || Object.assign || function(t) {\n    for (var s, i = 1, n = arguments.length; i < n; i++) {\n        s = arguments[i];\n        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))\n            t[p] = s[p];\n    }\n    return t;\n};";
         var decorateHelper = "\nvar __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {\n    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;\n    if (typeof Reflect === \"object\" && typeof Reflect.decorate === \"function\") r = Reflect.decorate(decorators, target, key, desc);\n    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;\n    return c > 3 && r && Object.defineProperty(target, key, r), r;\n};";
         var metadataHelper = "\nvar __metadata = (this && this.__metadata) || function (k, v) {\n    if (typeof Reflect === \"object\" && typeof Reflect.metadata === \"function\") return Reflect.metadata(k, v);\n};";
         var paramHelper = "\nvar __param = (this && this.__param) || function (paramIndex, decorator) {\n    return function (target, key) { decorator(target, key, paramIndex); }\n};";
@@ -27377,6 +27386,7 @@ var ts;
             var decoratedClassAliases;
             var convertedLoopState;
             var extendsEmitted;
+            var assignEmitted;
             var decorateEmitted;
             var paramEmitted;
             var awaiterEmitted;
@@ -27441,6 +27451,7 @@ var ts;
                 decorateEmitted = false;
                 paramEmitted = false;
                 awaiterEmitted = false;
+                assignEmitted = false;
                 tempFlags = 0;
                 tempVariables = undefined;
                 tempParameters = undefined;
@@ -27903,8 +27914,7 @@ var ts;
                     else {
                         var attrs = openingNode.attributes;
                         if (ts.forEach(attrs, function (attr) { return attr.kind === 242; })) {
-                            emitExpressionIdentifier(syntheticReactRef);
-                            write(".__spread(");
+                            write("__assign(");
                             var haveOpenedObjectLiteral = false;
                             for (var i = 0; i < attrs.length; i++) {
                                 if (attrs[i].kind === 242) {
@@ -32717,9 +32727,13 @@ var ts;
             }
             function emitEmitHelpers(node) {
                 if (!compilerOptions.noEmitHelpers) {
-                    if ((languageVersion < 2) && (!extendsEmitted && node.flags & 4194304)) {
+                    if (languageVersion < 2 && !extendsEmitted && node.flags & 4194304) {
                         writeLines(extendsHelper);
                         extendsEmitted = true;
+                    }
+                    if (compilerOptions.jsx !== 1 && !assignEmitted && (node.flags & 1073741824)) {
+                        writeLines(assignHelper);
+                        assignEmitted = true;
                     }
                     if (!decorateEmitted && node.flags & 8388608) {
                         writeLines(decorateHelper);
@@ -33153,7 +33167,7 @@ var ts;
     ts.ioWriteTime = 0;
     ts.maxProgramSizeForNonTsFiles = 20 * 1024 * 1024;
     var emptyArray = [];
-    ts.version = "1.8.9";
+    ts.version = "1.8.10";
     function findConfigFile(searchPath, fileExists) {
         var fileName = "tsconfig.json";
         while (true) {
