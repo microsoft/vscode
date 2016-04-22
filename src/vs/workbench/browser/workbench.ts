@@ -338,6 +338,8 @@ export class Workbench implements IPartService {
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		this.toDispose.push(this.quickOpen);
 		this.toShutdown.push(this.quickOpen);
+		this.toDispose.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
+		this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
 
 		// Status bar
@@ -360,7 +362,7 @@ export class Workbench implements IPartService {
 			(<MainThreadService>this.threadService).setInstantiationService(this.instantiationService);
 		}
 		if (this.messageService instanceof WorkbenchMessageService) {
-			(<WorkbenchMessageService>this.messageService).setWorkbenchServices(this.quickOpen, this.statusbarPart);
+			(<WorkbenchMessageService>this.messageService).setWorkbenchServices(this.statusbarPart);
 		}
 		(<UntitledEditorService>this.untitledEditorService).setInstantiationService(this.instantiationService);
 
@@ -651,7 +653,7 @@ export class Workbench implements IPartService {
 
 	private toDisposable(fn: () => void): IDisposable {
 		return {
-			dispose: function() {
+			dispose: function () {
 				fn();
 			}
 		};
