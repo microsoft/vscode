@@ -3,7 +3,7 @@
 ### Before Submitting an Issue
 First, please do a search in open issues to see if the issue or feature request has already been filed. If there is an issue add your comments to this issue.
 
-The Code project is distributed across multiple repositories, try to file the issue against the correct repository [Related Projects](https://github.com/Microsoft/vscode/tree/master/wiki/project-management/related-projects.md).
+The Code project is distributed across multiple repositories, try to file the issue against the correct repository [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects).
 
 If your issue is a question then please ask the question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`.
 
@@ -23,4 +23,4 @@ The more information you can provide, the more likely someone will be successful
 
 ## Contributing Fixes
 If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/Microsoft/vscode/tree/master/wiki/contributing/how-to-contribute.md).
+please see the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute).
