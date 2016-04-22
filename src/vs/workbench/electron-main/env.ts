@@ -18,10 +18,6 @@ import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
 
-export interface IUpdateInfo {
-	baseUrl: string;
-}
-
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
@@ -124,65 +120,44 @@ export interface ICommandLineArguments {
 	debugBrkExtensionHost: boolean;
 	logExtensionHostCommunication: boolean;
 	disableExtensions: boolean;
-
 	extensionsHomePath: string;
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
-
 	programStart: number;
-
 	pathArguments?: string[];
-
 	enablePerformance?: boolean;
-
 	firstrun?: boolean;
-
 	openNewWindow?: boolean;
 	openInSameWindow?: boolean;
-
 	gotoLineMode?: boolean;
 	diffMode?: boolean;
-
 	locale?: string;
-
 	waitForWindowClose?: boolean;
 }
 
 function parseCli(): ICommandLineArguments {
+	// Remove the Electron executable
+	let [, ...args] = process.argv;
 
-	// We need to do some argv massaging. First, remove the Electron executable
-	let args = Array.prototype.slice.call(process.argv, 1);
-
-	// Then, when in dev, remove the first non option argument, it will be the app location
+	// Id dev, remove the first argument: it's the app location
 	if (!isBuilt) {
-		let i = (() => {
-			for (let j = 0; j < args.length; j++) {
-				if (args[j][0] !== '-') {
-					return j;
-				}
-			}
-
-			return -1;
-		})();
-
-		if (i > -1) {
-			args.splice(i, 1);
-		}
+		[, ...args] = args;
 	}
 
-	// Finally, any extra arguments in the 'argv' file should be prepended
+	// Finally, prepend any extra arguments from the 'argv' file
 	if (fs.existsSync(path.join(appRoot, 'argv'))) {
-		let extraargs: string[] = JSON.parse(fs.readFileSync(path.join(appRoot, 'argv'), 'utf8'));
-		args = extraargs.concat(args);
+		const extraargs: string[] = JSON.parse(fs.readFileSync(path.join(appRoot, 'argv'), 'utf8'));
+		args = [...extraargs, ...args];
 	}
 
-	let opts = parseOpts(args);
+	const opts = parseOpts(args);
 
-	let gotoLineMode = !!opts['g'] || !!opts['goto'];
+	const gotoLineMode = !!opts['g'] || !!opts['goto'];
 
-	let debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
+	const debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
 	let debugExtensionHostPort: number;
 	let debugBrkExtensionHost: boolean;
+
 	if (debugBrkExtensionHostPort) {
 		debugExtensionHostPort = debugBrkExtensionHostPort;
 		debugBrkExtensionHost = true;
@@ -190,7 +165,7 @@ function parseCli(): ICommandLineArguments {
 		debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
 	}
 
-	let pathArguments = parsePathArguments(args, gotoLineMode);
+	const pathArguments = parsePathArguments(args, gotoLineMode);
 
 	return {
 		pathArguments: pathArguments,
