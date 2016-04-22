@@ -285,6 +285,7 @@ export class Workbench implements IPartService {
 				}
 			};
 
+			// Join viewlet, panel and editor promises
 			TPromise.join(compositeAndEditorPromises).then(() => workbenchDone(), (error) => workbenchDone(error));
 		} catch (error) {
 
@@ -337,8 +338,10 @@ export class Workbench implements IPartService {
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		this.toDispose.push(this.quickOpen);
 		this.toShutdown.push(this.quickOpen);
-		this.toDispose.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
-		this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
+		if (this.messageService instanceof WorkbenchMessageService) {
+			this.toDispose.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
+			this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
+		}
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
 
 		// Status bar
@@ -350,7 +353,7 @@ export class Workbench implements IPartService {
 		// History
 		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService, this.quickOpen));
 
-		// a new way to contribute services...
+		// Contributed services
 		let contributedServices = getServices();
 		for (let contributedService of contributedServices) {
 			serviceCollection.set(contributedService.id, contributedService.descriptor);
@@ -364,9 +367,9 @@ export class Workbench implements IPartService {
 			(<WorkbenchMessageService>this.messageService).setWorkbenchServices(this.statusbarPart);
 		}
 		(<UntitledEditorService>this.untitledEditorService).setInstantiationService(this.instantiationService);
+		(<AbstractKeybindingService><any>this.keybindingService).setInstantiationService(this.instantiationService);
 
 		// Set the some services to registries that have been created eagerly
-		(<AbstractKeybindingService><any>this.keybindingService).setInstantiationService(this.instantiationService);
 		<IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
 		<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench).setInstantiationService(this.instantiationService);
 		<IEditorRegistry>Registry.as(EditorExtensions.Editors).setInstantiationService(this.instantiationService);
