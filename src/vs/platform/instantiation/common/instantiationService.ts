@@ -111,7 +111,13 @@ export class InstantiationService implements IInstantiationService {
 
 		// arguments defined by service decorators
 		let serviceDependencies = _util.getServiceDependencies(desc.ctor).sort((a, b) => a.index - b.index);
-		let serviceArgs = serviceDependencies.map(dependency => this._getOrCreateServiceInstance(dependency.id));
+		let serviceArgs = serviceDependencies.map(dependency => {
+			let service = this._getOrCreateServiceInstance(dependency.id);
+			// if (!service && !dependency.optional) {
+			// 	throw new Error(`[createInstance] ${desc.ctor.name} depends on UNKNOWN service ${dependency.id}.`);
+			// }
+			return service;
+		});
 		let firstServiceArgPos = serviceDependencies.length > 0 ? serviceDependencies[0].index : staticArgs.length;
 
 		// check for argument mismatches, adjust static args if needed
