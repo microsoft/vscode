@@ -104,6 +104,9 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 
 ## Change Log
 
+### Version 0.3.5
+* Fixed printing of unicode characters when evaulating expressions
+
 ### Version 0.3.4
 * Updated snippets
 * Fixes to remote debugging [#65](https://github.com/DonJayamanne/pythonVSCode/issues/65)
