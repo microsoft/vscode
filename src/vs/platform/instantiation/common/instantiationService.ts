@@ -127,6 +127,13 @@ export class InstantiationService implements IInstantiationService {
 			}
 		}
 
+		// // check for missing args
+		// for (let i = 0; i < serviceArgs.length; i++) {
+		// 	if (!serviceArgs[i]) {
+		// 		console.warn(`${desc.ctor.name} MISSES service dependency ${serviceDependencies[i].id}`, new Error().stack);
+		// 	}
+		// }
+
 		// now create the instance
 		const argArray = [desc.ctor];
 		argArray.push(...staticArgs);
