@@ -93,7 +93,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                 this.stream.RollBackTransaction();
                 return;
             }
-            console.log(guid);
             this.guidRead = true;
             this.stream.EndTransaction();
 
@@ -103,7 +102,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                 this.stream.RollBackTransaction();
                 return;
             }
-            console.log(result);
             this.statusRead = true;
             this.stream.EndTransaction();
 
@@ -114,7 +112,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                 return;
             }
             this.pidRead = true;
-            console.log(this.pid);
             this.stream.EndTransaction();
         }
 
@@ -152,7 +149,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                 if (this.stream.HasInsufficientDataForReading) {
                     return;
                 }
-                console.log(guid);
                 this.guidRead = true;
                 this.stream.EndTransaction();
             }
@@ -163,7 +159,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                     this.stream.RollBackTransaction();
                     return;
                 }
-                console.log(result);
                 this.statusRead = true;
                 this.stream.EndTransaction();
             }
@@ -175,7 +170,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                     return;
                 }
                 this.pidRead = true;
-                console.log(this.pid);
                 this.stream.EndTransaction();
             }
         }
@@ -319,7 +313,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                 PromiseReject: reject
             };
             this.PendingExecuteCommands.set(executeId, cmd);
-            console.log(`ExecuteText for ${text} with Execute id ${executeId}`);
             this.stream.Write(Commands.ExecuteTextCommandBytes);
             this.stream.WriteString(text);
             this.stream.WriteInt64(stackFrame.Thread.Id);
@@ -342,7 +335,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                 PromiseResolve: resolve,
                 PromiseReject: reject
             };
-            console.log(`EnumChildren for ${text} with Execute id ${executeId}`);
             this.PendingChildEnumCommands.set(executeId, cmd);
             setTimeout(() => {
                 if (this.PendingChildEnumCommands.has(executeId)) {

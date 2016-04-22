@@ -54,7 +54,7 @@ export class LocalDebugClient extends DebugClient {
     }
     private getPTVSToolsFilePath(): Promise<string> {
         var currentFileName = module.filename;
-
+        
         return new Promise<String>((resolve, reject) => {
             tmp.dir((error, tmpDir) => {
                 if (error) { return reject(error); }
@@ -83,7 +83,6 @@ export class LocalDebugClient extends DebugClient {
         var errorMsg = typeof error === "string" ? error : ((error.message && error.message.length > 0) ? error.message : "");
         if (errorMsg.length > 0) {
             this.debugSession.sendEvent(new OutputEvent(errorMsg + "\n", "stderr"));
-            console.error(errorMsg);
         }
     }
     private getShebangLines(program: string): Promise<string[]> {
@@ -91,7 +90,7 @@ export class LocalDebugClient extends DebugClient {
         return new Promise<string[]>((resolve, reject) => {
             var lr = new LineByLineReader(program);
             var shebangLines: string[] = [];
-
+            
             lr.on('error', err=> {
                 reject(err);
             });
@@ -155,7 +154,6 @@ export class LocalDebugClient extends DebugClient {
                 var launcherArgs = this.buildLauncherArguments();
 
                 var args = [ptVSToolsFilePath, fileDir, dbgServer.port.toString(), "34806ad9-833a-4524-8cd6-18ca4aa74f14"].concat(launcherArgs);
-                console.log(pythonPath + " " + args.join(" "));
                 if (this.args.externalConsole === true) {
                     open({ wait: false, app: [pythonPath].concat(args), cwd: processCwd, env: environmentVariables }).then(proc=> {
                         this.pyProc = proc;
@@ -171,13 +169,13 @@ export class LocalDebugClient extends DebugClient {
                 }
 
                 this.pyProc = child_process.spawn(pythonPath, args, { cwd: processCwd, env: environmentVariables });
-                this.pyProc.on("error", error=> {
+                this.pyProc.on("error", error => {
                     if (!this.debugServer && this.debugServer.IsRunning) {
                         return;
                     }
                     this.displayError(error);
                 });
-                this.pyProc.on("stderr", error=> {
+                this.pyProc.on("stderr", error => {
                     if (!this.debugServer && this.debugServer.IsRunning) {
                         return;
                     }
@@ -197,7 +195,7 @@ export class LocalDebugClient extends DebugClient {
             vsDebugOptions = this.args.debugOptions.join(", ");
         }
 
-        var programArgs = Array.isArray(this.args.args) && this.args.args.length > 0 ? this.args.args : [];
+        var programArgs = Array.isArray(this.args.args) && this.args.args.length > 0 ? this.args.args : [];        
         return [vsDebugOptions, this.args.program].concat(programArgs);
     }
 }

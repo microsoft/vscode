@@ -27,11 +27,10 @@ export class LocalDebugServer extends BaseDebugServer {
             var that = this;
             this.debugSocketServer = net.createServer(c => { //'connection' listener
                 var connected = false;
-                console.log('client connected');
                 c.on('end', (ex) => { 
-                    var msg = "Debugger client disconneced, " + ex;
+                    //var msg = "Debugger client disconneced, " + ex;
                     //that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
-                    console.log(msg);
+                    //console.log(msg);
                 });
                 c.on("data", (buffer: Buffer) => {
                     if (!connected) {
@@ -45,7 +44,6 @@ export class LocalDebugServer extends BaseDebugServer {
                 });
                 c.on("close", d=> {
                     var msg = "Debugger client closed, " + d;
-                    console.log(msg);
                     that.emit("detach", d);
                 });
                 c.on("error", d=> {
@@ -57,7 +55,6 @@ export class LocalDebugServer extends BaseDebugServer {
                 c.on("timeout", d=> {
                     var msg = "Debugger client timedout, " + d;
                     that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
-                    console.log(msg);
                 });
             });
             this.debugSocketServer.on("error", ex=> {
@@ -70,13 +67,11 @@ export class LocalDebugServer extends BaseDebugServer {
                     msg = `There was an error in starting the debug server. Error = ${exMessage}`;
                 }
                 that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
-                console.log(msg);
                 reject(msg);
             });
 
             this.debugSocketServer.listen(0, () => {
                 var server = that.debugSocketServer.address();
-                console.log(`Debug server started, listening on port ${server.port}`);
                 resolve({ port: server.port });
             });
         });

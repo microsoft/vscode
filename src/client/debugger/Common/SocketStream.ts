@@ -112,8 +112,7 @@ export class SocketStream {
         }
 
         if (byteRead < 0) {
-            console.error("Socket.ReadString failed to read string type");
-            throw new Error("IOException();");
+            throw new Error("IOException() - Socket.ReadString failed to read string type;");
         }
 
         var type = new Buffer([byteRead]).toString();
@@ -129,8 +128,7 @@ export class SocketStream {
                 break;
             }
             default: {
-                console.error("Socket.ReadString failed to parse unknown string type " + type);
-                throw new Error("IOException();");
+                throw new Error("IOException(); Socket.ReadString failed to parse unknown string type " + type);
             }
         }
 

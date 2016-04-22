@@ -49,14 +49,11 @@ export class RemoteDebugServer extends BaseDebugServer {
                 options.host = this.args.host;
             }
             this.socket = net.connect(options, () => {
-                console.log('client connected');
-                console.log(`Debug server started, listening on port ${portNumber}`);
                 resolve(options);
             });
             this.socket.on('end', (ex) => {
                 var msg = `Debugger client disconneced, ex`;
                 that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
-                console.log(msg);
             });
             this.socket.on("data", (buffer: Buffer) => {
                 if (connected) {
@@ -186,19 +183,16 @@ export class RemoteDebugServer extends BaseDebugServer {
             });
             this.socket.on("close", d => {
                 var msg = `Debugger client closed, ${d}`;
-                console.log(msg);
                 that.emit("detach", d);
             });
             this.socket.on("timeout", d => {
                 var msg = `Debugger client timedout, ${d}`;
                 that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
-                console.log(msg);
             });
             this.socket.on("error", ex => {
                 var exMessage = JSON.stringify(ex);
                 var msg = `There was an error in starting the debug server. Error = ${exMessage}`;
                 that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
-                console.log(msg);
                 reject(msg);
             });
         });

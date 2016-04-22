@@ -53,7 +53,6 @@ export class PythonProcessCallbackHandler extends EventEmitter {
             case "ASBR": this.HandleAsyncBreak(); break;
             default: {
 
-                console.error("Uhandled command = " + cmd);
                 this.emit("error", `Unhandled command '${cmd}'`);
             }
         }
@@ -142,7 +141,6 @@ export class PythonProcessCallbackHandler extends EventEmitter {
             pyThread = this.process.Threads.get(threadId);
         }
         this.emit("processLoaded", pyThread);
-        console.log("Process loaded");
     }
 
     private HandleStepDone() {
@@ -261,7 +259,6 @@ export class PythonProcessCallbackHandler extends EventEmitter {
         }
 
         if (typeName != null && desc != null) {
-            console.error("Exception: " + desc);
             var ex: IPythonException = {
                 TypeName: typeName,
                 Description: desc
@@ -288,9 +285,9 @@ export class PythonProcessCallbackHandler extends EventEmitter {
                 this.process.PendingExecuteCommands.delete(execId);
             }
             cmd.PromiseReject(exceptionText);
-            console.log(`ExecuteText Exception ${execId}`);
+            //console.log(`ExecuteText Exception ${execId}`);
         } else {
-            console.error("Received execution result with unknown execution ID " + execId);
+            //console.error("Received execution result with unknown execution ID " + execId);
         }
         this.idDispenser.Free(execId);
     }
@@ -304,7 +301,7 @@ export class PythonProcessCallbackHandler extends EventEmitter {
         if (this.process.PendingExecuteCommands.has(execId)) {
             cmd = this.process.PendingExecuteCommands.get(execId);
         } else {
-            console.error("Received execution result with unknown execution ID " + execId);
+            //console.error("Received execution result with unknown execution ID " + execId);
         }
 
         if (cmd === null) {
@@ -328,7 +325,6 @@ export class PythonProcessCallbackHandler extends EventEmitter {
             if (this.process.PendingExecuteCommands.has(execId)) {
                 this.process.PendingExecuteCommands.delete(execId);
             }
-            console.log(`ExecuteText Result ${execId}`);
         }
         this.idDispenser.Free(execId);
     }
@@ -343,7 +339,7 @@ export class PythonProcessCallbackHandler extends EventEmitter {
         if (this.process.PendingChildEnumCommands.has(execId)) {
             cmd = this.process.PendingChildEnumCommands.get(execId);
         } else {
-            console.error("Received enum children result with unknown execution ID " + execId);
+            //console.error("Received enum children result with unknown execution ID " + execId);
         }
 
         var childrenCount = this.stream.ReadInt32();
@@ -371,7 +367,6 @@ export class PythonProcessCallbackHandler extends EventEmitter {
             if (this.process.PendingChildEnumCommands.has(execId)) {
                 this.process.PendingChildEnumCommands.delete(execId);
             }
-            console.log(`ExecuteText Result with Execute id ${execId}`);
         }
         this.idDispenser.Free(execId);
     }
