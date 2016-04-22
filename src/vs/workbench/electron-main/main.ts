@@ -12,7 +12,6 @@ import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
 import windows = require('vs/workbench/electron-main/windows');
-import window = require('vs/workbench/electron-main/window');
 import lifecycle = require('vs/workbench/electron-main/lifecycle');
 import menu = require('vs/workbench/electron-main/menus');
 import settings = require('vs/workbench/electron-main/settings');
@@ -23,80 +22,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {AskpassChannel} from 'vs/workbench/parts/git/common/gitIpc';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
 import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
-import {IChannel} from 'vs/base/parts/ipc/common/ipc';
 import {Mutex} from 'windows-mutex';
-
-interface ILaunchService {
-	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void>;
-}
-
-export interface ILaunchChannel extends IChannel {
-	call(command: 'start', args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void>;
-	call(command: string, ...args: any[]): TPromise<any>;
-}
-
-class LaunchChannel implements ILaunchChannel {
-
-	constructor(private service: ILaunchService) { }
-
-	call(command: string, ...args: any[]): TPromise<any> {
-		switch (command) {
-			case 'start': return this.service.start(args[0], args[1]);
-		}
-	}
-}
-
-class LaunchChannelClient implements ILaunchService {
-
-	constructor(private channel: ILaunchChannel) { }
-
-	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
-		return this.channel.call('start', args, userEnv);
-	}
-}
-
-
-class LaunchService {
-	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
-		env.log('Received data from other instance', args);
-
-		// Otherwise handle in windows manager
-		let usedWindows: window.VSCodeWindow[];
-		if (!!args.extensionDevelopmentPath) {
-			windows.manager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
-		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
-		} else if (args.pathArguments.length === 0) {
-			usedWindows = [windows.manager.focusLastActive(args)];
-		} else {
-			usedWindows = windows.manager.open({
-				cli: args,
-				userEnv: userEnv,
-				forceNewWindow: args.waitForWindowClose || args.openNewWindow,
-				preferNewWindow: !args.openInSameWindow,
-				diffMode: args.diffMode
-			});
-		}
-
-		// If the other instance is waiting to be killed, we hook up a window listener if one window
-		// is being used and only then resolve the startup promise which will kill this second instance
-		if (args.waitForWindowClose && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
-			const windowId = usedWindows[0].id;
-
-			return new TPromise<void>((c, e) => {
-
-				const unbind = windows.onClose(id => {
-					if (id === windowId) {
-						unbind();
-						c(null);
-					}
-				});
-			});
-		}
-
-		return TPromise.as(null);
-	}
-}
+import {LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient} from './launch';
 
 // We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 process.on('uncaughtException', (err: any) => {
