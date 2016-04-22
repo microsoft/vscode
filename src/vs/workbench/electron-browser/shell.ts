@@ -274,7 +274,7 @@ export class WorkbenchShell {
 		);
 
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
-		lifecycleService.onShutdown(() => fileService.dispose());
+		this.toUnbind.push(lifecycleService.onShutdown(() => fileService.dispose()));
 
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
 
@@ -282,8 +282,8 @@ export class WorkbenchShell {
 
 		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, this.messageService, extensionService, <any>window);
 		this.messagesShowingContextKey = this.keybindingService.createKey('globalMessageVisible', false);
-		this.messageService.onMessagesShowing(() => this.messagesShowingContextKey.set(true));
-		this.messageService.onMessagesCleared(() => this.messagesShowingContextKey.reset());
+		this.toUnbind.push(this.messageService.onMessagesShowing(() => this.messagesShowingContextKey.set(true)));
+		this.toUnbind.push(this.messageService.onMessagesCleared(() => this.messagesShowingContextKey.reset()));
 
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
@@ -292,7 +292,7 @@ export class WorkbenchShell {
 			this.configurationService,
 			this.telemetryService
 		);
-		lifecycleService.onShutdown(() => requestService.dispose());
+		this.toUnbind.push(lifecycleService.onShutdown(() => requestService.dispose()));
 
 		let markerService = new MainProcessMarkerService(this.threadService);
 
@@ -480,16 +480,11 @@ export class WorkbenchShell {
 		return this.workbench.joinCreation();
 	}
 
-	public dispose(force?: boolean): void {
+	public dispose(): void {
 
 		// Workbench
 		if (this.workbench) {
-			let veto = this.workbench.shutdown(force);
-
-			// If Workbench vetos dispose, return early
-			if (veto) {
-				return;
-			}
+			this.workbench.dispose();
 		}
 
 		this.contextViewService.dispose();

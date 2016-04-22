@@ -113,21 +113,6 @@ export class EventType {
 	static COMPOSITE_CLOSED = 'compositeClosed';
 
 	/**
-	 * Event type for when the workbench has been fully created.
-	 */
-	static WORKBENCH_CREATED = 'workbenchCreated';
-
-	/**
-	 * Event type for when the workbench is about to being disposed.
-	 */
-	static WORKBENCH_DISPOSING = 'workbenchDisposing';
-
-	/**
-	 * Event type for when the workbench is fully disposed.
-	 */
-	static WORKBENCH_DISPOSED = 'workbenchDisposed';
-
-	/**
 	 * Event type for when an untitled file is becoming dirty.
 	 */
 	static UNTITLED_FILE_DIRTY = 'untitledFileDirty';

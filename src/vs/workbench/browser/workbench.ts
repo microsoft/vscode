@@ -274,7 +274,6 @@ export class Workbench implements IPartService {
 			// Flag workbench as created once done
 			const workbenchDone = (error?: Error) => {
 				this.workbenchCreated = true;
-				this.eventService.emit(EventType.WORKBENCH_CREATED);
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
@@ -567,36 +566,13 @@ export class Workbench implements IPartService {
 		this.storageService.store(Workbench.sidebarPositionSettingKey, position === Position.LEFT ? 'left' : 'right', StorageScope.GLOBAL);
 	}
 
-	/**
-	 * Frees up resources of the workbench. Can only be called once and only on a workbench that was started. With the
-	 * optional parameter "force", the workbench can be shutdown ignoring any workbench components that might prevent
-	 * shutdown for user interaction (e.g. a dirty editor waiting for save to occur).
-	 */
-	public shutdown(force?: boolean): boolean | string {
+	public dispose(): void {
 		if (this.isStarted()) {
-			if (!force) {
-				this.shutdownComponents();
-			}
-
-			// Event
-			this.eventService.emit(EventType.WORKBENCH_DISPOSING);
-
+			this.shutdownComponents();
 			this.workbenchShutdown = true;
-
-			// Dispose
-			this.dispose();
 		}
 
-		return null;
-	}
-
-	public dispose(): void {
-
-		// Dispose all
 		this.toDispose = dispose(this.toDispose);
-
-		// Event
-		this.eventService.emit(EventType.WORKBENCH_DISPOSED);
 	}
 
 	/**
