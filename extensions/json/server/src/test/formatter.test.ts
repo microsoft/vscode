@@ -240,6 +240,19 @@ suite('JSON Formatter', () => {
 
 		format(content, expected);
 	});
+	test('single line comment on same line 2', () => {
+		var content = [
+			'{ //comment',
+			'}'
+		].join('\n');
+
+		var expected = [
+			'{ //comment',
+			'}'
+		].join('\n');
+
+		format(content, expected);
+	});
 	test('block comment on same line', () => {
 		var content = [
 			'{      "a": {}, /*comment*/    ',
@@ -291,6 +304,20 @@ suite('JSON Formatter', () => {
 			'  "a": {} /*comment*/, /*comment*/',
 			'  /*comment*/ "b": {} /*comment*/',
 			'}',
+		].join('\n');
+
+		format(content, expected);
+	});
+	
+	test('multiple mixed comments on same line', () => {
+		var content = [
+			'[ /*comment*/  /*comment*/   // comment ',
+			']'
+		].join('\n');
+
+		var expected = [
+			'[ /*comment*/ /*comment*/ // comment ',
+			']'
 		].join('\n');
 
 		format(content, expected);

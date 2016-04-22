@@ -66,14 +66,15 @@ export function format(model: EditorCommon.IMirrorModel, range: EditorCommon.IRa
 		var firstTokenEnd = model.getPositionFromOffset(scanner.getTokenOffset() + scanner.getTokenLength() + rangeOffset);
 		var secondToken = scanNext();
 
+		let replaceContent = '';
 		while (!lineBreak && (secondToken === Json.SyntaxKind.LineCommentTrivia || secondToken === Json.SyntaxKind.BlockCommentTrivia)) {
 			// comments on the same line: keep them on the same line, but ignore them otherwise
 			var commentTokenStart = model.getPositionFromOffset(scanner.getTokenOffset() + rangeOffset);
 			addEdit(' ', { startLineNumber: firstTokenEnd.lineNumber, startColumn: firstTokenEnd.column, endLineNumber: commentTokenStart.lineNumber, endColumn: commentTokenStart.column });
 			firstTokenEnd = model.getPositionFromOffset(scanner.getTokenOffset() + scanner.getTokenLength() + rangeOffset);
+			replaceContent = secondToken === Json.SyntaxKind.LineCommentTrivia ? newLineAndIndent() : '';
 			secondToken = scanNext();
 		}
-		var replaceContent = '';
 		if (secondToken === Json.SyntaxKind.CloseBraceToken) {
 			if (firstToken !== Json.SyntaxKind.OpenBraceToken) {
 				indentLevel--;
