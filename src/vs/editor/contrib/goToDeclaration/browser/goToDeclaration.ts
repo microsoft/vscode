@@ -22,7 +22,6 @@ import * as browser from 'vs/base/browser/browser';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IRequestService} from 'vs/platform/request/common/request';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -261,11 +260,9 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 	constructor(
 		editor: ICodeEditor,
-		@IRequestService private requestService: IRequestService,
-		@IMessageService private messageService: IMessageService,
 		@IEditorService private editorService: IEditorService
 	) {
-		this.hasRequiredServices = !!this.messageService && !!this.requestService && !!this.editorService;
+		this.hasRequiredServices = !!this.editorService;
 
 		this.toUnhook = [];
 		this.decorations = [];
