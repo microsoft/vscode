@@ -8,23 +8,23 @@ import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
-import env = require('vs/workbench/electron-main/env');
-import { manager as SettingsManager } from 'vs/workbench/electron-main/settings';
+import { IEnvService } from 'vs/workbench/electron-main/env';
+import { ISettingsManager } from 'vs/workbench/electron-main/settings';
 import { IUpdateManager } from 'vs/workbench/electron-main/update-manager';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 
-function getEnvironment(envService: env.IEnvService, updateManager: IUpdateManager): IEnvironment {
+function getEnvironment(envService: IEnvService, updateManager: IUpdateManager): IEnvironment {
 	let configuration: IEnvironment = assign({}, envService.cliArgs);
 	configuration.execPath = process.execPath;
 	configuration.appName = envService.product.nameLong;
-	configuration.appRoot = env.appRoot;
-	configuration.version = env.version;
+	configuration.appRoot = envService.appRoot;
+	configuration.version = envService.version;
 	configuration.commitHash = envService.product.commit;
-	configuration.appSettingsHome = env.appSettingsHome;
-	configuration.appSettingsPath = env.appSettingsPath;
-	configuration.appKeybindingsPath = env.appKeybindingsPath;
+	configuration.appSettingsHome = envService.appSettingsHome;
+	configuration.appSettingsPath = envService.appSettingsPath;
+	configuration.appKeybindingsPath = envService.appKeybindingsPath;
 	configuration.userExtensionsHome = envService.userExtensionsHome;
 	configuration.isBuilt = envService.isBuilt;
 	configuration.updateFeedUrl = updateManager.feedUrl;
@@ -34,7 +34,7 @@ function getEnvironment(envService: env.IEnvService, updateManager: IUpdateManag
 	return configuration;
 }
 
-function _spawnSharedProcess(envService: env.IEnvService, updateManager: IUpdateManager): cp.ChildProcess {
+function _spawnSharedProcess(envService: IEnvService, updateManager: IUpdateManager, settingsManager: ISettingsManager): cp.ChildProcess {
 	// Make sure the nls configuration travels to the shared process.
 	const opts = {
 		env: assign(assign({}, process.env), {
@@ -51,7 +51,7 @@ function _spawnSharedProcess(envService: env.IEnvService, updateManager: IUpdate
 				env: getEnvironment(envService, updateManager)
 			},
 			contextServiceOptions: {
-				globalSettings: SettingsManager.globalSettings
+				globalSettings: settingsManager.globalSettings
 			}
 		});
 	});
@@ -62,8 +62,10 @@ function _spawnSharedProcess(envService: env.IEnvService, updateManager: IUpdate
 let spawnCount = 0;
 
 export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
-	const envService = accessor.get(env.IEnvService);
+	const envService = accessor.get(IEnvService);
 	const updateManager = accessor.get(IUpdateManager);
+	const settingsManager = accessor.get(ISettingsManager);
+
 	let child: cp.ChildProcess;
 
 	const spawn = () => {
@@ -71,7 +73,7 @@ export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
 			return;
 		}
 
-		child = _spawnSharedProcess(envService, updateManager);
+		child = _spawnSharedProcess(envService, updateManager, settingsManager);
 		child.on('exit', spawn);
 	};
 

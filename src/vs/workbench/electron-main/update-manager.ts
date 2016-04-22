@@ -8,15 +8,14 @@
 import fs = require('fs');
 import path = require('path');
 import events = require('events');
-
 import electron = require('electron');
 import platform = require('vs/base/common/platform');
-import * as env from 'vs/workbench/electron-main/env';
-import settings = require('vs/workbench/electron-main/settings');
-import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.win32';
-import {LinuxAutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.linux';
-import {ILifecycleService} from 'vs/workbench/electron-main/lifecycle';
-import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IEnvService, getPlatformIdentifier } from 'vs/workbench/electron-main/env';
+import { ISettingsManager } from 'vs/workbench/electron-main/settings';
+import { Win32AutoUpdaterImpl } from 'vs/workbench/electron-main/auto-updater.win32';
+import { LinuxAutoUpdaterImpl } from 'vs/workbench/electron-main/auto-updater.linux';
+import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
+import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export enum State {
 	Uninitialized,
@@ -72,7 +71,8 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@env.IEnvService private envService: env.IEnvService
+		@IEnvService private envService: IEnvService,
+		@ISettingsManager private settingsManager: ISettingsManager
 	) {
 		super();
 
@@ -225,7 +225,7 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 	}
 
 	private getUpdateChannel(): string {
-		const channel = settings.manager.getValue('update.channel') || 'default';
+		const channel = this.settingsManager.getValue('update.channel') || 'default';
 		return channel === 'none' ? null : this.envService.quality;
 	}
 
@@ -242,6 +242,6 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 			return null;
 		}
 
-		return `${ this.envService.updateUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ this.envService.product.commit }`;
+		return `${ this.envService.updateUrl }/api/update/${ getPlatformIdentifier() }/${ channel }/${ this.envService.product.commit }`;
 	}
 }

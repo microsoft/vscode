@@ -10,7 +10,6 @@ import fs = require('fs');
 import path = require('path');
 import os = require('os');
 import {app} from 'electron';
-
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
@@ -20,15 +19,73 @@ import { assign } from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
-export interface IEnv {
-	cliArgs: ICommandLineArguments;
+export interface IProductConfiguration {
+	nameShort: string;
+	nameLong: string;
+	applicationName: string;
+	win32AppUserModelId: string;
+	win32MutexName: string;
+	darwinBundleIdentifier: string;
+	dataFolderName: string;
+	downloadUrl: string;
+	updateUrl?: string;
+	quality?: string;
+	commit: string;
+	date: string;
+	extensionsGallery: {
+		serviceUrl: string;
+		itemUrl: string;
+	};
+	extensionTips: { [id: string]: string; };
+	crashReporter: Electron.CrashReporterStartOptions;
+	welcomePage: string;
+	enableTelemetry: boolean;
+	aiConfig: {
+		key: string;
+		asimovKey: string;
+	};
+	sendASmile: {
+		reportIssueUrl: string,
+		requestFeatureUrl: string
+	};
+	documentationUrl: string;
+	releaseNotesUrl: string;
+	twitterUrl: string;
+	requestFeatureUrl: string;
+	reportIssueUrl: string;
+	licenseUrl: string;
+	privacyStatementUrl: string;
+}
+
+export interface IProcessEnvironment {
+	[key: string]: string;
+}
+
+export interface ICommandLineArguments {
+	verboseLogging: boolean;
+	debugExtensionHostPort: number;
+	debugBrkExtensionHost: boolean;
+	logExtensionHostCommunication: boolean;
+	disableExtensions: boolean;
+	extensionsHomePath: string;
+	extensionDevelopmentPath: string;
+	extensionTestsPath: string;
+	programStart: number;
+	pathArguments?: string[];
+	enablePerformance?: boolean;
+	firstrun?: boolean;
+	openNewWindow?: boolean;
+	openInSameWindow?: boolean;
+	gotoLineMode?: boolean;
+	diffMode?: boolean;
+	locale?: string;
+	waitForWindowClose?: boolean;
 }
 
 export const IEnvService = createDecorator<IEnvService>('environmentService');
 
 export interface IEnvService {
 	serviceId: ServiceIdentifier<any>;
-
 	cliArgs: ICommandLineArguments;
 	userExtensionsHome: string;
 	isTestingFromCli: boolean;
@@ -37,6 +94,13 @@ export interface IEnvService {
 	updateUrl: string;
 	quality: string;
 	userHome: string;
+	appRoot: string;
+	currentWorkingDirectory: string;
+	version: string;
+	appHome: string;
+	appSettingsHome: string;
+	appSettingsPath: string;
+	appKeybindingsPath: string;
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
 }
@@ -65,6 +129,27 @@ export class EnvService implements IEnvService {
 	private _userHome: string;
 	get userHome(): string { return this._userHome; }
 
+	private _appRoot: string;
+	get appRoot(): string { return this._appRoot; }
+
+	private _currentWorkingDirectory: string;
+	get currentWorkingDirectory(): string { return this._currentWorkingDirectory; }
+
+	private _version: string;
+	get version(): string { return this._version; }
+
+	private _appHome: string;
+	get appHome(): string { return this._appHome; }
+
+	private _appSettingsHome: string;
+	get appSettingsHome(): string { return this._appSettingsHome; }
+
+	private _appSettingsPath: string;
+	get appSettingsPath(): string { return this._appSettingsPath; }
+
+	private _appKeybindingsPath: string;
+	get appKeybindingsPath(): string { return this._appKeybindingsPath; }
+
 	private _mainIPCHandle: string;
 	get mainIPCHandle(): string { return this._mainIPCHandle; }
 
@@ -72,6 +157,20 @@ export class EnvService implements IEnvService {
 	get sharedIPCHandle(): string { return this._sharedIPCHandle; }
 
 	constructor() {
+		this._appRoot = path.dirname(uri.parse(require.toUrl('')).fsPath);
+		this._currentWorkingDirectory = process.env['VSCODE_CWD'] || process.cwd();
+		this._version = app.getVersion();
+		this._appHome = app.getPath('userData');
+		this._appSettingsHome = path.join(this._appHome, 'User');
+
+		// TODO move out of here!
+		if (!fs.existsSync(this._appSettingsHome)) {
+			fs.mkdirSync(this._appSettingsHome);
+		}
+
+		this._appSettingsPath = path.join(this._appSettingsHome, 'settings.json');
+		this._appKeybindingsPath = path.join(this._appSettingsHome, 'keybindings.json');
+
 		// Remove the Electron executable
 		let [, ...args] = process.argv;
 
@@ -81,8 +180,8 @@ export class EnvService implements IEnvService {
 		}
 
 		// Finally, prepend any extra arguments from the 'argv' file
-		if (fs.existsSync(path.join(appRoot, 'argv'))) {
-			const extraargs: string[] = JSON.parse(fs.readFileSync(path.join(appRoot, 'argv'), 'utf8'));
+		if (fs.existsSync(path.join(this._appRoot, 'argv'))) {
+			const extraargs: string[] = JSON.parse(fs.readFileSync(path.join(this._appRoot, 'argv'), 'utf8'));
 			args = [...extraargs, ...args];
 		}
 
@@ -101,7 +200,7 @@ export class EnvService implements IEnvService {
 			debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, this.isBuilt ? void 0 : 5870);
 		}
 
-		const pathArguments = parsePathArguments(args, gotoLineMode);
+		const pathArguments = parsePathArguments(this._currentWorkingDirectory, args, gotoLineMode);
 
 		this._cliArgs = Object.freeze({
 			pathArguments: pathArguments,
@@ -127,7 +226,7 @@ export class EnvService implements IEnvService {
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
 
 		try {
-			this._product = JSON.parse(fs.readFileSync(path.join(appRoot, 'product.json'), 'utf8'));
+			this._product = JSON.parse(fs.readFileSync(path.join(this._appRoot, 'product.json'), 'utf8'));
 		} catch (error) {
 			this._product = Object.create(null);
 		}
@@ -204,85 +303,6 @@ export class EnvService implements IEnvService {
 	}
 }
 
-export interface IProductConfiguration {
-	nameShort: string;
-	nameLong: string;
-	applicationName: string;
-	win32AppUserModelId: string;
-	win32MutexName: string;
-	darwinBundleIdentifier: string;
-	dataFolderName: string;
-	downloadUrl: string;
-	updateUrl?: string;
-	quality?: string;
-	commit: string;
-	date: string;
-	extensionsGallery: {
-		serviceUrl: string;
-		itemUrl: string;
-	};
-	extensionTips: { [id: string]: string; };
-	crashReporter: Electron.CrashReporterStartOptions;
-	welcomePage: string;
-	enableTelemetry: boolean;
-	aiConfig: {
-		key: string;
-		asimovKey: string;
-	};
-	sendASmile: {
-		reportIssueUrl: string,
-		requestFeatureUrl: string
-	};
-	documentationUrl: string;
-	releaseNotesUrl: string;
-	twitterUrl: string;
-	requestFeatureUrl: string;
-	reportIssueUrl: string;
-	licenseUrl: string;
-	privacyStatementUrl: string;
-}
-
-
-export const appRoot = path.dirname(uri.parse(require.toUrl('')).fsPath);
-
-export const currentWorkingDirectory = process.env.VSCODE_CWD || process.cwd();
-
-export const version = app.getVersion();
-
-export const appHome = app.getPath('userData');
-
-export const appSettingsHome = path.join(appHome, 'User');
-if (!fs.existsSync(appSettingsHome)) {
-	fs.mkdirSync(appSettingsHome);
-}
-export const appSettingsPath = path.join(appSettingsHome, 'settings.json');
-export const appKeybindingsPath = path.join(appSettingsHome, 'keybindings.json');
-
-export interface IProcessEnvironment {
-	[key: string]: string;
-}
-
-export interface ICommandLineArguments {
-	verboseLogging: boolean;
-	debugExtensionHostPort: number;
-	debugBrkExtensionHost: boolean;
-	logExtensionHostCommunication: boolean;
-	disableExtensions: boolean;
-	extensionsHomePath: string;
-	extensionDevelopmentPath: string;
-	extensionTestsPath: string;
-	programStart: number;
-	pathArguments?: string[];
-	enablePerformance?: boolean;
-	firstrun?: boolean;
-	openNewWindow?: boolean;
-	openInSameWindow?: boolean;
-	gotoLineMode?: boolean;
-	diffMode?: boolean;
-	locale?: string;
-	waitForWindowClose?: boolean;
-}
-
 type OptionBag = { [opt: string]: boolean; };
 
 function parseOpts(argv: string[]): OptionBag {
@@ -292,7 +312,7 @@ function parseOpts(argv: string[]): OptionBag {
 		.reduce((r, a) => { r[a] = true; return r; }, <OptionBag>{});
 }
 
-function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
+function parsePathArguments(cwd: string, argv: string[], gotoLineMode?: boolean): string[] {
 	return arrays.coalesce(							// no invalid paths
 		arrays.distinct(							// no duplicates
 			argv.filter(a => !(/^-/.test(a))) 		// arguments without leading "-"
@@ -306,7 +326,7 @@ function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
 					}
 
 					if (pathCandidate) {
-						pathCandidate = preparePath(pathCandidate);
+						pathCandidate = preparePath(cwd, pathCandidate);
 					}
 
 					let realPath: string;
@@ -315,7 +335,7 @@ function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
 					} catch (error) {
 						// in case of an error, assume the user wants to create this file
 						// if the path is relative, we join it to the cwd
-						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(currentWorkingDirectory, pathCandidate));
+						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
 					}
 
 					if (!paths.isValidBasename(path.basename(realPath))) {
@@ -336,7 +356,7 @@ function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
 	);
 }
 
-function preparePath(p: string): string {
+function preparePath(cwd: string, p: string): string {
 
 	// Trim trailing quotes
 	if (platform.isWindows) {
@@ -349,7 +369,7 @@ function preparePath(p: string): string {
 	if (platform.isWindows) {
 
 		// Resolve the path against cwd if it is relative
-		p = path.resolve(currentWorkingDirectory, p);
+		p = path.resolve(cwd, p);
 
 		// Trim trailing '.' chars on Windows to prevent invalid file names
 		p = strings.rtrim(p, '.');

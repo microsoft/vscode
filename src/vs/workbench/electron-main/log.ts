@@ -5,8 +5,8 @@
 
 'use strict';
 
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IEnvService} from './env';
+import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IEnvService } from './env';
 
 export const ILogService = createDecorator<ILogService>('logService');
 

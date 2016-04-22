@@ -10,11 +10,11 @@ import fs = require('fs');
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
-import env = require('vs/workbench/electron-main/env');
+import { IProcessEnvironment, IEnvService, EnvService } from 'vs/workbench/electron-main/env';
 import windows = require('vs/workbench/electron-main/windows');
 import { ILifecycleService, LifecycleService } from 'vs/workbench/electron-main/lifecycle';
 import { VSCodeMenu } from 'vs/workbench/electron-main/menus';
-import settings = require('vs/workbench/electron-main/settings');
+import {ISettingsManager, SettingsManager} from 'vs/workbench/electron-main/settings';
 import {IUpdateManager, UpdateManager} from 'vs/workbench/electron-main/update-manager';
 import {Server, serve, connect} from 'vs/base/parts/ipc/node/ipc.net';
 import {getUserEnvironment} from 'vs/base/node/env';
@@ -51,13 +51,14 @@ function quit(accessor: ServicesAccessor, arg?: any) {
 	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
-function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: env.IProcessEnvironment): void {
+function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEnvironment): void {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
-	const envService = accessor.get(env.IEnvService);
+	const envService = accessor.get(IEnvService);
 	const windowManager = accessor.get(windows.IWindowsManager);
 	const lifecycleService = accessor.get(ILifecycleService);
 	const updateManager = accessor.get(IUpdateManager);
+	const settingsManager = accessor.get(ISettingsManager);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -80,7 +81,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: env.IProce
 	});
 
 	logService.log('### VSCode main.js ###');
-	logService.log(env.appRoot, envService.cliArgs);
+	logService.log(envService.appRoot, envService.cliArgs);
 
 	// Setup Windows mutex
 	let windowsMutex: Mutex = null;
@@ -151,7 +152,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: env.IProce
 	lifecycleService.ready();
 
 	// Load settings
-	settings.manager.loadSync();
+	settingsManager.loadSync();
 
 	// Propagate to clients
 	windowManager.ready(userEnv);
@@ -188,7 +189,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: env.IProce
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
-	const envService = accessor.get(env.IEnvService);
+	const envService = accessor.get(IEnvService);
 
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(envService.mainIPCHandle).then(server => {
@@ -255,12 +256,13 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 // TODO: isolate
 const services = new ServiceCollection();
 
-services.set(env.IEnvService, new SyncDescriptor(env.EnvService));
+services.set(IEnvService, new SyncDescriptor(EnvService));
 services.set(ILogService, new SyncDescriptor(MainLogService));
 services.set(windows.IWindowsManager, new SyncDescriptor(windows.WindowsManager));
 services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
 services.set(IStorageService, new SyncDescriptor(StorageService));
 services.set(IUpdateManager, new SyncDescriptor(UpdateManager));
+services.set(ISettingsManager, new SyncDescriptor(SettingsManager));
 
 const instantiationService = new InstantiationService(services);
 

@@ -30,12 +30,12 @@ export class StorageService implements IStorageService {
 
 	serviceId = IStorageService;
 
-	private dbPath = path.join(env.appHome, 'storage.json');
+	private dbPath: string;
 	private database: any = null;
 	private eventEmitter = new events.EventEmitter();
 
 	constructor(@env.IEnvService private envService: env.IEnvService) {
-
+		this.dbPath = path.join(envService.appHome, 'storage.json');
 	}
 
 	onStore<T>(clb: (key: string, oldValue: T, newValue: T) => void): () => void {

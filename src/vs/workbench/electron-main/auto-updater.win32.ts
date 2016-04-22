@@ -15,7 +15,7 @@ import { isString } from 'vs/base/common/types';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { manager as Settings } from 'vs/workbench/electron-main/settings';
+import { ISettingsManager  } from 'vs/workbench/electron-main/settings';
 import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
 import { IEnvService } from './env';
 
@@ -33,7 +33,8 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEnvService private envService: IEnvService
+		@IEnvService private envService: IEnvService,
+		@ISettingsManager private settingsManager: ISettingsManager
 	) {
 		super();
 
@@ -61,8 +62,8 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 
 		this.emit('checking-for-update');
 
-		const proxyUrl = Settings.getValue('http.proxy');
-		const strictSSL = Settings.getValue('http.proxyStrictSSL', true);
+		const proxyUrl = this.settingsManager.getValue('http.proxy');
+		const strictSSL = this.settingsManager.getValue('http.proxyStrictSSL', true);
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
 		this.currentRequest = json<IUpdate>({ url: this.url, agent })

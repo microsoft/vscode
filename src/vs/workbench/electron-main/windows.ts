@@ -13,7 +13,7 @@ import fs = require('fs');
 import {ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog} from 'electron';
 
 import platform = require('vs/base/common/platform');
-import env = require('vs/workbench/electron-main/env');
+import { ICommandLineArguments, IProcessEnvironment, IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/workbench/electron-main/env';
 import window = require('vs/workbench/electron-main/window');
 import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
 import nls = require('vs/nls');
@@ -21,7 +21,7 @@ import paths = require('vs/base/common/paths');
 import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
 import storage = require('vs/workbench/electron-main/storage');
-import settings = require('vs/workbench/electron-main/settings');
+import {ISettingsManager} from 'vs/workbench/electron-main/settings';
 import {IUpdateManager, IUpdate} from 'vs/workbench/electron-main/update-manager';
 import { ILogService } from './log';
 import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -38,8 +38,8 @@ enum WindowError {
 }
 
 export interface IOpenConfiguration {
-	cli: env.ICommandLineArguments;
-	userEnv?: env.IProcessEnvironment;
+	cli: ICommandLineArguments;
+	userEnv?: IProcessEnvironment;
 	pathsToOpen?: string[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
@@ -86,14 +86,14 @@ export interface IWindowsManager {
 	onClose(clb: (id: number) => void): () => void;
 
 	// methods
-	ready(initialUserEnv: env.IProcessEnvironment): void;
-	reload(win: window.VSCodeWindow, cli?: env.ICommandLineArguments): void;
+	ready(initialUserEnv: IProcessEnvironment): void;
+	reload(win: window.VSCodeWindow, cli?: ICommandLineArguments): void;
 	open(openConfig: IOpenConfiguration): window.VSCodeWindow[];
 	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	openFileFolderPicker(forceNewWindow?: boolean): void;
 	openFilePicker(forceNewWindow?: boolean): void;
 	openFolderPicker(forceNewWindow?: boolean): void;
-	focusLastActive(cli: env.ICommandLineArguments): window.VSCodeWindow;
+	focusLastActive(cli: ICommandLineArguments): window.VSCodeWindow;
 	getLastActiveWindow(): window.VSCodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): window.VSCodeWindow;
 	openNewWindow(): void;
@@ -117,16 +117,17 @@ export class WindowsManager implements IWindowsManager {
 	private static WINDOWS: window.VSCodeWindow[] = [];
 
 	private eventEmitter = new events.EventEmitter();
-	private initialUserEnv: env.IProcessEnvironment;
+	private initialUserEnv: IProcessEnvironment;
 	private windowsState: IWindowsState;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@storage.IStorageService private storageService: storage.IStorageService,
-		@env.IEnvService private envService: env.IEnvService,
+		@IEnvService private envService: IEnvService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IUpdateManager private updateManager: IUpdateManager
+		@IUpdateManager private updateManager: IUpdateManager,
+		@ISettingsManager private settingsManager: ISettingsManager
 	) {	}
 
 	onOpen(clb: (path: window.IPath) => void): () => void {
@@ -147,7 +148,7 @@ export class WindowsManager implements IWindowsManager {
 		return () => this.eventEmitter.removeListener(EventTypes.CLOSE, clb);
 	}
 
-	public ready(initialUserEnv: env.IProcessEnvironment): void {
+	public ready(initialUserEnv: IProcessEnvironment): void {
 		this.registerListeners();
 
 		this.initialUserEnv = initialUserEnv;
@@ -193,7 +194,7 @@ export class WindowsManager implements IWindowsManager {
 			}, 100);
 		});
 
-		settings.manager.onChange((newSettings) => {
+		this.settingsManager.onChange((newSettings) => {
 			this.sendToAll('vscode:optionsChange', JSON.stringify({ globalSettings: newSettings }));
 		}, this);
 
@@ -484,7 +485,7 @@ export class WindowsManager implements IWindowsManager {
 		}
 	}
 
-	public reload(win: window.VSCodeWindow, cli?: env.ICommandLineArguments): void {
+	public reload(win: window.VSCodeWindow, cli?: ICommandLineArguments): void {
 
 		// Only reload when the window has not vetoed this
 		this.lifecycleService.unload(win).done((veto) => {
@@ -578,7 +579,7 @@ export class WindowsManager implements IWindowsManager {
 			} else {
 				openFilesInNewWindow = openConfig.preferNewWindow;
 				if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for PDE though!)
-					openFilesInNewWindow = settings.manager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
+					openFilesInNewWindow = this.settingsManager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
 				}
 			}
 
@@ -720,7 +721,7 @@ export class WindowsManager implements IWindowsManager {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.pathArguments.length === 0 });
 	}
 
-	private toConfiguration(userEnv: env.IProcessEnvironment, cli: env.ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], filesToDiff?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
+	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], filesToDiff?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
 		let configuration: window.IWindowConfiguration = objects.mixin({}, cli); // inherit all properties from CLI
 		configuration.execPath = process.execPath;
 		configuration.workspacePath = workspacePath;
@@ -731,12 +732,12 @@ export class WindowsManager implements IWindowsManager {
 		configuration.appName = this.envService.product.nameLong;
 		configuration.applicationName = this.envService.product.applicationName;
 		configuration.darwinBundleIdentifier = this.envService.product.darwinBundleIdentifier;
-		configuration.appRoot = env.appRoot;
-		configuration.version = env.version;
+		configuration.appRoot = this.envService.appRoot;
+		configuration.version = this.envService.version;
 		configuration.commitHash = this.envService.product.commit;
-		configuration.appSettingsHome = env.appSettingsHome;
-		configuration.appSettingsPath = env.appSettingsPath;
-		configuration.appKeybindingsPath = env.appKeybindingsPath;
+		configuration.appSettingsHome = this.envService.appSettingsHome;
+		configuration.appSettingsPath = this.envService.appSettingsPath;
+		configuration.appKeybindingsPath = this.envService.appKeybindingsPath;
 		configuration.userExtensionsHome = this.envService.userExtensionsHome;
 		configuration.extensionTips = this.envService.product.extensionTips;
 		configuration.mainIPCHandle = this.envService.mainIPCHandle;
@@ -806,9 +807,9 @@ export class WindowsManager implements IWindowsManager {
 			return null;
 		}
 
-		let parsedPath: env.IParsedPath;
+		let parsedPath: IParsedPath;
 		if (gotoLineMode) {
-			parsedPath = env.parseLineAndColumnAware(anyPath);
+			parsedPath = parseLineAndColumnAware(anyPath);
 			anyPath = parsedPath.path;
 		}
 
@@ -834,7 +835,7 @@ export class WindowsManager implements IWindowsManager {
 		return null;
 	}
 
-	private cliToPaths(cli: env.ICommandLineArguments, ignoreFileNotFound?: boolean): window.IPath[] {
+	private cliToPaths(cli: ICommandLineArguments, ignoreFileNotFound?: boolean): window.IPath[] {
 
 		// Check for pass in candidate or last opened path
 		let candidates: string[] = [];
@@ -844,7 +845,7 @@ export class WindowsManager implements IWindowsManager {
 
 		// No path argument, check settings for what to do now
 		else {
-			let reopenFolders = settings.manager.getValue('window.reopenFolders', 'one');
+			let reopenFolders = this.settingsManager.getValue('window.reopenFolders', 'one');
 			let lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
 
 			// Restore all
@@ -1058,7 +1059,7 @@ export class WindowsManager implements IWindowsManager {
 		});
 	}
 
-	public focusLastActive(cli: env.ICommandLineArguments): window.VSCodeWindow {
+	public focusLastActive(cli: ICommandLineArguments): window.VSCodeWindow {
 		let lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();

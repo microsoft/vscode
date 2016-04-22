@@ -6,11 +6,11 @@
 'use strict';
 
 import events = require('events');
-import {isString} from 'vs/base/common/types';
-import {Promise} from 'vs/base/common/winjs.base';
-import {json } from 'vs/base/node/request';
+import { isString } from 'vs/base/common/types';
+import { Promise } from 'vs/base/common/winjs.base';
+import { json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import {manager as Settings} from 'vs/workbench/electron-main/settings';
+import { ISettingsManager } from 'vs/workbench/electron-main/settings';
 import { IEnvService } from 'vs/workbench/electron-main/env';
 
 export interface IUpdate {
@@ -26,7 +26,8 @@ export class LinuxAutoUpdaterImpl extends events.EventEmitter {
 	private currentRequest: Promise;
 
 	constructor(
-		@IEnvService private envService: IEnvService
+		@IEnvService private envService: IEnvService,
+		@ISettingsManager private settingsManager: ISettingsManager
 	) {
 		super();
 
@@ -49,8 +50,8 @@ export class LinuxAutoUpdaterImpl extends events.EventEmitter {
 
 		this.emit('checking-for-update');
 
-		const proxyUrl = Settings.getValue('http.proxy');
-		const strictSSL = Settings.getValue('http.proxyStrictSSL', true);
+		const proxyUrl = this.settingsManager.getValue('http.proxy');
+		const strictSSL = this.settingsManager.getValue('http.proxyStrictSSL', true);
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
 		this.currentRequest = json<IUpdate>({ url: this.url, agent })
