@@ -15,10 +15,7 @@ import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 
-function getEnvironment(accessor: ServicesAccessor): IEnvironment {
-	const envService = accessor.get(env.IEnvService);
-	const updateManager = accessor.get(IUpdateManager);
-
+function getEnvironment(envService: env.IEnvService, updateManager: IUpdateManager): IEnvironment {
 	let configuration: IEnvironment = assign({}, envService.cliArgs);
 	configuration.execPath = process.execPath;
 	configuration.appName = env.product.nameLong;
@@ -37,7 +34,7 @@ function getEnvironment(accessor: ServicesAccessor): IEnvironment {
 	return configuration;
 }
 
-function _spawnSharedProcess(accessor: ServicesAccessor): cp.ChildProcess {
+function _spawnSharedProcess(envService: env.IEnvService, updateManager: IUpdateManager): cp.ChildProcess {
 	// Make sure the nls configuration travels to the shared process.
 	const opts = {
 		env: assign(assign({}, process.env), {
@@ -51,7 +48,7 @@ function _spawnSharedProcess(accessor: ServicesAccessor): cp.ChildProcess {
 	result.once('message', () => {
 		result.send({
 			configuration: {
-				env: getEnvironment(accessor)
+				env: getEnvironment(envService, updateManager)
 			},
 			contextServiceOptions: {
 				globalSettings: SettingsManager.globalSettings
@@ -65,6 +62,8 @@ function _spawnSharedProcess(accessor: ServicesAccessor): cp.ChildProcess {
 let spawnCount = 0;
 
 export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
+	const envService = accessor.get(env.IEnvService);
+	const updateManager = accessor.get(IUpdateManager);
 	let child: cp.ChildProcess;
 
 	const spawn = () => {
@@ -72,7 +71,7 @@ export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
 			return;
 		}
 
-		child = _spawnSharedProcess(accessor);
+		child = _spawnSharedProcess(envService, updateManager);
 		child.on('exit', spawn);
 	};
 
