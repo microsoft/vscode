@@ -254,8 +254,8 @@ export class WorkbenchShell {
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
 				cleanupPatterns: [
-					[new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), '<APP_ROOT>'],
-					[new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi'), '<EXT_ROOT>']
+					[new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), ''],
+					[new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi'), '']
 				],
 				version: this.configuration.env.version,
 				commitHash: this.configuration.env.commitHash
