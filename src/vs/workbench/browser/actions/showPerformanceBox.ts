@@ -26,8 +26,3 @@ export class ShowPerformanceBox extends Action {
 		return TPromise.as(true);
 	}
 }
-
-// if (false /* Env.enablePerformanceTools */) {
-// 	let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-// 	registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPerformanceBox, ID, LABEL));
-// }

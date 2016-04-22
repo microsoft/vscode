@@ -477,8 +477,8 @@ export function registerContributions(): void {
 			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G }
 		}),
-		nls.localize('view', "View"),
-		['show', 'git']
+		'Show Git',
+		nls.localize('view', "View")
 	);
 
 	// Register MergeDecorator

@@ -167,7 +167,7 @@ const weight = CommonEditorRegistry.commandWeight(99);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RenameAction, RenameAction.ID, nls.localize('rename.label', "Rename Symbol"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyCode.F2
-}, ['rename', 'symbol']));
+}, 'Rename Symbol'));
 
 CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primary: KeyCode.Enter }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
 	const action = <RenameAction>editor.getAction(RenameAction.ID);

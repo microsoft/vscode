@@ -349,7 +349,7 @@ EditorBrowserRegistry.registerEditorContribution(FindReferencesController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ReferenceAction, ReferenceAction.ID, nls.localize('references.action.name', "Show References"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyCode.F12
-}, ['show', 'references']));
+}, 'Show References'));
 KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.findReferences',
 	handler: findReferencesCommand,

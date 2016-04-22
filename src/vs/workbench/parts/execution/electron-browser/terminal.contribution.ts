@@ -121,6 +121,6 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FileViewerActionCon
 		OpenConsoleAction.ID,
 		OpenConsoleAction.Label,
 		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
-	)
-	, ['open', 'console', 'terminal', 'shell']
+	),
+	'Open New Command Prompt'
 );

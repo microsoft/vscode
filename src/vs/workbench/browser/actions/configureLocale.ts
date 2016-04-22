@@ -67,7 +67,7 @@ class ConfigureLocaleAction extends Action {
 }
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), ['configure', 'language', 'locale', 'nls', 'i18n']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
 
 let schemaId = 'vscode://schemas/locale';
 // Keep en-US since we generated files with that content.

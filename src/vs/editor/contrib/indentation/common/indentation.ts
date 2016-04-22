@@ -169,9 +169,9 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToSpacesAction, IndentationToSpacesAction.ID, nls.localize('indentationToSpaces', "Convert Indentation to Spaces"), void 0, ['convert', 'indentation', 'spaces']));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToTabsAction, IndentationToTabsAction.ID, nls.localize('indentationToTabs', "Convert Indentation to Tabs"), void 0, ['convert', 'indentation', 'tabs']));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentUsingSpaces, IndentUsingSpaces.ID, nls.localize('indentUsingSpaces', "Indent Using Spaces"), void 0, ['indent', 'using', 'spaces']));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentUsingTabs, IndentUsingTabs.ID, nls.localize('indentUsingTabs', "Indent Using Tabs"), void 0, ['indent', 'using', 'tabs']));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DetectIndentation, DetectIndentation.ID, nls.localize('detectIndentation', "Detect Indentation from Content"), void 0, ['detect', 'indentation']));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleRenderWhitespaceAction, ToggleRenderWhitespaceAction.ID, nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"), void 0, ['render', 'whitespace']));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToSpacesAction, IndentationToSpacesAction.ID, nls.localize('indentationToSpaces', "Convert Indentation to Spaces"), void 0, 'Convert Indentation to Spaces'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToTabsAction, IndentationToTabsAction.ID, nls.localize('indentationToTabs', "Convert Indentation to Tabs"), void 0, 'Convert Indentation to Tabs'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentUsingSpaces, IndentUsingSpaces.ID, nls.localize('indentUsingSpaces', "Indent Using Spaces"), void 0, 'Indent Using Spaces'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentUsingTabs, IndentUsingTabs.ID, nls.localize('indentUsingTabs', "Indent Using Tabs"), void 0, 'Indent Using Tabs'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DetectIndentation, DetectIndentation.ID, nls.localize('detectIndentation', "Detect Indentation from Content"), void 0, 'Detect Indentation from Content'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleRenderWhitespaceAction, ToggleRenderWhitespaceAction.ID, nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"), void 0, 'Toggle Render Whitespace'));

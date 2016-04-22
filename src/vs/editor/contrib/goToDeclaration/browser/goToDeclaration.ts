@@ -549,7 +549,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PreviewDecl
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.F12,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 },
-}, ['peek', 'definition']));
+}, 'Peek Definition'));
 
 let goToDeclarationKb: number;
 if (platform.isWeb) {
@@ -561,12 +561,12 @@ if (platform.isWeb) {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GoToDeclarationAction, GoToDeclarationAction.ID, nls.localize('actions.goToDecl.label', "Go to Definition"), {
 	context: ContextKey.EditorTextFocus,
 	primary: goToDeclarationKb
-}, ['goto', 'definition']));
+}, 'Go to Definition'));
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(OpenDeclarationToTheSideAction, OpenDeclarationToTheSideAction.ID, nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
-}, ['open', 'definition', 'side']));
+}, 'Open Definition to the Side'));
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GoToTypeDeclarationActions, GoToTypeDeclarationActions.ID, nls.localize('actions.gotoTypeDecl.label', "Go to Type Definition")));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(GoToTypeDeclarationActions, GoToTypeDeclarationActions.ID, nls.localize('actions.gotoTypeDecl.label', "Go to Type Definition"), void 0, 'Go to Type Definition'));
 EditorBrowserRegistry.registerEditorContribution(GotoDefinitionWithMouseEditorContribution);

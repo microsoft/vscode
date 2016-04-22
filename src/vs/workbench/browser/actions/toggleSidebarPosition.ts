@@ -32,4 +32,4 @@ export class ToggleSidebarPositionAction extends Action {
 }
 
 let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ID, LABEL), nls.localize('view', "View"), ['side', 'bar', 'position']);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ID, LABEL), 'Toggle Side Bar Position', nls.localize('view', "View"));

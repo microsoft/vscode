@@ -226,7 +226,7 @@ EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowAccessibilityHelpAction, SHOW_ACCESSIBILITY_HELP_ACTION_ID, NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL, {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.Alt | KeyCode.F1
-}, ['accessibility', 'help', 'a11y']));
+}, 'Show Accessibility Help'));
 CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEditorRegistry.commandWeight(100), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, (ctx, editor, args) => {
 	AccessibilityHelpController.get(editor).hide();
 });
