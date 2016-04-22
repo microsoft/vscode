@@ -18,18 +18,18 @@ const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 function getEnvironment(envService: env.IEnvService, updateManager: IUpdateManager): IEnvironment {
 	let configuration: IEnvironment = assign({}, envService.cliArgs);
 	configuration.execPath = process.execPath;
-	configuration.appName = env.product.nameLong;
+	configuration.appName = envService.product.nameLong;
 	configuration.appRoot = env.appRoot;
 	configuration.version = env.version;
-	configuration.commitHash = env.product.commit;
+	configuration.commitHash = envService.product.commit;
 	configuration.appSettingsHome = env.appSettingsHome;
 	configuration.appSettingsPath = env.appSettingsPath;
 	configuration.appKeybindingsPath = env.appKeybindingsPath;
 	configuration.userExtensionsHome = envService.userExtensionsHome;
-	configuration.isBuilt = env.isBuilt;
+	configuration.isBuilt = envService.isBuilt;
 	configuration.updateFeedUrl = updateManager.feedUrl;
 	configuration.updateChannel = updateManager.channel;
-	configuration.extensionsGallery = env.product.extensionsGallery;
+	configuration.extensionsGallery = envService.product.extensionsGallery;
 
 	return configuration;
 }

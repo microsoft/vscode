@@ -16,6 +16,7 @@ import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
+import { assign } from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
@@ -31,6 +32,13 @@ export interface IEnvService {
 	cliArgs: ICommandLineArguments;
 	userExtensionsHome: string;
 	isTestingFromCli: boolean;
+	isBuilt: boolean;
+	product: IProductConfiguration;
+	updateUrl: string;
+	quality: string;
+	userHome: string;
+	mainIPCHandle: string;
+	sharedIPCHandle: string;
 }
 
 export class EnvService implements IEnvService {
@@ -38,15 +46,37 @@ export class EnvService implements IEnvService {
 	serviceId = IEnvService;
 
 	private _cliArgs: ICommandLineArguments;
+	get cliArgs(): ICommandLineArguments { return this._cliArgs; }
+
 	private _userExtensionsHome: string;
+	get userExtensionsHome(): string { return this._userExtensionsHome; }
+
 	private _isTestingFromCli: boolean;
+	get isTestingFromCli(): boolean { return this._isTestingFromCli; }
+
+	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
+
+	private _product: IProductConfiguration;
+	get product(): IProductConfiguration { return this._product; }
+
+	get updateUrl(): string { return this.product.updateUrl; }
+	get quality(): string { return this.product.quality; }
+
+	private _userHome: string;
+	get userHome(): string { return this._userHome; }
+
+	private _mainIPCHandle: string;
+	get mainIPCHandle(): string { return this._mainIPCHandle; }
+
+	private _sharedIPCHandle: string;
+	get sharedIPCHandle(): string { return this._sharedIPCHandle; }
 
 	constructor() {
 		// Remove the Electron executable
 		let [, ...args] = process.argv;
 
 		// Id dev, remove the first argument: it's the app location
-		if (!isBuilt) {
+		if (!this.isBuilt) {
 			[, ...args] = args;
 		}
 
@@ -68,7 +98,7 @@ export class EnvService implements IEnvService {
 			debugExtensionHostPort = debugBrkExtensionHostPort;
 			debugBrkExtensionHost = true;
 		} else {
-			debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
+			debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, this.isBuilt ? void 0 : 5870);
 		}
 
 		const pathArguments = parsePathArguments(args, gotoLineMode);
@@ -94,26 +124,83 @@ export class EnvService implements IEnvService {
 			waitForWindowClose: !!opts['w'] || !!opts['wait']
 		});
 
-		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(userHome, 'extensions');
+		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
 
-		// TODO move out of here!
-		if (!fs.existsSync(this.userExtensionsHome)) {
-			fs.mkdirSync(this.userExtensionsHome);
+		try {
+			this._product = JSON.parse(fs.readFileSync(path.join(appRoot, 'product.json'), 'utf8'));
+		} catch (error) {
+			this._product = Object.create(null);
 		}
 
-		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
+		if (!this.isBuilt) {
+			const nameShort = `${ this._product.nameShort } Dev`;
+			const nameLong = `${ this._product.nameLong } Dev`;
+			const dataFolderName = `${ this._product.dataFolderName }-dev`;
+
+			this._product = assign(this._product, { nameShort, nameLong, dataFolderName });
+		}
+
+		this._userHome = path.join(app.getPath('home'), this._product.dataFolderName);
+
+		// TODO move out of here!
+		if (!fs.existsSync(this._userHome)) {
+			fs.mkdirSync(this._userHome);
+		}
+
+		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this.userHome, 'extensions');
+
+		// TODO move out of here!
+		if (!fs.existsSync(this._userExtensionsHome)) {
+			fs.mkdirSync(this._userExtensionsHome);
+		}
+
+		this._mainIPCHandle = this.getMainIPCHandle();
+		this._sharedIPCHandle = this.getSharedIPCHandle();
 	}
 
-	get cliArgs(): ICommandLineArguments {
-		return this._cliArgs;
+	private getMainIPCHandle(): string {
+		return this.getIPCHandleName() + (process.platform === 'win32' ? '-sock' : '.sock');
 	}
 
-	get userExtensionsHome(): string {
-		return this._userExtensionsHome;
+	private getSharedIPCHandle(): string {
+		return this.getIPCHandleName() + '-shared' + (process.platform === 'win32' ? '-sock' : '.sock');
 	}
 
-	get isTestingFromCli(): boolean {
-		return this._isTestingFromCli;
+	private getIPCHandleName(): string {
+		let handleName = app.getName();
+
+		if (!this.isBuilt) {
+			handleName += '-dev';
+		}
+
+		// Support to run VS Code multiple times as different user
+		// by making the socket unique over the logged in user
+		let userId = EnvService.getUniqueUserId();
+		if (userId) {
+			handleName += ('-' + userId);
+		}
+
+		if (process.platform === 'win32') {
+			return '\\\\.\\pipe\\' + handleName;
+		}
+
+		return path.join(os.tmpdir(), handleName);
+	}
+
+	private static getUniqueUserId(): string {
+		let username: string;
+		if (platform.isWindows) {
+			username = process.env.USERNAME;
+		} else {
+			username = process.env.USER;
+		}
+
+		if (!username) {
+			return ''; // fail gracefully if there is no user name
+		}
+
+		// use sha256 to ensure the userid value can be used in filenames and are unique
+		return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 	}
 }
 
@@ -155,29 +242,11 @@ export interface IProductConfiguration {
 	privacyStatementUrl: string;
 }
 
-export const isBuilt = !process.env.VSCODE_DEV;
 
 export const appRoot = path.dirname(uri.parse(require.toUrl('')).fsPath);
 
 export const currentWorkingDirectory = process.env.VSCODE_CWD || process.cwd();
 
-let productContents: IProductConfiguration;
-try {
-	productContents = JSON.parse(fs.readFileSync(path.join(appRoot, 'product.json'), 'utf8'));
-} catch (error) {
-	productContents = Object.create(null);
-}
-
-export const product: IProductConfiguration = productContents;
-product.nameShort = product.nameShort + (isBuilt ? '' : ' Dev');
-product.nameLong = product.nameLong + (isBuilt ? '' : ' Dev');
-product.dataFolderName = product.dataFolderName + (isBuilt ? '' : '-dev');
-
-export const updateUrl = product.updateUrl;
-export const quality = product.quality;
-
-export const mainIPCHandle = getMainIPCHandle();
-export const sharedIPCHandle = getSharedIPCHandle();
 export const version = app.getVersion();
 
 export const appHome = app.getPath('userData');
@@ -188,11 +257,6 @@ if (!fs.existsSync(appSettingsHome)) {
 }
 export const appSettingsPath = path.join(appSettingsHome, 'settings.json');
 export const appKeybindingsPath = path.join(appSettingsHome, 'keybindings.json');
-
-export const userHome = path.join(app.getPath('home'), product.dataFolderName);
-if (!fs.existsSync(userHome)) {
-	fs.mkdirSync(userHome);
-}
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -217,51 +281,6 @@ export interface ICommandLineArguments {
 	diffMode?: boolean;
 	locale?: string;
 	waitForWindowClose?: boolean;
-}
-
-function getIPCHandleName(): string {
-	let handleName = app.getName();
-
-	if (!isBuilt) {
-		handleName += '-dev';
-	}
-
-	// Support to run VS Code multiple times as different user
-	// by making the socket unique over the logged in user
-	let userId = uniqueUserId();
-	if (userId) {
-		handleName += ('-' + userId);
-	}
-
-	if (process.platform === 'win32') {
-		return '\\\\.\\pipe\\' + handleName;
-	}
-
-	return path.join(os.tmpdir(), handleName);
-}
-
-function getMainIPCHandle(): string {
-	return getIPCHandleName() + (process.platform === 'win32' ? '-sock' : '.sock');
-}
-
-function getSharedIPCHandle(): string {
-	return getIPCHandleName() + '-shared' + (process.platform === 'win32' ? '-sock' : '.sock');
-}
-
-function uniqueUserId(): string {
-	let username: string;
-	if (platform.isWindows) {
-		username = process.env.USERNAME;
-	} else {
-		username = process.env.USER;
-	}
-
-	if (!username) {
-		return ''; // fail gracefully if there is no user name
-	}
-
-	// use sha256 to ensure the userid value can be used in filenames and are unique
-	return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 }
 
 type OptionBag = { [opt: string]: boolean; };

@@ -506,7 +506,7 @@ export class WindowsManager implements IWindowsManager {
 				// Warn if the requested path to open does not exist
 				if (!iPath) {
 					let options = {
-						title: env.product.nameLong,
+						title: this.envService.product.nameLong,
 						type: 'info',
 						buttons: [nls.localize('ok', "OK")],
 						message: nls.localize('pathNotExistTitle', "Path does not exist"),
@@ -728,31 +728,31 @@ export class WindowsManager implements IWindowsManager {
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.extensionsToInstall = extensionsToInstall;
-		configuration.appName = env.product.nameLong;
-		configuration.applicationName = env.product.applicationName;
-		configuration.darwinBundleIdentifier = env.product.darwinBundleIdentifier;
+		configuration.appName = this.envService.product.nameLong;
+		configuration.applicationName = this.envService.product.applicationName;
+		configuration.darwinBundleIdentifier = this.envService.product.darwinBundleIdentifier;
 		configuration.appRoot = env.appRoot;
 		configuration.version = env.version;
-		configuration.commitHash = env.product.commit;
+		configuration.commitHash = this.envService.product.commit;
 		configuration.appSettingsHome = env.appSettingsHome;
 		configuration.appSettingsPath = env.appSettingsPath;
 		configuration.appKeybindingsPath = env.appKeybindingsPath;
 		configuration.userExtensionsHome = this.envService.userExtensionsHome;
-		configuration.extensionTips = env.product.extensionTips;
-		configuration.mainIPCHandle = env.mainIPCHandle;
-		configuration.sharedIPCHandle = env.sharedIPCHandle;
-		configuration.isBuilt = env.isBuilt;
-		configuration.crashReporter = env.product.crashReporter;
-		configuration.extensionsGallery = env.product.extensionsGallery;
-		configuration.welcomePage = env.product.welcomePage;
-		configuration.productDownloadUrl = env.product.downloadUrl;
-		configuration.releaseNotesUrl = env.product.releaseNotesUrl;
-		configuration.licenseUrl = env.product.licenseUrl;
+		configuration.extensionTips = this.envService.product.extensionTips;
+		configuration.mainIPCHandle = this.envService.mainIPCHandle;
+		configuration.sharedIPCHandle = this.envService.sharedIPCHandle;
+		configuration.isBuilt = this.envService.isBuilt;
+		configuration.crashReporter = this.envService.product.crashReporter;
+		configuration.extensionsGallery = this.envService.product.extensionsGallery;
+		configuration.welcomePage = this.envService.product.welcomePage;
+		configuration.productDownloadUrl = this.envService.product.downloadUrl;
+		configuration.releaseNotesUrl = this.envService.product.releaseNotesUrl;
+		configuration.licenseUrl = this.envService.product.licenseUrl;
 		configuration.updateFeedUrl = this.updateManager.feedUrl;
 		configuration.updateChannel = this.updateManager.channel;
-		configuration.aiConfig = env.product.aiConfig;
-		configuration.sendASmile = env.product.sendASmile;
-		configuration.enableTelemetry = env.product.enableTelemetry;
+		configuration.aiConfig = this.envService.product.aiConfig;
+		configuration.sendASmile = this.envService.product.sendASmile;
+		configuration.enableTelemetry = this.envService.product.enableTelemetry;
 		configuration.userEnv = userEnv;
 
 		const recents = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
@@ -1184,7 +1184,7 @@ export class WindowsManager implements IWindowsManager {
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
 			dialog.showMessageBox(vscodeWindow.win, {
-				title: env.product.nameLong,
+				title: this.envService.product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('reopen', "Reopen"), nls.localize('wait', "Keep Waiting"), nls.localize('close', "Close")],
 				message: nls.localize('appStalled', "The window is no longer responding"),
@@ -1203,7 +1203,7 @@ export class WindowsManager implements IWindowsManager {
 		// Crashed
 		else {
 			dialog.showMessageBox(vscodeWindow.win, {
-				title: env.product.nameLong,
+				title: this.envService.product.nameLong,
 				type: 'warning',
 				buttons: [nls.localize('reopen', "Reopen"), nls.localize('close', "Close")],
 				message: nls.localize('appCrashed', "The window has crashed"),

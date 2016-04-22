@@ -154,7 +154,7 @@ export class VSCodeMenu {
 		let macApplicationMenuItem: Electron.MenuItem;
 		if (platform.isMacintosh) {
 			let applicationMenu = new Menu();
-			macApplicationMenuItem = new MenuItem({ label: env.product.nameShort, submenu: applicationMenu });
+			macApplicationMenuItem = new MenuItem({ label: this.envService.product.nameShort, submenu: applicationMenu });
 			this.setMacApplicationMenu(applicationMenu);
 		}
 
@@ -274,13 +274,13 @@ export class VSCodeMenu {
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
-		let about = new MenuItem({ label: nls.localize('mAbout', "About {0}", env.product.nameLong), role: 'about' });
+		let about = new MenuItem({ label: nls.localize('mAbout', "About {0}", this.envService.product.nameLong), role: 'about' });
 		let checkForUpdates = this.getUpdateMenuItems();
 		let preferences = this.getPreferencesMenu();
-		let hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", env.product.nameLong), role: 'hide', accelerator: 'Command+H' });
+		let hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", this.envService.product.nameLong), role: 'hide', accelerator: 'Command+H' });
 		let hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		let showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
-		let quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", env.product.nameLong), click: () => this.quit(), accelerator: 'Command+Q' });
+		let quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", this.envService.product.nameLong), click: () => this.quit(), accelerator: 'Command+Q' });
 
 		let actions = [about];
 		actions.push(...checkForUpdates);
@@ -595,34 +595,34 @@ export class VSCodeMenu {
 		});
 
 		arrays.coalesce([
-			env.product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => openUrl(env.product.documentationUrl, 'openDocumentationUrl') }) : null,
-			env.product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => openUrl(env.product.releaseNotesUrl, 'openReleaseNotesUrl') }) : null,
-			(env.product.documentationUrl || env.product.releaseNotesUrl) ? __separator__() : null,
-			env.product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => openUrl(env.product.twitterUrl, 'openTwitterUrl') }) : null,
-			env.product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Request Features")), click: () => openUrl(env.product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
-			env.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues")), click: () => openUrl(env.product.reportIssueUrl, 'openReportIssues') }) : null,
-			(env.product.twitterUrl || env.product.requestFeatureUrl || env.product.reportIssueUrl) ? __separator__() : null,
-			env.product.licenseUrl ? new MenuItem({
+			this.envService.product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")), click: () => openUrl(this.envService.product.documentationUrl, 'openDocumentationUrl') }) : null,
+			this.envService.product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")), click: () => openUrl(this.envService.product.releaseNotesUrl, 'openReleaseNotesUrl') }) : null,
+			(this.envService.product.documentationUrl || this.envService.product.releaseNotesUrl) ? __separator__() : null,
+			this.envService.product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => openUrl(this.envService.product.twitterUrl, 'openTwitterUrl') }) : null,
+			this.envService.product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Request Features")), click: () => openUrl(this.envService.product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
+			this.envService.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues")), click: () => openUrl(this.envService.product.reportIssueUrl, 'openReportIssues') }) : null,
+			(this.envService.product.twitterUrl || this.envService.product.requestFeatureUrl || this.envService.product.reportIssueUrl) ? __separator__() : null,
+			this.envService.product.licenseUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "&&View License")), click: () => {
 					if (platform.language) {
-						let queryArgChar = env.product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-						openUrl(`${env.product.licenseUrl}${queryArgChar}lang=${platform.language}`, 'openLicenseUrl');
+						let queryArgChar = this.envService.product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+						openUrl(`${this.envService.product.licenseUrl}${queryArgChar}lang=${platform.language}`, 'openLicenseUrl');
 					} else {
-						openUrl(env.product.licenseUrl, 'openLicenseUrl');
+						openUrl(this.envService.product.licenseUrl, 'openLicenseUrl');
 					}
 				}
 			}) : null,
-			env.product.privacyStatementUrl ? new MenuItem({
+			this.envService.product.privacyStatementUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => {
 					if (platform.language) {
-						let queryArgChar = env.product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-						openUrl(`${env.product.privacyStatementUrl}${queryArgChar}lang=${platform.language}`, 'openPrivacyStatement');
+						let queryArgChar = this.envService.product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+						openUrl(`${this.envService.product.privacyStatementUrl}${queryArgChar}lang=${platform.language}`, 'openPrivacyStatement');
 					} else {
-						openUrl(env.product.privacyStatementUrl, 'openPrivacyStatement');
+						openUrl(this.envService.product.privacyStatementUrl, 'openPrivacyStatement');
 					}
 				}
 			}) : null,
-			(env.product.licenseUrl || env.product.privacyStatementUrl) ? __separator__() : null,
+			(this.envService.product.licenseUrl || this.envService.product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
 		]).forEach((item) => helpMenu.append(item));
 
@@ -753,14 +753,14 @@ function openAboutDialog(): void {
 	let lastActiveWindow = this.windowsManager.getFocusedWindow() || this.windowsManager.getLastActiveWindow();
 
 	dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
-		title: env.product.nameLong,
+		title: this.envService.product.nameLong,
 		type: 'info',
-		message: env.product.nameLong,
+		message: this.envService.product.nameLong,
 		detail: nls.localize('aboutDetail',
 			"\nVersion {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}",
 			app.getVersion(),
-			env.product.commit || 'Unknown',
-			env.product.date || 'Unknown',
+			this.envService.product.commit || 'Unknown',
+			this.envService.product.date || 'Unknown',
 			process.versions['electron'],
 			process.versions['chrome'],
 			process.versions['node']

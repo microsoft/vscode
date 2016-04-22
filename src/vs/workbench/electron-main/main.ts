@@ -86,7 +86,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: env.IProce
 	let windowsMutex: Mutex = null;
 	try {
 		const Mutex = (<any>require.__$__nodeRequire('windows-mutex')).Mutex;
-		windowsMutex = new Mutex(env.product.win32MutexName);
+		windowsMutex = new Mutex(envService.product.win32MutexName);
 	} catch (e) {
 		// noop
 	}
@@ -102,8 +102,8 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: env.IProce
 
 	// Used by sub processes to communicate back to the main instance
 	process.env['VSCODE_PID'] = '' + process.pid;
-	process.env['VSCODE_IPC_HOOK'] = env.mainIPCHandle;
-	process.env['VSCODE_SHARED_IPC_HOOK'] = env.sharedIPCHandle;
+	process.env['VSCODE_IPC_HOOK'] = envService.mainIPCHandle;
+	process.env['VSCODE_SHARED_IPC_HOOK'] = envService.sharedIPCHandle;
 
 	// Spawn shared process
 	const sharedProcess = instantiationService.invokeFunction(spawnSharedProcess);
@@ -112,8 +112,8 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: env.IProce
 	// This will help Windows to associate the running program with
 	// any shortcut that is pinned to the taskbar and prevent showing
 	// two icons in the taskbar for the same app.
-	if (platform.isWindows && env.product.win32AppUserModelId) {
-		app.setAppUserModelId(env.product.win32AppUserModelId);
+	if (platform.isWindows && envService.product.win32AppUserModelId) {
+		app.setAppUserModelId(envService.product.win32AppUserModelId);
 	}
 
 	// Set programStart in the global scope
@@ -161,7 +161,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: env.IProce
 	menuManager.ready();
 
 	// Install Tasks
-	if (platform.isWindows && env.isBuilt) {
+	if (platform.isWindows && envService.isBuilt) {
 		app.setUserTasks([
 			{
 				title: nls.localize('newWindow', "New Window"),
@@ -191,7 +191,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const envService = accessor.get(env.IEnvService);
 
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(env.mainIPCHandle).then(server => {
+		return serve(envService.mainIPCHandle).then(server => {
 			if (platform.isMacintosh) {
 				app.dock.show(); // dock might be hidden at this case due to a retry
 			}
@@ -208,7 +208,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			}
 
 			// there's a running instance, let's connect to it
-			return connect(env.mainIPCHandle).then(
+			return connect(envService.mainIPCHandle).then(
 				client => {
 
 					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
@@ -237,7 +237,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// let's delete it, since we can't connect to it
 					// and the retry the whole thing
 					try {
-						fs.unlinkSync(env.mainIPCHandle);
+						fs.unlinkSync(envService.mainIPCHandle);
 					} catch (e) {
 						logService.log('Fatal error deleting obsolete instance handle', e);
 						return TPromise.wrapError(e);

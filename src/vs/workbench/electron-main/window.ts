@@ -158,6 +158,7 @@ export class VSCodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
+		@env.IEnvService private envService: env.IEnvService,
 		@storage.IStorageService private storageService: storage.IStorageService
 	) {
 		this._lastFocusTime = -1;
@@ -184,7 +185,7 @@ export class VSCodeWindow {
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
-			title: env.product.nameLong,
+			title: this.envService.product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
 			}
@@ -347,7 +348,7 @@ export class VSCodeWindow {
 
 		// Prevent any kind of navigation triggered by the user!
 		// But do not touch this in dev version because it will prevent "Reload" from dev tools
-		if (env.isBuilt) {
+		if (this.envService.isBuilt) {
 			this._win.webContents.on('will-navigate', (event: Event) => {
 				if (event) {
 					event.preventDefault();

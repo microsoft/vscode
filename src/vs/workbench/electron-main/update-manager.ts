@@ -11,7 +11,7 @@ import events = require('events');
 
 import electron = require('electron');
 import platform = require('vs/base/common/platform');
-import env = require('vs/workbench/electron-main/env');
+import * as env from 'vs/workbench/electron-main/env';
 import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.win32';
 import {LinuxAutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.linux';
@@ -71,7 +71,8 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@env.IEnvService private envService: env.IEnvService
 	) {
 		super();
 
@@ -85,7 +86,7 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 		if (platform.isWindows) {
 			this.raw = instantiationService.createInstance(Win32AutoUpdaterImpl);
 		} else if (platform.isLinux) {
-			this.raw = new LinuxAutoUpdaterImpl();
+			this.raw = instantiationService.createInstance(LinuxAutoUpdaterImpl);
 		} else if (platform.isMacintosh) {
 			this.raw = electron.autoUpdater;
 		}
@@ -171,8 +172,8 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 			return; // already initialized
 		}
 
-		const channel = UpdateManager.getUpdateChannel();
-		const feedUrl = UpdateManager.getUpdateFeedUrl(channel);
+		const channel = this.getUpdateChannel();
+		const feedUrl = this.getUpdateFeedUrl(channel);
 
 		if (!feedUrl) {
 			return; // updates not available
@@ -223,12 +224,12 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 		this.emit('change');
 	}
 
-	private static getUpdateChannel(): string {
+	private getUpdateChannel(): string {
 		const channel = settings.manager.getValue('update.channel') || 'default';
-		return channel === 'none' ? null : env.quality;
+		return channel === 'none' ? null : this.envService.quality;
 	}
 
-	private static getUpdateFeedUrl(channel: string): string {
+	private getUpdateFeedUrl(channel: string): string {
 		if (!channel) {
 			return null;
 		}
@@ -237,10 +238,10 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 			return null;
 		}
 
-		if (!env.updateUrl || !env.product.commit) {
+		if (!this.envService.updateUrl || !this.envService.product.commit) {
 			return null;
 		}
 
-		return `${ env.updateUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
+		return `${ this.envService.updateUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ this.envService.product.commit }`;
 	}
 }

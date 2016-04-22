@@ -17,7 +17,7 @@ import { download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { manager as Settings } from 'vs/workbench/electron-main/settings';
 import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
-import { quality } from './env';
+import { IEnvService } from './env';
 
 export interface IUpdate {
 	url: string;
@@ -31,7 +31,10 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	private url: string;
 	private currentRequest: Promise;
 
-	constructor(@ILifecycleService private lifecycleService: ILifecycleService) {
+	constructor(
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IEnvService private envService: IEnvService
+	) {
 		super();
 
 		this.url = null;
@@ -110,7 +113,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	}
 
 	private getUpdatePackagePath(version: string): TPromise<string> {
-		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${ quality }-${ version }.exe`));
+		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${ this.envService.quality }-${ version }.exe`));
 	}
 
 	private quitAndUpdate(updatePackagePath: string): void {
@@ -127,7 +130,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	}
 
 	private cleanup(exceptVersion: string = null): Promise {
-		const filter = exceptVersion ? one => !(new RegExp(`${ quality }-${ exceptVersion }\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? one => !(new RegExp(`${ this.envService.quality }-${ exceptVersion }\\.exe$`).test(one)) : () => true;
 
 		return this.cachePath
 			.then(cachePath => pfs.readdir(cachePath)
