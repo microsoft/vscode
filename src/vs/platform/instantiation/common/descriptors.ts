@@ -188,7 +188,7 @@ export interface SyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
 	bind(a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): SyncDescriptor0<T>;
 }
 
-export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements objects.IEqualable {
+export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements AsyncDescriptor0<T>, objects.IEqualable {
 
 	public static create<T>(moduleName: string, ctorName: string): AsyncDescriptor<T> {
 		return new AsyncDescriptor<T>(moduleName, ctorName);
@@ -220,7 +220,7 @@ export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements objects
 			(<AsyncDescriptor<any>>other).ctorName === this.ctorName;
 	}
 
-	protected bind(...moreStaticArguments): AsyncDescriptor<T> {
+	bind(...moreStaticArguments): AsyncDescriptor<T> {
 		let allArgs = [];
 		allArgs = allArgs.concat(this.staticArguments());
 		allArgs = allArgs.concat(moreStaticArguments);

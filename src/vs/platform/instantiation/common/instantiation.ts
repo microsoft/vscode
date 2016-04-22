@@ -142,8 +142,6 @@ export interface IInstantiationService {
 	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(descriptor: descriptors.AsyncDescriptor7<A1, A2, A3, A4, A5, A6, A7, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7): TPromise<T>;
 	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(descriptor: descriptors.AsyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): TPromise<T>;
 
-	createInstance<T>(descriptor: descriptors.AsyncDescriptor<T>, ...args: any[]): TPromise<T>;
-
 	/**
 	 *
 	 */
