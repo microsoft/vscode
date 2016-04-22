@@ -44,29 +44,9 @@ import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServic
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
 import {MainProcessExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
-import {MainThreadDocuments} from 'vs/workbench/api/node/extHostDocuments';
-import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
-import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';
-import {JSONValidationExtensionPoint} from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
-import {LanguageConfigurationFileHandler} from 'vs/editor/node/languageConfiguration';
-import {MainThreadFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
-import {MainThreadQuickOpen} from 'vs/workbench/api/node/extHostQuickOpen';
-import {MainThreadStatusBar} from 'vs/workbench/api/node/extHostStatusBar';
-import {MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
-import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
-import {MainThreadDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
-import {MainThreadOutputService} from 'vs/workbench/api/node/extHostOutputService';
-import {MainThreadMessageService} from 'vs/workbench/api/node/extHostMessageService';
-import {MainThreadLanguages} from 'vs/workbench/api/node/extHostLanguages';
-import {MainThreadEditors} from 'vs/workbench/api/node/extHostEditors';
-import {MainThreadWorkspace} from 'vs/workbench/api/node/extHostWorkspace';
-import {MainThreadConfiguration} from 'vs/workbench/api/node/extHostConfiguration';
-import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {IOptions} from 'vs/workbench/common/options';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -192,9 +172,6 @@ export class WorkbenchShell {
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, serviceCollection);
 		this.workbench.startup({
-			onServicesCreated: () => {
-				this.initExtensionSystem();
-			},
 			onWorkbenchStarted: () => {
 				this.onWorkbenchStarted();
 			}
@@ -330,30 +307,6 @@ export class WorkbenchShell {
 		result.set(IActionsService, new ActionsService(extensionService, this.keybindingService));
 
 		return result;
-	}
-
-	// TODO@Alex, TODO@Joh move this out of here?
-	private initExtensionSystem(): void {
-		this.threadService.getRemotable(MainProcessVSCodeAPIHelper);
-		this.threadService.getRemotable(MainThreadDocuments);
-		this.threadService.getRemotable(RemoteTelemetryServiceHelper);
-		this.workbench.getInstantiationService().createInstance(MainProcessTextMateSyntax);
-		this.workbench.getInstantiationService().createInstance(MainProcessTextMateSnippet);
-		this.workbench.getInstantiationService().createInstance(JSONValidationExtensionPoint);
-		this.workbench.getInstantiationService().createInstance(LanguageConfigurationFileHandler);
-		this.threadService.getRemotable(MainThreadConfiguration);
-		this.threadService.getRemotable(MainThreadQuickOpen);
-		this.threadService.getRemotable(MainThreadStatusBar);
-		this.workbench.getInstantiationService().createInstance(MainThreadFileSystemEventService);
-		this.threadService.getRemotable(MainThreadCommands);
-		this.threadService.getRemotable(MainThreadOutputService);
-		this.threadService.getRemotable(MainThreadDiagnostics);
-		this.threadService.getRemotable(MainThreadMessageService);
-		this.threadService.getRemotable(MainThreadLanguages);
-		this.threadService.getRemotable(MainThreadWorkspace);
-		this.threadService.getRemotable(MainThreadEditors);
-		this.threadService.getRemotable(MainThreadStorage);
-		this.threadService.getRemotable(MainThreadLanguageFeatures);
 	}
 
 	public open(): void {
