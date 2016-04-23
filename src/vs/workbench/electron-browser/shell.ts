@@ -222,7 +222,6 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
-
 		let serviceCollection = new ServiceCollection();
 		let instantiationService = new InstantiationService(serviceCollection);
 
@@ -280,7 +279,7 @@ export class WorkbenchShell {
 		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, this.configurationService, this.messageService);
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
-		let untitledEditorService = new UntitledEditorService();
+		let untitledEditorService = instantiationService.createInstance(UntitledEditorService);
 		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService);
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);

@@ -39,7 +39,7 @@ import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpe
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
-import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -366,7 +366,6 @@ export class Workbench implements IPartService {
 		if (this.messageService instanceof WorkbenchMessageService) {
 			(<WorkbenchMessageService>this.messageService).setWorkbenchServices(this.statusbarPart);
 		}
-		(<UntitledEditorService>this.untitledEditorService).setInstantiationService(this.instantiationService);
 		(<AbstractKeybindingService><any>this.keybindingService).setInstantiationService(this.instantiationService);
 
 		// Set the some services to registries that have been created eagerly
