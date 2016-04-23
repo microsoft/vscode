@@ -37,9 +37,8 @@ export interface IContent {
 }
 
 interface ILoadConfigResult {
-	merged: any;
-	consolidated: { contents: any; parseErrors: string[]; };
-	globals: { contents: any; parseErrors: string[]; };
+	config: any;
+	parseErrors?: string[];
 }
 
 export abstract class ConfigurationService extends EventEmitter implements IConfigurationService, IDisposable {
@@ -70,9 +69,7 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 		this.workspaceSettingsRootFolder = workspaceSettingsRootFolder;
 		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.cachedConfig = {
-			merged: {},
-			consolidated: { contents: {}, parseErrors: [] },
-			globals: { contents: {}, parseErrors: [] }
+			config: {}
 		};
 
 		this.onDidUpdateConfiguration = fromEventEmitter(this, ConfigurationServiceEventTypes.UPDATED);
@@ -100,14 +97,10 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 	protected abstract resolveStat(resource: uri): TPromise<IStat>;
 
 	public getConfiguration<T>(section?: string): T {
-		let result = section ? this.cachedConfig.merged[section] : this.cachedConfig.merged;
+		let result = section ? this.cachedConfig.config[section] : this.cachedConfig.config;
 
-		let parseErrors = this.cachedConfig.consolidated.parseErrors;
-		if (this.cachedConfig.globals.parseErrors) {
-			parseErrors.push.apply(parseErrors, this.cachedConfig.globals.parseErrors);
-		}
-
-		if (parseErrors.length > 0) {
+		let parseErrors = this.cachedConfig.parseErrors;
+		if (parseErrors && parseErrors.length > 0) {
 			if (!result) {
 				result = {};
 			}
@@ -145,10 +138,17 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 				true								// overwrite
 			);
 
+			let parseErrors = [];
+			if (consolidated.parseErrors) {
+				parseErrors = consolidated.parseErrors;
+			}
+			if (globals.parseErrors) {
+				parseErrors.push.apply(parseErrors, globals.parseErrors);
+			}
+
 			return {
-				merged: merged,
-				consolidated: consolidated,
-				globals: globals
+				config: merged,
+				parseErrors
 			};
 		}).then((res: ILoadConfigResult) => {
 			this.cachedConfig = res;
