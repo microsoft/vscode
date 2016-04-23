@@ -8,7 +8,7 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
 import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
@@ -252,7 +252,7 @@ export class FrankensteinMode extends AbstractMode {
 
 	constructor(
 		descriptor:modes.IModeDescriptor,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		@optional(IEditorWorkerService) editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
 

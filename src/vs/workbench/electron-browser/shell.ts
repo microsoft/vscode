@@ -223,7 +223,7 @@ export class WorkbenchShell {
 
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
 		let serviceCollection = new ServiceCollection();
-		let instantiationService = new InstantiationService(serviceCollection);
+		let instantiationService = new InstantiationService(serviceCollection, true);
 
 		this.windowService = new WindowService();
 

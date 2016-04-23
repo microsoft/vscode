@@ -13,7 +13,7 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
 import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -59,7 +59,15 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		return <FindReferencesController> editor.getContribution(FindReferencesController.ID);
 	}
 
-	public constructor(editor:ICodeEditor, @IEditorService editorService: IEditorService, @ITelemetryService telemetryService: ITelemetryService, @IMessageService messageService: IMessageService, @IInstantiationService instantiationService: IInstantiationService, @IPeekViewService peekViewService: IPeekViewService, @IWorkspaceContextService contextService: IWorkspaceContextService, @IKeybindingService keybindingService: IKeybindingService) {
+	public constructor(editor: ICodeEditor,
+		@IEditorService editorService: IEditorService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@optional(IPeekViewService) peekViewService: IPeekViewService
+	) {
 		this.requestIdPool = 0;
 		this.callOnClear = [];
 		this.editorService = editorService;
@@ -251,7 +259,12 @@ export class ReferenceAction extends EditorAction {
 
 	// state - changes with every invocation
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @IPeekViewService peekViewService: IPeekViewService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@optional(IPeekViewService) peekViewService: IPeekViewService
+	) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
 
 		this.label = nls.localize('references.action.label', "Find All References");

@@ -93,6 +93,7 @@ export class Workbench implements IPartService {
 	private workbenchStarted: boolean;
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
+	private editorService: WorkbenchEditorService;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -115,7 +116,6 @@ export class Workbench implements IPartService {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchWorkspaceContextService private contextService: IWorkbenchWorkspaceContextService,
-		@IWorkbenchEditorService private editorService: WorkbenchEditorService,
 		@IStorageService private storageService: IStorageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService,
