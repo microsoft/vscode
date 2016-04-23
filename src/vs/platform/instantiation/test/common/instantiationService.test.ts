@@ -87,12 +87,12 @@ class TargetWithStaticParam {
 	}
 }
 
-class TargetOptional1 {
+class TargetNotOptional {
 	constructor( @IService1 service1: IService1, @IService2 service2: IService2) {
-		assert.ok(false, 'should not be here');
+
 	}
 }
-class TargetOptional2 {
+class TargetOptional {
 	constructor( @IService1 service1: IService1, @optional(IService2) service2: IService2) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
@@ -200,13 +200,15 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - optional', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new Service1());
-		// service.addSingleton(IService2, new Service2());
+		let collection = new ServiceCollection([IService1, new Service1()]);
+		let service = new InstantiationService(collection, true);
 
-		// assert.throws(() => service.createInstance(TargetOptional1));
-		service.createInstance(TargetOptional2);
+		service.createInstance(TargetOptional);
+		assert.throws(() => service.createInstance(TargetNotOptional));
+
+		service = new InstantiationService(collection, false);
+		service.createInstance(TargetOptional);
+		service.createInstance(TargetNotOptional);
 	});
 
 	// we made this a warning
