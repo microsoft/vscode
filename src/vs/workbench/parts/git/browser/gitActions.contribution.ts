@@ -470,13 +470,13 @@ let workbenchActionRegistry = (<wbar.IWorkbenchActionRegistry> platform.Registry
 
 // Register Actions
 const category = nls.localize('git', "Git");
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenChangeAction, GlobalOpenChangeAction.ID, GlobalOpenChangeAction.LABEL), 'Open Change', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenInEditorAction, GlobalOpenInEditorAction.ID, GlobalOpenInEditorAction.LABEL), 'Open File', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullAction, PullAction.ID, PullAction.LABEL), 'Pull', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushAction, PushAction.ID, PushAction.LABEL), 'Push', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SyncAction, SyncAction.ID, SyncAction.LABEL), 'Sync', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PublishAction, PublishAction.ID, PublishAction.LABEL), 'Publish', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitBranchAction, StartGitBranchAction.ID, StartGitBranchAction.LABEL), 'Branch', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitCheckoutAction, StartGitCheckoutAction.ID, StartGitCheckoutAction.LABEL), 'Checkout', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InputCommitAction, InputCommitAction.ID, InputCommitAction.LABEL), 'Commit', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(UndoLastCommitAction, UndoLastCommitAction.ID, UndoLastCommitAction.LABEL), 'Undo Last Commit', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenChangeAction, GlobalOpenChangeAction.ID, GlobalOpenChangeAction.LABEL), 'Git: Open Change', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalOpenInEditorAction, GlobalOpenInEditorAction.ID, GlobalOpenInEditorAction.LABEL), 'Git: Open File', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PullAction, PullAction.ID, PullAction.LABEL), 'Git: Pull', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PushAction, PushAction.ID, PushAction.LABEL), 'Git: Push', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SyncAction, SyncAction.ID, SyncAction.LABEL), 'Git: Sync', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PublishAction, PublishAction.ID, PublishAction.LABEL), 'Git: Publish', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitBranchAction, StartGitBranchAction.ID, StartGitBranchAction.LABEL), 'Git: Branch', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitCheckoutAction, StartGitCheckoutAction.ID, StartGitCheckoutAction.LABEL), 'Git: Checkout', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InputCommitAction, InputCommitAction.ID, InputCommitAction.LABEL), 'Git: Commit', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(UndoLastCommitAction, UndoLastCommitAction.ID, UndoLastCommitAction.LABEL), 'Git: Undo Last Commit', category);

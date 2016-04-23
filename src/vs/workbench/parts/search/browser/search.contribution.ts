@@ -124,7 +124,7 @@ const openSearchViewletKb: IKeybindings = {
 
 (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).registerWorkbenchAction(
 	new SyncActionDescriptor(OpenSearchViewletAction, OpenSearchViewletAction.ID, OpenSearchViewletAction.LABEL, openSearchViewletKb),
-	'Show Search',
+	'View: Show Search',
 	nls.localize('view', "View")
 );
 
