@@ -79,7 +79,7 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 
 	protected registerListeners(): void {
 		let unbind = this.eventService.addListener(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
-		let subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.handleConfigurationChange());
+		let subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration());
 		this.callOnDispose = () => {
 			unbind();
 			subscription.dispose();
@@ -193,6 +193,18 @@ export abstract class ConfigurationService extends EventEmitter implements IConf
 		return this.bulkFetchFromWorkspacePromise.then(() => {
 			return TPromise.join(this.workspaceFilePathToConfiguration);
 		});
+	}
+
+	private onDidRegisterConfiguration(): void {
+
+		// a new configuration was registered (e.g. from an extension) and this means we do have a new set of
+		// configuration defaults. since we already loaded the merged set of configuration (defaults < global < workspace),
+		// we want to update the defaults with the new values. So we take our cached config and mix it into the new
+		// defaults that we got, overwriting any value present.
+		this.cachedConfig.config = objects.mixin(objects.clone(model.getDefaultValues()), this.cachedConfig.config, true /* overwrite */);
+
+		// emit this as update to listeners
+		this.emit(ConfigurationServiceEventTypes.UPDATED, { config: this.cachedConfig.config });
 	}
 
 	protected handleConfigurationChange(): void {
