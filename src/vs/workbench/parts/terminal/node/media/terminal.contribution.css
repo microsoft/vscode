@@ -8,28 +8,25 @@
 	display: flex;
 }
 
-.monaco-workbench .integrated-terminal .terminal span {
-	display: inline-block; /* make terminal characters cover height of line */
+.monaco-workbench .integrated-terminal {
+	background-color: #1e1e1e!important;
+	color: #CCC;
 }
 
 .monaco-workbench .integrated-terminal .terminal {
 	background-color: #1e1e1e!important;
 }
 
-.monaco-workbench .terminal-cursor {
-	background-color: #1e1e1e;
+.monaco-workbench .integrated-terminal .terminal span {
+	display: inline-block; /* make terminal characters cover height of line */
 }
 
-.monaco-workbench .reverse-video {
-	color: #CCC;
-}
-
-.vs-dark .monaco-workbench .terminal-cursor {
+.monaco-workbench .integrated-terminal .terminal-cursor {
 	background-color: #CCC;
 }
 
-.vs-dark .monaco-workbench .reverse-video {
-	color: #252526;
+.monaco-workbench .integrated-terminal .reverse-video {
+	color: #1e1e1e;
 }
 
 /* High Contrast Theming */
@@ -38,10 +35,10 @@
 	background-color: black!important;
 }
 
-.hc-dark .monaco-workbench .terminal-cursor {
+.hc-dark .monaco-workbench .integrated-terminal .terminal-cursor {
 	background-color: white;
 }
 
-.hc-dark .monaco-workbench .reverse-video {
+.hc-dark .monaco-workbench .integrated-terminal .reverse-video {
 	color: black;
 }
