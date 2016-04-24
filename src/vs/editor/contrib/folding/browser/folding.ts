@@ -38,6 +38,10 @@ class CollapsibleRegion {
 		return this._isCollapsed;
 	}
 
+	public get isExpanded(): boolean {
+		return !this._isCollapsed;
+	}
+
 	public get indent(): number {
 		return this._indent;
 	}
@@ -475,85 +479,33 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		this.editor.revealPositionInCenterIfOutsideViewport(revealPosition);
 	}
 
-	public unfold(): void {
-		let model = this.editor.getModel();
+	public foldUnfold(isFold: boolean, isRecursive: boolean): void {
 		let hasChanges = false;
-		let selections = this.editor.getSelections();
-		let selectionsHasChanged = false;
-		selections.forEach((selection, index) => {
-			let lineNumber = selection.startLineNumber;
-			let surroundingUnfolded: editorCommon.IEditorRange;
-			for (let i = 0, len = this.decorations.length; i < len; i++) {
-				let dec = this.decorations[i];
-				let decRange = dec.getDecorationRange(model);
-				if (!decRange) {
-					continue;
-				}
-				if (decRange.startLineNumber <= lineNumber) {
-					if (lineNumber <= decRange.endLineNumber) {
-						if (dec.isCollapsed) {
-							this.editor.changeDecorations(changeAccessor => {
-								dec.setCollapsed(false, changeAccessor);
-								hasChanges = true;
-							});
-							return;
-						}
-						surroundingUnfolded = decRange;
-					}
-				} else { // decRange.startLineNumber > lineNumber
-					if (surroundingUnfolded && Range.containsRange(surroundingUnfolded, decRange)) {
-						if (dec.isCollapsed) {
-							this.editor.changeDecorations(changeAccessor => {
-								dec.setCollapsed(false, changeAccessor);
-								hasChanges = true;
-								let lineNumber = decRange.startLineNumber, column = model.getLineMaxColumn(decRange.startLineNumber);
-								selections[index] = selection.setEndPosition(lineNumber, column).setStartPosition(lineNumber, column);
-								selectionsHasChanged = true;
-							});
-							return;
-						}
-					} else {
-						return;
-					}
-				}
-			}
-		});
-		if (selectionsHasChanged) {
-			this.editor.setSelections(selections);
-		}
-
-		if (hasChanges) {
-			this.updateHiddenAreas(selections[0].startLineNumber);
-		}
-	}
-
-	public fold(): void {
-		let hasChanges = false;
+		const isUnfold = !isFold;
 		let model = this.editor.getModel();
 		let selections = this.editor.getSelections();
 		selections.forEach(selection => {
 			let lineNumber = selection.startLineNumber;
-			let toFold: CollapsibleRegion = null;
+			let endLineNumber;
 			for (let i = 0, len = this.decorations.length; i < len; i++) {
 				let dec = this.decorations[i];
 				let decRange = dec.getDecorationRange(model);
 				if (!decRange) {
 					continue;
 				}
-				if (decRange.startLineNumber <= lineNumber) {
-					if (lineNumber <= decRange.endLineNumber && !dec.isCollapsed) {
-						toFold = dec;
+				if (decRange.startLineNumber >= lineNumber && (decRange.endLineNumber <= endLineNumber || typeof endLineNumber === 'undefined')) {
+					endLineNumber = endLineNumber || decRange.endLineNumber;
+					if ((dec.isExpanded && isFold) || (dec.isCollapsed && isUnfold)) {
+						this.editor.changeDecorations(changeAccessor => {
+							dec.setCollapsed(isFold, changeAccessor);
+							hasChanges = true;
+						});
+						if (!isRecursive) {
+							return;
+						}
 					}
-				} else {
-					break;
 				}
 			};
-			if (toFold) {
-				this.editor.changeDecorations(changeAccessor => {
-					toFold.setCollapsed(true, changeAccessor);
-					hasChanges = true;
-				});
-			}
 		});
 		if (hasChanges) {
 			this.updateHiddenAreas(selections[0].startLineNumber);
@@ -622,7 +574,15 @@ class UnfoldAction extends FoldingAction {
 	public static ID = 'editor.unfold';
 
 	invoke(foldingController: FoldingController): void {
-		foldingController.unfold();
+		foldingController.foldUnfold(false, false);
+	}
+}
+
+class UnFoldRecursivelyAction extends FoldingAction {
+	public static ID = 'editor.unFoldRecursively';
+
+	invoke(foldingController: FoldingController): void {
+		foldingController.foldUnfold(false, true);
 	}
 }
 
@@ -630,7 +590,15 @@ class FoldAction extends FoldingAction {
 	public static ID = 'editor.fold';
 
 	invoke(foldingController: FoldingController): void {
-		foldingController.fold();
+		foldingController.foldUnfold(true, false);
+	}
+}
+
+class FoldRecursivelyAction extends FoldingAction {
+	public static ID = 'editor.foldRecursively';
+
+	invoke(foldingController: FoldingController): void {
+		foldingController.foldUnfold(true, true);
 	}
 }
 
@@ -674,10 +642,18 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldActio
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
 }, 'Unfold'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnFoldRecursivelyAction, UnFoldRecursivelyAction.ID, nls.localize('unFoldRecursivelyAction.label', "Unfold Recursively"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET)
+}, 'Unfold Recursively'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAction, FoldAction.ID, nls.localize('foldAction.label', "Fold"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
 }, 'Fold'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldRecursivelyAction, FoldRecursivelyAction.ID, nls.localize('foldRecursivelyAction.label', "Fold Recursively"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET)
+}, 'Fold Recursively'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAllAction, FoldAllAction.ID, nls.localize('foldAllAction.label', "Fold All"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
