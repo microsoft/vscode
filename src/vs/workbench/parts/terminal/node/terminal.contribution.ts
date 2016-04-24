@@ -11,7 +11,7 @@ import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {TerminalService} from 'vs/workbench/parts/terminal/node/terminalService';
 import {ToggleTerminalAction} from 'vs/workbench/parts/terminal/node/terminalActions';
-import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
+import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_UNIX_LIKE, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/common/terminal';
 import * as panel from 'vs/workbench/browser/panel';
 import {Registry} from 'vs/platform/platform';
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
@@ -20,13 +20,18 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Confi
 configurationRegistry.registerConfiguration({
 	'id': 'terminal',
 	'order': 100,
-	'title': nls.localize('integratedTerminalConfigurationTitle', "Integrated terminal configuration"),
+	'title': nls.localize('integratedTerminalConfigurationTitle', "(Experimental) Integrated terminal configuration"),
 	'type': 'object',
 	'properties': {
-		'terminal.integrated.enabled': {
-			'description': nls.localize('terminal.integrated.enabled', "(Experimental) Enable the integrated terminal."),
-			'type': 'boolean',
-			'default': false
+		'terminal.integrated.shell.unixLike': {
+			'description': nls.localize('terminal.integrated.shell.unixLike', "The path to the shell the terminal uses on Unix-like systems (Linux, OS X)."),
+			'type': 'string',
+			'default': TERMINAL_DEFAULT_SHELL_UNIX_LIKE
+		},
+		'terminal.integrated.shell.windows': {
+			'description': nls.localize('terminal.integrated.shell.windows', "The path to the shell the terminal uses on Windows."),
+			'type': 'string',
+			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
 		}
 	}
 });
@@ -48,4 +53,4 @@ let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.Work
 /*actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK
 }), nls.localize('viewCategory', "View"));*/
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL), nls.localize('viewCategory', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL), nls.localize('viewCategory', "View"), ['terminal', 'panel']);

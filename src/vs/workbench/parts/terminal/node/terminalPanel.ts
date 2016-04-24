@@ -6,10 +6,12 @@
 import termJs = require('term.js');
 import fs = require('fs');
 import {fork, Terminal} from 'pty.js';
+import platform = require('vs/base/common/platform');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
+import {ITerminalConfiguration, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
 import {Panel} from 'vs/workbench/browser/panel';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
 import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
@@ -25,6 +27,7 @@ export class TerminalPanel extends Panel {
 	private terminalDomElement: HTMLDivElement;
 
 	constructor(
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
@@ -40,7 +43,7 @@ export class TerminalPanel extends Panel {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
-		this.ptyProcess = fork(process.env.SHELL || 'sh', [], {
+		this.ptyProcess = fork(this.getShell(), [], {
 			name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
 			cols: 80,
 			rows: 6,
@@ -85,5 +88,13 @@ export class TerminalPanel extends Panel {
 		];
 
 		return TPromise.as(null);
+	}
+
+	private getShell(): string {
+		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		if (platform.isWindows) {
+			return config.terminal.integrated.shell.windows;
+		}
+		return config.terminal.integrated.shell.unixLike;
 	}
 }
