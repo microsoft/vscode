@@ -8,6 +8,10 @@
 	display: flex;
 }
 
+.monaco-workbench .integrated-terminal .terminal span {
+	display: inline-block; /* make terminal characters cover height of line */
+}
+
 .monaco-workbench .integrated-terminal .terminal {
 	background-color: #1e1e1e!important;
 }
