@@ -55,7 +55,7 @@ export class TerminalPanel extends Panel {
 		let terminalScrollable = new DomNodeScrollable(this.terminalDomElement);
 		let terminalContainer = new ScrollableElement(this.terminalDomElement, terminalScrollable, { horizontal: 'hidden', vertical: 'auto' });
 		this.terminal = termJs({
-			cursorBlink: false
+			cursorBlink: false // term.js' blinking cursor breaks selection
 		});
 
 		this.ptyProcess.on('data', (data) => {
