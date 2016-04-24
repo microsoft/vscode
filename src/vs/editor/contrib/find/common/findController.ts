@@ -220,6 +220,15 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		}
 		return false;
 	}
+
+	public selectAllMatches(): boolean {
+		if (this._model) {
+			this._model.selectAll();
+			this.closeFindWidget();
+			return true;
+		}
+		return false;
+	}
 }
 
 export class StartFindAction extends EditorAction {
@@ -721,4 +730,7 @@ registerFindCommand(FIND_IDS.ReplaceOneAction, x => x.replace(), {
 });
 registerFindCommand(FIND_IDS.ReplaceAllAction, x => x.replaceAll(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+});
+registerFindCommand(FIND_IDS.SelectAllMatchesAction, x => x.selectAllMatches(), {
+	primary: KeyMod.Alt | KeyCode.Enter
 });

@@ -14,6 +14,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {FindDecorations} from './findDecorations';
 import {FindReplaceState, FindReplaceStateChangedEvent} from './findState';
 import {ReplaceAllCommand} from './replaceAllCommand';
+import {SelectAllMatchesCommand} from './selectAllMatchesCommand';
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
@@ -29,7 +30,8 @@ export const FIND_IDS = {
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
 	ToggleRegexCommand: 'toggleFindRegex',
 	ReplaceOneAction: 'editor.action.replaceOne',
-	ReplaceAllAction: 'editor.action.replaceAll'
+	ReplaceAllAction: 'editor.action.replaceAll',
+	SelectAllMatchesAction: 'editor.action.selectAllMatches'
 };
 
 export const MATCHES_LIMIT = 999;
@@ -348,6 +350,20 @@ export class FindModelBoundToEditorModel {
 		this._executeEditorCommand('replaceAll', command);
 
 		this.research(false);
+	}
+
+	public selectAll(): void {
+		if (!this._hasMatches()) {
+			return;
+		}
+
+		let findScope = this._decorations.getFindScope();
+
+		// Get all the ranges (even more than the highlighted ones)
+		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
+
+		let command = new SelectAllMatchesCommand(this._editor, ranges);
+		this._executeEditorCommand('selectAllMatches', command);
 	}
 
 	private _executeEditorCommand(source:string, command:editorCommon.ICommand): void {
