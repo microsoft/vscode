@@ -9,6 +9,10 @@ declare module 'pty.js' {
 	export function createTerminal(file: string, args: string[], options: any): Terminal;
 
 	export interface Terminal {
+		/**
+		 * The title of the active process.
+		 */
+		process: string;
 		on(event: string, callback: (data: any) => void): void;
 		resize(columns: number, rows: number): void;
 		write(data: string): void;
