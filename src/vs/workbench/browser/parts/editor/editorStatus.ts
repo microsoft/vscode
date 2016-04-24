@@ -16,6 +16,8 @@ import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
 import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
@@ -769,12 +771,26 @@ class ChangeIndentationAction extends Action {
 		}
 
 		const control = <ICommonCodeEditor>activeEditor.getControl();
-		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(DetectIndentation.ID),
-			control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID), control.getAction(TrimTrailingWhitespaceAction.ID)];
+		const picks = [
+			control.getAction(IndentUsingSpaces.ID),
+			control.getAction(IndentUsingTabs.ID),
+			control.getAction(DetectIndentation.ID),
+			control.getAction(IndentationToSpacesAction.ID),
+			control.getAction(IndentationToTabsAction.ID),
+			control.getAction(TrimTrailingWhitespaceAction.ID)
+		].map((a: EditorAction) => {
+			return {
+				id: a.id,
+				label: (language === LANGUAGE_DEFAULT) ? a.label : a.getAlias(),
+				detail: (language === LANGUAGE_DEFAULT) ? null : a.label,
+				run: () => a.run()
+			};
+		});
+
 		(<IPickOpenEntry>picks[0]).separator = { label: nls.localize('indentView', "change view") };
 		(<IPickOpenEntry>picks[3]).separator = { label: nls.localize('indentConvert', "convert file"), border: true };
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action") }).then(action => action && action.run());
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true }).then(action => action && action.run());
 	}
 }
 
@@ -853,15 +869,23 @@ export class ChangeEncodingAction extends Action {
 		}
 
 		let pickActionPromise: TPromise<IPickOpenEntry>;
-		let saveWithEncodingPick: IPickOpenEntry = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
-		let reopenWithEncodingPick: IPickOpenEntry = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
+
+		let saveWithEncodingPick: IPickOpenEntry;
+		let reopenWithEncodingPick: IPickOpenEntry;
+		if (language === LANGUAGE_DEFAULT) {
+			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
+			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
+		} else {
+			saveWithEncodingPick = { label: 'Save with Encoding', detail: nls.localize('saveWithEncoding', "Save with Encoding"), };
+			reopenWithEncodingPick = { label: 'Reopen with Encoding', detail: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
+		}
 
 		if (encodingSupport instanceof UntitledEditorInput) {
 			pickActionPromise = TPromise.as(saveWithEncodingPick);
 		} else if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
 			pickActionPromise = TPromise.as(reopenWithEncodingPick);
 		} else {
-			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action") });
+			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });
 		}
 
 		return pickActionPromise.then((action) => {
