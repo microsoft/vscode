@@ -9,22 +9,20 @@
 	},
 	"contributes": {
 		"configuration": {
-			"configuration": {
-				"type": "object",
-				"title": "Test Config",
-				"properties": {
-					"farboo.config0": {
-						"type": "boolean",
-						"default": true
-					},
-					"farboo.nested.config1": {
-						"type": "number",
-						"default": 42
-					},
-					"farboo.nested.config2": {
-						"type": "string",
-						"default": "Das Pferd frisst kein Reis."
-					}
+			"type": "object",
+			"title": "Test Config",
+			"properties": {
+				"farboo.config0": {
+					"type": "boolean",
+					"default": true
+				},
+				"farboo.nested.config1": {
+					"type": "number",
+					"default": 42
+				},
+				"farboo.nested.config2": {
+					"type": "string",
+					"default": "Das Pferd frisst kein Reis."
 				}
 			}
 		}
