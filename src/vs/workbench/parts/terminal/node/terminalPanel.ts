@@ -65,6 +65,13 @@ export class TerminalPanel extends Panel {
 			this.ptyProcess.write(data);
 			return false;
 		});
+		this.parentDomElement.addEventListener('mousedown', (event) => {
+			// Drop selection and focus terminal on Linux to enable middle button paste when click
+			// occurs on the selection itself.
+			if (event.which === 2 && platform.isLinux) {
+				this.focusTerminal(true);
+			}
+		});
 		this.parentDomElement.addEventListener('mouseup', (event) => {
 			if (event.which !== 3) {
 				this.focusTerminal();
@@ -81,9 +88,9 @@ export class TerminalPanel extends Panel {
 		return TPromise.as(null);
 	}
 
-	private focusTerminal(): void {
+	private focusTerminal(force?: boolean): void {
 		let text = window.getSelection().toString();
-		if (!text) {
+		if (!text || force) {
 			this.terminal.focus();
 			if (this.terminal._textarea) {
 				this.terminal._textarea.focus();
