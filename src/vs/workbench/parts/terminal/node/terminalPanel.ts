@@ -11,6 +11,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ITerminalConfiguration, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
 import {Panel} from 'vs/workbench/browser/panel';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
@@ -28,7 +29,8 @@ export class TerminalPanel extends Panel {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
 	}
@@ -47,7 +49,7 @@ export class TerminalPanel extends Panel {
 			name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
 			cols: 80,
 			rows: 6,
-			cwd: process.env.HOME
+			cwd: this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.path : process.env.HOME
 		});
 		this.parentDomElement = parent.getHTMLElement();
 		this.terminalDomElement = document.createElement('div');
