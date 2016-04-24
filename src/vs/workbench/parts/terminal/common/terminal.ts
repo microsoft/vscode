@@ -19,12 +19,28 @@ export const TERMINAL_DEFAULT_SHELL_WINDOWS = platform.isWindows ? path.resolve(
 export var ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export interface ITerminalConfiguration {
-	terminal: {
-		integrated: {
-			shell: {
-				unixLike: string,
-				windows: string
-			}
+	integratedTerminal: {
+		shell: {
+			unixLike: string,
+			windows: string
+		},
+		ansiColors: {
+			black: string,
+			red: string,
+			green: string,
+			yellow: string,
+			blue: string,
+			magenta: string,
+			cyan: string,
+			white: string,
+			brightBlack: string,
+			brightRed: string,
+			brightGreen: string,
+			brightYellow: string,
+			brightBlue: string,
+			brightMagenta: string,
+			brightCyan: string,
+			brightWhite: string,
 		}
 	};
 }

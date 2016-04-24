@@ -68,24 +68,7 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.appendChild(terminalContainer.getDomNode());
 
 		this.terminalDomElement.style.fontFamily = 'Hack, mono';
-		this.terminal.colors = [
-			'#000000', // black
-			'#cd3131', // red
-			'#09885a', // green
-			'#e5e510', // yellow
-			'#0451a5', // blue
-			'#bc05bc', // magenta
-			'#0598bc', // cyan
-			'#e5e5e5', // white
-			'#111111', // bright black
-			'#dc6f6f', // bright red
-			'#53ac8c', // bright green
-			'#eded58', // bright yellow
-			'#4f85c0', // bright blue
-			'#d050d0', // bright magenta
-			'#50b7d0', // bright cyan
-			'#FFFFFF', // bright white
-		];
+		this.terminal.colors = this.getTerminalColors();
 
 		return TPromise.as(null);
 	}
@@ -93,8 +76,31 @@ export class TerminalPanel extends Panel {
 	private getShell(): string {
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 		if (platform.isWindows) {
-			return config.terminal.integrated.shell.windows;
+			return config.integratedTerminal.shell.windows;
 		}
-		return config.terminal.integrated.shell.unixLike;
+		return config.integratedTerminal.shell.unixLike;
+	}
+
+	private getTerminalColors(): string[] {
+		let config = this.configurationService.getConfiguration<ITerminalConfiguration>().integratedTerminal.ansiColors;
+		let colors = [
+			config.black || '#000000',
+			config.red || '#cd3131',
+			config.green || '#09885a',
+			config.yellow || '#e5e510',
+			config.blue || '#0451a5',
+			config.magenta || '#bc05bc',
+			config.cyan || '#0598bc',
+			config.white || '#e5e5e5',
+			config.brightBlack || '#111111',
+			config.brightRed || '#dc6f6f',
+			config.brightGreen || '#53ac8c',
+			config.brightYellow || '#eded58',
+			config.brightBlue || '#4f85c0',
+			config.brightMagenta || '#d050d0',
+			config.brightCyan || '#50b7d0',
+			config.brightWhite || '#FFFFFF'
+		];
+		return colors;
 	}
 }
