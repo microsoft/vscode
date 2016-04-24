@@ -24,12 +24,12 @@ configurationRegistry.registerConfiguration({
 	'type': 'object',
 	'properties': {
 		'terminal.integrated.shell.unixLike': {
-			'description': nls.localize('terminal.integrated.shell.unixLike', "The path to the shell the terminal uses on Unix-like systems (Linux, OS X)."),
+			'description': nls.localize('terminal.integrated.shell.unixLike', "The path to the shell that the terminal uses on Unix-like systems (Linux, OS X)."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_UNIX_LIKE
 		},
 		'terminal.integrated.shell.windows': {
-			'description': nls.localize('terminal.integrated.shell.windows', "The path to the shell the terminal uses on Windows."),
+			'description': nls.localize('terminal.integrated.shell.windows', "The path to the shell that the terminal uses on Windows."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
 		}
@@ -48,9 +48,7 @@ registerSingleton(ITerminalService, TerminalService);
 	'terminal'
 ));
 
-// register toggle output action globally
+// Register toggle output action globally
 let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-/*actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK
-}), nls.localize('viewCategory', "View"));*/
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL), nls.localize('viewCategory', "View"), ['terminal', 'panel']);
+// { primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK }
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL), 'View: ToggleTerminalAction.LABEL', nls.localize('viewCategory', "View"));
