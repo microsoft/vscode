@@ -84,22 +84,22 @@ export class TerminalPanel extends Panel {
 	private getTerminalColors(): string[] {
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>().integratedTerminal.ansiColors;
 		let colors = [
-			config.black || '#000000',
-			config.red || '#cd3131',
-			config.green || '#09885a',
-			config.yellow || '#e5e510',
-			config.blue || '#0451a5',
-			config.magenta || '#bc05bc',
-			config.cyan || '#0598bc',
-			config.white || '#e5e5e5',
-			config.brightBlack || '#111111',
-			config.brightRed || '#dc6f6f',
-			config.brightGreen || '#53ac8c',
-			config.brightYellow || '#eded58',
-			config.brightBlue || '#4f85c0',
-			config.brightMagenta || '#d050d0',
-			config.brightCyan || '#50b7d0',
-			config.brightWhite || '#FFFFFF'
+			config.black,
+			config.red,
+			config.green,
+			config.yellow,
+			config.blue,
+			config.magenta,
+			config.cyan,
+			config.white,
+			config.brightBlack,
+			config.brightRed,
+			config.brightGreen,
+			config.brightYellow,
+			config.brightBlue,
+			config.brightMagenta,
+			config.brightCyan,
+			config.brightWhite
 		];
 		return colors;
 	}
