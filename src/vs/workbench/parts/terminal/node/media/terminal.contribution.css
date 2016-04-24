@@ -11,6 +11,7 @@
 .monaco-workbench .integrated-terminal {
 	background-color: #1e1e1e!important;
 	color: #CCC;
+	-webkit-user-select: initial;
 }
 
 .monaco-workbench .integrated-terminal .terminal {

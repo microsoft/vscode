@@ -54,7 +54,9 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.classList.add('integrated-terminal');
 		let terminalScrollable = new DomNodeScrollable(this.terminalDomElement);
 		let terminalContainer = new ScrollableElement(this.terminalDomElement, terminalScrollable, { horizontal: 'hidden', vertical: 'auto' });
-		this.terminal = termJs();
+		this.terminal = termJs({
+			cursorBlink: false
+		});
 
 		this.ptyProcess.on('data', (data) => {
 			this.terminal.write(data);
