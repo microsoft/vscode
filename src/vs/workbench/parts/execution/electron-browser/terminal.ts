@@ -5,14 +5,14 @@
 import fs = require('fs');
 import env = require('vs/base/common/platform');
 
-export let DEFAULT_LINUX_TERM = 'x-terminal-emulator';
+// If the system is not debian but is on gnome, use gnome-terminal
+export const DEFAULT_TERMINAL_LINUX = (env.isLinux && !fs.existsSync('/etc/debian_version') && process.env.DESKTOP_SESSION === 'gnome') ? 'gnome-terminal' : 'x-terminal-emulator';
 
-// if we're not on debian and using gnome then
-// set default to gnome-terminal
-if (env.isLinux
-	&& fs.existsSync('/etc/debian_version') === false
-	&& process.env.DESKTOP_SESSION === 'gnome') {
-	DEFAULT_LINUX_TERM = 'gnome-terminal';
+export const DEFAULT_TERMINAL_WINDOWS = 'cmd';
+
+export interface ITerminalConfiguration {
+	externalTerminal: {
+		linuxExec: string,
+		windowsExec: string
+	};
 }
-
-export const DEFAULT_WINDOWS_TERM = 'cmd';
