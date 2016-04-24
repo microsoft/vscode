@@ -92,7 +92,7 @@ export declare class TPromise<V> {
 	public cancel():void;
 
 	public static as<ValueType>(value:ValueType):TPromise<ValueType>;
-	public static is(value: any): boolean;
+	public static is(value: any): value is TPromise<any>;
 	public static timeout(delay:number):TPromise<void>;
 	public static join<ValueType>(promises:TPromise<ValueType>[]):TPromise<ValueType[]>;
 	public static join<ValueType>(promises: {[n:string]:TPromise<ValueType>}):TPromise<{[n:string]:ValueType}>;

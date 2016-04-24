@@ -15,11 +15,9 @@ import vscode = require('vscode');
 export class ExtHostMessageService {
 
 	private _proxy: MainThreadMessageService;
-	private _commands: typeof vscode.commands;
 
-	constructor(@IThreadService threadService: IThreadService, commands: typeof vscode.commands) {
+	constructor(@IThreadService threadService: IThreadService) {
 		this._proxy = threadService.getRemotable(MainThreadMessageService);
-		this._commands = commands;
 	}
 
 	showMessage(severity: Severity, message: string, commands: (string|vscode.MessageItem)[]): Thenable<string|vscode.MessageItem> {
@@ -35,7 +33,7 @@ export class ExtHostMessageService {
 			}
 		}
 
-		return this._proxy.showMessage(severity, message, items).then(handle => {
+		return this._proxy.$showMessage(severity, message, items).then(handle => {
 			if (typeof handle === 'number') {
 				return commands[handle];
 			}
@@ -52,7 +50,7 @@ export class MainThreadMessageService {
 		this._messageService = messageService;
 	}
 
-	showMessage(severity: Severity, message: string, commands: { title: string; handle: number;}[]): Thenable<number> {
+	$showMessage(severity: Severity, message: string, commands: { title: string; handle: number;}[]): Thenable<number> {
 
 		let hide: (handle?: number) => void;
 		let actions: Action[] = [];

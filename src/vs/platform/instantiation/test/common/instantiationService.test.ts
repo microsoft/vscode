@@ -6,15 +6,15 @@
 
 
 import assert = require('assert');
-import instantiation = require('vs/platform/instantiation/common/instantiation');
+import {createDecorator, optional, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
-let IService1 = instantiation.createDecorator<IService1>('service1');
+let IService1 = createDecorator<IService1>('service1');
 
 interface IService1 {
-	serviceId: instantiation.ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 	c: number;
 }
 
@@ -23,10 +23,10 @@ class Service1 implements IService1 {
 	c = 1;
 }
 
-let IService2 = instantiation.createDecorator<IService2>('service2');
+let IService2 = createDecorator<IService2>('service2');
 
 interface IService2 {
-	serviceId: instantiation.ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 	d: boolean;
 }
 
@@ -35,10 +35,10 @@ class Service2 implements IService2 {
 	d = true;
 }
 
-let IService3 = instantiation.createDecorator<IService3>('service3');
+let IService3 = createDecorator<IService3>('service3');
 
 interface IService3 {
-	serviceId: instantiation.ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 	s: string;
 }
 
@@ -47,10 +47,10 @@ class Service3 implements IService3 {
 	s = 'farboo';
 }
 
-let IDependentService = instantiation.createDecorator<IDependentService>('dependentService');
+let IDependentService = createDecorator<IDependentService>('dependentService');
 
 interface IDependentService {
-	serviceId: instantiation.ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 	name: string;
 }
 
@@ -87,8 +87,13 @@ class TargetWithStaticParam {
 	}
 }
 
+class TargetNotOptional {
+	constructor( @IService1 service1: IService1, @IService2 service2: IService2) {
+
+	}
+}
 class TargetOptional {
-	constructor( @IService1 service1: IService1, @IService2 service2?: IService2) {
+	constructor( @IService1 service1: IService1, @optional(IService2) service2: IService2) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
 		assert.ok(service2 === void 0);
@@ -195,12 +200,15 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - optional', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new Service1());
-		// service.addSingleton(IService2, new Service2());
+		let collection = new ServiceCollection([IService1, new Service1()]);
+		let service = new InstantiationService(collection, true);
 
 		service.createInstance(TargetOptional);
+		assert.throws(() => service.createInstance(TargetNotOptional));
+
+		service = new InstantiationService(collection, false);
+		service.createInstance(TargetOptional);
+		service.createInstance(TargetNotOptional);
 	});
 
 	// we made this a warning
@@ -297,7 +305,7 @@ suite('Instantiation Service', () => {
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 
-		function test(accessor: instantiation.ServicesAccessor) {
+		function test(accessor: ServicesAccessor) {
 			assert.ok(accessor.get(IService1) instanceof Service1);
 			assert.equal(accessor.get(IService1).c, 1);
 
@@ -313,9 +321,9 @@ suite('Instantiation Service', () => {
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 
-		let cached: instantiation.ServicesAccessor;
+		let cached: ServicesAccessor;
 
-		function test(accessor: instantiation.ServicesAccessor) {
+		function test(accessor: ServicesAccessor) {
 			assert.ok(accessor.get(IService1) instanceof Service1);
 			assert.equal(accessor.get(IService1).c, 1);
 			cached = accessor;
@@ -333,7 +341,7 @@ suite('Instantiation Service', () => {
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 
-		function test(accessor: instantiation.ServicesAccessor) {
+		function test(accessor: ServicesAccessor) {
 			throw new Error();
 		}
 

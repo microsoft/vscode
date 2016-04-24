@@ -68,6 +68,10 @@
 				"url": "vscode://schemas/settings"
 			},
 			{
+				"fileMatch": "%APP_SETTINGS_HOME%/locale.json",
+				"url": "vscode://schemas/locale"
+			},
+			{
 				"fileMatch": "/.vscode/settings.json",
 				"url": "vscode://schemas/settings"
 			},

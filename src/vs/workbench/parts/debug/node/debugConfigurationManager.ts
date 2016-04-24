@@ -142,7 +142,6 @@ const schema: IJSONSchema = {
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
-jsonRegistry.addSchemaFileAssociation('/.vscode/launch.json', schemaId);
 
 export class ConfigurationManager implements debug.IConfigurationManager {
 
@@ -287,12 +286,16 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				return null;
 			}
 
-			return this.massageInitialConfigurations(adapter).then(() =>
-				JSON.stringify({
-					version: '0.2.0',
-					configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
-				}, null, '\t')
-			);
+			return this.massageInitialConfigurations(adapter).then(() => {
+				let editorConfig = this.configurationService.getConfiguration<any>();
+				return JSON.stringify(
+					{
+						version: '0.2.0',
+						configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
+					},
+					null,
+					editorConfig.editor.insertSpaces ? strings.repeat(' ', editorConfig.editor.tabSize) : '\t');
+			});
 		});
 	}
 

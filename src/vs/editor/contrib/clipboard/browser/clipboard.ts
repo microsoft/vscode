@@ -124,7 +124,7 @@ interface IClipboardCommand extends IKeybindings {
 	label: string;
 	execCommand: string;
 }
-function registerClipboardAction(desc:IClipboardCommand, keywords:string[]) {
+function registerClipboardAction(desc:IClipboardCommand, alias:string) {
 	if (!browser.supportsExecCommand(desc.execCommand)) {
 		return;
 	}
@@ -137,7 +137,7 @@ function registerClipboardAction(desc:IClipboardCommand, keywords:string[]) {
 		win: desc.win,
 		linux: desc.linux,
 		mac: desc.mac
-	}, keywords));
+	}, alias));
 }
 
 registerClipboardAction({
@@ -147,7 +147,7 @@ registerClipboardAction({
 	execCommand: 'cut',
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
-}, ['cut']);
+}, 'Cut');
 registerClipboardAction({
 	ctor: ExecCommandCopyAction,
 	id: 'editor.action.clipboardCopyAction',
@@ -155,7 +155,7 @@ registerClipboardAction({
 	execCommand: 'copy',
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
-}, ['copy']);
+}, 'Copy');
 registerClipboardAction({
 	ctor: ExecCommandPasteAction,
 	id: 'editor.action.clipboardPasteAction',
@@ -163,7 +163,7 @@ registerClipboardAction({
 	execCommand: 'paste',
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
-}, ['paste']);
+}, 'Paste');
 
 function execCommandToHandler(actionId: string, browserCommand: string, accessor: ServicesAccessor, args: any): void {
 	// If editor text focus

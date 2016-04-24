@@ -129,4 +129,4 @@ export class FocusSideBarAction extends Action {
 let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
-}), nls.localize('viewCategory', "View"), ['focus', 'side', 'bar']);
+}), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));

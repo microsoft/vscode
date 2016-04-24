@@ -10,6 +10,7 @@
 	"exclude": [
 		"node_modules",
 		"server",
-		"out"
+		"out",
+		"test/colorize-fixtures"
 	]
 }

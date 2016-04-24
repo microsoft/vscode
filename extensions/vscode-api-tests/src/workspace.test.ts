@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {workspace, TextDocument, window, Position, Uri, EventEmitter, CancellationTokenSource, Disposable, WorkspaceEdit} from 'vscode';
+import {workspace, TextDocument, window, Position, Uri, EventEmitter, WorkspaceEdit} from 'vscode';
 import {createRandomFile, deleteFile, cleanUp, pathEquals} from './utils';
 import {join, basename} from 'path';
 import * as fs from 'fs';
@@ -14,6 +14,17 @@ import * as fs from 'fs';
 suite('workspace-namespace', () => {
 
 	teardown(cleanUp);
+
+	// test('default configuration', () => {
+	// 	const config = workspace.getConfiguration('farboo');
+
+	// 	assert.ok(config.has('config0'));
+	// 	assert.equal(config.get('config0'), true);
+	// 	assert.ok(config.has('nested.config1'));
+	// 	assert.equal(config.get('nested.config1'), 42);
+	// 	assert.ok(config.has('nested.config2'));
+	// 	assert.equal(config.get('nested.config2'), 'Das Pferd frisst kein Reis.');
+	// });
 
 	test('textDocuments', () => {
 		assert.ok(Array.isArray(workspace.textDocuments));

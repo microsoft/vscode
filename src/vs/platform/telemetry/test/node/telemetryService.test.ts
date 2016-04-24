@@ -409,7 +409,7 @@ suite('TelemetryService', () => {
 
 		assert.equal(errorStub.callCount, 2);
 		assert.equal(testAppender.events[0].data.filename.indexOf(settings.dangerousPathWithImportantInfo), -1);
-		assert.equal(testAppender.events[0].data.filename, '<APP_ROOT>' + settings.importantInfo + '/test.js');
+		assert.equal(testAppender.events[0].data.filename, settings.importantInfo + '/test.js');
 
 		service.dispose();
 	}));

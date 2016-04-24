@@ -13,4 +13,4 @@ import {QuickOutlineAction} from './quickOutline';
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickOutlineAction, QuickOutlineAction.ID, nls.localize('label', "Go to Symbol..."), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-}));
+}, 'Go to Symbol...'));

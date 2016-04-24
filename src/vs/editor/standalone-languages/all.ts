@@ -69,7 +69,7 @@ MonacoEditorLanguages.push({
 });
 MonacoEditorLanguages.push({
 	id: 'jade',
-	extensions: [ '.jade' ],
+	extensions: [ '.jade', '.pug' ],
 	aliases: [ 'Jade', 'jade' ],
 	defModule: 'vs/editor/standalone-languages/jade'
 });

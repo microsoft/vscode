@@ -5,6 +5,16 @@
 	},
 	"brackets": [
 		["<", ">"]
+	],
+	"autoClosingPairs": [
+		["<", ">"],
+		["'", "'"],
+		["\"", "\""]
+	],
+	"surroundingPairs": [
+		["<", ">"],
+		["'", "'"],
+		["\"", "\""]
 	]
 
 	// enhancedBrackets: [{

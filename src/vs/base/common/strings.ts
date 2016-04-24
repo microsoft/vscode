@@ -164,7 +164,7 @@ export function startsWith(haystack: string, needle: string): boolean {
 export function endsWith(haystack: string, needle: string): boolean {
 	let diff = haystack.length - needle.length;
 	if (diff > 0) {
-		return haystack.lastIndexOf(needle) === haystack.length - needle.length;
+		return haystack.lastIndexOf(needle) === diff;
 	} else if (diff === 0) {
 		return haystack === needle;
 	} else {
@@ -589,4 +589,12 @@ export function appendWithLimit(first: string, second: string, maxLength: number
 
 export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
+}
+
+export function repeat(s:string, count: number): string {
+	var result = '';
+	for (var i = 0; i < count; i++) {
+		result += s;
+	}
+	return result;
 }

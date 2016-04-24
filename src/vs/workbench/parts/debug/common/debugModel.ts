@@ -141,7 +141,7 @@ export class Thread implements debug.IThread {
 	private getCallStackImpl(debugService: debug.IDebugService, startFrame: number): TPromise<debug.IStackFrame[]> {
 		let session = debugService.getActiveSession();
 		return session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
-			this.stoppedDetails.totalFrames = response.body.totalFrames || response.body.stackFrames.length;
+			this.stoppedDetails.totalFrames = response.body.totalFrames;
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
 					return new StackFrame(this.threadId, 0, new Source({ name: 'unknown' }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
@@ -429,37 +429,29 @@ export class Model implements debug.IModel {
 
 	public clearThreads(removeThreads: boolean, reference: number = undefined): void {
 		if (reference) {
-			if (removeThreads) {
-				delete this.threads[reference];
-			} else {
+			if (this.threads[reference]) {
 				this.threads[reference].clearCallStack();
 				this.threads[reference].stoppedDetails = undefined;
+				this.threads[reference].stopped = false;
+
+				if (removeThreads) {
+					delete this.threads[reference];
+				}
 			}
 		} else {
+			Object.keys(this.threads).forEach(ref => {
+				this.threads[ref].clearCallStack();
+				this.threads[ref].stoppedDetails = undefined;
+				this.threads[ref].stopped = false;
+			});
+
 			if (removeThreads) {
 				this.threads = {};
 				ExpressionContainer.allValues = {};
-			} else {
-				for (let ref in this.threads) {
-					if (this.threads.hasOwnProperty(ref)) {
-						this.threads[ref].clearCallStack();
-						this.threads[ref].stoppedDetails = undefined;
-					}
-				}
 			}
 		}
 
 		this._onDidChangeCallStack.fire();
-	}
-
-	public continueThreads(): void {
-		for (let ref in this.threads) {
-			if (this.threads.hasOwnProperty(ref)) {
-				this.threads[ref].stopped = false;
-			}
-		}
-
-		this.clearThreads(false);
 	}
 
 	public getBreakpoints(): debug.IBreakpoint[] {
@@ -714,29 +706,29 @@ export class Model implements debug.IModel {
 	}
 
 	public rawUpdate(data: debug.IRawModelUpdate): void {
-		if (data.thread) {
+		if (data.thread && !this.threads[data.threadId]) {
+			// A new thread came in, initialize it.
 			this.threads[data.threadId] = new Thread(data.thread.name, data.thread.id);
 		}
 
 		if (data.stoppedDetails) {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
-			for (let ref in this.threads) {
-				if (this.threads.hasOwnProperty(ref)) {
-					if (data.allThreadsStopped) {
-						// Only update the details if all the threads are stopped
-						// because we don't want to overwrite the details of other
-						// threads that have stopped for a different reason
-						this.threads[ref].stoppedDetails = data.stoppedDetails;
-					}
-
-					this.threads[ref].stopped = data.allThreadsStopped;
+			if (data.allThreadsStopped) {
+				Object.keys(this.threads).forEach(ref => {
+					// Only update the details if all the threads are stopped
+					// because we don't want to overwrite the details of other
+					// threads that have stopped for a different reason
+					this.threads[ref].stoppedDetails = data.stoppedDetails;
+					this.threads[ref].stopped = true;
 					this.threads[ref].clearCallStack();
-				}
+				});
+			} else {
+				// One thread is stopped, only update that thread.
+				this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
+				this.threads[data.threadId].clearCallStack();
+				this.threads[data.threadId].stopped = true;
 			}
-
-			this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
-			this.threads[data.threadId].stopped = true;
 		}
 
 		this._onDidChangeCallStack.fire();

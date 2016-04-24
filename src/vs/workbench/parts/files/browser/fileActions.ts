@@ -19,6 +19,7 @@ import {Event, EventType as CommonEventType} from 'vs/base/common/events';
 import {getPathLabel} from 'vs/base/common/labels';
 import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
+import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
@@ -523,7 +524,8 @@ export abstract class BaseGlobalNewAction extends Action {
 		id: string,
 		label: string,
 		@IViewletService private viewletService: IViewletService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}
@@ -535,6 +537,11 @@ export abstract class BaseGlobalNewAction extends Action {
 
 				let explorer = <ExplorerViewlet>viewlet;
 				let explorerView = explorer.getExplorerView();
+
+				// Not having a folder opened
+				if (!explorerView) {
+					return this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create files or folders within."));
+				}
 
 				if (!explorerView.isExpanded()) {
 					explorerView.expand();
@@ -560,9 +567,9 @@ export abstract class BaseGlobalNewAction extends Action {
 }
 
 /* Create new file from anywhere: Open untitled */
-export class GlobalNewFileAction extends Action {
+export class GlobalNewUntitledFileAction extends Action {
 	public static ID = 'workbench.action.files.newUntitledFile';
-	public static LABEL = nls.localize('newFile', "New File");
+	public static LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 	constructor(
 		id: string,
@@ -582,6 +589,16 @@ export class GlobalNewFileAction extends Action {
 		this.textFileService.getWorkingFilesModel().addEntry(input.getResource());
 
 		return this.editorService.openEditor(input);
+	}
+}
+
+/* Create new file from anywhere */
+export class GlobalNewFileAction extends BaseGlobalNewAction {
+	public static ID = 'workbench.action.files.newFile';
+	public static LABEL = nls.localize('newFile', "New File");
+
+	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
+		return NewFileAction;
 	}
 }
 
@@ -1450,7 +1467,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				let selectionOfSource: IEditorSelection;
 				if (positionsOfSource.length) {
 					const activeEditor = this.editorService.getActiveEditor();
-					if (activeEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
+					if (activeEditor instanceof BaseTextEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
 						selectionOfSource = <IEditorSelection>activeEditor.getSelection();
 					}
 				}
@@ -1779,6 +1796,51 @@ export class OpenResourcesAction extends Action {
 				// Otherwise replace all
 				return this.editorService.setEditors(this.resources);
 			});
+		});
+	}
+}
+
+export class ReopenClosedFileAction extends Action {
+
+	public static ID = 'workbench.files.action.reopenClosedFile';
+	public static LABEL = nls.localize('reopenClosedFile', "Reopen Closed File");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IViewletService private viewletService: IViewletService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IFileService private fileService: IFileService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let workingFilesModel: Files.IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
+		let entry: Files.IWorkingFileEntry = workingFilesModel.popLastClosedEntry();
+
+		if (entry === null) {
+			return TPromise.as(true);
+		}
+
+		// If the current resource is the recently closed resource, run action again
+		let activeResource = getUntitledOrFileResource(this.editorService.getActiveEditorInput());
+		if (activeResource && activeResource.path === entry.resource.path) {
+			return this.run();
+		}
+
+		return this.fileService.existsFile(entry.resource).then((exists) => {
+			if (!exists) {
+				return this.run(); // repeat in case the last closed file got deleted meanwhile
+			}
+
+			// Make it a working file again
+			workingFilesModel.addEntry(entry.resource);
+
+			// Open in editor
+			return this.editorService.openEditor(entry);
 		});
 	}
 }
@@ -2337,7 +2399,7 @@ export class ShowActiveFileInExplorer extends Action {
 
 export function keybindingForAction(id: string): Keybinding {
 	switch (id) {
-		case GlobalNewFileAction.ID:
+		case GlobalNewUntitledFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_N);
 		case TriggerRenameFileAction.ID:
 			return new Keybinding(isMacintosh ? KeyCode.Enter : KeyCode.F2);
@@ -2345,7 +2407,7 @@ export function keybindingForAction(id: string): Keybinding {
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_S);
 		case DeleteFileAction.ID:
 		case MoveFileToTrashAction.ID:
-			return new Keybinding(KeyCode.Delete);
+			return new Keybinding(isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete);
 		case CopyFileAction.ID:
 			return new Keybinding(KeyMod.CtrlCmd | KeyCode.KEY_C);
 		case PasteFileAction.ID:

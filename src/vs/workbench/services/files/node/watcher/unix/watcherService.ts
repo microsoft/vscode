@@ -6,23 +6,12 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Client} from 'vs/base/node/service.cp';
+import {Client} from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
 import {EventType} from 'vs/platform/files/common/files';
 import {toFileChangesEvent, IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';
 import {IEventService} from 'vs/platform/event/common/event';
-
-export interface IWatcherRequest {
-	basePath: string;
-	ignored: string[];
-	verboseLogging: boolean;
-}
-
-export class WatcherService {
-	public watch(request: IWatcherRequest): TPromise<void> {
-		throw new Error('not implemented');
-	}
-}
+import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 
 export class FileWatcher {
 	private static MAX_RESTARTS = 5;
@@ -55,7 +44,8 @@ export class FileWatcher {
 			}
 		);
 
-		const service = client.getService<WatcherService>('WatcherService', WatcherService);
+		const channel = client.getChannel<IWatcherChannel>('watcher');
+		const service = new WatcherChannelClient(channel);
 
 		// Start watching
 		service.watch({ basePath: this.basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {

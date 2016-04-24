@@ -24,6 +24,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { match } from 'vs/base/common/glob';
 import { setTimeout } from 'vs/base/common/platform';
 import { TerminateResponse } from 'vs/base/common/processes';
+import * as strings from 'vs/base/common/strings';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -97,7 +98,7 @@ class AbstractTaskAction extends Action {
 
 class BuildAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.build';
-	public static TEXT = nls.localize('BuildAction.label','Run Build Task');
+	public static TEXT = nls.localize('BuildAction.label', "Run Build Task");
 
 	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
@@ -114,7 +115,7 @@ class BuildAction extends AbstractTaskAction {
 
 class TestAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.test';
-	public static TEXT = nls.localize('TestAction.label','Run Test Task');
+	public static TEXT = nls.localize('TestAction.label', "Run Test Task");
 
 	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
@@ -166,7 +167,7 @@ class CleanAction extends AbstractTaskAction {
 class ConfigureTaskRunnerAction extends Action {
 
 	public static ID = 'workbench.action.tasks.configureTaskRunner';
-	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', 'Configure Task Runner');
+	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
 
 	private configurationService: IConfigurationService;
 	private fileService: IFileService;
@@ -239,6 +240,10 @@ class ConfigureTaskRunnerAction extends Action {
 					contentPromise = TPromise.as(selection.content);
 				}
 				return contentPromise.then(content => {
+					let editorConfig = this.configurationService.getConfiguration<any>();
+					if (editorConfig.editor.insertSpaces) {
+						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
+					}
 					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
 				});
 			});
@@ -279,7 +284,7 @@ class CloseMessageAction extends Action {
 
 class TerminateAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.terminate';
-	public static TEXT = nls.localize('TerminateAction.label', 'Terminate Running Task');
+	public static TEXT = nls.localize('TerminateAction.label', "Terminate Running Task");
 
 	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
@@ -306,7 +311,7 @@ class TerminateAction extends AbstractTaskAction {
 
 class ShowLogAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.showLog';
-	public static TEXT = nls.localize('ShowLogAction.label', 'Show Task Log');
+	public static TEXT = nls.localize('ShowLogAction.label', "Show Task Log");
 
 	private outputService: IOutputService;
 
@@ -600,7 +605,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.disposeTaskSystemListeners();
 		});
 
-		lifecycleService.addBeforeShutdownParticipant(this);
+		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
 	}
 
 	private disposeTaskSystemListeners(): void {
@@ -753,44 +758,46 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskRunResult): TPromise<ITaskSummary> {
-		return this.textFileService.saveAll().then((value) => {
-			return this.taskSystemPromise.
-				then((taskSystem) => {
-					return taskSystem.isActive().then((active) => {
-						if (!active) {
-							return fn(taskSystem);
-						} else {
-							throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
-						}
-					});
-				}).
-				then((runResult: ITaskRunResult) => {
-					if (runResult.restartOnFileChanges) {
-						let pattern = runResult.restartOnFileChanges;
-						this.fileChangesListener = this.eventService.addListener(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
-							let needsRestart = event.changes.some((change) => {
-								return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
-							});
-							if (needsRestart) {
-								this.terminate().done(() => {
-									// We need to give the child process a change to stop.
-									setTimeout(() => {
-										this.executeTarget(fn);
-									}, 2000);
-								});
+		return this.textFileService.saveAll().then((value) => { 				// make sure all dirty files are saved
+			return this.configurationService.loadConfiguration().then(() => { 	// make sure configuration is up to date
+				return this.taskSystemPromise.
+					then((taskSystem) => {
+						return taskSystem.isActive().then((active) => {
+							if (!active) {
+								return fn(taskSystem);
+							} else {
+								throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 							}
 						});
-					}
-					return runResult.promise.then((value) => {
-						if (this.clearTaskSystemPromise) {
-							this._taskSystemPromise = null;
-							this.clearTaskSystemPromise = false;
+					}).
+					then((runResult: ITaskRunResult) => {
+						if (runResult.restartOnFileChanges) {
+							let pattern = runResult.restartOnFileChanges;
+							this.fileChangesListener = this.eventService.addListener(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+								let needsRestart = event.changes.some((change) => {
+									return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
+								});
+								if (needsRestart) {
+									this.terminate().done(() => {
+										// We need to give the child process a change to stop.
+										setTimeout(() => {
+											this.executeTarget(fn);
+										}, 2000);
+									});
+								}
+							});
 						}
-						return value;
+						return runResult.promise.then((value) => {
+							if (this.clearTaskSystemPromise) {
+								this._taskSystemPromise = null;
+								this.clearTaskSystemPromise = false;
+							}
+							return value;
+						});
+					}, (err: any) => {
+						this.handleError(err);
 					});
-				}, (err: any) => {
-					this.handleError(err);
-				});
+			});
 		});
 	}
 
@@ -881,14 +888,14 @@ class TaskService extends EventEmitter implements ITaskService {
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), tasksCategory, ['configure', 'task', 'runner']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(BuildAction, BuildAction.ID, BuildAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B }), tasksCategory, ['run', 'build', 'task']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TestAction, TestAction.ID, TestAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_T }), tasksCategory, ['run', 'test', 'talk']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Tasks: Configure Task Runner', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(BuildAction, BuildAction.ID, BuildAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B }), 'Tasks: Run Build Task', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TestAction, TestAction.ID, TestAction.TEXT), 'Tasks: Run Test Task', tasksCategory);
 // workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RebuildAction, RebuildAction.ID, RebuildAction.TEXT), tasksCategory);
 // workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CleanAction, CleanAction.ID, CleanAction.TEXT), tasksCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminateAction, TerminateAction.ID, TerminateAction.TEXT), tasksCategory, ['terminate', 'running', 'task']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogAction, ShowLogAction.ID, ShowLogAction.TEXT), tasksCategory, ['task', 'log']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunTaskAction, RunTaskAction.ID, RunTaskAction.TEXT), tasksCategory, ['run', 'task']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminateAction, TerminateAction.ID, TerminateAction.TEXT), 'Tasks: Terminate Running Task', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogAction, ShowLogAction.ID, ShowLogAction.TEXT), 'Tasks: Show Task Log', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunTaskAction, RunTaskAction.ID, RunTaskAction.TEXT), 'Tasks: Run Task', tasksCategory);
 
 // Task Service
 registerSingleton(ITaskService, TaskService);
@@ -1308,4 +1315,3 @@ let schema : IJSONSchema =
 	};
 let jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
-jsonRegistry.addSchemaFileAssociation('/.vscode/tasks.json', schemaId);

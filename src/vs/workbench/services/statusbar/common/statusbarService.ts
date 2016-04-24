@@ -43,6 +43,7 @@ export interface IStatusbarEntry {
 }
 
 export interface IStatusbarService {
+
 	serviceId: ServiceIdentifier<any>;
 
 	/**

@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { ipcMain as ipc, BrowserWindow} from 'electron';
 import platform = require('vs/base/common/platform');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IAskpassService } from 'vs/workbench/parts/git/common/git';
 
 export interface ICredentials {
 	username: string;
@@ -23,7 +24,7 @@ interface IContext {
 	window: Electron.BrowserWindow;
 }
 
-export class GitAskpassService {
+export class GitAskpassService implements IAskpassService {
 
 	private askpassCache: { [id: string]: IContext } = Object.create(null);
 

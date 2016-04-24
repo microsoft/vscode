@@ -6,10 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-
-
 import pfs = require('vs/base/node/pfs');
-
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
@@ -28,9 +25,9 @@ import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemet
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Client} from 'vs/base/node/service.net';
+import {Client} from 'vs/base/parts/ipc/node/ipc.net';
+import {IExtensionsChannel, ExtensionsChannelClient} from 'vs/workbench/parts/extensions/common/extensionsIpc';
 import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
-import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
 const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
@@ -66,7 +63,11 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	services.set(ITelemetryService, telemetryService);
 	services.set(IThreadService, threadService);
 	services.set(IExtensionService, new ExtHostExtensionService(threadService, telemetryService));
-	services.set(IExtensionsService, sharedProcessClient.getService<IExtensionsService>('ExtensionService', ExtensionsService)); // Connect to shared process services
+
+	// Connect to shared process services
+	const channel = sharedProcessClient.getChannel<IExtensionsChannel>('extensions');
+	const extensionsService = new ExtensionsChannelClient(channel);
+	services.set(IExtensionsService, extensionsService);
 
 	let instantiationService = new InstantiationService(services);
 	threadService.setInstantiationService(instantiationService);
@@ -159,14 +160,14 @@ export class ExtensionHostMain {
 			});
 			userExtensions.forEach((userExtension) => {
 				if (result.hasOwnProperty(userExtension.id)) {
-					collector.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extesion {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+					collector.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
 				}
 				result[userExtension.id] = userExtension;
 			});
 			developedExtensions.forEach(developedExtension => {
 				collector.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
 				if (result.hasOwnProperty(developedExtension.id)) {
-					collector.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extesion {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+					collector.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
 				}
 				result[developedExtension.id] = developedExtension;
 			});

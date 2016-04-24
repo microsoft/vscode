@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import strings = require('vs/base/common/strings');
 import Json = require('vs/base/common/json');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -28,7 +29,7 @@ export function format(model: EditorCommon.IMirrorModel, range: EditorCommon.IRa
 	var indentLevel = 0;
 	var indentValue: string;
 	if (options.insertSpaces) {
-		indentValue = repeat(' ', options.tabSize);
+		indentValue = strings.repeat(' ', options.tabSize);
 	} else {
 		indentValue = '\t';
 	}
@@ -36,7 +37,7 @@ export function format(model: EditorCommon.IMirrorModel, range: EditorCommon.IRa
 	var scanner = Json.createScanner(value, false);
 
 	function newLineAndIndent(): string {
-		return model.getEOL() + repeat(indentValue, initialIndentLevel + indentLevel);
+		return model.getEOL() + strings.repeat(indentValue, initialIndentLevel + indentLevel);
 	}
 	function scanNext(): Json.SyntaxKind {
 		var token = scanner.scan();
@@ -57,7 +58,7 @@ export function format(model: EditorCommon.IMirrorModel, range: EditorCommon.IRa
 	var firstToken = scanNext();
 	if (firstToken !== Json.SyntaxKind.EOF) {
 		var firstTokenStart = model.getPositionFromOffset(scanner.getTokenOffset() + rangeOffset);
-		var initialIndent = repeat(indentValue, initialIndentLevel);
+		var initialIndent = strings.repeat(indentValue, initialIndentLevel);
 		addEdit(initialIndent, { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: firstTokenStart.lineNumber, endColumn: firstTokenStart.column });
 	}
 
@@ -65,14 +66,15 @@ export function format(model: EditorCommon.IMirrorModel, range: EditorCommon.IRa
 		var firstTokenEnd = model.getPositionFromOffset(scanner.getTokenOffset() + scanner.getTokenLength() + rangeOffset);
 		var secondToken = scanNext();
 
+		let replaceContent = '';
 		while (!lineBreak && (secondToken === Json.SyntaxKind.LineCommentTrivia || secondToken === Json.SyntaxKind.BlockCommentTrivia)) {
 			// comments on the same line: keep them on the same line, but ignore them otherwise
 			var commentTokenStart = model.getPositionFromOffset(scanner.getTokenOffset() + rangeOffset);
 			addEdit(' ', { startLineNumber: firstTokenEnd.lineNumber, startColumn: firstTokenEnd.column, endLineNumber: commentTokenStart.lineNumber, endColumn: commentTokenStart.column });
 			firstTokenEnd = model.getPositionFromOffset(scanner.getTokenOffset() + scanner.getTokenLength() + rangeOffset);
+			replaceContent = secondToken === Json.SyntaxKind.LineCommentTrivia ? newLineAndIndent() : '';
 			secondToken = scanNext();
 		}
-		var replaceContent = '';
 		if (secondToken === Json.SyntaxKind.CloseBraceToken) {
 			if (firstToken !== Json.SyntaxKind.OpenBraceToken) {
 				indentLevel--;
@@ -124,14 +126,6 @@ export function format(model: EditorCommon.IMirrorModel, range: EditorCommon.IRa
 		firstToken = secondToken;
 	}
 	return editOperations;
-}
-
-function repeat(s:string, count: number): string {
-	var result = '';
-	for (var i = 0; i < count; i++) {
-		result += s;
-	}
-	return result;
 }
 
 function computeIndentLevel(line: string, options: Modes.IFormattingOptions): number {

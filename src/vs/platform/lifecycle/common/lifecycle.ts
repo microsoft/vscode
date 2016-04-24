@@ -4,23 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
+import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
-export interface IBeforeShutdownParticipant {
 
-	/**
-	 * Called when the window is about to close. Clients have a chance to veto the closing by either returning
-	 * a boolean "true" directly or via a promise that resolves to a boolean. Returning a promise is useful
-	 * in cases of long running operations on shutdown.
-	 *
-	 * Note: It is absolutely important to avoid long running promises on this call. Please try hard to return
-	 * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
-	 */
-	beforeShutdown(): boolean | winjs.TPromise<boolean>;
+/**
+ * An event that is send out when the window is about to close. Clients have a chance to veto the closing by either calling veto
+ * with a boolean "true" directly or with a promise that resolves to a boolean. Returning a promise is useful
+ * in cases of long running operations on shutdown.
+ *
+ * Note: It is absolutely important to avoid long running promises on this call. Please try hard to return
+ * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
+ */
+export interface ShutdownEvent {
+
+	veto(value: boolean | TPromise<boolean>): void;
 }
 
 /**
@@ -32,9 +33,10 @@ export interface ILifecycleService {
 	serviceId: ServiceIdentifier<any>;
 
 	/**
-	 * Participate before shutting down to be able to veto.
+	 * Fired before shutdown happens. Allows listeners to veto against the
+	 * shutdown.
 	 */
-	addBeforeShutdownParticipant(p: IBeforeShutdownParticipant): void;
+	onWillShutdown: Event<ShutdownEvent>;
 
 	/**
 	 * Fired when no client is preventing the shutdown from happening. Can be used to dispose heavy resources
@@ -42,3 +44,9 @@ export interface ILifecycleService {
 	 */
 	onShutdown: Event<void>;
 }
+
+export const NullLifecycleService: ILifecycleService = {
+	serviceId: null,
+	onWillShutdown: () => ({ dispose() { } }),
+	onShutdown: () => ({ dispose() { } })
+};

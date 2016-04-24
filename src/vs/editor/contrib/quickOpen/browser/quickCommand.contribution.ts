@@ -14,4 +14,4 @@ import {QuickCommandAction} from './quickCommand';
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickCommandAction, QuickCommandAction.ID, nls.localize('label', "Command Palette"), {
 	context: ContextKey.EditorFocus,
 	primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
-}));
+}, 'Command Palette'));

@@ -11,7 +11,6 @@ import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/mes
 import {IConfirmation} from 'vs/platform/message/common/message';
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class MessageService extends WorkbenchMessageService {
@@ -19,10 +18,9 @@ export class MessageService extends WorkbenchMessageService {
 	constructor(
 		private contextService: IWorkspaceContextService,
 		private windowService: IWindowService,
-		telemetryService: ITelemetryService,
-		keybindingService: IKeybindingService
+		telemetryService: ITelemetryService
 	) {
-		super(telemetryService, keybindingService);
+		super(telemetryService);
 	}
 
 	public confirm(confirmation: IConfirmation): boolean {

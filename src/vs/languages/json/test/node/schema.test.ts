@@ -79,6 +79,44 @@ suite('JSON - schema', () => {
 
 	});
 
+	test('Resolving $refs 2', function(testDone) {
+		var service = new SchemaService.JSONSchemaService(requestServiceMock);
+		service.setSchemaContributions({ schemas: {
+			"http://json.schemastore.org/swagger-2.0" : {
+				id: 'http://json.schemastore.org/swagger-2.0',
+				type: 'object',
+					properties: {
+						"responseValue": {
+							"$ref": "#/definitions/jsonReference"
+						}
+					},
+					definitions: {
+						"jsonReference": {
+							"type": "object",
+							"required": [ "$ref" ],
+							"properties": {
+								"$ref": {
+									"type": "string"
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+
+		service.getResolvedSchema('http://json.schemastore.org/swagger-2.0').then(fs => {
+			assert.deepEqual(fs.schema.properties['responseValue'], {
+				type: 'object',
+				required: [ "$ref" ],
+				properties: { $ref: { type: 'string' }}
+			});
+		}).then(() => testDone(), (error) => {
+			testDone(error);
+		});
+
+	});
+
 	test('FileSchema', function(testDone) {
 		var service = new SchemaService.JSONSchemaService(requestServiceMock);
 
@@ -330,55 +368,6 @@ suite('JSON - schema', () => {
 			return service.getSchemaForResource('test.json', null).then((schema) => {
 				var section = schema.getSection(['child']);
 				assert.equal(section.type, 'string');
-			});
-		}).done(() => testDone(), (error) => {
-			testDone(error);
-		});
-	});
-
-	test('Schema contributions', function(testDone) {
-		var service = new SchemaService.JSONSchemaService(requestServiceMock);
-
-		service.setSchemaContributions({ schemas: {
-			"http://myschemastore/myschemabar" : {
-				id: 'main',
-				type: 'object',
-				properties: {
-					foo: {
-						type: 'string'
-					}
-				}
-			}
-		}, schemaAssociations: {
-			'*.bar': ['http://myschemastore/myschemabar', 'http://myschemastore/myschemafoo']
-		}});
-
-		var id2 = 'http://myschemastore/myschemafoo';
-		var schema2:JsonSchema.IJSONSchema = {
-			type: 'object',
-			properties: {
-				child: {
-					type: 'string'
-				}
-			}
-		};
-
-		service.registerExternalSchema(id2, null, schema2);
-
-		service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
-			assert.deepEqual(resolvedSchema.errors, []);
-			assert.equal(2, resolvedSchema.schema.allOf.length);
-
-			service.clearExternalSchemas();
-			return service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
-				assert.equal(resolvedSchema.errors.length, 1);
-				assert.ok(resolvedSchema.errors[0].indexOf("Problems loading reference 'http://myschemastore/myschemafoo'") === 0);
-
-				service.clearExternalSchemas();
-				service.registerExternalSchema(id2, null, schema2);
-				return service.getSchemaForResource('main.bar', null).then(resolvedSchema => {
-					assert.equal(resolvedSchema.errors.length, 0);
-				});
 			});
 		}).done(() => testDone(), (error) => {
 			testDone(error);

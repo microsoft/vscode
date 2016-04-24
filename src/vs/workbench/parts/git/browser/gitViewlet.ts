@@ -23,7 +23,6 @@ import noworkspace = require('vs/workbench/parts/git/browser/views/noworkspace/n
 import { DisabledView } from './views/disabled/disabledView';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
-import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 import IGitService = git.IGitService;
@@ -161,14 +160,6 @@ export class GitViewlet
 
 	public getSecondaryActions(): actions.IAction[] {
 		return this.currentView ? this.currentView.getSecondaryActions() : [];
-	}
-
-	public getSelection(): ISelection {
-		if (!this.currentView) {
-			return Selection.EMPTY;
-		}
-
-		return this.currentView.getSelection();
 	}
 
 	public getControl(): eventemitter.IEventEmitter {

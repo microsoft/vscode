@@ -106,6 +106,10 @@ export class FileService implements IFileService {
 		return this.raw.resolveFile(resource, options);
 	}
 
+	public existsFile(resource: uri): TPromise<boolean> {
+		return this.raw.existsFile(resource);
+	}
+
 	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
 		let contentId = resource.toString();
 		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Load {0}', contentId));

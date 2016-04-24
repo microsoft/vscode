@@ -135,6 +135,10 @@ export class FileService implements files.IFileService {
 		return this.resolve(resource, options);
 	}
 
+	public existsFile(resource: uri): TPromise<boolean> {
+		return this.resolveFile(resource).then(() => true, () => false);
+	}
+
 	public resolveContent(resource: uri, options?: files.IResolveContentOptions): TPromise<files.IContent> {
 		let absolutePath = this.toAbsolutePath(resource);
 

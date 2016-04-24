@@ -9,19 +9,10 @@ import uri from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {DEFAULT_WINDOWS_TERM, DEFAULT_LINUX_TERM} from 'vs/workbench/parts/execution/electron-browser/terminal';
+import {ITerminalConfiguration, DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX} from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 import cp = require('child_process');
 import processes = require('vs/base/node/processes');
-
-interface ITerminalConfiguration {
-	terminal: {
-		external: {
-			windowsExec: string;
-			linuxExec: string;
-		};
-	};
-}
 
 export class WinTerminalService implements ITerminalService {
 	public serviceId = ITerminalService;
@@ -39,8 +30,8 @@ export class WinTerminalService implements ITerminalService {
 	}
 
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, command: string, path: string): TPromise<void> {
-		let terminalConfig = configuration.terminal.external;
-		let exec = terminalConfig.windowsExec || DEFAULT_WINDOWS_TERM;
+		let terminalConfig = configuration.externalTerminal;
+		let exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
 		let cmdArgs = ['/c', 'start', '/wait', exec];
 
 		return new TPromise<void>((c, e) => {
@@ -110,8 +101,8 @@ export class LinuxTerminalService implements ITerminalService {
 	}
 
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, path: string): TPromise<void> {
-		let terminalConfig = configuration.terminal.external;
-		let exec = terminalConfig.linuxExec || DEFAULT_LINUX_TERM;
+		let terminalConfig = configuration.externalTerminal;
+		let exec = terminalConfig.linuxExec || DEFAULT_TERMINAL_LINUX;
 
 		return new TPromise<void>((c, e) => {
 			const child = spawner.spawn(exec, [], { cwd: path });

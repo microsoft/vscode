@@ -268,52 +268,52 @@ class InsertLineAfterAction extends HandlerEditorAction {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DeleteLinesAction, DeleteLinesAction.ID, nls.localize('lines.delete', "Delete Line"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
-}, ['delete', 'line']));
+}, 'Delete Line'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesAscendingAction, SortLinesAscendingAction.ID, nls.localize('lines.sortAscending', "Sort Lines Ascending"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
-}, ['sort', 'lines', 'ascending']));
+}, 'Sort Lines Ascending'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesDescendingAction, SortLinesDescendingAction.ID, nls.localize('lines.sortDescending', "Sort Lines Descending"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
-}, ['sort', 'lines', 'descending']));
+}, 'Sort Lines Descending'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TrimTrailingWhitespaceAction, TrimTrailingWhitespaceAction.ID, nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X
-}, ['trim', 'trailing', 'whitespace']));
+}, 'Trim Trailing Whitespace'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveLinesDownAction, MoveLinesDownAction.ID, nls.localize('lines.moveDown', "Move Line Down"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.DownArrow,
 	linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
-}, ['move', 'line', 'down']));
+}, 'Move Line Down'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(MoveLinesUpAction, MoveLinesUpAction.ID, nls.localize('lines.moveUp', "Move Line Up"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.UpArrow,
 	linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
-}, ['move', 'line', 'up']));
+}, 'Move Line Up'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(CopyLinesDownAction, CopyLinesDownAction.ID, nls.localize('lines.copyDown', "Copy Line Down"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
-}, ['copy', 'line', 'down']));
+}, 'Copy Line Down'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(CopyLinesUpAction, CopyLinesUpAction.ID, nls.localize('lines.copyUp', "Copy Line Up"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
-}, ['copy', 'line', 'up']));
+}, 'Copy Line Up'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentLinesAction, IndentLinesAction.ID, nls.localize('lines.indent', "Indent Line"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
-}, ['indent', 'line']));
+}, 'Indent Line'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(OutdentLinesAction, OutdentLinesAction.ID, nls.localize('lines.outdent', "Outdent Line"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
-}, ['outdent', 'line']));
+}, 'Outdent Line'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertLineBeforeAction, InsertLineBeforeAction.ID, nls.localize('lines.insertBefore', "Insert Line Above"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-}, ['insert', 'line', 'above']));
+}, 'Insert Line Above'));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertLineAfterAction, InsertLineAfterAction.ID, nls.localize('lines.insertAfter', "Insert Line Below"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter
-}, ['insert', 'line', 'below']));
+}, 'Insert Line Below'));

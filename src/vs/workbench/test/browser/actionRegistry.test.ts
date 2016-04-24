@@ -30,14 +30,14 @@ suite('Workbench Action Registry', () => {
 		let oldActions = Registry.getWorkbenchActions().slice(0);
 		let oldCount = Registry.getWorkbenchActions().length;
 
-		Registry.registerWorkbenchAction(d, 'category', ['my', 'keyword']);
-		Registry.registerWorkbenchAction(d);
+		Registry.registerWorkbenchAction(d, 'My Alias', 'category');
+		Registry.registerWorkbenchAction(d, null);
 
 		assert.equal(Registry.getWorkbenchActions().length, 1 + oldCount);
 		assert.strictEqual(d, Registry.getWorkbenchAction('id'));
 
+		assert.deepEqual(Registry.getAlias(d.id), 'My Alias');
 		assert.equal(Registry.getCategory(d.id), 'category');
-		assert.deepEqual(Registry.getKeywords(d.id), ['my', 'keyword']);
 
 		(<any>Registry).setWorkbenchActions(oldActions);
 	});

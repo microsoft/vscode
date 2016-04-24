@@ -75,7 +75,7 @@ export class DeferredAction extends Actions.Action {
 	private _cachedAction: Actions.IAction;
 	private _emitterUnbind: EventEmitter.ListenerUnbind;
 
-	constructor(private _instantiationService: Instantiation.IInstantiationService, private _descriptor: Descriptors.AsyncDescriptor<Actions.Action>,
+	constructor(private _instantiationService: Instantiation.IInstantiationService, private _descriptor: Descriptors.AsyncDescriptor0<Actions.Action>,
 		id: string, label = '', cssClass = '', enabled = true) {
 
 		super(id, label, cssClass, enabled);

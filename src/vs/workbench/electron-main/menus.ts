@@ -392,14 +392,19 @@ export class VSCodeMenu {
 	}
 
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
+		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedFile', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed File"), 'workbench.files.action.reopenClosedFile'));
+
 		let recentList = this.getOpenedPathsList();
 
 		// Folders
-		recentList.folders.forEach((folder, index) => {
-			if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
-				openRecentMenu.append(this.createOpenRecentMenuItem(folder));
-			}
-		});
+		if (recentList.folders.length > 0) {
+			openRecentMenu.append(__separator__());
+			recentList.folders.forEach((folder, index) => {
+				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
+					openRecentMenu.append(this.createOpenRecentMenuItem(folder));
+				}
+			});
+		}
 
 		// Files
 		let files = recentList.files;
@@ -408,9 +413,7 @@ export class VSCodeMenu {
 		}
 
 		if (files.length > 0) {
-			if (recentList.folders.length > 0) {
-				openRecentMenu.append(__separator__());
-			}
+			openRecentMenu.append(__separator__());
 
 			files.forEach((file, index) => {
 				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
@@ -607,7 +610,16 @@ export class VSCodeMenu {
 					}
 				}
 			}) : null,
-			env.product.privacyStatementUrl ? new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => openUrl(env.product.privacyStatementUrl, 'openPrivacyStatement') }) : null,
+			env.product.privacyStatementUrl ? new MenuItem({
+				label: mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => {
+					if (platform.language) {
+						let queryArgChar = env.product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+						openUrl(`${env.product.privacyStatementUrl}${queryArgChar}lang=${platform.language}`, 'openPrivacyStatement');
+					} else {
+						openUrl(env.product.privacyStatementUrl, 'openPrivacyStatement');
+					}
+				}
+			}) : null,
 			(env.product.licenseUrl || env.product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,
 		]).forEach((item) => helpMenu.append(item));

@@ -18,12 +18,12 @@ The [`vscode`](https://github.com/microsoft/vscode) repository is where we do de
 
 ## Contributing
 If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/Microsoft/vscode/tree/master/wiki/contributing/how-to-contribute.md), which covers the following:
+please see the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute), which covers the following:
 
-* [How to build and run from source](https://github.com/Microsoft/vscode/tree/master/wiki/contributing/how-to-contribute.md#build-and-run-from-source)
-* [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/tree/master/wiki/contributing/how-to-contribute.md#development-workflow)
-* [Coding Guidelines](https://github.com/Microsoft/vscode/tree/master/wiki/contributing/coding-guidelines.md)
-* [Submitting pull requests](https://github.com/Microsoft/vscode/tree/master/wiki/contributing/how-to-contribute.md#pull-requests)
+* [How to build and run from source](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run-from-source)
+* [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#development-workflow)
+* [Coding Guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
+* [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 
 ## Feedback
 
@@ -35,7 +35,7 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 ## Related Projects
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
 
-For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/tree/master/wiki/project-management/related-projects.md) page on our wiki.
+For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our wiki.
 
 ## License
 [MIT](LICENSE.txt)

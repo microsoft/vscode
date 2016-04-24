@@ -30,6 +30,11 @@ export interface IFileService {
 	resolveFile(resource: URI, options?: IResolveFileOptions): winjs.TPromise<IFileStat>;
 
 	/**
+	 *Finds out if a file identified by the resource exists.
+	 */
+	existsFile(resource: URI): winjs.TPromise<boolean>;
+
+	/**
 	 * Resolve the contents of a file identified by the resource.
 	 *
 	 * The returned object contains properties of the file and the full value as string.

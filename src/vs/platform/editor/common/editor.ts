@@ -8,7 +8,6 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
 
-import {ISelection} from 'vs/platform/selection/common/selection';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
@@ -104,11 +103,6 @@ export interface IEditor {
 	 * Returns the underlying control of this editor.
 	 */
 	getControl(): IEventEmitter;
-
-	/**
-	 * Returns the selection of this editor.
-	 */
-	getSelection(): ISelection;
 
 	/**
 	 * Asks the underlying control to focus.

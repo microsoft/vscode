@@ -131,16 +131,10 @@ export abstract class AbstractKeybindingService {
 	public serviceId = IKeybindingService;
 	protected _myContextId: number;
 	protected _instantiationService: IInstantiationService;
-	protected _messageService: IMessageService;
 
 	constructor(myContextId: number) {
 		this._myContextId = myContextId;
 		this._instantiationService = null;
-		this._messageService = null;
-	}
-
-	public setMessageService(messageService: IMessageService): void {
-		this._messageService = messageService;
 	}
 
 	public createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T> {
@@ -194,8 +188,9 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
+	private _messageService: IMessageService;
 
-	constructor(configurationService: IConfigurationService) {
+	constructor(configurationService: IConfigurationService, messageService: IMessageService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
@@ -206,6 +201,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._currentChordStatusMessage = null;
 		this._configurationContext = new ConfigurationContext(configurationService);
 		this._toDispose.push(this._configurationContext);
+		this._messageService = messageService;
 	}
 
 	protected _beginListening(domNode: HTMLElement): void {

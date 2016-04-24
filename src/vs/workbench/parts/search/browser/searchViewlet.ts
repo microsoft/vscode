@@ -56,7 +56,6 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ISelection, StructuredSelection} from 'vs/platform/selection/common/selection';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
@@ -1470,10 +1469,6 @@ export class SearchViewlet extends Viewlet {
 				this.viewModel.remove(matches[i]);
 			}
 		}
-	}
-
-	public getSelection(): ISelection {
-		return new StructuredSelection(this.tree.getSelection());
 	}
 
 	public getActions(): IAction[] {

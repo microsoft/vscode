@@ -104,8 +104,8 @@ export class EditorAction extends Action implements IEditorContribution {
 		return true;
 	}
 
-	public getKeywords(): string[] {
-		return this._descriptor.keywords;
+	public getAlias(): string {
+		return this._descriptor.alias;
 	}
 }
 
