@@ -45,13 +45,20 @@ export class TerminalPanel extends Panel {
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
+		this.parentDomElement = parent.getHTMLElement();
+		this.createTerminal();
+
+		return TPromise.as(null);
+	}
+
+	private createTerminal(): void {
+		this.parentDomElement.innerHTML = '';
 		this.ptyProcess = fork(this.getShell(), [], {
 			name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
 			cols: 80,
 			rows: 6,
 			cwd: this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.path : process.env.HOME
 		});
-		this.parentDomElement = parent.getHTMLElement();
 		this.terminalDomElement = document.createElement('div');
 		this.parentDomElement.classList.add('integrated-terminal');
 		let terminalScrollable = new DomNodeScrollable(this.terminalDomElement);
@@ -66,6 +73,13 @@ export class TerminalPanel extends Panel {
 		this.terminal.on('data', (data) => {
 			this.ptyProcess.write(data);
 			return false;
+		});
+		this.ptyProcess.on('exit', (data) => {
+			this.terminal.destroy();
+			// TODO: When multiple terminals are supported this should do something smarter. There is
+			// also a weird bug here at leasy on Ubuntu 15.10 where the new terminal text does not
+			// repaint correctly.
+			this.createTerminal();
 		});
 		this.parentDomElement.addEventListener('mousedown', (event) => {
 			// Drop selection and focus terminal on Linux to enable middle button paste when click
@@ -86,8 +100,6 @@ export class TerminalPanel extends Panel {
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 		this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
 		this.terminal.colors = this.getTerminalColors();
-
-		return TPromise.as(null);
 	}
 
 	private focusTerminal(force?: boolean): void {

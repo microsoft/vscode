@@ -13,8 +13,11 @@ declare module 'pty.js' {
 		 * The title of the active process.
 		 */
 		process: string;
+
 		on(event: string, callback: (data: any) => void): void;
+
 		resize(columns: number, rows: number): void;
+
 		write(data: string): void;
 	}
 }
