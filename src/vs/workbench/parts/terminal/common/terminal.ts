@@ -24,6 +24,7 @@ export interface ITerminalConfiguration {
 			unixLike: string,
 			windows: string
 		},
+		fontFamily: string,
 		ansiColors: {
 			black: string,
 			red: string,

@@ -67,7 +67,8 @@ export class TerminalPanel extends Panel {
 		this.terminal.open(this.terminalDomElement);
 		this.parentDomElement.appendChild(terminalContainer.getDomNode());
 
-		this.terminalDomElement.style.fontFamily = 'Hack, mono';
+		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
 		this.terminal.colors = this.getTerminalColors();
 
 		return TPromise.as(null);

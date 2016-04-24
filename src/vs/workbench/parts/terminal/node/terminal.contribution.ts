@@ -33,6 +33,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
 		},
+		'integratedTerminal.fontFamily': {
+			'description': nls.localize('integratedTerminal.fontFamily', "The font family used by the terminal (CSS font-family format)."),
+			'type': 'string',
+			'default': 'Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback"'
+		},
 		'integratedTerminal.ansiColors.black': {
 			'description': nls.localize('integratedTerminal.ansiColors.black', "Black color for terminals that support ANSI escape sequences (format: #rrggbb)"),
 			'type': 'string',
