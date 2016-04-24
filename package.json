@@ -29,7 +29,7 @@
     "pty.js": "0.3.0",
     "sax": "1.1.2",
     "semver": "4.3.6",
-    "term.js": "0.0.7",
+    "term.js": "git+https://github.com/jeremyramin/term.js.git",
     "vscode-debugprotocol": "1.8.0-pre.3",
     "vscode-textmate": "1.0.11",
     "winreg": "1.2.0",
