@@ -63,6 +63,11 @@ export class TerminalPanel extends Panel {
 			this.ptyProcess.write(data);
 			return false;
 		});
+		this.parentDomElement.addEventListener('mouseup', (event) => {
+			if (event.which !== 3) {
+				this.focusTerminal();
+			}
+		});
 
 		this.terminal.open(this.terminalDomElement);
 		this.parentDomElement.appendChild(terminalContainer.getDomNode());
@@ -72,6 +77,16 @@ export class TerminalPanel extends Panel {
 		this.terminal.colors = this.getTerminalColors();
 
 		return TPromise.as(null);
+	}
+
+	private focusTerminal(): void {
+		let text = window.getSelection().toString();
+		if (!text) {
+			this.terminal.focus();
+			if (this.terminal._textarea) {
+				this.terminal._textarea.focus();
+			}
+		}
 	}
 
 	private getShell(): string {
