@@ -269,7 +269,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.push(this.session.onDidContinue(threadID => {
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.clearThreads(false, threadID);
-			
+
 			// Get a top stack frame of a stopped thread if there is any.
 			const threads = this.model.getThreads();
 			const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
@@ -576,7 +576,9 @@ export class DebugService implements debug.IDebugService {
 			this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
-			if (changeViewState) {
+			if (changeViewState && !this.viewModel.changedWorkbenchViewState) {
+				// We only want to change the workbench view state on the first debug session #5738
+				this.viewModel.changedWorkbenchViewState = true;
 				this.viewletService.openViewlet(debug.VIEWLET_ID);
 				this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 			}
