@@ -45,7 +45,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IResourceInput, Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import {optional, IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -346,7 +346,7 @@ export class RenameFileAction extends BaseRenameAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IProgressService progressService: IProgressService,
+		@optional(IProgressService) progressService: IProgressService,
 		@IEventService eventService: IEventService
 	) {
 		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, contextService, editorService, fileService, messageService, textFileService, progressService, eventService);
