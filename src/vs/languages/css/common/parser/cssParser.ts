@@ -227,7 +227,7 @@ export class Parser {
 			|| this._parsePage()
 			|| this._parseFontFace()
 			|| this._parseKeyframe()
-			|| this._parseMSViewPort()
+			|| this._parseViewPort()
 			|| this._parseNamespace()
 			|| this._parseDocument();
 	}
@@ -268,7 +268,7 @@ export class Parser {
 	public _needsSemicolonAfter(node: nodes.Node) : boolean {
 		switch (node.type) {
 			case nodes.NodeType.Keyframe:
-			case nodes.NodeType.MSViewPort:
+			case nodes.NodeType.ViewPort:
 			case nodes.NodeType.Media:
 			case nodes.NodeType.Ruleset:
 			case nodes.NodeType.Namespace:
@@ -458,11 +458,14 @@ export class Parser {
 		return this._parseBody(node, this._parseRuleSetDeclaration.bind(this));
 	}
 
-	public _parseMSViewPort():nodes.Node {
-		if(!this.peek(scanner.TokenType.AtKeyword, '@-ms-viewport')) {
+	public _parseViewPort():nodes.Node {
+		if(!this.peek(scanner.TokenType.AtKeyword, '@-ms-viewport') &&
+			!this.peek(scanner.TokenType.AtKeyword, '@-o-viewport') &&
+			!this.peek(scanner.TokenType.AtKeyword, '@viewport')
+		) {
 			return null;
 		}
-		var node = <nodes.MSViewPort> this.create(nodes.MSViewPort);
+		var node = <nodes.ViewPort> this.create(nodes.ViewPort);
 		this.consumeToken(); // @-ms-viewport
 
 		return this._parseBody(node, this._parseRuleSetDeclaration.bind(this));
