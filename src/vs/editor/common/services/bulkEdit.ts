@@ -276,7 +276,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 	function finish(): TPromise<ISelection> {
 
 		if (all.length === 0) {
-			return;
+			return TPromise.as(undefined);
 		}
 
 		let concurrentEdits = getConcurrentEdits();
