@@ -203,7 +203,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		parameterdeclaration: [
-			['\\$@identifier@ws:', sassTokenTypes.TOKEN_PROPERTY],
+			['\\$@identifier@ws:', 'variable'],
 			['\\.\\.\\.', 'keyword.operator'], // var args in declaration
 			[',', 'punctuation'],
 			{ include: '@term' },

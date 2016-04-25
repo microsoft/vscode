@@ -167,12 +167,14 @@ suite('HTML - worker', () => {
 				assertSuggestion(completion, 'color', null, '"color"');
 				assertSuggestion(completion, 'checkbox', null, '"checkbox"');
 			}),
-
 			testSuggestionsFor('<input src="c" type="color|" ').then((completion) => {
 				assert.equal(completion.currentWord, 'color');
 				assertSuggestion(completion, 'color', null, 'color');
 			}),
-
+			testSuggestionsFor('<input src="c" type=color| ').then((completion) => {
+				assert.equal(completion.currentWord, 'color');
+				assertSuggestion(completion, 'color', null, 'color');
+			}),
 			testSuggestionsFor('<div dir=|></div>').then((completion) => {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'ltr', null, '"ltr"');

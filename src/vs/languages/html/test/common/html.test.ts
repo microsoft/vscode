@@ -483,7 +483,7 @@ suite('Colorizing - HTML', () => {
 
 	test('Tag with Attributes', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
-			line: '<abc foo="bar" bar="foo">',
+			line: '<abc foo="bar" bar=\'foo\'>',
 			tokens: [
 				{ startIndex:0, type: DELIM_START },
 				{ startIndex:1, type: getTag('abc') },
@@ -495,6 +495,25 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:15, type: ATTRIB_NAME },
 				{ startIndex:18, type: DELIM_ASSIGN },
 				{ startIndex:19, type: ATTRIB_VALUE },
+				{ startIndex:24, type: DELIM_START }
+			]}
+		]);
+	});
+
+	test('Tag with Attributes, no quotes', () => {
+		modesUtil.assertTokenization(tokenizationSupport, [{
+			line: '<abc foo=bar bar=help-me>',
+			tokens: [
+				{ startIndex:0, type: DELIM_START },
+				{ startIndex:1, type: getTag('abc') },
+				{ startIndex:4, type: '' },
+				{ startIndex:5, type: ATTRIB_NAME },
+				{ startIndex:8, type: DELIM_ASSIGN },
+				{ startIndex:9, type: ATTRIB_VALUE },
+				{ startIndex:12, type: '' },
+				{ startIndex:13, type: ATTRIB_NAME },
+				{ startIndex:16, type: DELIM_ASSIGN },
+				{ startIndex:17, type: ATTRIB_VALUE },
 				{ startIndex:24, type: DELIM_START }
 			]}
 		]);

@@ -238,6 +238,11 @@ export class State extends AbstractState {
 						return { type: htmlTokenTypes.ATTRIB_VALUE };
 					}
 				} else {
+					let attributeValue = stream.advanceIfRegExp(/^[^\s"'`=<>]+/);
+					if (attributeValue.length > 0) {
+						this.kind = States.WithinTag;
+						return { type: htmlTokenTypes.ATTRIB_VALUE };
+					}
 					var ch = stream.peek();
 					if (ch === '\'' || ch === '"') {
 						this.attributeValueQuote = ch;
