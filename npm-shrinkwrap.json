@@ -274,9 +274,9 @@
       }
     },
     "minimatch": {
-      "version": "0.2.14",
-      "from": "minimatch@>=0.2.12 <0.3.0",
-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-0.2.14.tgz"
+      "version": "2.0.10",
+      "from": "minimatch@>=2.0.10 <3.0.0",
+      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-2.0.10.tgz"
     },
     "ms": {
       "version": "0.7.1",
