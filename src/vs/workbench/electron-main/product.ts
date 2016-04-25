@@ -45,8 +45,8 @@ export interface IProductConfiguration {
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
-const packageJsonPath = path.join(rootPath, 'product.json');
-const product = require.__$__nodeRequire(packageJsonPath) as IProductConfiguration;
+const productJsonPath = path.join(rootPath, 'product.json');
+const product = require.__$__nodeRequire(productJsonPath) as IProductConfiguration;
 
 if (process.env['VSCODE_DEV']) {
 	product.nameShort += ' Dev';
