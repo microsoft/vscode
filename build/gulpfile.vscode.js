@@ -63,6 +63,7 @@ var vscodeResources = [
 	'out-build/vs/workbench/parts/execution/**/*.scpt',
 	'out-build/vs/workbench/parts/git/**/*.html',
 	'out-build/vs/workbench/parts/git/**/*.sh',
+	'out-build/vs/workbench/parts/html/browser/webview.html',
 	'out-build/vs/workbench/parts/markdown/**/*.md',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
 	'out-build/vs/workbench/services/files/**/*.exe',
