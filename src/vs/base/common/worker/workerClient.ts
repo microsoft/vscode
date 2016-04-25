@@ -72,13 +72,13 @@ export class WorkerClient {
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
 
-		let MonacoEnvironment = (<any>window).MonacoEnvironment || null;
+		let GlobalEnvironment = (<any>window).GlobalEnvironment || null;
 
 		this.onModuleLoaded = this._sendMessage(workerProtocol.MessageType.INITIALIZE, {
 			id: this._worker.getId(),
 			moduleId: moduleId,
 			loaderConfiguration: loaderConfiguration,
-			MonacoEnvironment: MonacoEnvironment
+			GlobalEnvironment: GlobalEnvironment
 		});
 		this.onModuleLoaded.then(null, (e) => this._onError('Worker failed to load ' + moduleId, e));
 
