@@ -18,6 +18,7 @@ import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import product, {IProductConfiguration} from './product';
+import { parseArgs } from './argv';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -155,28 +156,29 @@ export class EnvService implements IEnvironmentService {
 			debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, this.isBuilt ? void 0 : 5870);
 		}
 
-		const opts = parseOpts(args);
-		const gotoLineMode = !!opts['g'] || !!opts['goto'];
-		const pathArguments = parsePathArguments(this._currentWorkingDirectory, args, gotoLineMode);
+		const argv = parseArgs(args);
+
+
+		const pathArguments = parsePathArguments(this._currentWorkingDirectory, args, argv.goto);
 
 		this._cliArgs = Object.freeze({
 			pathArguments: pathArguments,
 			programStart: parseNumber(args, '--timestamp', 0, 0),
-			enablePerformance: !!opts['p'],
-			verboseLogging: !!opts['verbose'],
+			enablePerformance: argv.performance,
+			verboseLogging: argv.verbose,
 			debugExtensionHostPort: debugExtensionHostPort,
 			debugBrkExtensionHost: debugBrkExtensionHost,
-			logExtensionHostCommunication: !!opts['logExtensionHostCommunication'],
-			openNewWindow: !!opts['n'] || !!opts['new-window'],
-			openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
-			gotoLineMode: gotoLineMode,
-			diffMode: (!!opts['d'] || !!opts['diff']) && pathArguments.length === 2,
+			logExtensionHostCommunication: argv.logExtensionHostCommunication,
+			openNewWindow: argv['new-window'],
+			openInSameWindow: argv['reuse-window'],
+			gotoLineMode: argv.goto,
+			diffMode: argv.diff && pathArguments.length === 2,
 			extensionsHomePath: normalizePath(parseString(args, '--extensionHomePath')),
 			extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
 			extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
-			disableExtensions: !!opts['disableExtensions'] || !!opts['disable-extensions'],
+			disableExtensions: argv['disable-extensions'],
 			locale: parseString(args, '--locale'),
-			waitForWindowClose: !!opts['w'] || !!opts['wait']
+			waitForWindowClose: argv.wait
 		});
 
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
@@ -243,15 +245,6 @@ export class EnvService implements IEnvironmentService {
 		// use sha256 to ensure the userid value can be used in filenames and are unique
 		return crypto.createHash('sha256').update(username).digest('hex').substr(0, 6);
 	}
-}
-
-type OptionBag = { [opt: string]: boolean; };
-
-function parseOpts(argv: string[]): OptionBag {
-	return argv
-		.filter(a => /^-/.test(a))
-		.map(a => a.replace(/^-*/, ''))
-		.reduce((r, a) => { r[a] = true; return r; }, <OptionBag>{});
 }
 
 function parsePathArguments(cwd: string, argv: string[], gotoLineMode?: boolean): string[] {

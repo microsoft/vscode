@@ -11,6 +11,16 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	help: boolean;
 	version: boolean;
 	wait: boolean;
+	diff: boolean;
+	goto: boolean;
+	'new-window': boolean;
+	'reuse-window': boolean;
+	locale: string;
+	'user-data-dir': string;
+	performance: boolean;
+	verbose: boolean;
+	logExtensionHostCommunication: boolean;
+	'disable-extensions': boolean;
 }
 
 const options: minimist.Opts = {
@@ -25,7 +35,11 @@ const options: minimist.Opts = {
 		'diff',
 		'goto',
 		'new-window',
-		'reuse-window'
+		'reuse-window',
+		'performance',
+		'verbose',
+		'logExtensionHostCommunication',
+		'disable-extensions'
 	],
 	alias: {
 		help: 'h',
@@ -34,7 +48,9 @@ const options: minimist.Opts = {
 		diff: 'd',
 		goto: 'g',
 		'new-window': 'n',
-		'reuse-window': 'r'
+		'reuse-window': 'r',
+		performance: 'p',
+		'disable-extensions': 'disableExtensions'
 	}
 };
 
