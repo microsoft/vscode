@@ -73,7 +73,6 @@ export interface ICommandLineArguments {
 	programStart: number;
 	pathArguments?: string[];
 	enablePerformance?: boolean;
-	firstrun?: boolean;
 	openNewWindow?: boolean;
 	openInSameWindow?: boolean;
 	gotoLineMode?: boolean;
@@ -210,7 +209,6 @@ export class EnvService implements IEnvironmentService {
 			debugExtensionHostPort: debugExtensionHostPort,
 			debugBrkExtensionHost: debugBrkExtensionHost,
 			logExtensionHostCommunication: !!opts['logExtensionHostCommunication'],
-			firstrun: !!opts['squirrel-firstrun'],
 			openNewWindow: !!opts['n'] || !!opts['new-window'],
 			openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
 			gotoLineMode: gotoLineMode,
