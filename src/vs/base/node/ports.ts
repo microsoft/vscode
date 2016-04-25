@@ -62,9 +62,13 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 }
 
 function dispose(socket: net.Socket): void {
-	socket.removeAllListeners('connect');
-	socket.removeAllListeners('error');
-	socket.end();
-	socket.destroy();
-	socket.unref();
+	try {
+		socket.removeAllListeners('connect');
+		socket.removeAllListeners('error');
+		socket.end();
+		socket.destroy();
+		socket.unref();
+	} catch (error) {
+		console.error(error); // otherwise this error would get lost in the callback chain
+	}
 }
