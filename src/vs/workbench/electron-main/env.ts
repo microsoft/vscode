@@ -15,47 +15,10 @@ import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
-import { assign } from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-
-export interface IProductConfiguration {
-	nameShort: string;
-	nameLong: string;
-	applicationName: string;
-	win32AppUserModelId: string;
-	win32MutexName: string;
-	darwinBundleIdentifier: string;
-	dataFolderName: string;
-	downloadUrl: string;
-	updateUrl?: string;
-	quality?: string;
-	commit: string;
-	date: string;
-	extensionsGallery: {
-		serviceUrl: string;
-		itemUrl: string;
-	};
-	extensionTips: { [id: string]: string; };
-	crashReporter: Electron.CrashReporterStartOptions;
-	welcomePage: string;
-	enableTelemetry: boolean;
-	aiConfig: {
-		key: string;
-		asimovKey: string;
-	};
-	sendASmile: {
-		reportIssueUrl: string,
-		requestFeatureUrl: string
-	};
-	documentationUrl: string;
-	releaseNotesUrl: string;
-	twitterUrl: string;
-	requestFeatureUrl: string;
-	reportIssueUrl: string;
-	licenseUrl: string;
-	privacyStatementUrl: string;
-}
+import product, {IProductConfiguration} from './product';
+import { parseArgs } from './argv';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -104,6 +67,20 @@ export interface IEnvironmentService {
 	sharedIPCHandle: string;
 }
 
+function getNumericValue(value: string, defaultValue: number, fallback: number = void 0) {
+	const numericValue = parseInt(value);
+
+	if (types.isNumber(numericValue)) {
+		return numericValue;
+	}
+
+	if (value) {
+		return defaultValue;
+	}
+
+	return fallback;
+}
+
 export class EnvService implements IEnvironmentService {
 
 	serviceId = IEnvironmentService;
@@ -119,11 +96,9 @@ export class EnvService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 
-	private _product: IProductConfiguration;
-	get product(): IProductConfiguration { return this._product; }
-
-	get updateUrl(): string { return this.product.updateUrl; }
-	get quality(): string { return this.product.quality; }
+	get product(): IProductConfiguration { return product; }
+	get updateUrl(): string { return product.updateUrl; }
+	get quality(): string { return product.quality; }
 
 	private _userHome: string;
 	get userHome(): string { return this._userHome; }
@@ -184,58 +159,36 @@ export class EnvService implements IEnvironmentService {
 			args = [...extraargs, ...args];
 		}
 
-		const debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
-		let debugExtensionHostPort: number;
-		let debugBrkExtensionHost: boolean;
+		const argv = parseArgs(args);
 
-		if (debugBrkExtensionHostPort) {
-			debugExtensionHostPort = debugBrkExtensionHostPort;
-			debugBrkExtensionHost = true;
-		} else {
-			debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, this.isBuilt ? void 0 : 5870);
-		}
-
-		const opts = parseOpts(args);
-		const gotoLineMode = !!opts['g'] || !!opts['goto'];
-		const pathArguments = parsePathArguments(this._currentWorkingDirectory, args, gotoLineMode);
+		const debugBrkExtensionHostPort = getNumericValue(argv.debugBrkPluginHost, 5870);
+		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
+		const pathArguments = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
+		const timestamp = parseInt(argv.timestamp);
 
 		this._cliArgs = Object.freeze({
 			pathArguments: pathArguments,
-			programStart: parseNumber(args, '--timestamp', 0, 0),
-			enablePerformance: !!opts['p'],
-			verboseLogging: !!opts['verbose'],
-			debugExtensionHostPort: debugExtensionHostPort,
-			debugBrkExtensionHost: debugBrkExtensionHost,
-			logExtensionHostCommunication: !!opts['logExtensionHostCommunication'],
-			openNewWindow: !!opts['n'] || !!opts['new-window'],
-			openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
-			gotoLineMode: gotoLineMode,
-			diffMode: (!!opts['d'] || !!opts['diff']) && pathArguments.length === 2,
-			extensionsHomePath: normalizePath(parseString(args, '--extensionHomePath')),
-			extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
-			extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
-			disableExtensions: !!opts['disableExtensions'] || !!opts['disable-extensions'],
-			locale: parseString(args, '--locale'),
-			waitForWindowClose: !!opts['w'] || !!opts['wait']
+			programStart: types.isNumber(timestamp) ? timestamp : 0,
+			enablePerformance: argv.performance,
+			verboseLogging: argv.verbose,
+			debugExtensionHostPort: debugBrkExtensionHostPort || debugExtensionHostPort,
+			debugBrkExtensionHost: !!debugBrkExtensionHostPort,
+			logExtensionHostCommunication: argv.logExtensionHostCommunication,
+			openNewWindow: argv['new-window'],
+			openInSameWindow: argv['reuse-window'],
+			gotoLineMode: argv.goto,
+			diffMode: argv.diff && pathArguments.length === 2,
+			extensionsHomePath: normalizePath(argv.extensionHomePath),
+			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
+			extensionTestsPath: normalizePath(argv.extensionTestsPath),
+			disableExtensions: argv['disable-extensions'],
+			locale: argv.locale,
+			waitForWindowClose: argv.wait
 		});
 
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
 
-		try {
-			this._product = JSON.parse(fs.readFileSync(path.join(this._appRoot, 'product.json'), 'utf8'));
-		} catch (error) {
-			this._product = Object.create(null);
-		}
-
-		if (!this.isBuilt) {
-			const nameShort = `${ this._product.nameShort } Dev`;
-			const nameLong = `${ this._product.nameLong } Dev`;
-			const dataFolderName = `${ this._product.dataFolderName }-dev`;
-
-			this._product = assign(this._product, { nameShort, nameLong, dataFolderName });
-		}
-
-		this._userHome = path.join(app.getPath('home'), this._product.dataFolderName);
+		this._userHome = path.join(app.getPath('home'), product.dataFolderName);
 
 		// TODO move out of here!
 		if (!fs.existsSync(this._userHome)) {
@@ -299,57 +252,45 @@ export class EnvService implements IEnvironmentService {
 	}
 }
 
-type OptionBag = { [opt: string]: boolean; };
+function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean): string[] {
+	const result = args.map(arg => {
+		let pathCandidate = arg;
 
-function parseOpts(argv: string[]): OptionBag {
-	return argv
-		.filter(a => /^-/.test(a))
-		.map(a => a.replace(/^-*/, ''))
-		.reduce((r, a) => { r[a] = true; return r; }, <OptionBag>{});
-}
+		let parsedPath: IParsedPath;
+		if (gotoLineMode) {
+			parsedPath = parseLineAndColumnAware(arg);
+			pathCandidate = parsedPath.path;
+		}
 
-function parsePathArguments(cwd: string, argv: string[], gotoLineMode?: boolean): string[] {
-	return arrays.coalesce(							// no invalid paths
-		arrays.distinct(							// no duplicates
-			argv.filter(a => !(/^-/.test(a))) 		// arguments without leading "-"
-				.map((arg) => {
-					let pathCandidate = arg;
+		if (pathCandidate) {
+			pathCandidate = preparePath(cwd, pathCandidate);
+		}
 
-					let parsedPath: IParsedPath;
-					if (gotoLineMode) {
-						parsedPath = parseLineAndColumnAware(arg);
-						pathCandidate = parsedPath.path;
-					}
+		let realPath: string;
+		try {
+			realPath = fs.realpathSync(pathCandidate);
+		} catch (error) {
+			// in case of an error, assume the user wants to create this file
+			// if the path is relative, we join it to the cwd
+			realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
+		}
 
-					if (pathCandidate) {
-						pathCandidate = preparePath(cwd, pathCandidate);
-					}
+		if (!paths.isValidBasename(path.basename(realPath))) {
+			return null; // do not allow invalid file names
+		}
 
-					let realPath: string;
-					try {
-						realPath = fs.realpathSync(pathCandidate);
-					} catch (error) {
-						// in case of an error, assume the user wants to create this file
-						// if the path is relative, we join it to the cwd
-						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
-					}
+		if (gotoLineMode) {
+			parsedPath.path = realPath;
+			return toLineAndColumnPath(parsedPath);
+		}
 
-					if (!paths.isValidBasename(path.basename(realPath))) {
-						return null; // do not allow invalid file names
-					}
+		return realPath;
+	});
 
-					if (gotoLineMode) {
-						parsedPath.path = realPath;
-						return toLineAndColumnPath(parsedPath);
-					}
+	const caseInsensitive = platform.isWindows || platform.isMacintosh;
+	const distinct = arrays.distinct(result, e => e && caseInsensitive ? e.toLowerCase() : e);
 
-					return realPath;
-				}),
-			(element) => {
-				return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
-			}
-		)
-	);
+	return arrays.coalesce(distinct);
 }
 
 function preparePath(cwd: string, p: string): string {
@@ -376,34 +317,6 @@ function preparePath(cwd: string, p: string): string {
 
 function normalizePath(p?: string): string {
 	return p ? path.normalize(p) : p;
-}
-
-function parseNumber(argv: string[], key: string, defaultValue?: number, fallbackValue?: number): number {
-	let value: number;
-
-	for (let i = 0; i < argv.length; i++) {
-		let segments = argv[i].split('=');
-		if (segments[0] === key) {
-			value = Number(segments[1]) || defaultValue;
-			break;
-		}
-	}
-
-	return types.isNumber(value) ? value : fallbackValue;
-}
-
-function parseString(argv: string[], key: string, defaultValue?: string, fallbackValue?: string): string {
-	let value: string;
-
-	for (let i = 0; i < argv.length; i++) {
-		let segments = argv[i].split('=');
-		if (segments[0] === key) {
-			value = String(segments[1]) || defaultValue;
-			break;
-		}
-	}
-
-	return types.isString(value) ? strings.trim(value, '"') : fallbackValue;
 }
 
 export function getPlatformIdentifier(): string {
