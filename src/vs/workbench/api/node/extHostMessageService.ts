@@ -22,14 +22,15 @@ export class ExtHostMessageService {
 
 	showMessage(severity: Severity, message: string, commands: (string|vscode.MessageItem)[]): Thenable<string|vscode.MessageItem> {
 
-		const items: { title: string; handle: number; }[] = [];
+		const items: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
 
 		for (let handle = 0; handle < commands.length; handle++) {
 			let command = commands[handle];
 			if (typeof command === 'string') {
-				items.push({ title: command, handle });
+				items.push({ title: command, handle, isCloseAffordance: false });
 			} else {
-				items.push({ title: command.title, handle });
+				let {title, isCloseAffordance} = command;
+				items.push({ title, isCloseAffordance, handle });
 			}
 		}
 
@@ -50,22 +51,28 @@ export class MainThreadMessageService {
 		this._messageService = messageService;
 	}
 
-	$showMessage(severity: Severity, message: string, commands: { title: string; handle: number;}[]): Thenable<number> {
+	$showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number;}[]): Thenable<number> {
 
 		let hide: (handle?: number) => void;
 		let actions: Action[] = [];
-
-		actions.push(new Action('__close', nls.localize('close', "Close"), undefined, true, () => {
-			hide();
-			return Promise.as(undefined);
-		}));
+		let hasCloseAffordance = false;
 
 		commands.forEach(command => {
+			if (command.isCloseAffordance === true) {
+				hasCloseAffordance = true;
+			}
 			actions.push(new Action('_extension_message_handle_' + command.handle, command.title, undefined, true, () => {
 				hide(command.handle);
 				return Promise.as(undefined);
 			}));
 		});
+
+		if (!hasCloseAffordance) {
+			actions.unshift(new Action('__close', nls.localize('close', "Close"), undefined, true, () => {
+				hide();
+				return Promise.as(undefined);
+			}));
+		}
 
 		return new Promise<number>((c) => {
 			let messageHide: Function;
