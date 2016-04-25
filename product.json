@@ -6,5 +6,5 @@
 	"win32MutexName": "vscodeoss",
 	"licenseUrl": "https://github.com/Microsoft/vscode/blob/master/LICENSE.txt",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"welcomePage": "http://go.microsoft.com/fwlink/?LinkId=723048"
+	"welcomePage": "https://go.microsoft.com/fwlink/?LinkId=723048"
 }

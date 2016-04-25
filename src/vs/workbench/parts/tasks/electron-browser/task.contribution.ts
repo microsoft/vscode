@@ -228,7 +228,7 @@ class ConfigureTaskRunnerAction extends Action {
 							let content = JSON.stringify(config, null, '\t');
 							content = [
 								'{',
-									'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
+									'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
 									'\t// for the documentation about the tasks.json format',
 							].join('\n') + content.substr(1);
 							return content;
