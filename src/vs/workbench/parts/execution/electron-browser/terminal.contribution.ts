@@ -31,12 +31,12 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'externalTerminal.windowsExec': {
 			'type': 'string',
-			'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
+			'description': nls.localize('externalTerminal.windowsExec', "Customizes which terminal to run on Windows."),
 			'default': DEFAULT_TERMINAL_WINDOWS
 		},
 		'externalTerminal.linuxExec': {
 			'type': 'string',
-			'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to on Linux."),
+			'description': nls.localize('externalTerminal.linuxExec', "Customizes which terminal to run on Linux."),
 			'default': DEFAULT_TERMINAL_LINUX
 		}
 	}
