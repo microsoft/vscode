@@ -15,47 +15,9 @@ import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
-import { assign } from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-
-export interface IProductConfiguration {
-	nameShort: string;
-	nameLong: string;
-	applicationName: string;
-	win32AppUserModelId: string;
-	win32MutexName: string;
-	darwinBundleIdentifier: string;
-	dataFolderName: string;
-	downloadUrl: string;
-	updateUrl?: string;
-	quality?: string;
-	commit: string;
-	date: string;
-	extensionsGallery: {
-		serviceUrl: string;
-		itemUrl: string;
-	};
-	extensionTips: { [id: string]: string; };
-	crashReporter: Electron.CrashReporterStartOptions;
-	welcomePage: string;
-	enableTelemetry: boolean;
-	aiConfig: {
-		key: string;
-		asimovKey: string;
-	};
-	sendASmile: {
-		reportIssueUrl: string,
-		requestFeatureUrl: string
-	};
-	documentationUrl: string;
-	releaseNotesUrl: string;
-	twitterUrl: string;
-	requestFeatureUrl: string;
-	reportIssueUrl: string;
-	licenseUrl: string;
-	privacyStatementUrl: string;
-}
+import product, {IProductConfiguration} from './product';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -119,11 +81,9 @@ export class EnvService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 
-	private _product: IProductConfiguration;
-	get product(): IProductConfiguration { return this._product; }
-
-	get updateUrl(): string { return this.product.updateUrl; }
-	get quality(): string { return this.product.quality; }
+	get product(): IProductConfiguration { return product; }
+	get updateUrl(): string { return product.updateUrl; }
+	get quality(): string { return product.quality; }
 
 	private _userHome: string;
 	get userHome(): string { return this._userHome; }
@@ -221,21 +181,7 @@ export class EnvService implements IEnvironmentService {
 
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
 
-		try {
-			this._product = JSON.parse(fs.readFileSync(path.join(this._appRoot, 'product.json'), 'utf8'));
-		} catch (error) {
-			this._product = Object.create(null);
-		}
-
-		if (!this.isBuilt) {
-			const nameShort = `${ this._product.nameShort } Dev`;
-			const nameLong = `${ this._product.nameLong } Dev`;
-			const dataFolderName = `${ this._product.dataFolderName }-dev`;
-
-			this._product = assign(this._product, { nameShort, nameLong, dataFolderName });
-		}
-
-		this._userHome = path.join(app.getPath('home'), this._product.dataFolderName);
+		this._userHome = path.join(app.getPath('home'), product.dataFolderName);
 
 		// TODO move out of here!
 		if (!fs.existsSync(this._userHome)) {
