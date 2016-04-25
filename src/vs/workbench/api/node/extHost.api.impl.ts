@@ -144,7 +144,7 @@ export class ExtHostAPIImplementation {
 
 		const extHostCommands = this._threadService.getRemotable(ExtHostCommands);
 		const extHostEditors = this._threadService.getRemotable(ExtHostEditors);
-		const extHostMessageService = new ExtHostMessageService(this._threadService, this.commands);
+		const extHostMessageService = new ExtHostMessageService(this._threadService);
 		const extHostQuickOpen = this._threadService.getRemotable(ExtHostQuickOpen);
 		const extHostStatusBar = new ExtHostStatusBar(this._threadService);
 		const extHostOutputService = new ExtHostOutputService(this._threadService);

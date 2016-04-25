@@ -8,14 +8,14 @@
 import fs = require('fs');
 import path = require('path');
 import events = require('events');
-
 import electron = require('electron');
 import platform = require('vs/base/common/platform');
-import env = require('vs/workbench/electron-main/env');
-import settings = require('vs/workbench/electron-main/settings');
-import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.win32';
-import {LinuxAutoUpdaterImpl} from 'vs/workbench/electron-main/auto-updater.linux';
-import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
+import { IEnvironmentService, getPlatformIdentifier } from 'vs/workbench/electron-main/env';
+import { ISettingsService } from 'vs/workbench/electron-main/settings';
+import { Win32AutoUpdaterImpl } from 'vs/workbench/electron-main/auto-updater.win32';
+import { LinuxAutoUpdaterImpl } from 'vs/workbench/electron-main/auto-updater.linux';
+import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
+import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export enum State {
 	Uninitialized,
@@ -42,7 +42,23 @@ interface IAutoUpdater extends NodeJS.EventEmitter {
 	checkForUpdates(): void;
 }
 
-export class UpdateManager extends events.EventEmitter {
+export const IUpdateService = createDecorator<IUpdateService>('updateService');
+
+export interface IUpdateService {
+	serviceId: ServiceIdentifier<any>;
+	feedUrl: string;
+	channel: string;
+	initialize(): void;
+	state: State;
+	availableUpdate: IUpdate;
+	lastCheckDate: Date;
+	checkForUpdates(explicit: boolean): void;
+	on(event: string, listener: Function): this;
+}
+
+export class UpdateManager extends events.EventEmitter implements IUpdateService {
+
+	serviceId = IUpdateService;
 
 	private _state: State;
 	private explicitState: ExplicitState;
@@ -52,7 +68,12 @@ export class UpdateManager extends events.EventEmitter {
 	private _feedUrl: string;
 	private _channel: string;
 
-	constructor() {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IEnvironmentService private envService: IEnvironmentService,
+		@ISettingsService private settingsManager: ISettingsService
+	) {
 		super();
 
 		this._state = State.Uninitialized;
@@ -63,9 +84,9 @@ export class UpdateManager extends events.EventEmitter {
 		this._channel = null;
 
 		if (platform.isWindows) {
-			this.raw = new Win32AutoUpdaterImpl();
+			this.raw = instantiationService.createInstance(Win32AutoUpdaterImpl);
 		} else if (platform.isLinux) {
-			this.raw = new LinuxAutoUpdaterImpl();
+			this.raw = instantiationService.createInstance(LinuxAutoUpdaterImpl);
 		} else if (platform.isMacintosh) {
 			this.raw = electron.autoUpdater;
 		}
@@ -122,7 +143,7 @@ export class UpdateManager extends events.EventEmitter {
 	}
 
 	private quitAndUpdate(rawQuitAndUpdate: () => void): void {
-		Lifecycle.quit().done(vetod => {
+		this.lifecycleService.quit().done(vetod => {
 			if (vetod) {
 				return;
 			}
@@ -151,8 +172,8 @@ export class UpdateManager extends events.EventEmitter {
 			return; // already initialized
 		}
 
-		const channel = UpdateManager.getUpdateChannel();
-		const feedUrl = UpdateManager.getUpdateFeedUrl(channel);
+		const channel = this.getUpdateChannel();
+		const feedUrl = this.getUpdateFeedUrl(channel);
 
 		if (!feedUrl) {
 			return; // updates not available
@@ -203,12 +224,12 @@ export class UpdateManager extends events.EventEmitter {
 		this.emit('change');
 	}
 
-	private static getUpdateChannel(): string {
-		const channel = settings.manager.getValue('update.channel') || 'default';
-		return channel === 'none' ? null : env.quality;
+	private getUpdateChannel(): string {
+		const channel = this.settingsManager.getValue('update.channel') || 'default';
+		return channel === 'none' ? null : this.envService.quality;
 	}
 
-	private static getUpdateFeedUrl(channel: string): string {
+	private getUpdateFeedUrl(channel: string): string {
 		if (!channel) {
 			return null;
 		}
@@ -217,12 +238,10 @@ export class UpdateManager extends events.EventEmitter {
 			return null;
 		}
 
-		if (!env.updateUrl || !env.product.commit) {
+		if (!this.envService.updateUrl || !this.envService.product.commit) {
 			return null;
 		}
 
-		return `${ env.updateUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
+		return `${ this.envService.updateUrl }/api/update/${ getPlatformIdentifier() }/${ channel }/${ this.envService.product.commit }`;
 	}
 }
-
-export const Instance = new UpdateManager();

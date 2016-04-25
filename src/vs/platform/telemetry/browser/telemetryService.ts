@@ -65,8 +65,8 @@ export class TelemetryService implements ITelemetryService {
 		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
 		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
 		this._configuration.cleanupPatterns.push(
-			[/file:\/\/\/.*?\/resources\/app\//gi, '<APP_ROOT>'],
-			[/file:\/\/\/.*/gi, '<SOME_FILE_URI>'],
+			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
+			[/file:\/\/\/.*/gi, ''],
 			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
 		);
 

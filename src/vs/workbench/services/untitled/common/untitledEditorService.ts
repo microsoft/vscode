@@ -5,11 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {EventType} from 'vs/base/common/events';
 import arrays = require('vs/base/common/arrays');
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 export var IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -58,10 +57,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
 	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
 
-	private instantiationService: IInstantiationService;
-
-	public setInstantiationService(service: IInstantiationService): void {
-		this.instantiationService = service;
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 	}
 
 	public get(resource: URI): UntitledEditorInput {

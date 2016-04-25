@@ -32,7 +32,7 @@ class ConfigureLocaleAction extends Action {
 	private static DEFAULT_CONTENT: string = [
 		'{',
 		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
-		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'http://go.microsoft.com/fwlink/?LinkId=761051')}`,
+		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
 		`\t// ${nls.localize('restart', 'Changing the value requires to restart VSCode.')}`,
 		`\t"locale":"${Platform.language}"`,
 		'}'
@@ -67,7 +67,7 @@ class ConfigureLocaleAction extends Action {
 }
 
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), ['configure', 'language', 'locale', 'nls', 'i18n']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
 
 let schemaId = 'vscode://schemas/locale';
 // Keep en-US since we generated files with that content.

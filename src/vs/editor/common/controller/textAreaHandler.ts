@@ -256,7 +256,7 @@ export class TextAreaHandler extends Disposable {
 	private _onKeyDownHandler(e:IKeyboardEventWrapper): void {
 		if (e.equals(CommonKeybindings.ESCAPE)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
-			// See http://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
+			// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
 			e.preventDefault();
 		}
 		this._onKeyDown.fire(e);

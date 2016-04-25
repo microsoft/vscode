@@ -28,7 +28,7 @@ import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
-const timers = (<any>window).MonacoEnvironment.timers;
+const timers = (<any>window).GlobalEnvironment.timers;
 const domContentLoaded: Function = (<any>winjs).Utilities.ready;
 
 export interface IPath {

@@ -10,120 +10,35 @@ import fs = require('fs');
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
-import env = require('vs/workbench/electron-main/env');
+import { IProcessEnvironment, IEnvironmentService, EnvService } from 'vs/workbench/electron-main/env';
 import windows = require('vs/workbench/electron-main/windows');
-import window = require('vs/workbench/electron-main/window');
-import lifecycle = require('vs/workbench/electron-main/lifecycle');
-import menu = require('vs/workbench/electron-main/menus');
-import settings = require('vs/workbench/electron-main/settings');
-import {Instance as UpdateManager} from 'vs/workbench/electron-main/update-manager';
+import { ILifecycleService, LifecycleService } from 'vs/workbench/electron-main/lifecycle';
+import { VSCodeMenu } from 'vs/workbench/electron-main/menus';
+import {ISettingsService, SettingsManager} from 'vs/workbench/electron-main/settings';
+import {IUpdateService, UpdateManager} from 'vs/workbench/electron-main/update-manager';
 import {Server, serve, connect} from 'vs/base/parts/ipc/node/ipc.net';
 import {getUserEnvironment} from 'vs/base/node/env';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AskpassChannel} from 'vs/workbench/parts/git/common/gitIpc';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
 import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
-import {IChannel} from 'vs/base/parts/ipc/common/ipc';
 import {Mutex} from 'windows-mutex';
+import {LaunchService, ILaunchChannel, LaunchChannel, LaunchChannelClient} from './launch';
+import {ServicesAccessor, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {ILogService, MainLogService} from './log';
+import {IStorageService, StorageService} from './storage';
 
-interface ILaunchService {
-	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void>;
-}
+function quit(accessor: ServicesAccessor, error?: Error);
+function quit(accessor: ServicesAccessor, message?: string);
+function quit(accessor: ServicesAccessor, arg?: any) {
+	const logService = accessor.get(ILogService);
 
-export interface ILaunchChannel extends IChannel {
-	call(command: 'start', args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void>;
-	call(command: string, ...args: any[]): TPromise<any>;
-}
-
-class LaunchChannel implements ILaunchChannel {
-
-	constructor(private service: ILaunchService) { }
-
-	call(command: string, ...args: any[]): TPromise<any> {
-		switch (command) {
-			case 'start': return this.service.start(args[0], args[1]);
-		}
-	}
-}
-
-class LaunchChannelClient implements ILaunchService {
-
-	constructor(private channel: ILaunchChannel) { }
-
-	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
-		return this.channel.call('start', args, userEnv);
-	}
-}
-
-
-class LaunchService {
-	start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
-		env.log('Received data from other instance', args);
-
-		// Otherwise handle in windows manager
-		let usedWindows: window.VSCodeWindow[];
-		if (!!args.extensionDevelopmentPath) {
-			windows.manager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
-		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
-		} else if (args.pathArguments.length === 0) {
-			usedWindows = [windows.manager.focusLastActive(args)];
-		} else {
-			usedWindows = windows.manager.open({
-				cli: args,
-				userEnv: userEnv,
-				forceNewWindow: args.waitForWindowClose || args.openNewWindow,
-				preferNewWindow: !args.openInSameWindow,
-				diffMode: args.diffMode
-			});
-		}
-
-		// If the other instance is waiting to be killed, we hook up a window listener if one window
-		// is being used and only then resolve the startup promise which will kill this second instance
-		if (args.waitForWindowClose && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
-			const windowId = usedWindows[0].id;
-
-			return new TPromise<void>((c, e) => {
-
-				const unbind = windows.onClose(id => {
-					if (id === windowId) {
-						unbind();
-						c(null);
-					}
-				});
-			});
-		}
-
-		return TPromise.as(null);
-	}
-}
-
-// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-process.on('uncaughtException', (err: any) => {
-	if (err) {
-
-		// take only the message and stack property
-		let friendlyError = {
-			message: err.message,
-			stack: err.stack
-		};
-
-		// handle on client side
-		windows.manager.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
-	}
-
-	console.error('[uncaught exception in main]: ' + err);
-	if (err.stack) {
-		console.error(err.stack);
-	}
-});
-
-function quit(error?: Error);
-function quit(message?: string);
-function quit(arg?: any) {
 	let exitCode = 0;
 	if (typeof arg === 'string') {
-		env.log(arg);
+		logService.log(arg);
 	} else {
 		exitCode = 1; // signal error to the outside
 		if (arg.stack) {
@@ -136,21 +51,49 @@ function quit(arg?: any) {
 	process.exit(exitCode); // in main, process.exit === app.exit
 }
 
-function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
-	env.log('### VSCode main.js ###');
-	env.log(env.appRoot, env.cliArgs);
+function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEnvironment): void {
+	const instantiationService = accessor.get(IInstantiationService);
+	const logService = accessor.get(ILogService);
+	const envService = accessor.get(IEnvironmentService);
+	const windowManager = accessor.get(windows.IWindowsService);
+	const lifecycleService = accessor.get(ILifecycleService);
+	const updateManager = accessor.get(IUpdateService);
+	const settingsManager = accessor.get(ISettingsService);
+
+	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
+	process.on('uncaughtException', (err: any) => {
+		if (err) {
+
+			// take only the message and stack property
+			let friendlyError = {
+				message: err.message,
+				stack: err.stack
+			};
+
+			// handle on client side
+			windowManager.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+		}
+
+		console.error('[uncaught exception in main]: ' + err);
+		if (err.stack) {
+			console.error(err.stack);
+		}
+	});
+
+	logService.log('### VSCode main.js ###');
+	logService.log(envService.appRoot, envService.cliArgs);
 
 	// Setup Windows mutex
 	let windowsMutex: Mutex = null;
 	try {
 		const Mutex = (<any>require.__$__nodeRequire('windows-mutex')).Mutex;
-		windowsMutex = new Mutex(env.product.win32MutexName);
+		windowsMutex = new Mutex(envService.product.win32MutexName);
 	} catch (e) {
 		// noop
 	}
 
 	// Register IPC services
-	const launchService = new LaunchService();
+	const launchService = instantiationService.createInstance(LaunchService);
 	const launchChannel = new LaunchChannel(launchService);
 	ipcServer.registerChannel('launch', launchChannel);
 
@@ -160,22 +103,22 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 
 	// Used by sub processes to communicate back to the main instance
 	process.env['VSCODE_PID'] = '' + process.pid;
-	process.env['VSCODE_IPC_HOOK'] = env.mainIPCHandle;
-	process.env['VSCODE_SHARED_IPC_HOOK'] = env.sharedIPCHandle;
+	process.env['VSCODE_IPC_HOOK'] = envService.mainIPCHandle;
+	process.env['VSCODE_SHARED_IPC_HOOK'] = envService.sharedIPCHandle;
 
 	// Spawn shared process
-	const sharedProcess = spawnSharedProcess();
+	const sharedProcess = instantiationService.invokeFunction(spawnSharedProcess);
 
 	// Make sure we associate the program with the app user model id
 	// This will help Windows to associate the running program with
 	// any shortcut that is pinned to the taskbar and prevent showing
 	// two icons in the taskbar for the same app.
-	if (platform.isWindows && env.product.win32AppUserModelId) {
-		app.setAppUserModelId(env.product.win32AppUserModelId);
+	if (platform.isWindows && envService.product.win32AppUserModelId) {
+		app.setAppUserModelId(envService.product.win32AppUserModelId);
 	}
 
 	// Set programStart in the global scope
-	global.programStart = env.cliArgs.programStart;
+	global.programStart = envService.cliArgs.programStart;
 
 	function dispose() {
 		if (ipcServer) {
@@ -192,33 +135,34 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 
 	// Dispose on app quit
 	app.on('will-quit', () => {
-		env.log('App#will-quit: disposing resources');
+		logService.log('App#will-quit: disposing resources');
 
 		dispose();
 	});
 
 	// Dispose on vscode:exit
 	ipc.on('vscode:exit', (event, code: number) => {
-		env.log('IPC#vscode:exit', code);
+		logService.log('IPC#vscode:exit', code);
 
 		dispose();
 		process.exit(code); // in main, process.exit === app.exit
 	});
 
 	// Lifecycle
-	lifecycle.manager.ready();
+	lifecycleService.ready();
 
 	// Load settings
-	settings.manager.loadSync();
+	settingsManager.loadSync();
 
 	// Propagate to clients
-	windows.manager.ready(userEnv);
+	windowManager.ready(userEnv);
 
 	// Install Menu
-	menu.manager.ready();
+	const menuManager = instantiationService.createInstance(VSCodeMenu);
+	menuManager.ready();
 
 	// Install Tasks
-	if (platform.isWindows && env.isBuilt) {
+	if (platform.isWindows && envService.isBuilt) {
 		app.setUserTasks([
 			{
 				title: nls.localize('newWindow', "New Window"),
@@ -231,21 +175,24 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	}
 
 	// Setup auto update
-	UpdateManager.initialize();
+	updateManager.initialize();
 
 	// Open our first window
-	if (env.cliArgs.openNewWindow && env.cliArgs.pathArguments.length === 0) {
-		windows.manager.open({ cli: env.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
-	} else if (global.macOpenFiles && global.macOpenFiles.length && (!env.cliArgs.pathArguments || !env.cliArgs.pathArguments.length)) {
-		windows.manager.open({ cli: env.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
+	if (envService.cliArgs.openNewWindow && envService.cliArgs.pathArguments.length === 0) {
+		windowManager.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
+	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.pathArguments || !envService.cliArgs.pathArguments.length)) {
+		windowManager.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
-		windows.manager.open({ cli: env.cliArgs, forceNewWindow: env.cliArgs.openNewWindow, diffMode: env.cliArgs.diffMode }); // default: read paths from cli
+		windowManager.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs.openNewWindow, diffMode: envService.cliArgs.diffMode }); // default: read paths from cli
 	}
 }
 
-function setupIPC(): TPromise<Server> {
+function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
+	const logService = accessor.get(ILogService);
+	const envService = accessor.get(IEnvironmentService);
+
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(env.mainIPCHandle).then(server => {
+		return serve(envService.mainIPCHandle).then(server => {
 			if (platform.isMacintosh) {
 				app.dock.show(); // dock might be hidden at this case due to a retry
 			}
@@ -262,23 +209,23 @@ function setupIPC(): TPromise<Server> {
 			}
 
 			// there's a running instance, let's connect to it
-			return connect(env.mainIPCHandle).then(
+			return connect(envService.mainIPCHandle).then(
 				client => {
 
 					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
-					if (env.isTestingFromCli) {
+					if (envService.isTestingFromCli) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						console.error(msg);
 						client.dispose();
 						return TPromise.wrapError(msg);
 					}
 
-					env.log('Sending env to running instance...');
+					logService.log('Sending env to running instance...');
 
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
 
-					return service.start(env.cliArgs, process.env)
+					return service.start(envService.cliArgs, process.env)
 						.then(() => client.dispose())
 						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
 				},
@@ -291,9 +238,9 @@ function setupIPC(): TPromise<Server> {
 					// let's delete it, since we can't connect to it
 					// and the retry the whole thing
 					try {
-						fs.unlinkSync(env.mainIPCHandle);
+						fs.unlinkSync(envService.mainIPCHandle);
 					} catch (e) {
-						env.log('Fatal error deleting obsolete instance handle', e);
+						logService.log('Fatal error deleting obsolete instance handle', e);
 						return TPromise.wrapError(e);
 					}
 
@@ -306,6 +253,19 @@ function setupIPC(): TPromise<Server> {
 	return setup(true);
 }
 
+// TODO: isolate
+const services = new ServiceCollection();
+
+services.set(IEnvironmentService, new SyncDescriptor(EnvService));
+services.set(ILogService, new SyncDescriptor(MainLogService));
+services.set(windows.IWindowsService, new SyncDescriptor(windows.WindowsManager));
+services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+services.set(IStorageService, new SyncDescriptor(StorageService));
+services.set(IUpdateService, new SyncDescriptor(UpdateManager));
+services.set(ISettingsService, new SyncDescriptor(SettingsManager));
+
+const instantiationService = new InstantiationService(services);
+
 // On some platforms we need to manually read from the global environment variables
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
 getUserEnvironment()
@@ -314,7 +274,8 @@ getUserEnvironment()
 		// Make sure the NLS Config travels to the rendered process
 		// See also https://github.com/Microsoft/vscode/issues/4558
 		userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
-		return setupIPC()
-			.then(ipcServer => main(ipcServer, userEnv));
+
+		return instantiationService.invokeFunction(setupIPC)
+			.then(ipcServer => instantiationService.invokeFunction(main, ipcServer, userEnv));
 	})
-	.done(null, quit);
+	.done(null, err => instantiationService.invokeFunction(quit, err));

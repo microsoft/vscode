@@ -220,7 +220,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerSugg
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.Space,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
-}, ['trigger', 'suggest']));
+}, 'Trigger Suggest'));
 CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weight, { primary: KeyCode.Tab }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.acceptSelectedSuggestion();

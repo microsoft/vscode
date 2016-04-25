@@ -10,6 +10,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
+import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
 import strings = require('vs/base/common/strings');
 import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
@@ -49,13 +50,16 @@ export class ShowAllCommandsAction extends QuickOpenAction {
 class BaseCommandEntry extends QuickOpenEntryGroup {
 	private keyLabel: string;
 	private keyAriaLabel: string;
-	private description: string;
+	private label: string;
+	private alias: string;
 
 	constructor(
 		keyLabel: string,
 		keyAriaLabel: string,
-		description: string,
-		highlights: IHighlight[],
+		label: string,
+		alias: string,
+		labelHighlights: IHighlight[],
+		aliasHighlights: IHighlight[],
 		@IMessageService protected messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
@@ -63,12 +67,17 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 
 		this.keyLabel = keyLabel;
 		this.keyAriaLabel = keyAriaLabel;
-		this.description = description;
-		this.setHighlights(highlights);
+		this.label = label;
+		this.alias = alias;
+		this.setHighlights(labelHighlights, null, aliasHighlights);
 	}
 
 	public getLabel(): string {
-		return this.description;
+		return this.label;
+	}
+
+	public getDetail(): string {
+		return this.alias;
 	}
 
 	public getAriaLabel(): string {
@@ -84,7 +93,7 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	}
 
 	protected onError(error?: Error): void {
-		let message = !error ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.description) : toErrorMessage(error);
+		let message = !error ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(error);
 
 		this.messageService.show(Severity.Error, message);
 	}
@@ -115,15 +124,17 @@ class CommandEntry extends BaseCommandEntry {
 	constructor(
 		keyLabel: string,
 		keyAriaLabel: string,
-		description: string,
-		highlights: IHighlight[],
+		label: string,
+		meta: string,
+		labelHighlights: IHighlight[],
+		aliasHighlights: IHighlight[],
 		actionDescriptor: SyncActionDescriptor,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, description, highlights, messageService, telemetryService);
+		super(keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.actionDescriptor = actionDescriptor;
 	}
@@ -146,14 +157,16 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 	constructor(
 		keyLabel: string,
 		keyAriaLabel: string,
-		description: string,
-		highlights: IHighlight[],
+		label: string,
+		meta: string,
+		labelHighlights: IHighlight[],
+		aliasHighlights: IHighlight[],
 		action: IAction,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, description, highlights, messageService, telemetryService);
+		super(keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.action = action;
 	}
@@ -176,13 +189,15 @@ class ActionCommandEntry extends BaseCommandEntry {
 	constructor(
 		keyLabel: string,
 		keyAriaLabel: string,
-		description: string,
-		highlights: IHighlight[],
+		label: string,
+		alias: string,
+		labelHighlights: IHighlight[],
+		aliasHighlights: IHighlight[],
 		action: IAction,
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, description, highlights, messageService, telemetryService);
+		super(keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.action = action;
 	}
@@ -262,21 +277,24 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
 
 			if (actionDescriptor.label) {
+
+				// Label (with optional category)
 				let label = actionDescriptor.label;
 				let category = registry.getCategory(actionDescriptor.id);
 				if (category) {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
-				let searchTarget = label;
-				let keywords = registry.getKeywords(actionDescriptor.id);
-				if (keywords) {
-					searchTarget = [searchTarget, ...keywords].join(' ');
+				// Alias for non default languages
+				let alias = (language !== LANGUAGE_DEFAULT) ? registry.getAlias(actionDescriptor.id) : null;
+				if (alias) {
+					[label, alias] = [alias, label]; // swap alias and label so that english alias is #1
 				}
 
-				let highlights = wordFilter(searchValue, searchTarget);
-				if (highlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, highlights, actionDescriptor));
+				let labelHighlights = wordFilter(searchValue, label);
+				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				if (labelHighlights || aliasHighlights) {
+					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, alias, labelHighlights, aliasHighlights, actionDescriptor));
 				}
 			}
 		}
@@ -298,18 +316,20 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keys = this.keybindingService.lookupKeybindings(editorAction.id);
 			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
 			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
+			let label = action.label;
 
-			if (action.label) {
-				let searchTarget = action.label;
+			if (label) {
 
-				let keywords = action.getKeywords();
-				if (keywords) {
-					searchTarget = [searchTarget, ...keywords].join(' ');
+				// Alias for non default languages
+				let alias = (language !== LANGUAGE_DEFAULT) ? action.getAlias() : null;
+				if (alias) {
+					[label, alias] = [alias, label]; // swap alias and label so that english alias is #1
 				}
 
-				let highlights = wordFilter(searchValue, searchTarget);
-				if (highlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', action.label, highlights, action));
+				let labelHighlights = wordFilter(searchValue, label);
+				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				if (labelHighlights || aliasHighlights) {
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, alias, labelHighlights, aliasHighlights, action));
 				}
 			}
 		}
@@ -326,7 +346,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
 			let highlights = wordFilter(searchValue, action.label);
 			if (highlights) {
-				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel.join(', '), keyAriaLabel.join(', '), action.label, highlights, action));
+				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel.join(', '), keyAriaLabel.join(', '), action.label, null, highlights, null, action));
 			}
 		}
 

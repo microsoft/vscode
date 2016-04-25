@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import collections = require('vs/base/common/collections');
 import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
-import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {KeybindingsRegistry, ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ICommandHandler} from 'vs/platform/keybinding/common/keybindingService';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -31,9 +31,7 @@ export interface IWorkbenchActionRegistry {
 	 * Registers a workbench action to the platform. Workbench actions are not
 	 * visible by default and can only be invoked through a keybinding if provided.
 	 */
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string): void;
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, keywords?: string[]): void;
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string, keywords?: string[]): void;
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void;
 
 	/**
 	 * Unregisters a workbench action from the platform.
@@ -51,19 +49,19 @@ export interface IWorkbenchActionRegistry {
 	getWorkbenchActions(): SyncActionDescriptor[];
 
 	/**
+	 * Returns the alias associated with the given action or null iff none.
+	 */
+	getAlias(actionId: string): string;
+
+	/**
 	 * Returns the category for the given action or null iff none.
 	 */
 	getCategory(actionId: string): string;
-
-	/**
-	 * Returns the keywords associated with the given action or null iff none.
-	 */
-	getKeywords(actionId: string): string[];
 }
 
 interface IActionMeta {
+	alias: string;
 	category?: string;
-	keywords?: string[];
 }
 
 class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
@@ -75,28 +73,17 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 		this.mapActionIdToMeta = Object.create(null);
 	}
 
-	public registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string): void;
-	public registerWorkbenchAction(descriptor: SyncActionDescriptor, keywords?: string[]): void;
-	public registerWorkbenchAction(descriptor: SyncActionDescriptor, category?: string, keywords?: string[]): void;
-	public registerWorkbenchAction(descriptor: SyncActionDescriptor, categoryOrKeywords?: string|string[], keywords?: string[]): void {
+	public registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): void {
 		if (!this.workbenchActions[descriptor.id]) {
 			this.workbenchActions[descriptor.id] = descriptor;
 			registerWorkbenchCommandFromAction(descriptor);
 
-			let meta:IActionMeta;
-			if (typeof categoryOrKeywords === 'string') {
-				meta = { category: categoryOrKeywords };
-
-				if (keywords) {
-					meta.keywords = keywords;
-				}
-			} else {
-				meta = { keywords: categoryOrKeywords };
+			let meta: IActionMeta = { alias };
+			if (typeof category === 'string') {
+				meta.category = category;
 			}
 
-			if (meta) {
-				this.mapActionIdToMeta[descriptor.id] = meta;
-			}
+			this.mapActionIdToMeta[descriptor.id] = meta;
 		}
 	}
 
@@ -119,8 +106,8 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 		return (this.mapActionIdToMeta[id] && this.mapActionIdToMeta[id].category) || null;
 	}
 
-	public getKeywords(id: string): string[] {
-		return (this.mapActionIdToMeta[id] && this.mapActionIdToMeta[id].keywords) || null;
+	public getAlias(id: string): string {
+		return (this.mapActionIdToMeta[id] && this.mapActionIdToMeta[id].alias) || null;
 	}
 
 	public getWorkbenchActions(): SyncActionDescriptor[] {
@@ -131,7 +118,7 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 		this.workbenchActions = Object.create(null);
 		this.mapActionIdToMeta = Object.create(null);
 
-		actions.forEach(action => this.registerWorkbenchAction(action), this);
+		actions.forEach(action => this.registerWorkbenchAction(action, ''), this);
 	}
 }
 

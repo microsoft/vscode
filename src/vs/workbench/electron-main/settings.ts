@@ -6,21 +6,34 @@
 'use strict';
 
 import {app} from 'electron';
+import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { UserSettings, ISettings } from 'vs/workbench/node/userSettings';
+import { IEnvironmentService } from 'vs/workbench/electron-main/env';
+import Event from 'vs/base/common/event';
 
-import env = require('vs/workbench/electron-main/env');
-import {UserSettings} from 'vs/workbench/node/userSettings';
+export const ISettingsService = createDecorator<ISettingsService>('settingsService');
 
-export class SettingsManager extends UserSettings {
+export interface ISettingsService {
+	serviceId: ServiceIdentifier<any>;
+	globalSettings: ISettings;
+	loadSync(): boolean;
+	getValue(key: string, fallback?: any): any;
+	onChange: Event<ISettings>;
+}
 
-	constructor() {
-		super(env.appSettingsPath, env.appKeybindingsPath);
+export class SettingsManager extends UserSettings implements ISettingsService {
+
+	serviceId = ISettingsService;
+
+	constructor(@IEnvironmentService envService: IEnvironmentService) {
+		super(envService.appSettingsPath, envService.appKeybindingsPath);
 
 		app.on('will-quit', () => {
 			this.dispose();
 		});
 	}
 
-	public loadSync(): boolean {
+	loadSync(): boolean {
 		const settingsChanged = super.loadSync();
 
 		// Store into global so that any renderer can access the value with remote.getGlobal()
@@ -31,5 +44,3 @@ export class SettingsManager extends UserSettings {
 		return settingsChanged;
 	}
 }
-
-export const manager = new SettingsManager();

@@ -33,4 +33,4 @@ export class ToggleSidebarVisibilityAction extends Action {
 }
 
 let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarVisibilityAction, ID, LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), nls.localize('view', "View"), ['side', 'bar', 'visibility']);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarVisibilityAction, ID, LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', nls.localize('view', "View"));

@@ -6,16 +6,6 @@
 
 import * as Types from 'vs/base/common/types';
 
-/**
- * Equalable objects can compute a
- * hash-code and can also tell if they
- * are equal to other objects.
- */
-export interface IEqualable {
-	equals(other: any): boolean;
-}
-
-
 export function clone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;

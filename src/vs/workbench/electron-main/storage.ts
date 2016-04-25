@@ -9,82 +9,100 @@
 import path = require('path');
 import fs = require('fs');
 import events = require('events');
-
 import env = require('vs/workbench/electron-main/env');
-
-const dbPath = path.join(env.appHome, 'storage.json');
-let database: any = null;
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
 	STORE: 'store'
 };
 
-const eventEmitter = new events.EventEmitter();
+export const IStorageService = createDecorator<IStorageService>('storageService');
 
-export function onStore<T>(clb: (key: string, oldValue: T, newValue: T) => void): () => void {
-	eventEmitter.addListener(EventTypes.STORE, clb);
-
-	return () => eventEmitter.removeListener(EventTypes.STORE, clb);
+export interface IStorageService {
+	serviceId: ServiceIdentifier<any>;
+	onStore<T>(clb: (key: string, oldValue: T, newValue: T) => void): () => void;
+	getItem<T>(key: string, defaultValue?: T): T;
+	setItem(key: string, data: any): void;
+	removeItem(key: string): void;
 }
 
-export function getItem<T>(key: string, defaultValue?: T): T {
-	if (!database) {
-		database = load();
+export class StorageService implements IStorageService {
+
+	serviceId = IStorageService;
+
+	private dbPath: string;
+	private database: any = null;
+	private eventEmitter = new events.EventEmitter();
+
+	constructor(@env.IEnvironmentService private envService: env.IEnvironmentService) {
+		this.dbPath = path.join(envService.appHome, 'storage.json');
 	}
 
-	const res = database[key];
-	if (typeof res === 'undefined') {
-		return defaultValue;
+	onStore<T>(clb: (key: string, oldValue: T, newValue: T) => void): () => void {
+		this.eventEmitter.addListener(EventTypes.STORE, clb);
+
+		return () => this.eventEmitter.removeListener(EventTypes.STORE, clb);
 	}
 
-	return database[key];
-}
+	getItem<T>(key: string, defaultValue?: T): T {
+		if (!this.database) {
+			this.database = this.load();
+		}
 
-export function setItem(key: string, data: any): void {
-	if (!database) {
-		database = load();
+		const res = this.database[key];
+		if (typeof res === 'undefined') {
+			return defaultValue;
+		}
+
+		return this.database[key];
 	}
 
-	// Shortcut for primitives that did not change
-	if (typeof data === 'string' || typeof data === 'number' || typeof data === 'boolean') {
-		if (database[key] === data) {
-			return;
+	setItem(key: string, data: any): void {
+		if (!this.database) {
+			this.database = this.load();
+		}
+
+		// Shortcut for primitives that did not change
+		if (typeof data === 'string' || typeof data === 'number' || typeof data === 'boolean') {
+			if (this.database[key] === data) {
+				return;
+			}
+		}
+
+		let oldValue = this.database[key];
+		this.database[key] = data;
+		this.save();
+
+		this.eventEmitter.emit(EventTypes.STORE, key, oldValue, data);
+	}
+
+	removeItem(key: string): void {
+		if (!this.database) {
+			this.database = this.load();
+		}
+
+		if (this.database[key]) {
+			let oldValue = this.database[key];
+			delete this.database[key];
+			this.save();
+
+			this.eventEmitter.emit(EventTypes.STORE, key, oldValue, null);
 		}
 	}
 
-	let oldValue = database[key];
-	database[key] = data;
-	save();
+	private load(): any {
+		try {
+			return JSON.parse(fs.readFileSync(this.dbPath).toString());
+		} catch (error) {
+			if (this.envService.cliArgs.verboseLogging) {
+				console.error(error);
+			}
 
-	eventEmitter.emit(EventTypes.STORE, key, oldValue, data);
-}
-
-export function removeItem(key: string): void {
-	if (!database) {
-		database = load();
-	}
-
-	if (database[key]) {
-		let oldValue = database[key];
-		delete database[key];
-		save();
-
-		eventEmitter.emit(EventTypes.STORE, key, oldValue, null);
-	}
-}
-
-function load(): any {
-	try {
-		return JSON.parse(fs.readFileSync(dbPath).toString());
-	} catch (error) {
-		if (env.cliArgs.verboseLogging) {
-			console.error(error);
+			return {};
 		}
-
-		return {};
 	}
-}
 
-function save(): void {
-	fs.writeFileSync(dbPath, JSON.stringify(database, null, 4));
+	private save(): void {
+		fs.writeFileSync(this.dbPath, JSON.stringify(this.database, null, 4));
+	}
 }

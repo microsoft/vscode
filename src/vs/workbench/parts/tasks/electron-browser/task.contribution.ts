@@ -98,7 +98,7 @@ class AbstractTaskAction extends Action {
 
 class BuildAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.build';
-	public static TEXT = nls.localize('BuildAction.label','Run Build Task');
+	public static TEXT = nls.localize('BuildAction.label', "Run Build Task");
 
 	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
@@ -115,7 +115,7 @@ class BuildAction extends AbstractTaskAction {
 
 class TestAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.test';
-	public static TEXT = nls.localize('TestAction.label','Run Test Task');
+	public static TEXT = nls.localize('TestAction.label', "Run Test Task");
 
 	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
@@ -167,7 +167,7 @@ class CleanAction extends AbstractTaskAction {
 class ConfigureTaskRunnerAction extends Action {
 
 	public static ID = 'workbench.action.tasks.configureTaskRunner';
-	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', 'Configure Task Runner');
+	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
 
 	private configurationService: IConfigurationService;
 	private fileService: IFileService;
@@ -228,7 +228,7 @@ class ConfigureTaskRunnerAction extends Action {
 							let content = JSON.stringify(config, null, '\t');
 							content = [
 								'{',
-									'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
+									'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
 									'\t// for the documentation about the tasks.json format',
 							].join('\n') + content.substr(1);
 							return content;
@@ -284,7 +284,7 @@ class CloseMessageAction extends Action {
 
 class TerminateAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.terminate';
-	public static TEXT = nls.localize('TerminateAction.label', 'Terminate Running Task');
+	public static TEXT = nls.localize('TerminateAction.label', "Terminate Running Task");
 
 	constructor(id: string, label: string, @ITaskService taskService:ITaskService, @ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService:IMessageService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
@@ -311,7 +311,7 @@ class TerminateAction extends AbstractTaskAction {
 
 class ShowLogAction extends AbstractTaskAction {
 	public static ID = 'workbench.action.tasks.showLog';
-	public static TEXT = nls.localize('ShowLogAction.label', 'Show Task Log');
+	public static TEXT = nls.localize('ShowLogAction.label', "Show Task Log");
 
 	private outputService: IOutputService;
 
@@ -888,14 +888,14 @@ class TaskService extends EventEmitter implements ITaskService {
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), tasksCategory, ['configure', 'task', 'runner']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(BuildAction, BuildAction.ID, BuildAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B }), tasksCategory, ['run', 'build', 'task']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TestAction, TestAction.ID, TestAction.TEXT), tasksCategory, ['run', 'test', 'talk']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), 'Tasks: Configure Task Runner', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(BuildAction, BuildAction.ID, BuildAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B }), 'Tasks: Run Build Task', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TestAction, TestAction.ID, TestAction.TEXT), 'Tasks: Run Test Task', tasksCategory);
 // workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RebuildAction, RebuildAction.ID, RebuildAction.TEXT), tasksCategory);
 // workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CleanAction, CleanAction.ID, CleanAction.TEXT), tasksCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminateAction, TerminateAction.ID, TerminateAction.TEXT), tasksCategory, ['terminate', 'running', 'task']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogAction, ShowLogAction.ID, ShowLogAction.TEXT), tasksCategory, ['task', 'log']);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunTaskAction, RunTaskAction.ID, RunTaskAction.TEXT), tasksCategory, ['run', 'task']);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminateAction, TerminateAction.ID, TerminateAction.TEXT), 'Tasks: Terminate Running Task', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogAction, ShowLogAction.ID, ShowLogAction.TEXT), 'Tasks: Show Task Log', tasksCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunTaskAction, RunTaskAction.ID, RunTaskAction.TEXT), 'Tasks: Run Task', tasksCategory);
 
 // Task Service
 registerSingleton(ITaskService, TaskService);

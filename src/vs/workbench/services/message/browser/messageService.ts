@@ -12,7 +12,6 @@ import {StatusbarAlignment} from 'vs/workbench/browser/parts/statusbar/statusbar
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
 import Event from 'vs/base/common/event';
 
@@ -33,7 +32,6 @@ export class WorkbenchMessageService implements IMessageService {
 	private canShowMessages: boolean;
 	private messageBuffer: IBufferedMessage[];
 
-	private quickOpenService: IQuickOpenService;
 	private statusbarService: IStatusbarService;
 
 	constructor(
@@ -46,12 +44,8 @@ export class WorkbenchMessageService implements IMessageService {
 		this.disposeables = [];
 	}
 
-	public setWorkbenchServices(quickOpenService: IQuickOpenService, statusbarService: IStatusbarService): void {
+	public setWorkbenchServices(statusbarService: IStatusbarService): void {
 		this.statusbarService = statusbarService;
-		this.quickOpenService = quickOpenService;
-
-		this.disposeables.push(this.quickOpenService.onShow(this.onQuickOpenShowing, this));
-		this.disposeables.push(this.quickOpenService.onHide(this.onQuickOpenHiding, this));
 	}
 
 	public get onMessagesShowing(): Event<void> {
@@ -62,14 +56,14 @@ export class WorkbenchMessageService implements IMessageService {
 		return this.handler.onMessagesCleared;
 	}
 
-	private onQuickOpenShowing(): void {
-		this.canShowMessages = false; // when quick open is open, don't show messages behind
-		this.handler.hide(); // hide messages when quick open is visible
+	public suspend(): void {
+		this.canShowMessages = false;
+		this.handler.hide();
 	}
 
-	private onQuickOpenHiding(): void {
+	public resume(): void {
 		this.canShowMessages = true;
-		this.handler.show(); // make sure the handler is visible
+		this.handler.show();
 
 		// Release messages from buffer
 		while (this.messageBuffer.length) {

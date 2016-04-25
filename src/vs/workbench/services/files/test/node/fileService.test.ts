@@ -265,6 +265,18 @@ suite('FileService', () => {
 		});
 	});
 
+	test('existsFile', function (done: () => void) {
+		service.existsFile(uri.file(testDir)).then((exists) => {
+			assert.equal(exists, true);
+
+			service.existsFile(uri.file(testDir + 'something')).then((exists) => {
+				assert.equal(exists, false);
+
+				done();
+			});
+		});
+	});
+
 	test('updateContent', function (done: () => void) {
 		let resource = uri.file(path.join(testDir, 'small.txt'));
 

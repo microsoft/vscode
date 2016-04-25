@@ -127,28 +127,28 @@ suite('Editor Modes - Link Computer', () => {
 			'     http://mylink.com      '
 		);
 		assertLink(
-			'// Click here to learn more. http://go.microsoft.com/fwlink/?LinkID=513275&clcid=0x409',
-			'                             http://go.microsoft.com/fwlink/?LinkID=513275&clcid=0x409'
+			'// Click here to learn more. https://go.microsoft.com/fwlink/?LinkID=513275&clcid=0x409',
+			'                             https://go.microsoft.com/fwlink/?LinkID=513275&clcid=0x409'
 		);
 		assertLink(
-			'// Click here to learn more. http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx',
-			'                             http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx'
+			'// Click here to learn more. https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx',
+			'                             https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx'
 		);
 		assertLink(
 			'// https://github.com/projectkudu/kudu/blob/master/Kudu.Core/Scripts/selectNodeVersion.js',
 			'   https://github.com/projectkudu/kudu/blob/master/Kudu.Core/Scripts/selectNodeVersion.js'
 		);
 		assertLink(
-			'<!-- !!! Do not remove !!!   WebContentRef(link:http://go.microsoft.com/fwlink/?LinkId=166007, area:Admin, updated:2015, nextUpdate:2016, tags:SqlServer)   !!! Do not remove !!! -->',
-			'                                                http://go.microsoft.com/fwlink/?LinkId=166007                                                                                        '
+			'<!-- !!! Do not remove !!!   WebContentRef(link:https://go.microsoft.com/fwlink/?LinkId=166007, area:Admin, updated:2015, nextUpdate:2016, tags:SqlServer)   !!! Do not remove !!! -->',
+			'                                                https://go.microsoft.com/fwlink/?LinkId=166007                                                                                        '
 		);
 		assertLink(
-			'For instructions, see http://go.microsoft.com/fwlink/?LinkId=166007.</value>',
-			'                      http://go.microsoft.com/fwlink/?LinkId=166007         '
+			'For instructions, see https://go.microsoft.com/fwlink/?LinkId=166007.</value>',
+			'                      https://go.microsoft.com/fwlink/?LinkId=166007         '
 		);
 		assertLink(
-			'For instructions, see http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx.</value>',
-			'                      http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx         '
+			'For instructions, see https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx.</value>',
+			'                      https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx         '
 		);
 
 		// foo bar (see http://www.w3schools.com/tags/att_iframe_sandbox.asp)

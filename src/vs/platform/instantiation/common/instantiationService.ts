@@ -19,9 +19,11 @@ export class InstantiationService implements IInstantiationService {
 	serviceId: any;
 
 	private _services: ServiceCollection;
+	private _strict: boolean;
 
-	constructor(services: ServiceCollection = new ServiceCollection()) {
+	constructor(services: ServiceCollection = new ServiceCollection(), strict: boolean = false) {
 		this._services = services;
+		this._strict = strict;
 
 		this._services.set(IInstantiationService, this);
 	}
@@ -32,7 +34,7 @@ export class InstantiationService implements IInstantiationService {
 				services.set(id, thing);
 			}
 		});
-		return new InstantiationService(services);
+		return new InstantiationService(services, this._strict);
 	}
 
 	invokeFunction<R>(signature: (accessor: ServicesAccessor, ...more: any[]) => R, ...args: any[]): R {
@@ -111,7 +113,13 @@ export class InstantiationService implements IInstantiationService {
 
 		// arguments defined by service decorators
 		let serviceDependencies = _util.getServiceDependencies(desc.ctor).sort((a, b) => a.index - b.index);
-		let serviceArgs = serviceDependencies.map(dependency => this._getOrCreateServiceInstance(dependency.id));
+		let serviceArgs = serviceDependencies.map(dependency => {
+			let service = this._getOrCreateServiceInstance(dependency.id);
+			if (!service && this._strict && !dependency.optional) {
+				throw new Error(`[createInstance] ${desc.ctor.name} depends on UNKNOWN service ${dependency.id}.`);
+			}
+			return service;
+		});
 		let firstServiceArgPos = serviceDependencies.length > 0 ? serviceDependencies[0].index : staticArgs.length;
 
 		// check for argument mismatches, adjust static args if needed
@@ -126,6 +134,13 @@ export class InstantiationService implements IInstantiationService {
 				staticArgs = staticArgs.slice(0, firstServiceArgPos);
 			}
 		}
+
+		// // check for missing args
+		// for (let i = 0; i < serviceArgs.length; i++) {
+		// 	if (!serviceArgs[i]) {
+		// 		console.warn(`${desc.ctor.name} MISSES service dependency ${serviceDependencies[i].id}`, new Error().stack);
+		// 	}
+		// }
 
 		// now create the instance
 		const argArray = [desc.ctor];
