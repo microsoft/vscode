@@ -195,7 +195,7 @@ export class EnvService implements IEnvironmentService {
 			fs.mkdirSync(this._userHome);
 		}
 
-		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this.userHome, 'extensions');
+		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
 
 		// TODO move out of here!
 		if (!fs.existsSync(this._userExtensionsHome)) {
