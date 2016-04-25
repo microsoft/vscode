@@ -10,8 +10,8 @@ import path = require('path');
 import events = require('events');
 import electron = require('electron');
 import platform = require('vs/base/common/platform');
-import { IEnvService, getPlatformIdentifier } from 'vs/workbench/electron-main/env';
-import { ISettingsManager } from 'vs/workbench/electron-main/settings';
+import { IEnvironmentService, getPlatformIdentifier } from 'vs/workbench/electron-main/env';
+import { ISettingsService } from 'vs/workbench/electron-main/settings';
 import { Win32AutoUpdaterImpl } from 'vs/workbench/electron-main/auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from 'vs/workbench/electron-main/auto-updater.linux';
 import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
@@ -42,9 +42,9 @@ interface IAutoUpdater extends NodeJS.EventEmitter {
 	checkForUpdates(): void;
 }
 
-export const IUpdateManager = createDecorator<IUpdateManager>('updateManager');
+export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
-export interface IUpdateManager {
+export interface IUpdateService {
 	serviceId: ServiceIdentifier<any>;
 	feedUrl: string;
 	channel: string;
@@ -56,9 +56,9 @@ export interface IUpdateManager {
 	on(event: string, listener: Function): this;
 }
 
-export class UpdateManager extends events.EventEmitter implements IUpdateManager {
+export class UpdateManager extends events.EventEmitter implements IUpdateService {
 
-	serviceId = IUpdateManager;
+	serviceId = IUpdateService;
 
 	private _state: State;
 	private explicitState: ExplicitState;
@@ -71,8 +71,8 @@ export class UpdateManager extends events.EventEmitter implements IUpdateManager
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEnvService private envService: IEnvService,
-		@ISettingsManager private settingsManager: ISettingsManager
+		@IEnvironmentService private envService: IEnvironmentService,
+		@ISettingsService private settingsManager: ISettingsService
 	) {
 		super();
 

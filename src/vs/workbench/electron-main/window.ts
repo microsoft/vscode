@@ -12,7 +12,7 @@ import {shell, screen, BrowserWindow} from 'electron';
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
-import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/workbench/electron-main/env';
+import { ICommandLineArguments, IEnvironmentService, IProcessEnvironment } from 'vs/workbench/electron-main/env';
 import storage = require('vs/workbench/electron-main/storage');
 import { ILogService } from './log';
 
@@ -158,7 +158,7 @@ export class VSCodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
-		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private envService: IEnvironmentService,
 		@storage.IStorageService private storageService: storage.IStorageService
 	) {
 		this._lastFocusTime = -1;

@@ -13,7 +13,7 @@ import fs = require('fs');
 import {ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog} from 'electron';
 
 import platform = require('vs/base/common/platform');
-import { ICommandLineArguments, IProcessEnvironment, IEnvService, IParsedPath, parseLineAndColumnAware } from 'vs/workbench/electron-main/env';
+import { ICommandLineArguments, IProcessEnvironment, IEnvironmentService, IParsedPath, parseLineAndColumnAware } from 'vs/workbench/electron-main/env';
 import window = require('vs/workbench/electron-main/window');
 import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
 import nls = require('vs/nls');
@@ -21,8 +21,8 @@ import paths = require('vs/base/common/paths');
 import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
 import storage = require('vs/workbench/electron-main/storage');
-import {ISettingsManager} from 'vs/workbench/electron-main/settings';
-import {IUpdateManager, IUpdate} from 'vs/workbench/electron-main/update-manager';
+import {ISettingsService} from 'vs/workbench/electron-main/settings';
+import {IUpdateService, IUpdate} from 'vs/workbench/electron-main/update-manager';
 import { ILogService } from './log';
 import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -74,9 +74,9 @@ interface INativeOpenDialogOptions {
 	pickFiles?: boolean;
 }
 
-export const IWindowsManager = createDecorator<IWindowsManager>('windowsManager');
+export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
-export interface IWindowsManager {
+export interface IWindowsService {
 	serviceId: ServiceIdentifier<any>;
 
 	// TODO make proper events
@@ -105,9 +105,9 @@ export interface IWindowsManager {
 	getWindowCount(): number;
 }
 
-export class WindowsManager implements IWindowsManager {
+export class WindowsManager implements IWindowsService {
 
-	serviceId = IWindowsManager;
+	serviceId = IWindowsService;
 
 	public static openedPathsListStorageKey = 'openedPathsList';
 
@@ -124,10 +124,10 @@ export class WindowsManager implements IWindowsManager {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
 		@storage.IStorageService private storageService: storage.IStorageService,
-		@IEnvService private envService: IEnvService,
+		@IEnvironmentService private envService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IUpdateManager private updateManager: IUpdateManager,
-		@ISettingsManager private settingsManager: ISettingsManager
+		@IUpdateService private updateManager: IUpdateService,
+		@ISettingsService private settingsManager: ISettingsService
 	) {	}
 
 	onOpen(clb: (path: window.IPath) => void): () => void {

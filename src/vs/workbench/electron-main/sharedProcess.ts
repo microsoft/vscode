@@ -8,14 +8,14 @@ import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
-import { IEnvService } from 'vs/workbench/electron-main/env';
-import { ISettingsManager } from 'vs/workbench/electron-main/settings';
-import { IUpdateManager } from 'vs/workbench/electron-main/update-manager';
+import { IEnvironmentService } from 'vs/workbench/electron-main/env';
+import { ISettingsService } from 'vs/workbench/electron-main/settings';
+import { IUpdateService } from 'vs/workbench/electron-main/update-manager';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 
-function getEnvironment(envService: IEnvService, updateManager: IUpdateManager): IEnvironment {
+function getEnvironment(envService: IEnvironmentService, updateManager: IUpdateService): IEnvironment {
 	let configuration: IEnvironment = assign({}, envService.cliArgs);
 	configuration.execPath = process.execPath;
 	configuration.appName = envService.product.nameLong;
@@ -34,7 +34,7 @@ function getEnvironment(envService: IEnvService, updateManager: IUpdateManager):
 	return configuration;
 }
 
-function _spawnSharedProcess(envService: IEnvService, updateManager: IUpdateManager, settingsManager: ISettingsManager): cp.ChildProcess {
+function _spawnSharedProcess(envService: IEnvironmentService, updateManager: IUpdateService, settingsManager: ISettingsService): cp.ChildProcess {
 	// Make sure the nls configuration travels to the shared process.
 	const opts = {
 		env: assign(assign({}, process.env), {
@@ -62,9 +62,9 @@ function _spawnSharedProcess(envService: IEnvService, updateManager: IUpdateMana
 let spawnCount = 0;
 
 export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
-	const envService = accessor.get(IEnvService);
-	const updateManager = accessor.get(IUpdateManager);
-	const settingsManager = accessor.get(ISettingsManager);
+	const envService = accessor.get(IEnvironmentService);
+	const updateManager = accessor.get(IUpdateService);
+	const settingsManager = accessor.get(ISettingsService);
 
 	let child: cp.ChildProcess;
 

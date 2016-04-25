@@ -41,7 +41,7 @@ export class LifecycleService implements ILifecycleService {
 	private oneTimeListenerTokenGenerator: number;
 
 	constructor(
-		@env.IEnvService private envService: env.IEnvService,
+		@env.IEnvironmentService private envService: env.IEnvironmentService,
 		@ILogService private logService: ILogService
 	) {
 		this.windowToCloseRequest = Object.create(null);

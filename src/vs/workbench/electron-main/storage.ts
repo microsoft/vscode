@@ -34,7 +34,7 @@ export class StorageService implements IStorageService {
 	private database: any = null;
 	private eventEmitter = new events.EventEmitter();
 
-	constructor(@env.IEnvService private envService: env.IEnvService) {
+	constructor(@env.IEnvironmentService private envService: env.IEnvironmentService) {
 		this.dbPath = path.join(envService.appHome, 'storage.json');
 	}
 

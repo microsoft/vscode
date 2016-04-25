@@ -10,8 +10,8 @@ import { isString } from 'vs/base/common/types';
 import { Promise } from 'vs/base/common/winjs.base';
 import { json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { ISettingsManager } from 'vs/workbench/electron-main/settings';
-import { IEnvService } from 'vs/workbench/electron-main/env';
+import { ISettingsService } from 'vs/workbench/electron-main/settings';
+import { IEnvironmentService } from 'vs/workbench/electron-main/env';
 
 export interface IUpdate {
 	url: string;
@@ -26,8 +26,8 @@ export class LinuxAutoUpdaterImpl extends events.EventEmitter {
 	private currentRequest: Promise;
 
 	constructor(
-		@IEnvService private envService: IEnvService,
-		@ISettingsManager private settingsManager: ISettingsManager
+		@IEnvironmentService private envService: IEnvironmentService,
+		@ISettingsService private settingsManager: ISettingsService
 	) {
 		super();
 

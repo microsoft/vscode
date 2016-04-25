@@ -10,11 +10,11 @@ import {ipcMain as ipc, app, shell, dialog, Menu, MenuItem} from 'electron';
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import arrays = require('vs/base/common/arrays');
-import { IWindowsManager, WindowsManager, IOpenedPathsList } from 'vs/workbench/electron-main/windows';
+import { IWindowsService, WindowsManager, IOpenedPathsList } from 'vs/workbench/electron-main/windows';
 import window = require('vs/workbench/electron-main/window');
 import env = require('vs/workbench/electron-main/env');
 import { IStorageService } from 'vs/workbench/electron-main/storage';
-import { IUpdateManager, State as UpdateState } from 'vs/workbench/electron-main/update-manager';
+import { IUpdateService, State as UpdateState } from 'vs/workbench/electron-main/update-manager';
 import {Keybinding} from 'vs/base/common/keyCodes';
 
 interface IResolvedKeybinding {
@@ -38,9 +38,9 @@ export class VSCodeMenu {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@IUpdateManager private updateManager: IUpdateManager,
-		@IWindowsManager private windowsManager: IWindowsManager,
-		@env.IEnvService private envService: env.IEnvService
+		@IUpdateService private updateManager: IUpdateService,
+		@IWindowsService private windowsManager: IWindowsService,
+		@env.IEnvironmentService private envService: env.IEnvironmentService
 	) {
 		this.actionIdKeybindingRequests = [];
 

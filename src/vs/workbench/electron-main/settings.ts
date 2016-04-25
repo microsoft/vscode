@@ -8,12 +8,12 @@
 import {app} from 'electron';
 import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { UserSettings, ISettings } from 'vs/workbench/node/userSettings';
-import { IEnvService } from 'vs/workbench/electron-main/env';
+import { IEnvironmentService } from 'vs/workbench/electron-main/env';
 import Event from 'vs/base/common/event';
 
-export const ISettingsManager = createDecorator<ISettingsManager>('settingsManager');
+export const ISettingsService = createDecorator<ISettingsService>('settingsService');
 
-export interface ISettingsManager {
+export interface ISettingsService {
 	serviceId: ServiceIdentifier<any>;
 	globalSettings: ISettings;
 	loadSync(): boolean;
@@ -21,11 +21,11 @@ export interface ISettingsManager {
 	onChange: Event<ISettings>;
 }
 
-export class SettingsManager extends UserSettings implements ISettingsManager {
+export class SettingsManager extends UserSettings implements ISettingsService {
 
-	serviceId = ISettingsManager;
+	serviceId = ISettingsService;
 
-	constructor(@IEnvService envService: IEnvService) {
+	constructor(@IEnvironmentService envService: IEnvironmentService) {
 		super(envService.appSettingsPath, envService.appKeybindingsPath);
 
 		app.on('will-quit', () => {

@@ -82,9 +82,9 @@ export interface ICommandLineArguments {
 	waitForWindowClose?: boolean;
 }
 
-export const IEnvService = createDecorator<IEnvService>('environmentService');
+export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
-export interface IEnvService {
+export interface IEnvironmentService {
 	serviceId: ServiceIdentifier<any>;
 	cliArgs: ICommandLineArguments;
 	userExtensionsHome: string;
@@ -105,9 +105,9 @@ export interface IEnvService {
 	sharedIPCHandle: string;
 }
 
-export class EnvService implements IEnvService {
+export class EnvService implements IEnvironmentService {
 
-	serviceId = IEnvService;
+	serviceId = IEnvironmentService;
 
 	private _cliArgs: ICommandLineArguments;
 	get cliArgs(): ICommandLineArguments { return this._cliArgs; }

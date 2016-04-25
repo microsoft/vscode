@@ -15,9 +15,9 @@ import { isString } from 'vs/base/common/types';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { ISettingsManager  } from 'vs/workbench/electron-main/settings';
+import { ISettingsService  } from 'vs/workbench/electron-main/settings';
 import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
-import { IEnvService } from './env';
+import { IEnvironmentService } from './env';
 
 export interface IUpdate {
 	url: string;
@@ -33,8 +33,8 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEnvService private envService: IEnvService,
-		@ISettingsManager private settingsManager: ISettingsManager
+		@IEnvironmentService private envService: IEnvironmentService,
+		@ISettingsService private settingsManager: ISettingsService
 	) {
 		super();
 

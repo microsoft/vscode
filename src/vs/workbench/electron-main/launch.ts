@@ -6,7 +6,7 @@
 'use strict';
 
 import { ICommandLineArguments, IProcessEnvironment } from 'vs/workbench/electron-main/env';
-import { IWindowsManager } from 'vs/workbench/electron-main/windows';
+import { IWindowsService } from 'vs/workbench/electron-main/windows';
 import { VSCodeWindow } from 'vs/workbench/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -45,7 +45,7 @@ export class LaunchService implements ILaunchService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IWindowsManager private windowsManager: IWindowsManager
+		@IWindowsService private windowsManager: IWindowsService
 	) {}
 
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
