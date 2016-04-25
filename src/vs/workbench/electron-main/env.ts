@@ -148,9 +148,13 @@ export class EnvService implements IEnvironmentService {
 		// Remove the Electron executable
 		let [, ...args] = process.argv;
 
-		// If dev, remove the first argument: it's the app location
+		// If dev, remove the first non-option argument: it's the app location
 		if (!this.isBuilt) {
-			[, ...args] = args;
+			const index = arrays.firstIndex(args, a => !/^-/.test(a));
+
+			if (index > -1) {
+				args.splice(index, 1);
+			}
 		}
 
 		// Finally, prepend any extra arguments from the 'argv' file
