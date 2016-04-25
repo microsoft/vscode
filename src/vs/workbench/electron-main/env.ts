@@ -160,9 +160,10 @@ export class EnvService implements IEnvironmentService {
 		}
 
 		const argv = parseArgs(args);
+
 		const debugBrkExtensionHostPort = getNumericValue(argv.debugBrkPluginHost, 5870);
 		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
-		const pathArguments = parsePathArguments(this._currentWorkingDirectory, args, argv.goto);
+		const pathArguments = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 		const timestamp = parseInt(argv.timestamp);
 
 		this._cliArgs = Object.freeze({
@@ -251,48 +252,45 @@ export class EnvService implements IEnvironmentService {
 	}
 }
 
-function parsePathArguments(cwd: string, argv: string[], gotoLineMode?: boolean): string[] {
-	return arrays.coalesce(							// no invalid paths
-		arrays.distinct(							// no duplicates
-			argv.filter(a => !(/^-/.test(a))) 		// arguments without leading "-"
-				.map((arg) => {
-					let pathCandidate = arg;
+function parsePathArguments(cwd: string, args: string[], gotoLineMode?: boolean): string[] {
+	const result = args.map(arg => {
+		let pathCandidate = arg;
 
-					let parsedPath: IParsedPath;
-					if (gotoLineMode) {
-						parsedPath = parseLineAndColumnAware(arg);
-						pathCandidate = parsedPath.path;
-					}
+		let parsedPath: IParsedPath;
+		if (gotoLineMode) {
+			parsedPath = parseLineAndColumnAware(arg);
+			pathCandidate = parsedPath.path;
+		}
 
-					if (pathCandidate) {
-						pathCandidate = preparePath(cwd, pathCandidate);
-					}
+		if (pathCandidate) {
+			pathCandidate = preparePath(cwd, pathCandidate);
+		}
 
-					let realPath: string;
-					try {
-						realPath = fs.realpathSync(pathCandidate);
-					} catch (error) {
-						// in case of an error, assume the user wants to create this file
-						// if the path is relative, we join it to the cwd
-						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
-					}
+		let realPath: string;
+		try {
+			realPath = fs.realpathSync(pathCandidate);
+		} catch (error) {
+			// in case of an error, assume the user wants to create this file
+			// if the path is relative, we join it to the cwd
+			realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
+		}
 
-					if (!paths.isValidBasename(path.basename(realPath))) {
-						return null; // do not allow invalid file names
-					}
+		if (!paths.isValidBasename(path.basename(realPath))) {
+			return null; // do not allow invalid file names
+		}
 
-					if (gotoLineMode) {
-						parsedPath.path = realPath;
-						return toLineAndColumnPath(parsedPath);
-					}
+		if (gotoLineMode) {
+			parsedPath.path = realPath;
+			return toLineAndColumnPath(parsedPath);
+		}
 
-					return realPath;
-				}),
-			(element) => {
-				return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
-			}
-		)
-	);
+		return realPath;
+	});
+
+	const caseInsensitive = platform.isWindows || platform.isMacintosh;
+	const distinct = arrays.distinct(result, e => e && caseInsensitive ? e.toLowerCase() : e);
+
+	return arrays.coalesce(distinct);
 }
 
 function preparePath(cwd: string, p: string): string {
