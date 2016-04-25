@@ -9,7 +9,7 @@ import * as os from 'os';
 import { spawn } from 'child_process';
 import uri from 'vs/base/common/uri';
 import { assign } from 'vs/base/common/objects';
-import * as minimist from 'minimist';
+import { parseArgs } from './argv';
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
 const packageJsonPath = path.join(rootPath, 'package.json');
@@ -36,20 +36,8 @@ ${ indent }                      useful when running as root.
 ${ indent }-v, --version         Print version.
 ${ indent }-w, --wait            Wait for the window to be closed before returning.`;
 
-interface ParsedArgs extends minimist.ParsedArgs {
-	help: boolean;
-	version: boolean;
-	wait: boolean;
-}
-
 export function main(args: string[]) {
-	const argv = minimist(args, {
-		alias: {
-			help: 'h',
-			version: 'v',
-			wait: 'w'
-		}
-	}) as ParsedArgs;
+	const argv = parseArgs(args);
 
 	if (argv.help) {
 		console.log(help);
