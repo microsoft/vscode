@@ -2816,6 +2816,13 @@ declare namespace vscode {
 	export namespace env {
 
 		/**
+		 * The application name of the editor, like 'VS Code'.
+		 *
+		 * @readonly
+		 */
+		export let appName: string;
+
+		/**
 		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
 		 *
 		 * @readonly
