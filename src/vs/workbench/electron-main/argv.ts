@@ -14,10 +14,27 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 }
 
 const options: minimist.Opts = {
+	string: [
+		'locale',
+		'user-data-dir'
+	],
+	boolean: [
+		'help',
+		'version',
+		'wait',
+		'diff',
+		'goto',
+		'new-window',
+		'reuse-window'
+	],
 	alias: {
 		help: 'h',
 		version: 'v',
-		wait: 'w'
+		wait: 'w',
+		diff: 'd',
+		goto: 'g',
+		'new-window': 'n',
+		'reuse-window': 'r'
 	}
 };
 
