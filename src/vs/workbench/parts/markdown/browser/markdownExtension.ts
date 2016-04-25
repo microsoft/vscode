@@ -17,7 +17,7 @@ import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEd
 import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -37,7 +37,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 	private static RELOAD_MARKDOWN_DELAY = 300; // delay before reloading markdown preview after user typing
 
 	private fileChangeListener: () => void;
-	private configFileChangeListener: () => void;
+	private configFileChangeListener: IDisposable;
 	private themeChangeListener: IDisposable;
 	private editorInputChangeListener: () => void;
 	private markdownConfigurationThumbprint: string;
@@ -65,7 +65,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 
 	private registerListeners(): void {
 		this.fileChangeListener = this.eventService.addListener(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e));
-		this.configFileChangeListener = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigFileChange(e));
+		this.configFileChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigFileChange(e));
 
 		// reload markdown editors when their resources change
 		this.editorInputChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e));
@@ -195,7 +195,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		}
 
 		if (this.configFileChangeListener) {
-			this.configFileChangeListener();
+			this.configFileChangeListener.dispose();
 			this.configFileChangeListener = null;
 		}
 

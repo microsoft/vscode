@@ -11,7 +11,7 @@ import dom = require('vs/base/browser/dom');
 import { IAction } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
-import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class SelectConfigActionItem extends BaseActionItem {
 
@@ -39,7 +39,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 		this.toDispose.push(this.debugService.onDidChangeState(state => {
 			this.select.disabled = state !== State.Inactive;
 		}));
-		this.toDispose.push(configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, e  => {
+		this.toDispose.push(configurationService.onDidUpdateConfiguration(e  => {
 			this.setOptions().done(null, errors.onUnexpectedError);
 		}));
 	}

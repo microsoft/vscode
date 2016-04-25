@@ -5,6 +5,7 @@
 
 'use strict';
 
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {TextFileChangeEvent, EventType} from 'vs/workbench/parts/files/common/files';
@@ -12,13 +13,13 @@ import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IPosition, IEditorSelection, IModel} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 
 // The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
 export class SaveParticipant implements IWorkbenchContribution {
 	private trimTrailingWhitespace: boolean;
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -33,8 +34,8 @@ export class SaveParticipant implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener(EventType.FILE_SAVING, (e: TextFileChangeEvent) => this.onTextFileSaving(e)));
-		this.toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_SAVING, (e: TextFileChangeEvent) => this.onTextFileSaving(e)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -93,8 +94,6 @@ export class SaveParticipant implements IWorkbenchContribution {
 	}
 
 	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }

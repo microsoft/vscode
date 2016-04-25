@@ -25,7 +25,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
-import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
 import {IMessageService} from 'vs/platform/message/common/message';
 
@@ -284,8 +284,8 @@ export class ModelServiceImpl implements IModelService {
 				this._messageService.show(Severity.Info, nls.localize('indentAutoMigrate', "Please update your settings: `editor.detectIndentation` replaces `editor.tabSize`: \"auto\" or `editor.insertSpaces`: \"auto\""));
 			}
 		};
-		
-		this._configurationServiceSubscription = this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+
+		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => {
 			readConfig(e.config);
 		});
 		readConfig(this._configurationService.getConfiguration());

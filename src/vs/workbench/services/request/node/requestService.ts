@@ -14,7 +14,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import timer = require('vs/base/common/timer');
 import platform = require('vs/platform/platform');
 import async = require('vs/base/common/async');
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import rawHttpService = require('vs/workbench/services/request/node/rawHttpService');
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -41,11 +41,11 @@ export class RequestService extends BaseRequestService {
 		this.callOnDispose = [];
 
 		// proxy setting updating
-		this.callOnDispose.push(configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+		this.callOnDispose.push(configurationService.onDidUpdateConfiguration(e => {
 			this.rawHttpServicePromise.then((rawHttpService) => {
 				rawHttpService.configure(e.config.http && e.config.http.proxy, e.config.http.proxyStrictSSL);
 			});
-		}));
+		}).dispose);
 	}
 
 	private _rawHttpServicePromise: TPromise<IRawHttpService>;
