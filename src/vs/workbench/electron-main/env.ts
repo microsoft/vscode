@@ -67,6 +67,20 @@ export interface IEnvironmentService {
 	sharedIPCHandle: string;
 }
 
+function getNumericValue(value: string, defaultValue: number, fallback: number = void 0) {
+	const numericValue = parseInt(value);
+
+	if (types.isNumber(numericValue)) {
+		return numericValue;
+	}
+
+	if (value) {
+		return defaultValue;
+	}
+
+	return fallback;
+}
+
 export class EnvService implements IEnvironmentService {
 
 	serviceId = IEnvironmentService;
@@ -145,39 +159,29 @@ export class EnvService implements IEnvironmentService {
 			args = [...extraargs, ...args];
 		}
 
-		const debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
-		let debugExtensionHostPort: number;
-		let debugBrkExtensionHost: boolean;
-
-		if (debugBrkExtensionHostPort) {
-			debugExtensionHostPort = debugBrkExtensionHostPort;
-			debugBrkExtensionHost = true;
-		} else {
-			debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, this.isBuilt ? void 0 : 5870);
-		}
-
 		const argv = parseArgs(args);
-
-
+		const debugBrkExtensionHostPort = getNumericValue(argv.debugBrkPluginHost, 5870);
+		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
 		const pathArguments = parsePathArguments(this._currentWorkingDirectory, args, argv.goto);
+		const timestamp = parseInt(argv.timestamp);
 
 		this._cliArgs = Object.freeze({
 			pathArguments: pathArguments,
-			programStart: parseNumber(args, '--timestamp', 0, 0),
+			programStart: types.isNumber(timestamp) ? timestamp : 0,
 			enablePerformance: argv.performance,
 			verboseLogging: argv.verbose,
-			debugExtensionHostPort: debugExtensionHostPort,
-			debugBrkExtensionHost: debugBrkExtensionHost,
+			debugExtensionHostPort: debugBrkExtensionHostPort || debugExtensionHostPort,
+			debugBrkExtensionHost: !!debugBrkExtensionHostPort,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
 			openNewWindow: argv['new-window'],
 			openInSameWindow: argv['reuse-window'],
 			gotoLineMode: argv.goto,
 			diffMode: argv.diff && pathArguments.length === 2,
-			extensionsHomePath: normalizePath(parseString(args, '--extensionHomePath')),
-			extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
-			extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
+			extensionsHomePath: normalizePath(argv.extensionHomePath),
+			extensionDevelopmentPath: normalizePath(argv.extensionDevelopmentPath),
+			extensionTestsPath: normalizePath(argv.extensionTestsPath),
 			disableExtensions: argv['disable-extensions'],
-			locale: parseString(args, '--locale'),
+			locale: argv.locale,
 			waitForWindowClose: argv.wait
 		});
 
@@ -315,34 +319,6 @@ function preparePath(cwd: string, p: string): string {
 
 function normalizePath(p?: string): string {
 	return p ? path.normalize(p) : p;
-}
-
-function parseNumber(argv: string[], key: string, defaultValue?: number, fallbackValue?: number): number {
-	let value: number;
-
-	for (let i = 0; i < argv.length; i++) {
-		let segments = argv[i].split('=');
-		if (segments[0] === key) {
-			value = Number(segments[1]) || defaultValue;
-			break;
-		}
-	}
-
-	return types.isNumber(value) ? value : fallbackValue;
-}
-
-function parseString(argv: string[], key: string, defaultValue?: string, fallbackValue?: string): string {
-	let value: string;
-
-	for (let i = 0; i < argv.length; i++) {
-		let segments = argv[i].split('=');
-		if (segments[0] === key) {
-			value = String(segments[1]) || defaultValue;
-			break;
-		}
-	}
-
-	return types.isString(value) ? strings.trim(value, '"') : fallbackValue;
 }
 
 export function getPlatformIdentifier(): string {

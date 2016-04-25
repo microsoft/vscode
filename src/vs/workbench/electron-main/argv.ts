@@ -21,12 +21,22 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	verbose: boolean;
 	logExtensionHostCommunication: boolean;
 	'disable-extensions': boolean;
+	extensionHomePath: string;
+	extensionDevelopmentPath: string;
+	extensionTestsPath: string;
+	timestamp: string;
+	debugBrkPluginHost: string;
+	debugPluginHost: string;
 }
 
 const options: minimist.Opts = {
 	string: [
 		'locale',
-		'user-data-dir'
+		'user-data-dir',
+		'extensionHomePath',
+		'extensionDevelopmentPath',
+		'extensionTestsPath',
+		'timestamp'
 	],
 	boolean: [
 		'help',
