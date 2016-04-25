@@ -101,7 +101,7 @@ export class VariablesView extends viewlet.CollapsibleViewletView {
 		this.tree.refresh().then(() => {
 			if (stackFrame) {
 				return stackFrame.getScopes(this.debugService).then(scopes => {
-					if (scopes.length > 0) {
+					if (scopes.length > 0 && !scopes[0].expensive) {
 						return this.tree.expand(scopes[0]);
 					}
 				});
