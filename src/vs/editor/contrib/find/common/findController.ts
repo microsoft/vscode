@@ -223,7 +223,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	public selectAllMatches(): boolean {
 		if (this._model) {
-			this._model.selectAll();
+			this._model.selectAllMatches();
 			this.closeFindWidget();
 			return true;
 		}

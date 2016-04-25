@@ -352,7 +352,7 @@ export class FindModelBoundToEditorModel {
 		this.research(false);
 	}
 
-	public selectAll(): void {
+	public selectAllMatches(): void {
 		if (!this._hasMatches()) {
 			return;
 		}
