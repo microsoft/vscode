@@ -12,8 +12,9 @@ import {shell, screen, BrowserWindow} from 'electron';
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
-import env = require('vs/workbench/electron-main/env');
+import { ICommandLineArguments, IEnvService, IProcessEnvironment } from 'vs/workbench/electron-main/env';
 import storage = require('vs/workbench/electron-main/storage');
+import { ILogService } from './log';
 
 export interface IWindowState {
 	width?: number;
@@ -86,7 +87,7 @@ export interface IPath {
 	installExtensionPath?: boolean;
 }
 
-export interface IWindowConfiguration extends env.ICommandLineArguments {
+export interface IWindowConfiguration extends ICommandLineArguments {
 	execPath: string;
 	version: string;
 	appName: string;
@@ -121,7 +122,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	licenseUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
-	userEnv: env.IProcessEnvironment;
+	userEnv: IProcessEnvironment;
 	aiConfig: {
 		key: string;
 		asimovKey: string;
@@ -154,7 +155,12 @@ export class VSCodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
-	constructor(config: IWindowCreationOptions) {
+	constructor(
+		config: IWindowCreationOptions,
+		@ILogService private logService: ILogService,
+		@IEnvService private envService: IEnvService,
+		@storage.IStorageService private storageService: storage.IStorageService
+	) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
@@ -164,7 +170,7 @@ export class VSCodeWindow {
 		this.restoreWindowState(config.state);
 
 		// For VS theme we can show directly because background is white
-		const usesLightTheme = /vs($| )/.test(storage.getItem<string>(VSCodeWindow.themeStorageKey));
+		const usesLightTheme = /vs($| )/.test(this.storageService.getItem<string>(VSCodeWindow.themeStorageKey));
 		let showDirectly = true; // set to false to prevent background color flash (flash should be fixed for Electron >= 0.37.x)
 		if (showDirectly && !global.windowShow) {
 			global.windowShow = new Date().getTime();
@@ -179,14 +185,14 @@ export class VSCodeWindow {
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
-			title: env.product.nameLong,
+			title: this.envService.product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
 			}
 		};
 
 		if (platform.isLinux) {
-			options.icon = path.join(env.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
+			options.icon = path.join(this.envService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
 		// Create the browser window.
@@ -205,7 +211,7 @@ export class VSCodeWindow {
 			this._lastFocusTime = new Date().getTime(); // since we show directly, we need to set the last focus time too
 		}
 
-		if (storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
+		if (this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
 			this.setMenuBarVisibility(false); // respect configured menu bar visibility
 		}
 
@@ -342,7 +348,7 @@ export class VSCodeWindow {
 
 		// Prevent any kind of navigation triggered by the user!
 		// But do not touch this in dev version because it will prevent "Reload" from dev tools
-		if (env.isBuilt) {
+		if (this.envService.isBuilt) {
 			this._win.webContents.on('will-navigate', (event: Event) => {
 				if (event) {
 					event.preventDefault();
@@ -383,7 +389,7 @@ export class VSCodeWindow {
 		}
 	}
 
-	public reload(cli?: env.ICommandLineArguments): void {
+	public reload(cli?: ICommandLineArguments): void {
 
 		// Inherit current properties but overwrite some
 		let configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
@@ -458,7 +464,7 @@ export class VSCodeWindow {
 			try {
 				state = this.validateWindowState(state);
 			} catch (err) {
-				env.log(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
+				this.logService.log(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
 
@@ -558,7 +564,7 @@ export class VSCodeWindow {
 			if (willBeFullScreen) {
 				this.setMenuBarVisibility(false);
 			} else {
-				this.setMenuBarVisibility(!storage.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
+				this.setMenuBarVisibility(!this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)); // restore as configured
 			}
 		}
 	}
