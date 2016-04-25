@@ -173,7 +173,7 @@ export class EnvService implements IEnvironmentService {
 		// Remove the Electron executable
 		let [, ...args] = process.argv;
 
-		// Id dev, remove the first argument: it's the app location
+		// If dev, remove the first argument: it's the app location
 		if (!this.isBuilt) {
 			[, ...args] = args;
 		}
@@ -183,10 +183,6 @@ export class EnvService implements IEnvironmentService {
 			const extraargs: string[] = JSON.parse(fs.readFileSync(path.join(this._appRoot, 'argv'), 'utf8'));
 			args = [...extraargs, ...args];
 		}
-
-		const opts = parseOpts(args);
-
-		const gotoLineMode = !!opts['g'] || !!opts['goto'];
 
 		const debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
 		let debugExtensionHostPort: number;
@@ -199,6 +195,8 @@ export class EnvService implements IEnvironmentService {
 			debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, this.isBuilt ? void 0 : 5870);
 		}
 
+		const opts = parseOpts(args);
+		const gotoLineMode = !!opts['g'] || !!opts['goto'];
 		const pathArguments = parsePathArguments(this._currentWorkingDirectory, args, gotoLineMode);
 
 		this._cliArgs = Object.freeze({
