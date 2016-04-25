@@ -9,24 +9,14 @@ import * as os from 'os';
 import { spawn } from 'child_process';
 import uri from 'vs/base/common/uri';
 import { assign } from 'vs/base/common/objects';
+import * as minimist from 'minimist';
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
 const packageJsonPath = path.join(rootPath, 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-
-class ArgParser {
-
-	constructor(private argv: string[]) {}
-
-	hasFlag(flag, alias): boolean {
-		return (flag && this.argv.indexOf('--' + flag) >= 0)
-			|| (alias && this.argv.indexOf('-' + alias) >= 0);
-	}
-
-	help(): string {
-		const executable = 'code' + (os.platform() === 'win32' ? '.exe' : '');
-		const indent = '  ';
-		return `Visual Studio Code v${ packageJson.version }
+const executable = 'code' + (os.platform() === 'win32' ? '.exe' : '');
+const indent = '  ';
+const help = `Visual Studio Code v${ packageJson.version }
 
 Usage: ${ executable } [arguments] [paths...]
 
@@ -45,27 +35,37 @@ ${ indent }--user-data-dir=DIR   Specifies the directory that user data is kept 
 ${ indent }                      useful when running as root.
 ${ indent }-v, --version         Print version.
 ${ indent }-w, --wait            Wait for the window to be closed before returning.`;
-	}
+
+interface ParsedArgs extends minimist.ParsedArgs {
+	help: boolean;
+	version: boolean;
+	wait: boolean;
 }
 
-export function main(argv: string[]) {
-	const argParser = new ArgParser(argv);
+export function main(args: string[]) {
+	const argv = minimist(args, {
+		alias: {
+			help: 'h',
+			version: 'v',
+			wait: 'w'
+		}
+	}) as ParsedArgs;
 
-	if (argParser.hasFlag('help', 'h')) {
-		console.log(argParser.help());
-	} else if (argParser.hasFlag('version', 'v')) {
+	if (argv.help) {
+		console.log(help);
+	} else if (argv.version) {
 		console.log(packageJson.version);
 	} else {
 		const env = assign({}, process.env);
 		delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 
-		const child = spawn(process.execPath, process.argv.slice(2), {
+		const child = spawn(process.execPath, args, {
 			detached: true,
 			stdio: 'ignore',
 			env
 		});
 
-		if (argParser.hasFlag('wait', 'w')) {
+		if (argv.wait) {
 			child.on('exit', process.exit);
 			return;
 		}
