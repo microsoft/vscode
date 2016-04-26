@@ -6,8 +6,8 @@
 
 import {ThrottledDelayer} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {EventEmitter, IEventEmitter, ListenerCallback} from 'vs/base/common/eventEmitter';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import Event, {Emitter} from 'vs/base/common/event';
+import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import {ParameterHintsRegistry, IParameterHints} from 'vs/editor/common/modes';
@@ -17,49 +17,47 @@ export interface IHintEvent {
 	hints: IParameterHints;
 }
 
-export class ParameterHintsModel extends EventEmitter {
+export class ParameterHintsModel extends Disposable {
 
 	static DELAY = 120; // ms
 
+	private _onHint = this._register(new Emitter<IHintEvent>());
+	public onHint: Event<IHintEvent> = this._onHint.event;
+
+	private _onCancel = this._register(new Emitter<void>());
+	public onCancel: Event<void> = this._onCancel.event;
+
 	private editor: ICommonCodeEditor;
-	private toDispose: IDisposable[];
 	private triggerCharactersListeners: IDisposable[];
 
 	private active: boolean;
-	private prevResult: IParameterHints;
 	private throttledDelayer: ThrottledDelayer<boolean>;
 
 	constructor(editor:ICommonCodeEditor) {
-		super(['cancel', 'hint', 'destroy']);
+		super();
 
 		this.editor = editor;
-		this.toDispose = [];
 		this.triggerCharactersListeners = [];
 
 		this.throttledDelayer = new ThrottledDelayer<boolean>(ParameterHintsModel.DELAY);
 
 		this.active = false;
-		this.prevResult = null;
 
-		this.event(this.editor, EventType.ModelChanged, e => this.onModelChanged());
-		this.event(this.editor, EventType.ModelModeChanged, encodeURI => this.onModelChanged());
-		this.event(this.editor, EventType.ModelModeSupportChanged, e => this.onModeChanged(e));
-		this.event(this.editor, EventType.CursorSelectionChanged, e => this.onCursorChange(e));
-		this.toDispose.push(ParameterHintsRegistry.onDidChange(this.onModelChanged, this));
+		this._register(this.editor.addListener2(EventType.ModelChanged, e => this.onModelChanged()));
+		this._register(this.editor.addListener2(EventType.ModelModeChanged, _ => this.onModelChanged()));
+		this._register(this.editor.addListener2(EventType.ModelModeSupportChanged, e => this.onModeChanged(e)));
+		this._register(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
+		this._register(ParameterHintsRegistry.onDidChange(this.onModelChanged, this));
 		this.onModelChanged();
 	}
 
-	public cancel(silent: boolean = false, refresh: boolean = false): void {
+	public cancel(silent: boolean = false): void {
 		this.active = false;
-
-		if (!refresh) {
-			this.prevResult = null;
-		}
 
 		this.throttledDelayer.cancel();
 
 		if (!silent) {
-			this.emit('cancel');
+			this._onCancel.fire(void 0);
 		}
 	}
 
@@ -68,25 +66,24 @@ export class ParameterHintsModel extends EventEmitter {
 			return;
 		}
 
-		this.cancel(true, true);
+		this.cancel(true);
 		return this.throttledDelayer.trigger(() => this.doTrigger(triggerCharacter), delay);
 	}
 
-	public doTrigger(triggerCharacter: string): TPromise<boolean> {
+	private doTrigger(triggerCharacter: string): TPromise<boolean> {
 		return getParameterHints(this.editor.getModel(), this.editor.getPosition(), triggerCharacter)
 			.then<IParameterHints>(null, onUnexpectedError)
 			.then(result => {
 				if (!result || result.signatures.length === 0) {
 					this.cancel();
-					this.emit('cancel');
+					this._onCancel.fire(void 0);
 					return false;
 				}
 
 				this.active = true;
-				this.prevResult = result;
 
 				var event:IHintEvent = { hints: result };
-				this.emit('hint', event);
+				this._onHint.fire(event);
 				return true;
 			});
 	}
@@ -96,6 +93,9 @@ export class ParameterHintsModel extends EventEmitter {
 	}
 
 	private onModelChanged(): void {
+		if (this.active) {
+			this.cancel();
+		}
 		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
 
 		var model = this.editor.getModel();
@@ -138,17 +138,10 @@ export class ParameterHintsModel extends EventEmitter {
 		}
 	}
 
-	private event(emitter: IEventEmitter, eventType: string, cb: ListenerCallback): void {
-		this.toDispose.push(emitter.addListener2(eventType, cb));
-	}
-
 	public dispose(): void {
 		this.cancel(true);
 
 		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
-		this.toDispose = dispose(this.toDispose);
-
-		this.emit('destroy', null);
 
 		super.dispose();
 	}
