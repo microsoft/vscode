@@ -479,14 +479,99 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		this.editor.revealPositionInCenterIfOutsideViewport(revealPosition);
 	}
 
-	public foldUnfold(isFold: boolean, isRecursive: boolean): void {
+	public unfold(): void {
+		let model = this.editor.getModel();
 		let hasChanges = false;
-		const isUnfold = !isFold;
+		let selections = this.editor.getSelections();
+		let selectionsHasChanged = false;
+		selections.forEach((selection, index) => {
+			let lineNumber = selection.startLineNumber;
+			let surroundingUnfolded: editorCommon.IEditorRange;
+			for (let i = 0, len = this.decorations.length; i < len; i++) {
+				let dec = this.decorations[i];
+				let decRange = dec.getDecorationRange(model);
+				if (!decRange) {
+					continue;
+				}
+				if (decRange.startLineNumber <= lineNumber) {
+					if (lineNumber <= decRange.endLineNumber) {
+						if (dec.isCollapsed) {
+							this.editor.changeDecorations(changeAccessor => {
+								dec.setCollapsed(false, changeAccessor);
+								hasChanges = true;
+							});
+							return;
+						}
+						surroundingUnfolded = decRange;
+					}
+				} else { // decRange.startLineNumber > lineNumber
+					if (surroundingUnfolded && Range.containsRange(surroundingUnfolded, decRange)) {
+						if (dec.isCollapsed) {
+							this.editor.changeDecorations(changeAccessor => {
+								dec.setCollapsed(false, changeAccessor);
+								hasChanges = true;
+								let lineNumber = decRange.startLineNumber, column = model.getLineMaxColumn(decRange.startLineNumber);
+								selections[index] = selection.setEndPosition(lineNumber, column).setStartPosition(lineNumber, column);
+								selectionsHasChanged = true;
+							});
+							return;
+						}
+					} else {
+						return;
+					}
+				}
+			}
+		});
+		if (selectionsHasChanged) {
+			this.editor.setSelections(selections);
+		}
+
+		if (hasChanges) {
+			this.updateHiddenAreas(selections[0].startLineNumber);
+		}
+	}
+
+	public fold(): void {
+		let hasChanges = false;
 		let model = this.editor.getModel();
 		let selections = this.editor.getSelections();
 		selections.forEach(selection => {
 			let lineNumber = selection.startLineNumber;
-			let endLineNumber;
+			let toFold: CollapsibleRegion = null;
+			for (let i = 0, len = this.decorations.length; i < len; i++) {
+				let dec = this.decorations[i];
+				let decRange = dec.getDecorationRange(model);
+				if (!decRange) {
+					continue;
+				}
+				if (decRange.startLineNumber <= lineNumber) {
+					if (lineNumber <= decRange.endLineNumber && !dec.isCollapsed) {
+						toFold = dec;
+					}
+				} else {
+					break;
+				}
+			};
+			if (toFold) {
+				this.editor.changeDecorations(changeAccessor => {
+					toFold.setCollapsed(true, changeAccessor);
+					hasChanges = true;
+				});
+			}
+		});
+		if (hasChanges) {
+			this.updateHiddenAreas(selections[0].startLineNumber);
+		}
+	}
+
+	public foldUnfoldRecursively(isFold: boolean): void {
+		let hasChanges = false;
+		let model = this.editor.getModel();
+		let selections = this.editor.getSelections();
+		selections.forEach(selection => {
+			let lineNumber = selection.startLineNumber;
+			let endLineNumber: number;
+			let decToFoldUnfold: CollapsibleRegion[] = [];
 			for (let i = 0, len = this.decorations.length; i < len; i++) {
 				let dec = this.decorations[i];
 				let decRange = dec.getDecorationRange(model);
@@ -494,18 +579,22 @@ export class FoldingController implements editorCommon.IEditorContribution {
 					continue;
 				}
 				if (decRange.startLineNumber >= lineNumber && (decRange.endLineNumber <= endLineNumber || typeof endLineNumber === 'undefined')) {
-					endLineNumber = endLineNumber || decRange.endLineNumber;
-					if ((dec.isExpanded && isFold) || (dec.isCollapsed && isUnfold)) {
-						this.editor.changeDecorations(changeAccessor => {
-							dec.setCollapsed(isFold, changeAccessor);
-							hasChanges = true;
-						});
-						if (!isRecursive) {
-							return;
-						}
+					//Protect against cursor not being in decoration and lower decoration folding/unfolding
+					if (decRange.startLineNumber !== lineNumber && typeof endLineNumber === 'undefined') {
+						return;
 					}
+					endLineNumber = endLineNumber || decRange.endLineNumber;
+					decToFoldUnfold.push(dec);
 				}
 			};
+			if (decToFoldUnfold.length > 0) {
+				decToFoldUnfold.forEach(dec => {
+					this.editor.changeDecorations(changeAccessor => {
+						dec.setCollapsed(isFold, changeAccessor);
+						hasChanges = true;
+					});
+				});
+			}
 		});
 		if (hasChanges) {
 			this.updateHiddenAreas(selections[0].startLineNumber);
@@ -574,7 +663,7 @@ class UnfoldAction extends FoldingAction {
 	public static ID = 'editor.unfold';
 
 	invoke(foldingController: FoldingController): void {
-		foldingController.foldUnfold(false, false);
+		foldingController.unfold();
 	}
 }
 
@@ -582,7 +671,7 @@ class UnFoldRecursivelyAction extends FoldingAction {
 	public static ID = 'editor.unFoldRecursively';
 
 	invoke(foldingController: FoldingController): void {
-		foldingController.foldUnfold(false, true);
+		foldingController.foldUnfoldRecursively(false);
 	}
 }
 
@@ -590,7 +679,7 @@ class FoldAction extends FoldingAction {
 	public static ID = 'editor.fold';
 
 	invoke(foldingController: FoldingController): void {
-		foldingController.foldUnfold(true, false);
+		foldingController.fold();
 	}
 }
 
@@ -598,7 +687,7 @@ class FoldRecursivelyAction extends FoldingAction {
 	public static ID = 'editor.foldRecursively';
 
 	invoke(foldingController: FoldingController): void {
-		foldingController.foldUnfold(true, true);
+		foldingController.foldUnfoldRecursively(true);
 	}
 }
 
