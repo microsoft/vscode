@@ -287,10 +287,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 				// Alias for non default languages
 				let alias = (language !== LANGUAGE_DEFAULT) ? registry.getAlias(actionDescriptor.id) : null;
-				if (alias) {
-					[label, alias] = [alias, label]; // swap alias and label so that english alias is #1
-				}
-
 				let labelHighlights = wordFilter(searchValue, label);
 				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
@@ -322,10 +318,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 				// Alias for non default languages
 				let alias = (language !== LANGUAGE_DEFAULT) ? action.getAlias() : null;
-				if (alias) {
-					[label, alias] = [alias, label]; // swap alias and label so that english alias is #1
-				}
-
 				let labelHighlights = wordFilter(searchValue, label);
 				let aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
