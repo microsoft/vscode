@@ -781,8 +781,8 @@ class ChangeIndentationAction extends Action {
 		].map((a: EditorAction) => {
 			return {
 				id: a.id,
-				label: (language === LANGUAGE_DEFAULT) ? a.label : a.getAlias(),
-				detail: (language === LANGUAGE_DEFAULT) ? null : a.label,
+				label: a.label,
+				detail: (language === LANGUAGE_DEFAULT) ? null : a.getAlias(),
 				run: () => a.run()
 			};
 		});
@@ -876,8 +876,8 @@ export class ChangeEncodingAction extends Action {
 			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding") };
 			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
 		} else {
-			saveWithEncodingPick = { label: 'Save with Encoding', detail: nls.localize('saveWithEncoding', "Save with Encoding"), };
-			reopenWithEncodingPick = { label: 'Reopen with Encoding', detail: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
+			saveWithEncodingPick = { label: nls.localize('saveWithEncoding', "Save with Encoding"), detail: 'Save with Encoding', };
+			reopenWithEncodingPick = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding"), detail: 'Reopen with Encoding' };
 		}
 
 		if (encodingSupport instanceof UntitledEditorInput) {
