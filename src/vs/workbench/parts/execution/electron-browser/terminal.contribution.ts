@@ -18,6 +18,8 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
 import {DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX} from 'vs/workbench/parts/execution/electron-browser/terminal';
@@ -56,6 +58,7 @@ export class OpenConsoleAction extends Action {
 		id: string,
 		label: string,
 		@ITerminalService private terminalService: ITerminalService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label);
@@ -69,14 +72,24 @@ export class OpenConsoleAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let workspace = this.contextService.getWorkspace();
-		let path = this.resource ? this.resource.fsPath : (workspace && workspace.resource.fsPath);
+		let pathToOpen: string;
 
-		if (!path) {
-			return TPromise.as(null);
+		// Try workspace path first
+		let workspace = this.contextService.getWorkspace();
+		pathToOpen = this.resource ? this.resource.fsPath : (workspace && workspace.resource.fsPath);
+
+		// Otherwise check if we have an active file open
+		if (!pathToOpen) {
+			const file = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+			if (file) {
+				pathToOpen = paths.dirname(file.getResource().fsPath); // take parent folder of file
+			}
 		}
 
-		this.terminalService.openTerminal(path);
+		if (pathToOpen) {
+			this.terminalService.openTerminal(pathToOpen);
+		}
+
 		return TPromise.as(null);
 	}
 }
