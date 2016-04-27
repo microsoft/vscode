@@ -179,10 +179,15 @@ export class UpdateManager extends events.EventEmitter implements IUpdateService
 			return; // updates not available
 		}
 
+		try {
+			this.raw.setFeedURL(feedUrl);
+		} catch (e) {
+			return; // application not signed
+		}
+
 		this._channel = channel;
 		this._feedUrl = feedUrl;
 
-		this.raw.setFeedURL(feedUrl);
 		this.setState(State.Idle);
 
 		// Check for updates on startup after 30 seconds
