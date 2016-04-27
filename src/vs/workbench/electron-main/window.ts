@@ -114,6 +114,7 @@ export interface IWindowConfiguration extends ICommandLineArguments {
 	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 	extensionTips: { [id: string]: string; };

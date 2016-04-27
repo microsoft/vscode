@@ -101,6 +101,7 @@ export interface IEnvironment {
 
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 
