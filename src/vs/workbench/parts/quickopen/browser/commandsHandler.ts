@@ -27,7 +27,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IMessageService, Severity, IMessageWithAction} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -92,8 +92,18 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		return this.keyLabel;
 	}
 
-	protected onError(error?: Error): void {
-		let message = !error ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(error);
+	protected onError(error?: Error): void;
+	protected onError(messagesWithAction?: IMessageWithAction): void;
+	protected onError(arg1?: any): void {
+		let message: any;
+
+		const messagesWithAction: IMessageWithAction = arg1;
+		if (messagesWithAction && typeof messagesWithAction.message === 'string' && Array.isArray(messagesWithAction.actions)) {
+			message = messagesWithAction;
+		} else {
+			message = !arg1 ? nls.localize('canNotRun', "Command '{0}' can not be run from here.", this.label) : toErrorMessage(arg1);
+		}
+
 
 		this.messageService.show(Severity.Error, message);
 	}
