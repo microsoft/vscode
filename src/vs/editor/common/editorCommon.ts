@@ -468,7 +468,12 @@ export interface IEditorOptions {
 	 * Quick suggestions show delay (in ms)
 	 * Defaults to 500 (ms)
 	 */
-	quickSuggestionsDelay?:number;
+	quickSuggestionsDelay?: number;
+	/**
+	 * Don't fallback to providers that only propose textual completions.
+	 * Default to true.
+	 */
+	smartSuggestionsOnly?: boolean;
 	/**
 	 * Render icons in suggestions box.
 	 * Defaults to true.
@@ -638,6 +643,7 @@ export interface IInternalEditorOptions {
 	contextmenu:boolean;
 	quickSuggestions:boolean;
 	quickSuggestionsDelay:number;
+	smartSuggestionsOnly: boolean;
 	iconsInSuggestions:boolean;
 	autoClosingBrackets:boolean;
 	formatOnType:boolean;

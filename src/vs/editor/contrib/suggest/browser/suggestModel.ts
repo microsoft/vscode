@@ -311,7 +311,10 @@ export class SuggestModel implements IDisposable {
 
 		const position = this.editor.getPosition();
 
-		this.requestPromise = suggest(model, position, triggerCharacter, groups).then(all => {
+		this.requestPromise = suggest(model, position, triggerCharacter,
+			this.editor.getConfiguration().smartSuggestionsOnly,
+			groups
+		).then(all => {
 			this.requestPromise = null;
 
 			if (this.state === State.Idle) {
