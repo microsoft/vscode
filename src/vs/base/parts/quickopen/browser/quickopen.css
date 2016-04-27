@@ -171,6 +171,12 @@
 	color: #0097FB;
 }
 
+.quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected,
+.quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.focused {
+	background: #DCEBFC;
+	color: inherit;
+}
+
 /* High Contrast Theming */
 .hc-black .quick-open-widget {
 	border: 2px solid #6FC3DF;
