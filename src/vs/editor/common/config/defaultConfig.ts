@@ -69,7 +69,6 @@ class ConfigClass implements IConfiguration {
 			mouseWheelScrollSensitivity: 1,
 			quickSuggestions: true,
 			quickSuggestionsDelay: 10,
-			smartSuggestionsOnly: false,
 			iconsInSuggestions: true,
 			autoClosingBrackets: true,
 			formatOnType: false,

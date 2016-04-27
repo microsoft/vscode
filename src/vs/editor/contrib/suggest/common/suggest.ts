@@ -5,6 +5,7 @@
 'use strict';
 
 import {sequence} from 'vs/base/common/async';
+import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
@@ -20,7 +21,7 @@ export interface ISuggestResult2 extends ISuggestResult {
 	support?: ISuggestSupport;
 }
 
-export function suggest(model: IModel, position: IPosition, triggerCharacter: string, acceptEmptyArray: boolean, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
+export function suggest(model: IModel, position: IPosition, triggerCharacter: string, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
 
 	if (!groups) {
 		groups = SuggestRegistry.orderedGroups(model);
@@ -47,13 +48,7 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 
 					for (let suggestResult of values) {
 
-						if (!suggestResult || !Array.isArray(suggestResult.suggestions)) {
-							// unacceptable result
-							continue;
-						}
-
-						if (suggestResult.suggestions.length === 0 && !acceptEmptyArray) {
-							// empty result -> check configuration
+						if (!suggestResult || isFalsyOrEmpty(suggestResult.suggestions)) {
 							continue;
 						}
 
@@ -85,5 +80,5 @@ CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvi
 		throw illegalArgument('triggerCharacter');
 	}
 
-	return suggest(model, position, triggerCharacter, false);
+	return suggest(model, position, triggerCharacter);
 });

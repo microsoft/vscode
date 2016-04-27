@@ -824,7 +824,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		threadService.sync().then(() => {
-			suggest(model, { lineNumber: 1, column: 1 }, ',', false).then(value => {
+			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.ok(value.length >= 1); // check for min because snippets and others contribute
 				let [first] = value;
 				assert.equal(first.suggestions.length, 1);
@@ -834,7 +834,7 @@ suite('ExtHostLanguageFeatures', function() {
 		});
 	});
 
-	test('Suggest, order 2/3 (!smartSuggestionsOnly)', function(done) {
+	test('Suggest, order 2/3', function(done) {
 
 		disposables.push(extHost.registerCompletionItemProvider('*', <vscode.CompletionItemProvider>{
 			provideCompletionItems(): any {
@@ -849,35 +849,12 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		threadService.sync().then(() => {
-			suggest(model, { lineNumber: 1, column: 1 }, ',', false).then(value => {
+			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.ok(value.length >= 1);
 				let [first] = value;
 				assert.equal(first.suggestions.length, 1);
 				assert.equal(first.suggestions[0].codeSnippet, 'weak-selector');
 				done();
-			});
-		});
-	});
-
-	test('Suggest, order 2/3 (smartSuggestionsOnly)', function() {
-
-		disposables.push(extHost.registerCompletionItemProvider('*', <vscode.CompletionItemProvider>{
-			provideCompletionItems(): any {
-				return [new types.CompletionItem('weak-selector')]; // weaker selector but result
-			}
-		}, []));
-
-		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
-			provideCompletionItems(): any {
-				return []; // stronger selector but not a good result;
-			}
-		}, []));
-
-		return threadService.sync().then(() => {
-			return suggest(model, { lineNumber: 1, column: 1 }, ',', true).then(value => {
-				assert.ok(value.length >= 1);
-				let [first] = value;
-				assert.equal(first.suggestions.length, 0);
 			});
 		});
 	});
@@ -898,7 +875,7 @@ suite('ExtHostLanguageFeatures', function() {
 			}, []));
 
 			threadService.sync().then(() => {
-				suggest(model, { lineNumber: 1, column: 1 }, ',', false).then(value => {
+				suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 					assert.ok(value.length >= 2);
 					let [first, second] = value;
 					assert.equal(first.suggestions.length, 1);
@@ -927,7 +904,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 
-			suggest(model, { lineNumber: 1, column: 1 }, ',', false).then(value => {
+			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.equal(value[0].incomplete, undefined);
 				done();
 			});
@@ -944,7 +921,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			suggest(model, { lineNumber: 1, column: 1 }, ',', false).then(value => {
+			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.equal(value[0].incomplete, true);
 			});
 		});

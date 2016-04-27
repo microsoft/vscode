@@ -96,8 +96,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	hover:boolean;
 	contextmenu:boolean;
 	quickSuggestions:boolean;
-	quickSuggestionsDelay: number;
-	smartSuggestionsOnly: boolean;
+	quickSuggestionsDelay:number;
 	iconsInSuggestions:boolean;
 	autoClosingBrackets:boolean;
 	formatOnType:boolean;
@@ -166,8 +165,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.hover = Boolean(input.hover);
 		this.contextmenu = Boolean(input.contextmenu);
 		this.quickSuggestions = Boolean(input.quickSuggestions);
-		this.quickSuggestionsDelay = Number(input.quickSuggestionsDelay) | 0;
-		this.smartSuggestionsOnly = Boolean(input.smartSuggestionsOnly);
+		this.quickSuggestionsDelay = Number(input.quickSuggestionsDelay)|0;
 		this.iconsInSuggestions = Boolean(input.iconsInSuggestions);
 		this.autoClosingBrackets = Boolean(input.autoClosingBrackets);
 		this.formatOnType = Boolean(input.formatOnType);
@@ -359,7 +357,6 @@ class InternalEditorOptionsHelper {
 			contextmenu: toBoolean(opts.contextmenu),
 			quickSuggestions: toBoolean(opts.quickSuggestions),
 			quickSuggestionsDelay: toInteger(opts.quickSuggestionsDelay),
-			smartSuggestionsOnly: toBoolean(opts.smartSuggestionsOnly),
 			iconsInSuggestions: toBoolean(opts.iconsInSuggestions),
 			autoClosingBrackets: toBoolean(opts.autoClosingBrackets),
 			formatOnType: toBoolean(opts.formatOnType),
@@ -876,11 +873,6 @@ let editorConfiguration:IConfigurationNode = {
 			'default': DefaultConfig.editor.quickSuggestionsDelay,
 			'minimum': 0,
 			'description': nls.localize('quickSuggestionsDelay', "Controls the delay in ms after which quick suggestions will show up")
-		},
-		'editor.smartSuggestionsOnly' : {
-			'type': 'boolean',
-			'default': DefaultConfig.editor.smartSuggestionsOnly,
-			'description': nls.localize('smartSuggestionsOnly', "Controls if less smart suggestions show up when a language service cannot compute them")
 		},
 		'editor.autoClosingBrackets' : {
 			'type': 'boolean',
