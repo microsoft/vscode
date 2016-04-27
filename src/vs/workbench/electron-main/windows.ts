@@ -918,6 +918,7 @@ export class WindowsManager implements IWindowsService {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
 				configuration.verboseLogging = currentWindowConfig.verboseLogging;
 				configuration.logExtensionHostCommunication = currentWindowConfig.logExtensionHostCommunication;
+				configuration.debugBrkFileWatcherPort = currentWindowConfig.debugBrkFileWatcherPort;
 				configuration.debugBrkExtensionHost = currentWindowConfig.debugBrkExtensionHost;
 				configuration.debugExtensionHostPort = currentWindowConfig.debugExtensionHostPort;
 				configuration.extensionsHomePath = currentWindowConfig.extensionsHomePath;

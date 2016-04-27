@@ -28,6 +28,7 @@ export interface ICommandLineArguments {
 	verboseLogging: boolean;
 	debugExtensionHostPort: number;
 	debugBrkExtensionHost: boolean;
+	debugBrkFileWatcherPort: number;
 	logExtensionHostCommunication: boolean;
 	disableExtensions: boolean;
 	extensionsHomePath: string;
@@ -169,6 +170,7 @@ export class EnvService implements IEnvironmentService {
 		const debugExtensionHostPort = getNumericValue(argv.debugPluginHost, 5870, this.isBuilt ? void 0 : 5870);
 		const pathArguments = parsePathArguments(this._currentWorkingDirectory, argv._, argv.goto);
 		const timestamp = parseInt(argv.timestamp);
+		const debugBrkFileWatcherPort = getNumericValue(argv.debugBrkFileWatcherPort, void 0);
 
 		this._cliArgs = Object.freeze({
 			pathArguments: pathArguments,
@@ -178,6 +180,7 @@ export class EnvService implements IEnvironmentService {
 			debugExtensionHostPort: debugBrkExtensionHostPort || debugExtensionHostPort,
 			debugBrkExtensionHost: !!debugBrkExtensionHostPort,
 			logExtensionHostCommunication: argv.logExtensionHostCommunication,
+			debugBrkFileWatcherPort: debugBrkFileWatcherPort,
 			openNewWindow: argv['new-window'],
 			openInSameWindow: argv['reuse-window'],
 			gotoLineMode: argv.goto,

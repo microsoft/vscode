@@ -403,6 +403,7 @@ export class VSCodeWindow {
 		if (this.isPluginDevelopmentHost && cli) {
 			configuration.verboseLogging = cli.verboseLogging;
 			configuration.logExtensionHostCommunication = cli.logExtensionHostCommunication;
+			configuration.debugBrkFileWatcherPort = cli.debugBrkFileWatcherPort;
 			configuration.debugExtensionHostPort = cli.debugExtensionHostPort;
 			configuration.debugBrkExtensionHost = cli.debugBrkExtensionHost;
 			configuration.extensionsHomePath = cli.extensionsHomePath;

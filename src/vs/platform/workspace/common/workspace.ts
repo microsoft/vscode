@@ -123,6 +123,7 @@ export interface IEnvironment {
 	disableExtensions: boolean;
 
 	logExtensionHostCommunication: boolean;
+	debugBrkFileWatcherPort: number;
 	verboseLogging: boolean;
 	enablePerformance: boolean;
 

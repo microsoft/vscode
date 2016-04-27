@@ -20,6 +20,7 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	performance: boolean;
 	verbose: boolean;
 	logExtensionHostCommunication: boolean;
+	debugBrkFileWatcherPort: string;
 	'disable-extensions': boolean;
 	extensionHomePath: string;
 	extensionDevelopmentPath: string;

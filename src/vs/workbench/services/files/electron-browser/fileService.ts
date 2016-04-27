@@ -41,10 +41,11 @@ export class FileService implements IFileService {
 		private messageService: IMessageService
 	) {
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const env = this.contextService.getConfiguration().env;
 
 		// adjust encodings (TODO@Ben knowledge on settings location ('.vscode') is hardcoded)
 		let encodingOverride: IEncodingOverride[] = [];
-		encodingOverride.push({ resource: uri.file(this.contextService.getConfiguration().env.appSettingsHome), encoding: encoding.UTF8 });
+		encodingOverride.push({ resource: uri.file(env.appSettingsHome), encoding: encoding.UTF8 });
 		if (this.contextService.getWorkspace()) {
 			encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
 		}
@@ -60,8 +61,13 @@ export class FileService implements IFileService {
 			encoding: configuration.files && configuration.files.encoding,
 			encodingOverride: encodingOverride,
 			watcherIgnoredPatterns: watcherIgnoredPatterns,
-			verboseLogging: this.contextService.getConfiguration().env.verboseLogging
+			verboseLogging: env.verboseLogging,
+			debugBrkFileWatcherPort: env.debugBrkFileWatcherPort
 		};
+
+		if (typeof env.debugBrkFileWatcherPort === 'number') {
+			console.warn(`File Watcher STOPPED on first line for debugging on port ${env.debugBrkFileWatcherPort}`);
+		}
 
 		// create service
 		let workspace = this.contextService.getWorkspace();

@@ -24,18 +24,24 @@ export class FileWatcher {
 		private ignored: string[],
 		private eventEmitter: IEventService,
 		private errorLogger: (msg: string) => void,
-		private verboseLogging: boolean)
-	{
+		private verboseLogging: boolean,
+		private debugBrkFileWatcherPort: number
+	) {
 		this.isDisposed = false;
 		this.restartCounter = 0;
 	}
 
 	public startWatching(): () => void {
+		const args = ['--type=watcherService'];
+		if (typeof this.debugBrkFileWatcherPort === 'number') {
+			args.push(`--debug-brk=${this.debugBrkFileWatcherPort}`);
+		}
+
 		const client = new Client(
 			uri.parse(require.toUrl('bootstrap')).fsPath,
 			{
 				serverName: 'Watcher',
-				args: ['--type=watcherService'],
+				args,
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
 					PIPE_LOGGING: 'true',
