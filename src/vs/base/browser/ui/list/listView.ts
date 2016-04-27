@@ -37,7 +37,8 @@ function toSequence<T>(itemRanges: IItemRange<T>[]): ISequence {
 	};
 }
 
-const MouseEventTypes = ['click',
+const MouseEventTypes = [
+	'click',
 	'dblclick',
 	'mouseup',
 	'mousedown',

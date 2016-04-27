@@ -126,10 +126,18 @@ class Controller<T> implements IDisposable {
 		private view: ListView<T>
 	) {
 		this.toDispose = [];
+		this.toDispose.push(view.addListener('mousedown', e => this.onMouseDown(e)));
 		this.toDispose.push(view.addListener('click', e => this.onClick(e)));
 	}
 
+	private onMouseDown(e: IListMouseEvent<T>) {
+		e.preventDefault();
+		e.stopPropagation();
+	}
+
 	private onClick(e: IListMouseEvent<T>) {
+		e.preventDefault();
+		e.stopPropagation();
 		this.list.setSelection(e.index);
 	}
 
