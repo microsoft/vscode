@@ -210,7 +210,8 @@ export class WorkbenchShell {
 				windowSize: windowSize,
 				emptyWorkbench: !this.contextService.getWorkspace(),
 				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-				theme: this.currentTheme
+				theme: this.currentTheme,
+				language: platform.language
 			});
 
 		let workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
