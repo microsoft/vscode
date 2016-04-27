@@ -244,7 +244,7 @@ exports.minifyTask = function (src, addSourceMapsComment) {
 			.pipe(uglifyWithCopyrights())
 			.pipe(jsFilter.restore)
 			.pipe(cssFilter)
-			.pipe(minifyCSS())
+			.pipe(minifyCSS({ reduceIdents: false }))
 			.pipe(cssFilter.restore)
 			.pipe(sourcemaps.write('./', {
 				sourceMappingURL: function (file) {
