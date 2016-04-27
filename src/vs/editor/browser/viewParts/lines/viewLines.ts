@@ -131,11 +131,6 @@ export class ViewLines extends ViewLayer {
 		return shouldRender;
 	}
 
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		this.domNode.setWidth(scrollWidth);
-		return false;
-	}
-
 	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
 		var shouldRender = super.onModelDecorationsChanged(e);
 		for (var i = 0; i < this._lines.length; i++) {
@@ -164,6 +159,7 @@ export class ViewLines extends ViewLayer {
 	}
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+		this.domNode.setWidth(e.scrollWidth);
 		return super.onScrollChanged(e) || true;
 	}
 

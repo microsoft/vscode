@@ -141,16 +141,10 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return true;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return e.vertical;
+		return e.scrollTopChanged;
 	}
 	public onZonesChanged(): boolean {
 		return true;
-	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		return false;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
 	}
 
 	// --- end event handlers

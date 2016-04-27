@@ -44,8 +44,8 @@ export class Rulers extends ViewPart {
 		}
 		return false;
 	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return true;
+	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
 	// --- end event handlers

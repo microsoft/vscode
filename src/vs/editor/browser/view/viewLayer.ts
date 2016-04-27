@@ -90,7 +90,7 @@ export abstract class ViewLayer extends ViewPart {
 	}
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return e.vertical;
+		return e.scrollTopChanged;
 	}
 
 	public onZonesChanged(): boolean {

@@ -461,14 +461,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			scrollTop: this.layoutProvider.getScrollTop(),
 			scrollLeft: this.layoutProvider.getScrollLeft()
 		});
-		return false;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
 		this.outgoingEventBus.emit('scrollSize', {
 			scrollWidth: this.layoutProvider.getScrollWidth(),
 			scrollHeight: this.layoutProvider.getScrollHeight()
 		});
-		return super.onScrollHeightChanged(scrollHeight);
+		return false;
 	}
 	public onViewFocusChanged(isFocused:boolean): boolean {
 		dom.toggleClass(this.domNode, 'focused', isFocused);

@@ -92,12 +92,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	}
 
 	private _updateHeight(): void {
-		var oldScrollHeight = this.scrollable.getScrollHeight();
 		this.scrollable.setScrollHeight(this.getTotalHeight());
-		var newScrollHeight = this.scrollable.getScrollHeight();
-		if (oldScrollHeight !== newScrollHeight) {
-			this.privateViewEventBus.emit(editorCommon.EventType.ViewScrollHeightChanged, newScrollHeight);
-		}
 	}
 
 	// ---- end view event handlers
@@ -135,16 +130,10 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 
 	public onMaxLineWidthChanged(maxLineWidth:number): void {
 		var newScrollWidth = this._computeScrollWidth(maxLineWidth, this.getCurrentViewport().width);
-
-		var oldScrollWidth = this.scrollable.getScrollWidth();
 		this.scrollable.setScrollWidth(newScrollWidth);
-		newScrollWidth = this.scrollable.getScrollWidth();
 
-		if (newScrollWidth !== oldScrollWidth) {
-			this.privateViewEventBus.emit(editorCommon.EventType.ViewScrollWidthChanged, newScrollWidth);
-			// The height might depend on the fact that there is a horizontal scrollbar or not
-			this._updateHeight();
-		}
+		// The height might depend on the fact that there is a horizontal scrollbar or not
+		this._updateHeight();
 	}
 
 	// ---- view state

@@ -6,7 +6,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {IScrollEvent, IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
@@ -202,9 +202,9 @@ export class ContentViewOverlays extends ViewOverlays {
 		this.domNode.setHeight(0);
 	}
 
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		this._scrollWidth = this._layoutProvider.getScrollWidth();
-		return true;
+	public onScrollChanged(e:IScrollEvent): boolean {
+		this._scrollWidth = e.scrollWidth;
+		return super.onScrollChanged(e) || e.scrollWidthChanged;
 	}
 
 	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
@@ -251,9 +251,9 @@ export class MarginViewOverlays extends ViewOverlays {
 		return <HTMLElement>this.domNode.domNode.children[0];
 	}
 
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		this._scrollHeight = scrollHeight;
-		return super.onScrollHeightChanged(scrollHeight) || true;
+	public onScrollChanged(e:IScrollEvent): boolean {
+		this._scrollHeight = e.scrollHeight;
+		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
 	public onLayoutChanged(layoutInfo:IEditorLayoutInfo): boolean {

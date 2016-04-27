@@ -131,12 +131,6 @@ export class ViewContentWidgets extends ViewPart {
 	public onZonesChanged(): boolean {
 		return true;
 	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		return false;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
-	}
 
 	// ---- end view event handlers
 

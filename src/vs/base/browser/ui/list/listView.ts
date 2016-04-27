@@ -64,6 +64,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 	private scrollableElement: IScrollableElement;
 
 	private _onScroll = new Emitter<ScrollEvent>();
+	private _lastScrollEvent: ScrollEvent;
 
 	private toDispose: IDisposable[];
 
@@ -80,6 +81,8 @@ export class ListView<T> implements IScrollable, IDisposable {
 
 		this.renderTop = 0;
 		this._renderHeight = 0;
+
+		this._lastScrollEvent = new ScrollEvent(this.getScrollTop(), this.getScrollLeft(), this.getScrollWidth(), this.getScrollHeight());
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-list';
@@ -138,7 +141,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 
 		this.rowsContainer.style.height = `${ this.rangeMap.size }px`;
 		this.setScrollTop(this.renderTop);
-		this._emitScrollEvent(false, false);
+		this._emitScrollEvent();
 
 		return deleted.map(i => i.element);
 	}
@@ -175,7 +178,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 		this.setRenderHeight(height || DOM.getContentHeight(this._domNode));
 		this.setScrollTop(this.renderTop);
 		this.scrollableElement.onElementDimensions();
-		this._emitScrollEvent(false, false);
+		this._emitScrollEvent();
 	}
 
 	// Render
@@ -286,18 +289,12 @@ export class ListView<T> implements IScrollable, IDisposable {
 		this.render(scrollTop, this._renderHeight);
 		this.renderTop = scrollTop;
 
-		this._emitScrollEvent(true, false);
+		this._emitScrollEvent();
 	}
 
-	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
-		this._onScroll.fire(new ScrollEvent(
-			this.getScrollTop(),
-			this.getScrollLeft(),
-			this.getScrollWidth(),
-			this.getScrollHeight(),
-			vertical,
-			horizontal
-		));
+	private _emitScrollEvent(): void {
+		this._lastScrollEvent = this._lastScrollEvent.create(this.getScrollTop(), this.getScrollLeft(), this.getScrollWidth(), this.getScrollHeight());
+		this._onScroll.fire(this._lastScrollEvent);
 	}
 
 	addScrollListener(callback: (v:ScrollEvent)=>void): IDisposable {

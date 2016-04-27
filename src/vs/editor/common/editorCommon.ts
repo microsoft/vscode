@@ -2723,10 +2723,15 @@ export var ViewEventNames = {
 };
 
 export interface IScrollEvent {
-	vertical: boolean;
-	horizontal: boolean;
-	scrollTop:number;
-	scrollLeft:number;
+	scrollTop: number;
+	scrollLeft: number;
+	scrollWidth: number;
+	scrollHeight: number;
+
+	scrollTopChanged: boolean;
+	scrollLeftChanged: boolean;
+	scrollWidthChanged: boolean;
+	scrollHeightChanged: boolean;
 }
 
 export interface IViewLinesDeletedEvent {
@@ -3460,8 +3465,6 @@ export var EventType = {
 	ViewFocusGained: 'focusGained',
 	ViewFocusLost: 'focusLost',
 	ViewFocusChanged: 'focusChanged',
-	ViewScrollWidthChanged: 'scrollWidthChanged',
-	ViewScrollHeightChanged: 'scrollHeightChanged',
 	ViewScrollChanged: 'scrollChanged',
 	ViewZonesChanged: 'zonesChanged',
 

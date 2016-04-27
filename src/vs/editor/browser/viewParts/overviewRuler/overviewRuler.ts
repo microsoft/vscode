@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IConfigurationChangedEvent, IOverviewRulerPosition} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, IOverviewRulerPosition, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {IOverviewRuler, OverviewRulerZone, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
@@ -48,9 +48,9 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return true;
 	}
 
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		this._overviewRuler.setScrollHeight(scrollHeight, true);
-		return true;
+	public onScrollChanged(e:IScrollEvent): boolean {
+		this._overviewRuler.setScrollHeight(e.scrollHeight, true);
+		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
 	public getDomNode(): HTMLElement {

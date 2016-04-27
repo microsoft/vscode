@@ -23,16 +23,32 @@ export class ScrollEvent {
 	scrollLeft: number;
 	scrollWidth: number;
 	scrollHeight: number;
-	vertical: boolean;
-	horizontal: boolean;
 
-	constructor(scrollTop:number, scrollLeft:number, scrollWidth:number, scrollHeight:number, vertical:boolean, horizontal:boolean) {
+	scrollTopChanged: boolean;
+	scrollLeftChanged: boolean;
+	scrollWidthChanged: boolean;
+	scrollHeightChanged: boolean;
+
+	constructor(scrollTop:number, scrollLeft:number, scrollWidth:number, scrollHeight:number, scrollTopChanged = false, scrollLeftChanged = false, scrollWidthChanged = false, scrollHeightChanged = false) {
 		this.scrollTop = Math.round(scrollTop);
 		this.scrollLeft = Math.round(scrollLeft);
 		this.scrollWidth = Math.round(scrollWidth);
 		this.scrollHeight = Math.round(scrollHeight);
-		this.vertical = Boolean(vertical);
-		this.horizontal = Boolean(horizontal);
+
+		this.scrollTopChanged = scrollTopChanged;
+		this.scrollLeftChanged = scrollLeftChanged;
+		this.scrollWidthChanged = scrollWidthChanged;
+		this.scrollHeightChanged = scrollHeightChanged;
+	}
+
+	public create(scrollTop:number, scrollLeft:number, scrollWidth:number, scrollHeight:number): ScrollEvent {
+		return new ScrollEvent(
+			scrollTop, scrollLeft, scrollWidth, scrollHeight,
+			scrollTop !== this.scrollTop,
+			scrollLeft !== this.scrollLeft,
+			scrollWidth !== this.scrollWidth,
+			scrollHeight !== this.scrollHeight
+		);
 	}
 }
 
