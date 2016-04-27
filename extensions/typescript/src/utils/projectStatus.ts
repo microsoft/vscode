@@ -75,7 +75,7 @@ export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>P
 					return;
 				}
 
-				if (!configFileName) {
+				if (!configFileName && vscode.workspace.rootPath) {
 					exists(join(vscode.workspace.rootPath, 'jsconfig.json'), exists => {
 						// don't hint if there is a global jsconfig-file. We can get here due
 						// to TypeScript bugs or jsconfig configurations
