@@ -18,6 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionsService, ExtensionsLabel, ExtensionsChannelId, IExtension, IExtensionManifest } from 'vs/workbench/parts/extensions/common/extensions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { getOutdatedExtensions } from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IState {
 	errors: IMessage[];
@@ -48,7 +49,8 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 		@IOutputService private outputService: IOutputService,
 		@IExtensionsService protected extensionsService: IExtensionsService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IQuickOpenService protected quickOpenService: IQuickOpenService
+		@IQuickOpenService protected quickOpenService: IQuickOpenService,
+		@ITelemetryService protected telemetrService: ITelemetryService
 	) {}
 
 	render(container: HTMLElement): IDisposable {
@@ -98,11 +100,14 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 
 	private onClick(): void {
 		if (this.hasErrors) {
+			this.telemetrService.publicLog('extensionWidgetClick', {mode : 'hasErrors'});
 			this.showErrors(this.state.errors);
 			this.updateState({ errors: [] });
 		} else if (this.hasUpdates) {
+			this.telemetrService.publicLog('extensionWidgetClick', {mode : 'hasUpdate'});
 			this.quickOpenService.show(`ext update `);
 		} else {
+			this.telemetrService.publicLog('extensionWidgetClick', {mode : 'none'});
 			this.quickOpenService.show(`>${ExtensionsLabel}: `);
 		}
 	}
