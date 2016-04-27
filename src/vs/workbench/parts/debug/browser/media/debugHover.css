@@ -18,10 +18,7 @@
 	animation-duration: 0.15s;
 	animation-name: fadeIn;
 	-webkit-user-select: text;
-
-	white-space: pre;
-
-	overflow: hidden;
+	word-break: break-all;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree {
