@@ -498,10 +498,8 @@
 			<string>invalid.illegal</string>
 			<key>settings</key>
 			<dict>
-				<key>background</key>
-				<string>#dc3958</string>
 				<key>foreground</key>
-				<string>#221a0f</string>
+				<string>#dc3958</string>
 			</dict>
 		</dict>
 	</array>
