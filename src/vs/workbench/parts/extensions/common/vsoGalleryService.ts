@@ -212,7 +212,7 @@ export class GalleryService implements IGalleryService {
 	constructor(
 		@IRequestService private requestService: IRequestService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		const config = contextService.getConfiguration().env.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -232,6 +232,9 @@ export class GalleryService implements IGalleryService {
 		if (!this.isEnabled()) {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
+
+		const type = options.ids ? 'ids' : (options.text ? 'text' : 'all');
+		this.telemetryService.publicLog('galleryService:query', { type });
 
 		const cache = this.queryCache().then(result => {
 			const rawLastModified = result.getResponseHeader('last-modified');
