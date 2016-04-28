@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import strings = require('vs/base/common/strings');
 import lifecycle = require('vs/base/common/lifecycle');
 import mime = require('vs/base/common/mime');
 import Event, { Emitter } from 'vs/base/common/event';
@@ -268,7 +269,12 @@ export class DebugService implements debug.IDebugService {
 
 		this.toDisposeOnSessionEnd.push(this.session.onDidContinue(threadID => {
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-			this.model.clearThreads(false, threadID);
+			// TODO@Isidor temporary workaround for #5835
+			if (strings.equalsIgnoreCase(this.session.configuration.type, 'go')) {
+				this.model.clearThreads(false);
+			} else {
+				this.model.clearThreads(false, threadID);
+			}
 
 			// Get a top stack frame of a stopped thread if there is any.
 			const threads = this.model.getThreads();
