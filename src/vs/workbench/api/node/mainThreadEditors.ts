@@ -294,6 +294,9 @@ export class MainThreadTextEditor {
 	}
 
 	public matches(editor: IEditor): boolean {
+		if (!editor) {
+			return false;
+		}
 		return editor.getControl() === this._codeEditor;
 	}
 
