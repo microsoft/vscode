@@ -55,8 +55,8 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 }
 
 export function rimraf(path: string): TPromise<void> {
-	return stat(path).then(stat => {
-		if (stat.isDirectory()) {
+	return lstat(path).then(stat => {
+		if (stat.isDirectory() && !stat.isSymbolicLink()) {
 			return readdir(path)
 				.then(children => TPromise.join(children.map(child => rimraf(join(path, child)))))
 				.then(() => rmdir(path));
