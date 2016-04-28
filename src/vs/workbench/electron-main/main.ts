@@ -17,7 +17,7 @@ import { VSCodeMenu } from 'vs/workbench/electron-main/menus';
 import {ISettingsService, SettingsManager} from 'vs/workbench/electron-main/settings';
 import {IUpdateService, UpdateManager} from 'vs/workbench/electron-main/update-manager';
 import {Server, serve, connect} from 'vs/base/parts/ipc/node/ipc.net';
-import {getUserEnvironment} from 'vs/base/node/env';
+import {getUnixUserEnvironment, IEnv} from 'vs/base/node/env';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AskpassChannel} from 'vs/workbench/parts/git/common/gitIpc';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
@@ -266,11 +266,18 @@ services.set(ISettingsService, new SyncDescriptor(SettingsManager));
 
 const instantiationService = new InstantiationService(services);
 
+function getUserEnvironment(): TPromise<IEnv> {
+	return platform.isWindows ? TPromise.as({}) : getUnixUserEnvironment();
+}
+
 // On some platforms we need to manually read from the global environment variables
 // and assign them to the process environment (e.g. when doubleclick app on Mac)
 getUserEnvironment()
 	.then(userEnv => {
-		assign(process.env, userEnv);
+		if (process.env['VSCODE_CLI'] !== '1') {
+			assign(process.env, userEnv);
+		}
+
 		// Make sure the NLS Config travels to the rendered process
 		// See also https://github.com/Microsoft/vscode/issues/4558
 		userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
