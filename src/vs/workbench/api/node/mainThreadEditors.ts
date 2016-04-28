@@ -126,6 +126,11 @@ export class MainThreadTextEditor {
 		this._codeEditor = codeEditor;
 		if (this._codeEditor) {
 
+			// Catch early the case that this code editor gets a different model set and disassociate from this model
+			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.ModelChanged, () => {
+				this.setCodeEditor(null);
+			}));
+
 			let forwardSelection = () => {
 				this._lastSelection = this._codeEditor.getSelections();
 				this._onSelectionChanged.fire(this._lastSelection);
