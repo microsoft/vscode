@@ -1,5 +1,3 @@
-===================BEGIN GENERATOR LOG
-===================END GENERATOR LOG
 microsoft-vscode
 
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
