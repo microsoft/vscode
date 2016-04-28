@@ -6,7 +6,7 @@
 /* Suggest */
 .monaco-editor .suggest-widget {
 	background-color: #F3F3F3;
-	font-size: 12px;
+	font-size: 90%;
 	border: 1px solid rgb(200, 200, 200);
 	z-index: 40;
 }
@@ -16,10 +16,6 @@
 	-moz-transition: left .05s ease-in-out;
 	-o-transition: left .05s ease-in-out;
 	transition: left .05s ease-in-out;
-}
-
-.monaco-editor.mac .suggest-widget {
-	font-size: 11px;
 }
 
 .monaco-editor.mac .suggest-widget .text {
@@ -83,6 +79,7 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
 	color: #A21B1B;
+	font-size: 0.9em;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
