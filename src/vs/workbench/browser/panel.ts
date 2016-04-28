@@ -10,7 +10,7 @@ import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/br
 export abstract class Panel extends Composite implements IPanel { }
 
 /**
- * A panel descriptor is a leightweight descriptor of a panel in the monaco workbench.
+ * A panel descriptor is a leightweight descriptor of a panel in the workbench.
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
 	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string) {

@@ -76,7 +76,7 @@ class MergeDecoratorBoundToModel extends Disposable {
 
 export class MergeDecorator implements common.IEditorContribution {
 
-	static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.Editor.MergeDecorator';
+	static ID = 'vs.git.editor.merge.decorator';
 	static DECORATION_OPTIONS:common.IModelDecorationOptions = {
 		className: 'git-merge-control-decoration',
 		isWholeLine: true,

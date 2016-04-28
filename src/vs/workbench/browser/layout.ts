@@ -48,7 +48,7 @@ interface ComputedStyles {
 }
 
 /**
- * The workbench layout is responsible to lay out all parts that make the Monaco Workbench.
+ * The workbench layout is responsible to lay out all parts that make the Workbench.
  */
 export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 

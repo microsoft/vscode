@@ -33,7 +33,7 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 const EDITOR_VIEW_STATE_PREFERENCE_KEY = 'editorViewState';
 
 /**
- * The base class of editors that leverage the monaco text editor for the editing experience. This class is only intended to
+ * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
  * be subclassed and not instantiated.
  */
 export abstract class BaseTextEditor extends BaseEditor {

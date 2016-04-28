@@ -376,9 +376,8 @@ export class GitService extends ee.EventEmitter
 	implements
 		git.IGitService {
 
-	static ID = 'Monaco.IDE.UI.Services.GitService';
-
 	public serviceId = git.IGitService;
+	
 	private eventService: IEventService;
 	private contextService: IWorkspaceContextService;
 	private messageService: IMessageService;

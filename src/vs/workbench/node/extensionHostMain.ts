@@ -72,7 +72,7 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	let instantiationService = new InstantiationService(services, true);
 	threadService.setInstantiationService(instantiationService);
 
-	// Create the monaco API
+	// Create the ext host API
 	instantiationService.createInstance(ExtHostAPIImplementation);
 
 	return instantiationService;
