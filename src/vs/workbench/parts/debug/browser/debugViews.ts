@@ -273,9 +273,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 
 		const model = this.debugService.getModel();
 		this.toDispose.push(model.onDidChangeCallStack(() => {
-			const threads = model.getThreads();
-			const threadsArray = Object.keys(threads).map(ref => threads[ref]);
-			this.tree.setInput(threadsArray.length === 1 ? threadsArray[0] : model).done(() => {
+			this.updateTree(model).done(() => {
 				const focussedThread = model.getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
 				if (!focussedThread) {
 					this.pauseMessage.hide();
@@ -297,6 +295,15 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 				});
 			}, errors.onUnexpectedError);
 		}));
+	}
+
+	private updateTree(model: debug.IModel): TPromise<void> {
+		const threads = model.getThreads();
+		const threadsArray = Object.keys(threads).map(ref => threads[ref]);
+		// Only show the threads in the call stack if there is more than 1 thread.
+		const newTreeInput = threadsArray.length === 1 ? threadsArray[0] : model;
+
+		return this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput);
 	}
 
 	public shutdown(): void {
