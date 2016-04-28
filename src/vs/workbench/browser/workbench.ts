@@ -600,9 +600,6 @@ export class Workbench implements IPartService {
 		this.hookPartListeners(this.editorPart);
 		this.hookPartListeners(this.sidebarPart);
 		this.hookPartListeners(this.panelPart);
-
-		// Storage Emitter
-		this.toDispose.push(this.toDisposable(this.eventService.addEmitter(this.storageService)));
 	}
 
 	private hookPartListeners(part: Part): void {

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter} from 'vs/base/common/eventEmitter';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 
 // Browser localStorage interface
@@ -21,7 +20,7 @@ export interface IStorage {
 	removeItem(key: string): void;
 }
 
-export class Storage extends EventEmitter implements IStorageService {
+export class Storage implements IStorageService {
 
 	public serviceId = IStorageService;
 
@@ -38,8 +37,6 @@ export class Storage extends EventEmitter implements IStorageService {
 	private workspaceKey: string;
 
 	constructor(contextService: IWorkspaceContextService, globalStorage: IStorage, workspaceStorage = globalStorage) {
-		super();
-
 		let workspace = contextService.getWorkspace();
 
 		this.globalStorage = globalStorage;
@@ -129,19 +126,12 @@ export class Storage extends EventEmitter implements IStorageService {
 		}
 
 		let storageKey = this.toStorageKey(key, scope);
-		let before = storage.getItem(storageKey);
-		let after = value.toString();
 
 		// Store
 		try {
 			storage.setItem(storageKey, value);
 		} catch (error) {
 			errors.onUnexpectedError(error);
-		}
-
-		// Emit Event
-		if (before !== after) {
-			this.emit(StorageEventType.STORAGE, new StorageEvent(key, before, after));
 		}
 	}
 
@@ -158,18 +148,10 @@ export class Storage extends EventEmitter implements IStorageService {
 
 	public remove(key: string, scope = StorageScope.GLOBAL): void {
 		let storage = (scope === StorageScope.GLOBAL) ? this.globalStorage : this.workspaceStorage;
-
 		let storageKey = this.toStorageKey(key, scope);
-		let before = storage.getItem(storageKey);
-		let after: any = null;
 
 		// Remove
 		storage.removeItem(storageKey);
-
-		// Emit Event
-		if (before !== after) {
-			this.emit(StorageEventType.STORAGE, new StorageEvent(key, before, after));
-		}
 	}
 
 	public swap(key: string, valueA: any, valueB: any, scope = StorageScope.GLOBAL, defaultValue?: any): void {
@@ -208,8 +190,6 @@ export class Storage extends EventEmitter implements IStorageService {
 	}
 
 	public dispose(): void {
-		super.dispose();
-
 		while (this.toUnbind.length) {
 			this.toUnbind.pop()();
 		}
