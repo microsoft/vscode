@@ -16,6 +16,7 @@
 	"gitIndexChanges": "{0} - 索引上的變更",
 	"gitIndexChangesRenamed": "{0} - 已重新命名 - 索引的變更",
 	"gitMergeChanges": "{0} - 合併變更",
+	"neverShowAgain": "不要再顯示",
 	"showOutput": "顯示輸出",
 	"unmergedChanges": "您在認可變更前應先解決未合併的變更。",
 	"updateGit": "您似乎已經安裝 GIT {0}。Code 搭配 GIT >=2.0.0 的成效最佳。",

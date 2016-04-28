@@ -7,6 +7,7 @@
 	"close": "閉じる",
 	"deleteSure": "'{0}' をアンインストールしてもよろしいですか?",
 	"installExtension": "拡張機能のインストール",
+	"notFound": "拡張機能 '{0}' がインストールされていません。",
 	"restartNow": "今すぐ再起動",
 	"restartNow2": "今すぐ再起動",
 	"showExtensionRecommendations": "拡張機能のおすすめの表示",

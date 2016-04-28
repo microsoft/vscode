@@ -18,6 +18,7 @@
 	"glyphMargin": "グリフ余白の表示を制御します",
 	"hideCursorInOverviewRuler": "概要ルーラーでカーソルを非表示にするかどうかを制御します。",
 	"ignoreTrimWhitespace": "差分エディターが、先頭または末尾の空白の変更を差分として表示するかどうかを制御します。",
+	"indentGuides": "エディターでインデントのガイドを表示する必要があるかどうかを制御します",
 	"insertSpaces": "Tab キーを押すとスペースが挿入されます。",
 	"insertSpaces.errorMessage": "'boolean' が必要です。`editor.detectIndentation` 設定によって値 \"auto\" が置き換えられていることに注意してください。",
 	"lineHeight": "行の高さを制御します。",
@@ -38,6 +39,6 @@
 	"tabSize": "タブ 1 つに相当するスペースの数。",
 	"tabSize.errorMessage": "'number' が必要です。`editor.detectIndentation` 設定によって値 \"auto\" が置き換えられていることに注意してください。",
 	"wordSeparators": "単語に関連したナビゲーションまたは操作を実行するときに、単語の区切り文字として使用される文字",
-	"wrappingColumn": "エディターで次の行に折り返される文字数を制御します。これを 0 に設定すると、ビューポートの幅での折り返しが有効になります",
+	"wrappingColumn": "エディターで次の行に折り返される文字数を制御します。これを 0 に設定すると、ビューポートの幅での折り返しがオンになります (ワード ラップ)。これを -1 に設定するとエディターによる折り返しが禁止されます。",
 	"wrappingIndent": "折り返し行のインデントを制御します。'none'、'same'、または 'indent' のいずれかを指定できます。"
 }

@@ -9,6 +9,7 @@
 	"branch2": "Branche",
 	"checkout": "Extraire",
 	"cleanChangesLabel": "&&Supprimer les modifications",
+	"commit": "Valider",
 	"commitAll": "Valider tout",
 	"commitAll2": "Valider tout",
 	"commitStaged": "Valider le contenu en zone de transit",

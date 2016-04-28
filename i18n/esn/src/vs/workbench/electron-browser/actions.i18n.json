@@ -9,6 +9,8 @@
 	"closeFolder": "Cerrar carpeta",
 	"closeMessages": "Cerrar mensajes de notificación",
 	"closeWindow": "Cerrar ventana",
+	"files": "archivos",
+	"folders": "carpetas",
 	"newWindow": "Nueva ventana",
 	"noFolderOpened": "No hay ninguna carpeta abierta en esta instancia para cerrar.",
 	"openRecent": "Abrir recientes",

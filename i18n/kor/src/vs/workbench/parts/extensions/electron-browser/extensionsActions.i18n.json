@@ -7,6 +7,7 @@
 	"close": "닫기",
 	"deleteSure": "'{0}'을(를) 제거할까요?",
 	"installExtension": "확장 설치",
+	"notFound": "확장 '{0}'이(가) 설치되지 않았습니다.",
 	"restartNow": "지금 다시 시작",
 	"restartNow2": "지금 다시 시작",
 	"showExtensionRecommendations": "확장 권장 사항 표시",

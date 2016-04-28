@@ -7,6 +7,7 @@
 	"close": "Fermer",
 	"deleteSure": "Voulez-vous vraiment désinstaller '{0}' ?",
 	"installExtension": "Installer l'extension",
+	"notFound": "Extension '{0}' non installée.",
 	"restartNow": "Redémarrer maintenant",
 	"restartNow2": "Redémarrer maintenant",
 	"showExtensionRecommendations": "Afficher les extensions recommandées",

@@ -6,9 +6,8 @@
 {
 	"DebugTaskNotFound": "Не удалось найти задачу preLaunchTask \"{0}\".",
 	"NewLaunchConfig": "Настройте файл конфигурации запуска для вашего приложения.",
-	"continue": "Продолжить",
 	"debugAdapterCrash": "Процесс адаптера отладки неожиданно завершился",
-	"debugNoThread": "От адаптера отладки с идентификатором {0} не был получен поток.",
+	"debugAnyway": "Принудительная отладка",
 	"debugSourceNotAvailable": "Источник {0} недоступен.",
 	"debugTypeMissing": "Отсутствует свойство type для выбранной конфигурации в launch.json.",
 	"debugTypeNotSupported": "Настроенный тип отладки \"{0}\" не поддерживается.",

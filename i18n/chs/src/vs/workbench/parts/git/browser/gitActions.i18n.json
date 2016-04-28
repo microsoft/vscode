@@ -9,6 +9,7 @@
 	"branch2": "分支",
 	"checkout": "签出",
 	"cleanChangesLabel": "清理更改(&&C)",
+	"commit": "提交",
 	"commitAll": "全部提交",
 	"commitAll2": "全部提交",
 	"commitStaged": "提交已暂存的",

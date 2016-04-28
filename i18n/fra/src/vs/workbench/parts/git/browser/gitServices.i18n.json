@@ -16,6 +16,7 @@
 	"gitIndexChanges": "{0} - Modifications de l'index",
 	"gitIndexChangesRenamed": "{0} - Renommé - Modifications de l'index",
 	"gitMergeChanges": "{0} - Fusionner les modifications",
+	"neverShowAgain": "Ne plus afficher",
 	"showOutput": "Afficher la sortie",
 	"unmergedChanges": "Vous devez tout d'abord résoudre les modifications non fusionnées avant de valider vos modifications.",
 	"updateGit": "Il semble que git {0} soit installé. Code fonctionne mieux avec git >=2.0.0.",

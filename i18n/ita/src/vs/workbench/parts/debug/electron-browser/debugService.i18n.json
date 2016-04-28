@@ -6,9 +6,8 @@
 {
 	"DebugTaskNotFound": "L'attività di preavvio '{0}' non è stata trovata.",
 	"NewLaunchConfig": "Impostare il file di configurazione di avvio per l'applicazione.",
-	"continue": "Continua",
 	"debugAdapterCrash": "Il processo dell'adattatore di debug è stato terminato in modo imprevisto",
-	"debugNoThread": "Non è stato ricevuto alcun thread dall'adattatore di debug con ID {0}.",
+	"debugAnyway": "Eseguire comunque il debug",
 	"debugSourceNotAvailable": "L'origine {0} non è disponibile.",
 	"debugTypeMissing": "In launch.json manca la proprietà 'type' per la configurazione selezionata.",
 	"debugTypeNotSupported": "Il tipo di debug configurato '{0}' non è supportato.",
@@ -17,7 +16,7 @@
 	"debuggingStarted": "Il debug è stato avviato.",
 	"debuggingStopped": "Il debug è stato arrestato.",
 	"differentTaskRunning": "È in esecuzione un'attività {0}. Non è possibile eseguire l'attività di preavvio {1}.",
-	"preLaunchTaskError": "È stato rilevato un errore durante l'esecuzione dell'attività di preavvio '{0}'.",
-	"preLaunchTaskErrors": "Sono stati rilevati errori durante l'esecuzione dell'attività di preavvio '{0}'.",
+	"preLaunchTaskError": "È stato rilevato un errore di compilazione durante preLaunchTask '{0}'.",
+	"preLaunchTaskErrors": "Sono stati rilevati errori di compilazione durante preLaunchTask '{0}'.",
 	"preLaunchTaskExitCode": "L'attività di preavvio '{0}' è stata terminata ed è stato restituito il codice di uscita {1}."
 }

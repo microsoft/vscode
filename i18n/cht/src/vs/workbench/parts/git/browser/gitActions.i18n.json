@@ -9,6 +9,7 @@
 	"branch2": "分支",
 	"checkout": "簽出",
 	"cleanChangesLabel": "清除變更(&C)",
+	"commit": "認可",
 	"commitAll": "全部認可",
 	"commitAll2": "全部認可",
 	"commitStaged": "認可已分段",

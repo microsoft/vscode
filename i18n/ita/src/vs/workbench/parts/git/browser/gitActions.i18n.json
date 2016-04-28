@@ -9,6 +9,7 @@
 	"branch2": "Ramo",
 	"checkout": "Estrai",
 	"cleanChangesLabel": "&&Pulisci modifiche",
+	"commit": "Commit",
 	"commitAll": "Esegui commit di tutto",
 	"commitAll2": "Esegui commit di tutto",
 	"commitStaged": "Esegui commit delle righe preparate",

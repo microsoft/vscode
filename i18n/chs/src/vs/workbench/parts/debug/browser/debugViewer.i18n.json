@@ -9,6 +9,7 @@
 	"functionBreakPointInputAriaLabel": "键入函数断点",
 	"functionBreakpointAriaLabel": "函数断点 {0}，断点，调试",
 	"functionBreakpointPlaceholder": "要断开的函数",
+	"loadMoreStackFrames": "加载多个堆栈帧",
 	"stackFrameAriaLabel": "堆栈帧 {0} 行 {1} {2}，调用堆栈，调试",
 	"threadAriaLabel": "线程 {0}，调用堆栈，调试",
 	"variableAriaLabel": "{0} 值 {1}，变量，调试",

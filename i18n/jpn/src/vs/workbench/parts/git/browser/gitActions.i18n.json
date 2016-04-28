@@ -9,6 +9,7 @@
 	"branch2": "ブランチ",
 	"checkout": "チェックアウト",
 	"cleanChangesLabel": "変更を取り除く(&&C)",
+	"commit": "コミット",
 	"commitAll": "すべてコミット",
 	"commitAll2": "すべてコミット",
 	"commitStaged": "ステージング済みをコミット",

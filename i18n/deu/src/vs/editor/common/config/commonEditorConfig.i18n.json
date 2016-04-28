@@ -18,6 +18,7 @@
 	"glyphMargin": "Steuert die Sichtbarkeit des Glyphenrands.",
 	"hideCursorInOverviewRuler": "Steuert die Sichtbarkeit des Cursors im Übersichtslineal.",
 	"ignoreTrimWhitespace": "Steuert, ob der Diff-Editor Änderungen in führenden oder nachgestellten Leerzeichen als Diffs anzeigt.",
+	"indentGuides": "Steuert, ob der Editor Einzugsführungslinien rendern soll.",
 	"insertSpaces": "Fügt beim Drücken der TAB-TASTE Leerzeichen ein.",
 	"insertSpaces.errorMessage": "\"boolean\" wurde erwartet. Beachten Sie, dass der Wert \"auto\" durch die Einstellung \"editor.detectIndentation\" ersetzt wurde.",
 	"lineHeight": "Steuert die Zeilenhöhe.",
@@ -38,6 +39,6 @@
 	"tabSize": "Die Anzahl der Leerzeichen, denen ein Tabstopp entspricht.",
 	"tabSize.errorMessage": "\"number\" wurde erwartet. Beachten Sie, dass der Wert \"auto\" durch die Einstellung \"editor.detectIndentation\" ersetzt wurde.",
 	"wordSeparators": "Zeichen, die als Worttrennzeichen verwendet werden, wenn wortbezogene Navigationen oder Vorgänge ausgeführt werden.",
-	"wrappingColumn": "Steuert, nach wie vielen Zeichen der Editor einen Umbruch in die nächste Zeile ausführt. Durch das Festlegen auf 0 wird der Umbruch auf Viewportbreite aktiviert.",
+	"wrappingColumn": "Steuert, nach wie vielen Zeichen der Editor einen Umbruch in die nächste Zeile ausführt. Durch das Festlegen auf 0 wird der Umbruch auf Viewportbreite aktiviert (Zeilenumbruch). Wenn diese Einstellung auf -1 festgelegt wird, führt der Editor nie einen Umbruch aus.",
 	"wrappingIndent": "Steuert den Einzug der umbrochenen Zeilen. Der Wert kann \"none\", \"same\" oder \"indent\" sein."
 }
