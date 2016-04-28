@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {ITextFileService, IWorkingFilesModel, IWorkingFileModelChangeEvent, IWorkingFileEntry, EventType, LocalFileChangeEvent, WORKING_FILES_MODEL_ENTRY_CLASS_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, IWorkingFilesModel, IWorkingFileModelChangeEvent, IWorkingFileEntry, EventType, LocalFileChangeEvent, TextFileChangeEvent, WORKING_FILES_MODEL_ENTRY_CLASS_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {UntitledEditorEvent, EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -66,10 +66,10 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e) => this.onUntitledFileDeleted(e)));
 
 		// listen to files being changed locally
-		this.toDispose.push(this.eventService.addListener2(EventType.FILE_DIRTY, (e: LocalFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toDispose.push(this.eventService.addListener2(EventType.FILE_SAVE_ERROR, (e: LocalFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toDispose.push(this.eventService.addListener2(EventType.FILE_SAVED, (e: LocalFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toDispose.push(this.eventService.addListener2(EventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
+		this.toDispose.push(this.eventService.addListener2(EventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
 
 		// clean up model on set input error
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, (e: EditorEvent) => this.onEditorInputSetError(e)));
@@ -86,25 +86,25 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 		}
 	}
 
-	private onTextFileDirty(e: LocalFileChangeEvent): void {
+	private onTextFileDirty(e: TextFileChangeEvent): void {
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
-			this.updateDirtyState(e.getAfter().resource, true); // no indication needed when auto save is enabled for short delay
+			this.updateDirtyState(e.resource, true); // no indication needed when auto save is enabled for short delay
 		} else {
-			this.addEntry(e.getAfter().resource);
+			this.addEntry(e.resource);
 		}
 	}
 
-	private onTextFileSaveError(e: LocalFileChangeEvent): void {
-		this.updateDirtyState(e.getAfter().resource, true);
+	private onTextFileSaveError(e: TextFileChangeEvent): void {
+		this.updateDirtyState(e.resource, true);
 	}
 
-	private onTextFileSaved(e: LocalFileChangeEvent): void {
-		this.updateDirtyState(e.getAfter().resource, false);
+	private onTextFileSaved(e: TextFileChangeEvent): void {
+		this.updateDirtyState(e.resource, false);
 	}
 
-	private onTextFileReverted(e: LocalFileChangeEvent): void {
-		if (this.hasEntry(e.getAfter().resource)) {
-			this.updateDirtyState(e.getAfter().resource, false);
+	private onTextFileReverted(e: TextFileChangeEvent): void {
+		if (this.hasEntry(e.resource)) {
+			this.updateDirtyState(e.resource, false);
 		}
 	}
 
@@ -333,7 +333,7 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 
 	public clear(): void {
 		this.recordRecentlyClosedEntries(this.entries);
-		
+
 		let deleted = this.entries;
 		this.entries = [];
 		this.mapEntryToResource = Object.create(null);

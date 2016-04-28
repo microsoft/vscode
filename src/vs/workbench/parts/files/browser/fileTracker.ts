@@ -14,7 +14,7 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {LocalFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, IWorkingFilesModel, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, IWorkingFilesModel, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
@@ -66,11 +66,11 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorInputEvent) => this.onEditorInputChanged(e)));
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledEditorDeleted(e)));
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledEditorDirty(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_DIRTY, (e: LocalFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVING, (e: LocalFileChangeEvent) => this.onTextFileSaving(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVE_ERROR, (e: LocalFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVING, (e: TextFileChangeEvent) => this.onTextFileSaving(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
 		this.toUnbind.push(this.eventService.addListener('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
 
 		// Update editors and inputs from disk changes
@@ -81,33 +81,33 @@ export class FileTracker implements IWorkbenchContribution {
 		this.disposeTextFileModels();
 	}
 
-	private onTextFileDirty(e: LocalFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.getAfter().resource);
+	private onTextFileDirty(e: TextFileChangeEvent): void {
+		this.emitInputStateChangeEvent(e.resource);
 
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
 	}
 
-	private onTextFileSaving(e: LocalFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.getAfter().resource);
+	private onTextFileSaving(e: TextFileChangeEvent): void {
+		this.emitInputStateChangeEvent(e.resource);
 	}
 
-	private onTextFileSaveError(e: LocalFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.getAfter().resource);
+	private onTextFileSaveError(e: TextFileChangeEvent): void {
+		this.emitInputStateChangeEvent(e.resource);
 		this.updateActivityBadge();
 	}
 
-	private onTextFileSaved(e: LocalFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.getAfter().resource);
+	private onTextFileSaved(e: TextFileChangeEvent): void {
+		this.emitInputStateChangeEvent(e.resource);
 
 		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
 	}
 
-	private onTextFileReverted(e: LocalFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.getAfter().resource);
+	private onTextFileReverted(e: TextFileChangeEvent): void {
+		this.emitInputStateChangeEvent(e.resource);
 
 		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
