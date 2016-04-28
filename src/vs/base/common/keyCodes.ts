@@ -555,7 +555,7 @@ export class Keybinding {
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
-	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
+	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 */
 	private static _toElectronAccelerator(value:number, Platform:ISimplifiedPlatform): string {
 		if (BinaryKeybindings.hasChord(value)) {
@@ -744,7 +744,7 @@ export class Keybinding {
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
-	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
+	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 */
 	public _toElectronAccelerator(Platform:ISimplifiedPlatform = defaultPlatform): string {
 		return Keybinding._toElectronAccelerator(this.value, Platform);

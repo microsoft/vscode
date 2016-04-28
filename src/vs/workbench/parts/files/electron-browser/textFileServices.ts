@@ -403,7 +403,7 @@ export class TextFileService extends AbstractTextFileService {
 
 		// Filters are working flaky in Electron and there are bugs. On Windows they are working
 		// somewhat but we see issues:
-		// - https://github.com/atom/electron/issues/3556
+		// - https://github.com/electron/electron/issues/3556
 		// - https://github.com/Microsoft/vscode/issues/451
 		// - Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
 		// Until these issues are resolved, we disable the dialog file extension filtering.
