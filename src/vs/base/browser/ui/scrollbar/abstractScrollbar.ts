@@ -8,94 +8,19 @@ import * as Browser from 'vs/base/browser/browser';
 import * as Platform from 'vs/base/common/platform';
 import * as DomUtils from 'vs/base/browser/dom';
 import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IMouseWheelEvent, IParent, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {IParent, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
 import {Widget} from 'vs/base/browser/ui/widget';
-import {TimeoutTimer, IntervalTimer} from 'vs/base/common/async';
+import {TimeoutTimer} from 'vs/base/common/async';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
-
-/**
- * The arrow image size.
- */
-export const ARROW_IMG_SIZE = 11;
+import {ScrollbarArrow, IMouseWheelEventFactory} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
  */
 const MOUSE_DRAG_RESET_DISTANCE = 140;
-
-
-
-
-export interface IMouseWheelEventFactory {
-	(): IMouseWheelEvent;
-}
-
-
-class ScrollbarArrow extends Widget {
-	private _parent: IParent;
-	private _mouseWheelEventFactory: IMouseWheelEventFactory;
-	public bgDomNode: HTMLElement;
-	public domNode: HTMLElement;
-	private _mousedownRepeatTimer: IntervalTimer;
-	private _mousedownScheduleRepeatTimer: TimeoutTimer;
-	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
-
-	constructor(className: string, top: number, left: number, bottom: number, right: number, bgWidth: number, bgHeight: number, mouseWheelEventFactory: IMouseWheelEventFactory, parent: IParent) {
-		super();
-		this._parent = parent;
-		this._mouseWheelEventFactory = mouseWheelEventFactory;
-
-		this.bgDomNode = document.createElement('div');
-		this.bgDomNode.className = 'arrow-background';
-		this.bgDomNode.style.position = 'absolute';
-		setSize(this.bgDomNode, bgWidth, bgHeight);
-		setPosition(this.bgDomNode, (top !== null ? 0 : null), (left !== null ? 0 : null), (bottom !== null ? 0 : null), (right !== null ? 0 : null));
-
-
-		this.domNode = document.createElement('div');
-		this.domNode.className = className;
-		this.domNode.style.position = 'absolute';
-		setSize(this.domNode, ARROW_IMG_SIZE, ARROW_IMG_SIZE);
-		setPosition(this.domNode, top, left, bottom, right);
-
-		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
-		this.onmousedown(this.bgDomNode, (e) => this._arrowMouseDown(e));
-		this.onmousedown(this.domNode, (e) => this._arrowMouseDown(e));
-
-		this._mousedownRepeatTimer = this._register(new IntervalTimer());
-		this._mousedownScheduleRepeatTimer = this._register(new TimeoutTimer());
-	}
-
-	private _arrowMouseDown(e: IMouseEvent): void {
-		let repeater = () => {
-			this._parent.onMouseWheel(this._mouseWheelEventFactory());
-		};
-
-		let scheduleRepeater = () => {
-			this._mousedownRepeatTimer.cancelAndSet(repeater, 1000 / 24);
-		};
-
-		repeater();
-		this._mousedownRepeatTimer.cancel();
-		this._mousedownScheduleRepeatTimer.cancelAndSet(scheduleRepeater, 200);
-
-		this._mouseMoveMonitor.startMonitoring(
-			standardMouseMoveMerger,
-			(mouseMoveData: IStandardMouseMoveEventData) => {
-				/* Intentional empty */
-			},
-			() => {
-				this._mousedownRepeatTimer.cancel();
-				this._mousedownScheduleRepeatTimer.cancel();
-			}
-		);
-
-		e.preventDefault();
-	}
-}
 
 class VisibilityController extends Disposable {
 	private _visibility: Visibility;
@@ -412,28 +337,4 @@ export abstract class AbstractScrollbar extends Widget {
 	protected abstract _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _getScrollPosition(): number;
 	protected abstract _setScrollPosition(elementScrollPosition: number): void;
-}
-
-function setPosition(domNode: HTMLElement, top: number, left: number, bottom: number, right: number) {
-	if (top !== null) {
-		domNode.style.top = top + 'px';
-	}
-	if (left !== null) {
-		domNode.style.left = left + 'px';
-	}
-	if (bottom !== null) {
-		domNode.style.bottom = bottom + 'px';
-	}
-	if (right !== null) {
-		domNode.style.right = right + 'px';
-	}
-}
-
-function setSize(domNode: HTMLElement, width: number, height: number) {
-	if (width !== null) {
-		domNode.style.width = width + 'px';
-	}
-	if (height !== null) {
-		domNode.style.height = height + 'px';
-	}
 }
