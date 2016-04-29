@@ -12,21 +12,22 @@ import {StandardMouseWheelEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
 import {
-		IScrollableElementOptions, IDimensions, IMouseWheelEvent, visibilityFromString,
-		IScrollableElement, IScrollableElementCreationOptions, IOverviewRulerLayoutInfo
+		ScrollableElementResolvedOptions, IDimensions, visibilityFromString,
+		IScrollableElement, ScrollableElementCreationOptions, IOverviewRulerLayoutInfo
 	} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IScrollable, DelegateScrollable} from 'vs/base/common/scrollable';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {TimeoutTimer} from 'vs/base/common/async';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
+import {ScrollbarHost} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
 
 export class ScrollableElement extends Widget implements IScrollableElement {
 
-	private _options: IScrollableElementOptions;
+	private _options: ScrollableElementResolvedOptions;
 	private _scrollable: DelegateScrollable;
 	private _verticalScrollbar: VerticalScrollbar;
 	private _horizontalScrollbar: HorizontalScrollbar;
@@ -47,15 +48,20 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 	private _hideTimeout: TimeoutTimer;
 	private _shouldRender: boolean;
 
-	constructor(element: HTMLElement, scrollable:IScrollable, options: IScrollableElementCreationOptions, dimensions: IDimensions = null) {
+	constructor(element: HTMLElement, scrollable:IScrollable, options: ScrollableElementCreationOptions, dimensions: IDimensions = null) {
 		super();
 		element.style.overflow = 'hidden';
-		this._options = this._createOptions(options);
+		this._options = resolveOptions(options);
 
 		this._scrollable = this._register(new DelegateScrollable(scrollable, () => this._onScroll()));
 
-		this._verticalScrollbar = this._register(new VerticalScrollbar(this._scrollable, this, this._options));
-		this._horizontalScrollbar = this._register(new HorizontalScrollbar(this._scrollable, this, this._options));
+		let scrollbarHost:ScrollbarHost = {
+			onMouseWheel: (mouseWheelEvent: StandardMouseWheelEvent) => this._onMouseWheel(mouseWheelEvent),
+			onDragStart: () => this._onDragStart(),
+			onDragEnd: () => this._onDragEnd(),
+		};
+		this._verticalScrollbar = this._register(new VerticalScrollbar(this._scrollable, this._options, scrollbarHost));
+		this._horizontalScrollbar = this._register(new HorizontalScrollbar(this._scrollable, this._options, scrollbarHost));
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-scrollable-element ' + this._options.className;
@@ -105,6 +111,9 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		super.dispose();
 	}
 
+	/**
+	 * Get the generated 'scrollable' dom node
+	 */
 	public getDomNode(): HTMLElement {
 		return this._domNode;
 	}
@@ -116,10 +125,17 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		};
 	}
 
+	/**
+	 * Delegate a mouse down event to the vertical scrollbar.
+	 * This is to help with clicking somewhere else and having the scrollbar react.
+	 */
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
 	}
 
+	/**
+	 * Let the scrollable element know that the generated dom node's width / height might have changed.
+	 */
 	public onElementDimensions(dimensions: IDimensions = null, synchronous: boolean = false): void {
 		if (synchronous) {
 			this._actualElementDimensions(dimensions);
@@ -142,6 +158,9 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		this._shouldRender = this._horizontalScrollbar.onElementSize(width) || this._shouldRender;
 	}
 
+	/**
+	 * Update the class name of the scrollable element.
+	 */
 	public updateClassName(newClassName: string): void {
 		this._options.className = newClassName;
 		// Defaults are different on Macs
@@ -151,9 +170,14 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		this._domNode.className = 'monaco-scrollable-element ' + this._options.className;
 	}
 
-	public updateOptions(newOptions: IScrollableElementCreationOptions): void {
+	/**
+	 * Update configuration options for the scrollbar.
+	 * Really this is Editor.IEditorScrollbarOptions, but base shouldn't
+	 * depend on Editor.
+	 */
+	public updateOptions(newOptions: ScrollableElementCreationOptions): void {
 		// only support handleMouseWheel changes for now
-		let massagedOptions = this._createOptions(newOptions);
+		let massagedOptions = resolveOptions(newOptions);
 		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
 		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
@@ -176,7 +200,7 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		if (shouldListen) {
 			let onMouseWheel = (browserEvent: MouseWheelEvent) => {
 				let e = new StandardMouseWheelEvent(browserEvent);
-				this.onMouseWheel(e);
+				this._onMouseWheel(e);
 			};
 
 			this._mouseWheelToDispose.push(DomUtils.addDisposableListener(this._listenOnDomNode, 'mousewheel', onMouseWheel));
@@ -184,7 +208,7 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		}
 	}
 
-	public onMouseWheel(e: IMouseWheelEvent): void {
+	private _onMouseWheel(e: StandardMouseWheelEvent): void {
 		if (Platform.isMacintosh && e.browserEvent && this._options.saveLastScrollTimeOnClassName) {
 			// Mark dom node with timestamp of wheel event
 			let target = <HTMLElement>e.browserEvent.target;
@@ -271,6 +295,10 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		}
 	}
 
+	/**
+	 * Render / mutate the DOM now.
+	 * Should be used together with the ctor option `lazyRender`.
+	 */
 	public renderNow(): void {
 		if (!this._options.lazyRender) {
 			throw new Error('Please use `lazyRender` together with `renderNow`!');
@@ -301,12 +329,12 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 
 	// -------------------- fade in / fade out --------------------
 
-	public onDragStart(): void {
+	private _onDragStart(): void {
 		this._isDragging = true;
 		this._reveal();
 	}
 
-	public onDragEnd(): void {
+	private _onDragEnd(): void {
 		this._isDragging = false;
 		this._hide();
 	}
@@ -337,51 +365,41 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 	private _scheduleHide(): void {
 		this._hideTimeout.cancelAndSet(() => this._hide(), HIDE_TIMEOUT);
 	}
+}
 
-	// -------------------- size & layout --------------------
+function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
+	let result: ScrollableElementResolvedOptions = {
+		forbidTranslate3dUse: (typeof opts.forbidTranslate3dUse !== 'undefined' ? opts.forbidTranslate3dUse : false),
+		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
+		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
+		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
+		handleMouseWheel: (typeof opts.handleMouseWheel !== 'undefined' ? opts.handleMouseWheel : true),
+		flipAxes: (typeof opts.flipAxes !== 'undefined' ? opts.flipAxes : false),
+		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
+		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 
-	private _createOptions(options: IScrollableElementCreationOptions): IScrollableElementOptions {
+		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),
 
-		function ensureValue<V>(source: any, prop: string, value: V) {
-			if (source.hasOwnProperty(prop)) {
-				return <V>source[prop];
-			}
-			return value;
-		}
+		horizontal: visibilityFromString(typeof opts.horizontal !== 'undefined' ? opts.horizontal : 'auto'),
+		horizontalScrollbarSize: (typeof opts.horizontalScrollbarSize !== 'undefined' ? opts.horizontalScrollbarSize : 10),
+		horizontalSliderSize: (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : 0),
+		horizontalHasArrows: (typeof opts.horizontalHasArrows !== 'undefined' ? opts.horizontalHasArrows : false),
 
-		let result: IScrollableElementOptions = {
-			forbidTranslate3dUse: ensureValue(options, 'forbidTranslate3dUse', false),
-			lazyRender: ensureValue(options, 'lazyRender', false),
-			className: ensureValue(options, 'className', ''),
-			useShadows: ensureValue(options, 'useShadows', true),
-			handleMouseWheel: ensureValue(options, 'handleMouseWheel', true),
-			flipAxes: ensureValue(options, 'flipAxes', false),
-			mouseWheelScrollSensitivity: ensureValue(options, 'mouseWheelScrollSensitivity', 1),
-			arrowSize: ensureValue(options, 'arrowSize', 11),
+		vertical: visibilityFromString(typeof opts.vertical !== 'undefined' ? opts.vertical : 'auto'),
+		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : 10),
+		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
+		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
 
-			listenOnDomNode: ensureValue<HTMLElement>(options, 'listenOnDomNode', null),
+		saveLastScrollTimeOnClassName: (typeof opts.saveLastScrollTimeOnClassName !== 'undefined' ? opts.saveLastScrollTimeOnClassName : null)
+	};
 
-			horizontal: visibilityFromString(ensureValue(options, 'horizontal', 'auto')),
-			horizontalScrollbarSize: ensureValue(options, 'horizontalScrollbarSize', 10),
-			horizontalSliderSize: 0,
-			horizontalHasArrows: ensureValue(options, 'horizontalHasArrows', false),
+	result.horizontalSliderSize = (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : result.horizontalScrollbarSize);
+	result.verticalSliderSize = (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : result.verticalScrollbarSize);
 
-			vertical: visibilityFromString(ensureValue(options, 'vertical', 'auto')),
-			verticalScrollbarSize: ensureValue(options, 'verticalScrollbarSize', 10),
-			verticalHasArrows: ensureValue(options, 'verticalHasArrows', false),
-			verticalSliderSize: 0,
-
-			saveLastScrollTimeOnClassName: ensureValue(options, 'saveLastScrollTimeOnClassName', null)
-		};
-
-		result.horizontalSliderSize = ensureValue(options, 'horizontalSliderSize', result.horizontalScrollbarSize);
-		result.verticalSliderSize = ensureValue(options, 'verticalSliderSize', result.verticalScrollbarSize);
-
-		// Defaults are different on Macs
-		if (Platform.isMacintosh) {
-			result.className += ' mac';
-		}
-
-		return result;
+	// Defaults are different on Macs
+	if (Platform.isMacintosh) {
+		result.className += ' mac';
 	}
+
+	return result;
 }

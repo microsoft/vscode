@@ -6,7 +6,7 @@
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import {IOverviewRulerLayoutInfo, IScrollableElement, IScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {IOverviewRulerLayoutInfo, IScrollableElement, ScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
 import {EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, IViewEventBus} from 'vs/editor/common/editorCommon';
 import {EditorScrollable} from 'vs/editor/common/viewLayout/editorScrollable';
@@ -41,7 +41,7 @@ export class ScrollManager implements IDisposable {
 
 		var configScrollbarOpts = this.configuration.editor.scrollbar;
 
-		var scrollbarOptions:IScrollableElementCreationOptions = {
+		var scrollbarOptions:ScrollableElementCreationOptions = {
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
 			horizontal: configScrollbarOpts.horizontal,

@@ -5,47 +5,76 @@
 'use strict';
 
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IMouseWheelEvent, IParent} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {TimeoutTimer, IntervalTimer} from 'vs/base/common/async';
-
-export interface IMouseWheelEventFactory {
-	(): IMouseWheelEvent;
-}
 
 /**
  * The arrow image size.
  */
 export const ARROW_IMG_SIZE = 11;
 
+export interface ScrollbarArrowOptions {
+	onActivate: () => void;
+	className: string;
+
+	bgWidth: number;
+	bgHeight: number;
+
+	top?: number;
+	left?: number;
+	bottom?: number;
+	right?: number;
+}
+
 export class ScrollbarArrow extends Widget {
 
-	private _parent: IParent;
-	private _mouseWheelEventFactory: IMouseWheelEventFactory;
+	private _onActivate: () => void;
 	public bgDomNode: HTMLElement;
 	public domNode: HTMLElement;
 	private _mousedownRepeatTimer: IntervalTimer;
 	private _mousedownScheduleRepeatTimer: TimeoutTimer;
 	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
-	constructor(className: string, top: number, left: number, bottom: number, right: number, bgWidth: number, bgHeight: number, mouseWheelEventFactory: IMouseWheelEventFactory, parent: IParent) {
+	constructor(opts:ScrollbarArrowOptions) {
 		super();
-		this._parent = parent;
-		this._mouseWheelEventFactory = mouseWheelEventFactory;
+		this._onActivate = opts.onActivate;
 
 		this.bgDomNode = document.createElement('div');
 		this.bgDomNode.className = 'arrow-background';
 		this.bgDomNode.style.position = 'absolute';
-		setSize(this.bgDomNode, bgWidth, bgHeight);
-		setPosition(this.bgDomNode, (top !== null ? 0 : null), (left !== null ? 0 : null), (bottom !== null ? 0 : null), (right !== null ? 0 : null));
-
+		this.bgDomNode.style.width = opts.bgWidth + 'px';
+		this.bgDomNode.style.height = opts.bgHeight + 'px';
+		if (typeof opts.top !== 'undefined') {
+			this.bgDomNode.style.top = '0px';
+		}
+		if (typeof opts.left !== 'undefined') {
+			this.bgDomNode.style.left = '0px';
+		}
+		if (typeof opts.bottom !== 'undefined') {
+			this.bgDomNode.style.bottom = '0px';
+		}
+		if (typeof opts.right !== 'undefined') {
+			this.bgDomNode.style.right = '0px';
+		}
 
 		this.domNode = document.createElement('div');
-		this.domNode.className = className;
+		this.domNode.className = opts.className;
 		this.domNode.style.position = 'absolute';
-		setSize(this.domNode, ARROW_IMG_SIZE, ARROW_IMG_SIZE);
-		setPosition(this.domNode, top, left, bottom, right);
+		this.domNode.style.width = ARROW_IMG_SIZE + 'px';
+		this.domNode.style.height = ARROW_IMG_SIZE + 'px';
+		if (typeof opts.top !== 'undefined') {
+			this.domNode.style.top = opts.top + 'px';
+		}
+		if (typeof opts.left !== 'undefined') {
+			this.domNode.style.left = opts.left + 'px';
+		}
+		if (typeof opts.bottom !== 'undefined') {
+			this.domNode.style.bottom = opts.bottom + 'px';
+		}
+		if (typeof opts.right !== 'undefined') {
+			this.domNode.style.right = opts.right + 'px';
+		}
 
 		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		this.onmousedown(this.bgDomNode, (e) => this._arrowMouseDown(e));
@@ -56,15 +85,11 @@ export class ScrollbarArrow extends Widget {
 	}
 
 	private _arrowMouseDown(e: IMouseEvent): void {
-		let repeater = () => {
-			this._parent.onMouseWheel(this._mouseWheelEventFactory());
-		};
-
 		let scheduleRepeater = () => {
-			this._mousedownRepeatTimer.cancelAndSet(repeater, 1000 / 24);
+			this._mousedownRepeatTimer.cancelAndSet(() => this._onActivate(), 1000 / 24);
 		};
 
-		repeater();
+		this._onActivate();
 		this._mousedownRepeatTimer.cancel();
 		this._mousedownScheduleRepeatTimer.cancelAndSet(scheduleRepeater, 200);
 
@@ -80,29 +105,5 @@ export class ScrollbarArrow extends Widget {
 		);
 
 		e.preventDefault();
-	}
-}
-
-function setPosition(domNode: HTMLElement, top: number, left: number, bottom: number, right: number) {
-	if (top !== null) {
-		domNode.style.top = top + 'px';
-	}
-	if (left !== null) {
-		domNode.style.left = left + 'px';
-	}
-	if (bottom !== null) {
-		domNode.style.bottom = bottom + 'px';
-	}
-	if (right !== null) {
-		domNode.style.right = right + 'px';
-	}
-}
-
-function setSize(domNode: HTMLElement, width: number, height: number) {
-	if (width !== null) {
-		domNode.style.width = width + 'px';
-	}
-	if (height !== null) {
-		domNode.style.height = height + 'px';
 	}
 }

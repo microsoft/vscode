@@ -7,116 +7,20 @@
 import * as Browser from 'vs/base/browser/browser';
 import * as Platform from 'vs/base/common/platform';
 import * as DomUtils from 'vs/base/browser/dom';
-import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IParent, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {Disposable} from 'vs/base/common/lifecycle';
+import {IMouseEvent, StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
+import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
 import {Widget} from 'vs/base/browser/ui/widget';
-import {TimeoutTimer} from 'vs/base/common/async';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import {ScrollbarArrow, IMouseWheelEventFactory} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
+import {ScrollbarArrow, ScrollbarArrowOptions} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
+import {ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
+import {DelegateScrollable} from 'vs/base/common/scrollable';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
  */
 const MOUSE_DRAG_RESET_DISTANCE = 140;
-
-class VisibilityController extends Disposable {
-	private _visibility: Visibility;
-	private _visibleClassName: string;
-	private _invisibleClassName: string;
-	private _domNode: FastDomNode;
-	private _shouldBeVisible: boolean;
-	private _isNeeded: boolean;
-	private _isVisible: boolean;
-	private _revealTimer: TimeoutTimer;
-
-	constructor(visibility: Visibility, visibleClassName: string, invisibleClassName: string) {
-		super();
-		this._visibility = visibility;
-		this._visibleClassName = visibleClassName;
-		this._invisibleClassName = invisibleClassName;
-		this._domNode = null;
-		this._isVisible = false;
-		this._isNeeded = false;
-		this._shouldBeVisible = false;
-		this._revealTimer = this._register(new TimeoutTimer());
-	}
-
-	// ----------------- Hide / Reveal
-
-	private applyVisibilitySetting(shouldBeVisible: boolean): boolean {
-		if (this._visibility === Visibility.Hidden) {
-			return false;
-		}
-		if (this._visibility === Visibility.Visible) {
-			return true;
-		}
-		return shouldBeVisible;
-	}
-
-	public setShouldBeVisible(rawShouldBeVisible: boolean): void {
-		let shouldBeVisible = this.applyVisibilitySetting(rawShouldBeVisible);
-
-		if (this._shouldBeVisible !== shouldBeVisible) {
-			this._shouldBeVisible = shouldBeVisible;
-			this.ensureVisibility();
-		}
-	}
-
-	public setIsNeeded(isNeeded: boolean): void {
-		if (this._isNeeded !== isNeeded) {
-			this._isNeeded = isNeeded;
-			this.ensureVisibility();
-		}
-	}
-
-	public setDomNode(domNode: FastDomNode): void {
-		this._domNode = domNode;
-		this._domNode.setClassName(this._invisibleClassName);
-
-		// Now that the flags & the dom node are in a consistent state, ensure the Hidden/Visible configuration
-		this.setShouldBeVisible(false);
-	}
-
-	public ensureVisibility(): void {
-
-		if (!this._isNeeded) {
-			// Nothing to be rendered
-			this._hide(false);
-			return;
-		}
-
-		if (this._shouldBeVisible) {
-			this._reveal();
-		} else {
-			this._hide(true);
-		}
-	}
-
-
-	private _reveal(): void {
-		if (this._isVisible) {
-			return;
-		}
-		this._isVisible = true;
-
-		// The CSS animation doesn't play otherwise
-		this._revealTimer.setIfNotSet(() => {
-			this._domNode.setClassName(this._visibleClassName);
-		}, 0);
-	}
-
-	private _hide(withFadeAway: boolean): void {
-		this._revealTimer.cancel();
-		if (!this._isVisible) {
-			return;
-		}
-		this._isVisible = false;
-		this._domNode.setClassName(this._invisibleClassName + (withFadeAway ? ' fade' : ''));
-	}
-}
 
 export interface IMouseMoveEventData {
 	leftButton: boolean;
@@ -124,13 +28,30 @@ export interface IMouseMoveEventData {
 	posy: number;
 }
 
+export interface ScrollbarHost {
+	onMouseWheel(mouseWheelEvent: StandardMouseWheelEvent): void;
+	onDragStart(): void;
+	onDragEnd(): void;
+}
+
+export interface AbstractScrollbarOptions {
+	forbidTranslate3dUse: boolean;
+	lazyRender:boolean;
+	host: ScrollbarHost;
+	scrollbarState: ScrollbarState;
+	visibility: Visibility;
+	extraScrollbarClassName: string;
+	scrollable: DelegateScrollable;
+}
+
 export abstract class AbstractScrollbar extends Widget {
 
 	protected _forbidTranslate3dUse: boolean;
+	protected _host: ScrollbarHost;
+	protected _scrollable: DelegateScrollable;
 	private _lazyRender: boolean;
-	private _parent: IParent;
 	private _scrollbarState: ScrollbarState;
-	private _visibilityController: VisibilityController;
+	private _visibilityController: ScrollbarVisibilityController;
 	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
 	public domNode: FastDomNode;
@@ -138,23 +59,16 @@ export abstract class AbstractScrollbar extends Widget {
 
 	protected _shouldRender: boolean;
 
-	constructor(forbidTranslate3dUse: boolean, lazyRender:boolean, parent: IParent, scrollbarState: ScrollbarState, visibility: Visibility, extraScrollbarClassName: string) {
+	constructor(opts:AbstractScrollbarOptions) {
 		super();
-		this._forbidTranslate3dUse = forbidTranslate3dUse;
-		this._lazyRender = lazyRender;
-		this._parent = parent;
-		this._scrollbarState = scrollbarState;
-		this._visibilityController = this._register(new VisibilityController(visibility, 'visible scrollbar ' + extraScrollbarClassName, 'invisible scrollbar ' + extraScrollbarClassName));
+		this._forbidTranslate3dUse = opts.forbidTranslate3dUse;
+		this._lazyRender = opts.lazyRender;
+		this._host = opts.host;
+		this._scrollable = opts.scrollable;
+		this._scrollbarState = opts.scrollbarState;
+		this._visibilityController = this._register(new ScrollbarVisibilityController(opts.visibility, 'visible scrollbar ' + opts.extraScrollbarClassName, 'invisible scrollbar ' + opts.extraScrollbarClassName));
 		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		this._shouldRender = true;
-	}
-
-	// ----------------- initialize & clean-up
-
-	/**
-	 * Creates the container dom node for the scrollbar & hooks up the events
-	 */
-	protected _createDomNode(): void {
 		this.domNode = createFastDomNode(document.createElement('div'));
 		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
 			// Put the scrollbar in its own layer
@@ -167,11 +81,13 @@ export abstract class AbstractScrollbar extends Widget {
 		this.onmousedown(this.domNode.domNode, (e) => this._domNodeMouseDown(e));
 	}
 
+	// ----------------- creation
+
 	/**
 	 * Creates the dom node for an arrow & adds it to the container
 	 */
-	protected _createArrow(className: string, top: number, left: number, bottom: number, right: number, bgWidth: number, bgHeight: number, mouseWheelEventFactory: IMouseWheelEventFactory): void {
-		let arrow = this._register(new ScrollbarArrow(className, top, left, bottom, right, bgWidth, bgHeight, mouseWheelEventFactory, this._parent));
+	protected _createArrow(opts:ScrollbarArrowOptions): void {
+		let arrow = this._register(new ScrollbarArrow(opts));
 		this.domNode.domNode.appendChild(arrow.bgDomNode);
 		this.domNode.domNode.appendChild(arrow.domNode);
 	}
@@ -301,12 +217,12 @@ export abstract class AbstractScrollbar extends Widget {
 				},
 				() => {
 					this.slider.toggleClassName('active', false);
-					this._parent.onDragEnd();
+					this._host.onDragEnd();
 				}
 			);
 
 			e.preventDefault();
-			this._parent.onDragStart();
+			this._host.onDragStart();
 		}
 	}
 
