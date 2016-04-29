@@ -155,7 +155,7 @@ class ModelMarkerHandler {
 			htmlMessage = [marker.message];
 		}
 
-		if (marker.source) {
+		if (htmlMessage && marker.source) {
 			htmlMessage.unshift({ isText: true, text: `[${marker.source}] ` });
 		}
 

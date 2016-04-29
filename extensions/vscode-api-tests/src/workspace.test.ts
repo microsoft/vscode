@@ -57,7 +57,7 @@ suite('workspace-namespace', () => {
 			return done(); // TODO@Joh this test fails on windows
 		}
 
-		workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
+		workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 			done();
@@ -67,7 +67,7 @@ suite('workspace-namespace', () => {
 	test('openTextDocument, untitled closes on save', function () {
 		const path = join(workspace.rootPath, './newfile.txt');
 
-		return workspace.openTextDocument(Uri.parse('untitled://' + path)).then(doc => {
+		return workspace.openTextDocument(Uri.parse('untitled:' + path)).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 
@@ -350,7 +350,7 @@ suite('workspace-namespace', () => {
 
 	test('applyEdit', () => {
 
-		return workspace.openTextDocument(Uri.parse('untitled://' + join(workspace.rootPath, './new2.txt'))).then(doc => {
+		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath, './new2.txt'))).then(doc => {
 			let edit = new WorkspaceEdit();
 			edit.insert(doc.uri, new Position(0, 0), new Array(1000).join('Hello World'));
 			return workspace.applyEdit(edit);

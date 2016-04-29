@@ -9,6 +9,7 @@
 	"functionBreakPointInputAriaLabel": "Введите точку останова в функции",
 	"functionBreakpointAriaLabel": "Точка останова в функции {0}, точки останова, отладка",
 	"functionBreakpointPlaceholder": "Функция, в которой производится останов",
+	"loadMoreStackFrames": "Загрузить больше кадров стека",
 	"stackFrameAriaLabel": "Кадр стека {0}, строка {1} {2}, стек вызовов, отладка",
 	"threadAriaLabel": "Поток {0}, стек вызовов, отладка",
 	"variableAriaLabel": "{0} значение {1}, переменные, отладка",

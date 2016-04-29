@@ -7,6 +7,7 @@
 	"close": "Закрыть",
 	"deleteSure": "Действительно удалить \"{0}\"?",
 	"installExtension": "Установить расширение",
+	"notFound": "Расширение \"{0}\" не установлено.",
 	"restartNow": "Перезагрузка",
 	"restartNow2": "Перезагрузка",
 	"showExtensionRecommendations": "Показать рекомендуемые расширения",

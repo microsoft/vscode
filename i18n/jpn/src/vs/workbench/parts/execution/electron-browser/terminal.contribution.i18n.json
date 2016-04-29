@@ -7,5 +7,9 @@
 	"globalConsoleActionMacLinux": "新しいターミナルを開く",
 	"globalConsoleActionWin": "新しいコマンド プロンプトを開く",
 	"scopedConsoleActionMacLinux": "ターミナルで開く",
-	"scopedConsoleActionWin": "コマンド プロンプトで開く"
+	"scopedConsoleActionWin": "コマンド プロンプトで開く",
+	"terminal.external": "外部ターミナルの設定。",
+	"terminal.external.linuxExec": "どのターミナルを Linux で実行するかをカスタマイズします。",
+	"terminal.external.windowsExec": "どのターミナルを Windows で実行するかをカスタマイズします。",
+	"terminalConfigurationTitle": "ターミナルの構成"
 }

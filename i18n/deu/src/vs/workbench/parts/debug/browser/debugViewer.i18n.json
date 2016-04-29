@@ -9,6 +9,7 @@
 	"functionBreakPointInputAriaLabel": "Geben Sie den Funktionshaltepunkt ein.",
 	"functionBreakpointAriaLabel": "Funktionshaltepunkt {0}, Haltepunkte, Debuggen",
 	"functionBreakpointPlaceholder": "Funktion mit Haltepunkt",
+	"loadMoreStackFrames": "Weitere Stapelrahmen laden",
 	"stackFrameAriaLabel": "Stapelrahmen {0} Zeile {1} {2}, Aufrufliste, Debuggen",
 	"threadAriaLabel": "Thread {0}, Aufrufliste, Debuggen",
 	"variableAriaLabel": "{0} Wert {1}, Variablen, Debuggen",

@@ -9,6 +9,7 @@
 	"branch2": "분기",
 	"checkout": "체크 아웃",
 	"cleanChangesLabel": "변경 내용 정리(&&C)",
+	"commit": "커밋",
 	"commitAll": "모두 커밋",
 	"commitAll2": "모두 커밋",
 	"commitStaged": "스테이징된 항목 커밋",

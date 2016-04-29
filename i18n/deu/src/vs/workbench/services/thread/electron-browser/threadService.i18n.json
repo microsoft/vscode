@@ -6,7 +6,7 @@
 {
 	"extensionHostProcess.crash": "Der Extensionhost wurde unerwartet beendet. Bitte laden Sie das Fenster erneut, um ihn wiederherzustellen.",
 	"extensionHostProcess.error": "Fehler vom Extensionhost: {0}",
+	"extensionHostProcess.startupFail": "Der Extensionhost wurde nicht innerhalb von 10 Sekunden gestartet. Dies stellt ggf. ein Problem dar.",
 	"extensionHostProcess.startupFailDebug": "Der Extensionhost wurde nicht innerhalb von 10 Sekunden gestartet. Möglicherweise wurde er in der ersten Zeile beendet und benötigt einen Debugger, um die Ausführung fortzusetzen.",
-	"pluginHostProcess.startupFail": "Der Extensionhost wurde nicht innerhalb von 10 Sekunden gestartet. Dies stellt ggf. ein Problem dar.",
 	"reloadWindow": "Fenster erneut laden"
 }

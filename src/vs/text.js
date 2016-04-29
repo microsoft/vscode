@@ -13,8 +13,6 @@
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
-/// <reference path="declares.ts" />
-/// <reference path="loader.ts" />
 'use strict';
 var TextLoaderPlugin;
 (function (TextLoaderPlugin) {
@@ -36,7 +34,8 @@ var TextLoaderPlugin;
             };
             req.open('GET', fileUrl, true);
             req.responseType = '';
-            req.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            // Do not set X-Requested-With to allow for cross-domain requests
+            // req.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
             req.send(null);
         };
         return BrowserTextLoader;

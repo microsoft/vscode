@@ -234,7 +234,8 @@ export class GalleryService implements IGalleryService {
 		}
 
 		const type = options.ids ? 'ids' : (options.text ? 'text' : 'all');
-		this.telemetryService.publicLog('galleryService:query', { type });
+		const text = options.text || '';
+		this.telemetryService.publicLog('galleryService:query', { type, text });
 
 		const cache = this.queryCache().then(result => {
 			const rawLastModified = result.getResponseHeader('last-modified');

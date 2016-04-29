@@ -9,6 +9,7 @@
 	"branch2": "Rama",
 	"checkout": "Comprobar",
 	"cleanChangesLabel": "&&Limpiar cambios",
+	"commit": "Confirmar",
 	"commitAll": "Confirmar todo",
 	"commitAll2": "Confirmar todo",
 	"commitStaged": "Confirmar elementos almacenados provisionalmente",

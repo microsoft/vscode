@@ -9,6 +9,8 @@
 	"closeFolder": "Chiudi cartella",
 	"closeMessages": "Chiudi messaggi di notifica",
 	"closeWindow": "Chiudi finestra",
+	"files": "file",
+	"folders": "cartelle",
 	"newWindow": "Nuova finestra",
 	"noFolderOpened": "In questa istanza non ci sono attualmente cartelle aperte da chiudere.",
 	"openRecent": "Apri recenti",

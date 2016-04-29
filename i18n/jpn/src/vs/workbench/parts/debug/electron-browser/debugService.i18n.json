@@ -6,9 +6,8 @@
 {
 	"DebugTaskNotFound": "preLaunchTask '{0}' が見つかりませんでした。",
 	"NewLaunchConfig": "アプリケーションの起動構成ファイルをセットアップしてください。",
-	"continue": "続行",
 	"debugAdapterCrash": "デバッグ アダプター プロセスが予期せず終了しました",
-	"debugNoThread": "ID が {0} のデバッグ アダプターからスレッドを取得できませんでした。",
+	"debugAnyway": "このままデバッグを続ける",
 	"debugSourceNotAvailable": "ソース {0} を利用できません。",
 	"debugTypeMissing": "選択された構成のプロパティ 'type' が launch.json にありません。",
 	"debugTypeNotSupported": "構成されているデバッグの種類 '{0}' はサポートされていません。",
@@ -17,7 +16,7 @@
 	"debuggingStarted": "デバッグは開始されました。",
 	"debuggingStopped": "デバッグは停止されました。",
 	"differentTaskRunning": "実行中のタスク {0} があります。起動前タスク {1} は実行できません。",
-	"preLaunchTaskError": "preLaunchTask '{0}' の実行中にエラーが検出されました。",
-	"preLaunchTaskErrors": "preLaunchTask '{0}' の実行中にエラーが検出されました。",
+	"preLaunchTaskError": "preLaunchTask '{0}' の実行中にビルド エラーが検出されました。",
+	"preLaunchTaskErrors": "preLaunchTask '{0}' の実行中にビルド エラーが検出されました。",
 	"preLaunchTaskExitCode": "preLaunchTask '{0}' が終了コード {1} で終了しました。"
 }

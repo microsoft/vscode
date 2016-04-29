@@ -35,6 +35,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
+const MAX_VALUE_RENDER_LENGTH = 5000;
 
 export function renderExpressionValue(expressionOrValue: debug.IExpression|string, container: HTMLElement, showChanged: boolean): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
@@ -58,6 +59,10 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression|strin
 	if (showChanged && (<any>expressionOrValue).valueChanged) {
 		// value changed color has priority over other colors.
 		container.className = 'value changed';
+	}
+
+	if (value.length > MAX_VALUE_RENDER_LENGTH) {
+		value = value.substr(0, MAX_VALUE_RENDER_LENGTH) + '...';
 	}
 	container.textContent = value;
 	container.title = value;

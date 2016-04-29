@@ -16,6 +16,7 @@
 	"gitIndexChanges": "{0} - 对索引的更改",
 	"gitIndexChangesRenamed": "{0} - 已重命名 - 索引更改",
 	"gitMergeChanges": "{0} - 合并更改",
+	"neverShowAgain": "不再显示",
 	"showOutput": "显示输出",
 	"unmergedChanges": "提交更改前，你应首先解决未合并的更改。",
 	"updateGit": "你似乎已安装 git {0}。在 git >=2.0.0 情况下代码工作最佳。",

@@ -9,6 +9,8 @@
 	"closeFolder": "フォルダーを閉じる",
 	"closeMessages": "通知メッセージを閉じる",
 	"closeWindow": "ウィンドウを閉じる",
+	"files": "ファイル",
+	"folders": "フォルダー",
 	"newWindow": "新しいウィンドウ",
 	"noFolderOpened": "このインスタンスで現在開いているフォルダーがないので、閉じられません。",
 	"openRecent": "最近開いた項目",

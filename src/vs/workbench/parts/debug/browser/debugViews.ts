@@ -226,7 +226,9 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
 
 		this.toDispose.push(this.tree.addListener2('selection', (e: tree.ISelectionEvent) => {
-			if (!e.selection.length) {
+			if (!e.selection.length || !e.payload) {
+				// Ignore the event if it was not initated by user.
+				// Debug sometimes automaticaly sets the selected frame, and those events we need to ignore.
 				return;
 			}
 			const element = e.selection[0];
@@ -272,30 +274,42 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 		}));
 
 		const model = this.debugService.getModel();
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
+			const focussedThread = model.getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
+			if (!focussedThread) {
+				this.pauseMessage.hide();
+				return;
+			}
+
+			return this.tree.expand(focussedThread).then(() => {
+				const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+				this.tree.setSelection([focusedStackFrame]);
+				if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
+					this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
+					if (focussedThread.stoppedDetails.text) {
+						this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
+					}
+					focussedThread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+					this.pauseMessage.show();
+				} else {
+					this.pauseMessage.hide();
+				}
+
+				return this.tree.reveal(focusedStackFrame);
+			});
+		}));
+
 		this.toDispose.push(model.onDidChangeCallStack(() => {
 			const threads = model.getThreads();
 			const threadsArray = Object.keys(threads).map(ref => threads[ref]);
-			this.tree.setInput(threadsArray.length === 1 ? threadsArray[0] : model).done(() => {
-				const focussedThread = model.getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
-				if (!focussedThread) {
-					this.pauseMessage.hide();
-					return;
-				}
+			// Only show the threads in the call stack if there is more than 1 thread.
+			const newTreeInput = threadsArray.length === 1 ? threadsArray[0] : model;
 
-				return this.tree.expand(focussedThread).then(() => {
-					this.tree.setSelection([this.debugService.getViewModel().getFocusedStackFrame()]);
-					if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
-						this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
-						if (focussedThread.stoppedDetails.text) {
-							this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
-						}
-						focussedThread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
-						this.pauseMessage.show();
-					} else {
-						this.pauseMessage.hide();
-					}
-				});
-			}, errors.onUnexpectedError);
+			if (this.tree.getInput() === newTreeInput) {
+				this.tree.refresh().done(null, errors.onUnexpectedError);
+			} else {
+				this.tree.setInput(newTreeInput).done(null, errors.onUnexpectedError);
+			}
 		}));
 	}
 
@@ -396,7 +410,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 		}));
 
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
-			if (!fbp || !(fbp instanceof 	FunctionBreakpoint)) {
+			if (!fbp || !(fbp instanceof FunctionBreakpoint)) {
 				return;
 			}
 

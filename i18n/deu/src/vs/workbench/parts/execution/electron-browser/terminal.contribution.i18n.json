@@ -7,5 +7,9 @@
 	"globalConsoleActionMacLinux": "Neues Terminal öffnen",
 	"globalConsoleActionWin": "Neue Eingabeaufforderung öffnen",
 	"scopedConsoleActionMacLinux": "In Terminal öffnen",
-	"scopedConsoleActionWin": "In Eingabeaufforderung öffnen"
+	"scopedConsoleActionWin": "In Eingabeaufforderung öffnen",
+	"terminal.external": "Externe Terminaleinstellungen.",
+	"terminal.external.linuxExec": "Passt an, welches Terminal für Linux ausgeführt werden soll.",
+	"terminal.external.windowsExec": "Passt an, welches Terminal für Windows ausgeführt werden soll.",
+	"terminalConfigurationTitle": "Terminalkonfiguration"
 }

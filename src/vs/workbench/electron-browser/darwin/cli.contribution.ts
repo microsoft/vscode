@@ -17,10 +17,12 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+// TODO@Joao: clean dependency
+import product from 'vs/workbench/electron-main/product';
 
 interface ILegacyUse {
 	file: string;
@@ -42,24 +44,19 @@ const isAvailable = fs.existsSync(source);
 class InstallAction extends Action {
 
 	static ID = 'workbench.action.installCommandLine';
-	static LABEL = nls.localize('install', "Install 'code' command in PATH");
+	static LABEL = nls.localize('install', "Install '{0}' command in PATH", product.applicationName);
 
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService,
 		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
-	get applicationName(): string {
-		return this.contextService.getConfiguration().env.applicationName;
-	}
-
 	private get target(): string {
-		return `/usr/local/bin/${ this.applicationName }`;
+		return `/usr/local/bin/${ product.applicationName }`;
 	}
 
 	run(): TPromise<void> {
@@ -67,14 +64,20 @@ class InstallAction extends Action {
 			.then(uses => {
 				if (uses.length > 0) {
 					const { file, lineNumber } = uses[0];
+					const message = nls.localize(
+						'exists',
+						"Please remove the alias referencing '{0}' in '{1}' (line {2}) and retry this action.",
+						product.darwinBundleIdentifier,
+						file,
+						lineNumber
+					);
+
 					const resource = URI.create('file', null, file);
-					const env = this.contextService.getConfiguration().env;
-					const message = nls.localize('exists', "Please remove the alias referencing '{0}' in '{1}' (line {2}) and retry this action.", env.darwinBundleIdentifier, file, lineNumber);
 					const input = { resource, mime: 'text/x-shellscript' };
 					const actions = [
 						new Action('inlineEdit', nls.localize('editFile', "Edit '{0}'", file), '', true, () => {
 							return this.editorService.openEditor(input).then(() => {
-								const message = nls.localize('again', "Please remove the '{0}' alias from '{1}' before continuing.", this.applicationName, file);
+								const message = nls.localize('again', "Please remove the '{0}' alias from '{1}' before continuing.", product.applicationName, file);
 								const actions = [
 									new Action('cancel', nls.localize('cancel', "Cancel")),
 									new Action('continue', nls.localize('continue', "Continue"), '', true, () => this.run())
@@ -110,7 +113,7 @@ class InstallAction extends Action {
 							});
 						}
 					})
-					.then(() => this.messageService.show(Severity.Info, nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", this.applicationName)));
+					.then(() => this.messageService.show(Severity.Info, nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName)));
 			});
 	}
 
@@ -152,11 +155,10 @@ class InstallAction extends Action {
 		return TPromise.join(files.map(f => readOrEmpty(f))).then(result => {
 			return result.reduce((result, contents, index) => {
 				const file = files[index];
-				const env = this.contextService.getConfiguration().env;
 				const lines = contents.split(/\r?\n/);
 
 				lines.some((line, index) => {
-					if (line.indexOf(env.darwinBundleIdentifier) > -1 && !/^\s*#/.test(line)) {
+					if (line.indexOf(product.darwinBundleIdentifier) > -1 && !/^\s*#/.test(line)) {
 						result.push({ file, lineNumber: index + 1 });
 						return true;
 					}
@@ -173,29 +175,24 @@ class InstallAction extends Action {
 class UninstallAction extends Action {
 
 	static ID = 'workbench.action.uninstallCommandLine';
-	static LABEL = nls.localize('uninstall', "Uninstall 'code' command from PATH");
+	static LABEL = nls.localize('uninstall', "Uninstall '{0}' command from PATH", product.applicationName);
 
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}
 
-	private get applicationName(): string {
-		return this.contextService.getConfiguration().env.applicationName;
-	}
-
 	private get target(): string {
-		return `/usr/local/bin/${ this.applicationName }`;
+		return `/usr/local/bin/${ product.applicationName }`;
 	}
 
 	run(): TPromise<void> {
 		return pfs.unlink(this.target)
 			.then(null, ignore('ENOENT'))
-			.then(() => this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", this.applicationName)));
+			.then(() => this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName)));
 	}
 }
 
@@ -209,7 +206,7 @@ class DarwinCLIHelper implements IWorkbenchContribution {
 
 		installAction.checkLegacy().done(files => {
 			if (files.length > 0) {
-				const message = nls.localize('update', "Code needs to change the '{0}' shell command. Would you like to do this now?", installAction.applicationName);
+				const message = nls.localize('update', "Code needs to change the '{0}' shell command. Would you like to do this now?", product.applicationName);
 				const now = new Action('changeNow', nls.localize('changeNow', "Change Now"), '', true, () => installAction.run());
 				const later = new Action('later', nls.localize('later', "Later"), '', true, () => {
 					messageService.show(Severity.Info, nls.localize('laterInfo', "Remember you can always run the '{0}' action from the Command Palette.", installAction.label));

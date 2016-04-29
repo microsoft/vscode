@@ -81,4 +81,29 @@ suite('LanguagesRegistry', () => {
 		assert.deepEqual(registry.getLanguageName('modeId'), 'ModeName');
 	});
 
+	test('issue #5278: Extension cannot override language name anymore', () => {
+		let registry = new LanguagesRegistry(false);
+
+		registry._registerCompatModes([{
+			id: 'modeId',
+			extensions: ['.ext1'],
+			aliases: ['ModeName'],
+			mimetypes: ['bla'],
+			moduleId: 'bla',
+			ctorName: 'bla'
+		}]);
+
+		registry._registerCompatModes([{
+			id: 'modeId',
+			extensions: ['.ext2'],
+			aliases: ['BetterModeName'],
+			mimetypes: ['bla'],
+			moduleId: 'bla',
+			ctorName: 'bla'
+		}]);
+
+		assert.deepEqual(registry.getRegisteredLanguageNames(), ['BetterModeName']);
+		assert.deepEqual(registry.getLanguageName('modeId'), 'BetterModeName');
+	});
+
 });

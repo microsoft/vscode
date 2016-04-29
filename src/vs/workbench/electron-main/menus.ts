@@ -122,7 +122,7 @@ export class VSCodeMenu {
 
 		// Due to limitations in Electron, it is not possible to update menu items dynamically. The suggested
 		// workaround from Electron is to set the application menu again.
-		// See also https://github.com/atom/electron/issues/846
+		// See also https://github.com/electron/electron/issues/846
 		//
 		// Run delayed to prevent updating menu while it is open
 		if (!this.isQuitting) {

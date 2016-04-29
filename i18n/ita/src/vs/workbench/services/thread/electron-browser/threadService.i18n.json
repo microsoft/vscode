@@ -6,7 +6,7 @@
 {
 	"extensionHostProcess.crash": "L'host dell'estensione è stato terminato in modo imprevisto. Ricaricare la finestra per ripristinare.",
 	"extensionHostProcess.error": "Errore restituito dall'host dell'estensione: {0}",
+	"extensionHostProcess.startupFail": "L'host dell'estensione non è stato avviato entro 10 secondi. Potrebbe essersi verificato un problema.",
 	"extensionHostProcess.startupFailDebug": "L'host dell'estensione non è stato avviato entro 10 secondi. Potrebbe essersi arrestato alla prima riga e richiedere un debugger per continuare.",
-	"pluginHostProcess.startupFail": "L'host dell'estensione non è stato avviato entro 10 secondi. Potrebbe essersi verificato un problema.",
 	"reloadWindow": "Ricarica finestra"
 }

@@ -166,7 +166,7 @@ export class ElectronWindow {
 			return dialog.showSaveDialog(this.win, options, callback);
 		}
 
-		return dialog.showSaveDialog(this.win, options); // https://github.com/atom/electron/issues/4936
+		return dialog.showSaveDialog(this.win, options); // https://github.com/electron/electron/issues/4936
 	}
 
 	public setFullScreen(fullscreen: boolean): void {

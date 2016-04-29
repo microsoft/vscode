@@ -16,7 +16,10 @@ export function main(args: string[]) {
 	} else if (argv.version) {
 		console.log(pkg.version);
 	} else {
-		const env = assign({}, process.env);
+		const env = assign({}, process.env, {
+			// this will signal Code that it was spawned from this module
+			'VSCODE_CLI': '1'
+		});
 		delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 
 		const child = spawn(process.execPath, args, {

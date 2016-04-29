@@ -7,6 +7,7 @@
 	"close": "关闭",
 	"deleteSure": "是否确定要卸载“{0}”?",
 	"installExtension": "安装扩展",
+	"notFound": "未安装扩展“{0}”。",
 	"restartNow": "立即重启",
 	"restartNow2": "立即重启",
 	"showExtensionRecommendations": "显示扩展建议",

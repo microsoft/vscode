@@ -7,6 +7,7 @@
 	"close": "Chiudi",
 	"deleteSure": "Disinstallare '{0}'?",
 	"installExtension": "Installa estensione",
+	"notFound": "L'estensione '{0}' non è installata.",
 	"restartNow": "Riavvia ora",
 	"restartNow2": "Riavvia ora",
 	"showExtensionRecommendations": "Mostra suggerimenti per estensioni",
