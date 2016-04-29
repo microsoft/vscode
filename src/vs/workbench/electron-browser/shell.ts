@@ -49,6 +49,7 @@ import {IOptions} from 'vs/workbench/common/options';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
@@ -148,25 +149,6 @@ export class WorkbenchShell {
 			let crashReporter = instantiationService.createInstance(CrashReporter, this.configuration.env.version, this.configuration.env.commitHash);
 			crashReporter.start(this.configuration.env.crashReporter);
 		}
-
-		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
-
-		sharedProcessClientPromise.done(service => {
-			service.onClose(() => {
-				this.messageService.show(Severity.Error, {
-					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
-					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
-				});
-			});
-		}, errors.onUnexpectedError);
-
-		const extensionsChannelPromise = sharedProcessClientPromise
-			.then(client => client.getChannel<IExtensionsChannel>('extensions'));
-
-		const channel = getDelayedChannel<IExtensionsChannel>(extensionsChannelPromise);
-		const extensionsService = new ExtensionsChannelClient(channel);
-
-		serviceCollection.set(IExtensionsService, extensionsService);
 
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, serviceCollection);
@@ -307,8 +289,27 @@ export class WorkbenchShell {
 		serviceCollection.set(IEditorWorkerService, editorWorkerService);
 		serviceCollection.set(IThemeService, this.themeService);
 		serviceCollection.set(IActionsService, new ActionsService(extensionService, this.keybindingService));
+		serviceCollection.set(IExtensionsService, new ExtensionsChannelClient(this.initSharedProcessChannel(instantiationService, this.messageService)));
 
 		return [instantiationService, serviceCollection];
+	}
+
+	private initSharedProcessChannel(instantiationService: IInstantiationService, messageService: IMessageService): IExtensionsChannel {
+		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
+
+		sharedProcessClientPromise.done(service => {
+			service.onClose(() => {
+				messageService.show(Severity.Error, {
+					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
+					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
+				});
+			});
+		}, errors.onUnexpectedError);
+
+		const extensionsChannelPromise = sharedProcessClientPromise
+			.then(client => client.getChannel<IExtensionsChannel>('extensions'));
+
+		return getDelayedChannel<IExtensionsChannel>(extensionsChannelPromise);
 	}
 
 	public open(): void {
