@@ -23,7 +23,7 @@ import {Registry} from 'vs/platform/platform';
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel} from 'vs/editor/common/editorCommon';
+import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
@@ -98,6 +98,13 @@ class StandaloneEditor extends CodeEditorWidget {
 		}
 
 		this._attachModel(model);
+		if (model) {
+			let e: IModelChangedEvent = {
+				oldModelUrl: null,
+				newModelUrl: model.getAssociatedResource().toString()
+			};
+			this.emit(EventType.ModelChanged, e);
+		}
 	}
 
 	public dispose(): void {
