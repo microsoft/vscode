@@ -17,7 +17,7 @@ import {addClass, append, emmet as $, hide, removeClass, show, toggleClass} from
 import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import {IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent} from 'vs/base/browser/ui/list/list';
 import {List} from 'vs/base/browser/ui/list/listWidget';
-import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
+import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

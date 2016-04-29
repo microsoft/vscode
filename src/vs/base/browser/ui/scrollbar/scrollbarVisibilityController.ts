@@ -4,10 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {TimeoutTimer} from 'vs/base/common/async';
 import {FastDomNode} from 'vs/base/browser/styleMutator';
+
+export enum Visibility {
+	Auto,
+	Hidden,
+	Visible
+}
+
+export function visibilityFromString(visibility: string): Visibility {
+	switch (visibility) {
+		case 'hidden':
+			return Visibility.Hidden;
+		case 'visible':
+			return Visibility.Visible;
+		default:
+			return Visibility.Auto;
+	}
+}
 
 export class ScrollbarVisibilityController extends Disposable {
 	private _visibility: Visibility;

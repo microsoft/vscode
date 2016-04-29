@@ -8,10 +8,11 @@ import * as Browser from 'vs/base/browser/browser';
 import {AbstractScrollbar, ScrollbarHost, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {IDomNodePosition} from 'vs/base/browser/dom';
-import {ScrollableElementResolvedOptions, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {DelegateScrollable} from 'vs/base/common/scrollable';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ARROW_IMG_SIZE} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
+import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 
 export class VerticalScrollbar extends AbstractScrollbar {
 

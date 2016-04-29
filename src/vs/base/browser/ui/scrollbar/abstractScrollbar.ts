@@ -8,13 +8,12 @@ import * as Browser from 'vs/base/browser/browser';
 import * as Platform from 'vs/base/common/platform';
 import * as DomUtils from 'vs/base/browser/dom';
 import {IMouseEvent, StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
-import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ScrollbarArrow, ScrollbarArrowOptions} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import {ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
+import {Visibility, ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 import {DelegateScrollable} from 'vs/base/common/scrollable';
 
 /**

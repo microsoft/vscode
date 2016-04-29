@@ -9,8 +9,7 @@ import { toObject, assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
-import { IScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { RangeMap, IRange } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
@@ -62,7 +61,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 	private _domNode: HTMLElement;
 	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
-	private scrollableElement: IScrollableElement;
+	private scrollableElement: ScrollableElement;
 
 	private _onScroll = new Emitter<ScrollEvent>();
 	private _lastScrollEvent: ScrollEvent;

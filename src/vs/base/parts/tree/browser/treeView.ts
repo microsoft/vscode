@@ -17,8 +17,7 @@ import Keyboard = require('vs/base/browser/keyboardEvent');
 import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
 import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
-import Scroll = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElementImpl');
+import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElement');
 import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
@@ -409,7 +408,7 @@ export class TreeView extends HeightMap implements IScrollable {
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
 	private rowsContainer: HTMLElement;
-	private scrollableElement: Scroll.IScrollableElement;
+	private scrollableElement: ScrollableElementImpl.ScrollableElement;
 	private wrapperGesture: Touch.Gesture;
 	private msGesture: MSGesture;
 	private lastPointerType:string;

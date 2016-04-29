@@ -6,8 +6,8 @@
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import {IOverviewRulerLayoutInfo, IScrollableElement, ScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
+import {ScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {IOverviewRulerLayoutInfo, ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, IViewEventBus} from 'vs/editor/common/editorCommon';
 import {EditorScrollable} from 'vs/editor/common/viewLayout/editorScrollable';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
@@ -26,7 +26,7 @@ export class ScrollManager implements IDisposable {
 	private toDispose:IDisposable[];
 	private scrollable: EditorScrollable;
 	private linesContent: HTMLElement;
-	private scrollbar: IScrollableElement;
+	private scrollbar: ScrollableElement;
 
 	constructor(scrollable:EditorScrollable, configuration:IConfiguration, privateViewEventBus:IViewEventBus, linesContent:HTMLElement, viewDomNode:HTMLElement, overflowGuardDomNode:HTMLElement) {
 		this.toDispose = [];
