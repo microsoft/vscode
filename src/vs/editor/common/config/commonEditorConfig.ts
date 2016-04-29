@@ -228,15 +228,10 @@ class InternalEditorOptionsHelper {
 	}
 
 	public static createInternalEditorOptions(
-		outerWidth:number,
-		outerHeight:number,
+		outerWidth:number, outerHeight:number,
 		opts:editorCommon.IEditorOptions,
-		editorClassName:string,
-		requestedFontFamily:string,
-		requestedFontSize:number,
-		requestedLineHeight:number,
-		adjustedLineHeight:number,
-		themeOpts: ICSSConfig,
+		styling: editorCommon.IEditorStyling,
+		cssOpts: ICSSConfig,
 		isDominatedByLongLines:boolean,
 		lineCount: number
 	): editorCommon.IInternalEditorOptions {
@@ -275,11 +270,11 @@ class InternalEditorOptionsHelper {
 			outerWidth: outerWidth,
 			outerHeight: outerHeight,
 			showGlyphMargin: glyphMargin,
-			lineHeight: themeOpts.lineHeight,
+			lineHeight: styling.lineHeight,
 			showLineNumbers: !!lineNumbers,
 			lineNumbersMinChars: lineNumbersMinChars,
 			lineDecorationsWidth: lineDecorationsWidth,
-			maxDigitWidth: themeOpts.maxDigitWidth,
+			maxDigitWidth: cssOpts.maxDigitWidth,
 			lineCount: lineCount,
 			verticalScrollbarWidth: scrollbar.verticalScrollbarSize,
 			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
@@ -287,7 +282,7 @@ class InternalEditorOptionsHelper {
 			verticalScrollbarHasArrows: scrollbar.verticalHasArrows
 		});
 
-		let pageSize = Math.floor(layoutInfo.height / themeOpts.lineHeight) - 2;
+		let pageSize = Math.floor(layoutInfo.height / styling.lineHeight) - 2;
 
 		if (isDominatedByLongLines && wrappingColumn > 0) {
 			// Force viewport width wrapping if model is dominated by long lines
@@ -300,7 +295,7 @@ class InternalEditorOptionsHelper {
 			// If viewport width wrapping is enabled
 			wrappingInfo = {
 				isViewportWrapping: true,
-				wrappingColumn: Math.max(1, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / themeOpts.typicalHalfwidthCharacterWidth))
+				wrappingColumn: Math.max(1, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / cssOpts.typicalHalfwidthCharacterWidth))
 			};
 		} else if (wrappingColumn > 0) {
 			// Wrapping is enabled
@@ -370,26 +365,20 @@ class InternalEditorOptionsHelper {
 			indentGuides: toBoolean(opts.indentGuides),
 
 			layoutInfo: layoutInfo,
-			stylingInfo: {
-				editorClassName: editorClassName,
-				fontFamily: requestedFontFamily,
-				fontSize: requestedFontSize,
-				lineHeight: adjustedLineHeight
-			},
+			stylingInfo: styling,
 			wrappingInfo: wrappingInfo,
 
 			observedOuterWidth: outerWidth,
 			observedOuterHeight: outerHeight,
 
-			lineHeight: themeOpts.lineHeight,
+			lineHeight: styling.lineHeight, // todo -> duplicated in styling
+			fontSize: styling.fontSize, // todo -> duplicated in styling
 
 			pageSize: pageSize,
 
-			typicalHalfwidthCharacterWidth: themeOpts.typicalHalfwidthCharacterWidth,
-			typicalFullwidthCharacterWidth: themeOpts.typicalFullwidthCharacterWidth,
-			spaceWidth: themeOpts.spaceWidth,
-
-			fontSize: themeOpts.fontSize,
+			typicalHalfwidthCharacterWidth: cssOpts.typicalHalfwidthCharacterWidth,
+			typicalFullwidthCharacterWidth: cssOpts.typicalFullwidthCharacterWidth,
+			spaceWidth: cssOpts.spaceWidth,
 		};
 	}
 
@@ -529,9 +518,9 @@ export interface ICSSConfig {
 	typicalFullwidthCharacterWidth:number;
 	spaceWidth:number;
 	maxDigitWidth: number;
-	lineHeight:number;
-	font:string;
-	fontSize:number;
+	// lineHeight:number;
+	// font:string;
+	// fontSize:number;
 }
 
 function toBoolean(value:any): boolean {
@@ -670,25 +659,27 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		let opts = this._configWithDefaults.getEditorOptions();
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
-		let requestedFontFamily = opts.fontFamily || '';
-		let requestedFontSize = toInteger(opts.fontSize, 0, 100);
-		let requestedLineHeight = toInteger(opts.lineHeight, 0, 150);
+		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
+		let fontSize = toInteger(opts.fontSize, 0, 100) || DefaultConfig.editor.fontSize;
 
-		let adjustedLineHeight = requestedLineHeight;
-		if (requestedFontSize > 0 && requestedLineHeight === 0) {
-			adjustedLineHeight = Math.round(1.3 * requestedFontSize);
+		let lineHeight = toInteger(opts.lineHeight, 0, 150);
+		if (lineHeight === 0) {
+			lineHeight = Math.round(1.3 * fontSize);
 		}
+
+		let styling: editorCommon.IEditorStyling = {
+			editorClassName: editorClassName,
+			fontFamily: fontFamily,
+			fontSize: fontSize,
+			lineHeight: lineHeight
+		};
 
 		let result = InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),
 			this.getOuterHeight(),
 			opts,
-			editorClassName,
-			requestedFontFamily,
-			requestedFontSize,
-			requestedLineHeight,
-			adjustedLineHeight,
-			this.readConfiguration(editorClassName, requestedFontFamily, requestedFontSize, adjustedLineHeight),
+			styling,
+			this.readConfiguration(styling),
 			this._isDominatedByLongLines,
 			this._lineCount
 		);
@@ -717,7 +708,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	protected abstract getOuterHeight(): number;
 
-	protected abstract readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig;
+	protected abstract readConfiguration(styling: editorCommon.IEditorStyling): ICSSConfig;
 }
 
 /**

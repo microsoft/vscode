@@ -81,8 +81,8 @@ class ConfigClass implements IConfiguration {
 			renderWhitespace: false,
 			indentGuides: false,
 
-			fontFamily: '',
-			fontSize: 0,
+			fontFamily: 'Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback"',
+			fontSize: 14,
 			lineHeight: 0
 		};
 	}
