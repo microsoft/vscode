@@ -12,3 +12,4 @@ build_script:
 
 test_script:
   - .\scripts\test.bat
+  - .\scripts\test-integration.bat
