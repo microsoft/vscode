@@ -109,7 +109,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	renderWhitespace: boolean;
 	indentGuides: boolean;
 	layoutInfo: editorCommon.IEditorLayoutInfo;
-	stylingInfo: editorCommon.IEditorStyling;
+	stylingInfo: editorCommon.EditorStyling;
 	wrappingInfo: editorCommon.IEditorWrappingInfo;
 	observedOuterWidth:number;
 	observedOuterHeight:number;
@@ -201,12 +201,12 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 				right: Number(input.layoutInfo.overviewRuler.right)|0,
 			}
 		};
-		this.stylingInfo = {
-			editorClassName: String(input.stylingInfo.editorClassName),
-			fontFamily: String(input.stylingInfo.fontFamily),
-			fontSize: Number(input.stylingInfo.fontSize)|0,
-			lineHeight: Number(input.stylingInfo.lineHeight)|0,
-		};
+		this.stylingInfo = new editorCommon.EditorStyling(
+			input.stylingInfo.editorClassName,
+			input.stylingInfo.fontFamily,
+			input.stylingInfo.fontSize,
+			input.stylingInfo.lineHeight
+		);
 		this.wrappingInfo = {
 			isViewportWrapping: Boolean(input.wrappingInfo.isViewportWrapping),
 			wrappingColumn: Number(input.wrappingInfo.wrappingColumn)|0,
@@ -230,7 +230,7 @@ class InternalEditorOptionsHelper {
 	public static createInternalEditorOptions(
 		outerWidth:number, outerHeight:number,
 		opts:editorCommon.IEditorOptions,
-		styling: editorCommon.IEditorStyling,
+		styling: editorCommon.EditorStyling,
 		cssOpts: ICSSConfig,
 		isDominatedByLongLines:boolean,
 		lineCount: number
@@ -454,7 +454,7 @@ class InternalEditorOptionsHelper {
 			indentGuides:					(prevOpts.indentGuides !== newOpts.indentGuides),
 
 			layoutInfo: 					(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
-			stylingInfo: 					(!this._stylingInfoEqual(prevOpts.stylingInfo, newOpts.stylingInfo)),
+			stylingInfo: 					(!prevOpts.stylingInfo.equals(newOpts.stylingInfo)),
 			wrappingInfo:					(!this._wrappingInfoEqual(prevOpts.wrappingInfo, newOpts.wrappingInfo)),
 			observedOuterWidth:				(prevOpts.observedOuterWidth !== newOpts.observedOuterWidth),
 			observedOuterHeight:			(prevOpts.observedOuterHeight !== newOpts.observedOuterHeight),
@@ -481,15 +481,6 @@ class InternalEditorOptionsHelper {
 			&& a.verticalScrollbarSize === b.verticalScrollbarSize
 			&& a.verticalSliderSize === b.verticalSliderSize
 			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
-		);
-	}
-
-	private static _stylingInfoEqual(a:editorCommon.IEditorStyling, b:editorCommon.IEditorStyling): boolean {
-		return (
-			a.editorClassName === b.editorClassName
-			&& a.fontFamily === b.fontFamily
-			&& a.fontSize === b.fontSize
-			&& a.lineHeight === b.lineHeight
 		);
 	}
 
@@ -667,12 +658,12 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			lineHeight = Math.round(1.3 * fontSize);
 		}
 
-		let styling: editorCommon.IEditorStyling = {
-			editorClassName: editorClassName,
-			fontFamily: fontFamily,
-			fontSize: fontSize,
-			lineHeight: lineHeight
-		};
+		let styling = new editorCommon.EditorStyling(
+			editorClassName,
+			fontFamily,
+			fontSize,
+			lineHeight
+		);
 
 		let result = InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),
@@ -708,7 +699,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	protected abstract getOuterHeight(): number;
 
-	protected abstract readConfiguration(styling: editorCommon.IEditorStyling): ICSSConfig;
+	protected abstract readConfiguration(styling: editorCommon.EditorStyling): ICSSConfig;
 }
 
 /**

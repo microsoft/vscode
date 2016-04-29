@@ -654,7 +654,7 @@ export interface IInternalEditorOptions {
 
 	layoutInfo: IEditorLayoutInfo;
 
-	stylingInfo: IEditorStyling;
+	stylingInfo: EditorStyling;
 
 	wrappingInfo: IEditorWrappingInfo;
 
@@ -2572,11 +2572,33 @@ export interface IHandlerDispatcher {
 	trigger(source:string, handlerId:string, payload:any): boolean;
 }
 
-export interface IEditorStyling {
+export class EditorStyling {
+	_editorStylingTrait: void;
+
 	editorClassName: string;
 	fontFamily: string;
 	fontSize: number;
 	lineHeight: number;
+
+	constructor(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number) {
+		this.editorClassName = String(editorClassName);
+		this.fontFamily = String(fontFamily);
+		this.fontSize = fontSize|0;
+		this.lineHeight = lineHeight|0;
+	}
+
+	public getId(): string {
+		return this.editorClassName + '-' + this.fontFamily + '-' + this.fontSize + '-' + this.lineHeight;
+	}
+
+	public equals(other:EditorStyling): boolean {
+		return (
+			this.editorClassName === other.editorClassName
+			&& this.fontFamily === other.fontFamily
+			&& this.fontSize === other.fontSize
+			&& this.lineHeight === other.lineHeight
+		);
+	}
 }
 
 export interface IConfiguration {
