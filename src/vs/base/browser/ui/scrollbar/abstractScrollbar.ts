@@ -8,7 +8,7 @@ import * as Browser from 'vs/base/browser/browser';
 import * as Platform from 'vs/base/common/platform';
 import * as DomUtils from 'vs/base/browser/dom';
 import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IMouseWheelEvent, IParent, Visibility, IScrollbar} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {IMouseWheelEvent, IParent, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
 import {Widget} from 'vs/base/browser/ui/widget';
@@ -374,7 +374,7 @@ export interface IMouseMoveEventData {
 	posy: number;
 }
 
-export abstract class AbstractScrollbar extends Widget implements IScrollbar {
+export abstract class AbstractScrollbar extends Widget {
 
 	protected _forbidTranslate3dUse: boolean;
 	private _lazyRender: boolean;

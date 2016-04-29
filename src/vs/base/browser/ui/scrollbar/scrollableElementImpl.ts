@@ -12,7 +12,7 @@ import {StandardMouseWheelEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
 import {
-		IScrollableElementOptions, IScrollbar, IDimensions, IMouseWheelEvent, visibilityFromString,
+		IScrollableElementOptions, IDimensions, IMouseWheelEvent, visibilityFromString,
 		IScrollableElement, IScrollableElementCreationOptions, IOverviewRulerLayoutInfo
 	} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -28,10 +28,8 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 
 	private _options: IScrollableElementOptions;
 	private _scrollable: DelegateScrollable;
-	public verticalScrollbarWidth: number;
-	public horizontalScrollbarHeight: number;
-	private _verticalScrollbar: IScrollbar;
-	private _horizontalScrollbar: IScrollbar;
+	private _verticalScrollbar: VerticalScrollbar;
+	private _horizontalScrollbar: HorizontalScrollbar;
 	private _domNode: HTMLElement;
 
 	private _leftShadowDomNode: FastDomNode;
@@ -55,9 +53,6 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		this._options = this._createOptions(options);
 
 		this._scrollable = this._register(new DelegateScrollable(scrollable, () => this._onScroll()));
-
-		this.verticalScrollbarWidth = this._options.verticalScrollbarSize;
-		this.horizontalScrollbarHeight = this._options.horizontalScrollbarSize;
 
 		this._verticalScrollbar = this._register(new VerticalScrollbar(this._scrollable, this, this._options));
 		this._horizontalScrollbar = this._register(new HorizontalScrollbar(this._scrollable, this, this._options));

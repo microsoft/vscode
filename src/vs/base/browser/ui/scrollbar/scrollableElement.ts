@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {FastDomNode} from 'vs/base/browser/styleMutator';
-
 export interface IScrollableElementCreationOptions {
 	/**
 	 * Prevent the scrollbar rendering from using translate3d. Defaults to false.
@@ -130,10 +128,6 @@ export interface IDimensions {
  */
 export interface IScrollableElement {
 
-	verticalScrollbarWidth: number;
-
-	horizontalScrollbarHeight: number;
-
 	/**
 	 * Get the generated 'scrollable' dom node
 	 */
@@ -183,21 +177,6 @@ export interface IMouseWheelEvent {
 	deltaY: number;
 	preventDefault(): void;
 	stopPropagation(): void;
-}
-
-export interface IScrollbar {
-	domNode: FastDomNode;
-	dispose(): void;
-	onElementSize(size: number): boolean;
-	onElementScrollSize(scrollSize: number): boolean;
-	onElementScrollPosition(scrollPosition: number): boolean;
-	beginReveal(): void;
-	beginHide(): void;
-	delegateMouseDown(browserEvent: MouseEvent): void;
-	validateScrollPosition(scrollPosition: number): number;
-	setDesiredScrollPosition(scrollPosition: number): boolean;
-
-	render(): void;
 }
 
 export interface IParent {
