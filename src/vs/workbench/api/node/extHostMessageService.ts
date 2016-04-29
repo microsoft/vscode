@@ -22,14 +22,17 @@ export class ExtHostMessageService {
 
 	showMessage(severity: Severity, message: string, commands: (string|vscode.MessageItem)[]): Thenable<string|vscode.MessageItem> {
 
-		const items: { title: string; handle: number; }[] = [];
+		const items: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
 
 		for (let handle = 0; handle < commands.length; handle++) {
 			let command = commands[handle];
 			if (typeof command === 'string') {
-				items.push({ title: command, handle });
+				items.push({ title: command, handle, isCloseAffordance: false });
+			} else if (typeof command === 'object') {
+				let {title, isCloseAffordance} = command;
+				items.push({ title, isCloseAffordance, handle });
 			} else {
-				items.push({ title: command.title, handle });
+				console.warn('Invalid message item:', command);
 			}
 		}
 
@@ -50,30 +53,37 @@ export class MainThreadMessageService {
 		this._messageService = messageService;
 	}
 
-	$showMessage(severity: Severity, message: string, commands: { title: string; handle: number;}[]): Thenable<number> {
+	$showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
 
-		let hide: (handle?: number) => void;
-		let actions: Action[] = [];
+		return new Promise<number>(resolve => {
 
-		actions.push(new Action('__close', nls.localize('close', "Close"), undefined, true, () => {
-			hide();
-			return Promise.as(undefined);
-		}));
-
-		commands.forEach(command => {
-			actions.push(new Action('_extension_message_handle_' + command.handle, command.title, undefined, true, () => {
-				hide(command.handle);
-				return Promise.as(undefined);
-			}));
-		});
-
-		return new Promise<number>((c) => {
 			let messageHide: Function;
+			let actions: MessageItemAction[] = [];
+			let hasCloseAffordance = false;
 
-			hide = (handle?: number) => {
-				messageHide();
-				c(handle);
-			};
+			class MessageItemAction extends Action {
+				constructor(id: string, label: string, handle: number) {
+					super(id, label, undefined, true, () => {
+						resolve(handle);
+						messageHide(); // triggers dispose! make sure promise is already resolved
+						return undefined;
+					});
+				}
+				dispose(): void {
+					resolve(undefined);
+				}
+			}
+
+			commands.forEach(command => {
+				if (command.isCloseAffordance === true) {
+					hasCloseAffordance = true;
+				}
+				actions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
+			});
+
+			if (!hasCloseAffordance) {
+				actions.unshift(new MessageItemAction('__close', nls.localize('close', "Close"), undefined));
+			}
 
 			messageHide = this._messageService.show(severity, {
 				message,

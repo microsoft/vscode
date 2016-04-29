@@ -253,6 +253,10 @@ $values: #ff0000, #00ff00, #0000ff;
   }
 }
 
+@if $attr {
+  @mixin apply-to-ie6-only {
+  }
+}
 
 
 /* attributes */

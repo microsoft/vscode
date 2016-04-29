@@ -190,7 +190,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 		// });
 	});
 
-	test('Definition, back and forth', function(done) {
+	test('Definition, back and forth', function() {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): any {
@@ -207,12 +207,38 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			}
 		}));
 
-		threadService.sync().then(() => {
-			commands.executeCommand<vscode.Location[]>('vscode.executeDefinitionProvider', model.getAssociatedResource(), new types.Position(0, 0)).then(values => {
+		return threadService.sync().then(() => {
+			return commands.executeCommand<vscode.Location[]>('vscode.executeDefinitionProvider', model.getAssociatedResource(), new types.Position(0, 0)).then(values => {
 				assert.equal(values.length, 4);
-				done();
-			}, done);
-		}, done);
+				for (let v of values) {
+					assert.ok(v.uri instanceof URI);
+					assert.ok(v.range instanceof types.Range);
+				}
+			});
+		});
+	});
+
+	// --- references
+
+	test('reference search, back and forth', function () {
+
+		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
+			provideReferences(doc: any) {
+				return [
+					new types.Location(URI.parse('some:uri/path'), new types.Range(0, 1, 0, 5))
+				];
+			}
+		}));
+
+		return commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', model.getAssociatedResource(), new types.Position(0, 0)).then(values => {
+			assert.equal(values.length, 1);
+			let [first] = values;
+			assert.equal(first.uri.toString(), 'some:uri/path');
+			assert.equal(first.range.start.line, 0);
+			assert.equal(first.range.start.character, 1);
+			assert.equal(first.range.end.line, 0);
+			assert.equal(first.range.end.character, 5);
+		});
 	});
 
 	// --- outline

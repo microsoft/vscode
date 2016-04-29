@@ -6,7 +6,7 @@
 {
 	"extensionHostProcess.crash": "L'hôte de l'extension s'est terminé de façon inattendue. Rechargez la fenêtre pour reprendre l'exécution.",
 	"extensionHostProcess.error": "Erreur de l'hôte de l'extension : {0}",
+	"extensionHostProcess.startupFail": "L'hôte de l'extension n'a pas démarré en moins de 10 secondes. Il existe peut-être un problème.",
 	"extensionHostProcess.startupFailDebug": "L'hôte de l'extension n'a pas démarré en moins de 10 secondes. Il est peut-être arrêté à la première ligne et a besoin d'un débogueur pour continuer.",
-	"pluginHostProcess.startupFail": "L'hôte de l'extension n'a pas démarré en moins de 10 secondes. Il existe peut-être un problème.",
 	"reloadWindow": "Recharger la fenêtre"
 }

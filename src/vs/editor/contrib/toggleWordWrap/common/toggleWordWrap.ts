@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
@@ -28,7 +27,7 @@ class ToggleWordWrapAction extends EditorAction {
 		if (!wrappingInfo.isViewportWrapping) {
 			wrappingInfo.wrappingColumn = 0;
 		} else {
-			wrappingInfo.wrappingColumn = DefaultConfig.editor.wrappingColumn;
+			wrappingInfo.wrappingColumn = -1;
 		}
 		this.editor.updateOptions(wrappingInfo);
 

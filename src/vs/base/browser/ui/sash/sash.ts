@@ -108,6 +108,8 @@ export class Sash extends EventEmitter {
 			return;
 		}
 
+		$(DOM.getElementsByTagName('iframe')).style('pointer-events', 'none'); // disable mouse events on iframes as long as we drag the sash
+
 		let mouseDownEvent = new StandardMouseEvent(e);
 		let startX = mouseDownEvent.posx;
 		let startY = mouseDownEvent.posy;
@@ -150,6 +152,8 @@ export class Sash extends EventEmitter {
 
 			$window.off('mousemove');
 			document.body.classList.remove(containerCssClass);
+
+			$(DOM.getElementsByTagName('iframe')).style('pointer-events', 'auto');
 		});
 
 		document.body.classList.add(containerCssClass);

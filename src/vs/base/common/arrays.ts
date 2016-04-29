@@ -170,16 +170,21 @@ export function distinct<T>(array: T[], keyFn?: (t: T) => string): T[] {
 	});
 }
 
-export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T = null): T {
+export function firstIndex<T>(array: T[], fn: (item: T) => boolean): number {
 	for (let i = 0; i < array.length; i++) {
 		const element = array[i];
 
 		if (fn(element)) {
-			return element;
+			return i;
 		}
 	}
 
-	return notFoundValue;
+	return -1;
+}
+
+export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T = null): T {
+	const index = firstIndex(array, fn);
+	return index < 0 ? notFoundValue : array[index];
 }
 
 export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T) => boolean = (a, b) => a === b): number {

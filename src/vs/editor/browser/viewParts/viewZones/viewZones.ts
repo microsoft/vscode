@@ -89,11 +89,7 @@ export class ViewZones extends ViewPart {
 	}
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return e.vertical;
-	}
-
-	public onScrollWidthChanged(newScrollWidth: number): boolean {
-		return true;
+		return e.scrollTopChanged || e.scrollWidthChanged;
 	}
 
 	public onZonesChanged(): boolean {

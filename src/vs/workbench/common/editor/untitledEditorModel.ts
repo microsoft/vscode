@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
@@ -11,14 +12,14 @@ import URI from 'vs/base/common/uri';
 import {IModelContentChangedEvent, EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {EventType as WorkbenchEventType, UntitledEditorEvent, ResourceEvent} from 'vs/workbench/common/events';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
 	private textModelChangeListener: () => void;
-	private configurationChangeListenerUnbind: () => void;
+	private configurationChangeListener: IDisposable;
 
 	private dirty: boolean;
 	private configuredEncoding: string;
@@ -44,7 +45,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	private registerListeners(): void {
 
 		// Config Changes
-		this.configurationChangeListenerUnbind = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config));
+		this.configurationChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -121,9 +122,9 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.textModelChangeListener = null;
 		}
 
-		if (this.configurationChangeListenerUnbind) {
-			this.configurationChangeListenerUnbind();
-			this.configurationChangeListenerUnbind = null;
+		if (this.configurationChangeListener) {
+			this.configurationChangeListener.dispose();
+			this.configurationChangeListener = null;
 		}
 
 		this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_DELETED, new UntitledEditorEvent(this.resource));

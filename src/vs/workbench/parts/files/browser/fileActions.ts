@@ -47,7 +47,6 @@ import {IResourceInput, Position, IEditor} from 'vs/platform/editor/common/edito
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
-import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
 
@@ -264,7 +263,6 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IProgressService private progressService: IProgressService,
 		@IEventService eventService: IEventService
 	) {
 		super(id, label, contextService, editorService, fileService, messageService, textFileService, eventService);
@@ -299,10 +297,6 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		}, (error: any) => {
 			this.onError(error);
 		});
-
-		if (this.progressService) {
-			this.progressService.showWhile(promise, 800);
-		}
 
 		return promise;
 	}
@@ -346,10 +340,9 @@ export class RenameFileAction extends BaseRenameAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IProgressService progressService: IProgressService,
 		@IEventService eventService: IEventService
 	) {
-		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, contextService, editorService, fileService, messageService, textFileService, progressService, eventService);
+		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, contextService, editorService, fileService, messageService, textFileService, eventService);
 
 		this._updateEnablement();
 	}
@@ -637,10 +630,9 @@ export class CreateFileAction extends BaseCreateAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IProgressService progressService: IProgressService,
 		@IEventService eventService: IEventService
 	) {
-		super(CreateFileAction.ID, CreateFileAction.LABEL, element, contextService, editorService, fileService, messageService, textFileService, progressService, eventService);
+		super(CreateFileAction.ID, CreateFileAction.LABEL, element, contextService, editorService, fileService, messageService, textFileService, eventService);
 
 		this._updateEnablement();
 	}
@@ -669,10 +661,9 @@ export class CreateFolderAction extends BaseCreateAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IProgressService progressService: IProgressService,
 		@IEventService eventService: IEventService
 	) {
-		super(CreateFolderAction.ID, CreateFolderAction.LABEL, null, contextService, editorService, fileService, messageService, textFileService, progressService, eventService);
+		super(CreateFolderAction.ID, CreateFolderAction.LABEL, null, contextService, editorService, fileService, messageService, textFileService, eventService);
 
 		this._updateEnablement();
 	}
@@ -822,8 +813,7 @@ export class ImportFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEventService eventService: IEventService,
-		@IProgressService private progressService: IProgressService
+		@IEventService eventService: IEventService
 	) {
 		super(ImportFileAction.ID, nls.localize('importFiles', "Import Files"), contextService, editorService, fileService, messageService, textFileService, eventService);
 
@@ -842,7 +832,6 @@ export class ImportFileAction extends BaseFileAction {
 	}
 
 	public run(context?: any): TPromise<any> {
-		let multiFileProgressTracker: IProgressRunner;
 		let importPromise = TPromise.as(null).then(() => {
 			let input = context.input;
 			if (input.files && input.files.length > 0) {
@@ -892,11 +881,6 @@ export class ImportFileAction extends BaseFileAction {
 						return;
 					}
 
-					// Progress per file imported
-					if (filesArray.length > 1 && this.progressService) {
-						multiFileProgressTracker = this.progressService.show(filesArray.length);
-					}
-
 					// Run import in sequence
 					let importPromisesFactory: ITask<TPromise<void>>[] = [];
 					filesArray.forEach((file) => {
@@ -904,12 +888,6 @@ export class ImportFileAction extends BaseFileAction {
 							let sourceFile = URI.file((<any>file).path);
 
 							return this.fileService.importFile(sourceFile, targetElement.resource).then((result: IImportResult) => {
-
-								// Progress
-								if (multiFileProgressTracker) {
-									multiFileProgressTracker.worked(1);
-								}
-
 								if (result.stat) {
 
 									// Emit Deleted Event if file gets replaced unless it is the same file
@@ -931,10 +909,6 @@ export class ImportFileAction extends BaseFileAction {
 				});
 			}
 		});
-
-		if (this.progressService && !multiFileProgressTracker) {
-			this.progressService.showWhile(importPromise, 800);
-		}
 
 		return importPromise.then(() => {
 			this.tree.clearHighlight();
@@ -1093,8 +1067,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEventService eventService: IEventService,
-		@IProgressService private progressService: IProgressService
+		@IEventService eventService: IEventService
 	) {
 		super('workbench.files.action.duplicateFile', nls.localize('duplicateFile', "Duplicate"), contextService, editorService, fileService, messageService, textFileService, eventService);
 
@@ -1117,10 +1090,6 @@ export class DuplicateFileAction extends BaseFileAction {
 		}, (error: any) => {
 			this.onError(error);
 		});
-
-		if (this.progressService) {
-			this.progressService.showWhile(result, 800);
-		}
 
 		return result;
 	}

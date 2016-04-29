@@ -15,9 +15,9 @@ import { isString } from 'vs/base/common/types';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { manager as Settings } from 'vs/workbench/electron-main/settings';
-import { manager as Lifecycle } from 'vs/workbench/electron-main/lifecycle';
-import { quality } from './env';
+import { ISettingsService  } from 'vs/workbench/electron-main/settings';
+import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
+import { IEnvironmentService } from './env';
 
 export interface IUpdate {
 	url: string;
@@ -31,7 +31,11 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	private url: string;
 	private currentRequest: Promise;
 
-	constructor() {
+	constructor(
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IEnvironmentService private envService: IEnvironmentService,
+		@ISettingsService private settingsManager: ISettingsService
+	) {
 		super();
 
 		this.url = null;
@@ -58,8 +62,8 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 
 		this.emit('checking-for-update');
 
-		const proxyUrl = Settings.getValue('http.proxy');
-		const strictSSL = Settings.getValue('http.proxyStrictSSL', true);
+		const proxyUrl = this.settingsManager.getValue('http.proxy');
+		const strictSSL = this.settingsManager.getValue('http.proxyStrictSSL', true);
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
 		this.currentRequest = json<IUpdate>({ url: this.url, agent })
@@ -110,11 +114,11 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	}
 
 	private getUpdatePackagePath(version: string): TPromise<string> {
-		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${ quality }-${ version }.exe`));
+		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${ this.envService.quality }-${ version }.exe`));
 	}
 
 	private quitAndUpdate(updatePackagePath: string): void {
-		Lifecycle.quit().done(vetod => {
+		this.lifecycleService.quit().done(vetod => {
 			if (vetod) {
 				return;
 			}
@@ -127,7 +131,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 	}
 
 	private cleanup(exceptVersion: string = null): Promise {
-		const filter = exceptVersion ? one => !(new RegExp(`${ quality }-${ exceptVersion }\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? one => !(new RegExp(`${ this.envService.quality }-${ exceptVersion }\\.exe$`).test(one)) : () => true;
 
 		return this.cachePath
 			.then(cachePath => pfs.readdir(cachePath)

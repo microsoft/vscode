@@ -90,7 +90,7 @@ export abstract class ViewLayer extends ViewPart {
 	}
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return e.vertical;
+		return e.scrollTopChanged;
 	}
 
 	public onZonesChanged(): boolean {
@@ -217,6 +217,10 @@ export abstract class ViewLayer extends ViewPart {
 	}
 
 	public onModelTokensChanged(e:editorCommon.IViewTokensChangedEvent): boolean {
+		if (this._lines.length === 0) {
+			return false;
+		}
+
 		var changedFromIndex = e.fromLineNumber - this._rendLineNumberStart;
 		var changedToIndex = e.toLineNumber - this._rendLineNumberStart;
 

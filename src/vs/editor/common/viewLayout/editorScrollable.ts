@@ -7,7 +7,6 @@
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IScrollable, ScrollEvent} from 'vs/base/common/scrollable';
-import {IScrollEvent} from 'vs/editor/common/editorCommon';
 
 export class EditorScrollable extends EventEmitter implements IScrollable {
 
@@ -17,6 +16,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 	private scrollHeight: number;
 	private width: number;
 	private height: number;
+	private _lastScrollEvent: ScrollEvent;
 
 	constructor() {
 		super([
@@ -29,6 +29,8 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 		this.scrollHeight = 0;
 		this.width = 0;
 		this.height = 0;
+
+		this._lastScrollEvent = new ScrollEvent(this.getScrollTop(), this.getScrollLeft(), this.getScrollWidth(), this.getScrollHeight());
 	}
 
 	public dispose(): void {
@@ -74,7 +76,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 			// Revalidate
 			this.setScrollLeft(this.scrollLeft);
 
-			this._emitScrollEvent(false, false);
+			this._emitScrollEvent();
 		}
 	}
 
@@ -96,7 +98,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 		if (this.scrollLeft !== scrollLeft) {
 			this.scrollLeft = scrollLeft;
 
-			this._emitScrollEvent(false, true);
+			this._emitScrollEvent();
 		}
 	}
 
@@ -139,7 +141,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 			// Revalidate
 			this.setScrollTop(this.scrollTop);
 
-			this._emitScrollEvent(false, false);
+			this._emitScrollEvent();
 		}
 	}
 
@@ -161,23 +163,16 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 		if (this.scrollTop !== scrollTop) {
 			this.scrollTop = scrollTop;
 
-			this._emitScrollEvent(true, false);
+			this._emitScrollEvent();
 		}
 	}
 
 	// ------------ events
 
 	static _SCROLL_EVENT = 'scroll';
-	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
-		var e:IScrollEvent = new ScrollEvent(
-			this.getScrollTop(),
-			this.getScrollLeft(),
-			this.getScrollWidth(),
-			this.getScrollHeight(),
-			vertical,
-			horizontal
-		);
-		this.emit(EditorScrollable._SCROLL_EVENT, e);
+	private _emitScrollEvent(): void {
+		this._lastScrollEvent = this._lastScrollEvent.create(this.getScrollTop(), this.getScrollLeft(), this.getScrollWidth(), this.getScrollHeight());
+		this.emit(EditorScrollable._SCROLL_EVENT, this._lastScrollEvent);
 	}
 	public addScrollListener(listener: (e:ScrollEvent) => void): IDisposable {
 		return this.addListener2(EditorScrollable._SCROLL_EVENT, listener);

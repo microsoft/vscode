@@ -35,7 +35,7 @@ import { IEditor } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
@@ -228,7 +228,7 @@ class ConfigureTaskRunnerAction extends Action {
 							let content = JSON.stringify(config, null, '\t');
 							content = [
 								'{',
-									'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
+									'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
 									'\t// for the documentation about the tasks.json format',
 							].join('\n') + content.substr(1);
 							return content;
@@ -594,7 +594,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
 		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
-		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, () => {
+	this.configurationService.onDidUpdateConfiguration(() => {
 			this.emit(TaskServiceEvents.ConfigChanged);
 			if (this._taskSystem && this._taskSystem.isActiveSync()) {
 				this.clearTaskSystemPromise = true;

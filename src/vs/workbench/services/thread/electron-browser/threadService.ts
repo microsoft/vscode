@@ -275,7 +275,7 @@ class ExtensionHostProcessManager {
 
 		// Check for a free debugging port
 		if (typeof config.env.debugExtensionHostPort === 'number') {
-			return findFreePort(config.env.debugExtensionHostPort, 10 /* try 10 ports */, (port) => {
+			return findFreePort(config.env.debugExtensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
 

@@ -184,9 +184,9 @@ export class WorkerServer {
 					(<any>self).require.config(loaderConfig);
 				}
 
-				var MonacoEnvironment = msg.payload.MonacoEnvironment;
-				if (MonacoEnvironment) {
-					(<any>self).MonacoEnvironment = MonacoEnvironment;
+				var GlobalEnvironment = msg.payload.GlobalEnvironment;
+				if (GlobalEnvironment) {
+					(<any>self).GlobalEnvironment = GlobalEnvironment;
 				}
 
 				this.loadModule(msg.payload.moduleId, (handlerModule:any) => {

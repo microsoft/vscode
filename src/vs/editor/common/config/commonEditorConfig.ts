@@ -145,7 +145,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 			horizontalSliderSize: Number(input.scrollbar.horizontalSliderSize)|0,
 			verticalScrollbarSize: Number(input.scrollbar.verticalScrollbarSize)|0,
 			verticalSliderSize: Number(input.scrollbar.verticalSliderSize)|0,
-			mouseWheelScrollSensitivity: Number(input.scrollbar.mouseWheelScrollSensitivity)|0,
+			mouseWheelScrollSensitivity: Number(input.scrollbar.mouseWheelScrollSensitivity),
 		};
 		this.overviewRulerLanes = Number(input.overviewRulerLanes)|0;
 		this.cursorBlinking = String(input.cursorBlinking);
@@ -936,11 +936,11 @@ let editorConfiguration:IConfigurationNode = {
 			default: DefaultConfig.editor.renderWhitespace,
 			description: nls.localize('renderWhitespace', "Controls whether the editor should render whitespace characters")
 		},
-		'editor.indentGuides': {
-			'type': 'boolean',
-			default: DefaultConfig.editor.indentGuides,
-			description: nls.localize('indentGuides', "Controls whether the editor should render indent guides")
-		},
+		// 'editor.indentGuides': {
+		// 	'type': 'boolean',
+		// 	default: DefaultConfig.editor.indentGuides,
+		// 	description: nls.localize('indentGuides', "Controls whether the editor should render indent guides")
+		// },
 		'editor.referenceInfos' : {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.referenceInfos,

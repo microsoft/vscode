@@ -11,6 +11,7 @@ import * as browser from 'vs/base/browser/browser';
 
 let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 (function() {
+	KEY_CODE_MAP[3] = KeyCode.PauseBreak; // VK_CANCEL 0x03 Control-break processing
 	KEY_CODE_MAP[8] = KeyCode.Backspace;
 	KEY_CODE_MAP[9] = KeyCode.Tab;
 	KEY_CODE_MAP[13] = KeyCode.Enter;

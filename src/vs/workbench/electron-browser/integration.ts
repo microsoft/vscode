@@ -21,7 +21,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
 import {IWindowService}from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 import win = require('vs/workbench/electron-browser/window');
 
@@ -118,7 +118,7 @@ export class ElectronIntegration {
 
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
-		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+		this.configurationService.onDidUpdateConfiguration(e => {
 			let windowConfig: IWindowConfiguration = e.config;
 
 			let newZoomLevel = 0;

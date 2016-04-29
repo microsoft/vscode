@@ -979,3 +979,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 
 	node.removeAttribute('tabindex');
 }
+
+export function getElementsByTagName(tag: string): HTMLElement[] {
+	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
+}

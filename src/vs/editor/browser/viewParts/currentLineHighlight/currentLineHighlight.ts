@@ -89,17 +89,11 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		return true;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		return true;
+		this._scrollWidth = e.scrollWidth;
+		return e.scrollWidthChanged;
 	}
 	public onZonesChanged(): boolean {
 		return true;
-	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		if (this._scrollWidth !== scrollWidth) {
-			this._scrollWidth = scrollWidth;
-			return true;
-		}
-		return false;
 	}
 	// --- end event handlers
 

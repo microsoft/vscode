@@ -6,7 +6,7 @@
 {
 	"invalid.keybindings": "正しくない `contributes.{0}`: {1}",
 	"keybindings.json.command": "実行するコマンドの名前",
-	"keybindings.json.key": "キーまたはキー シーケンス (スペースで区切る)",
+	"keybindings.json.key": "キーまたはキー シーケンス (スペースで区切る) を押します",
 	"keybindings.json.title": "キー バインドの構成",
 	"keybindings.json.when": "キーがアクティブの場合の条件。",
 	"nonempty": "空以外の値が必要です。",

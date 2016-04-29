@@ -158,7 +158,8 @@ export class ExtHostAPIImplementation {
 		this.env = Object.freeze({
 			get machineId() { return telemetryInfo.machineId; },
 			get sessionId() { return telemetryInfo.sessionId; },
-			get language() { return Platform.language; }
+			get language() { return Platform.language; },
+			get appName() { return contextService.getConfiguration().env.appName; }
 		});
 		telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 

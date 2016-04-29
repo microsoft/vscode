@@ -31,7 +31,7 @@ import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerServic
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -503,7 +503,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 
 		});
 
-		this._configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config));
+		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
 	}
 
 	public onReady(): TPromise<boolean> {

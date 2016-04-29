@@ -50,9 +50,6 @@ export var language = <Types.ILanguage>{
 	tokenizer: {
 		root: [
 			{ include: '@selector' },
-			['[@](charset|namespace)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
-			['[@](function)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@functiondeclaration'}],
-			['[@](mixin)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@mixindeclaration'}],
 		],
 
 		selector: [
@@ -63,6 +60,9 @@ export var language = <Types.ILanguage>{
 			['[@](include)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@includedeclaration'}], // sass: include statement
 			['[@](keyframes|-webkit-keyframes|-moz-keyframes|-o-keyframes)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@keyframedeclaration'}],
 			['[@](page|content|font-face|-moz-document)', { token: sassTokenTypes.TOKEN_AT_KEYWORD}], // sass: placeholder for includes
+			['[@](charset|namespace)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
+			['[@](function)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@functiondeclaration'}],
+			['[@](mixin)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@mixindeclaration'}],
 			['url(\\-prefix)?\\(', { token: 'support.function.name', bracket: '@open', next: '@urldeclaration'}],
 			{ include: '@controlstatement' }, // sass control statements
 			{ include: '@selectorname' },
@@ -203,7 +203,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		parameterdeclaration: [
-			['\\$@identifier@ws:', sassTokenTypes.TOKEN_PROPERTY],
+			['\\$@identifier@ws:', 'variable'],
 			['\\.\\.\\.', 'keyword.operator'], // var args in declaration
 			[',', 'punctuation'],
 			{ include: '@term' },

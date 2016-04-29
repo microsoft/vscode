@@ -419,6 +419,7 @@ export class TreeView extends HeightMap implements IScrollable {
 	private renderTop: number;
 	private renderHeight: number;
 	private _scrollTop: number;
+	private _lastScrollEvent: ScrollEvent;
 
 	private inputItem: ViewItem;
 	private items: { [id: string]: ViewItem; };
@@ -556,6 +557,8 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.renderTop = 0;
 		this.renderHeight = 0;
 
+		this._lastScrollEvent = new ScrollEvent(this.getScrollTop(), this.getScrollLeft(), this.getScrollWidth(), this.getScrollHeight());
+
 		this.didJustPressContextMenuKey = false;
 
 		this.currentDropTarget = null;
@@ -597,7 +600,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.scrollTop = this.onHiddenScrollTop;
 		this.onHiddenScrollTop = null;
 		this.scrollableElement.onElementDimensions();
-		this._emitScrollEvent(false, false);
+		this._emitScrollEvent();
 		this.setupMSGesture();
 	}
 
@@ -625,7 +628,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.scrollTop = this.scrollTop; // render
 
 		this.scrollableElement.onElementDimensions();
-		this._emitScrollEvent(false, false);
+		this._emitScrollEvent();
 	}
 
 	private render(scrollTop: number, viewHeight: number): void {
@@ -750,7 +753,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		}
 
 		this.scrollTop = scrollTop;
-		this._emitScrollEvent(false, false);
+		this._emitScrollEvent();
 	}
 
 	public focusNextPage(eventPayload?:any): void {
@@ -849,18 +852,12 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.render(scrollTop, this.viewHeight);
 		this._scrollTop = scrollTop;
 
-		this._emitScrollEvent(true, false);
+		this._emitScrollEvent();
 	}
 
-	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
-		this.emit('scroll', new ScrollEvent(
-			this.getScrollTop(),
-			this.getScrollLeft(),
-			this.getScrollWidth(),
-			this.getScrollHeight(),
-			vertical,
-			horizontal
-		));
+	private _emitScrollEvent(): void {
+		this._lastScrollEvent = this._lastScrollEvent.create(this.getScrollTop(), this.getScrollLeft(), this.getScrollWidth(), this.getScrollHeight());
+		this.emit('scroll', this._lastScrollEvent);
 	}
 
 	public addScrollListener(callback:(v:ScrollEvent)=>void): Lifecycle.IDisposable {

@@ -210,7 +210,8 @@ export class WorkbenchShell {
 				windowSize: windowSize,
 				emptyWorkbench: !this.contextService.getWorkspace(),
 				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-				theme: this.currentTheme
+				theme: this.currentTheme,
+				language: platform.language
 			});
 
 		let workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
@@ -348,7 +349,7 @@ export class WorkbenchShell {
 	}
 
 	private writeTimers(): void {
-		let timers = (<any>window).MonacoEnvironment.timers;
+		let timers = (<any>window).GlobalEnvironment.timers;
 		if (timers) {
 			let events: timer.IExistingTimerEvent[] = [];
 

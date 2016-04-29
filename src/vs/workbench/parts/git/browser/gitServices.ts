@@ -26,7 +26,7 @@ import async = require('vs/base/common/async');
 import severity from 'vs/base/common/severity';
 import {IOutputService} from 'vs/workbench/parts/output/common/output';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IConfigurationService, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
@@ -276,7 +276,7 @@ export class AutoFetcher implements git.IAutoFetcher, lifecycle.IDisposable
 		this.timeout = AutoFetcher.MIN_TIMEOUT;
 
 		this.toDispose = [];
-		this.toDispose.push(this.configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, e => this.onConfiguration(e.config.git)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfiguration(e.config.git)));
 		this.onConfiguration(configurationService.getConfiguration<git.IGitConfiguration>('git'));
 	}
 

@@ -407,7 +407,8 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		id: extensionDescription.id,
 		name: extensionDescription.name,
 		publisherDisplayName: extensionDescription.publisher,
-		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null
+		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null,
+		isBuiltin: extensionDescription.isBuiltin
 	};
 
 	for (let contribution in extensionDescription.contributes) {

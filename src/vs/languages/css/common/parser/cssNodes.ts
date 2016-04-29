@@ -73,7 +73,7 @@ export enum NodeType {
 	FunctionParameter,
 	FunctionArgument,
 	KeyframeSelector,
-	MSViewPort,
+	ViewPort,
 	Document
 }
 
@@ -801,13 +801,13 @@ export class FunctionDeclaration extends BodyDeclaration {
 	}
 }
 
-export class MSViewPort extends BodyDeclaration {
+export class ViewPort extends BodyDeclaration {
 	constructor(offset:number, length:number) {
 		super(offset, length);
 	}
 
 	public get type():NodeType {
-		return NodeType.MSViewPort;
+		return NodeType.ViewPort;
 	}
 }
 

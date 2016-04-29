@@ -172,12 +172,6 @@ export class ViewCursors extends ViewPart {
 	public onZonesChanged(): boolean {
 		return true;
 	}
-	public onScrollWidthChanged(scrollWidth: number): boolean {
-		return true;
-	}
-	public onScrollHeightChanged(scrollHeight: number): boolean {
-		return false;
-	}
 	public onViewFocusChanged(isFocused: boolean): boolean {
 		this._editorHasFocus = isFocused;
 		this._updateBlinking();

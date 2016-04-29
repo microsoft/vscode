@@ -118,9 +118,9 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		this._overviewRuler.setScrollHeight(scrollHeight, false);
-		return true;
+	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+		this._overviewRuler.setScrollHeight(e.scrollHeight, false);
+		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
 	// ---- end view event handlers

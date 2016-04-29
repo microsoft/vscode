@@ -7,7 +7,6 @@
 
 import 'vs/css!./parameterHints';
 import nls = require('vs/nls');
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
@@ -27,7 +26,6 @@ export class ParameterHintsWidget implements IContentWidget {
 	static ID = 'editor.widget.parameterHintsWidget';
 
 	private editor: ICodeEditor;
-	private modelListenersToRemove: ListenerUnbind[];
 	private model: ParameterHintsModel;
 	private $el: Builder;
 	private $wrapper: Builder;
@@ -51,12 +49,25 @@ export class ParameterHintsWidget implements IContentWidget {
 		this._onShown = onShown;
 		this._onHidden = onHidden;
 		this.editor = editor;
-		this.modelListenersToRemove = [];
 		this.model = null;
 		this.isVisible = false;
 		this.isDisposed = false;
 
-		this.setModel(model);
+		this.model = model;
+
+		this.toDispose = [];
+
+		this.toDispose.push(this.model.onHint((e:IHintEvent) => {
+			this.show();
+			this.parameterHints = e.hints;
+			this.render(e.hints);
+			this.currentSignature = e.hints.currentSignature;
+			this.select(this.currentSignature);
+		}));
+
+		this.toDispose.push(this.model.onCancel(() => {
+			this.hide();
+		}));
 
 		this.$el = $('.editor-widget.parameter-hints-widget').on('click', () => {
 			this.selectNext();
@@ -89,29 +100,10 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.editor.addContentWidget(this);
 		this.hide();
 
-		this.toDispose = [];
-
 		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged,(e: ICursorSelectionChangedEvent) => {
 			if (this.isVisible) {
 				this.editor.layoutContentWidget(this);
 			}
-		}));
-	}
-
-	private setModel(newModel: ParameterHintsModel): void {
-		this.releaseModel();
-		this.model = newModel;
-
-		this.modelListenersToRemove.push(this.model.addListener('hint', (e:IHintEvent) => {
-			this.show();
-			this.parameterHints = e.hints;
-			this.render(e.hints);
-			this.currentSignature = e.hints.currentSignature;
-			this.select(this.currentSignature);
-		}));
-
-		this.modelListenersToRemove.push(this.model.addListener('cancel', (e) => {
-			this.hide();
 		}));
 	}
 
@@ -295,20 +287,10 @@ export class ParameterHintsWidget implements IContentWidget {
 		return ParameterHintsWidget.ID;
 	}
 
-	private releaseModel(): void {
-		var listener:()=>void;
-		while (listener = this.modelListenersToRemove.pop()) {
-			listener();
-		}
-		if (this.model) {
-			this.model.dispose();
-			this.model = null;
-		}
-	}
-
 	public destroy(): void {
 		this.toDispose = dispose(this.toDispose);
-		this.releaseModel();
+
+		this.model = null;
 
 		if (this.$overloads) {
 			this.$overloads.destroy();

@@ -101,6 +101,7 @@ export interface IEnvironment {
 
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 
@@ -123,6 +124,7 @@ export interface IEnvironment {
 	disableExtensions: boolean;
 
 	logExtensionHostCommunication: boolean;
+	debugBrkFileWatcherPort: number;
 	verboseLogging: boolean;
 	enablePerformance: boolean;
 

@@ -16,6 +16,7 @@
 	"gitIndexChanges": "{0} - 인덱스 변경 내용",
 	"gitIndexChangesRenamed": "{0} - 이름 바꿈 - 인덱스의 변경 내용",
 	"gitMergeChanges": "{0} - 변경 내용 병합",
+	"neverShowAgain": "다시 표시 안 함",
 	"showOutput": "출력 표시",
 	"unmergedChanges": "변경 내용을 커밋하기 전에 먼저 병합되지 않은 변경 내용을 확인해야 합니다.",
 	"updateGit": "Git {0}이(가) 설치된 것 같습니다. Code는 2.0.0 이하의 Git에서 최적으로 작동합니다.",

@@ -36,9 +36,9 @@
 	"selectEOL": "选择行尾序列",
 	"selectEncoding": "选择编码",
 	"selectLanguageMode": "选择语言模式",
-	"singleSelection": "Ln {0}，Col {1}",
-	"singleSelectionRange": "Ln {0}，Col {1} (已选择{2})",
-	"spacesSize": "空间: {0}",
+	"singleSelection": "行 {0}，列 {1}",
+	"singleSelectionRange": "行 {0}，列 {1} (已选择{2})",
+	"spacesSize": "空格: {0}",
 	"tabFocusModeEnabled": "按 Tab 移动焦点",
-	"tabSize": "制表符大小: {0}"
+	"tabSize": "制表符长度: {0}"
 }

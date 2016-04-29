@@ -16,6 +16,7 @@
 	"gitIndexChanges": "{0} - Änderungen am Index",
 	"gitIndexChangesRenamed": "{0} – Umbenannt – Änderungen für Index",
 	"gitMergeChanges": "{0} - Änderungen zusammenführen",
+	"neverShowAgain": "Nicht mehr anzeigen",
 	"showOutput": "Ausgabe anzeigen",
 	"unmergedChanges": "Sie müssen nicht zusammengeführte Änderungen lösen, bevor Sie Ihre Änderungen bestätigen.",
 	"updateGit": "Git {0} scheint installiert zu sein. Code funktioniert am besten mit Git >= 2.0.0.",

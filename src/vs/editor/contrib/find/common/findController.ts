@@ -545,6 +545,11 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	}
 
 	private _update(): void {
+		let model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+
 		this.lastWordUnderCursor = null;
 		if (!this.editor.getConfiguration().selectionHighlight) {
 			return;
@@ -556,7 +561,6 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return;
 		}
 
-		let model = this.editor.getModel();
 		let hasFindOccurences = OccurrencesRegistry.has(model);
 		if (r.nextMatch) {
 			// This is an empty selection

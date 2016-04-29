@@ -36,6 +36,7 @@ export interface QuickBuilder {
 	(): Builder;
 	(builders: Builder[]): Builder;
 	(element: HTMLElement): Builder;
+	(element: HTMLElement[]): Builder;
 	(window: Window): Builder;
 	(htmlOrQuerySyntax: string): Builder; // Or, MultiBuilder
 	(name: string, args?: any, fn?: (builder: Builder) => any): Builder;

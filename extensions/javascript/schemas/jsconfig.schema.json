@@ -182,7 +182,8 @@
 					"type": "boolean",
 					"description": "When down-level compiling, do not emit \"use strict\" directives in module output."
 				}
-			}
+			},
+			"additionalProperties": false
 		},
 		"files": {
 			"type": "array",

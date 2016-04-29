@@ -69,7 +69,7 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	const extensionsService = new ExtensionsChannelClient(channel);
 	services.set(IExtensionsService, extensionsService);
 
-	let instantiationService = new InstantiationService(services);
+	let instantiationService = new InstantiationService(services, true);
 	threadService.setInstantiationService(instantiationService);
 
 	// Create the monaco API

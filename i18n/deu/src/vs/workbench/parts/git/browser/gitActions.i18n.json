@@ -9,6 +9,7 @@
 	"branch2": "Branch",
 	"checkout": "Auschecken",
 	"cleanChangesLabel": "&&Änderungen bereinigen",
+	"commit": "Commit",
 	"commitAll": "Commit für alle ausführen",
 	"commitAll2": "Commit für alle ausführen",
 	"commitStaged": "Commit bereitgestellt",

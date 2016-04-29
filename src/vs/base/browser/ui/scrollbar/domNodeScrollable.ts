@@ -15,17 +15,14 @@ export class DomNodeScrollable extends Disposable implements IScrollable {
 	private _domNode: HTMLElement;
 	private _gestureHandler: Gesture;
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
-
-	private _lastScrollTop:number;
-	private _lastScrollLeft:number;
+	private _lastScrollEvent: ScrollEvent;
 
 	constructor(domNode: HTMLElement) {
 		super();
 		this._domNode = domNode;
 		this._gestureHandler = this._register(new Gesture(this._domNode));
 
-		this._lastScrollTop = this.getScrollTop();
-		this._lastScrollLeft = this.getScrollLeft();
+		this._lastScrollEvent = new ScrollEvent(this.getScrollTop(), this.getScrollLeft(), this.getScrollWidth(), this.getScrollHeight());
 
 		this._register(DomUtils.addDisposableListener(this._domNode, 'scroll', (e) => {
 			this._emitScrollEvent();
@@ -37,20 +34,8 @@ export class DomNodeScrollable extends Disposable implements IScrollable {
 	}
 
 	private _emitScrollEvent(): void {
-		let vertical = (this._lastScrollTop !== this.getScrollTop());
-		this._lastScrollTop = this.getScrollTop();
-
-		let horizontal = (this._lastScrollLeft !== this.getScrollLeft());
-		this._lastScrollLeft = this.getScrollLeft();
-
-		this._onScroll.fire(new ScrollEvent(
-			this.getScrollTop(),
-			this.getScrollLeft(),
-			this.getScrollWidth(),
-			this.getScrollHeight(),
-			vertical,
-			horizontal
-		));
+		this._lastScrollEvent = this._lastScrollEvent.create(this.getScrollTop(), this.getScrollLeft(), this.getScrollWidth(), this.getScrollHeight());
+		this._onScroll.fire(this._lastScrollEvent);
 	}
 
 	public dispose() {

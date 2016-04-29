@@ -47,6 +47,7 @@ export interface IFileServiceOptions {
 	watcherIgnoredPatterns?: string[];
 	disableWatcher?: boolean;
 	verboseLogging?: boolean;
+	debugBrkFileWatcherPort?: number;
 }
 
 function etag(stat: fs.Stats): string;
@@ -128,7 +129,7 @@ export class FileService implements files.IFileService {
 	}
 
 	private setupUnixWorkspaceWatching(): void {
-		this.workspaceWatcherToDispose = new UnixWatcherService(this.basePath, this.options.watcherIgnoredPatterns, this.eventEmitter, this.options.errorLogger, this.options.verboseLogging).startWatching();
+		this.workspaceWatcherToDispose = new UnixWatcherService(this.basePath, this.options.watcherIgnoredPatterns, this.eventEmitter, this.options.errorLogger, this.options.verboseLogging, this.options.debugBrkFileWatcherPort).startWatching();
 	}
 
 	public resolveFile(resource: uri, options?: files.IResolveFileOptions): TPromise<files.IFileStat> {

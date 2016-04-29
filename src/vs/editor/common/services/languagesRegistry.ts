@@ -23,8 +23,8 @@ export class LanguagesRegistry {
 	private knownModeIds: { [id: string]: boolean; };
 	private mime2LanguageId: { [mimeType: string]: string; };
 	private name2LanguageId: { [name: string]: string; };
-	private name2Extensions: { [name: string]: string[]; };
 	private id2Name: { [id: string]: string; };
+	private id2Extensions: { [id: string]: string[]; };
 	private compatModes: { [id: string]: ICompatModeDescriptor; };
 	private lowerName2Id: { [name: string]: string; };
 	private id2ConfigurationFiles: { [id:string]: string[]; };
@@ -37,7 +37,7 @@ export class LanguagesRegistry {
 		this.mime2LanguageId = {};
 		this.name2LanguageId = {};
 		this.id2Name = {};
-		this.name2Extensions = {};
+		this.id2Extensions = {};
 		this.compatModes = {};
 		this.lowerName2Id = {};
 		this.id2ConfigurationFiles = {};
@@ -84,6 +84,19 @@ export class LanguagesRegistry {
 		this._onDidAddModes.fire(addedModes);
 	}
 
+	private _setLanguageName(languageId:string, languageName:string, force:boolean): void {
+		let prevName = this.id2Name[languageId];
+		if (prevName) {
+			if (!force) {
+				return;
+			}
+			delete this.name2LanguageId[prevName];
+		}
+
+		this.name2LanguageId[languageName] = languageId;
+		this.id2Name[languageId] = languageName;
+	}
+
 	private _registerLanguage(lang: ILanguageExtensionPoint): void {
 		this.knownModeIds[lang.id] = true;
 
@@ -104,8 +117,10 @@ export class LanguagesRegistry {
 		}
 
 		if (Array.isArray(lang.extensions)) {
+			this.id2Extensions[lang.id] = this.id2Extensions[lang.id] || [];
 			for (let extension of lang.extensions) {
 				mime.registerTextMime({ mime: primaryMime, extension: extension });
+				this.id2Extensions[lang.id].push(extension);
 			}
 		}
 
@@ -148,20 +163,12 @@ export class LanguagesRegistry {
 			}
 		}
 
-		if (!this.id2Name[lang.id]) {
-			let bestName = null;
-
-			if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases) && lang.aliases.length > 0) {
-				bestName = lang.aliases[0];
-			} else {
-				bestName = lang.id;
-			}
-
-			if (bestName) {
-				this.name2LanguageId[bestName] = lang.id;
-				this.name2Extensions[bestName] = lang.extensions;
-				this.id2Name[lang.id] = bestName || '';
-			}
+		let containsAliases = (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases) && lang.aliases.length > 0);
+		if (containsAliases && lang.aliases[0] === null) {
+			// signal that this language should not get a name
+		} else {
+			let bestName = (containsAliases ? lang.aliases[0] : null) || lang.id;
+			this._setLanguageName(lang.id, bestName, containsAliases);
 		}
 
 		if (typeof lang.configuration === 'string') {
@@ -255,6 +262,10 @@ export class LanguagesRegistry {
 	}
 
 	public getExtensions(languageName: string): string[] {
-		return this.name2Extensions[languageName];
+		let languageId = this.name2LanguageId[languageName];
+		if (!languageId) {
+			return [];
+		}
+		return this.id2Extensions[languageId];
 	}
 }

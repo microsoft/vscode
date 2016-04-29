@@ -591,8 +591,8 @@ export class Model implements debug.IModel {
 
 		if (elements.length) {
 			this.addReplElements(elements);
-			this._onDidChangeREPLElements.fire();
 		}
+		this._onDidChangeREPLElements.fire();
 	}
 
 	public appendReplOutput(value: string, severity?: severity): void {

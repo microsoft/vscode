@@ -6,8 +6,8 @@
 (function () {
 	'use strict';
 
-	var MonacoEnvironment = (<any>self).MonacoEnvironment;
-	var monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
+	var GlobalEnvironment = (<any>self).GlobalEnvironment;
+	var monacoBaseUrl = GlobalEnvironment && GlobalEnvironment.baseUrl ? GlobalEnvironment.baseUrl : '../../../';
 
 	importScripts(monacoBaseUrl + 'vs/loader.js');
 

@@ -58,6 +58,7 @@ interface ITemplateData {
 	displayName: HighlightedLabel;
 	version: HTMLElement;
 	installCount: HTMLElement;
+	installCountLabel: HTMLElement;
 	author: HTMLElement;
 	actionbar: ActionBar;
 	description: HighlightedLabel;
@@ -203,7 +204,9 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 		const secondRow = dom.append(root, $('.row'));
 		const published = dom.append(firstRow, $('.published'));
 		const displayName = new HighlightedLabel(dom.append(firstRow, $('span.name')));
-		const installCount = dom.append(firstRow, $('span.installCount'));
+		const installCount = dom.append(firstRow, $('span.install'));
+		dom.append(installCount, $('span.octicon.octicon-cloud-download'));
+		const installCountLabel = dom.append(installCount, $('span.installCount'));
 		const version = dom.append(published, $('span.version'));
 		const author = dom.append(published, $('span.author'));
 
@@ -213,6 +216,7 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 			displayName,
 			version,
 			installCount,
+			installCountLabel,
 			actionbar: new ActionBar(dom.append(secondRow, $('.actions'))),
 			description: new HighlightedLabel(dom.append(secondRow, $('span.description'))),
 			disposables: []
@@ -225,9 +229,8 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 		data.author.textContent = nls.localize('author', 'Author');
 		data.displayName.set(nls.localize('name', 'Name'));
 		data.version.textContent = '0.0.1';
-		data.installCount.textContent = '';
-		dom.removeClass(data.installCount, 'octicon');
-		dom.removeClass(data.installCount, 'octicon-cloud-download');
+		data.installCount.style.display = 'none';
+		data.installCountLabel.textContent = '';
 		data.actionbar.clear();
 		data.description.set(nls.localize('description', 'Description'));
 		data.disposables = dispose(data.disposables);
@@ -245,7 +248,7 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 			data.actionbar.clear();
 
 			if (entry.extension.galleryInformation) {
-				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction, entry.state !== ExtensionState.Installed), { label: true, icon: false });
+				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction, entry.state === ExtensionState.Uninstalled), { label: true, icon: false });
 				data.actionbar.push(this.instantiationService.createInstance(OpenLicenseAction), { label: true, icon: false });
 			}
 
@@ -284,9 +287,8 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 		data.version.textContent = extension.version;
 
 		if (isNumber(installCount)) {
-			data.installCount.textContent = String(installCount);
-			dom.addClass(data.installCount, 'octicon');
-			dom.addClass(data.installCount, 'octicon-cloud-download');
+			data.installCount.style.display = 'inline';
+			data.installCountLabel.textContent = String(installCount);
 
 			if (!installCount) {
 				data.installCount.title = nls.localize('installCountZero', "{0} wasn't downloaded yet.", extension.displayName);
@@ -296,9 +298,8 @@ class Renderer implements IPagedRenderer<IExtensionEntry> {
 				data.installCount.title = nls.localize('installCountMultiple', "{0} was downloaded {1} times.", extension.displayName, installCount);
 			}
 		} else {
-			data.installCount.textContent = '';
-			dom.removeClass(data.installCount, 'octicon');
-			dom.removeClass(data.installCount, 'octicon-cloud-download');
+			data.installCount.style.display = 'none';
+			data.installCountLabel.textContent = '';
 		}
 
 		data.author.textContent = publisher;

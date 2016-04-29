@@ -276,7 +276,7 @@
     <entry name=":-ms-fullscreen" version="3.0" browsers="IE11" ref="https://fullscreen.spec.whatwg.org/#:fullscreen-pseudo-class" syntax="iframe:-ms-fullscreen { border: none; }">
       <desc>Matches any element that has its fullscreen flag set.</desc>
     </entry>
-    <entry name=":-ms-input-placeholder" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh767367.aspx" syntax="input:-ms-input-placeholder { color: red; }">
+    <entry name=":-ms-input-placeholder" version="3.0" browsers="IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh767367.aspx" syntax="input:-ms-input-placeholder { color: red; }">
       <desc>Represents placeholder text in an input field. Note: for Edge use the pseudo-element ::-ms-input-placeholder. Standardized as ::placeholder.</desc>
     </entry>
     <entry name=":-ms-keyboard-active" version="3.0" browsers="IE10" ref="https://msdn.microsoft.com/en-us/library/dn336891(v=vs.85).aspx" syntax="input:-ms-keyboard-active { background: red; }">
@@ -437,46 +437,46 @@
     <entry name="::-ms-backdrop" version="3.0" browsers="IE11" ref="https://fullscreen.spec.whatwg.org/#::backdrop-pseudo-element" syntax="*|*:-ms-fullscreen::-ms-backdrop { position: fixed; }">
       <desc>Used to create a backdrop that hides the underlying document for an element in a top layer (such as an element that is displayed fullscreen).</desc>
     </entry>
-    <entry name="::-ms-browse" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh779844.aspx">
+    <entry name="::-ms-browse" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh779844.aspx">
       <desc>Represents the browse button of an input type=file control.</desc>
     </entry>
-    <entry name="::-ms-check" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465739.aspx">
+    <entry name="::-ms-check" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465739.aspx">
       <desc>Represents the check of a checkbox or radio button input control.</desc>
     </entry>
-    <entry name="::-ms-clear" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465740.aspx">
+    <entry name="::-ms-clear" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465740.aspx">
       <desc>Represents the clear button of a text input control</desc>
     </entry>
-    <entry name="::-ms-expand" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465742.aspx">
+    <entry name="::-ms-expand" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465742.aspx">
       <desc>Represents the drop-down button of a select control.</desc>
     </entry>
-    <entry name="::-ms-fill" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465757.aspx">
+    <entry name="::-ms-fill" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465757.aspx">
       <desc>Represents the bar portion of a progress bar.</desc>
     </entry>
-    <entry name="::-ms-fill-lower" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465745.aspx">
+    <entry name="::-ms-fill-lower" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465745.aspx">
       <desc>Represents the portion of the slider track from its smallest value up to the value currently selected by the thumb. In a left-to-right layout, this is the portion of the slider track to the left of the thumb.</desc>
     </entry>
-    <entry name="::-ms-fill-upper" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465748.aspx">
+    <entry name="::-ms-fill-upper" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465748.aspx">
       <desc>Represents the portion of the slider track from the value currently selected by the thumb up to the slider's largest value. In a left-to-right layout, this is the portion of the slider track to the right of the thumb.</desc>
     </entry>
-    <entry name="::-ms-reveal" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465773.aspx">
+    <entry name="::-ms-reveal" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465773.aspx">
       <desc>Represents the password reveal button of an input type=password control.</desc>
     </entry>
-    <entry name="::-ms-thumb" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465780.aspx">
+    <entry name="::-ms-thumb" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465780.aspx">
       <desc>Represents the portion of range input control (also known as a slider control) that the user drags.</desc>
     </entry>
-    <entry name="::-ms-ticks-after" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465789.aspx">
+    <entry name="::-ms-ticks-after" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465789.aspx">
       <desc>Represents the tick marks of a slider that begin just after the thumb and continue up to the slider's largest value. In a left-to-right layout, these are the ticks to the right of the thumb.</desc>
     </entry>
-    <entry name="::-ms-ticks-before" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465796.aspx">
+    <entry name="::-ms-ticks-before" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465796.aspx">
       <desc>Represents the tick marks of a slider that represent its smallest values up to the value currently selected by the thumb. In a left-to-right layout, these are the ticks to the left of the thumb.</desc>
     </entry>
-    <entry name="::-ms-tooltip" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465805.aspx">
+    <entry name="::-ms-tooltip" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465805.aspx">
       <desc>Represents the tooltip of a slider (input type=range).</desc>
     </entry>
-    <entry name="::-ms-track" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465813.aspx">
+    <entry name="::-ms-track" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465813.aspx">
       <desc>Represents the track of a slider.</desc>
     </entry>
-    <entry name="::-ms-value" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh465820.aspx">
+    <entry name="::-ms-value" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh465820.aspx">
       <desc>Represents the content of a text or password input control, or a select control.</desc>
     </entry>
     <entry name="::placeholder" version="4.0" browsers="none" ref="http://www.w3.org/TR/css-pseudo-4/#selectordef-placeholder" syntax="input::placeholder { color: grey; }">
@@ -1002,7 +1002,7 @@
         </value>
       </values>
     </entry>
-    <entry name="behavior" restriction="url" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): url(http://example.com/png_fix.htc); }">
+    <entry name="behavior" restriction="url" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): url(http://example.com/png_fix.htc); }">
       <desc>IE only. Used to extend behaviors of the browser.</desc>
     </entry>
     <entry name="block-size" restriction="length, percentage" version="3.0" browsers="FF41" ref="https://drafts.csswg.org/css-logical-props/#propdef-block-size" syntax="header { $(name): 200px; }">
@@ -5078,7 +5078,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-behavior" restriction="url" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): url(http://example.com/png_fix.htc); }">
+    <entry name="-ms-behavior" restriction="url" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): url(http://example.com/png_fix.htc); }">
       <desc>IE only. Used to extend behaviors of the browser</desc>
     </entry>
     <entry name="-ms-block-progression" restriction="enum" version="3.0" browsers="IE8" ref="http://www.w3.org/TR/2003/CR-css3-text-20030514/#Progression" syntax="div { $(name): bt; }">
@@ -5098,7 +5098,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-content-zoom-chaining" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441243.aspx" syntax="div { $(name): chained; }">
+    <entry name="-ms-content-zoom-chaining" restriction="" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh441243.aspx" syntax="div { $(name): chained; }">
       <desc>Specifies the zoom behavior that occurs when a user hits the zoom limit during a manipulation.</desc>
       <values>
         <value name="chained" version="3.0" browsers="all">
@@ -5109,7 +5109,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-content-zooming" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441251.aspx" syntax="div { $(name): zoom; }">
+    <entry name="-ms-content-zooming" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh441251.aspx" syntax="div { $(name): zoom; }">
       <desc>Specifies whether zooming is enabled.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -5120,16 +5120,16 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-content-zoom-limit" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996912.aspx" syntax="div { $(name): 10%; }">
+    <entry name="-ms-content-zoom-limit" restriction="percentage" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996912.aspx" syntax="div { $(name): 10%; }">
       <desc>Shorthand property for the -ms-content-zoom-limit-min and -ms-content-zoom-limit-max properties.</desc>
     </entry>
-    <entry name="-ms-content-zoom-limit-max" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996913.aspx" syntax="div { $(name): 10%; }">
+    <entry name="-ms-content-zoom-limit-max" restriction="percentage" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996913.aspx" syntax="div { $(name): 10%; }">
       <desc>Specifies the maximum zoom factor.</desc>
     </entry>
-    <entry name="-ms-content-zoom-limit-min" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996914.aspx" syntax="div { $(name): 10%; }">
+    <entry name="-ms-content-zoom-limit-min" restriction="percentage" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996914.aspx" syntax="div { $(name): 10%; }">
       <desc>Specifies the minimum zoom factor.</desc>
     </entry>
-    <entry name="-ms-content-zoom-snap" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441255.aspx" syntax="header { $(name): proximity; }">
+    <entry name="-ms-content-zoom-snap" restriction="" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh441255.aspx" syntax="header { $(name): proximity; }">
       <desc>Shorthand property for the -ms-content-zoom-snap-type and -ms-content-zoom-snap-points properties.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all">
@@ -5149,7 +5149,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-content-zoom-snap-points" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441259.aspx">
+    <entry name="-ms-content-zoom-snap-points" restriction="" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh441259.aspx">
       <desc>Defines where zoom snap-points are located.</desc>
       <values>
         <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" >
@@ -5160,7 +5160,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-content-zoom-snap-type" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441264.aspx" syntax="header { $(name): proximity; }">
+    <entry name="-ms-content-zoom-snap-type" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh441264.aspx" syntax="header { $(name): proximity; }">
       <desc>Specifies how zooming is affected by defined snap-points.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all">
@@ -5174,7 +5174,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-filter" restriction="string" version="3.0" browsers="IE8-9" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): 'alpha(opacity = 50)'; }">
+    <entry name="-ms-filter" restriction="string" version="3.0" browsers="IE8-9" ref="https://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax="div { $(name): 'alpha(opacity = 50)'; }">
       <desc>IE only. Used to produce visual effects.</desc>
     </entry>
     <entry name="-ms-flex" restriction="length, number, percentage" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-flexbox/#flex" syntax="p { $(name): 1 auto; }">
@@ -5412,7 +5412,7 @@
     <entry name="-ms-grid-row-span" restriction="integer" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-grid-layout/#grid-row-span-and-grid-column-span" syntax="#item { $(name): 2; }.">
       <desc>Specifies the number of rows to span.</desc>
     </entry>
-    <entry name="-ms-high-contrast-adjust" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441137.aspx" syntax="section { $(name): auto; }">
+    <entry name="-ms-high-contrast-adjust" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh441137.aspx" syntax="section { $(name): auto; }">
       <desc>Specifies if properties should be adjusted in high contrast mode.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -5476,14 +5476,14 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-interpolation-mode" restriction="enum" version="3.0" browsers="IE7" ref="http://msdn.microsoft.com/en-us/library/ie/ms530822(v=vs.85).aspx" syntax="img.highqual { $(name): bicubic; }">
+    <entry name="-ms-interpolation-mode" restriction="enum" version="3.0" browsers="IE7" ref="https://msdn.microsoft.com/en-us/library/ie/ms530822(v=vs.85).aspx" syntax="img.highqual { $(name): bicubic; }">
       <desc>Gets or sets the interpolation (resampling) method used to stretch images.</desc>
       <values>
         <value name="bicubic" version="3.0" browsers="all" />
         <value name="nearest-neighbor" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-layout-grid" restriction="" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530771(v=vs.85).aspx" syntax="div { $(name): both fixed 12px 12px}">
+    <entry name="-ms-layout-grid" restriction="" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/ie/ms530771(v=vs.85).aspx" syntax="div { $(name): both fixed 12px 12px}">
       <desc>Sets or retrieves the composite document grid properties that specify the layout of text characters.</desc>
       <values>
         <value name="char" version="3.0" browsers="all">
@@ -5500,7 +5500,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-layout-grid-char" restriction="enum, length, percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530772(v=vs.85).aspx" syntax="div { $(name): auto; }">
+    <entry name="-ms-layout-grid-char" restriction="enum, length, percentage" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/ie/ms530772(v=vs.85).aspx" syntax="div { $(name): auto; }">
       <desc>Sets or retrieves the size of the character grid used for rendering the text content of an element.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -5511,7 +5511,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-layout-grid-line" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530773(v=vs.85).aspx" syntax="div { $(name): auto; }">
+    <entry name="-ms-layout-grid-line" restriction="length" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/ie/ms530773(v=vs.85).aspx" syntax="div { $(name): auto; }">
       <desc>Sets or retrieves the gridline value used for rendering the text content of an element.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -5522,7 +5522,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-layout-grid-mode" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530774(v=vs.85).aspx" syntax="div { $(name): line; }">
+    <entry name="-ms-layout-grid-mode" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/ie/ms530774(v=vs.85).aspx" syntax="div { $(name): line; }">
       <desc>Gets or sets whether the text layout grid uses two dimensions.</desc>
       <values>
         <value name="both" version="3.0" browsers="all">
@@ -5539,7 +5539,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-layout-grid-type" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/ms530775(v=vs.85).aspx" syntax="div { $(name): strict; }">
+    <entry name="-ms-layout-grid-type" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/ie/ms530775(v=vs.85).aspx" syntax="div { $(name): strict; }">
       <desc>Sets or retrieves the type of grid used for rendering the text content of an element.</desc>
       <values>
         <value name="fixed" version="3.0" browsers="all">
@@ -5573,7 +5573,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-overflow-style" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh441298.aspx" syntax="p { $(name): scrollbar; }">
+    <entry name="-ms-overflow-style" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh441298.aspx" syntax="p { $(name): scrollbar; }">
       <desc>Specify whether content is clipped when it overflows the element's content area.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -5607,90 +5607,90 @@
     <entry name="-ms-perspective-origin-y" restriction="position, percentage, length" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-3d-transforms/#perspective-origin">
       <desc>Establishes the origin for the perspective property. It effectively sets the Y position at which the viewer appears to be looking at the children of the element.</desc>
     </entry>
-    <entry name="-ms-progress-appearance" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/Hh779845.aspx" syntax="progress { $(name): bar; }">
+    <entry name="-ms-progress-appearance" restriction="enum" version="3.0" browsers="IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/Hh779845.aspx" syntax="progress { $(name): bar; }">
       <desc>Gets or sets a value that specifies whether a progress control displays as a bar or a ring.</desc>
       <values>
         <value name="bar" version="3.0" browsers="all" />
         <value name="ring" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scrollbar-3dlight-color" restriction="color" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/library/ms531153(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="-ms-scrollbar-3dlight-color" restriction="color" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/library/ms531153(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.</desc>
     </entry>
-    <entry name="-ms-scrollbar-arrow-color" restriction="color" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/library/ms531154(VS.85).aspx" syntax="body { $(name): #00ffff; }">
+    <entry name="-ms-scrollbar-arrow-color" restriction="color" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/library/ms531154(VS.85).aspx" syntax="body { $(name): #00ffff; }">
       <desc>Determines the color of the arrow elements of a scroll arrow.</desc>
     </entry>
-    <entry name="-ms-scrollbar-base-color" restriction="color" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/library/ms531155(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="-ms-scrollbar-base-color" restriction="color" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/library/ms531155(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the main elements of a scroll bar, which include the scroll box, track, and scroll arrows.</desc>
     </entry>
-    <entry name="-ms-scrollbar-darkshadow-color" restriction="color" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/library/ms531156(v=VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="-ms-scrollbar-darkshadow-color" restriction="color" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/library/ms531156(v=VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the gutter of a scroll bar.</desc>
     </entry>
-    <entry name="-ms-scrollbar-face-color" restriction="color" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/library/ms531157(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="-ms-scrollbar-face-color" restriction="color" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/library/ms531157(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the scroll box and scroll arrows of a scroll bar.</desc>
     </entry>
-    <entry name="-ms-scrollbar-highlight-color" restriction="color" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/library/ms531158(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="-ms-scrollbar-highlight-color" restriction="color" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/library/ms531158(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.</desc>
     </entry>
-    <entry name="-ms-scrollbar-shadow-color" restriction="color" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/library/ms531159(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="-ms-scrollbar-shadow-color" restriction="color" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/library/ms531159(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the bottom and right edges of the scroll box and scroll arrows of a scroll bar.</desc>
     </entry>
-    <entry name="-ms-scrollbar-track-color" restriction="color" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/library/ms531160(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="-ms-scrollbar-track-color" restriction="color" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/library/ms531160(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the track element of a scroll bar.</desc>
     </entry>
-    <entry name="-ms-scroll-chaining" restriction="enum, length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466007.aspx" syntax="div { $(name): chained; }">
+    <entry name="-ms-scroll-chaining" restriction="enum, length" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466007.aspx" syntax="div { $(name): chained; }">
       <desc>Gets or sets a value that indicates the scrolling behavior that occurs when a user hits the content boundary during a manipulation.</desc>
       <values>
         <value name="chained" version="3.0" browsers="all" />
         <value name="none" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-limit" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996918.aspx">
+    <entry name="-ms-scroll-limit" restriction="length" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996918.aspx">
       <desc>Gets or sets a shorthand value that sets values for the -ms-scroll-limit-x-min, -ms-scroll-limit-y-min, -ms-scroll-limit-x-max, and -ms-scroll-limit-y-max properties.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-limit-x-max" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996919.aspx" syntax="div { $(name): auto; }">
+    <entry name="-ms-scroll-limit-x-max" restriction="length" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996919.aspx" syntax="div { $(name): auto; }">
       <desc>Gets or sets a value that specifies the maximum value for the scrollLeft property.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-limit-x-min" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996920.aspx" syntax="div { $(name): 5px; }">
+    <entry name="-ms-scroll-limit-x-min" restriction="length" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996920.aspx" syntax="div { $(name): 5px; }">
       <desc>Gets or sets a value that specifies the minimum value for the scrollLeft property.</desc>
     </entry>
-    <entry name="-ms-scroll-limit-y-max" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996921.aspx" syntax="div { $(name): auto; }">
+    <entry name="-ms-scroll-limit-y-max" restriction="length" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996921.aspx" syntax="div { $(name): auto; }">
       <desc>Gets or sets a value that specifies the maximum value for the scrollTop property.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-limit-y-min" restriction="length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996922.aspx" syntax="div { $(name): 5px; }">
+    <entry name="-ms-scroll-limit-y-min" restriction="length" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996922.aspx" syntax="div { $(name): 5px; }">
       <desc>Gets or sets a value that specifies the minimum value for the scrollTop property.</desc>
     </entry>
-    <entry name="-ms-scroll-rails" restriction="enum, length" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466018.aspx" syntax="div { $(name): railed; }">
+    <entry name="-ms-scroll-rails" restriction="enum, length" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466018.aspx" syntax="div { $(name): railed; }">
       <desc>Gets or sets a value that indicates whether or not small motions perpendicular to the primary axis of motion will result in either changes to both the scrollTop and scrollLeft properties or a change to the primary axis (for instance, either the scrollTop or scrollLeft properties will change, but not both).</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
         <value name="railed" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-points-x" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466031.aspx" syntax="div { $(name): snapInterval(100%, 100%); }">
+    <entry name="-ms-scroll-snap-points-x" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466031.aspx" syntax="div { $(name): snapInterval(100%, 100%); }">
       <desc>Gets or sets a value that defines where snap-points will be located along the x-axis.</desc>
       <values>
         <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" />
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-points-y" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466042.aspx" syntax="div { $(name): snapInterval(100%, 100%); }">
+    <entry name="-ms-scroll-snap-points-y" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466042.aspx" syntax="div { $(name): snapInterval(100%, 100%); }">
       <desc>Gets or sets a value that defines where snap-points will be located along the y-axis.</desc>
       <values>
         <value name="snapInterval(100%, 100%)" version="3.0" browsers="all" />
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-type" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466057.aspx" syntax="div { $(name): proximity; }">
+    <entry name="-ms-scroll-snap-type" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466057.aspx" syntax="div { $(name): proximity; }">
       <desc>Gets or sets a value that defines what type of snap-point should be used for the current element. There are two type of snap-points, with the primary difference being whether or not the user is guaranteed to always stop on a snap-point.</desc>
       <values>
         <value name="none" version="3.0" browsers="all">
@@ -5704,7 +5704,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-x" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466066.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
+    <entry name="-ms-scroll-snap-x" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466066.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
       <desc>Gets or sets a shorthand value that sets values for the -ms-scroll-snap-type and -ms-scroll-snap-points-x properties.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all" />
@@ -5714,7 +5714,7 @@
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-snap-y" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466078.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
+    <entry name="-ms-scroll-snap-y" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466078.aspx" syntax="div { $(name): proximity snapInterval(100%, 100%); }">
       <desc>Gets or sets a shorthand value that sets values for the -ms-scroll-snap-type and -ms-scroll-snap-points-y properties.</desc>
       <values>
         <value name="mandatory" version="3.0" browsers="all" />
@@ -5724,7 +5724,7 @@
         <value name="snapList()" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-scroll-translation" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh996917.aspx" syntax="div { $(name): vertical-to-horizontal; }">
+    <entry name="-ms-scroll-translation" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh996917.aspx" syntax="div { $(name): vertical-to-horizontal; }">
       <desc>Gets or sets a value that specifies whether vertical-to-horizontal scroll wheel translation occurs on the specified element.</desc>
       <values>
         <value name="none" version="3.0" browsers="all" />
@@ -5821,7 +5821,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-text-kashida-space" restriction="percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh453798.aspx" syntax="article { $(name): 10%; }">
+    <entry name="-ms-text-kashida-space" restriction="percentage" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh453798.aspx" syntax="article { $(name): 10%; }">
       <desc>Sets or retrieves the ratio of kashida expansion to white space expansion when justifying lines of text in the object.</desc>
     </entry>
     <entry name="-ms-text-overflow" restriction="enum" version="3.0" browsers="IE10" ref="http://www.w3.org/TR/css3-ui/#text-overflow0" syntax="span { $(name): ellipsis; }">
@@ -5863,7 +5863,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-touch-action" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/Hh767313.aspx" syntax="div { $(name): manipulation double-tap-zoom; }">
+    <entry name="-ms-touch-action" restriction="enum" version="3.0" browsers="IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/Hh767313.aspx" syntax="div { $(name): manipulation double-tap-zoom; }">
       <desc>Gets or sets a value that indicates whether and how a given region can be manipulated by the user.</desc>
       <values>
         <value name="auto" version="3.0" browsers="all">
@@ -5889,7 +5889,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-touch-select" restriction="enum" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/ie/hh975292(v=vs.85).aspx" syntax="div::selection { $(name): grippers; }">
+    <entry name="-ms-touch-select" restriction="enum" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/ie/hh975292(v=vs.85).aspx" syntax="div::selection { $(name): grippers; }">
       <desc>Gets or sets a value that toggles the 'gripper' visual elements that enable touch text selection.</desc>
       <values>
         <value name="grippers" version="3.0" browsers="all">
@@ -6040,7 +6040,7 @@
         </value>
       </values>
     </entry>
-    <entry name="-ms-wrap-margin" restriction="length, percentage" version="3.0" browsers="E,IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466103.aspx" syntax="div { $(name): 20px; }">
+    <entry name="-ms-wrap-margin" restriction="length, percentage" version="3.0" browsers="E,IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466103.aspx" syntax="div { $(name): 20px; }">
       <desc>Gets or sets a value that is used to offset the inner wrap shape from other shapes.</desc>
     </entry>
     <entry name="-ms-wrap-through" restriction="enum" version="3.0" browsers="E,IE10" ref="http://www.w3.org/TR/css3-exclusions/#propdef-wrap-through" syntax="div { $(name): wrap; }">
@@ -6067,13 +6067,13 @@
         <value name="tb-rl" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-zoom" restriction="enum, integer, number, percentage" version="3.0" browsers="IE8" ref="http://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax=".example { $(name): 1; }">
+    <entry name="-ms-zoom" restriction="enum, integer, number, percentage" version="3.0" browsers="IE8" ref="https://msdn.microsoft.com/en-us/ie/gg192966.aspx" syntax=".example { $(name): 1; }">
       <desc>Sets or retrieves the magnification scale of the object.</desc>
       <values>
         <value name="normal" version="3.0" browsers="all" />
       </values>
     </entry>
-    <entry name="-ms-zoom-animation" restriction="enum" version="3.0" browsers="IE10" ref="http://msdn.microsoft.com/en-us/library/windows/apps/hh466117.aspx" syntax="div { $(name): none; }">
+    <entry name="-ms-zoom-animation" restriction="enum" version="3.0" browsers="IE10" ref="https://msdn.microsoft.com/en-us/library/windows/apps/hh466117.aspx" syntax="div { $(name): none; }">
       <desc>Gets or sets a value that indicates whether an animation is used when zooming.</desc>
       <values>
         <value name="default" version="3.0" browsers="all" />
@@ -7092,28 +7092,28 @@
     <entry name="ry" restriction="length, percentage" version="4.0" browsers="none" ref="http://www.w3.org/TR/SVG2/geometry.html#RY" syntax="circle { $(name): 100px;">
       <desc>Describes the vertical radius of the ‘ellipse’ element, and the curve radius of the 'rect' element.</desc>
     </entry>
-    <entry name="scrollbar-3dlight-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531153(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="scrollbar-3dlight-color" restriction="color" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/library/ms531153(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.</desc>
     </entry>
-    <entry name="scrollbar-arrow-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531154(VS.85).aspx" syntax="body { $(name): #00ffff; }">
+    <entry name="scrollbar-arrow-color" restriction="color" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/library/ms531154(VS.85).aspx" syntax="body { $(name): #00ffff; }">
       <desc>Determines the color of the arrow elements of a scroll arrow.</desc>
     </entry>
-    <entry name="scrollbar-base-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531155(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="scrollbar-base-color" restriction="color" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/library/ms531155(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the main elements of a scroll bar, which include the scroll box, track, and scroll arrows.</desc>
     </entry>
-    <entry name="scrollbar-darkshadow-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531156(v=VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="scrollbar-darkshadow-color" restriction="color" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/library/ms531156(v=VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the gutter of a scroll bar.</desc>
     </entry>
-    <entry name="scrollbar-face-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531157(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="scrollbar-face-color" restriction="color" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/library/ms531157(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the scroll box and scroll arrows of a scroll bar.</desc>
     </entry>
-    <entry name="scrollbar-highlight-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531158(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="scrollbar-highlight-color" restriction="color" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/library/ms531158(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the top and left edges of the scroll box and scroll arrows of a scroll bar.</desc>
     </entry>
-    <entry name="scrollbar-shadow-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531159(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="scrollbar-shadow-color" restriction="color" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/library/ms531159(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the bottom and right edges of the scroll box and scroll arrows of a scroll bar.</desc>
     </entry>
-    <entry name="scrollbar-track-color" restriction="color" version="3.0" browsers="IE6" ref="http://msdn.microsoft.com/en-us/library/ms531160(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
+    <entry name="scrollbar-track-color" restriction="color" version="3.0" browsers="IE6" ref="https://msdn.microsoft.com/en-us/library/ms531160(VS.85).aspx" syntax="textarea { $(name): #00ffff; }">
       <desc>Determines the color of the track element of a scroll bar.</desc>
     </entry>
     <entry name="scroll-behavior" restriction="enum" version="3.0" browsers="FF36" ref="http://www.w3.org/TR/cssom-view/#scroll-behavior">

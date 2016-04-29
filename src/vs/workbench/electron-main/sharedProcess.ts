@@ -8,32 +8,33 @@ import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
-import env = require('vs/workbench/electron-main/env');
-import { manager as SettingsManager } from 'vs/workbench/electron-main/settings';
-import { Instance as UpdateManager } from 'vs/workbench/electron-main/update-manager';
+import { IEnvironmentService } from 'vs/workbench/electron-main/env';
+import { ISettingsService } from 'vs/workbench/electron-main/settings';
+import { IUpdateService } from 'vs/workbench/electron-main/update-manager';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 
-function getEnvironment(): IEnvironment {
-	let configuration: IEnvironment = assign({}, env.cliArgs);
+function getEnvironment(envService: IEnvironmentService, updateManager: IUpdateService): IEnvironment {
+	let configuration: IEnvironment = assign({}, envService.cliArgs);
 	configuration.execPath = process.execPath;
-	configuration.appName = env.product.nameLong;
-	configuration.appRoot = env.appRoot;
-	configuration.version = env.version;
-	configuration.commitHash = env.product.commit;
-	configuration.appSettingsHome = env.appSettingsHome;
-	configuration.appSettingsPath = env.appSettingsPath;
-	configuration.appKeybindingsPath = env.appKeybindingsPath;
-	configuration.userExtensionsHome = env.userExtensionsHome;
-	configuration.isBuilt = env.isBuilt;
-	configuration.updateFeedUrl = UpdateManager.feedUrl;
-	configuration.updateChannel = UpdateManager.channel;
-	configuration.extensionsGallery = env.product.extensionsGallery;
+	configuration.appName = envService.product.nameLong;
+	configuration.appRoot = envService.appRoot;
+	configuration.version = envService.version;
+	configuration.commitHash = envService.product.commit;
+	configuration.appSettingsHome = envService.appSettingsHome;
+	configuration.appSettingsPath = envService.appSettingsPath;
+	configuration.appKeybindingsPath = envService.appKeybindingsPath;
+	configuration.userExtensionsHome = envService.userExtensionsHome;
+	configuration.isBuilt = envService.isBuilt;
+	configuration.updateFeedUrl = updateManager.feedUrl;
+	configuration.updateChannel = updateManager.channel;
+	configuration.extensionsGallery = envService.product.extensionsGallery;
 
 	return configuration;
 }
 
-function _spawnSharedProcess(): cp.ChildProcess {
+function _spawnSharedProcess(envService: IEnvironmentService, updateManager: IUpdateService, settingsManager: ISettingsService): cp.ChildProcess {
 	// Make sure the nls configuration travels to the shared process.
 	const opts = {
 		env: assign(assign({}, process.env), {
@@ -47,10 +48,10 @@ function _spawnSharedProcess(): cp.ChildProcess {
 	result.once('message', () => {
 		result.send({
 			configuration: {
-				env: getEnvironment()
+				env: getEnvironment(envService, updateManager)
 			},
 			contextServiceOptions: {
-				globalSettings: SettingsManager.globalSettings
+				globalSettings: settingsManager.globalSettings
 			}
 		});
 	});
@@ -60,7 +61,11 @@ function _spawnSharedProcess(): cp.ChildProcess {
 
 let spawnCount = 0;
 
-export function spawnSharedProcess(): IDisposable {
+export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
+	const envService = accessor.get(IEnvironmentService);
+	const updateManager = accessor.get(IUpdateService);
+	const settingsManager = accessor.get(ISettingsService);
+
 	let child: cp.ChildProcess;
 
 	const spawn = () => {
@@ -68,7 +73,7 @@ export function spawnSharedProcess(): IDisposable {
 			return;
 		}
 
-		child = _spawnSharedProcess();
+		child = _spawnSharedProcess(envService, updateManager, settingsManager);
 		child.on('exit', spawn);
 	};
 

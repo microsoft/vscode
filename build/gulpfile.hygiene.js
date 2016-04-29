@@ -55,7 +55,8 @@ var indentationFilter = [
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
-	'!extensions/**/colorize-fixtures/**'
+	'!extensions/**/colorize-fixtures/**',
+	'!extensions/vscode-api-tests/testWorkspace/**'
 ];
 
 var copyrightFilter = [

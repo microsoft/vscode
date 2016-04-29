@@ -74,12 +74,6 @@ export class ViewEventHandler {
 	public onZonesChanged(): boolean {
 		return false;
 	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		return false;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
-	}
 	public onViewFocusChanged(isFocused:boolean): boolean {
 		return false;
 	}
@@ -182,18 +176,6 @@ export class ViewEventHandler {
 
 				case editorCommon.EventType.ViewZonesChanged:
 					if (this.onZonesChanged()) {
-						shouldRender = true;
-					}
-					break;
-
-				case editorCommon.EventType.ViewScrollWidthChanged:
-					if (this.onScrollWidthChanged(<number>data)) {
-						shouldRender = true;
-					}
-					break;
-
-				case editorCommon.EventType.ViewScrollHeightChanged:
-					if (this.onScrollHeightChanged(<number>data)) {
 						shouldRender = true;
 					}
 					break;

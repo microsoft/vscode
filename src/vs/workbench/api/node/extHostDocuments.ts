@@ -331,7 +331,9 @@ export class ExtHostDocumentData extends MirrorModel2 {
 			const text = this._lines[line];
 			const firstNonWhitespaceCharacterIndex = /^(\s*)/.exec(text)[1].length;
 			const range = new Range(line, 0, line, text.length);
-			const rangeIncludingLineBreak = new Range(line, 0, line + 1, 0);
+			const rangeIncludingLineBreak = line < this._lines.length - 1
+				? new Range(line, 0, line + 1, 0)
+				: range;
 
 			result = Object.freeze({
 				lineNumber: line,
