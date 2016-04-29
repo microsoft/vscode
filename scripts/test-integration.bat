@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-rem TFS Builds
+rem APPVEYOR Builds
 if not "%APPVEYOR%" == "" (
 	set ELECTRON_NO_ATTACH_CONSOLE=1
 	set ATOM_SHELL_INTERNAL_RUN_AS_NODE=
