@@ -13,6 +13,7 @@ var util = require('gulp-util');
 var _ = require('underscore');
 var path = require('path');
 var fs = require('fs');
+var cp = require('child_process');
 var rimraf = require('rimraf');
 var git = require('./git');
 
@@ -143,7 +144,7 @@ exports.handleAzureJson = function (env) {
 
 			es.merge(streams)
 				.pipe(result)
-				.pipe(es.through(null, function() {
+				.pipe(es.through(null, function () {
 					util.log('Finished downloading from Azure');
 					this.emit('end');
 				}));
@@ -227,7 +228,7 @@ exports.loadSourcemaps = function () {
 
 			if (!lastMatch) {
 				f.sourceMap = {
-					version : 3,
+					version: 3,
 					names: [],
 					mappings: '',
 					sources: [f.relative.replace(/\//g, '/')],
@@ -250,7 +251,7 @@ exports.loadSourcemaps = function () {
 	return es.duplex(input, output);
 };
 
-exports.rimraf = function(dir) {
+exports.rimraf = function (dir) {
 	return function (cb) {
 		rimraf(dir, {
 			maxBusyTries: 1
@@ -273,4 +274,22 @@ exports.rebase = function (count) {
 		var parts = f.dirname.split(/[\/\\]/);
 		f.dirname = parts.slice(count).join(path.sep);
 	});
+};
+
+exports.listDeps = function (root) {
+	var deps = [];
+	var stdout = cp.execSync('npm list --prod --parseable', {
+		encoding: 'utf8'
+	});
+
+	var node_modules = path.join(root, 'node_modules');
+
+	stdout.split(/[\r\n]/).forEach(function (line) {
+		var relative = path.relative(node_modules, line);
+		if (!/^(\.\.)|\/|\\/.test(relative)) {
+			deps.push(relative);
+		}
+	});
+
+	return deps.sort();
 };
