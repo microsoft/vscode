@@ -111,7 +111,7 @@ confRegistry.registerConfiguration({
 	properties: {
 		'http.proxy': {
 			type: 'string',
-			pattern: '^https?://[^:]+(:\\d+)?$',
+			pattern: '^https?://[^:]+(:\\d+)?$|^$',
 			description: nls.localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables")
 		},
 		'http.proxyStrictSSL': {
