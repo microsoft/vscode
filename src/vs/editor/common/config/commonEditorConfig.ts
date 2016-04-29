@@ -936,11 +936,11 @@ let editorConfiguration:IConfigurationNode = {
 			default: DefaultConfig.editor.renderWhitespace,
 			description: nls.localize('renderWhitespace', "Controls whether the editor should render whitespace characters")
 		},
-		'editor.indentGuides': {
-			'type': 'boolean',
-			default: DefaultConfig.editor.indentGuides,
-			description: nls.localize('indentGuides', "Controls whether the editor should render indent guides")
-		},
+		// 'editor.indentGuides': {
+		// 	'type': 'boolean',
+		// 	default: DefaultConfig.editor.indentGuides,
+		// 	description: nls.localize('indentGuides', "Controls whether the editor should render indent guides")
+		// },
 		'editor.referenceInfos' : {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.referenceInfos,
