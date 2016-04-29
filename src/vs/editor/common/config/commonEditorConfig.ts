@@ -145,7 +145,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 			horizontalSliderSize: Number(input.scrollbar.horizontalSliderSize)|0,
 			verticalScrollbarSize: Number(input.scrollbar.verticalScrollbarSize)|0,
 			verticalSliderSize: Number(input.scrollbar.verticalSliderSize)|0,
-			mouseWheelScrollSensitivity: Number(input.scrollbar.mouseWheelScrollSensitivity)|0,
+			mouseWheelScrollSensitivity: Number(input.scrollbar.mouseWheelScrollSensitivity),
 		};
 		this.overviewRulerLanes = Number(input.overviewRulerLanes)|0;
 		this.cursorBlinking = String(input.cursorBlinking);
