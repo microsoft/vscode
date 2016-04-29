@@ -232,6 +232,23 @@
                             "RedirectOutput",
                             "DjangoDebugging"
                         ]
+                    },
+                    {
+                        "name": "Watson",
+                        "type": "python",
+                        "request": "launch",
+                        "stopOnEntry": true,
+                        "program": "${workspaceRoot}/console.py",
+                        "args": [
+            				"dev",
+            				"runserver",
+            				"--noreload=True"
+            			],
+                        "debugOptions": [
+                            "WaitOnAbnormalExit",
+                            "WaitOnNormalExit",
+                            "RedirectOutput"
+                        ]
                     }
                 ]
             }
