@@ -796,14 +796,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<CompletionItem>,
 
 	private get lineHeight(): number {
 		const { fontSize } = this.editor.getConfiguration();
-		return Math.floor(fontSize * 1.7);
+		return Math.floor(fontSize * 1.6);
 	}
 
 	getHeight(element: CompletionItem): number {
 		const focus = this.list.getFocus()[0];
 
 		if (element.suggestion.documentationLabel && element === focus) {
-			return Math.floor(this.lineHeight * 1.7);
+			return Math.floor(this.lineHeight * 1.8);
 		}
 
 		return this.lineHeight;
