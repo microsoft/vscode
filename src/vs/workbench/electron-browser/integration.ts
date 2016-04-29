@@ -22,6 +22,10 @@ import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/co
 import {IWindowService}from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {IExtension, IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
+import {getExtensionId} from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import {IActionsService} from 'vs/platform/actions/common/actions';
 
 import win = require('vs/workbench/electron-browser/window');
 
@@ -51,7 +55,10 @@ export class ElectronIntegration {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionsService private extensionsService: IExtensionsService,
+		@IActionsService private actionsService: IActionsService
 	) {
 	}
 
@@ -90,6 +97,14 @@ export class ElectronIntegration {
 			this.resolveKeybindings(actionIds).done((keybindings) => {
 				if (keybindings.length) {
 					ipc.send('vscode:keybindingsResolved', JSON.stringify(keybindings));
+				}
+			}, () => errors.onUnexpectedError);
+		});
+
+		ipc.on('vscode:resolveExtensions', () => {
+			this.resolveExtensions().done((extensions) => {
+				if (Object.keys(extensions).length) {
+					ipc.send('vscode:extensionsResolved', JSON.stringify(extensions));
 				}
 			}, () => errors.onUnexpectedError);
 		});
@@ -182,6 +197,47 @@ export class ElectronIntegration {
 
 				return null;
 			}));
+		});
+	}
+
+	private resolveExtensions(): TPromise<{ [name: string]: { id: string, label: string; binding: number; }[] }> {
+		return this.extensionService.onReady().then(() => {
+			let actionIds: string[] = this.actionsService.getActions().map(action => {
+				return action.id;
+			});
+			return TPromise.join<any>([this.resolveKeybindings(actionIds), this.extensionsService.getInstalled()]);
+		}).then((result) => {
+			const bindings: { id: string; binding: number; }[] = result[0];
+			const extensions: IExtension[] = result[1];
+
+			let bindingMap = {};
+			bindings.forEach(binding => {
+				bindingMap[binding.id] = binding.binding;
+			});
+
+			let actionMap: { [name: string]: { id: string, label: string; binding: number; }[] } = {};
+
+			extensions.forEach(extension => {
+				let actions = this.actionsService.getActions(getExtensionId(extension));
+				if (actions && actions.length > 0) {
+					let displayActions = actionMap[extension.displayName];
+					if (!displayActions) {
+						displayActions = [];
+					}
+
+					let resolvedKeybindings = actions.map(action => {
+						return {
+							id: action.id,
+							label: action.label,
+							binding: bindingMap[action.id]
+						};
+					});
+
+					actionMap[extension.displayName] = displayActions.concat(resolvedKeybindings);
+				}
+			});
+
+			return actionMap;
 		});
 	}
 }

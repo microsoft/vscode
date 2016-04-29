@@ -18,7 +18,7 @@ export let IActionsService = createDecorator<IActionsService>('actionsService');
 
 export interface IActionsService {
 	serviceId: ServiceIdentifier<any>;
-	getActions(): Actions.IAction[];
+	getActions(extensionId?: string): Actions.IAction[];
 }
 
 export class SyncActionDescriptor {

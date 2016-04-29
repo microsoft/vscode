@@ -7,8 +7,8 @@
 import {localize} from 'vs/nls';
 import {Action, IAction} from 'vs/base/common/actions';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
+import {IExtensionMessageCollector, IExtensionPointUser, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActionsService} from './actions';
 
@@ -78,31 +78,37 @@ export default class ActionsService implements IActionsService {
 
 	private _extensionService: IExtensionService;
 	private _keybindingsService: IKeybindingService;
-	private _extensionsActions: IAction[] = [];
+	private _extensionsActions: IAction[];
+	private _extensionsActionsMap: { [id: string]: IAction[] };
 
 	serviceId: any;
 
 	constructor( @IExtensionService extensionService: IExtensionService, @IKeybindingService keybindingsService: IKeybindingService) {
 		this._extensionService = extensionService;
 		this._keybindingsService = keybindingsService;
+
+		this._extensionsActions = [];
+		this._extensionsActionsMap = Object.create(null);
+
 		commandsExtPoint.setHandler((extensions) => {
 			for (let d of extensions) {
-				this._onDescription(d.value, d.collector);
+				this._onDescription(d);
 			}
 		});
 	}
 
-	private _onDescription(commands: Command | Command[], collector: IExtensionMessageCollector): void {
+	private _onDescription(d: IExtensionPointUser<Command | Command[]>): void {
+		let commands = d.value;
 		if (isCommands(commands)) {
 			for (let command of commands) {
-				this._handleCommand(command, collector);
+				this._handleCommand(command, d.description, d.collector);
 			}
 		} else {
-			this._handleCommand(commands, collector);
+			this._handleCommand(commands, d.description, d.collector);
 		}
 	}
 
-	private _handleCommand(command: Command, collector: IExtensionMessageCollector): void {
+	private _handleCommand(command: Command, description: IExtensionDescription, collector: IExtensionMessageCollector): void {
 
 		let rejects: string[] = [];
 
@@ -118,6 +124,12 @@ export default class ActionsService implements IActionsService {
 				});
 			});
 			this._extensionsActions.push(action);
+
+			let actions = this._extensionsActionsMap[description.id];
+			if (!actions) {
+				this._extensionsActionsMap[description.id] = actions = [];
+			}
+			actions.push(action);
 		}
 
 		if (rejects.length > 0) {
@@ -131,7 +143,16 @@ export default class ActionsService implements IActionsService {
 
 	}
 
-	getActions(): IAction[] {
-		return this._extensionsActions.slice(0);
+	getActions(extensionId?: string): IAction[] {
+		if (!extensionId) {
+			return this._extensionsActions.slice(0);
+		} else {
+			let actions = this._extensionsActionsMap[extensionId];
+			if (actions) {
+				return actions.slice(0);
+			} else {
+				return [];
+			}
+		}
 	}
 }
