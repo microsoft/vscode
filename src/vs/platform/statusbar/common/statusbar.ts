@@ -51,4 +51,9 @@ export interface IStatusbarService {
 	 * to remove the statusbar entry.
 	 */
 	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority?: number): IDisposable;
+
+	/**
+	 * Prints something to the status bar area with optional auto dispose and delay.
+	 */
+	setStatusMessage(message: string, autoDisposeAfter?: number, delayBy?: number): IDisposable;
 }

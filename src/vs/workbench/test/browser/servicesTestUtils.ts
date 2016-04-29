@@ -119,12 +119,6 @@ export class TestMessageService implements IMessageService {
 	public confirm(confirmation: IConfirmation): boolean {
 		return false;
 	}
-
-	public setStatusMessage(message: string, autoDisposeAfter: number = -1): Lifecycle.IDisposable {
-		return {
-			dispose: () => { /* Nothing to do here */ }
-		};
-	}
 }
 
 export class TestPartService implements PartService.IPartService {
