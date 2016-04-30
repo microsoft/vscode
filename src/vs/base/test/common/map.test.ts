@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {LinkedMap} from 'vs/base/common/map';
+import {LinkedMap, LRUCache} from 'vs/base/common/map';
 import * as assert from 'assert';
 
 suite('Map', () => {
@@ -69,6 +69,8 @@ suite('Map', () => {
 	test('LinkedMap - bounded', function () {
 		const map = new LinkedMap<number>(5);
 
+		assert.equal(0, map.size);
+
 		map.set('1', 1);
 		map.set('2', 2);
 		map.set('3', 3);
@@ -131,5 +133,39 @@ suite('Map', () => {
 		assert.equal(map.get('12'), 12);
 		assert.equal(map.get('13'), 13);
 		assert.equal(map.get('14'), 14);
+	});
+
+	test('LRUCache', function () {
+		const cache = new LRUCache<number>(3);
+
+		assert.equal(0, cache.size);
+
+		cache.set('1', 1);
+		cache.set('2', 2);
+		cache.set('3', 3);
+
+		assert.equal(3, cache.size);
+
+		assert.equal(cache.get('1'), 1);
+		assert.equal(cache.get('2'), 2);
+		assert.equal(cache.get('3'), 3);
+
+		cache.set('4', 4);
+
+		assert.equal(3, cache.size);
+		assert.equal(cache.get('4'), 4); // this changes MRU order
+		assert.equal(cache.get('3'), 3);
+		assert.equal(cache.get('2'), 2);
+
+		cache.set('5', 5);
+		cache.set('6', 6);
+
+		assert.equal(3, cache.size);
+		assert.equal(cache.get('2'), 2);
+		assert.equal(cache.get('5'), 5);
+		assert.equal(cache.get('6'), 6);
+		assert.ok(!cache.has('3'));
+		assert.ok(!cache.has('4'));
+
 	});
 });

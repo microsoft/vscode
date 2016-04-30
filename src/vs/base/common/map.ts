@@ -17,7 +17,7 @@ interface Entry<T> {
  * the cache will remove the entry that was last recently added.
  */
 export class LinkedMap<T> {
-	private map: { [key: string]: Entry<T> };
+	protected map: { [key: string]: Entry<T> };
 	private head: Entry<T>;
 	private tail: Entry<T>;
 	private _size: number;
@@ -37,7 +37,7 @@ export class LinkedMap<T> {
 		}
 
 		const entry: Entry<T> = { key, value };
-		this.push(key, entry);
+		this.push(entry);
 
 		if (this._size > this.limit) {
 			this.trim();
@@ -88,7 +88,7 @@ export class LinkedMap<T> {
 		this.tail = null;
 	}
 
-	private push(key: string, entry: Entry<T>): void {
+	protected push(entry: Entry<T>): void {
 		if (this.head) {
 			// [A]-[B] = [A]-[B]->[X]
 			entry.prev = this.head;
@@ -101,7 +101,7 @@ export class LinkedMap<T> {
 
 		this.head = entry;
 
-		this.map[key] = entry;
+		this.map[entry.key] = entry;
 		this._size++;
 	}
 
@@ -114,5 +114,34 @@ export class LinkedMap<T> {
 			this.tail = this.tail.next;
 			this.tail.prev = null;
 		}
+	}
+}
+
+/**
+ * A subclass of Map<T> that makes an entry the MRU entry as soon
+ * as it is being accessed. In combination with the limit for the
+ * maximum number of elements in the cache, it helps to remove those
+ * entries from the cache that are LRU.
+ */
+export class LRUCache<T> extends LinkedMap<T> {
+
+	constructor(limit: number) {
+		super(limit);
+	}
+
+	public get(key: string): T {
+
+		// Upon access of an entry, make it the head of
+		// the linked map so that it is the MRU element
+		const entry = this.map[key];
+		if (entry) {
+			this.delete(key);
+			this.push(entry);
+
+			return entry.value;
+		}
+
+
+		return null;
 	}
 }
