@@ -202,13 +202,6 @@
 	border-color: #EAEAF2;
 }
 
-/* Hover */
-.monaco-editor.vs .typeInfo {
-	color: blue;
-}
-.monaco-editor.vs .typeInfo .documentation {
-	color: #A21B1B;
-}
 /* ----------- END VS THEME ----------- */
 
 
@@ -288,14 +281,6 @@
 /* Line Numbers */
 .monaco-editor.vs-dark .line-numbers {
 	color: #5A5A5A;
-}
-
-/* Hover */
-.monaco-editor.vs-dark .typeInfo {
-	color: #BBB;
-}
-.monaco-editor.vs-dark .typeInfo .documentation {
-	color: #C07A7A;
 }
 
 /* Diff Editor overview */
