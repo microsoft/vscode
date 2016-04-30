@@ -103,7 +103,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.linesContent = document.createElement('div');
 		this.linesContent.className = editorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background';
 		this.domNode = document.createElement('div');
-		Configuration.applyEditorStyling(this.domNode, configuration.editor.stylingInfo);
+		this.domNode.className = configuration.editor.editorClassName;
 
 		this.overflowGuardContainer = document.createElement('div');
 		this.overflowGuardContainer.className = editorBrowser.ClassNames.OVERFLOW_GUARD;
@@ -177,9 +177,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		StyleMutator.setTop(this.textArea, 0);
 		StyleMutator.setLeft(this.textArea, 0);
-		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		StyleMutator.setFontSize(this.textArea, this.context.configuration.editor.fontSize);
-		StyleMutator.setLineHeight(this.textArea, this.context.configuration.editor.lineHeight);
 
 		this.listenersToDispose.push(dom.addDisposableListener(this.textArea, 'focus', () => this._setHasFocus(true)));
 		this.listenersToDispose.push(dom.addDisposableListener(this.textArea, 'blur', () => this._setHasFocus(false)));
@@ -443,8 +440,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		if (e.stylingInfo) {
-			Configuration.applyEditorStyling(this.domNode, this.context.configuration.editor.stylingInfo);
+		if (e.editorClassName) {
+			this.domNode.className = this.context.configuration.editor.editorClassName;
 		}
 		if (e.ariaLabel) {
 			this.textArea.setAttribute('aria-label', this.context.configuration.editor.ariaLabel);

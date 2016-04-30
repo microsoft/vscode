@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
-import {IEditorOptions, EditorStyling} from 'vs/editor/common/editorCommon';
+import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
+import {IEditorOptions, FontInfo, BareFontInfo} from 'vs/editor/common/editorCommon';
 
 export class MockConfiguration extends CommonEditorConfiguration {
 
@@ -25,13 +25,7 @@ export class MockConfiguration extends CommonEditorConfiguration {
 		return 100;
 	}
 
-	protected readConfiguration(styling: EditorStyling): ICSSConfig {
-		// Doesn't really matter
-		return {
-			typicalHalfwidthCharacterWidth: 10,
-			typicalFullwidthCharacterWidth: 20,
-			spaceWidth: 10,
-			maxDigitWidth: 10
-		};
+	protected readConfiguration(styling: BareFontInfo): FontInfo {
+		return new FontInfo('mockFont', 14, 19, 10, 20, 10, 10);
 	}
 }

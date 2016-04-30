@@ -601,7 +601,7 @@ export class MouseTargetFactory {
 		if (mouseContentHorizontalOffset < 0) {
 			return 1;
 		}
-		let charWidth = this.context.configuration.editor.typicalHalfwidthCharacterWidth;
+		let charWidth = this.context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		let chars = Math.round(mouseContentHorizontalOffset / charWidth);
 		return (chars + 1);
 	}

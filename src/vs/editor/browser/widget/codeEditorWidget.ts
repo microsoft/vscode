@@ -411,6 +411,10 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this._view.setAriaActiveDescendant(id);
 	}
 
+	public applyFontInfo(target:HTMLElement): void {
+		Configuration.applyFontInfoSlow(target, this._configuration.editor.fontInfo);
+	}
+
 	_attachModel(model:editorCommon.IModel): void {
 		this._view = null;
 

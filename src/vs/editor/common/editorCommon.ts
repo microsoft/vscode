@@ -654,7 +654,8 @@ export interface IInternalEditorOptions {
 
 	layoutInfo: IEditorLayoutInfo;
 
-	stylingInfo: EditorStyling;
+	fontInfo: FontInfo;
+	editorClassName: string;
 
 	wrappingInfo: IEditorWrappingInfo;
 
@@ -674,22 +675,6 @@ export interface IInternalEditorOptions {
 	 * Computed page size (deduced from editor size) in lines.
 	 */
 	pageSize:number;
-	/**
-	 * Computed width of 'm' (deduced from theme and CSS) in px.
-	 */
-	typicalHalfwidthCharacterWidth:number;
-	/**
-	 * Computed width of fullwidth 'm' (U+FF4D)
-	 */
-	typicalFullwidthCharacterWidth:number;
-	/**
-	 * Computed width of non breaking space &nbsp;
-	 */
-	spaceWidth:number;
-	/**
-	 * Computed font size.
-	 */
-	fontSize:number;
 }
 
 /**
@@ -745,16 +730,13 @@ export interface IConfigurationChangedEvent {
 
 	// ---- Options that are computed
 	layoutInfo: boolean;
-	stylingInfo: boolean;
+	fontInfo: boolean;
+	editorClassName: boolean;
 	wrappingInfo: boolean;
 	observedOuterWidth: boolean;
 	observedOuterHeight: boolean;
 	lineHeight: boolean;
 	pageSize: boolean;
-	typicalHalfwidthCharacterWidth: boolean;
-	typicalFullwidthCharacterWidth: boolean;
-	spaceWidth: boolean;
-	fontSize: boolean;
 }
 
 /**
@@ -2572,31 +2554,57 @@ export interface IHandlerDispatcher {
 	trigger(source:string, handlerId:string, payload:any): boolean;
 }
 
-export class EditorStyling {
-	_editorStylingTrait: void;
+export class BareFontInfo {
+	_bareFontInfoTrait: void;
 
-	editorClassName: string;
 	fontFamily: string;
 	fontSize: number;
 	lineHeight: number;
 
-	constructor(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number) {
-		this.editorClassName = String(editorClassName);
+	constructor(fontFamily: string, fontSize: number, lineHeight: number) {
 		this.fontFamily = String(fontFamily);
 		this.fontSize = fontSize|0;
 		this.lineHeight = lineHeight|0;
 	}
 
 	public getId(): string {
-		return this.editorClassName + '-' + this.fontFamily + '-' + this.fontSize + '-' + this.lineHeight;
+		return this.fontFamily + '-' + this.fontSize + '-' + this.lineHeight;
+	}
+}
+
+export class FontInfo extends BareFontInfo {
+	_editorStylingTrait: void;
+
+	typicalHalfwidthCharacterWidth:number;
+	typicalFullwidthCharacterWidth:number;
+	spaceWidth:number;
+	maxDigitWidth: number;
+
+	constructor(
+		fontFamily: string,
+		fontSize: number,
+		lineHeight: number,
+		typicalHalfwidthCharacterWidth:number,
+		typicalFullwidthCharacterWidth:number,
+		spaceWidth:number,
+		maxDigitWidth: number
+	) {
+		super(fontFamily, fontSize, lineHeight);
+		this.typicalHalfwidthCharacterWidth = typicalHalfwidthCharacterWidth;
+		this.typicalFullwidthCharacterWidth = typicalFullwidthCharacterWidth;
+		this.spaceWidth = spaceWidth;
+		this.maxDigitWidth = maxDigitWidth;
 	}
 
-	public equals(other:EditorStyling): boolean {
+	public equals(other:FontInfo): boolean {
 		return (
-			this.editorClassName === other.editorClassName
-			&& this.fontFamily === other.fontFamily
+			this.fontFamily === other.fontFamily
 			&& this.fontSize === other.fontSize
 			&& this.lineHeight === other.lineHeight
+			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
+			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
+			&& this.spaceWidth === other.spaceWidth
+			&& this.maxDigitWidth === other.maxDigitWidth
 		);
 	}
 }

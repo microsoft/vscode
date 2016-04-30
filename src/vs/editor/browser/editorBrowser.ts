@@ -687,6 +687,11 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	setHiddenAreas(ranges:editorCommon.IRange[]): void;
 
 	setAriaActiveDescendant(id:string): void;
+
+	/**
+	 * Apply the same font settings as the editor to `target`.
+	 */
+	applyFontInfo(target:HTMLElement): void;
 }
 
 /**

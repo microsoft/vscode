@@ -1784,7 +1784,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		let r = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
-			config.spaceWidth,
+			config.fontInfo.spaceWidth,
 			config.stopRenderingLineAfter,
 			config.renderWhitespace,
 			parts.getParts()

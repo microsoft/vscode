@@ -6,6 +6,7 @@
 
 import * as nls from 'vs/nls';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
+import * as platform from 'vs/base/common/platform';
 
 export interface IConfiguration {
 	editor:IEditorOptions;
@@ -17,6 +18,10 @@ export const DEFAULT_INDENTATION = {
 	insertSpaces: true,
 	detectIndentation: true
 };
+
+const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
+const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
+const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'Courier New\', monospace, \'Droid Sans Fallback\'';
 
 class ConfigClass implements IConfiguration {
 
@@ -81,8 +86,12 @@ class ConfigClass implements IConfiguration {
 			renderWhitespace: false,
 			indentGuides: false,
 
-			fontFamily: 'Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback"',
-			fontSize: 14,
+			fontFamily: (
+				platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
+			),
+			fontSize: (
+				platform.isMacintosh ? 12 : 14
+			),
 			lineHeight: 0
 		};
 	}

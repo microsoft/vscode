@@ -26,7 +26,7 @@ export class Rulers extends ViewPart {
 		this.domNode.className = 'view-rulers';
 		this._rulers = this._context.configuration.editor.rulers;
 		this._height = this._context.configuration.editor.layoutInfo.contentHeight;
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.typicalHalfwidthCharacterWidth;
+		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 	}
 
 	public dispose(): void {
@@ -36,10 +36,10 @@ export class Rulers extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		if (e.rulers || e.layoutInfo || e.typicalHalfwidthCharacterWidth) {
+		if (e.rulers || e.layoutInfo || e.fontInfo) {
 			this._rulers = this._context.configuration.editor.rulers;
 			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
-			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.typicalHalfwidthCharacterWidth;
+			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 			return true;
 		}
 		return false;

@@ -262,7 +262,7 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 
 					case editorCommon.EventType.ConfigurationChanged:
 						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingIndent) || revealPreviousCenteredModelRange;
-						revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.typicalFullwidthCharacterWidth / this.configuration.editor.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
+						revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
 						if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
 							// Must read again all decorations due to readOnly filtering
 							this.decorations.reset(this.model);

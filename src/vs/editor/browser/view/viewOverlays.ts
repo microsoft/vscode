@@ -10,6 +10,7 @@ import {IScrollEvent, IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecor
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
+import {Configuration} from 'vs/editor/browser/config/configuration';
 
 export class ViewOverlays extends ViewLayer {
 
@@ -231,6 +232,8 @@ export class MarginViewOverlays extends ViewOverlays {
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
 		this.domNode.setWidth(1);
+
+		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 	}
 
 	protected _extraDomNodeHTML(): string {
@@ -263,6 +266,14 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._contentLeft = layoutInfo.contentLeft;
 		return super.onLayoutChanged(layoutInfo) || true;
 	}
+
+	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
+		if (e.fontInfo) {
+			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+		}
+		return super.onConfigurationChanged(e);
+	}
+
 
 	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);

@@ -12,6 +12,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ClassNames, ILayoutProvider, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {ViewLine, createLine} from 'vs/editor/browser/viewParts/lines/viewLine';
+import {Configuration} from 'vs/editor/browser/config/configuration';
 
 class LastRenderedData {
 
@@ -74,6 +75,7 @@ export class ViewLines extends ViewLayer {
 		this._revealHorizontalRightPadding = this._context.configuration.editor.revealHorizontalRightPadding;
 		this._layoutProvider = layoutProvider;
 		this.domNode.setClassName(ClassNames.VIEW_LINES);
+		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 
 		// --- width & height
 		this._maxLineWidth = 0;
@@ -114,6 +116,9 @@ export class ViewLines extends ViewLayer {
 		}
 		if (e.revealHorizontalRightPadding) {
 			this._revealHorizontalRightPadding = this._context.configuration.editor.revealHorizontalRightPadding;
+		}
+		if (e.fontInfo) {
+			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 		}
 
 		return shouldRender;

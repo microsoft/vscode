@@ -17,6 +17,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {IKeyboardHandlerHelper, IViewContext, IViewController} from 'vs/editor/browser/editorBrowser';
+import {Configuration} from 'vs/editor/browser/config/configuration';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -209,6 +210,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.context = context;
 		this.viewController = viewController;
 		this.textArea = new TextAreaWrapper(viewHelper.textArea);
+		Configuration.applyFontInfoSlow(this.textArea.actual, this.context.configuration.editor.fontInfo);
 		this.viewHelper = viewHelper;
 
 		this.contentLeft = 0;
@@ -294,8 +296,9 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		StyleMutator.setFontSize(this.textArea.actual, this.context.configuration.editor.fontSize);
-		StyleMutator.setLineHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
+		if (e.fontInfo) {
+			Configuration.applyFontInfoSlow(this.textArea.actual, this.context.configuration.editor.fontInfo);
+		}
 		if (e.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
 		}

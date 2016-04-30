@@ -38,7 +38,7 @@ export class ViewLine implements IVisibleLineData {
 		this._context = context;
 		this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
 		this._indentGuides = this._context.configuration.editor.indentGuides;
-		this._spaceWidth = this._context.configuration.editor.spaceWidth;
+		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
 		this._fontLigatures = this._context.configuration.editor.fontLigatures;
@@ -88,8 +88,8 @@ export class ViewLine implements IVisibleLineData {
 		if (e.indentGuides) {
 			this._indentGuides = this._context.configuration.editor.indentGuides;
 		}
-		if (e.spaceWidth) {
-			this._spaceWidth = this._context.configuration.editor.spaceWidth;
+		if (e.fontInfo) {
+			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		}
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;

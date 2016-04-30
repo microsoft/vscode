@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 /* The editor */
 .monaco-editor, .monaco-editor .inputarea {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
-	font-size: 14px;
-	line-height: 19px;
 	color: #333;
 	/*
 	 * WORKAROUND:
@@ -14,12 +11,6 @@
 	 * we are *not* using the color white (or #ffffff, rgba(255,255,255)) but something very close to white.
 	 */
 	background: #fffffe;
-}
-
-/* Editor on Mac */
-.monaco-editor.mac {
-	font-size: 12px;
-	line-height: 18px;
 }
 
 /* Background */

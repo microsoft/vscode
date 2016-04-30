@@ -692,7 +692,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				hardWrappingLineMapperFactory,
 				this.model.getOptions().tabSize,
 				this._configuration.editor.wrappingInfo.wrappingColumn,
-				this._configuration.editor.typicalFullwidthCharacterWidth / this._configuration.editor.typicalHalfwidthCharacterWidth,
+				this._configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
 				editorCommon.wrappingIndentFromString(this._configuration.editor.wrappingIndent)
 			);
 
