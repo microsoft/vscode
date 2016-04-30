@@ -2756,6 +2756,11 @@ export interface IScrollEvent {
 	scrollHeightChanged: boolean;
 }
 
+export interface INewScrollPosition {
+	scrollLeft?: number;
+	scrollTop?: number;
+}
+
 export interface IViewLinesDeletedEvent {
 	/**
 	 * At what line the deletion began (inclusive).
@@ -3308,9 +3313,18 @@ export interface ICommonCodeEditor extends IEditor {
 	setValue(newValue: string): void;
 
 	/**
-	 * Change the scrollTop of the editor's viewport.
+	 * Get the scrollWidth of the editor's viewport.
 	 */
-	setScrollTop(newScrollTop: number): void;
+	getScrollWidth(): number;
+	/**
+	 * Get the scrollLeft of the editor's viewport.
+	 */
+	getScrollLeft(): number;
+
+	/**
+	 * Get the scrollHeight of the editor's viewport.
+	 */
+	getScrollHeight(): number;
 	/**
 	 * Get the scrollTop of the editor's viewport.
 	 */
@@ -3321,19 +3335,13 @@ export interface ICommonCodeEditor extends IEditor {
 	 */
 	setScrollLeft(newScrollLeft: number): void;
 	/**
-	 * Get the scrollLeft of the editor's viewport.
+	 * Change the scrollTop of the editor's viewport.
 	 */
-	getScrollLeft(): number;
-
+	setScrollTop(newScrollTop: number): void;
 	/**
-	 * Get the scrollWidth of the editor's viewport.
+	 * Change the scroll position of the editor's viewport.
 	 */
-	getScrollWidth(): number;
-
-	/**
-	 * Get the scrollHeight of the editor's viewport.
-	 */
-	getScrollHeight(): number;
+	setScrollPosition(position: INewScrollPosition): void;
 
 	/**
 	 * Get an action that is a contribution to this editor.

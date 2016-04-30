@@ -22,12 +22,14 @@ export interface IOverlayWidgetData {
 }
 
 export interface ICodeEditorHelper {
-	getScrollTop(): number;
-	setScrollTop(scrollTop:number): void;
-	getScrollLeft(): number;
-	setScrollLeft(scrollLeft:number): void;
-	getScrollHeight(): number;
 	getScrollWidth(): number;
+	getScrollLeft(): number;
+
+	getScrollHeight(): number;
+	getScrollTop(): number;
+
+	setScrollPosition(position:editorCommon.INewScrollPosition): void;
+
 	getVerticalOffsetForPosition(lineNumber:number, column:number): number;
 	delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void;
 	getOffsetForColumn(lineNumber:number, column:number): number;
@@ -47,10 +49,10 @@ export interface IPointerHandlerHelper {
 	focusTextArea(): void;
 	isDirty(): boolean;
 
-	getScrollTop(): number;
-	setScrollTop(scrollTop:number): void;
 	getScrollLeft(): number;
-	setScrollLeft(scrollLeft:number): void;
+	getScrollTop(): number;
+
+	setScrollPosition(position:editorCommon.INewScrollPosition): void;
 
 	isAfterLines(verticalOffset:number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
@@ -236,12 +238,13 @@ export interface IScrollingProvider {
 	// This is for the glyphs, line numbers, etc.
 	getScrolledTopFromAbsoluteTop(top:number): number;
 
-	getScrollHeight(): number;
 	getScrollWidth(): number;
 	getScrollLeft(): number;
-	setScrollLeft(scrollLeft:number): void;
+
+	getScrollHeight(): number;
 	getScrollTop(): number;
-	setScrollTop(scrollTop:number): void;
+
+	setScrollPosition(position:editorCommon.INewScrollPosition): void;
 }
 
 export interface IVerticalLayoutProvider {

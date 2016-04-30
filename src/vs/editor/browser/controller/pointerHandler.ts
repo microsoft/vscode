@@ -98,8 +98,10 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	}
 
 	private _onGestureChange(e:IThrottledGestureEvent): void {
-		this.viewHelper.setScrollTop(this.viewHelper.getScrollTop() - e.translationY);
-		this.viewHelper.setScrollLeft(this.viewHelper.getScrollLeft() - e.translationX);
+		this.viewHelper.setScrollPosition({
+			scrollLeft: this.viewHelper.getScrollLeft() - e.translationX,
+			scrollTop: this.viewHelper.getScrollTop() - e.translationY,
+		});
 	}
 
 	public dispose(): void {
@@ -177,8 +179,10 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	}
 
 	private _onGestureChange(e:IThrottledGestureEvent): void {
-		this.viewHelper.setScrollTop(this.viewHelper.getScrollTop() - e.translationY);
-		this.viewHelper.setScrollLeft(this.viewHelper.getScrollLeft() - e.translationX);
+		this.viewHelper.setScrollPosition({
+			scrollLeft: this.viewHelper.getScrollLeft() - e.translationX,
+			scrollTop: this.viewHelper.getScrollTop() - e.translationY,
+		});
 	}
 
 	public dispose(): void {
@@ -220,9 +224,11 @@ class TouchHandler extends MouseHandler {
 		}
 	}
 
-	private onChange(event:GestureEvent): void {
-		this.viewHelper.setScrollTop(this.viewHelper.getScrollTop() - event.translationY);
-		this.viewHelper.setScrollLeft(this.viewHelper.getScrollLeft() - event.translationX);
+	private onChange(e:GestureEvent): void {
+		this.viewHelper.setScrollPosition({
+			scrollLeft: this.viewHelper.getScrollLeft() - e.translationX,
+			scrollTop: this.viewHelper.getScrollTop() - e.translationY,
+		});
 	}
 }
 

@@ -477,20 +477,17 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this.cursor.setSelections('api', ranges);
 	}
 
-	public abstract setScrollTop(newScrollTop:number): void;
+	public abstract getScrollWidth(): number;
+	public abstract getScrollLeft(): number;
 
+	public abstract getScrollHeight(): number;
 	public abstract getScrollTop(): number;
 
 	public abstract setScrollLeft(newScrollLeft:number): void;
-
-	public abstract getScrollLeft(): number;
-
-	public abstract getScrollWidth(): number;
-
-	public abstract getScrollHeight(): number;
+	public abstract setScrollTop(newScrollTop:number): void;
+	public abstract setScrollPosition(position: editorCommon.INewScrollPosition): void;
 
 	public abstract saveViewState(): editorCommon.ICodeEditorViewState;
-
 	public abstract restoreViewState(state:editorCommon.IEditorViewState): void;
 
 	public onVisible(): void {

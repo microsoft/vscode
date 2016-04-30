@@ -146,7 +146,9 @@ export class ViewLines extends ViewLayer {
 			this._lastCursorRevealRangeHorizontallyEvent = e;
 		}
 
-		this._layoutProvider.setScrollTop(newScrollTop);
+		this._layoutProvider.setScrollPosition({
+			scrollTop: newScrollTop
+		});
 
 		return true;
 	}
@@ -154,7 +156,9 @@ export class ViewLines extends ViewLayer {
 	public onCursorScrollRequest(e:editorCommon.IViewScrollRequestEvent): boolean {
 		let currentScrollTop = this._layoutProvider.getScrollTop();
 		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
-		this._layoutProvider.setScrollTop(newScrollTop);
+		this._layoutProvider.setScrollPosition({
+			scrollTop: newScrollTop
+		});
 		return true;
 	}
 
@@ -387,7 +391,9 @@ export class ViewLines extends ViewLayer {
 			}
 
 			// set `scrollLeft`
-			this._layoutProvider.setScrollLeft(newScrollLeft.scrollLeft);
+			this._layoutProvider.setScrollPosition({
+				scrollLeft: newScrollLeft.scrollLeft
+			});
 		}
 
 		// (4) handle scrolling

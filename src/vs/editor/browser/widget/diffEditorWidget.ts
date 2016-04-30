@@ -813,8 +813,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			return;
 		}
 		this._isHandlingScrollEvent = true;
-		this.modifiedEditor.setScrollLeft(e.scrollLeft);
-		this.modifiedEditor.setScrollTop(e.scrollTop);
+		this.modifiedEditor.setScrollPosition({
+			scrollLeft: e.scrollLeft,
+			scrollTop: e.scrollTop
+		});
 		this._isHandlingScrollEvent = false;
 	}
 
@@ -823,8 +825,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			return;
 		}
 		this._isHandlingScrollEvent = true;
-		this.originalEditor.setScrollLeft(e.scrollLeft);
-		this.originalEditor.setScrollTop(e.scrollTop);
+		this.originalEditor.setScrollPosition({
+			scrollLeft: e.scrollLeft,
+			scrollTop: e.scrollTop
+		});
 		this._isHandlingScrollEvent = false;
 	}
 

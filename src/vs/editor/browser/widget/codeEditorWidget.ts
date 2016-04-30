@@ -130,28 +130,30 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		return this._view.getCenteredRangeInViewport();
 	}
 
-	public setScrollTop(newScrollTop:number): void {
+	public getScrollWidth(): number {
 		if (!this.hasView) {
-			return;
+			return -1;
 		}
-		if (typeof newScrollTop !== 'number') {
-			throw new Error('Invalid arguments');
+		return this._view.getCodeEditorHelper().getScrollWidth();
+	}
+	public getScrollLeft(): number {
+		if (!this.hasView) {
+			return -1;
 		}
-		this._view.getCodeEditorHelper().setScrollTop(newScrollTop);
+		return this._view.getCodeEditorHelper().getScrollLeft();
 	}
 
+	public getScrollHeight(): number {
+		if (!this.hasView) {
+			return -1;
+		}
+		return this._view.getCodeEditorHelper().getScrollHeight();
+	}
 	public getScrollTop(): number {
 		if (!this.hasView) {
 			return -1;
 		}
 		return this._view.getCodeEditorHelper().getScrollTop();
-	}
-
-	public delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void {
-		if (!this.hasView) {
-			return;
-		}
-		this._view.getCodeEditorHelper().delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
 	public setScrollLeft(newScrollLeft:number): void {
@@ -161,28 +163,33 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._view.getCodeEditorHelper().setScrollLeft(newScrollLeft);
+		this._view.getCodeEditorHelper().setScrollPosition({
+			scrollLeft: newScrollLeft
+		});
+	}
+	public setScrollTop(newScrollTop:number): void {
+		if (!this.hasView) {
+			return;
+		}
+		if (typeof newScrollTop !== 'number') {
+			throw new Error('Invalid arguments');
+		}
+		this._view.getCodeEditorHelper().setScrollPosition({
+			scrollTop: newScrollTop
+		});
+	}
+	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
+		if (!this.hasView) {
+			return;
+		}
+		this._view.getCodeEditorHelper().setScrollPosition(position);
 	}
 
-	public getScrollLeft(): number {
+	public delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void {
 		if (!this.hasView) {
-			return -1;
+			return;
 		}
-		return this._view.getCodeEditorHelper().getScrollLeft();
-	}
-
-	public getScrollWidth(): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._view.getCodeEditorHelper().getScrollWidth();
-	}
-
-	public getScrollHeight(): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._view.getCodeEditorHelper().getScrollHeight();
+		this._view.getCodeEditorHelper().delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState {

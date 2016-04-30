@@ -14,11 +14,12 @@ import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar'
 import {ScrollableElementCreationOptions, ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {visibilityFromString} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IScrollable, DelegateScrollable} from 'vs/base/common/scrollable';
+import {Scrollable, ScrollEvent, INewScrollState} from 'vs/base/common/scrollable';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {TimeoutTimer} from 'vs/base/common/async';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ScrollbarHost} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import Event, {Emitter} from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -28,15 +29,10 @@ export interface IOverviewRulerLayoutInfo {
 	insertBefore: HTMLElement;
 }
 
-export interface IDimensions {
-	width: number;
-	height: number;
-}
-
 export class ScrollableElement extends Widget {
 
 	private _options: ScrollableElementResolvedOptions;
-	private _scrollable: DelegateScrollable;
+	private _scrollable: Scrollable;
 	private _verticalScrollbar: VerticalScrollbar;
 	private _horizontalScrollbar: HorizontalScrollbar;
 	private _domNode: HTMLElement;
@@ -49,19 +45,27 @@ export class ScrollableElement extends Widget {
 
 	private _mouseWheelToDispose: IDisposable[];
 
-	private _onElementDimensionsTimeout: TimeoutTimer;
 	private _isDragging: boolean;
 	private _mouseIsOver: boolean;
 
 	private _hideTimeout: TimeoutTimer;
 	private _shouldRender: boolean;
 
-	constructor(element: HTMLElement, scrollable:IScrollable, options: ScrollableElementCreationOptions, dimensions: IDimensions = null) {
+	private _onScroll = this._register(new Emitter<ScrollEvent>());
+	public onScroll: Event<ScrollEvent> = this._onScroll.event;
+
+	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
 		super();
 		element.style.overflow = 'hidden';
 		this._options = resolveOptions(options);
 
-		this._scrollable = this._register(new DelegateScrollable(scrollable, () => this._onScroll()));
+		this._scrollable = this._register(new Scrollable());
+		this._register(this._scrollable.onScroll((e) => {
+			this._onDidScroll(e);
+			this._onScroll.fire(e);
+		}));
+
+		// this._scrollable = this._register(new DelegateScrollable(scrollable, () => this._onScroll()));
 
 		let scrollbarHost:ScrollbarHost = {
 			onMouseWheel: (mouseWheelEvent: StandardMouseWheelEvent) => this._onMouseWheel(mouseWheelEvent),
@@ -102,16 +106,11 @@ export class ScrollableElement extends Widget {
 		this.onmouseover(this._listenOnDomNode, (e) => this._onMouseOver(e));
 		this.onnonbubblingmouseout(this._listenOnDomNode, (e) => this._onMouseOut(e));
 
-		this._onElementDimensionsTimeout = this._register(new TimeoutTimer());
 		this._hideTimeout = this._register(new TimeoutTimer());
 		this._isDragging = false;
 		this._mouseIsOver = false;
 
-		this.onElementDimensions(dimensions, true);
-
 		this._shouldRender = true;
-		this._shouldRender = this._horizontalScrollbar.onElementScrollSize(this._scrollable.getScrollWidth()) || this._shouldRender;
-		this._shouldRender = this._verticalScrollbar.onElementScrollSize(this._scrollable.getScrollHeight()) || this._shouldRender;
 	}
 
 	public dispose(): void {
@@ -141,29 +140,28 @@ export class ScrollableElement extends Widget {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
 	}
 
-	/**
-	 * Let the scrollable element know that the generated dom node's width / height might have changed.
-	 */
-	public onElementDimensions(dimensions: IDimensions = null, synchronous: boolean = false): void {
-		if (synchronous) {
-			this._actualElementDimensions(dimensions);
-			this._onElementDimensionsTimeout.cancel();
-		} else {
-			this._onElementDimensionsTimeout.cancelAndSet(() => this._actualElementDimensions(dimensions), 0);
-		}
+	public updateState(newState:INewScrollState): void {
+		this._scrollable.updateState(newState);
 	}
 
-	private _actualElementDimensions(dimensions: IDimensions = null): void {
-		if (!dimensions) {
-			dimensions = {
-				width: this._domNode.clientWidth,
-				height: this._domNode.clientHeight
-			};
-		}
-		let width = Math.round(dimensions.width);
-		let height = Math.round(dimensions.height);
-		this._shouldRender = this._verticalScrollbar.onElementSize(height) || this._shouldRender;
-		this._shouldRender = this._horizontalScrollbar.onElementSize(width) || this._shouldRender;
+	public getWidth(): number {
+		return this._scrollable.getWidth();
+	}
+	public getScrollWidth(): number {
+		return this._scrollable.getScrollWidth();
+	}
+	public getScrollLeft(): number {
+		return this._scrollable.getScrollLeft();
+	}
+
+	public getHeight(): number {
+		return this._scrollable.getHeight();
+	}
+	public getScrollHeight(): number {
+		return this._scrollable.getScrollHeight();
+	}
+	public getScrollTop(): number {
+		return this._scrollable.getScrollTop();
 	}
 
 	/**
@@ -281,16 +279,9 @@ export class ScrollableElement extends Widget {
 		e.stopPropagation();
 	}
 
-	private _onScroll(): void {
-		let scrollHeight = this._scrollable.getScrollHeight();
-		let scrollTop = this._scrollable.getScrollTop();
-		let scrollWidth = this._scrollable.getScrollWidth();
-		let scrollLeft = this._scrollable.getScrollLeft();
-
-		this._shouldRender = this._horizontalScrollbar.onElementScrollSize(scrollWidth) || this._shouldRender;
-		this._shouldRender = this._verticalScrollbar.onElementScrollSize(scrollHeight) || this._shouldRender;
-		this._shouldRender = this._verticalScrollbar.onElementScrollPosition(scrollTop) || this._shouldRender;
-		this._shouldRender = this._horizontalScrollbar.onElementScrollPosition(scrollLeft) || this._shouldRender;
+	private _onDidScroll(e:ScrollEvent): void {
+		this._shouldRender = this._horizontalScrollbar.onDidScroll(e) || this._shouldRender;
+		this._shouldRender = this._verticalScrollbar.onDidScroll(e) || this._shouldRender;
 
 		if (this._options.useShadows) {
 			this._shouldRender = true;
@@ -372,6 +363,38 @@ export class ScrollableElement extends Widget {
 
 	private _scheduleHide(): void {
 		this._hideTimeout.cancelAndSet(() => this._hide(), HIDE_TIMEOUT);
+	}
+}
+
+export class DomScrollableElement extends ScrollableElement {
+
+	private _element: HTMLElement;
+
+	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
+		super(element, options);
+		this._element = element;
+		this.onScroll((e) => {
+			if (e.scrollTopChanged) {
+				this._element.scrollTop = e.scrollTop;
+			}
+			if (e.scrollLeftChanged) {
+				this._element.scrollLeft = e.scrollLeft;
+			}
+		});
+		this.scanDomNode();
+	}
+
+	public scanDomNode(): void {
+		// widh, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
+		this.updateState({
+			width: this._element.clientWidth,
+			scrollWidth: this._element.scrollWidth,
+			scrollLeft: this._element.scrollLeft,
+
+			height: this._element.clientHeight,
+			scrollHeight: this._element.scrollHeight,
+			scrollTop: this._element.scrollTop,
+		});
 	}
 }
 

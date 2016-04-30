@@ -9,14 +9,14 @@ import {AbstractScrollbar, ScrollbarHost, IMouseMoveEventData} from 'vs/base/bro
 import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {IDomNodePosition} from 'vs/base/browser/dom';
 import {ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import {DelegateScrollable} from 'vs/base/common/scrollable';
+import {Scrollable, ScrollEvent} from 'vs/base/common/scrollable';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ARROW_IMG_SIZE} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
-	constructor(scrollable: DelegateScrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
+	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
 		super({
 			forbidTranslate3dUse: options.forbidTranslate3dUse,
 			lazyRender: options.lazyRender,
@@ -78,6 +78,13 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		this.domNode.setTop(0);
 	}
 
+	public onDidScroll(e:ScrollEvent): boolean {
+		this._shouldRender = this._onElementScrollSize(e.scrollHeight) || this._shouldRender;
+		this._shouldRender = this._onElementScrollPosition(e.scrollTop) || this._shouldRender;
+		this._shouldRender = this._onElementSize(e.height) || this._shouldRender;
+		return this._shouldRender;
+	}
+
 	protected _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: IDomNodePosition): number {
 		return e.posy - domNodePosition.top;
 	}
@@ -95,6 +102,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 	}
 
 	protected _setScrollPosition(scrollPosition: number): void {
-		this._scrollable.setScrollTop(scrollPosition);
+		this._scrollable.updateState({
+			scrollTop: scrollPosition
+		});
 	}
 }

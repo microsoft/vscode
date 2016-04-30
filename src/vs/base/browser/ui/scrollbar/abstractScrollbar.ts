@@ -14,7 +14,7 @@ import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ScrollbarArrow, ScrollbarArrowOptions} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import {Visibility, ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
-import {DelegateScrollable} from 'vs/base/common/scrollable';
+import {Scrollable} from 'vs/base/common/scrollable';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -40,14 +40,14 @@ export interface AbstractScrollbarOptions {
 	scrollbarState: ScrollbarState;
 	visibility: Visibility;
 	extraScrollbarClassName: string;
-	scrollable: DelegateScrollable;
+	scrollable: Scrollable;
 }
 
 export abstract class AbstractScrollbar extends Widget {
 
 	protected _forbidTranslate3dUse: boolean;
 	protected _host: ScrollbarHost;
-	protected _scrollable: DelegateScrollable;
+	protected _scrollable: Scrollable;
 	private _lazyRender: boolean;
 	private _scrollbarState: ScrollbarState;
 	private _visibilityController: ScrollbarVisibilityController;
@@ -110,7 +110,7 @@ export abstract class AbstractScrollbar extends Widget {
 
 	// ----------------- Update state
 
-	public onElementSize(visibleSize: number): boolean {
+	protected _onElementSize(visibleSize: number): boolean {
 		if (this._scrollbarState.setVisibleSize(visibleSize)) {
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 			this._shouldRender = true;
@@ -121,7 +121,7 @@ export abstract class AbstractScrollbar extends Widget {
 		return this._shouldRender;
 	}
 
-	public onElementScrollSize(elementScrollSize: number): boolean {
+	protected _onElementScrollSize(elementScrollSize: number): boolean {
 		if (this._scrollbarState.setScrollSize(elementScrollSize)) {
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 			this._shouldRender = true;
@@ -132,7 +132,7 @@ export abstract class AbstractScrollbar extends Widget {
 		return this._shouldRender;
 	}
 
-	public onElementScrollPosition(elementScrollPosition: number): boolean {
+	protected _onElementScrollPosition(elementScrollPosition: number): boolean {
 		if (this._scrollbarState.setScrollPosition(elementScrollPosition)) {
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 			this._shouldRender = true;
@@ -237,7 +237,7 @@ export abstract class AbstractScrollbar extends Widget {
 		let newScrollPosition = this._getScrollPosition();
 
 		if (oldScrollPosition !== newScrollPosition) {
-			this.onElementScrollPosition(this._getScrollPosition());
+			this._onElementScrollPosition(this._getScrollPosition());
 			return true;
 		}
 		return false;
