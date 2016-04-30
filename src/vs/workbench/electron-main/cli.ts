@@ -18,7 +18,8 @@ export function main(args: string[]) {
 	} else {
 		const env = assign({}, process.env, {
 			// this will signal Code that it was spawned from this module
-			'VSCODE_CLI': '1'
+			'VSCODE_CLI': '1',
+			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		});
 		delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 
