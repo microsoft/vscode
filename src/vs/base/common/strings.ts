@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Cache} from 'vs/base/common/cache';
+import {LinkedMap} from 'vs/base/common/map';
 
 /**
  * The empty string.
@@ -249,7 +249,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = new Cache<string>(10000);
+const normalizedCache = new LinkedMap<string>(10000);
 let cacheCounter = 0;
 export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {

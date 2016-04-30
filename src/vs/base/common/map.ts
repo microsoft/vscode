@@ -16,13 +16,13 @@ interface Entry<T> {
  * A simple Map<T> that optionally allows to set a limit of entries to store. Once the limit is hit,
  * the cache will remove the entry that was last recently added.
  */
-export class Cache<T> {
+export class LinkedMap<T> {
 	private map: { [key: string]: Entry<T> };
 	private head: Entry<T>;
 	private tail: Entry<T>;
 	private _size: number;
 
-	constructor(private limit) {
+	constructor(private limit = Number.MAX_VALUE) {
 		this.map = Object.create(null);
 		this._size = 0;
 	}
@@ -52,7 +52,7 @@ export class Cache<T> {
 		return entry ? entry.value : null;
 	}
 
-	public remove(key: string): T {
+	public delete(key: string): T {
 		const entry = this.map[key];
 
 		if (entry) {
@@ -75,6 +75,10 @@ export class Cache<T> {
 		}
 
 		return null;
+	}
+
+	public has(key: string): boolean {
+		return !!this.map[key];
 	}
 
 	public clear(): void {
