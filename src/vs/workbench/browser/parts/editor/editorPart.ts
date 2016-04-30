@@ -131,12 +131,20 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public getActiveEditorInput(): EditorInput {
+		if (!this.sideBySideControl) {
+			return null; // too early
+		}
+
 		let lastActiveEditor = this.sideBySideControl.getActiveEditor();
 
 		return lastActiveEditor ? lastActiveEditor.input : null;
 	}
 
 	public getActiveEditor(): BaseEditor {
+		if (!this.sideBySideControl) {
+			return null; // too early
+		}
+
 		return this.sideBySideControl.getActiveEditor();
 	}
 
@@ -753,9 +761,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private createEditor(editorDescriptor: EditorDescriptor, editorDomNode: HTMLElement, position: Position): TPromise<BaseEditor> {
-
 		let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), editorDescriptor.getId(), true);
-
 		let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
 		return editorInstantiationService.createInstance(editorDescriptor);
