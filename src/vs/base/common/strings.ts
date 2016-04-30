@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {Cache} from 'vs/base/common/cache';
+
 /**
  * The empty string.
  */
@@ -247,14 +249,14 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = Object.create(null);
+const normalizedCache = new Cache<string>(10000);
 let cacheCounter = 0;
 export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
 
-	const cached = normalizedCache[str];
+	const cached = normalizedCache.get(str);
 	if (cached) {
 		return cached;
 	}
@@ -268,7 +270,7 @@ export function normalizeNFC(str: string): string {
 
 	// Use the cache for fast lookup but do not let it grow unbounded
 	if (cacheCounter < 10000) {
-		normalizedCache[str] = res;
+		normalizedCache.set(str, res);
 		cacheCounter++;
 	}
 
