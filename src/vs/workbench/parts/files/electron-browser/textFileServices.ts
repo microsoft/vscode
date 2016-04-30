@@ -35,7 +35,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
@@ -43,13 +43,20 @@ export class TextFileService extends AbstractTextFileService {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
+		super(contextService, instantiationService, configurationService, telemetryService, eventService);
 
 		this.init();
 	}
 
+	protected registerListeners(): void {
+		super.registerListeners();
+
+		// Lifecycle
+		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
+		this.lifecycleService.onShutdown(this.onShutdown, this);
+	}
+
 	public beforeShutdown(): boolean | TPromise<boolean> {
-		super.beforeShutdown();
 
 		// Dirty files need treatment on shutdown
 		if (this.getDirty().length) {
@@ -95,6 +102,14 @@ export class TextFileService extends AbstractTextFileService {
 		else if (confirm === ConfirmResult.CANCEL) {
 			return true; // veto
 		}
+	}
+
+	private onShutdown(): void {
+
+		// Propagate to working files model
+		this.workingFilesModel.shutdown();
+
+		super.dispose();
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
@@ -357,7 +372,7 @@ export class TextFileService extends AbstractTextFileService {
 
 	private doSaveTextFileAs(sourceModel: TextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
 		// create the target file empty if it does not exist already
-		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat ||  this.fileService.createFile(target)).then(stat => {
+		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat || this.fileService.createFile(target)).then(stat => {
 			// resolve a model for the file (which can be binary if the file is not a text file)
 			return this.editorService.resolveEditorModel({ resource: target }).then((targetModel: TextFileEditorModel) => {
 				// binary model: delete the file and run the operation again
