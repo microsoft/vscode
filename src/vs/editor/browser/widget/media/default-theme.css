@@ -25,13 +25,6 @@
 	color: white; /* opposite of black */
 }
 
-/* Current line */
-.monaco-editor .current-line {
-	background: #eaeaf2;
-	-moz-box-sizing: border-box;
-	box-sizing: border-box;
-}
-
 /* Line Numbers */
 .monaco-editor .line-numbers {
 	color: #2B91AF;

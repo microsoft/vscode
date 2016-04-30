@@ -42,12 +42,6 @@
 	top: 0;
 }
 
-.monaco-editor .view-overlays > .static {
-	position: absolute;
-	top: 0;
-}
-
-
 /* ---------- Lines Content ---------- */
 
 .monaco-editor .inputarea {
@@ -87,15 +81,6 @@
 	width: 500px;
 	z-index: 10;
 	background: rgba(255, 255, 255, 0.85);
-}
-
-.monaco-editor .accessibility-output {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 0;
-	height: 0;
-	overflow: hidden;
 }
 
 .monaco-editor .lines-content {
@@ -140,7 +125,7 @@
 	width: 100%;
 }
 
-.margin-view-overlays > .view-line {
+.monaco-editor .margin-view-overlays > .view-line {
 	width: 100%;
 }
 
@@ -158,10 +143,6 @@
 
 .monaco-editor .greensquiggly {
 	background: url("green-squiggly.svg") repeat-x bottom left;
-}
-
-.monaco-editor .linked-editing {
-	box-shadow:	inset 0 0 0 1px #B9B9B9;
 }
 
 
@@ -184,34 +165,6 @@
 .monaco-editor .editor-widget input {
 	color: inherit;
 }
-
-
-
-
-
-
-
-/* ----------- BEGIN VS THEME ----------- */
-/* Current line */
-.monaco-editor.vs .current-line {
-	background: none;
-	border: 2px solid #EEE;
-	box-sizing: border-box;
-}
-.monaco-editor.vs.focus .current-line {
-	border-color: #EAEAF2;
-}
-
-/* ----------- END VS THEME ----------- */
-
-
-
-
-
-
-
-
-
 
 /* ----------- BEGIN VS-DARK THEME ----------- */
 /* The editor */
@@ -247,13 +200,6 @@
 	background: #AEAFAD;
 	border-color: #AEAFAD;
 	color: #51504f; /* opposite of #AEAFAD */
-}
-
-/* Current line */
-.monaco-editor.vs-dark .current-line {
-	background: none;
-	border: 2px solid #282828;
-	box-sizing: border-box;
 }
 
 /* Highlight a line */
@@ -333,9 +279,6 @@
 @-ms-keyframes monaco-editor-dark-word-highlight-strong		{ from { background-color: inherit; } to { background-color: rgba(0, 73, 114, 0.72); } }
 @keyframes monaco-editor-dark-word-highlight-strong			{ from { background-color: inherit; } to { background-color: rgba(0, 73, 114, 0.72); } }
 
-/* Linked Editing */
-.monaco-editor.vs-dark .linked-editing { box-shadow: inset 0 0 0 1px #555; }
-
 /* Snippets */
 .monaco-editor.vs-dark .new-snippet				{ background-color: rgba(100, 105, 110, 0.1); }
 .monaco-editor.vs-dark .snippet-placeholder		{ background-color: rgba(124, 124, 124, 0.1); }
@@ -388,18 +331,6 @@
 .monaco-editor.hc-black .cursor {
 	background: #fff;
 	color: #000; /* opposite of #fff */
-}
-
-/* Current line */
-.monaco-editor.hc-black .current-line {
-	background: none;
-	border: none;
-	box-sizing: border-box;
-}
-.monaco-editor.hc-black.focused .current-line {
-	background: none;
-	border: 2px solid #f38518;
-	box-sizing: border-box;
 }
 
 /* Highlight a line */
@@ -458,10 +389,6 @@
 	opacity: 0.8;
 }
 
-.monaco-editor.hc-black .linked-editing {
-	box-shadow:	inset 0 0 0 1px #B9B9B9;
-}
-
 /* Glyph Margin */
 .monaco-editor.hc-black .glyph-margin {
 	background: #000;
@@ -500,9 +427,6 @@
 	color: #D5D8D6;
 	box-shadow: none;
 }
-
-/* Linked Editing */
-.monaco-editor.hc-black .linked-editing { box-shadow: inset 0 0 0 1px #fff; }
 
 /* Snippets */
 .monaco-editor.hc-black .new-snippet				{ background-color: rgba(100, 105, 110, 0.1); }
