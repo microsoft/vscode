@@ -249,8 +249,7 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = new LinkedMap<string>(10000);
-let cacheCounter = 0;
+const normalizedCache = new LinkedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {
 		return str;
@@ -268,11 +267,8 @@ export function normalizeNFC(str: string): string {
 		res = str;
 	}
 
-	// Use the cache for fast lookup but do not let it grow unbounded
-	if (cacheCounter < 10000) {
-		normalizedCache.set(str, res);
-		cacheCounter++;
-	}
+	// Use the cache for fast lookup
+	normalizedCache.set(str, res);
 
 	return res;
 }
