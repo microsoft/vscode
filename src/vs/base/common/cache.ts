@@ -103,7 +103,7 @@ export class Cache<T> {
 
 	private trim(): void {
 		if (this.tail) {
-			delete this.map[this.tail.key];
+			this.map[this.tail.key] = void 0;
 			this._size--;
 
 			// [x]-[B] = [B]
