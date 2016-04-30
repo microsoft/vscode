@@ -118,8 +118,9 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		let wrappedTextIndent = '';
 		const TAB_CHAR_CODE = '\t'.charCodeAt(0);
 
+		let firstNonWhitespaceIndex = -1;
 		if (hardWrappingIndent !== WrappingIndent.None) {
-			let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
+			firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 			if (firstNonWhitespaceIndex !== -1) {
 				wrappedTextIndent = lineText.substring(0, firstNonWhitespaceIndex);
 				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
@@ -194,19 +195,19 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 					// We will break before `niceBreakLastOffset`
 					breakBeforeOffset = niceBreakOffset;
-					restoreVisibleColumnFrom = niceBreakVisibleColumn + wrappedTextIndentVisibleColumn;
+					restoreVisibleColumnFrom = niceBreakVisibleColumn;
 
 				} else if (obtrusiveBreakOffset !== -1) {
 
 					// We will break before `obtrusiveBreakLastOffset`
 					breakBeforeOffset = obtrusiveBreakOffset;
-					restoreVisibleColumnFrom = obtrusiveBreakVisibleColumn + wrappedTextIndentVisibleColumn;
+					restoreVisibleColumnFrom = obtrusiveBreakVisibleColumn;
 
 				} else {
 
 					// We will break before `i`
 					breakBeforeOffset = i;
-					restoreVisibleColumnFrom = 0 + wrappedTextIndentVisibleColumn;
+					restoreVisibleColumnFrom = wrappedTextIndentVisibleColumn;
 
 				}
 
@@ -235,10 +236,10 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				obtrusiveBreakVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(obtrusiveBreakVisibleColumn, tabSize, charCodeIsTab, charColumnSize);
 			}
 
-			if (charCodeClass === CharacterClass.BREAK_AFTER) {
+			if (charCodeClass === CharacterClass.BREAK_AFTER && (hardWrappingIndent === WrappingIndent.None || i >= firstNonWhitespaceIndex)) {
 				// This is a character that indicates that a break should happen after it
 				niceBreakOffset = i + 1;
-				niceBreakVisibleColumn = 0;
+				niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 			}
 
 			// CJK breaking : after break
@@ -247,14 +248,14 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				let nextClass = classifier.classify(nextCode);
 				if (nextClass !== CharacterClass.BREAK_AFTER) { // Kinsoku Shori: Don't break before a trailing character, like a period
 					niceBreakOffset = i + 1;
-					niceBreakVisibleColumn = 0;
+					niceBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 				}
 			}
 
 			if (charCodeClass === CharacterClass.BREAK_OBTRUSIVE) {
 				// This is an obtrusive character that indicates that a break should happen after it
 				obtrusiveBreakOffset = i + 1;
-				obtrusiveBreakVisibleColumn = 0;
+				obtrusiveBreakVisibleColumn = wrappedTextIndentVisibleColumn;
 			}
 		}
 
