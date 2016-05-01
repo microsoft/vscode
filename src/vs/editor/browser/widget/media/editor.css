@@ -2,48 +2,30 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* ---------- IE10 remove auto clear button ---------- */
+
+/* -------------------- IE10 remove auto clear button -------------------- */
+
 ::-ms-clear {
 	display: none;
 }
+
+/* All widgets */
+/* I am not a big fan of this rule */
+.monaco-editor .editor-widget input {
+	color: inherit;
+}
+
+/* -------------------- Editor, inputarea and background -------------------- */
 
 .monaco-editor {
 	position: relative;
 	overflow: visible;
 	-webkit-text-size-adjust: 100%;
 }
-
-.monaco-editor .token.whitespace { display:inline-block; }
-
-.monaco-editor .token.indent-guide {
-	display:inline-block;
-	border-left: 1px solid lightgray;
-	box-sizing: border-box;
-}
-.monaco-editor.vs-dark .token.indent-guide,
-.monaco-editor.hc-black .token.indent-guide {
-	border-left: 1px solid #353535;
-}
-
 .monaco-editor.enable-ligatures {
 	-webkit-font-feature-settings: "liga" on, "calt" on;
 	font-feature-settings: "liga" on, "calt" on;
 }
-
-.monaco-editor .overflow-guard {
-	position: relative;
-	overflow: hidden;
-}
-
-/* ---------- View overlays ---------- */
-
-.monaco-editor .view-overlays {
-	position: absolute;
-	top: 0;
-}
-
-/* ---------- Lines Content ---------- */
-
 .monaco-editor .inputarea {
 	/*Chrome cannot handle typing in a 0x0 textarea*/
 	width: 1px;
@@ -58,7 +40,6 @@
 	border: none;
 	overflow: hidden;
 }
-
 /*.monaco-editor .inputarea {
 	position: fixed !important;
 	width: 800px !important;
@@ -68,159 +49,75 @@
 	bottom: 0 !important;
 	right: 0 !important;
 }*/
-
 .monaco-editor.ff .inputarea,
 .monaco-editor.ie .inputarea {
 	width: 0;
 	height: 0;
 }
-
-.monaco-editor.ime-input .inputarea,
-.monaco-editor.ie.ime-input .inputarea,
-.monaco-editor.ff.ime-input .inputarea、 {
-	width: 500px;
+.monaco-editor.ime-input .inputarea {
 	z-index: 10;
+}
+
+.monaco-editor,
+.monaco-editor .inputarea {
+	color: #333;
+	/*
+	 * WORKAROUND:
+	 * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
+	 * we are *not* using the color white (or #ffffff, rgba(255,255,255)) but something very close to white.
+	 */
+	background: #fffffe;
+}
+.monaco-editor-background {
+	background: #fffffe;
+}
+.monaco-editor.ime-input .inputarea {
 	background: rgba(255, 255, 255, 0.85);
 }
 
-.monaco-editor .lines-content {
-	position: absolute;
-	top: 0;
-}
-
-.monaco-editor .lines-content,
-.monaco-editor .view-line,
-.monaco-editor .view-line > span,
-.monaco-editor .view-line > span > span,
-.monaco-editor .view-lines {
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	-khtml-user-select: text;
-	-moz-user-select: text;
-	-o-user-select: text;
-	user-select: text;
-}
-
-.monaco-editor.ie .lines-content,
-.monaco-editor.ie .view-line,
-.monaco-editor.ie .view-line > span,
-.monaco-editor.ie .view-line > span > span,
-.monaco-editor.ie .view-lines {
-	-ms-user-select: none;
-	user-select: none;
-}
-
-.monaco-editor .view-lines {
-	cursor: text;
-	white-space: nowrap;
-}
-
-.monaco-editor.vs-dark.mac .view-lines,
-.monaco-editor.hc-black.mac .view-lines {
-	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
-}
-
-.monaco-editor .view-line {
-	position: absolute;
-	width: 100%;
-}
-
-.monaco-editor .margin-view-overlays > .view-line {
-	width: 100%;
-}
-
-
-
-
-
-
-
-
-
-
-
-/* All widgets */
-/* I am not a big fan of this rule */
-.monaco-editor .editor-widget input {
-	color: inherit;
-}
-
-/* ----------- BEGIN VS-DARK THEME ----------- */
-/* The editor */
 .monaco-editor.vs-dark,
+.monaco-editor.vs-dark .inputarea,
 .monaco-editor.vs-dark .zone-widget .monaco-editor {
 	color: #BBB;
 	background: #1E1E1E;
 }
-
-/* Textarea */
-.monaco-editor.vs-dark .inputarea {
-	color: #BBB;
-}
-.monaco-editor.vs-dark.ime-input .inputarea,
-.monaco-editor.vs-dark.ie.ime-input .inputarea,
-.monaco-editor.vs-dark.ff.ime-input .inputarea {
-	background: rgba(0, 0, 0, 0.65);
-}
-
-/* Background */
 .monaco-editor.vs-dark .monaco-editor-background {
 	background: #1E1E1E;
 }
-
-
-/* Detected link */
-.monaco-editor.vs-dark .detected-link {
-	border-color: #1C5DAF;
+.monaco-editor.vs-dark.ime-input .inputarea {
+	background: rgba(0, 0, 0, 0.65);
 }
-/* ----------- END VS-DARK THEME ----------- */
 
-
-
-
-
-
-/* ----------- BEGIN HC-BLACK THEME ----------- */
-/* The editor */
 .monaco-editor.hc-black,
+.monaco-editor.hc-black .inputarea,
 .monaco-editor.hc-black .zone-widget .monaco-editor {
 	color: #fff;
 	background: #000;
 }
-
-/* Background */
 .monaco-editor.hc-black .monaco-editor-background {
 	background: #000;
 }
 
 
+/* -------------------- Misc -------------------- */
 
-/* Search */
-.hc-black .monaco-workbench .search-viewlet .findInFileMatch, .monaco-editor.hc-black .findInFileMatch {
-	background: none !important;
-	border: 1px dotted #f38518;
-	-moz-box-sizing: border-box;
-	box-sizing: border-box;
+.monaco-editor .overflow-guard {
+	position: relative;
+	overflow: hidden;
 }
 
-
-
-/* Tokens colors are defined in tokens.css */
-.monaco-editor.hc-black .token {
-	mix-blend-mode: difference;
+.monaco-editor .view-overlays {
+	position: absolute;
+	top: 0;
 }
 
-/* ----------- END HC-BLACK THEME ----------- */
-
-
-
-/* ---------- Highlight a line ---------- */
+/* -------------------- Highlight a line -------------------- */
 
 .monaco-editor.vs		.lineHighlight { background: rgba(253, 255, 0, 0.2); }
 .monaco-editor.vs-dark	.lineHighlight { background: rgba(243, 240, 245, 0.2); }
 .monaco-editor.hc-black	.lineHighlight { background: rgba(243, 240, 245, 0.2); }
 
-/* ---------- Squigglies ---------- */
+/* -------------------- Squigglies -------------------- */
 
 .monaco-editor.vs		.redsquiggly,
 .monaco-editor.vs-dark	.redsquiggly { background: url("red-squiggly.svg") repeat-x bottom left; }
@@ -230,7 +127,7 @@
 .monaco-editor.vs-dark	.greensquiggly { background: url("green-squiggly.svg") repeat-x bottom left; }
 .monaco-editor.hc-black .greensquiggly { border-bottom: 4px double #71B771; opacity: 0.8; }
 
-/* ---------- Bracket Match ---------- */
+/* -------------------- Bracket Match -------------------- */
 
 .monaco-editor .bracket-match {
 	box-sizing: border-box;

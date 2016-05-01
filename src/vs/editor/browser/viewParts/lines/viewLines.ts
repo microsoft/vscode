@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./viewLines';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';

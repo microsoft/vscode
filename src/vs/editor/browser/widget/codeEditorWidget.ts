@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/default-theme';
 import 'vs/css!./media/editor';
 import 'vs/css!./media/tokens';
 import {onUnexpectedError} from 'vs/base/common/errors';
