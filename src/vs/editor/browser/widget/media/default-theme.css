@@ -19,60 +19,10 @@
 }
 
 /* Cursor */
-.monaco-editor .cursor {
-	background: black;
-	border-color: black;
-	color: white; /* opposite of black */
-}
 
-/* Line Numbers */
-.monaco-editor .line-numbers {
-	color: #2B91AF;
-}
 
-/* Highlight a line */
-.monaco-editor .lineHighlight {
-	background-color: rgba(253, 255, 0, 0.2);
-}
 
-/* Selection */
-.monaco-editor .view-overlays.focused .selected-text {
-	background: #ADD6FF;
-}
-.monaco-editor .view-overlays .selected-text {
-	background: #E5EBF1;
-}
 
-/* Diff Editor overview */
-.monaco-diff-editor .diffOverview {
-	background-color: #f9f7f7;
-}
 
-/* ---------- Word Highlight ---------- */
 
-.monaco-editor .wordHighlight {
-	background-color: rgba(87, 87, 87, 0.25);
-}
-
-.monaco-editor .wordHighlightStrong {
-	background-color: rgba(14, 99, 156, 0.25);
-}
-
-/* ---------- Selection Highlight ---------- */
-
-.monaco-editor .selectionHighlight {
-	background-color: rgba(173, 214, 255, 0.3);
-}
-
-/* ---------- Value Set Replacement ---------- */
-
-.monaco-editor .valueSetReplacement {
-	outline: solid 2px #888;
-}
-
-/* Highlight a line */
-.monaco-editor .focus-mode {
-	background-color: #FFFFFF;
-	opacity: 0.333;
-}
 

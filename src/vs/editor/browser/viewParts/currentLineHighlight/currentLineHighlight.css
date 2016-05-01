@@ -12,7 +12,7 @@
 }
 
 .monaco-editor.vs.focused .current-line {
-	border: 2px solid #EEE;
+	border: 2px solid #eee;
 }
 
 .monaco-editor.vs-dark.focused .current-line {
