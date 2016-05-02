@@ -162,7 +162,7 @@ export class OutputElement implements debug.ITreeElement {
 	}
 
 	public getId(): string {
-		return this.id.toString();
+		return `outputelement:${ this.id }`;
 	}
 }
 
