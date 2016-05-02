@@ -59,7 +59,6 @@ export interface IEnvironmentService {
 	userHome: string;
 	appRoot: string;
 	currentWorkingDirectory: string;
-	version: string;
 	appHome: string;
 	appSettingsHome: string;
 	appSettingsPath: string;
@@ -110,9 +109,6 @@ export class EnvService implements IEnvironmentService {
 	private _currentWorkingDirectory: string;
 	get currentWorkingDirectory(): string { return this._currentWorkingDirectory; }
 
-	private _version: string;
-	get version(): string { return this._version; }
-
 	private _appHome: string;
 	get appHome(): string { return this._appHome; }
 
@@ -134,7 +130,6 @@ export class EnvService implements IEnvironmentService {
 	constructor() {
 		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._currentWorkingDirectory = process.env['VSCODE_CWD'] || process.cwd();
-		this._version = app.getVersion();
 		this._appHome = app.getPath('userData');
 		this._appSettingsHome = path.join(this._appHome, 'User');
 

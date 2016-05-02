@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import URI from 'vs/base/common/uri';
+import pkg from 'vs/code/node/package';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
@@ -20,7 +21,7 @@ function getEnvironment(envService: IEnvironmentService, updateManager: IUpdateS
 	configuration.execPath = process.execPath;
 	configuration.appName = envService.product.nameLong;
 	configuration.appRoot = envService.appRoot;
-	configuration.version = envService.version;
+	configuration.version = pkg.version;
 	configuration.commitHash = envService.product.commit;
 	configuration.appSettingsHome = envService.appSettingsHome;
 	configuration.appSettingsPath = envService.appSettingsPath;

@@ -12,6 +12,7 @@ import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
+import pkg from 'vs/code/node/package';
 import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
@@ -730,7 +731,7 @@ export class WindowsManager implements IWindowsService {
 		configuration.applicationName = this.envService.product.applicationName;
 		configuration.darwinBundleIdentifier = this.envService.product.darwinBundleIdentifier;
 		configuration.appRoot = this.envService.appRoot;
-		configuration.version = this.envService.version;
+		configuration.version = pkg.version;
 		configuration.commitHash = this.envService.product.commit;
 		configuration.appSettingsHome = this.envService.appSettingsHome;
 		configuration.appSettingsPath = this.envService.appSettingsPath;
