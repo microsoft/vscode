@@ -113,7 +113,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			baseSize: 5
 		});
 		this.sashY = new Sash(this.workbenchContainer.getHTMLElement(), this, {
-			baseSize: 5,
+			baseSize: 4,
 			orientation: Orientation.HORIZONTAL
 		});
 
@@ -495,7 +495,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getHorizontalSashTop(sash: Sash): number {
-		return this.partService.isPanelHidden() ? this.sidebarHeight : this.sidebarHeight - this.panelHeight;
+		// Horizontal sash should be a bit lower than the editor area, thus add 2px #5524
+		return 2 + (this.partService.isPanelHidden() ? this.sidebarHeight : this.sidebarHeight - this.panelHeight);
 	}
 
 	public getHorizontalSashLeft(sash: Sash): number {
