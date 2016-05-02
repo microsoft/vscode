@@ -236,10 +236,6 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return ['.'];
 	}
 
-	shouldShowEmptySuggestionList(): boolean {
-		return true;
-	}
-
 	shouldAutotriggerSuggest(context: modes.ILineContext, offset: number, triggeredByCharacter: string): boolean {
 		return true;
 	}

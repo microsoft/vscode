@@ -383,7 +383,6 @@ export interface ISuggestSupport {
 
 	filter?: IFilter;
 	getTriggerCharacters(): string[];
-	shouldShowEmptySuggestionList(): boolean;
 	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean;
 }
 

@@ -474,7 +474,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private onModelModeChanged(): void {
 		const model = this.editor.getModel();
 		const supports = SuggestRegistry.all(model);
-		this.shouldShowEmptySuggestionList = supports.some(s => s.shouldShowEmptySuggestionList());
+		this.shouldShowEmptySuggestionList = supports.some(s => true);
 	}
 
 	private setState(state: State): void {
