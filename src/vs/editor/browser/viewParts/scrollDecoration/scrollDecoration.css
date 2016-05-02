@@ -10,3 +10,7 @@
 	height: 6px;
 	box-shadow: #DDD 0 6px 6px -6px inset;
 }
+
+.monaco-editor.vs-dark .scroll-decoration {
+	box-shadow: #000 0 6px 6px -6px inset;
+}

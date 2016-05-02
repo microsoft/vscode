@@ -103,7 +103,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			hardWrappingLineMapperFactory,
 			model.getOptions().tabSize,
 			config.editor.wrappingInfo.wrappingColumn,
-			config.editor.typicalFullwidthCharacterWidth / config.editor.typicalHalfwidthCharacterWidth,
+			config.editor.fontInfo.typicalFullwidthCharacterWidth / config.editor.fontInfo.typicalHalfwidthCharacterWidth,
 			editorCommon.wrappingIndentFromString(config.editor.wrappingIndent)
 		);
 

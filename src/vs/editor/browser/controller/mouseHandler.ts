@@ -17,6 +17,8 @@ import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {MouseTargetFactory, ISimplifiedMouseEvent} from 'vs/editor/browser/controller/mouseTarget';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {TimeoutTimer} from 'vs/base/common/async';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {VisibleRange} from 'vs/editor/common/view/renderingContext';
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -84,13 +86,40 @@ class MousePosition {
 	}
 }
 
+export interface IPointerHandlerHelper {
+	viewDomNode:HTMLElement;
+	linesContentDomNode:HTMLElement;
+
+	focusTextArea(): void;
+	isDirty(): boolean;
+
+	getScrollLeft(): number;
+	getScrollTop(): number;
+
+	setScrollPosition(position:editorCommon.INewScrollPosition): void;
+
+	isAfterLines(verticalOffset:number): boolean;
+	getLineNumberAtVerticalOffset(verticalOffset: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData;
+	shouldSuppressMouseDownOnViewZone(viewZoneId:number): boolean;
+
+	/**
+	 * Decode an Editor.IPosition from a rendered dom node
+	 */
+	getPositionFromDOMInfo(spanNode:HTMLElement, offset:number): editorCommon.IPosition;
+
+	visibleRangeForPosition2(lineNumber:number, column:number): VisibleRange;
+	getLineWidth(lineNumber:number): number;
+}
+
 export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
-	public context:editorBrowser.IViewContext;
+	public context:ViewContext;
 	public viewController:editorBrowser.IViewController;
-	public viewHelper:editorBrowser.IPointerHandlerHelper;
+	public viewHelper:IPointerHandlerHelper;
 	public mouseTargetFactory: MouseTargetFactory;
 	public listenersToRemove:IDisposable[];
 	private toDispose:IDisposable[];
@@ -100,7 +129,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 	private _mouseMoveEventHandler: EventGateKeeper<IMouseEvent>;
 
-	constructor(context:editorBrowser.IViewContext, viewController:editorBrowser.IViewController, viewHelper:editorBrowser.IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:editorBrowser.IViewController, viewHelper:IPointerHandlerHelper) {
 		super();
 
 		this.context = context;
@@ -278,9 +307,9 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 class MouseDownOperation extends Disposable {
 
-	private _context:editorBrowser.IViewContext;
+	private _context:ViewContext;
 	private _viewController:editorBrowser.IViewController;
-	private _viewHelper:editorBrowser.IPointerHandlerHelper;
+	private _viewHelper:IPointerHandlerHelper;
 	private _createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget;
 	private _getMouseColumn:(e:ISimplifiedMouseEvent)=>number;
 
@@ -296,9 +325,9 @@ class MouseDownOperation extends Disposable {
 	private _lastMouseEvent: IMouseEvent;
 
 	constructor(
-		context:editorBrowser.IViewContext,
+		context:ViewContext,
 		viewController:editorBrowser.IViewController,
-		viewHelper:editorBrowser.IPointerHandlerHelper,
+		viewHelper:IPointerHandlerHelper,
 		createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget,
 		getMouseColumn:(e:ISimplifiedMouseEvent)=>number
 	) {

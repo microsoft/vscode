@@ -8,8 +8,10 @@
 import 'vs/css!./rulers';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ILayoutProvider, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
 
 export class Rulers extends ViewPart {
 
@@ -19,14 +21,14 @@ export class Rulers extends ViewPart {
 	private _height: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
-	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
 		this._layoutProvider = layoutProvider;
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'view-rulers';
 		this._rulers = this._context.configuration.editor.rulers;
 		this._height = this._context.configuration.editor.layoutInfo.contentHeight;
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.typicalHalfwidthCharacterWidth;
+		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 	}
 
 	public dispose(): void {
@@ -36,10 +38,10 @@ export class Rulers extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		if (e.rulers || e.layoutInfo || e.typicalHalfwidthCharacterWidth) {
+		if (e.rulers || e.layoutInfo || e.fontInfo) {
 			this._rulers = this._context.configuration.editor.rulers;
 			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
-			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.typicalHalfwidthCharacterWidth;
+			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 			return true;
 		}
 		return false;

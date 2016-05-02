@@ -6,8 +6,9 @@
 
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {ViewLineToken, IEditorRange, ViewLineTokens} from 'vs/editor/common/editorCommon';
+import {IEditorRange} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
+import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/viewModel/viewModel';
 
 function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);

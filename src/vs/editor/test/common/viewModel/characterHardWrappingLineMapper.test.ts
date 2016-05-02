@@ -9,39 +9,7 @@ import {WrappingIndent} from 'vs/editor/common/editorCommon';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {ILineMapperFactory, ILineMapping, OutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
 
-function safeGetOutputLineCount(mapper:ILineMapping): number {
-	if (!mapper) {
-		return 1;
-	}
-	return mapper.getOutputLineCount();
-}
-
-function safeGetOutputPositionOfInputOffset(mapper:ILineMapping, inputOffset:number): OutputPosition {
-	if (!mapper) {
-		return new OutputPosition(0, inputOffset);
-	}
-	return mapper.getOutputPositionOfInputOffset(inputOffset);
-}
-
-function safeGetInputOffsetOfOutputPosition(mapper:ILineMapping, outputLineIndex:number, outputOffset:number): number {
-	if (!mapper) {
-		return outputOffset;
-	}
-	return mapper.getInputOffsetOfOutputPosition(outputLineIndex, outputOffset);
-}
-
-function assertMappingIdentity(mapper:ILineMapping, offset:number, expectedLineIndex:number) {
-
-	let result = safeGetOutputPositionOfInputOffset(mapper, offset);
-	assert.ok(result.outputLineIndex !== -1);
-	assert.ok(result.outputOffset !== -1);
-	assert.equal(result.outputLineIndex, expectedLineIndex);
-
-	let actualOffset = safeGetInputOffsetOfOutputPosition(mapper, result.outputLineIndex, result.outputOffset);
-	assert.equal(actualOffset, offset);
-}
-
-function assertLineMapping(factory:ILineMapperFactory, tabSize:number, breakAfter:number, annotatedText:string) {
+function assertLineMapping(factory:ILineMapperFactory, tabSize:number, breakAfter:number, annotatedText:string, wrappingIndent = WrappingIndent.None) {
 
 	let rawText = '';
 	let currentLineIndex = 0;
@@ -55,12 +23,25 @@ function assertLineMapping(factory:ILineMapperFactory, tabSize:number, breakAfte
 		}
 	}
 
-	var mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 2, WrappingIndent.None);
+	let mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 2, wrappingIndent);
 
-	assert.equal(safeGetOutputLineCount(mapper), (lineIndices.length > 0 ? lineIndices[lineIndices.length - 1] + 1 : 1));
-	for (let i = 0, len = rawText.length; i < len; i++) {
-		assertMappingIdentity(mapper, i, lineIndices[i]);
+	let actualAnnotatedText = '';
+	if (mapper) {
+		let previousLineIndex = 0;
+		for (let i = 0, len = rawText.length; i < len; i++) {
+			let r = mapper.getOutputPositionOfInputOffset(i);
+			if (previousLineIndex !== r.outputLineIndex) {
+				previousLineIndex = r.outputLineIndex;
+				actualAnnotatedText += '|';
+			}
+			actualAnnotatedText += rawText.charAt(i);
+		}
+	} else {
+		// No wrapping
+		actualAnnotatedText = rawText;
 	}
+
+	assert.equal(actualAnnotatedText, annotatedText);
 }
 
 suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
@@ -105,13 +86,19 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assertLineMapping(factory, 4, 5, 'aa.(|()|.aaa');
 		assertLineMapping(factory, 4, 5, 'aa.|(.)|.aaa');
 	});
+
 	test('CharacterHardWrappingLineMapper - CJK and Kinsoku Shori', () => {
-		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
+		let factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
 		assertLineMapping(factory, 4, 5, 'aa \u5b89|\u5b89');
 		assertLineMapping(factory, 4, 5, '\u3042 \u5b89|\u5b89');
 		assertLineMapping(factory, 4, 5, '\u3042\u3042|\u5b89\u5b89');
 		assertLineMapping(factory, 4, 5, 'aa |\u5b89)\u5b89|\u5b89');
 		assertLineMapping(factory, 4, 5, 'aa \u3042|\u5b89\u3042)|\u5b89');
 		assertLineMapping(factory, 4, 5, 'aa |(\u5b89aa|\u5b89');
+	});
+
+	test('CharacterHardWrappingLineMapper - WrappingIndent.Same', () => {
+		let factory = new CharacterHardWrappingLineMapperFactory('', ' ', '');
+		assertLineMapping(factory, 4, 38, ' *123456789012345678901234567890123456|7890', WrappingIndent.Same);
 	});
 });

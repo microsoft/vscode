@@ -11,16 +11,17 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import {IEditorMouseEvent, IViewController, IMouseDispatchData} from 'vs/editor/browser/editorBrowser';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
 
 export class ViewController implements IViewController {
 
-	private viewModel:editorCommon.IViewModel;
+	private viewModel:IViewModel;
 	private configuration:Configuration;
 	private outgoingEventBus:IEventEmitter;
 	private keybindingService:IKeybindingService;
 
 	constructor(
-		viewModel:editorCommon.IViewModel,
+		viewModel:IViewModel,
 		configuration:Configuration,
 		outgoingEventBus:IEventEmitter,
 		keybindingService:IKeybindingService

@@ -12,6 +12,10 @@
 	color: blue !important;
 }
 
+.monaco-editor.vs-dark .detected-link {
+	border-color: #1C5DAF;
+}
+
 .monaco-editor.vs-dark  .detected-link-active {
 	color: #4E94CE !important;
 }

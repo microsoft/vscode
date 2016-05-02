@@ -6,9 +6,11 @@
 
 import * as themes from 'vs/platform/theme/common/themes';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {OverviewRulerZone, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {OverviewRulerZone} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -28,7 +30,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _zonesFromDecorations: OverviewRulerZone[];
 	private _zonesFromCursors: OverviewRulerZone[];
 
-	constructor(context:IViewContext, scrollHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(context:ViewContext, scrollHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
 		super(context);
 		this._overviewRuler = new OverviewRulerImpl(
 			1,

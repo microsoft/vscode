@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent, IEventEmitter} from 'vs/base/common/eventEmitter';
+import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -22,49 +22,17 @@ export interface IOverlayWidgetData {
 }
 
 export interface ICodeEditorHelper {
-	getScrollTop(): number;
-	setScrollTop(scrollTop:number): void;
-	getScrollLeft(): number;
-	setScrollLeft(scrollLeft:number): void;
-	getScrollHeight(): number;
 	getScrollWidth(): number;
+	getScrollLeft(): number;
+
+	getScrollHeight(): number;
+	getScrollTop(): number;
+
+	setScrollPosition(position:editorCommon.INewScrollPosition): void;
+
 	getVerticalOffsetForPosition(lineNumber:number, column:number): number;
 	delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void;
 	getOffsetForColumn(lineNumber:number, column:number): number;
-}
-
-export interface IKeyboardHandlerHelper {
-	viewDomNode:HTMLElement;
-	textArea:HTMLTextAreaElement;
-	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): editorCommon.VisibleRange;
-	flushAnyAccumulatedEvents(): void;
-}
-
-export interface IPointerHandlerHelper {
-	viewDomNode:HTMLElement;
-	linesContentDomNode:HTMLElement;
-
-	focusTextArea(): void;
-	isDirty(): boolean;
-
-	getScrollTop(): number;
-	setScrollTop(scrollTop:number): void;
-	getScrollLeft(): number;
-	setScrollLeft(scrollLeft:number): void;
-
-	isAfterLines(verticalOffset:number): boolean;
-	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData;
-	shouldSuppressMouseDownOnViewZone(viewZoneId:number): boolean;
-
-	/**
-	 * Decode an Editor.IPosition from a rendered dom node
-	 */
-	getPositionFromDOMInfo(spanNode:HTMLElement, offset:number): editorCommon.IPosition;
-
-	visibleRangeForPosition2(lineNumber:number, column:number): editorCommon.VisibleRange;
-	getLineWidth(lineNumber:number): number;
 }
 
 export interface IView extends IDisposable {
@@ -161,38 +129,6 @@ export var ClassNames = {
 	VIEW_ZONES: 'view-zones'
 };
 
-export interface IRestrictedRenderingContext {
-	linesViewportData:editorCommon.ViewLinesViewportData;
-
-	scrollWidth:number;
-	scrollHeight:number;
-
-	visibleRange:editorCommon.IEditorRange;
-	bigNumbersDelta:number;
-
-	viewportTop:number;
-	viewportWidth:number;
-	viewportHeight:number;
-	viewportLeft:number;
-
-	getScrolledTopFromAbsoluteTop(absoluteTop:number): number;
-	getViewportVerticalOffsetForLineNumber(lineNumber:number): number;
-	lineIsVisible(lineNumber:number): boolean;
-
-	getDecorationsInViewport(): editorCommon.IModelDecoration[];
-}
-
-export interface IRenderingContext extends IRestrictedRenderingContext {
-
-	linesVisibleRangesForRange(range:editorCommon.IRange, includeNewLines:boolean): editorCommon.LineVisibleRanges[];
-
-	visibleRangeForPosition(position:editorCommon.IPosition): editorCommon.VisibleRange;
-}
-
-export interface IViewEventHandler {
-	handleEvents(events:IEmitterEvent[]): void;
-}
-
 export interface IViewportInfo {
 	visibleRange: editorCommon.IEditorRange;
 	width:number;
@@ -202,75 +138,6 @@ export interface IViewportInfo {
 }
 
 // --- end View Event Handlers & Parts
-
-export interface IViewContext {
-
-	addEventHandler(eventHandler:IViewEventHandler): void;
-	removeEventHandler(eventHandler:IViewEventHandler): void;
-
-	configuration:editorCommon.IConfiguration;
-	model: editorCommon.IViewModel;
-	privateViewEventBus:editorCommon.IViewEventBus;
-}
-
-export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProvider {
-
-	dispose():void;
-
-	getCenteredViewLineNumberInViewport(): number;
-
-	getCurrentViewport(): editorCommon.Viewport;
-
-	onMaxLineWidthChanged(width:number): void;
-
-	saveState(): editorCommon.IViewState;
-	restoreState(state:editorCommon.IViewState): void;
-}
-
-export interface IScrollingProvider {
-
-	getOverviewRulerInsertData(): { parent: HTMLElement; insertBefore: HTMLElement; };
-	getScrollbarContainerDomNode(): HTMLElement;
-	delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void;
-
-	// This is for the glyphs, line numbers, etc.
-	getScrolledTopFromAbsoluteTop(top:number): number;
-
-	getScrollHeight(): number;
-	getScrollWidth(): number;
-	getScrollLeft(): number;
-	setScrollLeft(scrollLeft:number): void;
-	getScrollTop(): number;
-	setScrollTop(scrollTop:number): void;
-}
-
-export interface IVerticalLayoutProvider {
-
-	/**
-	 * Compute vertical offset (top) of line number
-	 */
-	getVerticalOffsetForLineNumber(lineNumber:number): number;
-
-	/**
-	 * Returns the height in pixels for `lineNumber`.
-	 */
-	heightInPxForLine(lineNumber:number): number;
-
-	/**
-	 * Return line number at `verticalOffset` or closest line number
-	 */
-	getLineNumberAtVerticalOffset(verticalOffset:number): number;
-
-	/**
-	 * Compute content height (including one extra scroll page if necessary)
-	 */
-	getTotalHeight(): number;
-
-	/**
-	 * Compute the lines that need to be rendered in the current viewport position.
-	 */
-	getLinesViewportData(): editorCommon.ViewLinesViewportData;
-}
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -684,6 +551,11 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	setHiddenAreas(ranges:editorCommon.IRange[]): void;
 
 	setAriaActiveDescendant(id:string): void;
+
+	/**
+	 * Apply the same font settings as the editor to `target`.
+	 */
+	applyFontInfo(target:HTMLElement): void;
 }
 
 /**

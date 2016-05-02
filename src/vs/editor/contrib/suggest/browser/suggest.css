@@ -36,6 +36,10 @@
 	width: 100%;
 }
 
+.monaco-editor .suggest-widget > .tree {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
 	-mox-box-sizing: border-box;
 	box-sizing: border-box;

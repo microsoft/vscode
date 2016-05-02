@@ -30,7 +30,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
-import {ViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
 
 var EDITOR_ID = 0;
 
@@ -477,20 +477,17 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this.cursor.setSelections('api', ranges);
 	}
 
-	public abstract setScrollTop(newScrollTop:number): void;
+	public abstract getScrollWidth(): number;
+	public abstract getScrollLeft(): number;
 
+	public abstract getScrollHeight(): number;
 	public abstract getScrollTop(): number;
 
 	public abstract setScrollLeft(newScrollLeft:number): void;
-
-	public abstract getScrollLeft(): number;
-
-	public abstract getScrollWidth(): number;
-
-	public abstract getScrollHeight(): number;
+	public abstract setScrollTop(newScrollTop:number): void;
+	public abstract setScrollPosition(position: editorCommon.INewScrollPosition): void;
 
 	public abstract saveViewState(): editorCommon.ICodeEditorViewState;
-
 	public abstract restoreViewState(state:editorCommon.IEditorViewState): void;
 
 	public onVisible(): void {
@@ -695,7 +692,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				hardWrappingLineMapperFactory,
 				this.model.getOptions().tabSize,
 				this._configuration.editor.wrappingInfo.wrappingColumn,
-				this._configuration.editor.typicalFullwidthCharacterWidth / this._configuration.editor.typicalHalfwidthCharacterWidth,
+				this._configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
 				editorCommon.wrappingIndentFromString(this._configuration.editor.wrappingIndent)
 			);
 

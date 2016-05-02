@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ViewLineToken} from 'vs/editor/common/editorCommon';
+import {ViewLineToken} from 'vs/editor/common/viewModel/viewModel';
 
 export class RenderLineInput {
 	public _renderLineInputTrait: void;

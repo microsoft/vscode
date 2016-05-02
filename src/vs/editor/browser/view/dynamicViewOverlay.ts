@@ -6,7 +6,7 @@
 'use strict';
 
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IRenderingContext} from 'vs/editor/browser/editorBrowser';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export abstract class DynamicViewOverlay extends ViewEventHandler {
 

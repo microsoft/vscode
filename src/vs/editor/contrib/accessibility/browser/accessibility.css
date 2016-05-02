@@ -8,12 +8,6 @@
 	vertical-align: middle;
 }
 
-.monaco-editor .accessibilityHelpWidget { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback"; }
-.monaco-editor:lang(zh-Hans) .accessibilityHelpWidget { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-editor:lang(zh-Hant) .accessibilityHelpWidget { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
-.monaco-editor:lang(ja) .accessibilityHelpWidget { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
-.monaco-editor:lang(ko) .accessibilityHelpWidget { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
-
 .monaco-editor .accessibilityHelpWidget {
 	background-color: #EFEFF2;
 	box-shadow: 0 2px 8px #A8A8A8;

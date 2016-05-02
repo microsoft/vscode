@@ -9,8 +9,9 @@ import * as dom from 'vs/base/browser/dom';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {EventType, Gesture, GestureEvent} from 'vs/base/browser/touch';
 import {IScrollEvent} from 'vs/editor/common/editorCommon';
-import {MouseHandler} from 'vs/editor/browser/controller/mouseHandler';
-import {IPointerHandlerHelper, IViewContext, IViewController} from 'vs/editor/browser/editorBrowser';
+import {MouseHandler, IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
+import {IViewController} from 'vs/editor/browser/editorBrowser';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -37,7 +38,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	private _lastPointerType: string;
 	private _installGestureHandlerTimeout: number;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.viewHelper.linesContentDomNode.style.msTouchAction = 'none';
@@ -98,8 +99,10 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	}
 
 	private _onGestureChange(e:IThrottledGestureEvent): void {
-		this.viewHelper.setScrollTop(this.viewHelper.getScrollTop() - e.translationY);
-		this.viewHelper.setScrollLeft(this.viewHelper.getScrollLeft() - e.translationX);
+		this.viewHelper.setScrollPosition({
+			scrollLeft: this.viewHelper.getScrollLeft() - e.translationX,
+			scrollTop: this.viewHelper.getScrollTop() - e.translationY,
+		});
 	}
 
 	public dispose(): void {
@@ -116,7 +119,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	private _lastPointerType: string;
 	private _installGestureHandlerTimeout: number;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.viewHelper.linesContentDomNode.style.touchAction = 'none';
@@ -177,8 +180,10 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	}
 
 	private _onGestureChange(e:IThrottledGestureEvent): void {
-		this.viewHelper.setScrollTop(this.viewHelper.getScrollTop() - e.translationY);
-		this.viewHelper.setScrollLeft(this.viewHelper.getScrollLeft() - e.translationX);
+		this.viewHelper.setScrollPosition({
+			scrollLeft: this.viewHelper.getScrollLeft() - e.translationX,
+			scrollTop: this.viewHelper.getScrollTop() - e.translationY,
+		});
 	}
 
 	public dispose(): void {
@@ -191,7 +196,7 @@ class TouchHandler extends MouseHandler {
 
 	private gesture:Gesture;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.gesture = new Gesture(this.viewHelper.linesContentDomNode);
@@ -220,16 +225,18 @@ class TouchHandler extends MouseHandler {
 		}
 	}
 
-	private onChange(event:GestureEvent): void {
-		this.viewHelper.setScrollTop(this.viewHelper.getScrollTop() - event.translationY);
-		this.viewHelper.setScrollLeft(this.viewHelper.getScrollLeft() - event.translationX);
+	private onChange(e:GestureEvent): void {
+		this.viewHelper.setScrollPosition({
+			scrollLeft: this.viewHelper.getScrollLeft() - e.translationX,
+			scrollTop: this.viewHelper.getScrollTop() - e.translationY,
+		});
 	}
 }
 
 export class PointerHandler implements IDisposable {
 	private handler:MouseHandler;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
 		if (window.navigator.msPointerEnabled) {
 			this.handler = new MsPointerHandler(context, viewController, viewHelper);
 		} else if((<any> window).TouchEvent) {
