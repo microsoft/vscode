@@ -38,7 +38,7 @@ function _spawnSharedProcess(envService: IEnvironmentService, updateManager: IUp
 	// Make sure the nls configuration travels to the shared process.
 	const opts = {
 		env: assign(assign({}, process.env), {
-			AMD_ENTRYPOINT: 'vs/code/electron-main/sharedProcessMain'
+			AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain'
 		})
 	};
 

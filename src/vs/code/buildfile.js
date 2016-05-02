@@ -18,7 +18,7 @@ function createModuleDescription(name, exclude) {
 exports.collectModules= function() {
 	return [
 		createModuleDescription('vs/code/electron-main/main', []),
-		createModuleDescription('vs/code/electron-main/cli', []),
-		createModuleDescription('vs/code/electron-main/sharedProcessMain', [])
+		createModuleDescription('vs/code/node/cli', []),
+		createModuleDescription('vs/code/node/sharedProcessMain', [])
 	];
 };

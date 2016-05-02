@@ -18,7 +18,7 @@ import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import product, {IProductConfiguration} from 'vs/code/node/product';
-import { parseArgs } from './argv';
+import { parseArgs } from 'vs/code/node/argv';
 
 export interface IProcessEnvironment {
 	[key: string]: string;

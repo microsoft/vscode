@@ -5,7 +5,7 @@
 
 import { spawn } from 'child_process';
 import { assign } from 'vs/base/common/objects';
-import { parseArgs, helpMessage } from './argv';
+import { parseArgs, helpMessage } from 'vs/code/node/argv';
 import pkg from 'vs/code/node/package';
 
 export function main(args: string[]) {
