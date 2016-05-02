@@ -225,6 +225,10 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.dispose();
 	}
 
+	public supportsSplitEditor(): boolean {
+		return true;
+	}
+
 	public createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
 		parent.getHTMLElement().appendChild(this._container);
