@@ -44,10 +44,14 @@ import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/edito
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
+import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActivityService} from 'vs/workbench/services/activity/common/activityService';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -61,7 +65,10 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService, Extenstions as TelemetryExtensions} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
-import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
+import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
+import {IActionsService} from 'vs/platform/actions/common/actions';
+import ActionsService from 'vs/platform/actions/common/actionsService';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 
 interface WorkbenchParams {
 	workspace?: IWorkspace;
@@ -72,11 +79,11 @@ interface WorkbenchParams {
 
 export interface IWorkbenchCallbacks {
 	onServicesCreated?: () => void;
-	onWorkbenchStarted?: () => void;
+	onWorkbenchStarted?: (customKeybindingsCount: number) => void;
 }
 
 /**
- * The workbench creates and lays out all parts that make up the Monaco Workbench.
+ * The workbench creates and lays out all parts that make up the workbench.
  */
 export class Workbench implements IPartService {
 
@@ -94,6 +101,7 @@ export class Workbench implements IPartService {
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
 	private editorService: WorkbenchEditorService;
+	private keybindingService: IKeybindingService;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -111,17 +119,23 @@ export class Workbench implements IPartService {
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
 
-	constructor(container: HTMLElement, workspace: IWorkspace, configuration: IConfiguration, options: IOptions, serviceCollection: ServiceCollection,
+	constructor(
+		container: HTMLElement,
+		workspace: IWorkspace,
+		configuration: IConfiguration,
+		options: IOptions,
+		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchWorkspaceContextService private contextService: IWorkbenchWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IMessageService private messageService: IMessageService,
-		@IThreadService private threadService: IThreadService
+		@IThreadService private threadService: IThreadService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 
 		// Validate params
@@ -277,7 +291,7 @@ export class Workbench implements IPartService {
 				this.creationPromiseComplete(true);
 
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
-					this.callbacks.onWorkbenchStarted();
+					this.callbacks.onWorkbenchStarted(this.keybindingService.customKeybindingsCount());
 				}
 
 				if (error) {
@@ -304,6 +318,22 @@ export class Workbench implements IPartService {
 
 		// Services we contribute
 		serviceCollection.set(IPartService, this);
+
+		// Status bar
+		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
+		this.toDispose.push(this.statusbarPart);
+		this.toShutdown.push(this.statusbarPart);
+		serviceCollection.set(IStatusbarService, this.statusbarPart);
+
+		// Keybindings
+		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, this.messageService, this.statusbarPart, this.extensionService, <any>window);
+		serviceCollection.set(IKeybindingService, this.keybindingService);
+
+		// Context Menu
+		serviceCollection.set(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
+
+		// Actions
+		serviceCollection.set(IActionsService, new ActionsService(this.extensionService, this.keybindingService));
 
 		// Viewlet service (sidebar part)
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
@@ -338,17 +368,7 @@ export class Workbench implements IPartService {
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		this.toDispose.push(this.quickOpen);
 		this.toShutdown.push(this.quickOpen);
-		if (this.messageService instanceof WorkbenchMessageService) {
-			this.toDispose.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
-			this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
-		}
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
-
-		// Status bar
-		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
-		this.toDispose.push(this.statusbarPart);
-		this.toShutdown.push(this.statusbarPart);
-		serviceCollection.set(IStatusbarService, this.statusbarPart);
 
 		// History
 		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService, this.quickOpen));
@@ -362,9 +382,6 @@ export class Workbench implements IPartService {
 		// Some services need to be set explicitly after all services are created
 		if (this.threadService instanceof MainThreadService) {
 			(<MainThreadService>this.threadService).setInstantiationService(this.instantiationService);
-		}
-		if (this.messageService instanceof WorkbenchMessageService) {
-			(<WorkbenchMessageService>this.messageService).setWorkbenchServices(this.statusbarPart);
 		}
 		(<AbstractKeybindingService><any>this.keybindingService).setInstantiationService(this.instantiationService);
 
@@ -600,9 +617,6 @@ export class Workbench implements IPartService {
 		this.hookPartListeners(this.editorPart);
 		this.hookPartListeners(this.sidebarPart);
 		this.hookPartListeners(this.panelPart);
-
-		// Storage Emitter
-		this.toDispose.push(this.toDisposable(this.eventService.addEmitter(this.storageService)));
 	}
 
 	private hookPartListeners(part: Part): void {
@@ -614,6 +628,17 @@ export class Workbench implements IPartService {
 		// Listen to editor changes
 		this.toDispose.push(this.toDisposable(this.eventService.addListener(EventType.EDITOR_CLOSED, () => this.onEditorOpenedOrClosed())));
 		this.toDispose.push(this.toDisposable(this.eventService.addListener(EventType.EDITOR_OPENED, () => this.onEditorOpenedOrClosed())));
+
+		// Handle message service and quick open events
+		if (this.messageService instanceof WorkbenchMessageService) {
+			const messagesShowingContextKey = this.keybindingService.createKey('globalMessageVisible', false);
+
+			this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesShowing(() => messagesShowingContextKey.set(true)));
+			this.toDispose.push((<WorkbenchMessageService>this.messageService).onMessagesCleared(() => messagesShowingContextKey.reset()));
+
+			this.toDispose.push(this.quickOpen.onShow(() => (<WorkbenchMessageService>this.messageService).suspend())); // when quick open is open, don't show messages behind
+			this.toDispose.push(this.quickOpen.onHide(() => (<WorkbenchMessageService>this.messageService).resume()));  // resume messages once quick open is closed again
+		}
 	}
 
 	private onEditorOpenedOrClosed(): void {

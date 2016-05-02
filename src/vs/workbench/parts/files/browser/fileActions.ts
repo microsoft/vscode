@@ -1545,10 +1545,10 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	private registerListeners(): void {
 
 		// listen to files being changed locally
-		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_DIRTY, (e: Files.LocalFileChangeEvent) => this.updateEnablement(true)));
-		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_SAVED, (e: Files.LocalFileChangeEvent) => this.updateEnablement(false)));
-		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_REVERTED, (e: Files.LocalFileChangeEvent) => this.updateEnablement(false)));
-		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_SAVE_ERROR, (e: Files.LocalFileChangeEvent) => this.updateEnablement(true)));
+		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_DIRTY, (e: Files.TextFileChangeEvent) => this.updateEnablement(true)));
+		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_SAVED, (e: Files.TextFileChangeEvent) => this.updateEnablement(false)));
+		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_REVERTED, (e: Files.TextFileChangeEvent) => this.updateEnablement(false)));
+		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_SAVE_ERROR, (e: Files.TextFileChangeEvent) => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
 			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.updateEnablement(true)));

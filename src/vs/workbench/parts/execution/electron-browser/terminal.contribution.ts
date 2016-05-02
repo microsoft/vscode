@@ -86,9 +86,7 @@ export class OpenConsoleAction extends Action {
 			}
 		}
 
-		if (pathToOpen) {
-			this.terminalService.openTerminal(pathToOpen);
-		}
+		this.terminalService.openTerminal(pathToOpen);
 
 		return TPromise.as(null);
 	}

@@ -21,10 +21,10 @@ export class LifecycleService implements ILifecycleService {
 	private _onShutdown = new Emitter<void>();
 
 	constructor(
-		private _messageService: IMessageService,
+		private messageService: IMessageService,
 		private windowService: IWindowService
 	) {
-		this._registerListeners();
+		this.registerListeners();
 	}
 
 	public get onWillShutdown(): Event<ShutdownEvent> {
@@ -35,14 +35,12 @@ export class LifecycleService implements ILifecycleService {
 		return this._onShutdown.event;
 	}
 
-	private _registerListeners(): void {
-
+	private registerListeners(): void {
 		const windowId = this.windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string }) => {
-
-			this._onBeforeUnload().done(veto => {
+			this.onBeforeUnload().done(veto => {
 				if (veto) {
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
@@ -53,8 +51,7 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	private _onBeforeUnload(): TPromise<boolean> {
-
+	private onBeforeUnload(): TPromise<boolean> {
 		const vetos: (boolean | TPromise<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
@@ -80,12 +77,11 @@ export class LifecycleService implements ILifecycleService {
 			if (TPromise.is(valueOrPromise)) {
 				promises.push(valueOrPromise.then(value => {
 					if (value) {
-						// veto, done
-						lazyValue = true;
+						lazyValue = true; // veto, done
 					}
 				}, err => {
 					// error, treated like a veto, done
-					this._messageService.show(Severity.Error, errors.toErrorMessage(err));
+					this.messageService.show(Severity.Error, errors.toErrorMessage(err));
 					lazyValue = true;
 				}));
 			}

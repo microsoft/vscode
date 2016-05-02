@@ -17,7 +17,6 @@ import aria = require('vs/base/browser/ui/aria/aria');
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
-import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
@@ -33,11 +32,8 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {FileService} from 'vs/workbench/services/files/electron-browser/fileService';
 import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
-import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
 import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
-import {IActionsService} from 'vs/platform/actions/common/actions';
-import ActionsService from 'vs/platform/actions/common/actionsService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
@@ -49,10 +45,10 @@ import {IOptions} from 'vs/workbench/common/options';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -72,9 +68,7 @@ import {connect} from 'vs/base/parts/ipc/node/ipc.net';
 import {IExtensionsChannel, ExtensionsChannelClient} from 'vs/workbench/parts/extensions/common/extensionsIpc';
 import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
-
-// self registering service
-import 'vs/platform/opener/electron-browser/opener.contribution';
+import 'vs/platform/opener/electron-browser/opener.contribution'; // self registering service
 
 /**
  * Services that we require for the Shell
@@ -86,7 +80,7 @@ export interface ICoreServices {
 }
 
 /**
- * The Monaco Workbench Shell contains the Monaco workbench with a rich header containing navigation and the activity bar.
+ * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
  */
 export class WorkbenchShell {
@@ -100,7 +94,6 @@ export class WorkbenchShell {
 	private themeService: ThemeService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
-	private keybindingService: WorkbenchKeybindingService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -114,8 +107,6 @@ export class WorkbenchShell {
 	private workspace: IWorkspace;
 	private options: IOptions;
 	private workbench: Workbench;
-
-	private messagesShowingContextKey: IKeybindingContextKey<boolean>;
 
 	constructor(container: HTMLElement, workspace: IWorkspace, services: ICoreServices, configuration: IConfiguration, options: IOptions) {
 		this.container = container;
@@ -149,30 +140,11 @@ export class WorkbenchShell {
 			crashReporter.start(this.configuration.env.crashReporter);
 		}
 
-		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
-
-		sharedProcessClientPromise.done(service => {
-			service.onClose(() => {
-				this.messageService.show(Severity.Error, {
-					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
-					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
-				});
-			});
-		}, errors.onUnexpectedError);
-
-		const extensionsChannelPromise = sharedProcessClientPromise
-			.then(client => client.getChannel<IExtensionsChannel>('extensions'));
-
-		const channel = getDelayedChannel<IExtensionsChannel>(extensionsChannelPromise);
-		const extensionsService = new ExtensionsChannelClient(channel);
-
-		serviceCollection.set(IExtensionsService, extensionsService);
-
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, serviceCollection);
 		this.workbench.startup({
-			onWorkbenchStarted: () => {
-				this.onWorkbenchStarted();
+			onWorkbenchStarted: (customKeybindingsCount) => {
+				this.onWorkbenchStarted(customKeybindingsCount);
 			}
 		});
 
@@ -194,7 +166,7 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(): void {
+	private onWorkbenchStarted(customKeybindingsCount: number): void {
 
 		// Log to telemetry service
 		let windowSize = {
@@ -209,7 +181,7 @@ export class WorkbenchShell {
 				userAgent: navigator.userAgent,
 				windowSize: windowSize,
 				emptyWorkbench: !this.contextService.getWorkspace(),
-				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
+				customKeybindingsCount,
 				theme: this.currentTheme,
 				language: platform.language
 			});
@@ -260,11 +232,6 @@ export class WorkbenchShell {
 
 		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
 
-		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, this.messageService, extensionService, <any>window);
-		this.messagesShowingContextKey = this.keybindingService.createKey('globalMessageVisible', false);
-		this.toUnbind.push(this.messageService.onMessagesShowing(() => this.messagesShowingContextKey.set(true)));
-		this.toUnbind.push(this.messageService.onMessagesCleared(() => this.messagesShowingContextKey.reset()));
-
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
 		let requestService = new RequestService(
@@ -288,7 +255,6 @@ export class WorkbenchShell {
 		serviceCollection.set(IRequestService, requestService);
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IContextViewService, this.contextViewService);
-		serviceCollection.set(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
 		serviceCollection.set(IMessageService, this.messageService);
 		serviceCollection.set(IStorageService, this.storageService);
 		serviceCollection.set(ILifecycleService, lifecycleService);
@@ -300,15 +266,32 @@ export class WorkbenchShell {
 		serviceCollection.set(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, this.configurationService));
 		serviceCollection.set(IWindowService, this.windowService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
-		serviceCollection.set(IKeybindingService, this.keybindingService);
 		serviceCollection.set(IMarkerService, markerService);
 		serviceCollection.set(IModelService, modelService);
 		serviceCollection.set(ICodeEditorService, new CodeEditorServiceImpl());
 		serviceCollection.set(IEditorWorkerService, editorWorkerService);
 		serviceCollection.set(IThemeService, this.themeService);
-		serviceCollection.set(IActionsService, new ActionsService(extensionService, this.keybindingService));
+		serviceCollection.set(IExtensionsService, new ExtensionsChannelClient(this.initSharedProcessChannel(instantiationService, this.messageService)));
 
 		return [instantiationService, serviceCollection];
+	}
+
+	private initSharedProcessChannel(instantiationService: IInstantiationService, messageService: IMessageService): IExtensionsChannel {
+		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
+
+		sharedProcessClientPromise.done(service => {
+			service.onClose(() => {
+				messageService.show(Severity.Error, {
+					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
+					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
+				});
+			});
+		}, errors.onUnexpectedError);
+
+		const extensionsChannelPromise = sharedProcessClientPromise
+			.then(client => client.getChannel<IExtensionsChannel>('extensions'));
+
+		return getDelayedChannel<IExtensionsChannel>(extensionsChannelPromise);
 	}
 
 	public open(): void {
@@ -443,7 +426,6 @@ export class WorkbenchShell {
 		}
 
 		this.contextViewService.dispose();
-		this.storageService.dispose();
 
 		// Listeners
 		this.toUnbind = dispose(this.toUnbind);

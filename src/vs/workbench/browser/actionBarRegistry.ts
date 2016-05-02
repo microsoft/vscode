@@ -268,7 +268,7 @@ export interface IActionBarRegistry {
 
 	/**
 	 * Registers an Actionbar contributor. It will be called to contribute actions to all the action bars
-	 * that are used in the Monaco Workbench in the given scope.
+	 * that are used in the Workbench in the given scope.
 	 */
 	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void;
 

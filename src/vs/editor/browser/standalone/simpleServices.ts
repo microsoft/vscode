@@ -6,7 +6,6 @@
 
 import {toErrorMessage} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
@@ -196,12 +195,6 @@ export class SimpleMessageService implements IMessageService {
 		}
 
 		return window.confirm(messageText);
-	}
-
-	public setStatusMessage(message: string, autoDisposeAfter:number = -1): IDisposable {
-		return {
-			dispose: () => { /* Nothing to do here */ }
-		};
 	}
 }
 

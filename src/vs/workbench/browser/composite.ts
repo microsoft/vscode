@@ -60,7 +60,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	}
 
 	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
+	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Called to create this composite on the provided builder. This method is only
@@ -82,7 +82,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	}
 
 	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
+	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Called to indicate that the composite has become visible or hidden. This method
@@ -193,7 +193,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 }
 
 /**
- * A composite descriptor is a leightweight descriptor of a composite in the monaco workbench.
+ * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
 export abstract class CompositeDescriptor<T extends Composite> extends AsyncDescriptor<T> {
 	public id: string;

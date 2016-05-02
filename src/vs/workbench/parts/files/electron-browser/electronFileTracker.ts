@@ -6,7 +6,7 @@
 'use strict';
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {LocalFileChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {TextFileChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IFileService} from 'vs/platform/files/common/files';
 import {OpenResourcesAction} from 'vs/workbench/parts/files/browser/fileActions';
 import plat = require('vs/base/common/platform');
@@ -73,10 +73,10 @@ export class FileTracker implements IWorkbenchContribution {
 		// Local text file changes
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DELETED, () => this.onUntitledDeletedEvent()));
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.onUntitledDirtyEvent()));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_DIRTY, (e: LocalFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVE_ERROR, (e: LocalFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
+		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
 
 		// Support openFiles event for existing and new files
 		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => {
@@ -167,25 +167,25 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onTextFileDirty(e: LocalFileChangeEvent): void {
+	private onTextFileDirty(e: TextFileChangeEvent): void {
 		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
 			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
 	}
 
-	private onTextFileSaved(e: LocalFileChangeEvent): void {
+	private onTextFileSaved(e: TextFileChangeEvent): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
 	}
 
-	private onTextFileSaveError(e: LocalFileChangeEvent): void {
+	private onTextFileSaveError(e: TextFileChangeEvent): void {
 		if (!this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
 	}
 
-	private onTextFileReverted(e: LocalFileChangeEvent): void {
+	private onTextFileReverted(e: TextFileChangeEvent): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}

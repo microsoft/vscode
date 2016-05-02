@@ -40,7 +40,7 @@ import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
 /**
- * The text editor that leverages the monaco diff text editor for the editing experience.
+ * The text editor that leverages the diff text editor for the editing experience.
  */
 export class TextDiffEditor extends BaseTextEditor {
 
