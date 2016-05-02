@@ -24,6 +24,7 @@ import { UserSettings } from 'vs/workbench/node/userSettings';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
+import pkg from 'vs/code/node/package';
 
 function parseManifest(raw: string): TPromise<IExtensionManifest> {
 	return new Promise((c, e) => {
@@ -166,14 +167,13 @@ export class ExtensionsService implements IExtensionsService {
 		return this.request(version.manifestUrl)
 			.then(opts => json<IExtensionManifest>(opts))
 			.then(manifest => {
-				const codeVersion = this.contextService.getConfiguration().env.version;
 				const desc = {
 					isBuiltin: false,
 					engines: { vscode: manifest.engines.vscode },
 					main: manifest.main
 				};
 
-				if (!isValidExtensionVersion(codeVersion, desc, [])) {
+				if (!isValidExtensionVersion(pkg.version, desc, [])) {
 					return this.getLastValidExtensionVersion(extension, versions.slice(1));
 				}
 
