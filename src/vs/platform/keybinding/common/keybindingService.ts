@@ -286,7 +286,7 @@ export let KbExpr = {
 export interface IKeybindingItem {
 	keybinding: number;
 	command: string;
-	context: KbExpr;
+	when: KbExpr;
 	weight1: number;
 	weight2: number;
 }

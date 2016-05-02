@@ -510,6 +510,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 	public abstract isFocused(): boolean;
 
+	public abstract hasWidgetFocus(): boolean;
+
 	public getContribution(id: string): editorCommon.IEditorContribution {
 		return this.contributions[id] || null;
 	}

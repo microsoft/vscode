@@ -237,6 +237,6 @@ KeybindingsRegistry.registerCommandDesc({
 		GlobalScreenReaderNVDA.setValue(!currentValue);
 	},
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	context: null,
+	when: null,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R
 });

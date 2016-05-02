@@ -42,6 +42,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 
 	public focus(): void { }
 	public isFocused(): boolean { return true; }
+	public hasWidgetFocus(): boolean { return true; };
 
 	protected _enableEmptySelectionClipboard(): boolean { return false; }
 	protected _createView(): void { }

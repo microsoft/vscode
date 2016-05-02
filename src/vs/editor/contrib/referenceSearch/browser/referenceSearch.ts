@@ -371,14 +371,14 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.findReferences',
 	handler: findReferencesCommand,
 	weight: CommonEditorRegistry.commandWeight(50),
-	context: null,
+	when: null,
 	primary: undefined
 });
 KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.showReferences',
 	handler: showReferencesCommand,
 	weight: CommonEditorRegistry.commandWeight(50),
-	context: null,
+	when: null,
 	primary: undefined,
 	description: {
 		description: 'Show references at a position in a file',

@@ -2770,7 +2770,7 @@ export interface IEditor extends IEventEmitter {
 	focus(): void;
 
 	/**
-	 * Returns true if this editor has keyboard focus.
+	 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
 	 */
 	isFocused(): boolean;
 
@@ -3000,6 +3000,11 @@ export interface IRangeWithMessage {
 }
 
 export interface ICommonCodeEditor extends IEditor {
+
+	/**
+	 * Returns true if this editor or one of its widgets has keyboard focus.
+	 */
+	hasWidgetFocus(): boolean;
 
 	/**
 	 * Get a contribution of this editor.

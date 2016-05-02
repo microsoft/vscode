@@ -14,7 +14,6 @@ export interface IViewEventHandler {
 
 export class ViewContext {
 
-	public editorId:number;
 	public configuration:IConfiguration;
 	public model: IViewModel;
 	public privateViewEventBus:IViewEventBus;
@@ -22,7 +21,6 @@ export class ViewContext {
 	public removeEventHandler:(eventHandler:IViewEventHandler)=>void;
 
 	constructor(
-		editorId:number,
 		configuration:IConfiguration,
 		model: IViewModel,
 		privateViewEventBus:IViewEventBus,
@@ -30,7 +28,6 @@ export class ViewContext {
 		removeEventHandler:(eventHandler:IViewEventHandler)=>void
 	)
 	{
-		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
 		this.privateViewEventBus = privateViewEventBus;

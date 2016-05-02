@@ -125,7 +125,7 @@ class WorkbenchActionRegistry implements IWorkbenchActionRegistry {
 Registry.add(Extensions.WorkbenchActions, new WorkbenchActionRegistry());
 
 function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor): void {
-	let context = descriptor.keybindingContext;
+	let when = descriptor.keybindingContext;
 	let weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingsRegistry.WEIGHT.workbenchContrib() : descriptor.keybindingWeight);
 	let keybindings = descriptor.keybindings;
 
@@ -133,7 +133,7 @@ function registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor): v
 		id: descriptor.id,
 		handler: createCommandHandler(descriptor),
 		weight: weight,
-		context: context,
+		when: when,
 		primary: keybindings && keybindings.primary,
 		secondary: keybindings && keybindings.secondary,
 		win: keybindings && keybindings.win,

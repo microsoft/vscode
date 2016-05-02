@@ -117,11 +117,11 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
-	public context:ViewContext;
-	public viewController:editorBrowser.IViewController;
-	public viewHelper:IPointerHandlerHelper;
-	public mouseTargetFactory: MouseTargetFactory;
-	public listenersToRemove:IDisposable[];
+	protected _context:ViewContext;
+	protected viewController:editorBrowser.IViewController;
+	protected viewHelper:IPointerHandlerHelper;
+	protected mouseTargetFactory: MouseTargetFactory;
+	protected listenersToRemove:IDisposable[];
 	private toDispose:IDisposable[];
 
 	private _mouseDownOperation: MouseDownOperation;
@@ -132,14 +132,14 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	constructor(context:ViewContext, viewController:editorBrowser.IViewController, viewHelper:IPointerHandlerHelper) {
 		super();
 
-		this.context = context;
+		this._context = context;
 		this.viewController = viewController;
 		this.viewHelper = viewHelper;
-		this.mouseTargetFactory = new MouseTargetFactory(this.context, viewHelper);
+		this.mouseTargetFactory = new MouseTargetFactory(this._context, viewHelper);
 		this.listenersToRemove = [];
 
 		this._mouseDownOperation = new MouseDownOperation(
-			this.context,
+			this._context,
 			this.viewController,
 			this.viewHelper,
 			(e, testEventTarget) => this._createMouseTarget(e, testEventTarget),
@@ -168,11 +168,11 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.viewDomNode, 'mousedown',
 			(e: MouseEvent) => this._onMouseDown(e)));
 
-		this.context.addEventHandler(this);
+		this._context.addEventHandler(this);
 	}
 
 	public dispose(): void {
-		this.context.removeEventHandler(this);
+		this._context.removeEventHandler(this);
 		this.listenersToRemove = dispose(this.listenersToRemove);
 		this.toDispose = dispose(this.toDispose);
 		this._mouseDownOperation.dispose();
@@ -260,7 +260,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		let targetIsContent = (t.type === editorCommon.MouseTargetType.CONTENT_TEXT || t.type === editorCommon.MouseTargetType.CONTENT_EMPTY);
 		let targetIsGutter = (t.type === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS || t.type === editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS);
 		let targetIsLineNumbers = (t.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
-		let selectOnLineNumbers = this.context.configuration.editor.selectOnLineNumbers;
+		let selectOnLineNumbers = this._context.configuration.editor.selectOnLineNumbers;
 		let targetIsViewZone = (t.type === editorCommon.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorCommon.MouseTargetType.GUTTER_VIEW_ZONE);
 
 		let shouldHandle = e.leftButton;

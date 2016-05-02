@@ -220,15 +220,15 @@ export class StandaloneKeybindingService extends KeybindingService {
 		this._beginListening(domNode);
 	}
 
-	public addDynamicKeybinding(keybinding: number, handler:ICommandHandler, context:string, commandId:string = null): string {
+	public addDynamicKeybinding(keybinding: number, handler:ICommandHandler, when:string, commandId:string = null): string {
 		if (commandId === null) {
 			commandId = 'DYNAMIC_' + (++StandaloneKeybindingService.LAST_GENERATED_ID);
 		}
-		var parsedContext = IOSupport.readKeybindingContexts(context);
+		var parsedContext = IOSupport.readKeybindingWhen(when);
 		this._dynamicKeybindings.push({
 			keybinding: keybinding,
 			command: commandId,
-			context: parsedContext,
+			when: parsedContext,
 			weight1: 1000,
 			weight2: 0
 		});

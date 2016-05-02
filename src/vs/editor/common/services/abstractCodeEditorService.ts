@@ -49,6 +49,26 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
 	}
 
+	public getFocusedCodeEditor(): ICommonCodeEditor {
+		let editorWithWidgetFocus: ICommonCodeEditor = null;
+
+		let editors = this.listCodeEditors();
+		for (let i = 0; i < editors.length; i++) {
+			let editor = editors[i];
+
+			if (editor.isFocused()) {
+				// bingo!
+				return editor;
+			}
+
+			if (editor.hasWidgetFocus()) {
+				editorWithWidgetFocus = editor;
+			}
+		}
+
+		return editorWithWidgetFocus;
+	}
+
 	public abstract registerDecorationType(key:string, options: IDecorationRenderOptions): void;
 	public abstract removeDecorationType(key:string): void;
 	public abstract resolveDecorationType(key:string): IModelDecorationOptions;

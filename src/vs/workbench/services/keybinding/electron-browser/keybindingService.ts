@@ -272,7 +272,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 
 		let desc = {
 			id: command,
-			context: IOSupport.readKeybindingContexts(when),
+			when: IOSupport.readKeybindingWhen(when),
 			weight: weight,
 			primary: IOSupport.readKeybinding(key),
 			mac: mac && { primary: IOSupport.readKeybinding(mac) },

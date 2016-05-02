@@ -378,16 +378,9 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 
 	public executeCommand(commandId: string, args: any = {}): TPromise<any> {
 
-		// TODO@{Alex,Joh} we should spec what args should be. adding extra
-		// props on a string will throw errors
-		if ((Array.isArray(args) || typeof args === 'object')
-			&& !args.context) {
+		// TODO@{Alex,Joh} we should spec what args should be.
 
-			args.context = Object.create(null);
-			this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(args.context);
-			this._configurationContext.fillInContext(args.context);
-		}
-
+		// TODO@Alex - move this to its own command
 		if (commandId === SET_CONTEXT_COMMAND_ID) {
 			var contextKey = String(args[0]);
 			var contextValue = args[1];

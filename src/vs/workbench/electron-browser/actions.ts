@@ -479,6 +479,6 @@ KeybindingsRegistry.registerCommandDesc({
 			ipc.send(ipcMessage);
 		}
 	},
-	context: undefined,
+	when: undefined,
 	primary: undefined
 });

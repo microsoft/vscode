@@ -202,7 +202,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
-	private context:ViewContext;
+	private _context:ViewContext;
 	private viewController:IViewController;
 	private viewHelper:IKeyboardHandlerHelper;
 	private textArea:TextAreaWrapper;
@@ -216,17 +216,17 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	constructor(context:ViewContext, viewController:IViewController, viewHelper:IKeyboardHandlerHelper) {
 		super();
 
-		this.context = context;
+		this._context = context;
 		this.viewController = viewController;
 		this.textArea = new TextAreaWrapper(viewHelper.textArea);
-		Configuration.applyFontInfoSlow(this.textArea.actual, this.context.configuration.editor.fontInfo);
+		Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		this.viewHelper = viewHelper;
 
 		this.contentLeft = 0;
 		this.contentWidth = 0;
 		this.scrollLeft = 0;
 
-		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this.context.model, () => this.viewHelper.flushAnyAccumulatedEvents());
+		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this._context.model, () => this.viewHelper.flushAnyAccumulatedEvents());
 
 		this._toDispose = [];
 		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<IKeyboardEvent>e._actual)));
@@ -249,7 +249,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 				verticalType: editorCommon.VerticalRevealType.Simple,
 				revealHorizontal: true
 			};
-			this.context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
 
 			// Find range pixel position
 			let visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -264,7 +264,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			}
 
 			// Show the textarea
-			StyleMutator.setHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
+			StyleMutator.setHeight(this.textArea.actual, this._context.configuration.editor.lineHeight);
 			dom.addClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
@@ -279,11 +279,11 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		}));
 
 
-		this.context.addEventHandler(this);
+		this._context.addEventHandler(this);
 	}
 
 	public dispose(): void {
-		this.context.removeEventHandler(this);
+		this._context.removeEventHandler(this);
 		this.textAreaHandler.dispose();
 		this.textArea.dispose();
 		this._toDispose = dispose(this._toDispose);
@@ -293,7 +293,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		if (GlobalScreenReaderNVDA.getValue()) {
 			return TextAreaStrategy.NVDA;
 		}
-		if (this.context.configuration.editor.experimentalScreenReader) {
+		if (this._context.configuration.editor.experimentalScreenReader) {
 			return TextAreaStrategy.NVDA;
 		}
 		return TextAreaStrategy.IENarrator;
@@ -306,7 +306,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		if (e.fontInfo) {
-			Configuration.applyFontInfoSlow(this.textArea.actual, this.context.configuration.editor.fontInfo);
+			Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		}
 		if (e.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());

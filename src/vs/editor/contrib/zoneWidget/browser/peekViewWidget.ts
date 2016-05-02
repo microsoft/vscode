@@ -19,6 +19,7 @@ import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {IOptions, ZoneWidget} from './zoneWidget';
+import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
@@ -29,14 +30,12 @@ export interface IPeekViewService {
 	getActiveWidget(): PeekViewWidget;
 }
 
-var CONTEXT_OUTER_EDITOR = 'outerEditorId';
-
 export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCodeEditor {
-	var outerEditorId = args.context[CONTEXT_OUTER_EDITOR];
-	if (!outerEditorId) {
-		return null;
+	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	if (editor instanceof EmbeddedCodeEditorWidget) {
+		return editor.getParentEditor();
 	}
-	return accessor.get(ICodeEditorService).getCodeEditor(outerEditorId);
+	return editor;
 }
 
 export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
@@ -57,7 +56,6 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 	constructor(editor: ICodeEditor, keybindingService: IKeybindingService, contextKey: string, options: IOptions = {}) {
 		super(editor, options);
 		this.contextKey = contextKey;
-		keybindingService.createKey(CONTEXT_OUTER_EDITOR, editor.getId());
 	}
 
 	public dispose(): void {

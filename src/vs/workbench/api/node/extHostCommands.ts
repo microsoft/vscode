@@ -145,7 +145,7 @@ export class MainThreadCommands {
 				return this._proxy.$executeContributedCommand(id, ...args);
 			},
 			weight: undefined,
-			context: undefined,
+			when: undefined,
 			win: undefined,
 			mac: undefined,
 			linux: undefined,
@@ -190,7 +190,7 @@ KeybindingsRegistry.registerCommandDesc({
 			console.log(all.join('\n'));
 		});
 	},
-	context: undefined,
+	when: undefined,
 	weight: KeybindingsRegistry.WEIGHT.builtinExtension(0),
 	primary: undefined
 });

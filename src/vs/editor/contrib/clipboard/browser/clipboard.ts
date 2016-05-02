@@ -166,13 +166,11 @@ registerClipboardAction({
 }, 'Paste');
 
 function execCommandToHandler(actionId: string, browserCommand: string, accessor: ServicesAccessor, args: any): void {
-	// If editor text focus
-	if (args.context[editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
-		var focusedEditor = findFocusedEditor(actionId, accessor, args, false);
-		if (focusedEditor) {
-			focusedEditor.trigger('keyboard', actionId, args);
-			return;
-		}
+	let focusedEditor = findFocusedEditor(actionId, accessor, false);
+	// Only if editor text focus (i.e. not if editor has widget focus).
+	if (focusedEditor && focusedEditor.isFocused()) {
+		focusedEditor.trigger('keyboard', actionId, args);
+		return;
 	}
 
 	document.execCommand(browserCommand);

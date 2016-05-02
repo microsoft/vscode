@@ -37,6 +37,6 @@ KeybindingsRegistry.registerCommandDesc({
 		return accessor.get(IWorkbenchEditorService).openEditor(input, null, position)
 			.then(editor => true);
 	},
-	context: undefined,
+	when: undefined,
 	primary: undefined
 });

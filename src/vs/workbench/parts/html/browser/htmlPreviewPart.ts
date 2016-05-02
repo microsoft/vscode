@@ -28,7 +28,7 @@ import {IOpenerService} from 'vs/platform/opener/common/opener';
 
 KeybindingsRegistry.registerCommandDesc({
 	id: '_webview.openDevTools',
-	context: null,
+	when: null,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	primary: null,
 	handler() {

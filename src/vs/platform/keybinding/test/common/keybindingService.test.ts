@@ -16,7 +16,7 @@ suite('Keybinding Service', () => {
 		let contextRules = KbExpr.equals('bar', 'baz');
 		let keybindingItem: IKeybindingItem = {
 			command: 'yes',
-			context: contextRules,
+			when: contextRules,
 			keybinding: keybinding,
 			weight1: 0,
 			weight2: 0
@@ -44,10 +44,10 @@ suite('Keybinding Service', () => {
 
 	test('contextIsEntirelyIncluded', function() {
 		let assertIsIncluded = (a: KbExpr[], b: KbExpr[]) => {
-			assert.equal(KeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
 		};
 		let assertIsNotIncluded = (a: KbExpr[], b: KbExpr[]) => {
-			assert.equal(KeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
+			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
 		};
 		let key1IsTrue = KbExpr.equals('key1', true);
 		let key1IsNotFalse = KbExpr.notEquals('key1', false);
@@ -97,10 +97,10 @@ suite('Keybinding Service', () => {
 	test('resolve command', function() {
 
 		let items: IKeybindingItem[] = [
-			// This one will never match because its context is always overwritten by another one
+			// This one will never match because its "when" is always overwritten by another one
 			{
 				keybinding: KeyCode.KEY_X,
-				context: KbExpr.and(
+				when: KbExpr.and(
 					KbExpr.equals('key1', true),
 					KbExpr.notEquals('key2', false)
 				),
@@ -111,7 +111,7 @@ suite('Keybinding Service', () => {
 			// This one always overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				context: KbExpr.equals('key2', true),
+				when: KbExpr.equals('key2', true),
 				command: 'second',
 				weight1: 2,
 				weight2: 0
@@ -119,7 +119,7 @@ suite('Keybinding Service', () => {
 			// This one is a secondary mapping for `second`
 			{
 				keybinding: KeyCode.KEY_Z,
-				context: null,
+				when: null,
 				command: 'second',
 				weight1: 2.5,
 				weight2: 0
@@ -127,7 +127,7 @@ suite('Keybinding Service', () => {
 			// This one sometimes overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				context: KbExpr.equals('key3', true),
+				when: KbExpr.equals('key3', true),
 				command: 'third',
 				weight1: 3,
 				weight2: 0
@@ -135,7 +135,7 @@ suite('Keybinding Service', () => {
 			// This one is always overwritten by another one
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				context: KbExpr.equals('key4', true),
+				when: KbExpr.equals('key4', true),
 				command: 'fourth',
 				weight1: 4,
 				weight2: 0
@@ -143,7 +143,7 @@ suite('Keybinding Service', () => {
 			// This one overwrites with a chord the previous one
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
-				context: null,
+				when: null,
 				command: 'fifth',
 				weight1: 5,
 				weight2: 0
@@ -151,49 +151,49 @@ suite('Keybinding Service', () => {
 			// This one has no keybinding
 			{
 				keybinding: 0,
-				context: null,
+				when: null,
 				command: 'sixth',
 				weight1: 6,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				context: null,
+				when: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
-				context: null,
+				when: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				context: null,
+				when: null,
 				command: 'uncomment lines',
 				weight1: 7,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				context: null,
+				when: null,
 				command: 'comment lines',
 				weight1: 8,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_G, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				context: null,
+				when: null,
 				command: 'unreachablechord',
 				weight1: 10,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				context: null,
+				when: null,
 				command: 'eleven',
 				weight1: 11,
 				weight2: 0
@@ -275,7 +275,7 @@ suite('Keybinding Service', () => {
 			'c': '5'
 		};
 		function testExpression(expr: string, expected: boolean): void {
-			let rules = IOSupport.readKeybindingContexts(expr);
+			let rules = IOSupport.readKeybindingWhen(expr);
 			assert.equal(KeybindingResolver.contextMatchesRules(context, rules), expected, expr);
 		}
 		function testBatch(expr: string, value: any): void {

@@ -30,6 +30,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	protected domElement:HTMLElement;
 	private focusTracker:dom.IFocusTracker;
+	private _hasWidgetFocus: boolean;
 
 	_configuration:Configuration;
 
@@ -48,17 +49,21 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 	) {
 		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
 
+		this._hasWidgetFocus = false;
+
 		// track focus of the domElement and all its anchestors
 		this.focusTracker = dom.trackFocus(this.domElement);
 		this.focusTracker.addFocusListener(() => {
 			if (this.forcedWidgetFocusCount === 0) {
 				this._editorFocusContextKey.set(true);
+				this._hasWidgetFocus = true;
 				this.emit(editorCommon.EventType.EditorFocus, {});
 			}
 		});
 		this.focusTracker.addBlurListener(() => {
 			if (this.forcedWidgetFocusCount === 0) {
 				this._editorFocusContextKey.reset();
+				this._hasWidgetFocus = false;
 				this.emit(editorCommon.EventType.EditorBlur, {});
 			}
 		});
@@ -251,6 +256,10 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	public isFocused(): boolean {
 		return this.hasView && this._view.isFocused();
+	}
+
+	public hasWidgetFocus(): boolean {
+		return this._hasWidgetFocus;
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
@@ -447,7 +456,6 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	protected _createView(): void {
 		this._view = new View(
-			this.id,
 			this._configuration,
 			this.viewModel,
 			this._keybindingService

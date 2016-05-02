@@ -179,7 +179,7 @@ KeybindingsRegistry.registerCommandDesc({
 		}
 
 	},
-	context: undefined,
+	when: undefined,
 	primary: undefined
 });
 

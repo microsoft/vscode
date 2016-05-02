@@ -24,7 +24,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ExpandAbbre
 KeybindingsRegistry.registerCommandRule({
 	id: ExpandAbbreviationAction.ID,
 	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-	context: KbExpr.and(
+	when: KbExpr.and(
 		KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 		KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION),
 		KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS),
