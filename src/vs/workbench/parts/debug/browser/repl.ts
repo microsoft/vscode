@@ -114,11 +114,9 @@ export class Repl extends Panel {
 		this.replInput.type = 'text';
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, 'keydown', (e: IKeyboardEvent) => {
-			let trimmedValue = this.replInput.value.trim();
-
-			if (e.equals(CommonKeybindings.ENTER) && trimmedValue) {
-				this.debugService.addReplExpression(trimmedValue);
-				Repl.HISTORY.evaluated(trimmedValue);
+			if (e.equals(CommonKeybindings.ENTER)) {
+				this.debugService.addReplExpression(this.replInput.value);
+				Repl.HISTORY.evaluated(this.replInput.value);
 				this.replInput.value = '';
 				e.preventDefault();
 			} else if (e.equals(CommonKeybindings.UP_ARROW) || e.equals(CommonKeybindings.DOWN_ARROW)) {
