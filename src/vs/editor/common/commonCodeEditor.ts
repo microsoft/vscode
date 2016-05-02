@@ -693,7 +693,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				this.model.getOptions().tabSize,
 				this._configuration.editor.wrappingInfo.wrappingColumn,
 				this._configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
-				editorCommon.wrappingIndentFromString(this._configuration.editor.wrappingIndent)
+				this._configuration.editor.wrappingIndent
 			);
 
 			this.viewModel = new ViewModel(

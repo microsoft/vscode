@@ -104,7 +104,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			model.getOptions().tabSize,
 			config.editor.wrappingInfo.wrappingColumn,
 			config.editor.fontInfo.typicalFullwidthCharacterWidth / config.editor.fontInfo.typicalHalfwidthCharacterWidth,
-			editorCommon.wrappingIndentFromString(config.editor.wrappingIndent)
+			config.editor.wrappingIndent
 		);
 
 		linesCollection.setHiddenAreas([{

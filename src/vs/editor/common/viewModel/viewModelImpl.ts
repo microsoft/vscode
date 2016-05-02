@@ -13,7 +13,8 @@ import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewModelCursors} from 'vs/editor/common/viewModel/viewModelCursors';
 import {ViewModelDecorations} from 'vs/editor/common/viewModel/viewModelDecorations';
-import {IDecorationsViewportData, ViewLineTokens, IViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {IDecorationsViewportData, IViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 export interface ILinesCollection {
 	setTabSize(newTabSize:number, emit:(evenType:string, payload:any)=>void): boolean;
@@ -115,8 +116,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return lineMappingChanged;
 	}
 
-	private _onWrappingIndentChange(newWrappingIndent:string): boolean {
-		var lineMappingChanged = this.lines.setWrappingIndent(editorCommon.wrappingIndentFromString(newWrappingIndent), (eventType:string, payload:any) => this.emit(eventType, payload));
+	private _onWrappingIndentChange(newWrappingIndent:editorCommon.WrappingIndent): boolean {
+		var lineMappingChanged = this.lines.setWrappingIndent(newWrappingIndent, (eventType:string, payload:any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
 			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));

@@ -23,7 +23,7 @@ import {createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
-import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/viewModel/viewModel';
+import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;

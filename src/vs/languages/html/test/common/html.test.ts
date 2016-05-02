@@ -725,15 +725,15 @@ suite('Colorizing - HTML', () => {
 
 	test('matchBracket', () => {
 
-		function toString(brackets:EditorCommon.IEditorRange[]): string[] {
+		function toString(brackets:[EditorCommon.IEditorRange, EditorCommon.IEditorRange]): [string,string] {
 			if (!brackets) {
 				return null;
 			}
 			brackets.sort(Range.compareRangesUsingStarts);
-			return brackets.map(b => b.toString());
+			return [brackets[0].toString(), brackets[1].toString()];
 		}
 
-		function assertBracket(lines:string[], lineNumber:number, column:number, expected:EditorCommon.IEditorRange[]): void {
+		function assertBracket(lines:string[], lineNumber:number, column:number, expected:[EditorCommon.IEditorRange, EditorCommon.IEditorRange]): void {
 			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), false, _mode);
 			// force tokenization
 			model.getLineContext(model.getLineCount());
@@ -741,9 +741,7 @@ suite('Colorizing - HTML', () => {
 				lineNumber: lineNumber,
 				column: column
 			});
-			let actualStr = actual ? toString(actual.brackets) : null;
-			let expectedStr = toString(expected);
-			assert.deepEqual(actualStr, expectedStr, 'TEXT <<' + lines.join('\n') + '>>, POS: ' + lineNumber + ', ' + column);
+			assert.deepEqual(toString(actual), toString(expected), 'TEXT <<' + lines.join('\n') + '>>, POS: ' + lineNumber + ', ' + column);
 		}
 
 		assertBracket(['<p></p>'], 1, 1, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);

@@ -84,7 +84,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	fontLigatures:boolean;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
-	wrappingIndent: string;
+	wrappingIndent: editorCommon.WrappingIndent;
 	wordWrapBreakBeforeCharacters: string;
 	wordWrapBreakAfterCharacters: string;
 	wordWrapBreakObtrusiveCharacters: string;
@@ -150,7 +150,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.fontLigatures = Boolean(input.fontLigatures);
 		this.hideCursorInOverviewRuler = Boolean(input.hideCursorInOverviewRuler);
 		this.scrollBeyondLastLine = Boolean(input.scrollBeyondLastLine);
-		this.wrappingIndent = String(input.wrappingIndent);
+		this.wrappingIndent = input.wrappingIndent;
 		this.wordWrapBreakBeforeCharacters = String(input.wordWrapBreakBeforeCharacters);
 		this.wordWrapBreakAfterCharacters = String(input.wordWrapBreakAfterCharacters);
 		this.wordWrapBreakObtrusiveCharacters = String(input.wordWrapBreakObtrusiveCharacters);
@@ -335,7 +335,7 @@ class InternalEditorOptionsHelper {
 			fontLigatures: toBoolean(opts.fontLigatures),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
-			wrappingIndent: opts.wrappingIndent,
+			wrappingIndent: wrappingIndentFromString(opts.wrappingIndent),
 			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
@@ -534,6 +534,16 @@ function toSortedIntegerArray(source:any): number[] {
 	let r = arrSource.map(el => toInteger(el));
 	r.sort();
 	return r;
+}
+
+function wrappingIndentFromString(wrappingIndent:string): editorCommon.WrappingIndent {
+	if (wrappingIndent === 'indent') {
+		return editorCommon.WrappingIndent.Indent;
+	} else if (wrappingIndent === 'same') {
+		return editorCommon.WrappingIndent.Same;
+	} else {
+		return editorCommon.WrappingIndent.None;
+	}
 }
 
 function toIntegerWithDefault(source:any, defaultValue:number): number {

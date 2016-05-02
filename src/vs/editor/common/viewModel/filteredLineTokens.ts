@@ -5,15 +5,14 @@
 'use strict';
 
 import {ILineTokens} from 'vs/editor/common/editorCommon';
-import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
-import {ViewLineTokens} from 'vs/editor/common/viewModel/viewModel';
+import {ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 export class FilteredLineTokens {
 	/**
 	 * [startOffset; endOffset) (i.e. do not include endOffset)
 	 */
 	public static create(original:ILineTokens, startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineTokens {
-		let inflatedTokens = TokensBinaryEncoding.sliceAndInflate(original.getBinaryEncodedTokensMap(), original.getBinaryEncodedTokens(), startOffset, endOffset, deltaStartIndex);
+		let inflatedTokens = original.sliceAndInflate(startOffset, endOffset, deltaStartIndex);
 		return new ViewLineTokens(
 			inflatedTokens,
 			deltaStartIndex,
@@ -25,7 +24,7 @@ export class FilteredLineTokens {
 export class IdentityFilteredLineTokens {
 
 	public static create(original:ILineTokens, textLength:number): ViewLineTokens {
-		let inflatedTokens = TokensBinaryEncoding.inflateArr(original.getBinaryEncodedTokensMap(), original.getBinaryEncodedTokens());
+		let inflatedTokens = original.inflate();
 		return new ViewLineTokens(
 			inflatedTokens,
 			0,

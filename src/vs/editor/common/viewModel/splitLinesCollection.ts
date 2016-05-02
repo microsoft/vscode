@@ -10,7 +10,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {FilteredLineTokens, IdentityFilteredLineTokens} from 'vs/editor/common/viewModel/filteredLineTokens';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {ILinesCollection} from 'vs/editor/common/viewModel/viewModelImpl';
-import {ViewLineTokens} from 'vs/editor/common/viewModel/viewModel';
+import {ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 export class OutputPosition {
 	_outputPositionTrait: void;
