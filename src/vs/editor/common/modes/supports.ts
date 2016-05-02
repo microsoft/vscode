@@ -11,7 +11,7 @@ import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export class Token implements modes.IToken {
-	_tokenTrait: void;
+	_tokenBrand: void;
 
 	public startIndex:number;
 	public type:string;
@@ -27,7 +27,7 @@ export class Token implements modes.IToken {
 }
 
 export class LineTokens implements modes.ILineTokens {
-	_lineTokensTrait: void;
+	_lineTokensBrand: void;
 
 	tokens: Token[];
 	modeTransitions: ModeTransition[];

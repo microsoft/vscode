@@ -128,7 +128,7 @@ function createTokenizationSupport(mode: IMode, grammar: IGrammar): ITokenizatio
 }
 
 export class DecodeMap {
-	_decodeMapTrait: void;
+	_decodeMapBrand: void;
 
 	lastAssignedId: number;
 	scopeToTokenIds: { [scope:string]:number[]; };
@@ -186,7 +186,7 @@ export class DecodeMap {
 }
 
 export class TMTokenDecodeData {
-	_tmTokenDecodeDataTrait: void;
+	_tmTokenDecodeDataBrand: void;
 
 	public scopes: string[];
 	public scopeTokensMaps: boolean[][];

@@ -8,7 +8,7 @@ import {IMode, IModeTransition} from 'vs/editor/common/modes';
 import {Arrays} from 'vs/editor/common/core/arrays';
 
 export class ModeTransition {
-	_modeTransitionTrait: void;
+	_modeTransitionBrand: void;
 
 	public startIndex:number;
 	public mode:IMode;

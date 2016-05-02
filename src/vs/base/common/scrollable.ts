@@ -37,7 +37,7 @@ export interface INewScrollState {
 
 export class Scrollable extends Disposable {
 
-	_scrollableTrait: void;
+	_scrollableBrand: void;
 
 	private _width: number;
 	private _scrollWidth: number;

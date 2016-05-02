@@ -2400,7 +2400,7 @@ export interface IHandlerDispatcher {
 }
 
 export class BareFontInfo {
-	_bareFontInfoTrait: void;
+	_bareFontInfoBrand: void;
 
 	fontFamily: string;
 	fontSize: number;
@@ -2418,7 +2418,7 @@ export class BareFontInfo {
 }
 
 export class FontInfo extends BareFontInfo {
-	_editorStylingTrait: void;
+	_editorStylingBrand: void;
 
 	typicalHalfwidthCharacterWidth:number;
 	typicalFullwidthCharacterWidth:number;
@@ -2646,7 +2646,7 @@ export interface IViewWhitespaceViewportData {
 }
 
 export class Viewport {
-	_viewportTrait: void;
+	_viewportBrand: void;
 
 	top: number;
 	left: number;

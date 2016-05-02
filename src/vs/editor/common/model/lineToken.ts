@@ -10,7 +10,7 @@ import {Arrays} from 'vs/editor/common/core/arrays';
  * A token on a line.
  */
 export class LineToken {
-	public _lineTokenTrait: void;
+	public _lineTokenBrand: void;
 
 	public startIndex:number;
 	public type:string;

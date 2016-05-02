@@ -18,7 +18,7 @@ export interface IPartialViewLinesViewportData {
 }
 
 export class ViewLinesViewportData {
-	_viewLinesViewportDataTrait: void;
+	_viewLinesViewportDataBrand: void;
 
 	viewportTop: number;
 	viewportHeight: number;

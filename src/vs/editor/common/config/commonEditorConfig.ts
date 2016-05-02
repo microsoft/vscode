@@ -63,7 +63,7 @@ export class ConfigurationWithDefaults {
 }
 
 export class InternalEditorOptions implements editorCommon.IInternalEditorOptions {
-	public _internalEditorOptionsTrait: void;
+	_internalEditorOptionsBrand: void;
 
 	experimentalScreenReader: boolean;
 	rulers: number[];

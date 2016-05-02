@@ -36,7 +36,7 @@ export interface IRenderingContext extends IRestrictedRenderingContext {
 }
 
 export class LineVisibleRanges {
-	_lineVisibleRangesTrait: void;
+	_lineVisibleRangesBrand: void;
 
 	public lineNumber: number;
 	public ranges: HorizontalRange[];
@@ -48,7 +48,7 @@ export class LineVisibleRanges {
 }
 
 export class VisibleRange {
-	_visibleRangeTrait: void;
+	_visibleRangeBrand: void;
 
 	public top:number;
 	public left:number;
@@ -62,7 +62,7 @@ export class VisibleRange {
 }
 
 export class HorizontalRange {
-	_horizontalRangeTrait: void;
+	_horizontalRangeBrand: void;
 
 	public left: number;
 	public width: number;

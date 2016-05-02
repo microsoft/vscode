@@ -218,7 +218,7 @@ function insertCustomLineDecorationsWithStateMachine(lineNumber:number, lineCont
 }
 
 export class LineParts {
-	_linePartsTrait: void;
+	_linePartsBrand: void;
 	private _parts: ViewLineToken[];
 
 	constructor(parts: ViewLineToken[]) {

@@ -10,7 +10,7 @@ import {Arrays} from 'vs/editor/common/core/arrays';
  * A token on a line.
  */
 export class ViewLineToken {
-	public _viewLineTokenTrait: void;
+	_viewLineTokenBrand: void;
 
 	public startIndex:number;
 	public type:string;
@@ -47,7 +47,7 @@ export class ViewLineToken {
 }
 
 export class ViewLineTokens {
-	_viewLineTokensTrait: void;
+	_viewLineTokensBrand: void;
 
 	private _lineTokens:ViewLineToken[];
 	private _fauxIndentLength:number;

@@ -13,7 +13,7 @@ import {ILinesCollection} from 'vs/editor/common/viewModel/viewModelImpl';
 import {ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 export class OutputPosition {
-	_outputPositionTrait: void;
+	_outputPositionBrand: void;
 	outputLineIndex: number;
 	outputOffset: number;
 

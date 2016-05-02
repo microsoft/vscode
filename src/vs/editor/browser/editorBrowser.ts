@@ -358,7 +358,7 @@ export interface IEditorContributionDescriptor {
 }
 
 export class ColorZone {
-	_colorZoneTrait: void;
+	_colorZoneBrand: void;
 
 	from: number;
 	to: number;
@@ -377,7 +377,7 @@ export class ColorZone {
  * A zone in the overview ruler
  */
 export class OverviewRulerZone {
-	_overviewRulerZoneTrait: void;
+	_overviewRulerZoneBrand: void;
 
 	startLineNumber: number;
 	endLineNumber: number;

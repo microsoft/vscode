@@ -12,7 +12,7 @@ import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class DecorationToRender {
-	public _decorationToRenderTrait:void;
+	_decorationToRenderBrand:void;
 
 	public startLineNumber:number;
 	public endLineNumber:number;
