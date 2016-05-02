@@ -8,7 +8,7 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { tmpdir } from 'os';
+import * as os from 'os';
 import { app } from 'electron';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -19,6 +19,7 @@ import * as types from 'vs/base/common/types';
 import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import product, { IProductConfiguration } from 'vs/code/node/product';
 import { parseArgs } from 'vs/code/node/argv';
+import pkg from 'vs/code/node/package';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -183,7 +184,7 @@ export class EnvService implements IEnvironmentService {
 		});
 
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
-		this._userHome = path.join(app.getPath('home'), product.dataFolderName);
+		this._userHome = path.join(os.homedir(), product.dataFolderName);
 		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
 		this._mainIPCHandle = this.getMainIPCHandle();
 		this._sharedIPCHandle = this.getSharedIPCHandle();
@@ -198,7 +199,7 @@ export class EnvService implements IEnvironmentService {
 	}
 
 	private getIPCHandleName(): string {
-		let handleName = app.getName();
+		let handleName = pkg.name;
 
 		if (!this.isBuilt) {
 			handleName += '-dev';
@@ -215,7 +216,7 @@ export class EnvService implements IEnvironmentService {
 			return '\\\\.\\pipe\\' + handleName;
 		}
 
-		return path.join(tmpdir(), handleName);
+		return path.join(os.tmpdir(), handleName);
 	}
 
 	private static getUniqueUserId(): string {

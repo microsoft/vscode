@@ -7,6 +7,7 @@ import * as path from 'path';
 import uri from 'vs/base/common/uri';
 
 export interface IPackageConfiguration {
+	name: string;
 	version: string;
 }
 
