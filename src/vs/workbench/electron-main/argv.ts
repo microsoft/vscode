@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as minimist from 'minimist';
-import pkg from 'vs/platform/node/package';
+import pkg from 'vs/code/node/package';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
 	help: boolean;

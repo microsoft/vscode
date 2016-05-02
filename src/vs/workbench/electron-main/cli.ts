@@ -6,7 +6,7 @@
 import { spawn } from 'child_process';
 import { assign } from 'vs/base/common/objects';
 import { parseArgs, helpMessage } from './argv';
-import pkg from 'vs/platform/node/package';
+import pkg from 'vs/code/node/package';
 
 export function main(args: string[]) {
 	const argv = parseArgs(args);
