@@ -79,7 +79,7 @@ const openViewletKb: IKeybindings = {
 	'vs/workbench/parts/debug/browser/repl',
 	'Repl',
 	debug.REPL_ID,
-	nls.localize('debugConsole', "Debug Console"),
+	nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
 	'repl'
 ));
 (<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).setDefaultPanelId(debug.REPL_ID);
