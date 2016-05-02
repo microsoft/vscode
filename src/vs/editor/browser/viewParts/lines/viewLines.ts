@@ -10,10 +10,11 @@ import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, ILayoutProvider, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, ILayoutProvider} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {ViewLine, createLine} from 'vs/editor/browser/viewParts/lines/viewLine';
 import {Configuration} from 'vs/editor/browser/config/configuration';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 class LastRenderedData {
 
@@ -69,7 +70,7 @@ export class ViewLines extends ViewLayer {
 	private _lastCursorRevealRangeHorizontallyEvent:editorCommon.IViewRevealRangeEvent;
 	private _lastRenderedData: LastRenderedData;
 
-	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;

@@ -10,7 +10,8 @@ import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {EventType, Gesture, GestureEvent} from 'vs/base/browser/touch';
 import {IScrollEvent} from 'vs/editor/common/editorCommon';
 import {MouseHandler} from 'vs/editor/browser/controller/mouseHandler';
-import {IPointerHandlerHelper, IViewContext, IViewController} from 'vs/editor/browser/editorBrowser';
+import {IPointerHandlerHelper, IViewController} from 'vs/editor/browser/editorBrowser';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -37,7 +38,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	private _lastPointerType: string;
 	private _installGestureHandlerTimeout: number;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.viewHelper.linesContentDomNode.style.msTouchAction = 'none';
@@ -118,7 +119,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	private _lastPointerType: string;
 	private _installGestureHandlerTimeout: number;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.viewHelper.linesContentDomNode.style.touchAction = 'none';
@@ -195,7 +196,7 @@ class TouchHandler extends MouseHandler {
 
 	private gesture:Gesture;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.gesture = new Gesture(this.viewHelper.linesContentDomNode);
@@ -235,7 +236,7 @@ class TouchHandler extends MouseHandler {
 export class PointerHandler implements IDisposable {
 	private handler:MouseHandler;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IPointerHandlerHelper) {
 		if (window.navigator.msPointerEnabled) {
 			this.handler = new MsPointerHandler(context, viewController, viewHelper);
 		} else if((<any> window).TouchEvent) {

@@ -8,8 +8,9 @@
 import 'vs/css!./overlayWidgets';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IEditorLayoutInfo} from 'vs/editor/common/editorCommon';
-import {ClassNames, IOverlayWidget, IRenderingContext, IRestrictedRenderingContext, IViewContext, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, IOverlayWidget, IRenderingContext, IRestrictedRenderingContext, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 interface IWidgetData {
 	widget: IOverlayWidget;
@@ -30,7 +31,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	private _editorHeight:number;
 	private _editorWidth:number;
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super(context);
 
 		this._widgets = {};

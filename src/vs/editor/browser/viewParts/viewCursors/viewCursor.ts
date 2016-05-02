@@ -6,11 +6,12 @@
 
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {IConfigurationChangedEvent, IPosition, TextEditorCursorStyle} from 'vs/editor/common/editorCommon';
-import {IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {Configuration} from 'vs/editor/browser/config/configuration';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 export class ViewCursor {
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _position: IPosition;
 	private _domNode:FastDomNode;
 	private _positionTop:number;
@@ -22,7 +23,7 @@ export class ViewCursor {
 	private _lastRenderedContent: string;
 	private _lineHeight: number;
 
-	constructor(context:IViewContext, isSecondary:boolean) {
+	constructor(context:ViewContext, isSecondary:boolean) {
 		this._context = context;
 		this._cursorStyle = this._context.configuration.editor.cursorStyle;
 		this._lineHeight = this._context.configuration.editor.lineHeight;

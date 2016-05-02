@@ -17,6 +17,7 @@ import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {MouseTargetFactory, ISimplifiedMouseEvent} from 'vs/editor/browser/controller/mouseTarget';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {TimeoutTimer} from 'vs/base/common/async';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -88,7 +89,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
-	public context:editorBrowser.IViewContext;
+	public context:ViewContext;
 	public viewController:editorBrowser.IViewController;
 	public viewHelper:editorBrowser.IPointerHandlerHelper;
 	public mouseTargetFactory: MouseTargetFactory;
@@ -100,7 +101,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 	private _mouseMoveEventHandler: EventGateKeeper<IMouseEvent>;
 
-	constructor(context:editorBrowser.IViewContext, viewController:editorBrowser.IViewController, viewHelper:editorBrowser.IPointerHandlerHelper) {
+	constructor(context:ViewContext, viewController:editorBrowser.IViewController, viewHelper:editorBrowser.IPointerHandlerHelper) {
 		super();
 
 		this.context = context;
@@ -278,7 +279,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 class MouseDownOperation extends Disposable {
 
-	private _context:editorBrowser.IViewContext;
+	private _context:ViewContext;
 	private _viewController:editorBrowser.IViewController;
 	private _viewHelper:editorBrowser.IPointerHandlerHelper;
 	private _createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget;
@@ -296,7 +297,7 @@ class MouseDownOperation extends Disposable {
 	private _lastMouseEvent: IMouseEvent;
 
 	constructor(
-		context:editorBrowser.IViewContext,
+		context:ViewContext,
 		viewController:editorBrowser.IViewController,
 		viewHelper:editorBrowser.IPointerHandlerHelper,
 		createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget,

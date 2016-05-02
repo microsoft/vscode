@@ -11,6 +11,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
 import {Configuration} from 'vs/editor/browser/config/configuration';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 export class ViewOverlays extends ViewLayer {
 
@@ -18,7 +19,7 @@ export class ViewOverlays extends ViewLayer {
 	private _isFocused:boolean;
 	_layoutProvider:editorBrowser.ILayoutProvider;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context);
 
 		this._dynamicOverlays = [];
@@ -103,13 +104,13 @@ export class ViewOverlays extends ViewLayer {
 
 class ViewOverlayLine implements IVisibleLineData {
 
-	private _context:editorBrowser.IViewContext;
+	private _context:ViewContext;
 	private _dynamicOverlays:DynamicViewOverlay[];
 	private _domNode: FastDomNode;
 	private _renderPieces: string;
 	private _lineHeight: number;
 
-	constructor(context:editorBrowser.IViewContext, dynamicOverlays:DynamicViewOverlay[]) {
+	constructor(context:ViewContext, dynamicOverlays:DynamicViewOverlay[]) {
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._dynamicOverlays = dynamicOverlays;
@@ -194,7 +195,7 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	private _scrollWidth: number;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._scrollWidth = this._layoutProvider.getScrollWidth();
@@ -222,7 +223,7 @@ export class MarginViewOverlays extends ViewOverlays {
 	private _scrollHeight:number;
 	private _contentLeft: number;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._glyphMarginLeft = context.configuration.editor.layoutInfo.glyphMarginLeft;

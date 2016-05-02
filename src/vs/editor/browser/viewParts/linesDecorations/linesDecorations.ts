@@ -7,19 +7,20 @@
 
 import 'vs/css!./linesDecorations';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {DecorationToRender, DedupOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 export class LinesDecorationsOverlay extends DedupOverlay {
 
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _lineHeight: number;
 
 	private _decorationsLeft:number;
 	private _decorationsWidth:number;
 	private _renderResult:string[];
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;

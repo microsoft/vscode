@@ -16,8 +16,9 @@ import {IClipboardEvent, IKeyboardEventWrapper, ITextAreaWrapper, TextAreaStrate
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IKeyboardHandlerHelper, IViewContext, IViewController} from 'vs/editor/browser/editorBrowser';
+import {IKeyboardHandlerHelper, IViewController} from 'vs/editor/browser/editorBrowser';
 import {Configuration} from 'vs/editor/browser/config/configuration';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -193,7 +194,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
-	private context:IViewContext;
+	private context:ViewContext;
 	private viewController:IViewController;
 	private viewHelper:IKeyboardHandlerHelper;
 	private textArea:TextAreaWrapper;
@@ -204,7 +205,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	private contentWidth:number;
 	private scrollLeft:number;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IKeyboardHandlerHelper) {
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IKeyboardHandlerHelper) {
 		super();
 
 		this.context = context;

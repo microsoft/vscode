@@ -8,8 +8,9 @@
 import 'vs/css!./rulers';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ILayoutProvider, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ILayoutProvider, IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 export class Rulers extends ViewPart {
 
@@ -19,7 +20,7 @@ export class Rulers extends ViewPart {
 	private _height: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
-	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
 		this._layoutProvider = layoutProvider;
 		this.domNode = document.createElement('div');

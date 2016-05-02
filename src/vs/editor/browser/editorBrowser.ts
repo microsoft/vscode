@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent, IEventEmitter} from 'vs/base/common/eventEmitter';
+import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -191,10 +191,6 @@ export interface IRenderingContext extends IRestrictedRenderingContext {
 	visibleRangeForPosition(position:editorCommon.IPosition): editorCommon.VisibleRange;
 }
 
-export interface IViewEventHandler {
-	handleEvents(events:IEmitterEvent[]): void;
-}
-
 export interface IViewportInfo {
 	visibleRange: editorCommon.IEditorRange;
 	width:number;
@@ -204,16 +200,6 @@ export interface IViewportInfo {
 }
 
 // --- end View Event Handlers & Parts
-
-export interface IViewContext {
-
-	addEventHandler(eventHandler:IViewEventHandler): void;
-	removeEventHandler(eventHandler:IViewEventHandler): void;
-
-	configuration:editorCommon.IConfiguration;
-	model: editorCommon.IViewModel;
-	privateViewEventBus:editorCommon.IViewEventBus;
-}
 
 export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProvider {
 

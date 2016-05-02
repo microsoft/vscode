@@ -39,6 +39,7 @@ import {SelectionsOverlay} from 'vs/editor/browser/viewParts/selections/selectio
 import {ViewCursors} from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import {ViewZones} from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {ViewContext, IViewEventHandler} from 'vs/editor/common/view/viewContext';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -48,7 +49,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private listenersToDispose:IDisposable[];
 
 	private layoutProvider: LayoutProvider;
-	public context: editorBrowser.IViewContext;
+	public context: ViewContext;
 
 	// The view lines
 	private viewLines: ViewLines;
@@ -118,8 +119,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this.context = new ViewContext(
 				editorId, configuration, model, this.eventDispatcher,
-				(eventHandler:editorBrowser.IViewEventHandler) => this.eventDispatcher.addEventHandler(eventHandler),
-				(eventHandler:editorBrowser.IViewEventHandler) => this.eventDispatcher.removeEventHandler(eventHandler)
+				(eventHandler:IViewEventHandler) => this.eventDispatcher.addEventHandler(eventHandler),
+				(eventHandler:IViewEventHandler) => this.eventDispatcher.removeEventHandler(eventHandler)
 		);
 
 		this.createTextArea(keybindingService);
@@ -919,33 +920,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this.hasFocus = newHasFocus;
 			this.context.privateViewEventBus.emit(editorCommon.EventType.ViewFocusChanged, this.hasFocus);
 		}
-	}
-}
-
-class ViewContext implements editorBrowser.IViewContext {
-
-	public editorId:number;
-	public configuration:editorCommon.IConfiguration;
-	public model: editorCommon.IViewModel;
-	public privateViewEventBus:editorCommon.IViewEventBus;
-	public addEventHandler:(eventHandler:editorBrowser.IViewEventHandler)=>void;
-	public removeEventHandler:(eventHandler:editorBrowser.IViewEventHandler)=>void;
-
-	constructor(
-					editorId:number,
-					configuration:editorCommon.IConfiguration,
-					model: editorCommon.IViewModel,
-					privateViewEventBus:editorCommon.IViewEventBus,
-					addEventHandler:(eventHandler:editorBrowser.IViewEventHandler)=>void,
-					removeEventHandler:(eventHandler:editorBrowser.IViewEventHandler)=>void
-				)
-	{
-		this.editorId = editorId;
-		this.configuration = configuration;
-		this.model = model;
-		this.privateViewEventBus = privateViewEventBus;
-		this.addEventHandler = addEventHandler;
-		this.removeEventHandler = removeEventHandler;
 	}
 }
 

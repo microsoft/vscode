@@ -8,7 +8,8 @@
 import 'vs/css!./glyphMargin';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IRenderingContext} from 'vs/editor/browser/editorBrowser';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 export class DecorationToRender {
 	public _decorationToRenderTrait:void;
@@ -75,14 +76,14 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 
 export class GlyphMarginOverlay extends DedupOverlay {
 
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _lineHeight:number;
 	private _glyphMargin:boolean;
 	private _glyphMarginLeft:number;
 	private _glyphMarginWidth:number;
 	private _renderResult: string[];
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;

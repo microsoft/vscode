@@ -9,8 +9,9 @@ import 'vs/css!./contentWidgets';
 import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, ContentWidgetPositionPreference, IContentWidget, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, ContentWidgetPositionPreference, IContentWidget, IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
@@ -53,7 +54,7 @@ export class ViewContentWidgets extends ViewPart {
 	public overflowingContentWidgetsDomNode:HTMLElement;
 	private _viewDomNode: HTMLElement;
 
-	constructor(context:IViewContext, viewDomNode:HTMLElement) {
+	constructor(context:ViewContext, viewDomNode:HTMLElement) {
 		super(context);
 		this._viewDomNode = viewDomNode;
 
