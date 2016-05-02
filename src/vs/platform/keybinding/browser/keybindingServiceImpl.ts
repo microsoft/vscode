@@ -21,6 +21,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -332,20 +333,20 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 				e.preventDefault();
 			}
 			let commandId = resolveResult.commandId.replace(/^\^/, '');
-			this._invokeHandler(commandId, { context: contextValue }).done(undefined, err => {
+			this._invokeHandler(commandId, [{}]).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
 		}
 	}
 
-	protected _invokeHandler(commandId: string, args: any): TPromise<any> {
+	protected _invokeHandler(commandId: string, args: any[]): TPromise<any> {
 
 		let handler = this._getCommandHandler(commandId);
 		if (!handler) {
 			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'. An extension might be missing an activation event.`));
 		}
 		try {
-			let result = this._instantiationService.invokeFunction(handler, args);
+			let result = this._instantiationService.invokeFunction.apply(this._instantiationService, [handler].concat(args));
 			return TPromise.as(result);
 		} catch (err) {
 			return TPromise.wrapError(err);
@@ -376,22 +377,20 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		delete this._contexts[String(contextId)];
 	}
 
-	public executeCommand(commandId: string, args: any = {}): TPromise<any> {
-
-		// TODO@{Alex,Joh} we should spec what args should be.
-
-		// TODO@Alex - move this to its own command
-		if (commandId === SET_CONTEXT_COMMAND_ID) {
-			var contextKey = String(args[0]);
-			var contextValue = args[1];
-
-			this.setContext(contextKey, contextValue);
-			return TPromise.as(null);
-		}
-
+	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
 		return this._invokeHandler(commandId, args);
 	}
 }
+
+KeybindingsRegistry.registerCommandDesc({
+	id: SET_CONTEXT_COMMAND_ID,
+	handler: (accessor:ServicesAccessor, contextKey:any, contextValue:any) => {
+		accessor.get(IKeybindingService).createKey(String(contextKey), contextValue);
+	},
+	weight: 0,
+	primary: undefined,
+	when: null
+});
 
 class ScopedKeybindingService extends AbstractKeybindingService {
 

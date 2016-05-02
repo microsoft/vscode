@@ -83,7 +83,7 @@ function registerCoreDispatchCommand2(handlerId: string) {
 		id: 'default:' + handlerId,
 		handler: (accessor: ServicesAccessor, args: any) => {
 			withCodeEditorFromCommandHandler(handlerId, accessor, (editor) => {
-				editor.trigger('keyboard', handlerId, args[0]);
+				editor.trigger('keyboard', handlerId, args);
 			});
 		},
 		weight: KeybindingsRegistry.WEIGHT.editorCore(),

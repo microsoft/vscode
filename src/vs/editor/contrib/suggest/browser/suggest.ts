@@ -227,7 +227,7 @@ CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weigh
 });
 KeybindingsRegistry.registerCommandDesc({
 	id: 'acceptSelectedSuggestionOnEnter',
-	handler(accessor, args) {
+	handler(accessor) {
 		withCodeEditorFromCommandHandler('acceptSelectedSuggestionOnEnter', accessor, (editor) => {
 			const controller = SuggestController.getSuggestController(editor);
 			controller.acceptSelectedSuggestion();

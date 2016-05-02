@@ -250,7 +250,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return commandAdded;
 	}
 
-	protected _invokeHandler(commandId: string, args: any): TPromise<any> {
+	protected _invokeHandler(commandId: string, args: any[]): TPromise<any> {
 		if (this._extensionService) {
 			return this._extensionService.activateByEvent('onCommand:' + commandId).then(_ => {
 				return super._invokeHandler(commandId, args);

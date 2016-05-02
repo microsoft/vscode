@@ -469,10 +469,7 @@ export class CloseMessagesAction extends Action {
 KeybindingsRegistry.registerCommandDesc({
 	id: '_workbench.ipc',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, args: [string, any[]]) {
-		const ipcMessage = args[0];
-		const ipcArgs = args[1];
-
+	handler(accessor: ServicesAccessor, ipcMessage: string, ipcArgs:any[]) {
 		if (ipcMessage && Array.isArray(ipcArgs)) {
 			ipc.send(ipcMessage, ...ipcArgs);
 		} else {

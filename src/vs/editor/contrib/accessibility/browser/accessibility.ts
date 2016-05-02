@@ -232,7 +232,7 @@ CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEdito
 });
 KeybindingsRegistry.registerCommandDesc({
 	id: TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID,
-	handler: (accessor: ServicesAccessor, args: any) => {
+	handler: (accessor: ServicesAccessor) => {
 		let currentValue = GlobalScreenReaderNVDA.getValue();
 		GlobalScreenReaderNVDA.setValue(!currentValue);
 	},

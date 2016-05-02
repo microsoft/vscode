@@ -157,7 +157,7 @@ export class MainThreadCommands {
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {
-		return this._keybindingService.executeCommand(id, args);
+		return this._keybindingService.executeCommand(id, ...args);
 	}
 
 	$getCommands(): Thenable<string[]> {

@@ -292,7 +292,7 @@ export interface IKeybindingItem {
 }
 
 export interface ICommandHandler {
-	(accessor: ServicesAccessor, args: any): void;
+	(accessor: ServicesAccessor, ...args: any[]): void;
 	description?: string | ICommandHandlerDescription;
 }
 
@@ -335,8 +335,8 @@ export interface IKeybindingService {
 	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	getElectronAcceleratorFor(keybinding: Keybinding): string;
 
-	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
-	executeCommand(commandId: string, args?: any): TPromise<any>;
+	executeCommand<T>(commandId: string, ...args: any[]): TPromise<T>;
+	executeCommand(commandId: string, ...args: any[]): TPromise<any>;
 	hasCommand(commandId: string): boolean;
 }
 

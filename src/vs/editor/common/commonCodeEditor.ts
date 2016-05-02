@@ -556,6 +556,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	}
 
 	public trigger(source:string, handlerId:string, payload:any): void {
+		payload = payload || {};
 		var candidate = this.getAction(handlerId);
 		if(candidate !== null) {
 			if (candidate.enabled) {

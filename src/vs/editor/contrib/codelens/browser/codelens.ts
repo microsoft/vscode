@@ -79,7 +79,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 				let command = this._commands[element.id];
 				if (command) {
 					editor.focus();
-					keybindingService.executeCommand(command.id, command.arguments).done(undefined, err => {
+					keybindingService.executeCommand(command.id, ...command.arguments).done(undefined, err => {
 						messageService.show(Severity.Error, err);
 					});
 				}

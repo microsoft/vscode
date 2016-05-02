@@ -32,6 +32,7 @@ import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/bro
 import {findReferences} from '../common/referenceSearch';
 import {EventType, ReferencesModel} from './referenceSearchModel';
 import {ReferenceWidget} from './referenceSearchWidget';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 export class FindReferencesController implements editorCommon.IEditorContribution {
 
@@ -317,9 +318,8 @@ function metaTitle(references: IReference[]): string {
 	}
 }
 
-let findReferencesCommand: ICommandHandler = (accessor, args:[URI, editorCommon.IPosition]) => {
+let findReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resource:URI, position:editorCommon.IPosition) => {
 
-	let [resource, position] = args;
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri');
 	}
@@ -341,12 +341,12 @@ let findReferencesCommand: ICommandHandler = (accessor, args:[URI, editorCommon.
 	});
 };
 
-let showReferencesCommand: ICommandHandler = (accessor, args:[URI, editorCommon.IPosition, IReference[]]) => {
-	if (!(args[0] instanceof URI)) {
+let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resource:URI, position:editorCommon.IPosition, references:IReference[]) => {
+	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri expected');
 	}
 
-	return accessor.get(IEditorService).openEditor({ resource: args[0] }).then(editor => {
+	return accessor.get(IEditorService).openEditor({ resource: resource }).then(editor => {
 
 		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
 		if (!control || typeof control.getEditorType !== 'function') {
@@ -354,8 +354,8 @@ let showReferencesCommand: ICommandHandler = (accessor, args:[URI, editorCommon.
 		}
 
 		let controller = FindReferencesController.getController(control);
-		let range = Position.asEmptyRange(args[1]);
-		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2]), metaTitle)).then(() => true);
+		let range = Position.asEmptyRange(position);
+		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(references), metaTitle)).then(() => true);
 	});
 };
 

@@ -93,11 +93,8 @@ export module CommonEditorRegistry {
 	export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
 		KeybindingsRegistry.registerCommandDesc({
 			id,
-			handler(accessor, args: any[]) {
-				if (args && args.length > 1 || typeof args[0] !== 'object') {
-					throw illegalArgument();
-				}
-				return handler(accessor, args && args[0]);
+			handler(accessor, args: any) {
+				return handler(accessor, args || {});
 			},
 			weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 			primary: undefined,
@@ -255,7 +252,7 @@ function whenRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 function createCommandHandler(commandId: string, handler: IEditorCommandHandler): ICommandHandler {
 	return (accessor, args) => {
 		withCodeEditorFromCommandHandler(commandId, accessor, (editor) => {
-			handler(accessor, editor, args);
+			handler(accessor, editor, args||{});
 		});
 	};
 }
