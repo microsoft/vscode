@@ -7,7 +7,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtension, IGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
 import { isUndefined } from 'vs/base/common/types';
 import { IXHRResponse } from 'vs/base/common/http';
-import { assign, getOrDefault } from 'vs/base/common/objects';
+import { assign } from 'vs/base/common/objects';
+import { lookup } from 'vs/base/common/collections';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -279,8 +280,8 @@ export class GalleryService implements IGalleryService {
 	}
 
 	private _query(options: IQueryOptions = {}): TPromise<IQueryResult> {
-		const text = getOrDefault(options, o => o.text, '');
-		const pageSize = getOrDefault(options, o => o.pageSize, 30);
+		const text = lookup(options, 'text', '');
+		const pageSize = lookup(options, 'pageSize', 30);
 
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
