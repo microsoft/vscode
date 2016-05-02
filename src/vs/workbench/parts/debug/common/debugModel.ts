@@ -155,13 +155,14 @@ export class Thread implements debug.IThread {
 }
 
 export class OutputElement implements debug.ITreeElement {
+	private static ID_COUNTER = 0;
 
-	constructor(private id = uuid.generateUuid()) {
+	constructor(private id = OutputElement.ID_COUNTER++) {
 		// noop
 	}
 
 	public getId(): string {
-		return this.id;
+		return this.id.toString();
 	}
 }
 
@@ -308,16 +309,14 @@ export class Scope implements debug.IScope {
 
 export class StackFrame implements debug.IStackFrame {
 
-	private internalId: string;
 	private scopes: TPromise<Scope[]>;
 
 	constructor(public threadId: number, public frameId: number, public source: Source, public name: string, public lineNumber: number, public column: number) {
-		this.internalId = uuid.generateUuid();
 		this.scopes = null;
 	}
 
 	public getId(): string {
-		return this.internalId;
+		return `stackframe:${ this.threadId }:${ this.frameId }`;
 	}
 
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {
