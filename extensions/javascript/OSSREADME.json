@@ -221,7 +221,7 @@
 	"version": "0.0.0",
 	"license": "MIT",
 	"isProd": true,
-	"repositoryURL": "https://github.com/Microsoft/jsonc-parser"
+	"repositoryURL": "https://github.com/Microsoft/node-jsonc-parser"
 },
 {
 	"name": "Microsoft/vscode-nls",
