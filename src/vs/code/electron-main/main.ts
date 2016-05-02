@@ -9,6 +9,7 @@ import * as nls from 'vs/nls';
 import * as fs from 'fs';
 import { app, ipcMain as ipc } from 'electron';
 import { assign } from 'vs/base/common/objects';
+import { mkdirp } from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
 import { IProcessEnvironment, IEnvironmentService, EnvService } from 'vs/code/electron-main/env';
 import { IWindowsService, WindowsManager } from 'vs/code/electron-main/windows';
@@ -253,6 +254,17 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
+// TODO@Joao: what about in the cli process?
+function createPaths(accessor: ServicesAccessor): TPromise<void> {
+	const environmentService = accessor.get(IEnvironmentService);
+
+	return TPromise.join([
+		mkdirp(environmentService.appSettingsHome),
+		mkdirp(environmentService.userHome),
+		mkdirp(environmentService.userExtensionsHome)
+	]) as any as TPromise<void>;
+}
+
 // TODO: isolate
 const services = new ServiceCollection();
 
@@ -282,7 +294,8 @@ getUserEnvironment()
 		// See also https://github.com/Microsoft/vscode/issues/4558
 		userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
 
-		return instantiationService.invokeFunction(setupIPC)
+		return instantiationService.invokeFunction(createPaths)
+			.then(() => instantiationService.invokeFunction(setupIPC))
 			.then(ipcServer => instantiationService.invokeFunction(main, ipcServer, userEnv));
 	})
 	.done(null, err => instantiationService.invokeFunction(quit, err));

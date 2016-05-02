@@ -132,12 +132,6 @@ export class EnvService implements IEnvironmentService {
 		this._currentWorkingDirectory = process.env['VSCODE_CWD'] || process.cwd();
 		this._appHome = app.getPath('userData');
 		this._appSettingsHome = path.join(this._appHome, 'User');
-
-		// TODO move out of here!
-		if (!fs.existsSync(this._appSettingsHome)) {
-			fs.mkdirSync(this._appSettingsHome);
-		}
-
 		this._appSettingsPath = path.join(this._appSettingsHome, 'settings.json');
 		this._appKeybindingsPath = path.join(this._appSettingsHome, 'keybindings.json');
 
@@ -189,21 +183,8 @@ export class EnvService implements IEnvironmentService {
 		});
 
 		this._isTestingFromCli = this.cliArgs.extensionTestsPath && !this.cliArgs.debugBrkExtensionHost;
-
 		this._userHome = path.join(app.getPath('home'), product.dataFolderName);
-
-		// TODO move out of here!
-		if (!fs.existsSync(this._userHome)) {
-			fs.mkdirSync(this._userHome);
-		}
-
 		this._userExtensionsHome = this.cliArgs.extensionsHomePath || path.join(this._userHome, 'extensions');
-
-		// TODO move out of here!
-		if (!fs.existsSync(this._userExtensionsHome)) {
-			fs.mkdirSync(this._userExtensionsHome);
-		}
-
 		this._mainIPCHandle = this.getMainIPCHandle();
 		this._sharedIPCHandle = this.getSharedIPCHandle();
 	}
