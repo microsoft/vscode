@@ -6,7 +6,8 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import {ITokensInflatorMap, LineToken, ViewLineToken} from 'vs/editor/common/editorCommon';
+import {ITokensInflatorMap, LineToken} from 'vs/editor/common/editorCommon';
+import {ViewLineToken} from 'vs/editor/common/viewModel/viewModel';
 
 export const START_INDEX_MASK = 0xffffffff;
 export const TYPE_MASK = 0xffff;

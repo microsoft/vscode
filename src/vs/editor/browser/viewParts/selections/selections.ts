@@ -8,11 +8,9 @@
 import 'vs/css!./selections';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {IRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
-
-type HorizontalRange = editorCommon.HorizontalRange;
-type LineVisibleRanges = editorCommon.LineVisibleRanges;
+import {HorizontalRange, LineVisibleRanges} from 'vs/editor/common/view/renderingContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 enum CornerStyle {
 	EXTERN,

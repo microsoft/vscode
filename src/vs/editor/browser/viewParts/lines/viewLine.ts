@@ -6,13 +6,14 @@
 
 import * as browser from 'vs/base/browser/browser';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
 import {LineParts, createLineParts, getColumnOfLinePartOffset} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import {RangeUtil} from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {HorizontalRange} from 'vs/editor/common/view/renderingContext';
 
 export class ViewLine implements IVisibleLineData {
 

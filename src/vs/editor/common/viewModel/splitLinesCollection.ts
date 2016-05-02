@@ -9,7 +9,8 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {FilteredLineTokens, IdentityFilteredLineTokens} from 'vs/editor/common/viewModel/filteredLineTokens';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import {ILinesCollection} from 'vs/editor/common/viewModel/viewModel';
+import {ILinesCollection} from 'vs/editor/common/viewModel/viewModelImpl';
+import {ViewLineTokens} from 'vs/editor/common/viewModel/viewModel';
 
 export class OutputPosition {
 	_outputPositionTrait: void;
@@ -47,7 +48,7 @@ export interface ISplitLine {
 	getOutputLineContent(model: IModel, myLineNumber: number, outputLineIndex: number): string;
 	getOutputLineMinColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number;
 	getOutputLineMaxColumn(model: IModel, myLineNumber: number, outputLineIndex: number): number;
-	getOutputLineTokens(model: IModel, myLineNumber: number, outputLineIndex: number): editorCommon.ViewLineTokens;
+	getOutputLineTokens(model: IModel, myLineNumber: number, outputLineIndex: number): ViewLineTokens;
 	getInputColumnOfOutputPosition(outputLineIndex: number, outputColumn: number): number;
 	getOutputPositionOfInputPosition(deltaLineNumber: number, inputColumn: number): editorCommon.IEditorPosition;
 }
@@ -96,7 +97,7 @@ class IdentitySplitLine implements ISplitLine {
 		return model.getLineMaxColumn(myLineNumber);
 	}
 
-	public getOutputLineTokens(model:IModel, myLineNumber:number, outputLineIndex:number): editorCommon.ViewLineTokens {
+	public getOutputLineTokens(model:IModel, myLineNumber:number, outputLineIndex:number): ViewLineTokens {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -194,7 +195,7 @@ export class SplitLine implements ISplitLine {
 		return this.getOutputLineContent(model, myLineNumber, outputLineIndex).length + 1;
 	}
 
-	public getOutputLineTokens(model:IModel, myLineNumber:number, outputLineIndex:number): editorCommon.ViewLineTokens {
+	public getOutputLineTokens(model:IModel, myLineNumber:number, outputLineIndex:number): ViewLineTokens {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
@@ -652,7 +653,7 @@ export class SplitLinesCollection implements ILinesCollection {
 		return this.lines[lineIndex].getOutputLineMaxColumn(this.model, lineIndex + 1, remainder);
 	}
 
-	public getOutputLineTokens(outputLineNumber: number): editorCommon.ViewLineTokens {
+	public getOutputLineTokens(outputLineNumber: number): ViewLineTokens {
 		this._ensureValidState();
 		outputLineNumber = this._toValidOutputLineNumber(outputLineNumber);
 		let r = this.prefixSumComputer.getIndexOf(outputLineNumber - 1);

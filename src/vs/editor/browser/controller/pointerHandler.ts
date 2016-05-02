@@ -9,8 +9,8 @@ import * as dom from 'vs/base/browser/dom';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {EventType, Gesture, GestureEvent} from 'vs/base/browser/touch';
 import {IScrollEvent} from 'vs/editor/common/editorCommon';
-import {MouseHandler} from 'vs/editor/browser/controller/mouseHandler';
-import {IPointerHandlerHelper, IViewController} from 'vs/editor/browser/editorBrowser';
+import {MouseHandler, IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
+import {IViewController} from 'vs/editor/browser/editorBrowser';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 interface IThrottledGestureEvent {

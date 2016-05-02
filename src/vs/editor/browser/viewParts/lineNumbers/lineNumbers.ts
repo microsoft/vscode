@@ -9,8 +9,9 @@ import 'vs/css!./lineNumbers';
 import * as platform from 'vs/base/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {ClassNames, IRenderingContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames} from 'vs/editor/browser/editorBrowser';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 

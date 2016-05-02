@@ -7,9 +7,10 @@
 import {Position} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {IEditorLayoutInfo, IEditorPosition, IEditorRange, IPosition, MouseTargetType} from 'vs/editor/common/editorCommon';
-import {ClassNames, IMouseTarget, IPointerHandlerHelper, IViewZoneData} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, IMouseTarget, IViewZoneData} from 'vs/editor/browser/editorBrowser';
 import {IDomNodePosition} from 'vs/base/browser/dom';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 
 interface IHitTestResult {
 	position: IPosition;

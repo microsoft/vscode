@@ -10,11 +10,14 @@ import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, ILayoutProvider} from 'vs/editor/browser/editorBrowser';
+import {ClassNames} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {ViewLine, createLine} from 'vs/editor/browser/viewParts/lines/viewLine';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import {VisibleRange, LineVisibleRanges} from 'vs/editor/common/view/renderingContext';
+import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
 
 class LastRenderedData {
 
@@ -235,7 +238,7 @@ export class ViewLines extends ViewLayer {
 		return this._lines[lineIndex].getWidth();
 	}
 
-	public linesVisibleRangesForRange(range:editorCommon.IRange, includeNewLines:boolean): editorCommon.LineVisibleRanges[] {
+	public linesVisibleRangesForRange(range:editorCommon.IRange, includeNewLines:boolean): LineVisibleRanges[] {
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
@@ -248,7 +251,7 @@ export class ViewLines extends ViewLayer {
 			return null;
 		}
 
-		let visibleRanges:editorCommon.LineVisibleRanges[] = [];
+		let visibleRanges:LineVisibleRanges[] = [];
 		let clientRectDeltaLeft = this.domNode.domNode.getBoundingClientRect().left;
 
 		let nextLineModelLineNumber:number;
@@ -280,7 +283,7 @@ export class ViewLines extends ViewLayer {
 				}
 			}
 
-			visibleRanges.push(new editorCommon.LineVisibleRanges(lineNumber, visibleRangesForLine));
+			visibleRanges.push(new LineVisibleRanges(lineNumber, visibleRangesForLine));
 		}
 
 		if (visibleRanges.length === 0) {
@@ -290,7 +293,7 @@ export class ViewLines extends ViewLayer {
 		return visibleRanges;
 	}
 
-	public visibleRangesForRange2(range:editorCommon.IRange, deltaTop:number): editorCommon.VisibleRange[] {
+	public visibleRangesForRange2(range:editorCommon.IRange, deltaTop:number): VisibleRange[] {
 
 		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
@@ -303,7 +306,7 @@ export class ViewLines extends ViewLayer {
 			return null;
 		}
 
-		let result:editorCommon.VisibleRange[] = [];
+		let result:VisibleRange[] = [];
 		let clientRectDeltaLeft = this.domNode.domNode.getBoundingClientRect().left;
 		let bigNumbersDelta = this._lastRenderedData.getBigNumbersDelta();
 
@@ -324,7 +327,7 @@ export class ViewLines extends ViewLayer {
 
 			let adjustedLineNumberVerticalOffset = this._layoutProvider.getVerticalOffsetForLineNumber(lineNumber) - bigNumbersDelta + deltaTop;
 			for (let i = 0, len = visibleRangesForLine.length; i < len; i++) {
-				result.push(new editorCommon.VisibleRange(adjustedLineNumberVerticalOffset, visibleRangesForLine[i].left, visibleRangesForLine[i].width));
+				result.push(new VisibleRange(adjustedLineNumberVerticalOffset, visibleRangesForLine[i].left, visibleRangesForLine[i].width));
 			}
 		}
 
@@ -363,7 +366,7 @@ export class ViewLines extends ViewLayer {
 		throw new Error('Not supported');
 	}
 
-	public renderText(linesViewportData:editorCommon.ViewLinesViewportData, onAfterLinesRendered:()=>void): void {
+	public renderText(linesViewportData:ViewLinesViewportData, onAfterLinesRendered:()=>void): void {
 		if (!this.shouldRender()) {
 			throw new Error('I did not ask to render!');
 		}
@@ -488,7 +491,7 @@ export class ViewLines extends ViewLayer {
 		}
 
 		var i:number,
-			visibleRange:editorCommon.VisibleRange;
+			visibleRange:VisibleRange;
 
 		for (i = 0; i < visibleRanges.length; i++) {
 			visibleRange = visibleRanges[i];

@@ -16,7 +16,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {Configuration} from 'vs/editor/browser/config/configuration';
-import {KeyboardHandler} from 'vs/editor/browser/controller/keyboardHandler';
+import {KeyboardHandler, IKeyboardHandlerHelper} from 'vs/editor/browser/controller/keyboardHandler';
 import {PointerHandler} from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {ViewController} from 'vs/editor/browser/view/viewController';
@@ -40,6 +40,10 @@ import {ViewCursors} from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import {ViewZones} from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {ViewContext, IViewEventHandler} from 'vs/editor/common/view/viewContext';
+import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -85,7 +89,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _keybindingService: IKeybindingService;
 	private _editorTextFocusContextKey: IKeybindingContextKey<boolean>;
 
-	constructor(editorId:number, configuration:Configuration, model:editorCommon.IViewModel, keybindingService: IKeybindingService) {
+	constructor(editorId:number, configuration:Configuration, model:IViewModel, keybindingService: IKeybindingService) {
 		super();
 		this._isDisposed = false;
 		this._editorId = editorId;
@@ -281,7 +285,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this._renderNow();
 	}
 
-	private createPointerHandlerHelper(): editorBrowser.IPointerHandlerHelper {
+	private createPointerHandlerHelper(): IPointerHandlerHelper {
 		return {
 			viewDomNode: this.domNode,
 			linesContentDomNode: this.linesContent,
@@ -378,7 +382,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		};
 	}
 
-	private createKeyboardHandlerHelper(): editorBrowser.IKeyboardHandlerHelper {
+	private createKeyboardHandlerHelper(): IKeyboardHandlerHelper {
 		return {
 			viewDomNode: this.domNode,
 			textArea: this.textArea,
@@ -805,13 +809,13 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		safeInvokeNoArg(() => this._actualRender());
 	}
 
-	private createRenderingContext(linesViewportData:editorCommon.ViewLinesViewportData): editorBrowser.IRenderingContext {
+	private createRenderingContext(linesViewportData:ViewLinesViewportData): IRenderingContext {
 
 		var vInfo = this.layoutProvider.getCurrentViewport();
 
 		var deltaTop = linesViewportData.visibleRangesDeltaTop;
 
-		var r:editorBrowser.IRenderingContext = {
+		var r:IRenderingContext = {
 			linesViewportData: linesViewportData,
 			scrollWidth: this.layoutProvider.getScrollWidth(),
 			scrollHeight: this.layoutProvider.getScrollHeight(),

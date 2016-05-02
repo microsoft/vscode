@@ -23,6 +23,7 @@ import {createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/viewModel/viewModel';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;
@@ -1777,7 +1778,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.IInternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
-		let lineTokens = new editorCommon.ViewLineTokens([new editorCommon.ViewLineToken(0, '')], 0, lineContent.length);
+		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
 
 		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace, config.indentGuides);
 

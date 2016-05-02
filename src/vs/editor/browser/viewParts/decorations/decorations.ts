@@ -8,8 +8,8 @@
 import 'vs/css!./decorations';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {IRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 

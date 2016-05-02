@@ -16,9 +16,17 @@ import {IClipboardEvent, IKeyboardEventWrapper, ITextAreaWrapper, TextAreaStrate
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IKeyboardHandlerHelper, IViewController} from 'vs/editor/browser/editorBrowser';
+import {IViewController} from 'vs/editor/browser/editorBrowser';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {VisibleRange} from 'vs/editor/common/view/renderingContext';
+
+export interface IKeyboardHandlerHelper {
+	viewDomNode:HTMLElement;
+	textArea:HTMLTextAreaElement;
+	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): VisibleRange;
+	flushAnyAccumulatedEvents(): void;
+}
 
 class ClipboardEventWrapper implements IClipboardEvent {
 

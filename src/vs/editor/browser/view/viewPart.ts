@@ -5,8 +5,8 @@
 'use strict';
 
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export abstract class ViewPart extends ViewEventHandler {
 

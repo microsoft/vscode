@@ -8,10 +8,11 @@
 import 'vs/css!./viewCursors';
 import * as browser from 'vs/base/browser/browser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 enum RenderType {
 	Hidden,

@@ -8,8 +8,69 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {LinesLayout} from 'vs/editor/common/viewLayout/linesLayout';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {ILayoutProvider} from 'vs/editor/browser/editorBrowser';
 import {ScrollManager} from 'vs/editor/browser/viewLayout/scrollManager';
+import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+
+export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProvider {
+
+	dispose():void;
+
+	getCenteredViewLineNumberInViewport(): number;
+
+	getCurrentViewport(): editorCommon.Viewport;
+
+	onMaxLineWidthChanged(width:number): void;
+
+	saveState(): editorCommon.IViewState;
+	restoreState(state:editorCommon.IViewState): void;
+}
+
+export interface IScrollingProvider {
+
+	getOverviewRulerInsertData(): { parent: HTMLElement; insertBefore: HTMLElement; };
+	getScrollbarContainerDomNode(): HTMLElement;
+	delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void;
+
+	// This is for the glyphs, line numbers, etc.
+	getScrolledTopFromAbsoluteTop(top:number): number;
+
+	getScrollWidth(): number;
+	getScrollLeft(): number;
+
+	getScrollHeight(): number;
+	getScrollTop(): number;
+
+	setScrollPosition(position:editorCommon.INewScrollPosition): void;
+}
+
+export interface IVerticalLayoutProvider {
+	/**
+	 * Compute vertical offset (top) of line number
+	 */
+	getVerticalOffsetForLineNumber(lineNumber:number): number;
+
+	/**
+	 * Returns the height in pixels for `lineNumber`.
+	 */
+	heightInPxForLine(lineNumber:number): number;
+
+	/**
+	 * Return line number at `verticalOffset` or closest line number
+	 */
+	getLineNumberAtVerticalOffset(verticalOffset:number): number;
+
+	/**
+	 * Compute content height (including one extra scroll page if necessary)
+	 */
+	getTotalHeight(): number;
+
+	/**
+	 * Compute the lines that need to be rendered in the current viewport position.
+	 */
+	getLinesViewportData(): ViewLinesViewportData;
+
+}
 
 export class LayoutProvider extends ViewEventHandler implements IDisposable, ILayoutProvider, editorCommon.IWhitespaceManager {
 
@@ -17,11 +78,11 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 
 	private configuration: editorCommon.IConfiguration;
 	private privateViewEventBus:editorCommon.IViewEventBus;
-	private model:editorCommon.IViewModel;
+	private model:IViewModel;
 	private scrollManager:ScrollManager;
 	private linesLayout: LinesLayout;
 
-	constructor(configuration:editorCommon.IConfiguration, model:editorCommon.IViewModel, privateViewEventBus:editorCommon.IViewEventBus, linesContent:HTMLElement, viewDomNode:HTMLElement, overflowGuardDomNode:HTMLElement) {
+	constructor(configuration:editorCommon.IConfiguration, model:IViewModel, privateViewEventBus:editorCommon.IViewEventBus, linesContent:HTMLElement, viewDomNode:HTMLElement, overflowGuardDomNode:HTMLElement) {
 		super();
 
 		this.configuration = configuration;
@@ -185,7 +246,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData {
 		return this.linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
-	public getLinesViewportData(): editorCommon.ViewLinesViewportData {
+	public getLinesViewportData(): ViewLinesViewportData {
 		return this.linesLayout.getLinesViewportData(this.getCurrentViewport());
 	}
 	public getWhitespaceViewportData(): editorCommon.IViewWhitespaceViewportData[] {

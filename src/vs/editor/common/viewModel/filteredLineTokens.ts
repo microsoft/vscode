@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ILineTokens, ViewLineTokens} from 'vs/editor/common/editorCommon';
+import {ILineTokens} from 'vs/editor/common/editorCommon';
 import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
+import {ViewLineTokens} from 'vs/editor/common/viewModel/viewModel';
 
 export class FilteredLineTokens {
 	/**

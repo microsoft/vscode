@@ -7,9 +7,10 @@
 
 import 'vs/css!./currentLineHighlight';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ILayoutProvider, IRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
 
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context:ViewContext;

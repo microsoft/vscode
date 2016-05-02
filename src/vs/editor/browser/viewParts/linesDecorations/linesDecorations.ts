@@ -7,9 +7,9 @@
 
 import 'vs/css!./linesDecorations';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {DecorationToRender, DedupOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class LinesDecorationsOverlay extends DedupOverlay {
 

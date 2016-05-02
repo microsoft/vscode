@@ -6,10 +6,11 @@
 
 import * as themes from 'vs/platform/theme/common/themes';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {OverviewRulerZone, IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/browser/editorBrowser';
+import {OverviewRulerZone} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class DecorationsOverviewRuler extends ViewPart {
 

@@ -6,9 +6,9 @@
 
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {IConfigurationChangedEvent, IPosition, TextEditorCursorStyle} from 'vs/editor/common/editorCommon';
-import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/browser/editorBrowser';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class ViewCursor {
 	private _context:ViewContext;

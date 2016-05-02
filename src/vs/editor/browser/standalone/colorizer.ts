@@ -6,11 +6,12 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ViewLineToken, IModel} from 'vs/editor/common/editorCommon';
+import {IModel} from 'vs/editor/common/editorCommon';
 import {ILineTokens, IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {RenderLineOutput, renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
+import {ViewLineToken} from 'vs/editor/common/viewModel/viewModel';
 
 export interface IColorizerOptions {
 	tabSize?: number;
