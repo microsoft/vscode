@@ -24,17 +24,25 @@ export class MockCodeEditor extends CommonCodeEditor {
 		return new MockConfiguration(options);
 	}
 	public getCenteredRangeInViewport(): editorCommon.IEditorRange { return null; }
-	public setScrollTop(newScrollTop:number): void { }
-	public getScrollTop(): number { return 0; }
-	public setScrollLeft(newScrollLeft:number): void { }
-	public getScrollLeft(): number { return 0; }
+
 	public getScrollWidth(): number { return 0; }
+	public getScrollLeft(): number { return 0; }
+
 	public getScrollHeight(): number { return 0; }
+	public getScrollTop(): number { return 0; }
+
+	public setScrollLeft(newScrollLeft:number): void { }
+	public setScrollTop(newScrollTop:number): void { }
+	public setScrollPosition(position: editorCommon.INewScrollPosition): void { }
+
 	public saveViewState(): editorCommon.ICodeEditorViewState { return null; }
 	public restoreViewState(state:editorCommon.IEditorViewState): void { }
+
 	public layout(dimension?:editorCommon.IDimension): void { }
+
 	public focus(): void { }
 	public isFocused(): boolean { return true; }
+
 	protected _enableEmptySelectionClipboard(): boolean { return false; }
 	protected _createView(): void { }
 	protected _getViewInternalEventBus(): IEventEmitter { return new EventEmitter(); }

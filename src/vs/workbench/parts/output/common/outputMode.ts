@@ -28,7 +28,7 @@ export const language: types.ILanguage = {
 	tokenizer: {
 		root: [
 
-			// Monaco log levels
+			// Log levels
 			[/^\[trace.*?\]|trace:?/, 'debug-token.output'],
 			[/^\[http.*?\]|http:?/, 'debug-token.output'],
 			[/^\[debug.*?\]|debug:?/, 'debug-token.output'],

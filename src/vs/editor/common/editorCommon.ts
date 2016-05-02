@@ -9,12 +9,11 @@ import Event from 'vs/base/common/event';
 import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
-import {Arrays} from 'vs/editor/common/core/arrays';
+import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 
 export type KeyCode = KeyCode;
 export type KeyMod = KeyMod;
@@ -256,16 +255,6 @@ export enum WrappingIndent {
 	None = 0,
 	Same = 1,
 	Indent = 2
-}
-
-export function wrappingIndentFromString(wrappingIndent:string): WrappingIndent {
-	if (wrappingIndent === 'indent') {
-		return WrappingIndent.Indent;
-	} else if (wrappingIndent === 'same') {
-		return WrappingIndent.Same;
-	} else {
-		return WrappingIndent.None;
-	}
 }
 
 /**
@@ -564,20 +553,6 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	originalEditable?: boolean;
 }
 
-/**
- * Internal indentation options (computed) for the editor.
- */
-export interface IInternalIndentationOptions {
-	/**
-	 * Tab size in spaces. This is used for rendering and for editing.
-	 */
-	tabSize:number;
-	/**
-	 * Insert spaces instead of tabs when indenting or when auto-indenting.
-	 */
-	insertSpaces:boolean;
-}
-
 export interface IInternalEditorScrollbarOptions {
 	arrowSize:number;
 	vertical:string;
@@ -623,7 +598,7 @@ export interface IInternalEditorOptions {
 	fontLigatures:boolean;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
-	wrappingIndent: string;
+	wrappingIndent: WrappingIndent;
 	wordWrapBreakBeforeCharacters: string;
 	wordWrapBreakAfterCharacters: string;
 	wordWrapBreakObtrusiveCharacters: string;
@@ -654,7 +629,8 @@ export interface IInternalEditorOptions {
 
 	layoutInfo: IEditorLayoutInfo;
 
-	stylingInfo: IEditorStyling;
+	fontInfo: FontInfo;
+	editorClassName: string;
 
 	wrappingInfo: IEditorWrappingInfo;
 
@@ -674,22 +650,6 @@ export interface IInternalEditorOptions {
 	 * Computed page size (deduced from editor size) in lines.
 	 */
 	pageSize:number;
-	/**
-	 * Computed width of 'm' (deduced from theme and CSS) in px.
-	 */
-	typicalHalfwidthCharacterWidth:number;
-	/**
-	 * Computed width of fullwidth 'm' (U+FF4D)
-	 */
-	typicalFullwidthCharacterWidth:number;
-	/**
-	 * Computed width of non breaking space &nbsp;
-	 */
-	spaceWidth:number;
-	/**
-	 * Computed font size.
-	 */
-	fontSize:number;
 }
 
 /**
@@ -745,16 +705,13 @@ export interface IConfigurationChangedEvent {
 
 	// ---- Options that are computed
 	layoutInfo: boolean;
-	stylingInfo: boolean;
+	fontInfo: boolean;
+	editorClassName: boolean;
 	wrappingInfo: boolean;
 	observedOuterWidth: boolean;
 	observedOuterHeight: boolean;
 	lineHeight: boolean;
 	pageSize: boolean;
-	typicalHalfwidthCharacterWidth: boolean;
-	typicalFullwidthCharacterWidth: boolean;
-	spaceWidth: boolean;
-	fontSize: boolean;
 }
 
 /**
@@ -1044,21 +1001,6 @@ export enum EndOfLineSequence {
 }
 
 /**
- * The result of a matchBracket operation.
- */
-export interface IMatchBracketResult {
-	/**
-	 * The two ranges describing matching brackets, or null
-	 */
-	brackets:IEditorRange[];
-	/**
-	 * Indicates that the bracket match result is not accurate because the search
-	 * hit some untokenized lines.
-	 */
-	isAccurate:boolean;
-}
-
-/**
  * A read-only line marker in the model.
  */
 export interface IReadOnlyLineMarker {
@@ -1181,7 +1123,6 @@ export interface IIdentifiedSingleEditOperation {
 	forceMoveMarkers: boolean;
 }
 
-
 /**
  * A callback that can compute the cursor state after applying a series of edit operations.
  */
@@ -1193,119 +1134,9 @@ export interface ICursorStateComputer {
 }
 
 /**
- * A token on a line.
- */
-export class ViewLineToken {
-	public _viewLineTokenTrait: void;
-
-	public startIndex:number;
-	public type:string;
-
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex|0;// @perf
-		this.type = type.replace(/[^a-z0-9\-]/gi, ' ');
-	}
-
-	public equals(other:ViewLineToken): boolean {
-		return (
-			this.startIndex === other.startIndex
-			&& this.type === other.type
-		);
-	}
-
-	public static findIndexInSegmentsArray(arr:ViewLineToken[], desiredIndex: number): number {
-		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
-	}
-
-	public static equalsArray(a:ViewLineToken[], b:ViewLineToken[]): boolean {
-		let aLen = a.length;
-		let bLen = b.length;
-		if (aLen !== bLen) {
-			return false;
-		}
-		for (let i = 0; i < aLen; i++) {
-			if (!a[i].equals(b[i])) {
-				return false;
-			}
-		}
-		return true;
-	}
-}
-
-/**
- * A token on a line.
- */
-export class LineToken {
-	public _lineTokenTrait: void;
-
-	public startIndex:number;
-	public type:string;
-
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex|0;// @perf
-		this.type = type;
-	}
-
-	public equals(other:LineToken): boolean {
-		return (
-			this.startIndex === other.startIndex
-			&& this.type === other.type
-		);
-	}
-
-	public static findIndexInSegmentsArray(arr:LineToken[], desiredIndex: number): number {
-		return Arrays.findIndexInSegmentsArray(arr, desiredIndex);
-	}
-
-	public static equalsArray(a:LineToken[], b:LineToken[]): boolean {
-		let aLen = a.length;
-		let bLen = b.length;
-		if (aLen !== bLen) {
-			return false;
-		}
-		for (let i = 0; i < aLen; i++) {
-			if (!a[i].equals(b[i])) {
-				return false;
-			}
-		}
-		return true;
-	}
-}
-
-export interface ITokensInflatorMap {
-	_inflate:string[];
-	_deflate: { [token:string]:number; };
-}
-
-export interface ILineTokensBinaryEncoding {
-	START_INDEX_MASK: number;
-	TYPE_MASK: number;
-	START_INDEX_OFFSET: number;
-	TYPE_OFFSET: number;
-
-	deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[];
-	inflate(map:ITokensInflatorMap, binaryEncodedToken:number): IToken;
-	getStartIndex(binaryEncodedToken:number): number;
-	getType(map:ITokensInflatorMap, binaryEncodedToken:number): string;
-	inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): IToken[];
-	findIndexOfOffset(binaryEncodedTokens:number[], offset:number): number;
-	sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): IToken[];
-}
-
-/**
  * A list of tokens on a line.
  */
 export interface ILineTokens {
-	/**
-	 * Get the binary representation of tokens.
-	 */
-	getBinaryEncodedTokens(): number[];
-
-	/**
-	 * A map to help decoding the token type.
-	 */
-	getBinaryEncodedTokensMap(): ITokensInflatorMap;
-
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
@@ -1327,6 +1158,10 @@ export interface ILineTokens {
 	 * @return The index of the token containing the offset.
 	 */
 	findIndexOfOffset(offset:number): number;
+
+	sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[];
+
+	inflate(): ViewLineToken[];
 }
 
 /**
@@ -1598,14 +1433,6 @@ export interface ITokenizedModel extends ITextModel {
 	getWordUntilPosition(position:IPosition): IWordAtPosition;
 
 	/**
-	 * Get the words on line `lineNumber`.
-	 * @param lineNumber The lineNumber
-	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
-	 * @return All the words on the line.
-	 */
-	getWords(lineNumber:number): IWordRange[];
-
-	/**
 	 * Returns an iterator that can be used to read
 	 * next and previous tokens from the provided position.
 	 * The iterator is made available through the callback
@@ -1640,7 +1467,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * find the matching bracket of that bracket and return the ranges of both brackets.
 	 * @param position The position at which to look for a bracket.
 	 */
-	matchBracket(position:IPosition, inaccurateResultAcceptable?:boolean): IMatchBracketResult;
+	matchBracket(position:IPosition): [IEditorRange,IEditorRange];
 
 	/**
 	 * No mode supports allowed on this model because it is simply too large.
@@ -2572,11 +2399,59 @@ export interface IHandlerDispatcher {
 	trigger(source:string, handlerId:string, payload:any): boolean;
 }
 
-export interface IEditorStyling {
-	editorClassName: string;
+export class BareFontInfo {
+	_bareFontInfoBrand: void;
+
 	fontFamily: string;
 	fontSize: number;
 	lineHeight: number;
+
+	constructor(fontFamily: string, fontSize: number, lineHeight: number) {
+		this.fontFamily = String(fontFamily);
+		this.fontSize = fontSize|0;
+		this.lineHeight = lineHeight|0;
+	}
+
+	public getId(): string {
+		return this.fontFamily + '-' + this.fontSize + '-' + this.lineHeight;
+	}
+}
+
+export class FontInfo extends BareFontInfo {
+	_editorStylingBrand: void;
+
+	typicalHalfwidthCharacterWidth:number;
+	typicalFullwidthCharacterWidth:number;
+	spaceWidth:number;
+	maxDigitWidth: number;
+
+	constructor(
+		fontFamily: string,
+		fontSize: number,
+		lineHeight: number,
+		typicalHalfwidthCharacterWidth:number,
+		typicalFullwidthCharacterWidth:number,
+		spaceWidth:number,
+		maxDigitWidth: number
+	) {
+		super(fontFamily, fontSize, lineHeight);
+		this.typicalHalfwidthCharacterWidth = typicalHalfwidthCharacterWidth;
+		this.typicalFullwidthCharacterWidth = typicalFullwidthCharacterWidth;
+		this.spaceWidth = spaceWidth;
+		this.maxDigitWidth = maxDigitWidth;
+	}
+
+	public equals(other:FontInfo): boolean {
+		return (
+			this.fontFamily === other.fontFamily
+			&& this.fontSize === other.fontSize
+			&& this.lineHeight === other.lineHeight
+			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
+			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
+			&& this.spaceWidth === other.spaceWidth
+			&& this.maxDigitWidth === other.maxDigitWidth
+		);
+	}
 }
 
 export interface IConfiguration {
@@ -2591,48 +2466,9 @@ export interface IConfiguration {
 
 // --- view
 
-export class ViewLineTokens {
-	_viewLineTokensTrait: void;
 
-	private _lineTokens:ViewLineToken[];
-	private _fauxIndentLength:number;
-	private _textLength:number;
 
-	constructor(lineTokens:ViewLineToken[], fauxIndentLength:number, textLength:number) {
-		this._lineTokens = lineTokens;
-		this._fauxIndentLength = fauxIndentLength|0;
-		this._textLength = textLength|0;
-	}
 
-	public getTokens(): ViewLineToken[] {
-		return this._lineTokens;
-	}
-
-	public getFauxIndentLength(): number {
-		return this._fauxIndentLength;
-	}
-
-	public getTextLength(): number {
-		return this._textLength;
-	}
-
-	public equals(other:ViewLineTokens): boolean {
-		return (
-			this._fauxIndentLength === other._fauxIndentLength
-			&& this._textLength === other._textLength
-			&& ViewLineToken.equalsArray(this._lineTokens, other._lineTokens)
-		);
-	}
-
-	public findIndexOfOffset(offset:number): number {
-		return ViewLineToken.findIndexInSegmentsArray(this._lineTokens, offset);
-	}
-}
-
-export interface IDecorationsViewportData {
-	decorations: IModelDecoration[];
-	inlineDecorations: IModelDecoration[][];
-}
 
 export interface IViewEventBus {
 	emit(eventType:string, data?:any): void;
@@ -2665,35 +2501,7 @@ export interface IWhitespaceManager {
 	getWhitespaces(): IEditorWhitespace[];
 }
 
-export interface IViewModel extends IEventEmitter, IDisposable {
 
-	getTabSize(): number;
-
-	getLineCount(): number;
-	getLineContent(lineNumber:number): string;
-	getLineMinColumn(lineNumber:number): number;
-	getLineMaxColumn(lineNumber:number): number;
-	getLineFirstNonWhitespaceColumn(lineNumber:number): number;
-	getLineLastNonWhitespaceColumn(lineNumber:number): number;
-	getLineTokens(lineNumber:number): ViewLineTokens;
-	getDecorationsViewportData(startLineNumber:number, endLineNumber:number): IDecorationsViewportData;
-	getLineRenderLineNumber(lineNumber:number): string;
-	getAllDecorations(): IModelDecoration[];
-	getEOL(): string;
-	getValueInRange(range:IRange, eol:EndOfLinePreference): string;
-	dispose(): void;
-
-	getSelections(): IEditorSelection[];
-
-	getModelLineContent(modelLineNumber:number): string;
-	getModelLineMaxColumn(modelLineNumber:number): number;
-	validateModelPosition(position:IPosition): IEditorPosition;
-	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): IEditorPosition;
-	convertViewRangeToModelRange(viewRange:IRange): IEditorRange;
-	convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): IEditorPosition;
-	convertModelSelectionToViewSelection(modelSelection:IEditorSelection): IEditorSelection;
-	modelPositionIsVisible(position:IPosition): boolean;
-}
 
 export interface IViewEventNames {
 	ModelFlushedEvent: string;
@@ -2732,6 +2540,11 @@ export interface IScrollEvent {
 	scrollLeftChanged: boolean;
 	scrollWidthChanged: boolean;
 	scrollHeightChanged: boolean;
+}
+
+export interface INewScrollPosition {
+	scrollLeft?: number;
+	scrollTop?: number;
 }
 
 export interface IViewLinesDeletedEvent {
@@ -2832,69 +2645,8 @@ export interface IViewWhitespaceViewportData {
 	height:number;
 }
 
-export interface IPartialViewLinesViewportData {
-	viewportTop: number;
-	viewportHeight: number;
-	bigNumbersDelta: number;
-	visibleRangesDeltaTop: number;
-	startLineNumber: number;
-	endLineNumber: number;
-	relativeVerticalOffset: number[];
-}
-
-export class ViewLinesViewportData {
-	_viewLinesViewportDataTrait: void;
-
-	viewportTop: number;
-	viewportHeight: number;
-	bigNumbersDelta: number;
-	visibleRangesDeltaTop: number;
-	/**
-	 * The line number at which to start rendering (inclusive).
-	 */
-	startLineNumber: number;
-	/**
-	 * The line number at which to end rendering (inclusive).
-	 */
-	endLineNumber: number;
-	/**
-	 * relativeVerticalOffset[i] is the gap that must be left between line at
-	 * i - 1 + `startLineNumber` and i + `startLineNumber`.
-	 */
-	relativeVerticalOffset: number[];
-	/**
-	 * The viewport as a range (`startLineNumber`,1) -> (`endLineNumber`,maxColumn(`endLineNumber`)).
-	 */
-	visibleRange:IEditorRange;
-
-	private _decorations: IModelDecoration[];
-	private _inlineDecorations: IModelDecoration[][];
-
-	constructor(partialData:IPartialViewLinesViewportData, visibleRange:IEditorRange, decorationsData:IDecorationsViewportData) {
-		this.viewportTop = partialData.viewportTop|0;
-		this.viewportHeight = partialData.viewportHeight|0;
-		this.bigNumbersDelta = partialData.bigNumbersDelta|0;
-		this.visibleRangesDeltaTop = partialData.visibleRangesDeltaTop|0;
-		this.startLineNumber = partialData.startLineNumber|0;
-		this.endLineNumber = partialData.endLineNumber|0;
-		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
-		this.visibleRange = visibleRange;
-		this._decorations = decorationsData.decorations;
-		this._inlineDecorations = decorationsData.inlineDecorations;
-	}
-
-	public getDecorationsInViewport(): IModelDecoration[] {
-		return this._decorations;
-	}
-
-	public getInlineDecorationsForLineInViewport(lineNumber:number): IModelDecoration[] {
-		lineNumber = lineNumber|0;
-		return this._inlineDecorations[lineNumber - this.startLineNumber];
-	}
-}
-
 export class Viewport {
-	_viewportTrait: void;
+	_viewportBrand: void;
 
 	top: number;
 	left: number;
@@ -3286,9 +3038,18 @@ export interface ICommonCodeEditor extends IEditor {
 	setValue(newValue: string): void;
 
 	/**
-	 * Change the scrollTop of the editor's viewport.
+	 * Get the scrollWidth of the editor's viewport.
 	 */
-	setScrollTop(newScrollTop: number): void;
+	getScrollWidth(): number;
+	/**
+	 * Get the scrollLeft of the editor's viewport.
+	 */
+	getScrollLeft(): number;
+
+	/**
+	 * Get the scrollHeight of the editor's viewport.
+	 */
+	getScrollHeight(): number;
 	/**
 	 * Get the scrollTop of the editor's viewport.
 	 */
@@ -3299,19 +3060,13 @@ export interface ICommonCodeEditor extends IEditor {
 	 */
 	setScrollLeft(newScrollLeft: number): void;
 	/**
-	 * Get the scrollLeft of the editor's viewport.
+	 * Change the scrollTop of the editor's viewport.
 	 */
-	getScrollLeft(): number;
-
+	setScrollTop(newScrollTop: number): void;
 	/**
-	 * Get the scrollWidth of the editor's viewport.
+	 * Change the scroll position of the editor's viewport.
 	 */
-	getScrollWidth(): number;
-
-	/**
-	 * Get the scrollHeight of the editor's viewport.
-	 */
-	getScrollHeight(): number;
+	setScrollPosition(position: INewScrollPosition): void;
 
 	/**
 	 * Get an action that is a contribution to this editor.
@@ -3601,18 +3356,7 @@ export var Handler = {
 	ScrollPageDown:				'scrollPageDown'
 };
 
-export class VisibleRange {
 
-	public top:number;
-	public left:number;
-	public width:number;
-
-	constructor(top:number, left:number, width:number) {
-		this.top = top|0;
-		this.left = left|0;
-		this.width = width|0;
-	}
-}
 
 export enum TextEditorCursorStyle {
 	Line = 1,
@@ -3643,24 +3387,4 @@ export function cursorStyleToString(cursorStyle:TextEditorCursorStyle): string {
 	}
 }
 
-export class HorizontalRange {
 
-	public left: number;
-	public width: number;
-
-	constructor(left:number, width:number) {
-		this.left = left|0;
-		this.width = width|0;
-	}
-}
-
-export class LineVisibleRanges {
-
-	public lineNumber: number;
-	public ranges: HorizontalRange[];
-
-	constructor(lineNumber:number, ranges:HorizontalRange[]) {
-		this.lineNumber = lineNumber;
-		this.ranges = ranges;
-	}
-}

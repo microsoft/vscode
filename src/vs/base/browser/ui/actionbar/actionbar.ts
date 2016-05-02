@@ -193,7 +193,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 export class Separator extends Action {
 
-	public static ID = 'actions.monaco.separator';
+	public static ID = 'vs.actions.separator';
 
 	constructor(label?: string, order?) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');

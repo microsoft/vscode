@@ -25,7 +25,7 @@ export abstract class Part extends WorkbenchComponent {
 	}
 
 	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
+	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Called to create title, content and status area of the part.

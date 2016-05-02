@@ -239,20 +239,20 @@ export class OneCursor {
 	}
 
 	public adjustBracketDecorations(): void {
-		let bracketMatch: editorCommon.IMatchBracketResult = null;
+		let bracketMatch: [editorCommon.IEditorRange,editorCommon.IEditorRange] = null;
 		let selection = this.getSelection();
 		if (selection.isEmpty()) {
-			bracketMatch = this.model.matchBracket(this.position, /*inaccurateResultAcceptable*/true);
+			bracketMatch = this.model.matchBracket(this.position);
 		}
 
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-		if (bracketMatch && bracketMatch.brackets) {
+		if (bracketMatch) {
 			let options: editorCommon.IModelDecorationOptions = {
 				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: 'bracket-match'
 			};
-			newDecorations.push({ range: bracketMatch.brackets[0], options: options });
-			newDecorations.push({ range: bracketMatch.brackets[1], options: options });
+			newDecorations.push({ range: bracketMatch[0], options: options });
+			newDecorations.push({ range: bracketMatch[1], options: options });
 		}
 
 		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, newDecorations, this.editorId);

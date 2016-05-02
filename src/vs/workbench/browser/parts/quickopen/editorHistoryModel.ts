@@ -205,7 +205,8 @@ export class EditorHistoryModel extends QuickOpenModel {
 	}
 
 	public getResults(searchValue: string): QuickOpenEntry[] {
-		searchValue = searchValue.trim();
+		searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
+		
 		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
 
 		let results: QuickOpenEntry[] = [];

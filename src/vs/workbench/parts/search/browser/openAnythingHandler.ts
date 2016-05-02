@@ -72,7 +72,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim();
+		searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
 
 		// Help Windows users to search for paths when using slash
 		if (isWindows) {

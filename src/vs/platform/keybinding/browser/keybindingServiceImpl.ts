@@ -18,6 +18,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandHandler, ICommandHandlerDescription, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
@@ -188,9 +189,10 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
+	private _statusService: IStatusbarService;
 	private _messageService: IMessageService;
 
-	constructor(configurationService: IConfigurationService, messageService: IMessageService) {
+	constructor(configurationService: IConfigurationService, messageService: IMessageService, statusService?: IStatusbarService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
@@ -201,6 +203,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._currentChordStatusMessage = null;
 		this._configurationContext = new ConfigurationContext(configurationService);
 		this._toDispose.push(this._configurationContext);
+		this._statusService = statusService;
 		this._messageService = messageService;
 	}
 
@@ -303,18 +306,18 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		if (resolveResult && resolveResult.enterChord) {
 			e.preventDefault();
 			this._currentChord = resolveResult.enterChord;
-			if (this._messageService) {
+			if (this._statusService) {
 				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
-				this._currentChordStatusMessage = this._messageService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
+				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
 			}
 			return;
 		}
 
-		if (this._messageService && this._currentChord) {
+		if (this._statusService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
 				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
 				let chordPartLabel = this.getLabelFor(new Keybinding(e.asKeybinding()));
-				this._messageService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
+				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
 				e.preventDefault();
 			}
 		}

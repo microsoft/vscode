@@ -10,14 +10,18 @@ import {IScrollEvent, IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecor
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
+import {Configuration} from 'vs/editor/browser/config/configuration';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
 
 export class ViewOverlays extends ViewLayer {
 
 	private _dynamicOverlays:DynamicViewOverlay[];
 	private _isFocused:boolean;
-	_layoutProvider:editorBrowser.ILayoutProvider;
+	_layoutProvider:ILayoutProvider;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
 
 		this._dynamicOverlays = [];
@@ -76,7 +80,7 @@ export class ViewOverlays extends ViewLayer {
 	}
 
 
-	public prepareRender(ctx:editorBrowser.IRenderingContext): void {
+	public prepareRender(ctx:IRenderingContext): void {
 		let toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
 
 		for (let i = 0, len = toRender.length; i < len; i++) {
@@ -88,27 +92,27 @@ export class ViewOverlays extends ViewLayer {
 		return null;
 	}
 
-	public render(ctx:editorBrowser.IRestrictedRenderingContext): void {
+	public render(ctx:IRestrictedRenderingContext): void {
 		// Overwriting to bypass `shouldRender` flag
 		this._viewOverlaysRender(ctx);
 
 		this.domNode.toggleClassName('focused', this._isFocused);
 	}
 
-	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._renderLines(ctx.linesViewportData);
 	}
 }
 
 class ViewOverlayLine implements IVisibleLineData {
 
-	private _context:editorBrowser.IViewContext;
+	private _context:ViewContext;
 	private _dynamicOverlays:DynamicViewOverlay[];
 	private _domNode: FastDomNode;
 	private _renderPieces: string;
 	private _lineHeight: number;
 
-	constructor(context:editorBrowser.IViewContext, dynamicOverlays:DynamicViewOverlay[]) {
+	constructor(context:ViewContext, dynamicOverlays:DynamicViewOverlay[]) {
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._dynamicOverlays = dynamicOverlays;
@@ -193,7 +197,7 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	private _scrollWidth: number;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._scrollWidth = this._layoutProvider.getScrollWidth();
@@ -207,7 +211,7 @@ export class ContentViewOverlays extends ViewOverlays {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
 	}
 
-	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
 		this.domNode.setWidth(this._scrollWidth);
@@ -221,7 +225,7 @@ export class MarginViewOverlays extends ViewOverlays {
 	private _scrollHeight:number;
 	private _contentLeft: number;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._glyphMarginLeft = context.configuration.editor.layoutInfo.glyphMarginLeft;
@@ -231,6 +235,8 @@ export class MarginViewOverlays extends ViewOverlays {
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
 		this.domNode.setWidth(1);
+
+		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 	}
 
 	protected _extraDomNodeHTML(): string {
@@ -264,7 +270,15 @@ export class MarginViewOverlays extends ViewOverlays {
 		return super.onLayoutChanged(layoutInfo) || true;
 	}
 
-	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
+	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
+		if (e.fontInfo) {
+			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+		}
+		return super.onConfigurationChanged(e);
+	}
+
+
+	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 		if (browser.canUseTranslate3d) {
 			var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';

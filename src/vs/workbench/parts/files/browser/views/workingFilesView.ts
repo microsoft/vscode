@@ -12,7 +12,7 @@ import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IAction, IActionRunner} from 'vs/base/common/actions';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
-import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, LocalFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, TextFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import * as DOM from 'vs/base/browser/dom';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
@@ -132,10 +132,10 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledFileDeleted()));
 
 		// listen to files being changed locally
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: LocalFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: LocalFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
 
 		// listen to files being opened
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
@@ -144,23 +144,23 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
-	private onTextFileDirty(e: LocalFileChangeEvent): void {
+	private onTextFileDirty(e: TextFileChangeEvent): void {
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateDirtyIndicator(); // no indication needed when auto save is enabled for short delay
 		}
 	}
 
-	private onTextFileSaved(e: LocalFileChangeEvent): void {
+	private onTextFileSaved(e: TextFileChangeEvent): void {
 		if (this.lastDirtyCount > 0) {
 			this.updateDirtyIndicator();
 		}
 	}
 
-	private onTextFileSaveError(e: LocalFileChangeEvent): void {
+	private onTextFileSaveError(e: TextFileChangeEvent): void {
 		this.updateDirtyIndicator();
 	}
 
-	private onTextFileReverted(e: LocalFileChangeEvent): void {
+	private onTextFileReverted(e: TextFileChangeEvent): void {
 		if (this.lastDirtyCount > 0) {
 			this.updateDirtyIndicator();
 		}

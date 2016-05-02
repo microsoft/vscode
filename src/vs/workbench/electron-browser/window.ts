@@ -68,7 +68,7 @@ export class ElectronWindow {
 			e.preventDefault();
 		});
 
-		// Let a dropped file open inside Monaco (only if dropped over editor area)
+		// Let a dropped file open inside Code (only if dropped over editor area)
 		window.document.body.addEventListener('drop', (e: DragEvent) => {
 			e.preventDefault();
 

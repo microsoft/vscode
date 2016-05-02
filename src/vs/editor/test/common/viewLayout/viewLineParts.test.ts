@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import {DecorationSegment, ILineDecoration, LineDecorationsNormalizer, getColumnOfLinePartOffset, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {Range} from 'vs/editor/common/core/range';
-import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/editorCommon';
 import {RenderLineInput, renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 

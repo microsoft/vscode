@@ -6,15 +6,16 @@
 
 import {IConfigurationChangedEvent, IOverviewRulerPosition, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IOverviewRuler, OverviewRulerZone, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IOverviewRuler, OverviewRulerZone} from 'vs/editor/browser/editorBrowser';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _overviewRuler:OverviewRulerImpl;
 
-	constructor(context:IViewContext, cssClassName:string, scrollHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(context:ViewContext, cssClassName:string, scrollHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
 		super();
 		this._context = context;
 		this._overviewRuler = new OverviewRulerImpl(0, cssClassName, scrollHeight, this._context.configuration.editor.lineHeight,

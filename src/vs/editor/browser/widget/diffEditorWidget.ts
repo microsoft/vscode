@@ -23,6 +23,7 @@ import {createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;
@@ -813,8 +814,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			return;
 		}
 		this._isHandlingScrollEvent = true;
-		this.modifiedEditor.setScrollLeft(e.scrollLeft);
-		this.modifiedEditor.setScrollTop(e.scrollTop);
+		this.modifiedEditor.setScrollPosition({
+			scrollLeft: e.scrollLeft,
+			scrollTop: e.scrollTop
+		});
 		this._isHandlingScrollEvent = false;
 	}
 
@@ -823,8 +826,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			return;
 		}
 		this._isHandlingScrollEvent = true;
-		this.originalEditor.setScrollLeft(e.scrollLeft);
-		this.originalEditor.setScrollTop(e.scrollTop);
+		this.originalEditor.setScrollPosition({
+			scrollLeft: e.scrollLeft,
+			scrollTop: e.scrollTop
+		});
 		this._isHandlingScrollEvent = false;
 	}
 
@@ -1773,14 +1778,14 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.IInternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
-		let lineTokens = new editorCommon.ViewLineTokens([new editorCommon.ViewLineToken(0, '')], 0, lineContent.length);
+		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
 
 		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace, config.indentGuides);
 
 		let r = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
-			config.spaceWidth,
+			config.fontInfo.spaceWidth,
 			config.stopRenderingLineAfter,
 			config.renderWhitespace,
 			parts.getParts()

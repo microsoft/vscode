@@ -8,10 +8,9 @@
 import 'vs/css!./selections';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
-
-type HorizontalRange = editorCommon.HorizontalRange;
-type LineVisibleRanges = editorCommon.LineVisibleRanges;
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {HorizontalRange, LineVisibleRanges} from 'vs/editor/common/view/renderingContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 enum CornerStyle {
 	EXTERN,
@@ -76,13 +75,13 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 	private static ROUNDED_PIECE_WIDTH = 10;
 
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _lineHeight:number;
 	private _roundedSelection:boolean;
 	private _selections:editorCommon.IEditorRange[];
 	private _renderResult:string[];
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;

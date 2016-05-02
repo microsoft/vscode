@@ -5,7 +5,7 @@
 'use strict';
 
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/workbench/services/statusbar/common/statusbarService';
+import {IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment} from 'vs/platform/statusbar/common/statusbar';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {StatusBarAlignment as ExtHostStatusBarAlignment, Disposable} from './extHostTypes';
 import {StatusBarItem, StatusBarAlignment} from 'vscode';

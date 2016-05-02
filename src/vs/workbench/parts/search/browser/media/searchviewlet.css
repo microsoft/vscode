@@ -251,6 +251,14 @@
 	animation-name: inherit !important;
 }
 
+.hc-black .monaco-workbench .search-viewlet .findInFileMatch,
+.monaco-editor.hc-black .findInFileMatch {
+	background: none !important;
+	border: 1px dotted #f38518;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
 /* Theming */
 .vs .search-viewlet .query-box,
 .vs .search-viewlet .file-types .monaco-inputbox {

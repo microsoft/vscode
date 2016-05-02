@@ -17,7 +17,7 @@ import {addClass, append, emmet as $, hide, removeClass, show, toggleClass} from
 import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import {IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent} from 'vs/base/browser/ui/list/list';
 import {List} from 'vs/base/browser/ui/list/listWidget';
-import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
+import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -28,7 +28,6 @@ import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY} from '../common/suggest';
 import {CompletionItem, CompletionModel} from './completionModel';
 import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
 import {alert} from 'vs/base/browser/ui/aria/aria';
-import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -182,8 +181,7 @@ class SuggestionDetails {
 	private el: HTMLElement;
 	private title: HTMLElement;
 	private back: HTMLElement;
-	private scrollable: DomNodeScrollable;
-	private scrollbar: ScrollableElement;
+	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
@@ -196,8 +194,7 @@ class SuggestionDetails {
 		this.back = append(header, $('span.go-back.octicon.octicon-mail-reply'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
-		this.scrollable = new DomNodeScrollable(this.body);
-		this.scrollbar = new ScrollableElement(this.body, this.scrollable, {});
+		this.scrollbar = new DomScrollableElement(this.body, {});
 		append(this.el, this.scrollbar.getDomNode());
 		this.type = append(this.body, $('p.type'));
 		this.docs = append(this.body, $('p.docs'));
@@ -231,8 +228,7 @@ class SuggestionDetails {
 			this.widget.toggleDetails();
 		};
 
-		this.scrollbar.onElementDimensions();
-		this.scrollable.onContentsDimensions();
+		this.scrollbar.scanDomNode();
 
 		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.typeLabel || '', item.suggestion.documentationLabel || '');
 	}
@@ -259,7 +255,6 @@ class SuggestionDetails {
 
 	dispose(): void {
 		this.scrollbar.dispose();
-		this.scrollable.dispose();
 
 		this.el.parentElement.removeChild(this.el);
 		this.el = null;
@@ -479,7 +474,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private onModelModeChanged(): void {
 		const model = this.editor.getModel();
 		const supports = SuggestRegistry.all(model);
-		this.shouldShowEmptySuggestionList = supports.some(s => s.shouldShowEmptySuggestionList());
+		this.shouldShowEmptySuggestionList = supports.some(s => true);
 	}
 
 	private setState(state: State): void {

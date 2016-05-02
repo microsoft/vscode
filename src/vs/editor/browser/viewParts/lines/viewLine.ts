@@ -6,16 +6,18 @@
 
 import * as browser from 'vs/base/browser/browser';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
 import {LineParts, createLineParts, getColumnOfLinePartOffset} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
-import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import {RangeUtil} from 'vs/editor/browser/viewParts/lines/rangeUtil';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {HorizontalRange} from 'vs/editor/common/view/renderingContext';
 
 export class ViewLine implements IVisibleLineData {
 
-	protected _context:IViewContext;
+	protected _context:ViewContext;
 	private _renderWhitespace: boolean;
 	private _indentGuides: boolean;
 	private _spaceWidth: number;
@@ -34,11 +36,11 @@ export class ViewLine implements IVisibleLineData {
 	private _lastRenderedPartIndex:number;
 	private _cachedWidth: number;
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		this._context = context;
 		this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
 		this._indentGuides = this._context.configuration.editor.indentGuides;
-		this._spaceWidth = this._context.configuration.editor.spaceWidth;
+		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
 		this._fontLigatures = this._context.configuration.editor.fontLigatures;
@@ -88,8 +90,8 @@ export class ViewLine implements IVisibleLineData {
 		if (e.indentGuides) {
 			this._indentGuides = this._context.configuration.editor.indentGuides;
 		}
-		if (e.spaceWidth) {
-			this._spaceWidth = this._context.configuration.editor.spaceWidth;
+		if (e.fontInfo) {
+			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		}
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -292,7 +294,7 @@ export class ViewLine implements IVisibleLineData {
 
 class IEViewLine extends ViewLine {
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super(context);
 	}
 
@@ -303,7 +305,7 @@ class IEViewLine extends ViewLine {
 
 class WebKitViewLine extends ViewLine {
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super(context);
 	}
 
@@ -357,7 +359,7 @@ function findIndexInArrayWithMax(lineParts:LineParts, desiredIndex: number, maxR
 	return r <= maxResult ? r : maxResult;
 }
 
-export let createLine: (context: IViewContext) => ViewLine = (function() {
+export let createLine: (context: ViewContext) => ViewLine = (function() {
 	if (window.screen && window.screen.deviceXDPI && (navigator.userAgent.indexOf('Trident/6.0') >= 0 || navigator.userAgent.indexOf('Trident/5.0') >= 0)) {
 		// IE11 doesn't need the screen.logicalXDPI / screen.deviceXDPI ratio multiplication
 		// for TextRange.getClientRects() anymore
@@ -368,15 +370,15 @@ export let createLine: (context: IViewContext) => ViewLine = (function() {
 	return createNormalLine;
 })();
 
-function createIELine(context: IViewContext): ViewLine {
+function createIELine(context: ViewContext): ViewLine {
 	return new IEViewLine(context);
 }
 
-function createWebKitLine(context: IViewContext): ViewLine {
+function createWebKitLine(context: ViewContext): ViewLine {
 	return new WebKitViewLine(context);
 }
 
-function createNormalLine(context: IViewContext): ViewLine {
+function createNormalLine(context: ViewContext): ViewLine {
 	return new ViewLine(context);
 }
 

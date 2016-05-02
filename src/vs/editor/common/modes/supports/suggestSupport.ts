@@ -51,7 +51,7 @@ export class SuggestSupport implements ISuggestSupport {
 				if (this.contribution.excludeTokens.length === 1 && this.contribution.excludeTokens[0] === '*') {
 					return false;
 				}
-				return  !isLineToken(context, offset-1, this.contribution.excludeTokens, true);
+				return !isLineToken(context, offset-1, this.contribution.excludeTokens, true);
 			} else if (nestedMode.suggestSupport) {
 				return nestedMode.suggestSupport.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
 			} else {
@@ -62,10 +62,6 @@ export class SuggestSupport implements ISuggestSupport {
 
 	public getTriggerCharacters(): string[] {
 		return this.contribution.triggerCharacters;
-	}
-
-	public shouldShowEmptySuggestionList(): boolean	{
-		return true;
 	}
 }
 
@@ -89,10 +85,6 @@ export class TextualSuggestSupport implements ISuggestSupport {
 
 	public getTriggerCharacters(): string[] {
 		return [];
-	}
-
-	public shouldShowEmptySuggestionList(): boolean {
-		return true;
 	}
 
 	public shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean {

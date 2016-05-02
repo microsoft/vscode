@@ -27,7 +27,7 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 
 /**
  * An editor implementation that is capable of showing string inputs or promise inputs that resolve to a string.
- * Uses the Monaco TextEditor widget to show the contents.
+ * Uses the TextEditor widget to show the contents.
  */
 export class StringEditor extends BaseTextEditor {
 

@@ -62,7 +62,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	}
 
 	/**
-	 * Note: Clients should not call this method, the monaco workbench calls this
+	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
 	 * Sets the given input with the options to the part. An editor has to deal with the

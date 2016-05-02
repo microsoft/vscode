@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IInternalIndentationOptions, IPosition, IEditorSelection} from 'vs/editor/common/editorCommon';
+import {IPosition, IEditorSelection} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IMoveResult {
@@ -30,6 +30,20 @@ export interface ICursorMoveHelperModel {
 	getLineMaxColumn(lineNumber:number): number;
 	getLineLastNonWhitespaceColumn(lineNumber:number): number;
 	getLineContent(lineNumber:number): string;
+}
+
+/**
+ * Internal indentation options (computed) for the editor.
+ */
+export interface IInternalIndentationOptions {
+	/**
+	 * Tab size in spaces. This is used for rendering and for editing.
+	 */
+	tabSize:number;
+	/**
+	 * Insert spaces instead of tabs when indenting or when auto-indenting.
+	 */
+	insertSpaces:boolean;
 }
 
 export interface IConfiguration {

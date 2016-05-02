@@ -86,7 +86,7 @@ interface IEditorSelectionStatus {
 }
 
 class StateChange {
-	_stateChangeTrait: void;
+	_stateChangeBrand: void;
 
 	indentation: boolean;
 	selectionStatus: boolean;

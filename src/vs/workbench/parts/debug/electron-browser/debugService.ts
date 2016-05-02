@@ -280,7 +280,8 @@ export class DebugService implements debug.IDebugService {
 			const threads = this.model.getThreads();
 			const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
 			const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
-			const stackFrameToFocus = stoppedThread && stoppedThread.getCachedCallStack().length > 0 ? stoppedThread.getCachedCallStack()[0] : null;
+			const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
+			const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
 
 			this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 			if (!stoppedThread) {

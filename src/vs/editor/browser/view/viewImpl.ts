@@ -16,7 +16,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {Configuration} from 'vs/editor/browser/config/configuration';
-import {KeyboardHandler} from 'vs/editor/browser/controller/keyboardHandler';
+import {KeyboardHandler, IKeyboardHandlerHelper} from 'vs/editor/browser/controller/keyboardHandler';
 import {PointerHandler} from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {ViewController} from 'vs/editor/browser/view/viewController';
@@ -39,6 +39,11 @@ import {SelectionsOverlay} from 'vs/editor/browser/viewParts/selections/selectio
 import {ViewCursors} from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import {ViewZones} from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {ViewContext, IViewEventHandler} from 'vs/editor/common/view/viewContext';
+import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {IPointerHandlerHelper} from 'vs/editor/browser/controller/mouseHandler';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -48,7 +53,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private listenersToDispose:IDisposable[];
 
 	private layoutProvider: LayoutProvider;
-	public context: editorBrowser.IViewContext;
+	public context: ViewContext;
 
 	// The view lines
 	private viewLines: ViewLines;
@@ -84,7 +89,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _keybindingService: IKeybindingService;
 	private _editorTextFocusContextKey: IKeybindingContextKey<boolean>;
 
-	constructor(editorId:number, configuration:Configuration, model:editorCommon.IViewModel, keybindingService: IKeybindingService) {
+	constructor(editorId:number, configuration:Configuration, model:IViewModel, keybindingService: IKeybindingService) {
 		super();
 		this._isDisposed = false;
 		this._editorId = editorId;
@@ -103,7 +108,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.linesContent = document.createElement('div');
 		this.linesContent.className = editorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background';
 		this.domNode = document.createElement('div');
-		Configuration.applyEditorStyling(this.domNode, configuration.editor.stylingInfo);
+		this.domNode.className = configuration.editor.editorClassName;
 
 		this.overflowGuardContainer = document.createElement('div');
 		this.overflowGuardContainer.className = editorBrowser.ClassNames.OVERFLOW_GUARD;
@@ -118,8 +123,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this.context = new ViewContext(
 				editorId, configuration, model, this.eventDispatcher,
-				(eventHandler:editorBrowser.IViewEventHandler) => this.eventDispatcher.addEventHandler(eventHandler),
-				(eventHandler:editorBrowser.IViewEventHandler) => this.eventDispatcher.removeEventHandler(eventHandler)
+				(eventHandler:IViewEventHandler) => this.eventDispatcher.addEventHandler(eventHandler),
+				(eventHandler:IViewEventHandler) => this.eventDispatcher.removeEventHandler(eventHandler)
 		);
 
 		this.createTextArea(keybindingService);
@@ -177,9 +182,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		StyleMutator.setTop(this.textArea, 0);
 		StyleMutator.setLeft(this.textArea, 0);
-		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		StyleMutator.setFontSize(this.textArea, this.context.configuration.editor.fontSize);
-		StyleMutator.setLineHeight(this.textArea, this.context.configuration.editor.lineHeight);
 
 		this.listenersToDispose.push(dom.addDisposableListener(this.textArea, 'focus', () => this._setHasFocus(true)));
 		this.listenersToDispose.push(dom.addDisposableListener(this.textArea, 'blur', () => this._setHasFocus(false)));
@@ -283,7 +285,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this._renderNow();
 	}
 
-	private createPointerHandlerHelper(): editorBrowser.IPointerHandlerHelper {
+	private createPointerHandlerHelper(): IPointerHandlerHelper {
 		return {
 			viewDomNode: this.domNode,
 			linesContentDomNode: this.linesContent,
@@ -299,29 +301,24 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 				return (this.accumulatedModelEvents.length > 0);
 			},
 
-			getScrollTop: () => {
-				if (this._isDisposed) {
-					throw new Error('ViewImpl.pointerHandler.getScrollTop: View is disposed');
-				}
-				return this.layoutProvider.getScrollTop();
-			},
-			setScrollTop: (scrollTop: number) => {
-				if (this._isDisposed) {
-					throw new Error('ViewImpl.pointerHandler.setScrollTop: View is disposed');
-				}
-				this.layoutProvider.setScrollTop(scrollTop);
-			},
 			getScrollLeft: () => {
 				if (this._isDisposed) {
 					throw new Error('ViewImpl.pointerHandler.getScrollLeft: View is disposed');
 				}
 				return this.layoutProvider.getScrollLeft();
 			},
-			setScrollLeft: (scrollLeft: number) => {
+			getScrollTop: () => {
 				if (this._isDisposed) {
-					throw new Error('ViewImpl.pointerHandler.setScrollLeft: View is disposed');
+					throw new Error('ViewImpl.pointerHandler.getScrollTop: View is disposed');
 				}
-				this.layoutProvider.setScrollLeft(scrollLeft);
+				return this.layoutProvider.getScrollTop();
+			},
+
+			setScrollPosition: (position:editorCommon.INewScrollPosition) => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.pointerHandler.setScrollPosition: View is disposed');
+				}
+				this.layoutProvider.setScrollPosition(position);
 			},
 
 			isAfterLines: (verticalOffset: number) => {
@@ -385,7 +382,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		};
 	}
 
-	private createKeyboardHandlerHelper(): editorBrowser.IKeyboardHandlerHelper {
+	private createKeyboardHandlerHelper(): IKeyboardHandlerHelper {
 		return {
 			viewDomNode: this.domNode,
 			textArea: this.textArea,
@@ -448,8 +445,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		if (e.stylingInfo) {
-			Configuration.applyEditorStyling(this.domNode, this.context.configuration.editor.stylingInfo);
+		if (e.editorClassName) {
+			this.domNode.className = this.context.configuration.editor.editorClassName;
 		}
 		if (e.ariaLabel) {
 			this.textArea.setAttribute('aria-label', this.context.configuration.editor.ariaLabel);
@@ -522,17 +519,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	public getCodeEditorHelper(): editorBrowser.ICodeEditorHelper {
 		if (!this.codeEditorHelper) {
 			this.codeEditorHelper = {
-				getScrollTop: () => {
+				getScrollWidth: () => {
 					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.getScrollTop: View is disposed');
+						throw new Error('ViewImpl.codeEditorHelper.getScrollWidth: View is disposed');
 					}
-					return this.layoutProvider.getScrollTop();
-				},
-				setScrollTop: (scrollTop: number) => {
-					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.setScrollTop: View is disposed');
-					}
-					this.layoutProvider.setScrollTop(scrollTop);
+					return this.layoutProvider.getScrollWidth();
 				},
 				getScrollLeft: () => {
 					if (this._isDisposed) {
@@ -540,24 +531,27 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					}
 					return this.layoutProvider.getScrollLeft();
 				},
-				setScrollLeft: (scrollLeft: number) => {
-					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.setScrollLeft: View is disposed');
-					}
-					this.layoutProvider.setScrollLeft(scrollLeft);
-				},
+
 				getScrollHeight: () => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getScrollHeight: View is disposed');
 					}
 					return this.layoutProvider.getScrollHeight();
 				},
-				getScrollWidth: () => {
+				getScrollTop: () => {
 					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.getScrollWidth: View is disposed');
+						throw new Error('ViewImpl.codeEditorHelper.getScrollTop: View is disposed');
 					}
-					return this.layoutProvider.getScrollWidth();
+					return this.layoutProvider.getScrollTop();
 				},
+
+				setScrollPosition: (position:editorCommon.INewScrollPosition) => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.setScrollPosition: View is disposed');
+					}
+					this.layoutProvider.setScrollPosition(position);
+				},
+
 				getVerticalOffsetForPosition: (modelLineNumber:number, modelColumn:number) => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getVerticalOffsetForPosition: View is disposed');
@@ -815,13 +809,13 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		safeInvokeNoArg(() => this._actualRender());
 	}
 
-	private createRenderingContext(linesViewportData:editorCommon.ViewLinesViewportData): editorBrowser.IRenderingContext {
+	private createRenderingContext(linesViewportData:ViewLinesViewportData): IRenderingContext {
 
 		var vInfo = this.layoutProvider.getCurrentViewport();
 
 		var deltaTop = linesViewportData.visibleRangesDeltaTop;
 
-		var r:editorBrowser.IRenderingContext = {
+		var r:IRenderingContext = {
 			linesViewportData: linesViewportData,
 			scrollWidth: this.layoutProvider.getScrollWidth(),
 			scrollHeight: this.layoutProvider.getScrollHeight(),
@@ -930,33 +924,6 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			this.hasFocus = newHasFocus;
 			this.context.privateViewEventBus.emit(editorCommon.EventType.ViewFocusChanged, this.hasFocus);
 		}
-	}
-}
-
-class ViewContext implements editorBrowser.IViewContext {
-
-	public editorId:number;
-	public configuration:editorCommon.IConfiguration;
-	public model: editorCommon.IViewModel;
-	public privateViewEventBus:editorCommon.IViewEventBus;
-	public addEventHandler:(eventHandler:editorBrowser.IViewEventHandler)=>void;
-	public removeEventHandler:(eventHandler:editorBrowser.IViewEventHandler)=>void;
-
-	constructor(
-					editorId:number,
-					configuration:editorCommon.IConfiguration,
-					model: editorCommon.IViewModel,
-					privateViewEventBus:editorCommon.IViewEventBus,
-					addEventHandler:(eventHandler:editorBrowser.IViewEventHandler)=>void,
-					removeEventHandler:(eventHandler:editorBrowser.IViewEventHandler)=>void
-				)
-	{
-		this.editorId = editorId;
-		this.configuration = configuration;
-		this.model = model;
-		this.privateViewEventBus = privateViewEventBus;
-		this.addEventHandler = addEventHandler;
-		this.removeEventHandler = removeEventHandler;
 	}
 }
 

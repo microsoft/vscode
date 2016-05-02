@@ -13,7 +13,6 @@ import {ClassNames, ContentWidgetPositionPreference, OverlayWidgetPositionPrefer
 import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import * as standaloneCodeEditor from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import {ILanguageDef} from 'vs/editor/standalone-languages/types';
-import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 var global:any = self;
 if (!global.Monaco) {
@@ -38,11 +37,9 @@ Monaco.Editor.colorizeModelLine = Colorizer.colorizeModelLine;
 // -- export common constants
 Monaco.Editor.SelectionDirection = editorCommon.SelectionDirection;
 Monaco.Editor.WrappingIndent = editorCommon.WrappingIndent;
-Monaco.Editor.wrappingIndentFromString = editorCommon.wrappingIndentFromString;
 Monaco.Editor.OverviewRulerLane = editorCommon.OverviewRulerLane;
 Monaco.Editor.EndOfLinePreference = editorCommon.EndOfLinePreference;
 Monaco.Editor.EndOfLineSequence = editorCommon.EndOfLineSequence;
-Monaco.Editor.LineTokensBinaryEncoding = TokensBinaryEncoding;
 Monaco.Editor.TrackedRangeStickiness = editorCommon.TrackedRangeStickiness;
 Monaco.Editor.VerticalRevealType = editorCommon.VerticalRevealType;
 Monaco.Editor.MouseTargetType = editorCommon.MouseTargetType;

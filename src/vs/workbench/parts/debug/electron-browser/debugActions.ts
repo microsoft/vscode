@@ -746,7 +746,7 @@ export class CopyAction extends actions.Action {
 
 export class ToggleReplAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.action.toggleRepl';
-	static LABEL = nls.localize('toggleRepl', "Debug Console");
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,

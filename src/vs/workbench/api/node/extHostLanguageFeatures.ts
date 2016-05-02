@@ -580,9 +580,6 @@ class SuggestAdapter implements modes.ISuggestSupport {
 	getTriggerCharacters(): string[] {
 		throw new Error('illegal state');
 	}
-	shouldShowEmptySuggestionList(): boolean {
-		throw new Error('illegal state');
-	}
 	shouldAutotriggerSuggest(context: modes.ILineContext, offset: number, triggeredByCharacter: string): boolean {
 		throw new Error('illegal state');
 	}
@@ -1026,9 +1023,6 @@ export class MainThreadLanguageFeatures {
 			},
 			getTriggerCharacters(): string[] {
 				return triggerCharacters;
-			},
-			shouldShowEmptySuggestionList(): boolean {
-				return true;
 			},
 			shouldAutotriggerSuggest(): boolean {
 				return true;

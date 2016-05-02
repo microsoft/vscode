@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./zoneWidget';
-import {EventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import {EventType, IEditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
@@ -80,8 +80,7 @@ class OverlayWidgetDelegate implements IOverlayWidget {
 
 }
 
-// TODO@Joh - this is an event emitter, why?
-export class ZoneWidget extends EventEmitter {
+export class ZoneWidget  {
 
 	private zoneId:number;
 	private lastView:any;
@@ -98,7 +97,6 @@ export class ZoneWidget extends EventEmitter {
 	private listenersToRemove:ListenerUnbind[];
 
 	constructor(editor:ICodeEditor, options:IOptions = {}) {
-		super();
 		this.editor = editor;
 		this.options = objects.mixin(objects.clone(defaultOptions), options);
 		this.zoneId = -1;

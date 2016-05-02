@@ -46,7 +46,7 @@ import IGitService = git.IGitService;
 
 export class StatusUpdater implements ext.IWorkbenchContribution
 {
-	static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.Workbench.StatusUpdater';
+	static ID = 'vs.git.statusUpdater';
 
 	private gitService: IGitService;
 	private eventService: IEventService;
@@ -108,7 +108,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 class DirtyDiffModelDecorator {
 	static GIT_ORIGINAL_SCHEME = 'git-index';
 
-	static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.Editor.DirtyDiffDecorator';
+	static ID = 'vs.git.editor.dirtyDiffDecorator';
 	static MODIFIED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
 		linesDecorationsClassName: 'git-dirty-modified-diff-glyph',
 		isWholeLine: true,
