@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 'use strict';
 
-import path = require('path');
-import fs = require('fs');
-import events = require('events');
-import env = require('vs/code/electron-main/env');
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import * as path from 'path';
+import * as fs from 'fs';
+import { EventEmitter } from 'events';
+import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
 	STORE: 'store'
@@ -32,9 +31,9 @@ export class StorageService implements IStorageService {
 
 	private dbPath: string;
 	private database: any = null;
-	private eventEmitter = new events.EventEmitter();
+	private eventEmitter = new EventEmitter();
 
-	constructor(@env.IEnvironmentService private envService: env.IEnvironmentService) {
+	constructor(@IEnvironmentService private envService: IEnvironmentService) {
 		this.dbPath = path.join(envService.appHome, 'storage.json');
 	}
 

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import events = require('events');
+import { EventEmitter } from 'events';
 import { isString } from 'vs/base/common/types';
 import { Promise } from 'vs/base/common/winjs.base';
 import { json } from 'vs/base/node/request';
@@ -20,7 +20,7 @@ export interface IUpdate {
 	version?: string;
 }
 
-export class LinuxAutoUpdaterImpl extends events.EventEmitter {
+export class LinuxAutoUpdaterImpl extends EventEmitter {
 
 	private url: string;
 	private currentRequest: Promise;

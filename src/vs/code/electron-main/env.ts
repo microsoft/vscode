@@ -5,19 +5,19 @@
 
 'use strict';
 
-import crypto = require('crypto');
-import fs = require('fs');
-import path = require('path');
-import os = require('os');
-import {app} from 'electron';
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
-import uri from 'vs/base/common/uri';
-import types = require('vs/base/common/types');
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import product, {IProductConfiguration} from 'vs/code/node/product';
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import { tmpdir } from 'os';
+import { app } from 'electron';
+import * as arrays from 'vs/base/common/arrays';
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
+import URI from 'vs/base/common/uri';
+import * as types from 'vs/base/common/types';
+import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import product, { IProductConfiguration } from 'vs/code/node/product';
 import { parseArgs } from 'vs/code/node/argv';
 
 export interface IProcessEnvironment {
@@ -132,7 +132,7 @@ export class EnvService implements IEnvironmentService {
 	get sharedIPCHandle(): string { return this._sharedIPCHandle; }
 
 	constructor() {
-		this._appRoot = path.dirname(uri.parse(require.toUrl('')).fsPath);
+		this._appRoot = path.dirname(URI.parse(require.toUrl('')).fsPath);
 		this._currentWorkingDirectory = process.env['VSCODE_CWD'] || process.cwd();
 		this._version = app.getVersion();
 		this._appHome = app.getPath('userData');
@@ -239,7 +239,7 @@ export class EnvService implements IEnvironmentService {
 			return '\\\\.\\pipe\\' + handleName;
 		}
 
-		return path.join(os.tmpdir(), handleName);
+		return path.join(tmpdir(), handleName);
 	}
 
 	private static getUniqueUserId(): string {

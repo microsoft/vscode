@@ -11,7 +11,7 @@ import { IEnvironment } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/code/electron-main/env';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { IUpdateService } from 'vs/code/electron-main/update-manager';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 

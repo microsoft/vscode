@@ -5,11 +5,11 @@
 
 'use strict';
 
-import events = require('events');
-import path = require('path');
-import os = require('os');
-import cp = require('child_process');
-import pfs = require('vs/base/node/pfs');
+import * as path from 'path';
+import * as pfs from 'vs/base/node/pfs';
+import { EventEmitter } from 'events';
+import { tmpdir } from 'os';
+import { spawn } from 'child_process';
 import { mkdirp } from 'vs/base/node/extfs';
 import { isString } from 'vs/base/common/types';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
@@ -26,7 +26,7 @@ export interface IUpdate {
 	version?: string;
 }
 
-export class Win32AutoUpdaterImpl extends events.EventEmitter {
+export class Win32AutoUpdaterImpl extends EventEmitter {
 
 	private url: string;
 	private currentRequest: Promise;
@@ -42,16 +42,16 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 		this.currentRequest = null;
 	}
 
-	public get cachePath(): TPromise<string> {
-		let result = path.join(os.tmpdir(), 'vscode-update');
+	get cachePath(): TPromise<string> {
+		let result = path.join(tmpdir(), 'vscode-update');
 		return new TPromise<string>((c, e) => mkdirp(result, null, err => err ? e(err) : c(result)));
 	}
 
-	public setFeedURL(url: string): void {
+	setFeedURL(url: string): void {
 		this.url = url;
 	}
 
-	public checkForUpdates(): void {
+	checkForUpdates(): void {
 		if (!this.url) {
 			throw new Error('No feed url set.');
 		}
@@ -123,7 +123,7 @@ export class Win32AutoUpdaterImpl extends events.EventEmitter {
 				return;
 			}
 
-			cp.spawn(updatePackagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+			spawn(updatePackagePath, ['/silent', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore']
 			});

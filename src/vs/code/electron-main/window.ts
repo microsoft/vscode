@@ -5,13 +5,13 @@
 
 'use strict';
 
-import path = require('path');
-import {shell, screen, BrowserWindow} from 'electron';
-import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
-import platform = require('vs/base/common/platform');
-import objects = require('vs/base/common/objects');
+import * as path from 'path';
+import * as platform from 'vs/base/common/platform';
+import * as objects from 'vs/base/common/objects';
+import { IStorageService } from 'vs/code/electron-main/storage';
+import { shell, screen, BrowserWindow } from 'electron';
+import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ICommandLineArguments, IEnvironmentService, IProcessEnvironment } from 'vs/code/electron-main/env';
-import storage = require('vs/code/electron-main/storage');
 import { ILogService } from './log';
 
 export interface IWindowState {
@@ -158,7 +158,7 @@ export class VSCodeWindow {
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@storage.IStorageService private storageService: storage.IStorageService
+		@IStorageService private storageService: IStorageService
 	) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;

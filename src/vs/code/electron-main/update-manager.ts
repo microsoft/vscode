@@ -5,11 +5,11 @@
 
 'use strict';
 
-import fs = require('fs');
-import path = require('path');
-import events = require('events');
-import electron = require('electron');
-import platform = require('vs/base/common/platform');
+import * as fs from 'fs';
+import * as path from 'path';
+import * as electron from 'electron';
+import * as platform from 'vs/base/common/platform';
+import { EventEmitter } from 'events';
 import { IEnvironmentService, getPlatformIdentifier } from 'vs/code/electron-main/env';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
@@ -56,7 +56,7 @@ export interface IUpdateService {
 	on(event: string, listener: Function): this;
 }
 
-export class UpdateManager extends events.EventEmitter implements IUpdateService {
+export class UpdateManager extends EventEmitter implements IUpdateService {
 
 	serviceId = IUpdateService;
 

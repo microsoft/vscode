@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {app} from 'electron';
+import { app } from 'electron';
 import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { UserSettings, ISettings } from 'vs/workbench/node/userSettings';
 import { IEnvironmentService } from 'vs/code/electron-main/env';

@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 'use strict';
 
-import events = require('events');
-import path = require('path');
-import fs = require('fs');
-import {ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog} from 'electron';
-import platform = require('vs/base/common/platform');
+import * as path from 'path';
+import * as fs from 'fs';
+import * as platform from 'vs/base/common/platform';
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
+import { EventEmitter } from 'events';
+import { IStorageService } from 'vs/code/electron-main/storage';
+import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
+import { ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog } from 'electron';
 import { ICommandLineArguments, IProcessEnvironment, IEnvironmentService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
-import window = require('vs/code/electron-main/window');
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
-import storage = require('vs/code/electron-main/storage');
-import {ISettingsService} from 'vs/code/electron-main/settings';
-import {IUpdateService, IUpdate} from 'vs/code/electron-main/update-manager';
+import { ISettingsService } from 'vs/code/electron-main/settings';
+import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
 import { ILogService } from './log';
-import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
 	OPEN: 'open',
@@ -42,13 +41,13 @@ export interface IOpenConfiguration {
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
 	forceEmpty?: boolean;
-	windowToUse?: window.VSCodeWindow;
+	windowToUse?: VSCodeWindow;
 	diffMode?: boolean;
 }
 
 interface IWindowState {
 	workspacePath?: string;
-	uiState: window.IWindowState;
+	uiState: ISingleWindowState;
 }
 
 interface IWindowsState {
@@ -79,27 +78,27 @@ export interface IWindowsService {
 
 	// TODO make proper events
 	// events
-	onOpen(clb: (path: window.IPath) => void): () => void;
-	onReady(clb: (win: window.VSCodeWindow) => void): () => void;
+	onOpen(clb: (path: IPath) => void): () => void;
+	onReady(clb: (win: VSCodeWindow) => void): () => void;
 	onClose(clb: (id: number) => void): () => void;
 
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
-	reload(win: window.VSCodeWindow, cli?: ICommandLineArguments): void;
-	open(openConfig: IOpenConfiguration): window.VSCodeWindow[];
+	reload(win: VSCodeWindow, cli?: ICommandLineArguments): void;
+	open(openConfig: IOpenConfiguration): VSCodeWindow[];
 	openPluginDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
 	openFileFolderPicker(forceNewWindow?: boolean): void;
 	openFilePicker(forceNewWindow?: boolean): void;
 	openFolderPicker(forceNewWindow?: boolean): void;
-	focusLastActive(cli: ICommandLineArguments): window.VSCodeWindow;
-	getLastActiveWindow(): window.VSCodeWindow;
-	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): window.VSCodeWindow;
+	focusLastActive(cli: ICommandLineArguments): VSCodeWindow;
+	getLastActiveWindow(): VSCodeWindow;
+	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow;
 	openNewWindow(): void;
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
-	getFocusedWindow(): window.VSCodeWindow;
-	getWindowById(windowId: number): window.VSCodeWindow;
-	getWindows(): window.VSCodeWindow[];
+	getFocusedWindow(): VSCodeWindow;
+	getWindowById(windowId: number): VSCodeWindow;
+	getWindows(): VSCodeWindow[];
 	getWindowCount(): number;
 }
 
@@ -112,29 +111,29 @@ export class WindowsManager implements IWindowsService {
 	private static workingDirPickerStorageKey = 'pickerWorkingDir';
 	private static windowsStateStorageKey = 'windowsState';
 
-	private static WINDOWS: window.VSCodeWindow[] = [];
+	private static WINDOWS: VSCodeWindow[] = [];
 
-	private eventEmitter = new events.EventEmitter();
+	private eventEmitter = new EventEmitter();
 	private initialUserEnv: IProcessEnvironment;
 	private windowsState: IWindowsState;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILogService private logService: ILogService,
-		@storage.IStorageService private storageService: storage.IStorageService,
+		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private envService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IUpdateService private updateManager: IUpdateService,
 		@ISettingsService private settingsManager: ISettingsService
 	) {	}
 
-	onOpen(clb: (path: window.IPath) => void): () => void {
+	onOpen(clb: (path: IPath) => void): () => void {
 		this.eventEmitter.addListener(EventTypes.OPEN, clb);
 
 		return () => this.eventEmitter.removeListener(EventTypes.OPEN, clb);
 	}
 
-	onReady(clb: (win: window.VSCodeWindow) => void): () => void {
+	onReady(clb: (win: VSCodeWindow) => void): () => void {
 		this.eventEmitter.addListener(EventTypes.READY, clb);
 
 		return () => this.eventEmitter.removeListener(EventTypes.READY, clb);
@@ -350,9 +349,9 @@ export class WindowsManager implements IWindowsService {
 			this.logService.log('IPC#vscode:toggleMenuBar');
 
 			// Update in settings
-			let menuBarHidden = this.storageService.getItem(window.VSCodeWindow.menuBarHiddenKey, false);
+			let menuBarHidden = this.storageService.getItem(VSCodeWindow.menuBarHiddenKey, false);
 			let newMenuBarHidden = !menuBarHidden;
-			this.storageService.setItem(window.VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
+			this.storageService.setItem(VSCodeWindow.menuBarHiddenKey, newMenuBarHidden);
 
 			// Update across windows
 			WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
@@ -451,7 +450,7 @@ export class WindowsManager implements IWindowsService {
 			}
 
 			// 2-N windows open: Keep a list of windows that are opened on a specific folder to restore it in the next session as needed
-			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === window.ReadyState.READY && !!w.openedWorkspacePath && !w.isPluginDevelopmentHost).map(w => {
+			this.windowsState.openedFolders = WindowsManager.WINDOWS.filter(w => w.readyState === ReadyState.READY && !!w.openedWorkspacePath && !w.isPluginDevelopmentHost).map(w => {
 				return <IWindowState>{
 					workspacePath: w.openedWorkspacePath,
 					uiState: w.serializeWindowState()
@@ -479,11 +478,11 @@ export class WindowsManager implements IWindowsService {
 
 		// Theme changes
 		if (event === 'vscode:changeTheme' && typeof payload === 'string') {
-			this.storageService.setItem(window.VSCodeWindow.themeStorageKey, payload);
+			this.storageService.setItem(VSCodeWindow.themeStorageKey, payload);
 		}
 	}
 
-	public reload(win: window.VSCodeWindow, cli?: ICommandLineArguments): void {
+	public reload(win: VSCodeWindow, cli?: ICommandLineArguments): void {
 
 		// Only reload when the window has not vetoed this
 		this.lifecycleService.unload(win).done((veto) => {
@@ -493,9 +492,9 @@ export class WindowsManager implements IWindowsService {
 		});
 	}
 
-	public open(openConfig: IOpenConfiguration): window.VSCodeWindow[] {
-		let iPathsToOpen: window.IPath[];
-		let usedWindows: window.VSCodeWindow[] = [];
+	public open(openConfig: IOpenConfiguration): VSCodeWindow[] {
+		let iPathsToOpen: IPath[];
+		let usedWindows: VSCodeWindow[] = [];
 
 		// Find paths from provided paths if any
 		if (openConfig.pathsToOpen && openConfig.pathsToOpen.length > 0) {
@@ -543,8 +542,8 @@ export class WindowsManager implements IWindowsService {
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
-		let filesToOpen: window.IPath[] = [];
-		let filesToDiff: window.IPath[] = [];
+		let filesToOpen: IPath[] = [];
+		let filesToDiff: IPath[] = [];
 		let foldersToOpen = iPathsToOpen.filter((iPath) => iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let emptyToOpen = iPathsToOpen.filter((iPath) => !iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let extensionsToInstall = iPathsToOpen.filter((iPath) => iPath.installExtensionPath).map(ipath => ipath.filePath);
@@ -565,7 +564,7 @@ export class WindowsManager implements IWindowsService {
 			filesToOpen = candidates;
 		}
 
-		let configuration: window.IWindowConfiguration;
+		let configuration: IWindowConfiguration;
 
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0 || extensionsToInstall.length > 0)) {
@@ -719,8 +718,8 @@ export class WindowsManager implements IWindowsService {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.pathArguments.length === 0 });
 	}
 
-	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], filesToDiff?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
-		let configuration: window.IWindowConfiguration = objects.mixin({}, cli); // inherit all properties from CLI
+	private toConfiguration(userEnv: IProcessEnvironment, cli: ICommandLineArguments, workspacePath?: string, filesToOpen?: IPath[], filesToCreate?: IPath[], filesToDiff?: IPath[], extensionsToInstall?: string[]): IWindowConfiguration {
+		let configuration: IWindowConfiguration = objects.mixin({}, cli); // inherit all properties from CLI
 		configuration.execPath = process.execPath;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
@@ -761,7 +760,7 @@ export class WindowsManager implements IWindowsService {
 		return configuration;
 	}
 
-	private getRecentlyOpenedPaths(workspacePath?: string, filesToOpen?: window.IPath[]): IOpenedPathsList {
+	private getRecentlyOpenedPaths(workspacePath?: string, filesToOpen?: IPath[]): IOpenedPathsList {
 		let files: string[];
 		let folders: string[];
 
@@ -800,7 +799,7 @@ export class WindowsManager implements IWindowsService {
 		return { files, folders };
 	}
 
-	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): window.IPath {
+	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): IPath {
 		if (!anyPath) {
 			return null;
 		}
@@ -833,7 +832,7 @@ export class WindowsManager implements IWindowsService {
 		return null;
 	}
 
-	private cliToPaths(cli: ICommandLineArguments, ignoreFileNotFound?: boolean): window.IPath[] {
+	private cliToPaths(cli: ICommandLineArguments, ignoreFileNotFound?: boolean): IPath[] {
 
 		// Check for pass in candidate or last opened path
 		let candidates: string[] = [];
@@ -874,8 +873,8 @@ export class WindowsManager implements IWindowsService {
 		return [Object.create(null)];
 	}
 
-	private openInBrowserWindow(configuration: window.IWindowConfiguration, forceNewWindow?: boolean, windowToUse?: window.VSCodeWindow): window.VSCodeWindow {
-		let vscodeWindow: window.VSCodeWindow;
+	private openInBrowserWindow(configuration: IWindowConfiguration, forceNewWindow?: boolean, windowToUse?: VSCodeWindow): VSCodeWindow {
+		let vscodeWindow: VSCodeWindow;
 
 		if (!forceNewWindow) {
 			vscodeWindow = windowToUse || this.getLastActiveWindow();
@@ -887,7 +886,7 @@ export class WindowsManager implements IWindowsService {
 
 		// New window
 		if (!vscodeWindow) {
-			vscodeWindow = this.instantiationService.createInstance(window.VSCodeWindow, {
+			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
 				state: this.getNewWindowState(configuration),
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath
 			});
@@ -935,7 +934,7 @@ export class WindowsManager implements IWindowsService {
 		return vscodeWindow;
 	}
 
-	private getNewWindowState(configuration: window.IWindowConfiguration): window.IWindowState {
+	private getNewWindowState(configuration: IWindowConfiguration): ISingleWindowState {
 
 		// plugin development host Window - load from stored settings if any
 		if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
@@ -989,14 +988,14 @@ export class WindowsManager implements IWindowsService {
 			}
 		}
 
-		let defaultState = window.defaultWindowState();
+		let defaultState = defaultWindowState();
 		defaultState.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (defaultState.width / 2);
 		defaultState.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (defaultState.height / 2);
 
 		return this.ensureNoOverlap(defaultState);
 	}
 
-	private ensureNoOverlap(state: window.IWindowState): window.IWindowState {
+	private ensureNoOverlap(state: ISingleWindowState): ISingleWindowState {
 		if (WindowsManager.WINDOWS.length === 0) {
 			return state;
 		}
@@ -1058,7 +1057,7 @@ export class WindowsManager implements IWindowsService {
 		});
 	}
 
-	public focusLastActive(cli: ICommandLineArguments): window.VSCodeWindow {
+	public focusLastActive(cli: ICommandLineArguments): VSCodeWindow {
 		let lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();
@@ -1073,7 +1072,7 @@ export class WindowsManager implements IWindowsService {
 		return res && res[0];
 	}
 
-	public getLastActiveWindow(): window.VSCodeWindow {
+	public getLastActiveWindow(): VSCodeWindow {
 		if (WindowsManager.WINDOWS.length) {
 			let lastFocussedDate = Math.max.apply(Math, WindowsManager.WINDOWS.map((w) => w.lastFocusTime));
 			let res = WindowsManager.WINDOWS.filter((w) => w.lastFocusTime === lastFocussedDate);
@@ -1085,7 +1084,7 @@ export class WindowsManager implements IWindowsService {
 		return null;
 	}
 
-	public findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): window.VSCodeWindow {
+	public findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow {
 		if (WindowsManager.WINDOWS.length) {
 
 			// Sort the last active window to the front of the array of windows to test
@@ -1152,7 +1151,7 @@ export class WindowsManager implements IWindowsService {
 		});
 	}
 
-	public getFocusedWindow(): window.VSCodeWindow {
+	public getFocusedWindow(): VSCodeWindow {
 		let win = BrowserWindow.getFocusedWindow();
 		if (win) {
 			return this.getWindowById(win.id);
@@ -1161,7 +1160,7 @@ export class WindowsManager implements IWindowsService {
 		return null;
 	}
 
-	public getWindowById(windowId: number): window.VSCodeWindow {
+	public getWindowById(windowId: number): VSCodeWindow {
 		let res = WindowsManager.WINDOWS.filter((w) => w.id === windowId);
 		if (res && res.length === 1) {
 			return res[0];
@@ -1170,7 +1169,7 @@ export class WindowsManager implements IWindowsService {
 		return null;
 	}
 
-	public getWindows(): window.VSCodeWindow[] {
+	public getWindows(): VSCodeWindow[] {
 		return WindowsManager.WINDOWS;
 	}
 
@@ -1178,7 +1177,7 @@ export class WindowsManager implements IWindowsService {
 		return WindowsManager.WINDOWS.length;
 	}
 
-	private onWindowError(vscodeWindow: window.VSCodeWindow, error: WindowError): void {
+	private onWindowError(vscodeWindow: VSCodeWindow, error: WindowError): void {
 		console.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
 
 		// Unresponsive
@@ -1220,8 +1219,8 @@ export class WindowsManager implements IWindowsService {
 		}
 	}
 
-	private onBeforeWindowClose(win: window.VSCodeWindow): void {
-		if (win.readyState !== window.ReadyState.READY) {
+	private onBeforeWindowClose(win: VSCodeWindow): void {
+		if (win.readyState !== ReadyState.READY) {
 			return; // only persist windows that are fully loaded
 		}
 
@@ -1240,7 +1239,7 @@ export class WindowsManager implements IWindowsService {
 		}
 	}
 
-	private onWindowClosed(win: window.VSCodeWindow): void {
+	private onWindowClosed(win: VSCodeWindow): void {
 
 		// Tell window
 		win.dispose();

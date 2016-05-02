@@ -5,17 +5,16 @@
 
 'use strict';
 
-import {ipcMain as ipc, app, shell, dialog, Menu, MenuItem} from 'electron';
-
-import nls = require('vs/nls');
-import platform = require('vs/base/common/platform');
-import arrays = require('vs/base/common/arrays');
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
+import * as arrays from 'vs/base/common/arrays';
+import * as env from 'vs/code/electron-main/env';
+import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
 import { IWindowsService, WindowsManager, IOpenedPathsList } from 'vs/code/electron-main/windows';
-import window = require('vs/code/electron-main/window');
-import env = require('vs/code/electron-main/env');
+import { IPath, VSCodeWindow } from 'vs/code/electron-main/window';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
-import {Keybinding} from 'vs/base/common/keyCodes';
+import { Keybinding } from 'vs/base/common/keyCodes';
 
 interface IResolvedKeybinding {
 	id: string;
@@ -105,7 +104,7 @@ export class VSCodeMenu {
 		this.updateManager.on('change', () => this.updateMenu());
 	}
 
-	private resolveKeybindings(win: window.VSCodeWindow): void {
+	private resolveKeybindings(win: VSCodeWindow): void {
 		if (this.keybindingsResolved) {
 			return; // only resolve once
 		}
@@ -134,7 +133,7 @@ export class VSCodeMenu {
 		}
 	}
 
-	private onOpen(path: window.IPath): void {
+	private onOpen(path: IPath): void {
 		this.addToOpenedPathsList(path.filePath || path.workspacePath, !!path.filePath);
 		this.updateMenu();
 	}

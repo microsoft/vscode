@@ -5,14 +5,13 @@
 
 'use strict';
 
-import events = require('events');
-import {ipcMain as ipc, app} from 'electron';
-
-import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
-import {ReadyState, VSCodeWindow} from 'vs/code/electron-main/window';
-import env = require('vs/code/electron-main/env');
-import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {ILogService} from './log';
+import { EventEmitter } from 'events';
+import { ipcMain as ipc, app } from 'electron';
+import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
+import { ReadyState, VSCodeWindow } from 'vs/code/electron-main/window';
+import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from './log';
 
 const EventTypes = {
 	BEFORE_QUIT: 'before-quit'
@@ -33,7 +32,7 @@ export class LifecycleService implements ILifecycleService {
 
 	serviceId = ILifecycleService;
 
-	private eventEmitter = new events.EventEmitter();
+	private eventEmitter = new EventEmitter();
 	private windowToCloseRequest: { [windowId: string]: boolean };
 	private quitRequested: boolean;
 	private pendingQuitPromise: TPromise<boolean>;
@@ -41,7 +40,7 @@ export class LifecycleService implements ILifecycleService {
 	private oneTimeListenerTokenGenerator: number;
 
 	constructor(
-		@env.IEnvironmentService private envService: env.IEnvironmentService,
+		@IEnvironmentService private envService: IEnvironmentService,
 		@ILogService private logService: ILogService
 	) {
 		this.windowToCloseRequest = Object.create(null);
