@@ -234,9 +234,6 @@ export abstract class TextFileService implements ITextFileService {
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
 
-		// Propagate to working files model
-		this.workingFilesModel.shutdown();
-
 		return false; // no veto
 	}
 
@@ -267,6 +264,9 @@ export abstract class TextFileService implements ITextFileService {
 		while (this.listenerToUnbind.length) {
 			this.listenerToUnbind.pop()();
 		}
+
+		// Propagate to working files model
+		this.workingFilesModel.shutdown();
 
 		this.workingFilesModel.dispose();
 
