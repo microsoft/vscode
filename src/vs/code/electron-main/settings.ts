@@ -8,7 +8,7 @@
 import {app} from 'electron';
 import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { UserSettings, ISettings } from 'vs/workbench/node/userSettings';
-import { IEnvironmentService } from 'vs/workbench/electron-main/env';
+import { IEnvironmentService } from 'vs/code/electron-main/env';
 import Event from 'vs/base/common/event';
 
 export const ISettingsService = createDecorator<ISettingsService>('settingsService');

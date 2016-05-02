@@ -79,7 +79,7 @@ function getNLSConfiguration() {
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
 	while (locale) {
-		var candidate = path.join(__dirname, 'vs', 'workbench', 'electron-main', 'main.nls.') + locale + '.js';
+		var candidate = path.join(__dirname, 'vs', 'code', 'electron-main', 'main.nls.') + locale + '.js';
 		if (fs.existsSync(candidate)) {
 			return { locale: initialLocale, availableLanguages: { '*': locale } };
 		} else {
@@ -132,5 +132,5 @@ app.on('open-file', function (event, path) {
 app.once('ready', function () {
 	var nlsConfig = getNLSConfiguration();
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-	require('./bootstrap-amd').bootstrap('vs/workbench/electron-main/main');
+	require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
 });

@@ -15,8 +15,8 @@ import { isString } from 'vs/base/common/types';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { ISettingsService  } from 'vs/workbench/electron-main/settings';
-import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
+import { ISettingsService  } from 'vs/code/electron-main/settings';
+import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { IEnvironmentService } from './env';
 
 export interface IUpdate {

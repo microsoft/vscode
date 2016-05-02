@@ -9,7 +9,7 @@
 import path = require('path');
 import fs = require('fs');
 import events = require('events');
-import env = require('vs/workbench/electron-main/env');
+import env = require('vs/code/electron-main/env');
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {

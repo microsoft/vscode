@@ -8,9 +8,9 @@ import URI from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/workbench/electron-main/env';
-import { ISettingsService } from 'vs/workbench/electron-main/settings';
-import { IUpdateService } from 'vs/workbench/electron-main/update-manager';
+import { IEnvironmentService } from 'vs/code/electron-main/env';
+import { ISettingsService } from 'vs/code/electron-main/settings';
+import { IUpdateService } from 'vs/code/electron-main/update-manager';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
@@ -38,7 +38,7 @@ function _spawnSharedProcess(envService: IEnvironmentService, updateManager: IUp
 	// Make sure the nls configuration travels to the shared process.
 	const opts = {
 		env: assign(assign({}, process.env), {
-			AMD_ENTRYPOINT: 'vs/workbench/electron-main/sharedProcessMain'
+			AMD_ENTRYPOINT: 'vs/code/electron-main/sharedProcessMain'
 		})
 	};
 

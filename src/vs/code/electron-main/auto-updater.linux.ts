@@ -10,8 +10,8 @@ import { isString } from 'vs/base/common/types';
 import { Promise } from 'vs/base/common/winjs.base';
 import { json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { ISettingsService } from 'vs/workbench/electron-main/settings';
-import { IEnvironmentService } from 'vs/workbench/electron-main/env';
+import { ISettingsService } from 'vs/code/electron-main/settings';
+import { IEnvironmentService } from 'vs/code/electron-main/env';
 
 export interface IUpdate {
 	url: string;

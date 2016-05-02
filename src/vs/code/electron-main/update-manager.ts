@@ -10,11 +10,11 @@ import path = require('path');
 import events = require('events');
 import electron = require('electron');
 import platform = require('vs/base/common/platform');
-import { IEnvironmentService, getPlatformIdentifier } from 'vs/workbench/electron-main/env';
-import { ISettingsService } from 'vs/workbench/electron-main/settings';
-import { Win32AutoUpdaterImpl } from 'vs/workbench/electron-main/auto-updater.win32';
-import { LinuxAutoUpdaterImpl } from 'vs/workbench/electron-main/auto-updater.linux';
-import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
+import { IEnvironmentService, getPlatformIdentifier } from 'vs/code/electron-main/env';
+import { ISettingsService } from 'vs/code/electron-main/settings';
+import { Win32AutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.win32';
+import { LinuxAutoUpdaterImpl } from 'vs/code/electron-main/auto-updater.linux';
+import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export enum State {

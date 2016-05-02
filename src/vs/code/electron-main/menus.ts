@@ -10,11 +10,11 @@ import {ipcMain as ipc, app, shell, dialog, Menu, MenuItem} from 'electron';
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import arrays = require('vs/base/common/arrays');
-import { IWindowsService, WindowsManager, IOpenedPathsList } from 'vs/workbench/electron-main/windows';
-import window = require('vs/workbench/electron-main/window');
-import env = require('vs/workbench/electron-main/env');
-import { IStorageService } from 'vs/workbench/electron-main/storage';
-import { IUpdateService, State as UpdateState } from 'vs/workbench/electron-main/update-manager';
+import { IWindowsService, WindowsManager, IOpenedPathsList } from 'vs/code/electron-main/windows';
+import window = require('vs/code/electron-main/window');
+import env = require('vs/code/electron-main/env');
+import { IStorageService } from 'vs/code/electron-main/storage';
+import { IUpdateService, State as UpdateState } from 'vs/code/electron-main/update-manager';
 import {Keybinding} from 'vs/base/common/keyCodes';
 
 interface IResolvedKeybinding {

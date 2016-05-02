@@ -9,20 +9,18 @@
 import events = require('events');
 import path = require('path');
 import fs = require('fs');
-
 import {ipcMain as ipc, app, screen, crashReporter, BrowserWindow, dialog} from 'electron';
-
 import platform = require('vs/base/common/platform');
-import { ICommandLineArguments, IProcessEnvironment, IEnvironmentService, IParsedPath, parseLineAndColumnAware } from 'vs/workbench/electron-main/env';
-import window = require('vs/workbench/electron-main/window');
-import { ILifecycleService } from 'vs/workbench/electron-main/lifecycle';
+import { ICommandLineArguments, IProcessEnvironment, IEnvironmentService, IParsedPath, parseLineAndColumnAware } from 'vs/code/electron-main/env';
+import window = require('vs/code/electron-main/window');
+import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
-import storage = require('vs/workbench/electron-main/storage');
-import {ISettingsService} from 'vs/workbench/electron-main/settings';
-import {IUpdateService, IUpdate} from 'vs/workbench/electron-main/update-manager';
+import storage = require('vs/code/electron-main/storage');
+import {ISettingsService} from 'vs/code/electron-main/settings';
+import {IUpdateService, IUpdate} from 'vs/code/electron-main/update-manager';
 import { ILogService } from './log';
 import {ServiceIdentifier, createDecorator, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 

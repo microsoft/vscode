@@ -6,14 +6,12 @@
 'use strict';
 
 import path = require('path');
-
 import {shell, screen, BrowserWindow} from 'electron';
-
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import objects = require('vs/base/common/objects');
-import { ICommandLineArguments, IEnvironmentService, IProcessEnvironment } from 'vs/workbench/electron-main/env';
-import storage = require('vs/workbench/electron-main/storage');
+import { ICommandLineArguments, IEnvironmentService, IProcessEnvironment } from 'vs/code/electron-main/env';
+import storage = require('vs/code/electron-main/storage');
 import { ILogService } from './log';
 
 export interface IWindowState {

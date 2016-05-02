@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { ICommandLineArguments, IProcessEnvironment } from 'vs/workbench/electron-main/env';
-import { IWindowsService } from 'vs/workbench/electron-main/windows';
-import { VSCodeWindow } from 'vs/workbench/electron-main/window';
+import { ICommandLineArguments, IProcessEnvironment } from 'vs/code/electron-main/env';
+import { IWindowsService } from 'vs/code/electron-main/windows';
+import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from './log';

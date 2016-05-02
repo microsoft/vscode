@@ -7,13 +7,9 @@ import * as fs from 'fs';
 import platform = require('vs/base/common/platform');
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-
-// Services
 import { IConfiguration } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { EventService } from 'vs/platform/event/common/eventService';
-
-// Extra services
 import { ExtensionsChannel } from 'vs/workbench/parts/extensions/common/extensionsIpc';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
 

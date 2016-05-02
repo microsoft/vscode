@@ -43,7 +43,8 @@ var vscodeEntryPoints = _.flatten([
 	buildfile.base,
 	buildfile.editor,
 	buildfile.languages,
-	buildfile.vscode
+	buildfile.workbench,
+	buildfile.code
 ]);
 
 var vscodeResources = [
