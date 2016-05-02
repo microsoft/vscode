@@ -128,9 +128,13 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		this._widget.show(range, 18);
 		this._callOnClear.push(this._widget.onDidClose(() => {
 			this._widget = null;
-			referencesPromise.cancel();
 			this.clear();
 		}).dispose);
+
+		this._callOnClear.push(() => {
+			referencesPromise.cancel();
+		});
+
 		this._callOnClear.push(this._widget.onDidDoubleClick(event => {
 
 			if(!event.reference) {
