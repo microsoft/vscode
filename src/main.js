@@ -9,6 +9,7 @@ global.vscodeStart = Date.now();
 var app = require('electron').app;
 var fs = require('fs');
 var path = require('path');
+var product = require('../product.json');
 
 function stripComments(content) {
 	var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
@@ -95,6 +96,26 @@ function getNLSConfiguration() {
 	return { locale: initialLocale, availableLanguages: {} };
 }
 
+function migrateUserDataDir(newDir) {
+	var oldDir = path.join(process.env.HOME, '.config', product.nameShort);
+	if (!fs.existsSync(oldDir)) {
+		return;
+	}
+	mkdirp(path.dirname(newDir));
+	fs.renameSync(oldDir, newDir);
+}
+
+function mkdirp(newDir) {
+	var stack = [];
+	while (!fs.existsSync(newDir)) {
+		stack.push(newDir);
+		newDir = path.dirname(newDir);
+	}
+	while (stack.length > 0) {
+		fs.mkdirSync(stack.pop());
+	}
+}
+
 // Update cwd based on environment and platform
 try {
 	if (process.platform === 'win32') {
@@ -107,11 +128,22 @@ try {
 	console.error(err);
 }
 
-// Set path according to being built or not
+// If root user, use a root-owned directory for user data
+var configDir = path.join(process.env.HOME, product.dataFolderName);
 if (process.env.VSCODE_DEV) {
-	var appData = app.getPath('appData');
-	app.setPath('userData', path.join(appData, 'Code-Development'));
+	configDir += '-dev';
 }
+var userDataDir = path.join(configDir, 'user-data');
+if (process.getuid() === 0) {
+	userDataDir += '-root';
+}
+
+// Attempt migrations if userDataDir does not exist
+if (!fs.existsSync(userDataDir)) {
+	migrateUserDataDir(userDataDir);
+}
+
+app.setPath('userData', userDataDir);
 
 // Use custom user data dir if specified, required to run as root on Linux
 var args = process.argv;

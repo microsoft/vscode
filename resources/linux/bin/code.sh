@@ -5,21 +5,6 @@
 
 ARGS=$@
 
-# If root, ensure that --user-data-dir is specified
-if [ "$(id -u)" = "0" ]; then
-	while test $# -gt 0
-	do
-		if [[ $1 == --user-data-dir=* ]]; then
-			DATA_DIR_SET=1
-		fi
-		shift
-	done
-	if [ -z $DATA_DIR_SET ]; then
-		echo "It is recommended to start vscode as a normal user. To run as root, you must specify an alternate user data directory with the --user-data-dir argument." 1>&2
-		exit 1
-	fi
-fi
-
 if [ ! -L $0 ]; then
 	# if path is not a symlink, find relatively
 	VSCODE_PATH="$(dirname $0)/.."
