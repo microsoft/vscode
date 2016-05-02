@@ -19,7 +19,7 @@ import {Configuration} from 'vs/editor/browser/config/configuration';
 import {KeyboardHandler, IKeyboardHandlerHelper} from 'vs/editor/browser/controller/keyboardHandler';
 import {PointerHandler} from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {ViewController} from 'vs/editor/browser/view/viewController';
+import {ViewController, TriggerCursorHandler} from 'vs/editor/browser/view/viewController';
 import {ViewEventDispatcher} from 'vs/editor/browser/view/viewEventDispatcher';
 import {ContentViewOverlays, MarginViewOverlays} from 'vs/editor/browser/view/viewOverlays';
 import {LayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
@@ -88,13 +88,18 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _keybindingService: IKeybindingService;
 	private _editorTextFocusContextKey: IKeybindingContextKey<boolean>;
 
-	constructor(configuration:Configuration, model:IViewModel, keybindingService: IKeybindingService) {
+	constructor(
+		keybindingService: IKeybindingService,
+		configuration:Configuration,
+		model:IViewModel,
+		triggerCursorHandler:TriggerCursorHandler
+	) {
 		super();
 		this._isDisposed = false;
 		this._renderAnimationFrame = null;
 		this.outgoingEventBus = new EventEmitter();
 
-		var viewController = new ViewController(model, configuration, this.outgoingEventBus, keybindingService);
+		var viewController = new ViewController(model, triggerCursorHandler, this.outgoingEventBus, keybindingService);
 
 		this.listenersToRemove = [];
 		this.listenersToDispose = [];

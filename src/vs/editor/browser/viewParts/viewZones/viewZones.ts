@@ -11,6 +11,7 @@ import {ClassNames, IViewZone} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {IWhitespaceManager} from 'vs/editor/browser/viewLayout/layoutProvider';
 
 export interface IMyViewZone {
 	whitespaceId: number;
@@ -29,13 +30,13 @@ interface IComputedViewZoneProps {
 
 export class ViewZones extends ViewPart {
 
-	private _whitespaceManager:editorCommon.IWhitespaceManager;
+	private _whitespaceManager:IWhitespaceManager;
 	private _zones: { [id:string]:IMyViewZone; };
 	private _lineHeight:number;
 
 	public domNode: HTMLElement;
 
-	constructor(context:ViewContext, whitespaceManager:editorCommon.IWhitespaceManager) {
+	constructor(context:ViewContext, whitespaceManager:IWhitespaceManager) {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._whitespaceManager = whitespaceManager;

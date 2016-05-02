@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPosition, IWordAtPosition, IWordRange} from 'vs/editor/common/editorCommon';
+import {IPosition, IWordAtPosition} from 'vs/editor/common/editorCommon';
 import {IMode, IModeTransition} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
@@ -55,36 +55,6 @@ export class WordHelper {
 
 	public static massageWordDefinitionOf(mode:IMode): RegExp {
 		return WordHelper.ensureValidWordDefinition(WordHelper._safeGetWordDefinition(mode));
-	}
-
-
-	static _getWordsInText(text:string, wordDefinition:RegExp): IWordRange[] {
-		var words = text.match(wordDefinition) || [],
-			k:number,
-			startWord:number,
-			endWord:number,
-			startColumn:number,
-			endColumn:number,
-			word:string,
-			r: IWordRange[] = [];
-
-		for (k = 0; k < words.length; k++) {
-			word = words[k].trim();
-			if (word.length > 0) {
-				startWord = text.indexOf(word, endWord);
-				endWord = startWord + word.length;
-
-				startColumn = startWord;
-				endColumn = endWord;
-
-				r.push({
-					start: startColumn,
-					end: endColumn
-				});
-			}
-		}
-
-		return r;
 	}
 
 	private static _getWordAtColumn(txt:string, column:number, modeIndex: number, modeTransitions:IModeTransition[]): IWordAtPosition {

@@ -8,8 +8,9 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import {ScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IOverviewRulerLayoutInfo, ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, IViewEventBus, INewScrollPosition} from 'vs/editor/common/editorCommon';
+import {EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, INewScrollPosition} from 'vs/editor/common/editorCommon';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
+import {IViewEventBus} from 'vs/editor/common/view/viewContext';
 
 function addPropertyIfPresent(src:any, dst:any, prop:string): void {
 	if (src.hasOwnProperty(prop)) {

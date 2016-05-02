@@ -10,7 +10,6 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/controller/cursorCollection';
-import {DispatcherEvent} from 'vs/editor/common/controller/handlerDispatcher';
 import {WordNavigationType, IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp} from 'vs/editor/common/controller/oneCursor';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -29,7 +28,7 @@ enum RevealTarget {
 }
 
 interface IMultipleCursorOperationContext {
-	cursorPositionChangeReason: string;
+	cursorPositionChangeReason: editorCommon.CursorChangeReason;
 	shouldReveal: boolean;
 	shouldRevealVerticalInCenter: boolean;
 	shouldRevealHorizontal: boolean;
@@ -66,7 +65,7 @@ interface ICommandsData {
 export class Cursor extends EventEmitter {
 
 	private editorId:number;
-	/* protected */public configuration:editorCommon.IConfiguration;
+	/*private*/ configuration:editorCommon.IConfiguration;
 	private model:editorCommon.IModel;
 
 	private modelUnbinds:IDisposable[];
@@ -84,6 +83,10 @@ export class Cursor extends EventEmitter {
 	private charactersTyped:string;
 
 	private enableEmptySelectionClipboard:boolean;
+
+	private _handlers:{
+		[key:string]:(ctx:IMultipleCursorOperationContext)=>boolean;
+	};
 
 	constructor(editorId:number, configuration:editorCommon.IConfiguration, model:editorCommon.IModel, viewModelHelper:IViewModelHelper, enableEmptySelectionClipboard:boolean) {
 		super([
@@ -141,6 +144,7 @@ export class Cursor extends EventEmitter {
 			this._onModelModeChanged();
 		}));
 
+		this._handlers = {};
 		this._registerHandlers();
 	}
 
@@ -149,7 +153,6 @@ export class Cursor extends EventEmitter {
 		this.model = null;
 		this.cursors.dispose();
 		this.cursors = null;
-		this.configuration.handlerDispatcher.clearHandlers();
 		this.configuration = null;
 		this.viewModelHelper = null;
 		super.dispose();
@@ -219,7 +222,7 @@ export class Cursor extends EventEmitter {
 		this._onHandler('restoreState', (ctx:IMultipleCursorOperationContext) => {
 			this.cursors.setSelections(desiredSelections);
 			return false;
-		}, new DispatcherEvent('restoreState', null));
+		}, 'restoreState', null);
 	}
 
 	public setEditableRange(range:editorCommon.IRange): void {
@@ -261,8 +264,8 @@ export class Cursor extends EventEmitter {
 
 			this.cursors = new CursorCollection(this.editorId, this.model, this.configuration, this.viewModelHelper);
 
-			this.emitCursorPositionChanged('model', 'contentFlush');
-			this.emitCursorSelectionChanged('model', 'contentFlush');
+			this.emitCursorPositionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
+			this.emitCursorSelectionChanged('model', editorCommon.CursorChangeReason.ContentFlush);
 		} else {
 			if (!this._isHandling) {
 				this._onHandler('recoverSelectionFromMarkers', (ctx:IMultipleCursorOperationContext) => {
@@ -270,7 +273,7 @@ export class Cursor extends EventEmitter {
 					ctx.shouldPushStackElementBefore = false;
 					ctx.shouldPushStackElementAfter = false;
 					return result;
-				}, new DispatcherEvent('modelChange', null));
+				}, 'modelChange', null);
 			}
 		}
 	}
@@ -294,7 +297,7 @@ export class Cursor extends EventEmitter {
 			ctx.shouldReveal = false;
 			this.cursors.setSelections(selections);
 			return false;
-		}, new DispatcherEvent(source, null));
+		}, source, null);
 	}
 
 	// ------ auxiliary handling logic
@@ -302,7 +305,7 @@ export class Cursor extends EventEmitter {
 	private _createAndInterpretHandlerCtx(eventSource: string, eventData: any, callback:(currentHandlerCtx:IMultipleCursorOperationContext)=>void): boolean {
 
 		var currentHandlerCtx:IMultipleCursorOperationContext = {
-			cursorPositionChangeReason: '',
+			cursorPositionChangeReason: editorCommon.CursorChangeReason.NotSet,
 			shouldReveal: true,
 			shouldRevealVerticalInCenter: false,
 			shouldRevealHorizontal: true,
@@ -328,7 +331,7 @@ export class Cursor extends EventEmitter {
 		return currentHandlerCtx.hasExecutedCommands;
 	}
 
-	private _onHandler(command:string, handler:(ctx:IMultipleCursorOperationContext)=>boolean, e:editorCommon.IDispatcherEvent): boolean {
+	private _onHandler(command:string, handler:(ctx:IMultipleCursorOperationContext)=>boolean, source:string, data:any): boolean {
 
 		this._isHandling = true;
 		this.charactersTyped = '';
@@ -340,8 +343,8 @@ export class Cursor extends EventEmitter {
 			var oldViewSelections = this.cursors.getViewSelections();
 			var prevCursorsState = this.cursors.saveState();
 
-			var eventSource = e.getSource();
-			var cursorPositionChangeReason: string;
+			var eventSource = source;
+			var cursorPositionChangeReason: editorCommon.CursorChangeReason;
 			var shouldReveal: boolean;
 			var shouldRevealVerticalInCenter: boolean;
 			var shouldRevealHorizontal: boolean;
@@ -349,7 +352,7 @@ export class Cursor extends EventEmitter {
 			var isCursorUndo: boolean;
 			var requestScrollDeltaLines: number;
 
-			var hasExecutedCommands = this._createAndInterpretHandlerCtx(eventSource, e.getData(), (currentHandlerCtx:IMultipleCursorOperationContext) => {
+			var hasExecutedCommands = this._createAndInterpretHandlerCtx(eventSource, data, (currentHandlerCtx:IMultipleCursorOperationContext) => {
 				handled = handler(currentHandlerCtx);
 
 				cursorPositionChangeReason = currentHandlerCtx.cursorPositionChangeReason;
@@ -823,7 +826,7 @@ export class Cursor extends EventEmitter {
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
 
-	private emitCursorPositionChanged(source:string, reason:string): void {
+	private emitCursorPositionChanged(source:string, reason:editorCommon.CursorChangeReason): void {
 		var positions = this.cursors.getPositions();
 		var primaryPosition = positions[0];
 		var secondaryPositions = positions.slice(1);
@@ -851,7 +854,7 @@ export class Cursor extends EventEmitter {
 		this.emit(editorCommon.EventType.CursorPositionChanged, e);
 	}
 
-	private emitCursorSelectionChanged(source:string, reason:string): void {
+	private emitCursorSelectionChanged(source:string, reason:editorCommon.CursorChangeReason): void {
 		let selections = this.cursors.getSelections();
 		let primarySelection = selections[0];
 		let secondarySelections = selections.slice(1);
@@ -920,136 +923,131 @@ export class Cursor extends EventEmitter {
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- handlers beyond this point
 
+	public trigger(source:string, handlerId:string, payload:any): void {
+		if (!this._handlers.hasOwnProperty(handlerId)) {
+			return;
+		}
+		let handler = this._handlers[handlerId];
+		this._onHandler(handlerId, handler, source, payload);
+	}
+
 	private _registerHandlers(): void {
 		let H = editorCommon.Handler;
-		let handlersMap:{
-			[key:string]:(ctx:IMultipleCursorOperationContext)=>boolean;
-		} = {};
 
-		handlersMap[H.JumpToBracket] =				(ctx:IMultipleCursorOperationContext) => this._jumpToBracket(ctx);
+		this._handlers[H.JumpToBracket] =				(ctx) => this._jumpToBracket(ctx);
 
-		handlersMap[H.MoveTo] = 					(ctx:IMultipleCursorOperationContext) => this._moveTo(false, ctx);
-		handlersMap[H.MoveToSelect] = 				(ctx:IMultipleCursorOperationContext) => this._moveTo(true, ctx);
-		handlersMap[H.ColumnSelect] = 				(ctx:IMultipleCursorOperationContext) => this._columnSelectMouse(ctx);
-		handlersMap[H.AddCursorUp] = 				(ctx:IMultipleCursorOperationContext) => this._addCursorUp(ctx);
-		handlersMap[H.AddCursorDown] = 				(ctx:IMultipleCursorOperationContext) => this._addCursorDown(ctx);
-		handlersMap[H.CreateCursor] =				(ctx:IMultipleCursorOperationContext) => this._createCursor(ctx);
-		handlersMap[H.LastCursorMoveToSelect] =		(ctx:IMultipleCursorOperationContext) => this._lastCursorMoveTo(ctx);
+		this._handlers[H.MoveTo] = 						(ctx) => this._moveTo(false, ctx);
+		this._handlers[H.MoveToSelect] = 				(ctx) => this._moveTo(true, ctx);
+		this._handlers[H.ColumnSelect] = 				(ctx) => this._columnSelectMouse(ctx);
+		this._handlers[H.AddCursorUp] = 				(ctx) => this._addCursorUp(ctx);
+		this._handlers[H.AddCursorDown] = 				(ctx) => this._addCursorDown(ctx);
+		this._handlers[H.CreateCursor] =				(ctx) => this._createCursor(ctx);
+		this._handlers[H.LastCursorMoveToSelect] =		(ctx) => this._lastCursorMoveTo(ctx);
 
 
-		handlersMap[H.CursorLeft] = 				(ctx:IMultipleCursorOperationContext) => this._moveLeft(false, ctx);
-		handlersMap[H.CursorLeftSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveLeft(true, ctx);
+		this._handlers[H.CursorLeft] = 					(ctx) => this._moveLeft(false, ctx);
+		this._handlers[H.CursorLeftSelect] =			(ctx) => this._moveLeft(true, ctx);
 
-		handlersMap[H.CursorWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(false, WordNavigationType.WordStart, ctx);
-		handlersMap[H.CursorWordStartLeft] =		(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(false, WordNavigationType.WordStart, ctx);
-		handlersMap[H.CursorWordEndLeft] =			(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(false, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.CursorWordLeft] =				(ctx) => this._moveWordLeft(false, WordNavigationType.WordStart, ctx);
+		this._handlers[H.CursorWordStartLeft] =			(ctx) => this._moveWordLeft(false, WordNavigationType.WordStart, ctx);
+		this._handlers[H.CursorWordEndLeft] =			(ctx) => this._moveWordLeft(false, WordNavigationType.WordEnd, ctx);
 
-		handlersMap[H.CursorWordLeftSelect] =		(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(true, WordNavigationType.WordStart, ctx);
-		handlersMap[H.CursorWordStartLeftSelect] =	(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(true, WordNavigationType.WordStart, ctx);
-		handlersMap[H.CursorWordEndLeftSelect] =	(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(true, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.CursorWordLeftSelect] =		(ctx) => this._moveWordLeft(true, WordNavigationType.WordStart, ctx);
+		this._handlers[H.CursorWordStartLeftSelect] =	(ctx) => this._moveWordLeft(true, WordNavigationType.WordStart, ctx);
+		this._handlers[H.CursorWordEndLeftSelect] =		(ctx) => this._moveWordLeft(true, WordNavigationType.WordEnd, ctx);
 
-		handlersMap[H.CursorRight] =				(ctx:IMultipleCursorOperationContext) => this._moveRight(false, ctx);
-		handlersMap[H.CursorRightSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveRight(true, ctx);
+		this._handlers[H.CursorRight] =					(ctx) => this._moveRight(false, ctx);
+		this._handlers[H.CursorRightSelect] =			(ctx) => this._moveRight(true, ctx);
 
-		handlersMap[H.CursorWordRight] =			(ctx:IMultipleCursorOperationContext) => this._moveWordRight(false, WordNavigationType.WordEnd, ctx);
-		handlersMap[H.CursorWordStartRight] =		(ctx:IMultipleCursorOperationContext) => this._moveWordRight(false, WordNavigationType.WordStart, ctx);
-		handlersMap[H.CursorWordEndRight] =			(ctx:IMultipleCursorOperationContext) => this._moveWordRight(false, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.CursorWordRight] =				(ctx) => this._moveWordRight(false, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.CursorWordStartRight] =		(ctx) => this._moveWordRight(false, WordNavigationType.WordStart, ctx);
+		this._handlers[H.CursorWordEndRight] =			(ctx) => this._moveWordRight(false, WordNavigationType.WordEnd, ctx);
 
-		handlersMap[H.CursorWordRightSelect] =		(ctx:IMultipleCursorOperationContext) => this._moveWordRight(true, WordNavigationType.WordEnd, ctx);
-		handlersMap[H.CursorWordStartRightSelect] =	(ctx:IMultipleCursorOperationContext) => this._moveWordRight(true, WordNavigationType.WordStart, ctx);
-		handlersMap[H.CursorWordEndRightSelect] =	(ctx:IMultipleCursorOperationContext) => this._moveWordRight(true, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.CursorWordRightSelect] =		(ctx) => this._moveWordRight(true, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.CursorWordStartRightSelect] =	(ctx) => this._moveWordRight(true, WordNavigationType.WordStart, ctx);
+		this._handlers[H.CursorWordEndRightSelect] =	(ctx) => this._moveWordRight(true, WordNavigationType.WordEnd, ctx);
 
-		handlersMap[H.CursorUp] =					(ctx:IMultipleCursorOperationContext) => this._moveUp(false, false, ctx);
-		handlersMap[H.CursorUpSelect] =				(ctx:IMultipleCursorOperationContext) => this._moveUp(true, false, ctx);
-		handlersMap[H.CursorDown] =					(ctx:IMultipleCursorOperationContext) => this._moveDown(false, false, ctx);
-		handlersMap[H.CursorDownSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveDown(true, false, ctx);
+		this._handlers[H.CursorUp] =					(ctx) => this._moveUp(false, false, ctx);
+		this._handlers[H.CursorUpSelect] =				(ctx) => this._moveUp(true, false, ctx);
+		this._handlers[H.CursorDown] =					(ctx) => this._moveDown(false, false, ctx);
+		this._handlers[H.CursorDownSelect] =			(ctx) => this._moveDown(true, false, ctx);
 
-		handlersMap[H.CursorPageUp] =				(ctx:IMultipleCursorOperationContext) => this._moveUp(false, true, ctx);
-		handlersMap[H.CursorPageUpSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveUp(true, true, ctx);
-		handlersMap[H.CursorPageDown] =				(ctx:IMultipleCursorOperationContext) => this._moveDown(false, true, ctx);
-		handlersMap[H.CursorPageDownSelect] =		(ctx:IMultipleCursorOperationContext) => this._moveDown(true, true, ctx);
+		this._handlers[H.CursorPageUp] =				(ctx) => this._moveUp(false, true, ctx);
+		this._handlers[H.CursorPageUpSelect] =			(ctx) => this._moveUp(true, true, ctx);
+		this._handlers[H.CursorPageDown] =				(ctx) => this._moveDown(false, true, ctx);
+		this._handlers[H.CursorPageDownSelect] =		(ctx) => this._moveDown(true, true, ctx);
 
-		handlersMap[H.CursorHome] =					(ctx:IMultipleCursorOperationContext) => this._moveToBeginningOfLine(false, ctx);
-		handlersMap[H.CursorHomeSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveToBeginningOfLine(true, ctx);
+		this._handlers[H.CursorHome] =					(ctx) => this._moveToBeginningOfLine(false, ctx);
+		this._handlers[H.CursorHomeSelect] =			(ctx) => this._moveToBeginningOfLine(true, ctx);
 
-		handlersMap[H.CursorEnd] =					(ctx:IMultipleCursorOperationContext) => this._moveToEndOfLine(false, ctx);
-		handlersMap[H.CursorEndSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveToEndOfLine(true, ctx);
+		this._handlers[H.CursorEnd] =					(ctx) => this._moveToEndOfLine(false, ctx);
+		this._handlers[H.CursorEndSelect] =				(ctx) => this._moveToEndOfLine(true, ctx);
 
-		handlersMap[H.CursorTop] =					(ctx:IMultipleCursorOperationContext) => this._moveToBeginningOfBuffer(false, ctx);
-		handlersMap[H.CursorTopSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveToBeginningOfBuffer(true, ctx);
-		handlersMap[H.CursorBottom] =				(ctx:IMultipleCursorOperationContext) => this._moveToEndOfBuffer(false, ctx);
-		handlersMap[H.CursorBottomSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveToEndOfBuffer(true, ctx);
+		this._handlers[H.CursorTop] =					(ctx) => this._moveToBeginningOfBuffer(false, ctx);
+		this._handlers[H.CursorTopSelect] =				(ctx) => this._moveToBeginningOfBuffer(true, ctx);
+		this._handlers[H.CursorBottom] =				(ctx) => this._moveToEndOfBuffer(false, ctx);
+		this._handlers[H.CursorBottomSelect] =			(ctx) => this._moveToEndOfBuffer(true, ctx);
 
-		handlersMap[H.CursorColumnSelectLeft] =		(ctx:IMultipleCursorOperationContext) => this._columnSelectLeft(ctx);
-		handlersMap[H.CursorColumnSelectRight] =	(ctx:IMultipleCursorOperationContext) => this._columnSelectRight(ctx);
-		handlersMap[H.CursorColumnSelectUp] =		(ctx:IMultipleCursorOperationContext) => this._columnSelectUp(false, ctx);
-		handlersMap[H.CursorColumnSelectPageUp] =	(ctx:IMultipleCursorOperationContext) => this._columnSelectUp(true, ctx);
-		handlersMap[H.CursorColumnSelectDown] =		(ctx:IMultipleCursorOperationContext) => this._columnSelectDown(false, ctx);
-		handlersMap[H.CursorColumnSelectPageDown] =	(ctx:IMultipleCursorOperationContext) => this._columnSelectDown(true, ctx);
+		this._handlers[H.CursorColumnSelectLeft] =		(ctx) => this._columnSelectLeft(ctx);
+		this._handlers[H.CursorColumnSelectRight] =		(ctx) => this._columnSelectRight(ctx);
+		this._handlers[H.CursorColumnSelectUp] =		(ctx) => this._columnSelectUp(false, ctx);
+		this._handlers[H.CursorColumnSelectPageUp] =	(ctx) => this._columnSelectUp(true, ctx);
+		this._handlers[H.CursorColumnSelectDown] =		(ctx) => this._columnSelectDown(false, ctx);
+		this._handlers[H.CursorColumnSelectPageDown] =	(ctx) => this._columnSelectDown(true, ctx);
 
-		handlersMap[H.SelectAll] =					(ctx:IMultipleCursorOperationContext) => this._selectAll(ctx);
+		this._handlers[H.SelectAll] =					(ctx) => this._selectAll(ctx);
 
-		handlersMap[H.LineSelect] = 				(ctx:IMultipleCursorOperationContext) => this._line(false, ctx);
-		handlersMap[H.LineSelectDrag] =				(ctx:IMultipleCursorOperationContext) => this._line(true, ctx);
-		handlersMap[H.LastCursorLineSelect] = 		(ctx:IMultipleCursorOperationContext) => this._lastCursorLine(false, ctx);
-		handlersMap[H.LastCursorLineSelectDrag] = 	(ctx:IMultipleCursorOperationContext) => this._lastCursorLine(true, ctx);
+		this._handlers[H.LineSelect] = 					(ctx) => this._line(false, ctx);
+		this._handlers[H.LineSelectDrag] =				(ctx) => this._line(true, ctx);
+		this._handlers[H.LastCursorLineSelect] = 		(ctx) => this._lastCursorLine(false, ctx);
+		this._handlers[H.LastCursorLineSelectDrag] = 	(ctx) => this._lastCursorLine(true, ctx);
 
-		handlersMap[H.LineInsertBefore] =			(ctx:IMultipleCursorOperationContext) => this._lineInsertBefore(ctx);
-		handlersMap[H.LineInsertAfter] =			(ctx:IMultipleCursorOperationContext) => this._lineInsertAfter(ctx);
-		handlersMap[H.LineBreakInsert] =			(ctx:IMultipleCursorOperationContext) => this._lineBreakInsert(ctx);
+		this._handlers[H.LineInsertBefore] =			(ctx) => this._lineInsertBefore(ctx);
+		this._handlers[H.LineInsertAfter] =				(ctx) => this._lineInsertAfter(ctx);
+		this._handlers[H.LineBreakInsert] =				(ctx) => this._lineBreakInsert(ctx);
 
-		handlersMap[H.WordSelect] = 				(ctx:IMultipleCursorOperationContext) => this._word(false, ctx);
-		handlersMap[H.WordSelectDrag] =				(ctx:IMultipleCursorOperationContext) => this._word(true, ctx);
-		handlersMap[H.LastCursorWordSelect] =		(ctx:IMultipleCursorOperationContext) => this._lastCursorWord(ctx);
-		handlersMap[H.CancelSelection] =			(ctx:IMultipleCursorOperationContext) => this._cancelSelection(ctx);
-		handlersMap[H.RemoveSecondaryCursors] =		(ctx:IMultipleCursorOperationContext) => this._removeSecondaryCursors(ctx);
+		this._handlers[H.WordSelect] = 					(ctx) => this._word(false, ctx);
+		this._handlers[H.WordSelectDrag] =				(ctx) => this._word(true, ctx);
+		this._handlers[H.LastCursorWordSelect] =		(ctx) => this._lastCursorWord(ctx);
+		this._handlers[H.CancelSelection] =				(ctx) => this._cancelSelection(ctx);
+		this._handlers[H.RemoveSecondaryCursors] =		(ctx) => this._removeSecondaryCursors(ctx);
 
-		handlersMap[H.Type] =						(ctx:IMultipleCursorOperationContext) => this._type(ctx);
-		handlersMap[H.ReplacePreviousChar] =		(ctx:IMultipleCursorOperationContext) => this._replacePreviousChar(ctx);
-		handlersMap[H.Tab] =						(ctx:IMultipleCursorOperationContext) => this._tab(ctx);
-		handlersMap[H.Indent] =						(ctx:IMultipleCursorOperationContext) => this._indent(ctx);
-		handlersMap[H.Outdent] =					(ctx:IMultipleCursorOperationContext) => this._outdent(ctx);
-		handlersMap[H.Paste] =						(ctx:IMultipleCursorOperationContext) => this._paste(ctx);
+		this._handlers[H.Type] =						(ctx) => this._type(ctx);
+		this._handlers[H.ReplacePreviousChar] =			(ctx) => this._replacePreviousChar(ctx);
+		this._handlers[H.Tab] =							(ctx) => this._tab(ctx);
+		this._handlers[H.Indent] =						(ctx) => this._indent(ctx);
+		this._handlers[H.Outdent] =						(ctx) => this._outdent(ctx);
+		this._handlers[H.Paste] =						(ctx) => this._paste(ctx);
 
-		handlersMap[H.ScrollLineUp] =				(ctx:IMultipleCursorOperationContext) => this._scrollUp(false, ctx);
-		handlersMap[H.ScrollLineDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollDown(false, ctx);
-		handlersMap[H.ScrollPageUp] =				(ctx:IMultipleCursorOperationContext) => this._scrollUp(true, ctx);
-		handlersMap[H.ScrollPageDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollDown(true, ctx);
+		this._handlers[H.ScrollLineUp] =				(ctx) => this._scrollUp(false, ctx);
+		this._handlers[H.ScrollLineDown] =				(ctx) => this._scrollDown(false, ctx);
+		this._handlers[H.ScrollPageUp] =				(ctx) => this._scrollUp(true, ctx);
+		this._handlers[H.ScrollPageDown] =				(ctx) => this._scrollDown(true, ctx);
 
-		handlersMap[H.DeleteLeft] =					(ctx:IMultipleCursorOperationContext) => this._deleteLeft(ctx);
+		this._handlers[H.DeleteLeft] =					(ctx) => this._deleteLeft(ctx);
 
-		handlersMap[H.DeleteWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(true, WordNavigationType.WordStart, ctx);
-		handlersMap[H.DeleteWordStartLeft] =		(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(false, WordNavigationType.WordStart, ctx);
-		handlersMap[H.DeleteWordEndLeft] =			(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(false, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.DeleteWordLeft] =				(ctx) => this._deleteWordLeft(true, WordNavigationType.WordStart, ctx);
+		this._handlers[H.DeleteWordStartLeft] =			(ctx) => this._deleteWordLeft(false, WordNavigationType.WordStart, ctx);
+		this._handlers[H.DeleteWordEndLeft] =			(ctx) => this._deleteWordLeft(false, WordNavigationType.WordEnd, ctx);
 
-		handlersMap[H.DeleteRight] =				(ctx:IMultipleCursorOperationContext) => this._deleteRight(ctx);
+		this._handlers[H.DeleteRight] =					(ctx) => this._deleteRight(ctx);
 
-		handlersMap[H.DeleteWordRight] =			(ctx:IMultipleCursorOperationContext) => this._deleteWordRight(true, WordNavigationType.WordEnd, ctx);
-		handlersMap[H.DeleteWordStartRight] =		(ctx:IMultipleCursorOperationContext) => this._deleteWordRight(false, WordNavigationType.WordStart, ctx);
-		handlersMap[H.DeleteWordEndRight] =			(ctx:IMultipleCursorOperationContext) => this._deleteWordRight(false, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.DeleteWordRight] =				(ctx) => this._deleteWordRight(true, WordNavigationType.WordEnd, ctx);
+		this._handlers[H.DeleteWordStartRight] =		(ctx) => this._deleteWordRight(false, WordNavigationType.WordStart, ctx);
+		this._handlers[H.DeleteWordEndRight] =			(ctx) => this._deleteWordRight(false, WordNavigationType.WordEnd, ctx);
 
-		handlersMap[H.DeleteAllLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteAllLeft(ctx);
-		handlersMap[H.DeleteAllRight] =				(ctx:IMultipleCursorOperationContext) => this._deleteAllRight(ctx);
-		handlersMap[H.Cut] =						(ctx:IMultipleCursorOperationContext) => this._cut(ctx);
+		this._handlers[H.DeleteAllLeft] =				(ctx) => this._deleteAllLeft(ctx);
+		this._handlers[H.DeleteAllRight] =				(ctx) => this._deleteAllRight(ctx);
+		this._handlers[H.Cut] =							(ctx) => this._cut(ctx);
 
-		handlersMap[H.ExpandLineSelection] =		(ctx:IMultipleCursorOperationContext) => this._expandLineSelection(ctx);
+		this._handlers[H.ExpandLineSelection] =			(ctx) => this._expandLineSelection(ctx);
 
-		handlersMap[H.Undo] =						(ctx:IMultipleCursorOperationContext) => this._undo(ctx);
-		handlersMap[H.CursorUndo] =					(ctx:IMultipleCursorOperationContext) => this._cursorUndo(ctx);
-		handlersMap[H.Redo] =						(ctx:IMultipleCursorOperationContext) => this._redo(ctx);
+		this._handlers[H.Undo] =						(ctx) => this._undo(ctx);
+		this._handlers[H.CursorUndo] =					(ctx) => this._cursorUndo(ctx);
+		this._handlers[H.Redo] =						(ctx) => this._redo(ctx);
 
-		handlersMap[H.ExecuteCommand] =				(ctx:IMultipleCursorOperationContext) => this._externalExecuteCommand(ctx);
-		handlersMap[H.ExecuteCommands] =			(ctx:IMultipleCursorOperationContext) => this._externalExecuteCommands(ctx);
-
-		let createHandler = (handlerId:string, handlerExec:(ctx:IMultipleCursorOperationContext)=>boolean) => {
-			return (e:editorCommon.IDispatcherEvent) => this._onHandler(handlerId, handlerExec, e);
-		};
-
-		let keys = Object.keys(handlersMap);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let handler = keys[i];
-			this.configuration.handlerDispatcher.setHandler(handler, createHandler(handler, handlersMap[handler]));
-		}
+		this._handlers[H.ExecuteCommand] =				(ctx) => this._externalExecuteCommand(ctx);
+		this._handlers[H.ExecuteCommands] =				(ctx) => this._externalExecuteCommands(ctx);
 	}
 
 	private _invokeForAllSorted(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
@@ -1077,7 +1075,7 @@ export class Cursor extends EventEmitter {
 
 		for (let i = 0; i < cursors.length; i++) {
 			context = {
-				cursorPositionChangeReason: '',
+				cursorPositionChangeReason: editorCommon.CursorChangeReason.NotSet,
 				shouldReveal: true,
 				shouldRevealVerticalInCenter: false,
 				shouldRevealHorizontal: true,
@@ -1506,7 +1504,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _undo(ctx: IMultipleCursorOperationContext): boolean {
-		ctx.cursorPositionChangeReason = 'undo';
+		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Undo;
 		ctx.hasExecutedCommands = true;
 		this._interpretCommandResult(this.model.undo());
 		return true;
@@ -1516,14 +1514,14 @@ export class Cursor extends EventEmitter {
 		if (this.cursorUndoStack.length === 0) {
 			return false;
 		}
-		ctx.cursorPositionChangeReason = 'undo';
+		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Undo;
 		ctx.isCursorUndo = true;
 		this.cursors.restoreState(this.cursorUndoStack.pop());
 		return true;
 	}
 
 	private _redo(ctx: IMultipleCursorOperationContext): boolean {
-		ctx.cursorPositionChangeReason = 'redo';
+		ctx.cursorPositionChangeReason = editorCommon.CursorChangeReason.Redo;
 		ctx.hasExecutedCommands = true;
 		this._interpretCommandResult(this.model.redo());
 		return true;

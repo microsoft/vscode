@@ -931,11 +931,11 @@ export interface IWordAtPosition {
  */
 export interface IWordRange {
 	/**
-	 * The column where the word starts.
+	 * The index where the word starts.
 	 */
 	start:number;
 	/**
-	 * The column where the word ends.
+	 * The index where the word ends.
 	 */
 	end:number;
 }
@@ -1162,20 +1162,6 @@ export interface ILineTokens {
 	sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[];
 
 	inflate(): ViewLineToken[];
-}
-
-/**
- * Result for a ITextModel.guessIndentation
- */
-export interface IGuessedIndentation {
-	/**
-	 * If indentation is based on spaces (`insertSpaces` = true), then what is the number of spaces that make an indent?
-	 */
-	tabSize: number;
-	/**
-	 * Is indentation based on spaces?
-	 */
-	insertSpaces: boolean;
 }
 
 export interface ITextModelResolvedOptions {
@@ -1448,19 +1434,19 @@ export interface ITokenizedModel extends ITextModel {
 	 */
 	findMatchingBracketUp(bracket:string, position:IPosition): IEditorRange;
 
-	/**
-	 * Find the first bracket in the model before `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	 */
-	findPrevBracket(position:IPosition): IFoundBracket;
+	// /**
+	//  * Find the first bracket in the model before `position`.
+	//  * @param position The position at which to start the search.
+	//  * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
+	//  */
+	// findPrevBracket(position:IPosition): IFoundBracket;
 
-	/**
-	 * Find the first bracket in the model after `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	 */
-	findNextBracket(position:IPosition): IFoundBracket;
+	// /**
+	//  * Find the first bracket in the model after `position`.
+	//  * @param position The position at which to start the search.
+	//  * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
+	//  */
+	// findNextBracket(position:IPosition): IFoundBracket;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,
@@ -1845,7 +1831,7 @@ export interface IModelContentChangedEvent2 {
 	 */
 	text: string;
 	/**
-	 * The end-of-line character.
+	 * The (new) end-of-line character.
 	 */
 	eol: string;
 	/**
@@ -1984,6 +1970,15 @@ export interface IModelTokensChangedEvent {
 	 */
 	toLineNumber:number;
 }
+export enum CursorChangeReason {
+	NotSet = 0,
+	ContentFlush = 1,
+	RecoverFromMarkers = 2,
+	Explicit = 3,
+	Paste = 4,
+	Undo = 5,
+	Redo = 6,
+}
 /**
  * An event describing that the cursor position has changed.
  */
@@ -2007,7 +2002,7 @@ export interface ICursorPositionChangedEvent {
 	/**
 	 * Reason.
 	 */
-	reason:string;
+	reason:CursorChangeReason;
 	/**
 	 * Source of the call that caused the event.
 	 */
@@ -2044,7 +2039,7 @@ export interface ICursorSelectionChangedEvent {
 	/**
 	 * Reason.
 	 */
-	reason:string;
+	reason:CursorChangeReason;
 }
 export enum VerticalRevealType {
 	Simple = 0,
@@ -2384,21 +2379,6 @@ export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelec
 export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
 export const SHOW_ACCESSIBILITY_HELP_ACTION_ID = 'editor.action.showAccessibilityHelp';
 
-export interface IDispatcherEvent {
-	getSource(): string;
-	getData(): any;
-}
-
-export interface IHandler {
-	(e:IDispatcherEvent): boolean;
-}
-
-export interface IHandlerDispatcher {
-	setHandler(handlerId:string, handlerCallback:IHandler): void;
-	clearHandlers(): void;
-	trigger(source:string, handlerId:string, payload:any): boolean;
-}
-
 export class BareFontInfo {
 	_bareFontInfoBrand: void;
 
@@ -2460,48 +2440,9 @@ export interface IConfiguration {
 	editor:IInternalEditorOptions;
 
 	setLineCount(lineCount:number): void;
-
-	handlerDispatcher: IHandlerDispatcher;
 }
 
 // --- view
-
-
-
-
-
-export interface IViewEventBus {
-	emit(eventType:string, data?:any): void;
-}
-
-export interface IWhitespaceManager {
-	/**
-	 * Reserve rendering space.
-	 * @param height is specified in pixels.
-	 * @return an identifier that can be later used to remove or change the whitespace.
-	 */
-	addWhitespace(afterLineNumber:number, ordinal:number, height:number): number;
-
-	/**
-	 * Change the properties of a whitespace.
-	 * @param height is specified in pixels.
-	 */
-	changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean;
-
-	/**
-	 * Remove rendering space
-	 */
-	removeWhitespace(id:number): boolean;
-
-	/**
-	 * Get the layout information for whitespaces currently in the viewport
-	 */
-	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
-
-	getWhitespaces(): IEditorWhitespace[];
-}
-
-
 
 export interface IViewEventNames {
 	ModelFlushedEvent: string;
@@ -2961,8 +2902,6 @@ export interface IEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
-export type MarkedString = string | { language: string; value: string };
-
 export interface IThemeDecorationRenderOptions {
 	backgroundColor?: string;
 
@@ -3085,7 +3024,7 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @param source The source of the call.
 	 * @param command The command to execute
 	 */
-	executeCommand(source: string, command: ICommand): boolean;
+	executeCommand(source: string, command: ICommand): void;
 
 	/**
 	 * Execute a command on the editor.
@@ -3099,7 +3038,7 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @param source The source of the call.
 	 * @param command The commands to execute
 	 */
-	executeCommands(source: string, commands: ICommand[]): boolean;
+	executeCommands(source: string, commands: ICommand[]): void;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
@@ -3361,23 +3300,10 @@ export var Handler = {
 	ScrollPageDown:				'scrollPageDown'
 };
 
-
-
 export enum TextEditorCursorStyle {
 	Line = 1,
 	Block = 2,
 	Underline = 3
-}
-
-export function cursorStyleFromString(cursorStyle:string): TextEditorCursorStyle {
-	if (cursorStyle === 'line') {
-		return TextEditorCursorStyle.Line;
-	} else if (cursorStyle === 'block') {
-		return TextEditorCursorStyle.Block;
-	} else if (cursorStyle === 'underline') {
-		return TextEditorCursorStyle.Underline;
-	}
-	return TextEditorCursorStyle.Line;
 }
 
 export function cursorStyleToString(cursorStyle:TextEditorCursorStyle): string {
@@ -3391,5 +3317,3 @@ export function cursorStyleToString(cursorStyle:TextEditorCursorStyle): string {
 		throw new Error('cursorStyleToString: Unknown cursorStyle');
 	}
 }
-
-

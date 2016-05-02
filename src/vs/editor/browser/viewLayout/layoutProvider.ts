@@ -11,6 +11,34 @@ import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {ScrollManager} from 'vs/editor/browser/viewLayout/scrollManager';
 import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
 import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import {IViewEventBus} from 'vs/editor/common/view/viewContext';
+
+export interface IWhitespaceManager {
+	/**
+	 * Reserve rendering space.
+	 * @param height is specified in pixels.
+	 * @return an identifier that can be later used to remove or change the whitespace.
+	 */
+	addWhitespace(afterLineNumber:number, ordinal:number, height:number): number;
+
+	/**
+	 * Change the properties of a whitespace.
+	 * @param height is specified in pixels.
+	 */
+	changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean;
+
+	/**
+	 * Remove rendering space
+	 */
+	removeWhitespace(id:number): boolean;
+
+	/**
+	 * Get the layout information for whitespaces currently in the viewport
+	 */
+	getWhitespaceViewportData(): editorCommon.IViewWhitespaceViewportData[];
+
+	getWhitespaces(): editorCommon.IEditorWhitespace[];
+}
 
 export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProvider {
 
@@ -72,17 +100,17 @@ export interface IVerticalLayoutProvider {
 
 }
 
-export class LayoutProvider extends ViewEventHandler implements IDisposable, ILayoutProvider, editorCommon.IWhitespaceManager {
+export class LayoutProvider extends ViewEventHandler implements IDisposable, ILayoutProvider, IWhitespaceManager {
 
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
 
 	private configuration: editorCommon.IConfiguration;
-	private privateViewEventBus:editorCommon.IViewEventBus;
+	private privateViewEventBus:IViewEventBus;
 	private model:IViewModel;
 	private scrollManager:ScrollManager;
 	private linesLayout: LinesLayout;
 
-	constructor(configuration:editorCommon.IConfiguration, model:IViewModel, privateViewEventBus:editorCommon.IViewEventBus, linesContent:HTMLElement, viewDomNode:HTMLElement, overflowGuardDomNode:HTMLElement) {
+	constructor(configuration:editorCommon.IConfiguration, model:IViewModel, privateViewEventBus:IViewEventBus, linesContent:HTMLElement, viewDomNode:HTMLElement, overflowGuardDomNode:HTMLElement) {
 		super();
 
 		this.configuration = configuration;

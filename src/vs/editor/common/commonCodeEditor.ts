@@ -564,18 +564,18 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				TPromise.as(candidate.run()).done(null, onUnexpectedError);
 			}
 		} else {
-			// forward to handler dispatcher
-			var r = this._configuration.handlerDispatcher.trigger(source, handlerId, payload);
-
-			if (!r) {
-//				console.warn('Returning false from ' + handlerId + ' wont do anything special...');
+			if (!this.cursor) {
+				return;
 			}
+			this.cursor.trigger(source, handlerId, payload);
 		}
 	}
 
-	public executeCommand(source: string, command: editorCommon.ICommand): boolean {
-		// forward to handler dispatcher
-		return this._configuration.handlerDispatcher.trigger(source, editorCommon.Handler.ExecuteCommand, command);
+	public executeCommand(source: string, command: editorCommon.ICommand): void {
+		if (!this.cursor) {
+			return;
+		}
+		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommand, command);
 	}
 
 	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[]): boolean {
@@ -593,9 +593,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		return true;
 	}
 
-	public executeCommands(source: string, commands: editorCommon.ICommand[]): boolean {
-		// forward to handler dispatcher
-		return this._configuration.handlerDispatcher.trigger(source, editorCommon.Handler.ExecuteCommands, commands);
+	public executeCommands(source: string, commands: editorCommon.ICommand[]): void {
+		if (!this.cursor) {
+			return;
+		}
+		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommands, commands);
 	}
 
 	public changeDecorations(callback:(changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>any): any {

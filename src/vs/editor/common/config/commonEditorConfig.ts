@@ -12,7 +12,6 @@ import * as platform from 'vs/base/common/platform';
 import {Extensions, IConfigurationRegistry, IConfigurationNode} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
 import {DefaultConfig, DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
-import {HandlerDispatcher} from 'vs/editor/common/controller/handlerDispatcher';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
@@ -331,7 +330,7 @@ class InternalEditorOptionsHelper {
 			wordSeparators: String(opts.wordSeparators),
 			selectionClipboard: toBoolean(opts.selectionClipboard),
 			ariaLabel: String(opts.ariaLabel),
-			cursorStyle: editorCommon.cursorStyleFromString(opts.cursorStyle),
+			cursorStyle: cursorStyleFromString(opts.cursorStyle),
 			fontLigatures: toBoolean(opts.fontLigatures),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
@@ -546,6 +545,17 @@ function wrappingIndentFromString(wrappingIndent:string): editorCommon.WrappingI
 	}
 }
 
+function cursorStyleFromString(cursorStyle:string): editorCommon.TextEditorCursorStyle {
+	if (cursorStyle === 'line') {
+		return editorCommon.TextEditorCursorStyle.Line;
+	} else if (cursorStyle === 'block') {
+		return editorCommon.TextEditorCursorStyle.Block;
+	} else if (cursorStyle === 'underline') {
+		return editorCommon.TextEditorCursorStyle.Underline;
+	}
+	return editorCommon.TextEditorCursorStyle.Line;
+}
+
 function toIntegerWithDefault(source:any, defaultValue:number): number {
 	if (typeof source === 'undefined') {
 		return defaultValue;
@@ -580,7 +590,6 @@ export interface IElementSizeObserver {
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
-	public handlerDispatcher:editorCommon.IHandlerDispatcher;
 	public editor:InternalEditorOptions;
 	public editorClone:InternalEditorOptions;
 
@@ -598,8 +607,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._elementSizeObserver = elementSizeObserver;
 		this._isDominatedByLongLines = false;
 		this._lineCount = 1;
-
-		this.handlerDispatcher = new HandlerDispatcher();
 
 		this.editor = this._computeInternalOptions();
 		this.editorClone = new InternalEditorOptions(this.editor);

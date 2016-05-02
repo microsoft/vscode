@@ -355,7 +355,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.configuration.handlerDispatcher.trigger('mouse', Handler.MoveTo, {
+		cursor.trigger('mouse', Handler.MoveTo, {
 			position: new Position(6, 20)
 		});
 
@@ -715,7 +715,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.configuration.handlerDispatcher.trigger('mouse', Handler.MoveTo, {
+		cursor.trigger('mouse', Handler.MoveTo, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1031,7 +1031,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.configuration.handlerDispatcher.trigger('mouse', Handler.MoveTo, {
+		cursor.trigger('mouse', Handler.MoveTo, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1192,7 +1192,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.configuration.handlerDispatcher.trigger('mouse', Handler.MoveTo, {
+		cursor.trigger('mouse', Handler.MoveTo, {
 			position: new Position(6, 20)
 		});
 		assertFindState(

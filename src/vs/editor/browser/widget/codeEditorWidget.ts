@@ -456,9 +456,15 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	protected _createView(): void {
 		this._view = new View(
+			this._keybindingService,
 			this._configuration,
 			this.viewModel,
-			this._keybindingService
+			(source:string, handlerId:string, payload:any) => {
+				if (!this.cursor) {
+					return;
+				}
+				this.cursor.trigger(source, handlerId, payload);
+			}
 		);
 	}
 

@@ -23,9 +23,9 @@ let H = Handler;
 
 function cursorCommand(cursor: Cursor, command: string, extraData?: any, sizeProvider?: { pageSize: number; }, overwriteSource?: string) {
 	if (sizeProvider) {
-		cursor.configuration.editor.pageSize = sizeProvider.pageSize;
+		cursor.configuration.editor.pageSize = sizeProvider.pageSize; // TODO@Alex
 	}
-	cursor.configuration.handlerDispatcher.trigger(overwriteSource || 'tests', command, extraData);
+	cursor.trigger(overwriteSource || 'tests', command, extraData);
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {

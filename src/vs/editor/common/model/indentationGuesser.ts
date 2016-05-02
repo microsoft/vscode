@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as editorCommon from 'vs/editor/common/editorCommon';
-
 const __space = ' '.charCodeAt(0);
 const __tab = '\t'.charCodeAt(0);
 
@@ -69,7 +67,21 @@ function spacesDiff(a:string, aLength:number, b:string, bLength:number): number 
 	return 0;
 }
 
-export function guessIndentation(lines:string[], defaultTabSize:number, defaultInsertSpaces:boolean): editorCommon.IGuessedIndentation {
+/**
+ * Result for a guessIndentation
+ */
+export interface IGuessedIndentation {
+	/**
+	 * If indentation is based on spaces (`insertSpaces` = true), then what is the number of spaces that make an indent?
+	 */
+	tabSize: number;
+	/**
+	 * Is indentation based on spaces?
+	 */
+	insertSpaces: boolean;
+}
+
+export function guessIndentation(lines:string[], defaultTabSize:number, defaultInsertSpaces:boolean): IGuessedIndentation {
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
 

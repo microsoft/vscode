@@ -56,7 +56,11 @@ export class FindModelBoundToEditorModel {
 		this._toDispose.push(this._updateDecorationsScheduler);
 
 		this._toDispose.push(this._editor.addListener2(editorCommon.EventType.CursorPositionChanged, (e:editorCommon.ICursorPositionChangedEvent) => {
-			if (e.reason === 'explicit' || e.reason === 'undo' || e.reason === 'redo') {
+			if (
+				e.reason === editorCommon.CursorChangeReason.Explicit
+				|| e.reason === editorCommon.CursorChangeReason.Undo
+				|| e.reason === editorCommon.CursorChangeReason.Redo
+			) {
 				this._decorations.setStartPosition(this._editor.getPosition());
 			}
 		}));

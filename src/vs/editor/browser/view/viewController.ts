@@ -8,26 +8,29 @@ import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {Configuration} from 'vs/editor/browser/config/configuration';
 import {IEditorMouseEvent, IViewController, IMouseDispatchData} from 'vs/editor/browser/editorBrowser';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
 
+export interface TriggerCursorHandler {
+	(source:string, handlerId:string, payload:any): void;
+}
+
 export class ViewController implements IViewController {
 
 	private viewModel:IViewModel;
-	private configuration:Configuration;
+	private triggerCursorHandler:TriggerCursorHandler;
 	private outgoingEventBus:IEventEmitter;
 	private keybindingService:IKeybindingService;
 
 	constructor(
 		viewModel:IViewModel,
-		configuration:Configuration,
+		triggerCursorHandler:TriggerCursorHandler,
 		outgoingEventBus:IEventEmitter,
 		keybindingService:IKeybindingService
 	) {
 		this.viewModel = viewModel;
-		this.configuration = configuration;
+		this.triggerCursorHandler = triggerCursorHandler;
 		this.outgoingEventBus = outgoingEventBus;
 		this.keybindingService = keybindingService;
 	}
@@ -132,7 +135,7 @@ export class ViewController implements IViewController {
 
 	public moveTo(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.MoveTo, {
+		this.triggerCursorHandler(source, editorCommon.Handler.MoveTo, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -140,7 +143,7 @@ export class ViewController implements IViewController {
 
 	private moveToSelect(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.MoveToSelect, {
+		this.triggerCursorHandler(source, editorCommon.Handler.MoveToSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -148,7 +151,7 @@ export class ViewController implements IViewController {
 
 	private columnSelect(source:string, viewPosition:editorCommon.IEditorPosition, mouseColumn:number): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.ColumnSelect, {
+		this.triggerCursorHandler(source, editorCommon.Handler.ColumnSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			mouseColumn: mouseColumn
@@ -157,7 +160,7 @@ export class ViewController implements IViewController {
 
 	private createCursor(source:string, viewPosition:editorCommon.IEditorPosition, wholeLine:boolean): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.CreateCursor, {
+		this.triggerCursorHandler(source, editorCommon.Handler.CreateCursor, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			wholeLine: wholeLine
@@ -166,7 +169,7 @@ export class ViewController implements IViewController {
 
 	private lastCursorMoveToSelect(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.LastCursorMoveToSelect, {
+		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorMoveToSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -174,28 +177,28 @@ export class ViewController implements IViewController {
 
 	private wordSelect(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.WordSelect, {
+		this.triggerCursorHandler(source, editorCommon.Handler.WordSelect, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private wordSelectDrag(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.WordSelectDrag, {
+		this.triggerCursorHandler(source, editorCommon.Handler.WordSelectDrag, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private lastCursorWordSelect(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.LastCursorWordSelect, {
+		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorWordSelect, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private lineSelect(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.LineSelect, {
+		this.triggerCursorHandler(source, editorCommon.Handler.LineSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -203,7 +206,7 @@ export class ViewController implements IViewController {
 
 	private lineSelectDrag(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.LineSelectDrag, {
+		this.triggerCursorHandler(source, editorCommon.Handler.LineSelectDrag, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -211,7 +214,7 @@ export class ViewController implements IViewController {
 
 	private lastCursorLineSelect(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.LastCursorLineSelect, {
+		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorLineSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -219,14 +222,14 @@ export class ViewController implements IViewController {
 
 	private lastCursorLineSelectDrag(source:string, viewPosition:editorCommon.IEditorPosition): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.LastCursorLineSelectDrag, {
+		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorLineSelectDrag, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
 	}
 
 	private selectAll(source:string): void {
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.SelectAll, null);
+		this.triggerCursorHandler(source, editorCommon.Handler.SelectAll, null);
 	}
 
 	// ----------------------

@@ -511,7 +511,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 
 		this._register(editor.addListener2(editorCommon.EventType.CursorSelectionChanged, (e: editorCommon.ICursorSelectionChangedEvent) => {
 			if (e.selection.isEmpty()) {
-				if (e.reason === 'explicit') {
+				if (e.reason === editorCommon.CursorChangeReason.Explicit) {
 					if (!this.lastWordUnderCursor || !this.lastWordUnderCursor.containsPosition(e.selection.getStartPosition())) {
 						// no longer valid
 						this.removeDecorations();
