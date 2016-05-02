@@ -9,10 +9,10 @@ import { isUndefined } from 'vs/base/common/types';
 import { IXHRResponse } from 'vs/base/common/http';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
-import { getExtensionId } from './extensionsUtil';
+import { getExtensionId } from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import product from 'vs/platform/node/product';
 
 export interface IGalleryExtensionFile {
 	assetType: string;
@@ -211,10 +211,9 @@ export class GalleryService implements IGalleryService {
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		const config = contextService.getConfiguration().env.extensionsGallery;
+		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsCacheUrl = config && config.cacheUrl;
 		this.machineId = telemetryService.getTelemetryInfo().then(({ machineId }) => machineId);
