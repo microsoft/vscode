@@ -28,7 +28,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {IReference, ReferenceSearchRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {Events, IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {findReferences} from '../common/referenceSearch';
 import {EventType, ReferencesModel} from './referenceSearchModel';
 import {ReferenceWidget} from './referenceSearchWidget';
@@ -37,12 +37,12 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 
 	public static ID = 'editor.contrib.findReferencesController';
 
-	private editor:ICodeEditor;
-	private widget:ReferenceWidget;
-	private requestIdPool: number;
-	private callOnClear:Function[];
-	private model:ReferencesModel;
-	private modelRevealing:boolean;
+	private _editor:ICodeEditor;
+	private _widget:ReferenceWidget;
+	private _requestIdPool: number;
+	private _callOnClear:Function[];
+	private _model:ReferencesModel;
+	private _modelRevealing:boolean;
 
 	private editorService: IEditorService;
 	private telemetryService: ITelemetryService;
@@ -68,8 +68,8 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@optional(IPeekViewService) peekViewService: IPeekViewService
 	) {
-		this.requestIdPool = 0;
-		this.callOnClear = [];
+		this._requestIdPool = 0;
+		this._callOnClear = [];
 		this.editorService = editorService;
 		this.telemetryService = telemetryService;
 		this.messageService = messageService;
@@ -77,8 +77,8 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		this.peekViewService = peekViewService;
 		this.contextService = contextService;
 		this.keybindingService = keybindingService;
-		this.modelRevealing = false;
-		this.editor = editor;
+		this._modelRevealing = false;
+		this._editor = editor;
 		this._referenceSearchVisible = keybindingService.createKey(CONTEXT_REFERENCE_SEARCH_VISIBLE, false);
 	}
 
@@ -87,11 +87,11 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 	}
 
 	public dispose(): void {
-		if (this.widget) {
-			this.widget.dispose();
-			this.widget = null;
+		if (this._widget) {
+			this._widget.dispose();
+			this._widget = null;
 		}
-		this.editor = null;
+		this._editor = null;
 	}
 
 	public isInPeekView() : boolean {
@@ -103,7 +103,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 	}
 
 	public processRequest(range: editorCommon.IEditorRange, referencesPromise: TPromise<IReference[]>, metaTitleFn:(references:IReference[])=>string) : ReferenceWidget {
-		var widgetPosition = !this.widget ? null : this.widget.position;
+		var widgetPosition = !this._widget ? null : this._widget.position;
 
 		// clean up from previous invocation
 		var widgetClosed = this.clear();
@@ -116,22 +116,26 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this.callOnClear.push(this.editor.addListener(editorCommon.EventType.ModelModeChanged, () => { this.clear(); }));
-		this.callOnClear.push(this.editor.addListener(editorCommon.EventType.ModelChanged, () => {
-			if(!this.modelRevealing) {
+		this._callOnClear.push(this._editor.addListener(editorCommon.EventType.ModelModeChanged, () => { this.clear(); }));
+		this._callOnClear.push(this._editor.addListener(editorCommon.EventType.ModelChanged, () => {
+			if(!this._modelRevealing) {
 				this.clear();
 			}
 		}));
 
-		this.widget = new ReferenceWidget(this.editorService, this.keybindingService, this.contextService, this.instantiationService, this.editor);
-		this.widget.setTitle(nls.localize('labelLoading', "Loading..."));
-		this.widget.show(range, 18);
-		this.callOnClear.push(this.widget.addListener(Events.Closed, () => {
-			this.widget = null;
-			referencesPromise.cancel();
+		this._widget = new ReferenceWidget(this.editorService, this.keybindingService, this.contextService, this.instantiationService, this._editor);
+		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
+		this._widget.show(range, 18);
+		this._callOnClear.push(this._widget.onDidClose(() => {
+			this._widget = null;
 			this.clear();
-		}));
-		this.callOnClear.push(this.widget.addListener(ReferenceWidget.Events.EditorDoubleClick, (event:any) => {
+		}).dispose);
+
+		this._callOnClear.push(() => {
+			referencesPromise.cancel();
+		});
+
+		this._callOnClear.push(this._widget.onDidDoubleClick(event => {
 
 			if(!event.reference) {
 				return;
@@ -147,9 +151,9 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			if (!(event.originalEvent.ctrlKey || event.originalEvent.metaKey)) {
 				this.clear();
 			}
-		}));
-		var requestId = ++this.requestIdPool,
-			editorModel = this.editor.getModel();
+		}).dispose);
+		var requestId = ++this._requestIdPool,
+			editorModel = this._editor.getModel();
 
 		var timer = this.telemetryService.timedPublicLog('findReferences', {
 			mode: editorModel.getMode().getId()
@@ -158,31 +162,31 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		referencesPromise.then((references:IReference[]) => {
 
 			// still current request? widget still open?
-			if(requestId !== this.requestIdPool || !this.widget) {
+			if(requestId !== this._requestIdPool || !this._widget) {
 				timer.stop();
 				return;
 			}
 
 			// has a result
 			if (isFalsyOrEmpty(references)) {
-				this.widget.showMessage(nls.localize('noResults', "No results"));
+				this._widget.showMessage(nls.localize('noResults', "No results"));
 				timer.stop();
 				return;
 			}
 
 			// create result model
-			this.model = new ReferencesModel(references, this.editorService);
-			this.model.currentReference = this.model.findReference(editorModel.getAssociatedResource(), range.getStartPosition());
+			this._model = new ReferencesModel(references, this.editorService);
+			this._model.currentReference = this._model.findReference(editorModel.getAssociatedResource(), range.getStartPosition());
 
-			var unbind = this.model.addListener(EventType.CurrentReferenceChanged, () => {
+			var unbind = this._model.addListener(EventType.CurrentReferenceChanged, () => {
 
-				this.modelRevealing = true;
+				this._modelRevealing = true;
 
 				this.editorService.openEditor({
-					resource: this.model.currentReference.resource,
-					options: { selection: this.model.currentReference.range }
+					resource: this._model.currentReference.resource,
+					options: { selection: this._model.currentReference.range }
 				}).done((openedEditor) => {
-					if(!openedEditor || openedEditor.getControl() !== this.editor) {
+					if(!openedEditor || openedEditor.getControl() !== this._editor) {
 						// TODO@Alex TODO@Joh
 						// when opening the current reference we might end up
 						// in a different editor instance. that means we also have
@@ -193,22 +197,22 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 						this.clear();
 						return;
 					}
-					this.modelRevealing = false;
-					this.widget.show(this.model.currentReference.range, 18);
-					this.widget.focus();
+					this._modelRevealing = false;
+					this._widget.show(this._model.currentReference.range, 18);
+					this._widget.focus();
 				}, (err) => {
-					this.modelRevealing = false;
+					this._modelRevealing = false;
 					onUnexpectedError(err);
 				});
 			});
 
-			this.callOnClear.push(unbind);
+			this._callOnClear.push(unbind);
 
 			// show widget
 			this._startTime = Date.now();
-			if (this.widget) {
-				this.widget.setMetaTitle(metaTitleFn(references));
-				this.widget.setModel(this.model);
+			if (this._widget) {
+				this._widget.setMetaTitle(metaTitleFn(references));
+				this._widget.setModel(this._model);
 			}
 			timer.stop();
 
@@ -217,7 +221,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			timer.stop();
 		});
 
-		return this.widget;
+		return this._widget;
 	}
 
 	private clear():boolean {
@@ -232,19 +236,19 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 
 		this._referenceSearchVisible.reset();
 
-		cAll(this.callOnClear);
+		cAll(this._callOnClear);
 
-		this.model = null;
+		this._model = null;
 
 		var result = false;
-		if(this.widget) {
-			this.widget.dispose();
-			this.widget = null;
+		if(this._widget) {
+			this._widget.dispose();
+			this._widget = null;
 			result = true;
 		}
 
-		this.editor.focus();
-		this.requestIdPool += 1; // Cancel pending requests
+		this._editor.focus();
+		this._requestIdPool += 1; // Cancel pending requests
 		return result;
 	}
 
