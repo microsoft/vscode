@@ -799,7 +799,7 @@ suite('ExtHostLanguageFeatures', function() {
 		threadService.sync().then(() => {
 
 			getParameterHints(model, { lineNumber: 1, column: 1 }, '(').then(value => {
-				done(new Error('error expeted'));
+				done(new Error('error expected'));
 			}, err => {
 				assert.equal(err.message, 'evil');
 				done();
@@ -826,9 +826,9 @@ suite('ExtHostLanguageFeatures', function() {
 		threadService.sync().then(() => {
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.ok(value.length >= 1); // check for min because snippets and others contribute
-				let [first] = value;
-				assert.equal(first.suggestions.length, 1);
-				assert.equal(first.suggestions[0].codeSnippet, 'testing2');
+				let [,second] = value; // first for snippets
+				assert.equal(second.suggestions.length, 1);
+				assert.equal(second.suggestions[0].codeSnippet, 'testing2');
 				done();
 			});
 		});
@@ -851,9 +851,9 @@ suite('ExtHostLanguageFeatures', function() {
 		threadService.sync().then(() => {
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 				assert.ok(value.length >= 1);
-				let [first] = value;
-				assert.equal(first.suggestions.length, 1);
-				assert.equal(first.suggestions[0].codeSnippet, 'weak-selector');
+				let [,second] = value; // first for snippets
+				assert.equal(second.suggestions.length, 1);
+				assert.equal(second.suggestions[0].codeSnippet, 'weak-selector');
 				done();
 			});
 		});
@@ -877,10 +877,10 @@ suite('ExtHostLanguageFeatures', function() {
 			threadService.sync().then(() => {
 				suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
 					assert.ok(value.length >= 2);
-					let [first, second] = value;
-					assert.equal(first.suggestions.length, 1);
-					assert.equal(first.suggestions[0].codeSnippet, 'strong-2'); // last wins
-					assert.equal(second.suggestions[0].codeSnippet, 'strong-1');
+					let [, second, third] = value; // first for snippets
+					assert.equal(second.suggestions.length, 1);
+					assert.equal(second.suggestions[0].codeSnippet, 'strong-2'); // last wins
+					assert.equal(third.suggestions[0].codeSnippet, 'strong-1');
 					done();
 				});
 			});
@@ -905,7 +905,7 @@ suite('ExtHostLanguageFeatures', function() {
 		threadService.sync().then(() => {
 
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
-				assert.equal(value[0].incomplete, undefined);
+				assert.equal(value[1].incomplete, undefined);
 				done();
 			});
 		});
@@ -922,7 +922,7 @@ suite('ExtHostLanguageFeatures', function() {
 		return threadService.sync().then(() => {
 
 			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
-				assert.equal(value[0].incomplete, true);
+				assert.equal(value[1].incomplete, true);
 			});
 		});
 	});
