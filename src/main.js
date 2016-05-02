@@ -73,7 +73,7 @@ function getNLSConfiguration() {
 		return { locale: locale, availableLanguages: {}, pseudo: true }
 	}
 	var initialLocale = locale;
-	if (process.env.VSCODE_DEV) {
+	if (process.env['VSCODE_DEV']) {
 		return { locale: locale, availableLanguages: {} };
 	}
 	// We have a built version so we have extracted nls file. Try to find
@@ -98,17 +98,17 @@ function getNLSConfiguration() {
 // Update cwd based on environment and platform
 try {
 	if (process.platform === 'win32') {
-		process.env.VSCODE_CWD = process.cwd(); // remember as environment variable
+		process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
 		process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
-	} else if (process.env.VSCODE_CWD) {
-		process.chdir(process.env.VSCODE_CWD);
+	} else if (process.env['VSCODE_CWD']) {
+		process.chdir(process.env['VSCODE_CWD']);
 	}
 } catch (err) {
 	console.error(err);
 }
 
 // Set path according to being built or not
-if (process.env.VSCODE_DEV) {
+if (process.env['VSCODE_DEV']) {
 	var appData = app.getPath('appData');
 	app.setPath('userData', path.join(appData, 'Code-Development'));
 }
