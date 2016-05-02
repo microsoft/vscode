@@ -10,16 +10,23 @@ import {ipcMain as ipc, app, shell, dialog, Menu, MenuItem} from 'electron';
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
 import arrays = require('vs/base/common/arrays');
+import objects = require('vs/base/common/objects');
 import { IWindowsService, WindowsManager, IOpenedPathsList } from 'vs/workbench/electron-main/windows';
 import window = require('vs/workbench/electron-main/window');
 import env = require('vs/workbench/electron-main/env');
 import { IStorageService } from 'vs/workbench/electron-main/storage';
 import { IUpdateService, State as UpdateState } from 'vs/workbench/electron-main/update-manager';
 import {Keybinding} from 'vs/base/common/keyCodes';
+import {RunOnceScheduler} from 'vs/base/common/async';
 
 interface IResolvedKeybinding {
 	id: string;
 	binding: number;
+	label?: string;
+}
+
+interface IResolvedExtensions {
+	[displayName: string]: IResolvedKeybinding[];
 }
 
 export class VSCodeMenu {
@@ -35,6 +42,11 @@ export class VSCodeMenu {
 	private mapLastKnownKeybindingToActionId: { [id: string]: string; };
 	private mapResolvedKeybindingToActionId: { [id: string]: string; };
 	private keybindingsResolved: boolean;
+	private extensionsResolved: boolean;
+
+	private resolvedExtensions: IResolvedExtensions;
+
+	private updateMenuScheduler: RunOnceScheduler;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -43,9 +55,16 @@ export class VSCodeMenu {
 		@env.IEnvironmentService private envService: env.IEnvironmentService
 	) {
 		this.actionIdKeybindingRequests = [];
+		this.resolvedExtensions = Object.create(null);
 
 		this.mapResolvedKeybindingToActionId = Object.create(null);
 		this.mapLastKnownKeybindingToActionId = this.storageService.getItem<{ [id: string]: string; }>(VSCodeMenu.lastKnownKeybindingsMapStorageKey) || Object.create(null);
+
+		this.updateMenuScheduler = new RunOnceScheduler(() => {
+			if (!this.isQuitting) {
+				this.install();
+			}
+		}, 20);
 	}
 
 	public ready(): void {
@@ -64,8 +83,11 @@ export class VSCodeMenu {
 		this.windowsManager.onOpen((paths) => this.onOpen(paths));
 		this.windowsManager.onClose(_ => this.onClose(this.windowsManager.getWindowCount()));
 
-		// Resolve keybindings when any first workbench is loaded
-		this.windowsManager.onReady((win) => this.resolveKeybindings(win));
+		// Resolve keybindings and extensions when any first workbench is loaded
+		this.windowsManager.onReady((win) => {
+			this.resolveKeybindings(win);
+			this.resolveExtensions(win);
+		});
 
 		// Listen to resolved keybindings
 		ipc.on('vscode:keybindingsResolved', (event, rawKeybindings) => {
@@ -76,9 +98,41 @@ export class VSCodeMenu {
 				// Should not happen
 			}
 
-			// Fill hash map of resolved keybindings
-			let needsMenuUpdate = false;
-			keybindings.forEach((keybinding) => {
+			this.updateKeybindings(keybindings);
+		});
+
+		ipc.on('vscode:extensionsResolved', (event, rawExtensions) => {
+			let extensions: IResolvedExtensions = {};
+			try {
+				extensions = JSON.parse(rawExtensions);
+			} catch (error) {
+				// Should not happen
+			}
+
+			Object.keys(extensions).sort().map((displayName) => {
+				let keybindings = extensions[displayName];
+				this.updateKeybindings(keybindings);
+			});
+
+			this.resolvedExtensions = extensions;
+
+			this.updateMenu();
+		});
+
+		ipc.on('vscode:reloadWindow', (event, windowId: number) => {
+			this.keybindingsResolved = false;
+			this.extensionsResolved = false;
+		});
+
+		// Listen to update manager
+		this.updateManager.on('change', () => this.updateMenu());
+	}
+
+	private updateKeybindings(keybindings: IResolvedKeybinding[]): void {
+		// Fill hash map of resolved keybindings
+		let needsMenuUpdate = false;
+		keybindings.forEach((keybinding) => {
+			if (!isNaN(keybinding.binding)) {
 				let accelerator = new Keybinding(keybinding.binding)._toElectronAccelerator();
 				if (accelerator) {
 					this.mapResolvedKeybindingToActionId[keybinding.id] = accelerator;
@@ -86,23 +140,20 @@ export class VSCodeMenu {
 						needsMenuUpdate = true; // we only need to update when something changed!
 					}
 				}
-			});
-
-			// A keybinding might have been unassigned, so we have to account for that too
-			if (Object.keys(this.mapLastKnownKeybindingToActionId).length !== Object.keys(this.mapResolvedKeybindingToActionId).length) {
-				needsMenuUpdate = true;
-			}
-
-			if (needsMenuUpdate) {
-				this.storageService.setItem(VSCodeMenu.lastKnownKeybindingsMapStorageKey, this.mapResolvedKeybindingToActionId); // keep to restore instantly after restart
-				this.mapLastKnownKeybindingToActionId = this.mapResolvedKeybindingToActionId; // update our last known map
-
-				this.updateMenu();
 			}
 		});
 
-		// Listen to update manager
-		this.updateManager.on('change', () => this.updateMenu());
+		// A keybinding might have been unassigned, so we have to account for that too
+		if (Object.keys(this.mapLastKnownKeybindingToActionId).length !== Object.keys(this.mapResolvedKeybindingToActionId).length) {
+			needsMenuUpdate = true;
+		}
+
+		if (needsMenuUpdate) {
+			this.storageService.setItem(VSCodeMenu.lastKnownKeybindingsMapStorageKey, this.mapResolvedKeybindingToActionId); // keep to restore instantly after restart
+			this.mapLastKnownKeybindingToActionId = objects.clone(this.mapResolvedKeybindingToActionId); // update our last known map
+
+			this.updateMenu();
+		}
 	}
 
 	private resolveKeybindings(win: window.VSCodeWindow): void {
@@ -118,6 +169,16 @@ export class VSCodeMenu {
 		}
 	}
 
+	private resolveExtensions(win: window.VSCodeWindow): void {
+		if (this.extensionsResolved) {
+			return; // only resolve once
+		}
+
+		this.extensionsResolved = true;
+
+		win.send('vscode:resolveExtensions');
+	}
+
 	private updateMenu(): void {
 
 		// Due to limitations in Electron, it is not possible to update menu items dynamically. The suggested
@@ -126,11 +187,7 @@ export class VSCodeMenu {
 		//
 		// Run delayed to prevent updating menu while it is open
 		if (!this.isQuitting) {
-			setTimeout(() => {
-				if (!this.isQuitting) {
-					this.install();
-				}
-			}, 10 /* delay this because there is an issue with updating a menu when it is open */);
+			this.updateMenuScheduler.schedule();
 		}
 	}
 
@@ -178,6 +235,11 @@ export class VSCodeMenu {
 		let gotoMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Goto")), submenu: gotoMenu });
 		this.setGotoMenu(gotoMenu);
 
+		// Extension
+		let extensionMenu = new Menu();
+		let extensionMenuItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'mExtension', comment: ['&& denotes a mnemonic'] }, "Ex&&tension")), submenu: extensionMenu });
+		this.setExtensionMenu(extensionMenu);
+
 		// Mac: Window
 		let macWindowMenuItem: Electron.MenuItem;
 		if (platform.isMacintosh) {
@@ -200,6 +262,7 @@ export class VSCodeMenu {
 		menubar.append(editMenuItem);
 		menubar.append(viewMenuItem);
 		menubar.append(gotoMenuItem);
+		menubar.append(extensionMenuItem);
 
 		if (macWindowMenuItem) {
 			menubar.append(macWindowMenuItem);
@@ -536,7 +599,7 @@ export class VSCodeMenu {
 			debugConsole,
 			__separator__(),
 			fullscreen,
-			platform.isWindows ||  platform.isLinux ? toggleMenuBar : void 0,
+			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
 			toggleSidebar,
@@ -591,6 +654,20 @@ export class VSCodeMenu {
 		if (w && w.win) {
 			w.win.webContents.toggleDevTools();
 		}
+	}
+
+	private setExtensionMenu(extensionMenu: Electron.Menu): void {
+		Object.keys(this.resolvedExtensions).sort().forEach(displayName => {
+			let keybindings = this.resolvedExtensions[displayName];
+			let menu = new Menu();
+			let item = new MenuItem({ label: displayName, submenu: menu });
+
+			keybindings.forEach(keybinding => {
+				menu.append(this.createMenuItem(keybinding.label, keybinding.id));
+			});
+
+			extensionMenu.append(item);
+		});
 	}
 
 	private setHelpMenu(helpMenu: Electron.Menu): void {
