@@ -68,7 +68,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 
 		return this.debugService.getConfigurationManager().loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
-				this.select.add(this.createOption(`<${ nls.localize('none', "none") }>`));
+				this.select.add(this.createOption(nls.localize('noConfigurations', "No Configurations")));
 				this.select.disabled = true;
 				return this.actionRunner.run(this._action, null);
 			}
