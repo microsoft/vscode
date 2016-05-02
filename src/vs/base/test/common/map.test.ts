@@ -135,6 +135,44 @@ suite('Map', () => {
 		assert.equal(map.get('14'), 14);
 	});
 
+	test('LinkedMap - bounded with ratio', function () {
+		const map = new LinkedMap<number>(6, 0.5);
+
+		assert.equal(0, map.size);
+
+		map.set('1', 1);
+		map.set('2', 2);
+		map.set('3', 3);
+		map.set('4', 4);
+		map.set('5', 5);
+		map.set('6', 6);
+
+		assert.equal(6, map.size);
+
+		map.set('7', 7);
+
+		assert.equal(3, map.size);
+		assert.ok(!map.has('1'));
+		assert.ok(!map.has('2'));
+		assert.ok(!map.has('3'));
+		assert.ok(!map.has('4'));
+		assert.equal(map.get('5'), 5);
+		assert.equal(map.get('6'), 6);
+		assert.equal(map.get('7'), 7);
+
+		map.set('8', 8);
+		map.set('9', 9);
+		map.set('10', 10);
+
+		assert.equal(6, map.size);
+		assert.equal(map.get('5'), 5);
+		assert.equal(map.get('6'), 6);
+		assert.equal(map.get('7'), 7);
+		assert.equal(map.get('8'), 8);
+		assert.equal(map.get('9'), 9);
+		assert.equal(map.get('10'), 10);
+	});
+
 	test('LRUCache', function () {
 		const cache = new LRUCache<number>(3);
 

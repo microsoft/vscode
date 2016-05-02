@@ -5,7 +5,7 @@
 
 'use strict';
 
-interface Entry<T> {
+export interface Entry<T> {
 	next?: Entry<T>;
 	prev?: Entry<T>;
 	key: string;
@@ -14,17 +14,20 @@ interface Entry<T> {
 
 /**
  * A simple Map<T> that optionally allows to set a limit of entries to store. Once the limit is hit,
- * the cache will remove the entry that was last recently added.
+ * the cache will remove the entry that was last recently added. Or, if a ratio is provided below 1,
+ * all elements will be removed until the ratio is full filled (e.g. 0.75 to remove 25% of old elements).
  */
 export class LinkedMap<T> {
 	protected map: { [key: string]: Entry<T> };
 	private head: Entry<T>;
 	private tail: Entry<T>;
 	private _size: number;
+	private ratio: number;
 
-	constructor(private limit = Number.MAX_VALUE) {
+	constructor(private limit = Number.MAX_VALUE, ratio = 1) {
 		this.map = Object.create(null);
 		this._size = 0;
+		this.ratio = limit * ratio;
 	}
 
 	public get size(): number {
@@ -107,12 +110,41 @@ export class LinkedMap<T> {
 
 	private trim(): void {
 		if (this.tail) {
-			this.map[this.tail.key] = void 0;
-			this._size--;
 
-			// [x]-[B] = [B]
-			this.tail = this.tail.next;
-			this.tail.prev = null;
+			// Remove all elements until ratio is reached
+			if (this.ratio < this.limit) {
+				let index = 0;
+				let current = this.tail;
+				while (current.next) {
+
+					// Remove the entry
+					this.map[current.key] = void 0;
+					this._size--;
+
+					// if we reached the element that overflows our ratio condition
+					// make its next element the new tail of the Map and adjust the size
+					if (index === this.ratio) {
+						this.tail = current.next;
+						this.tail.prev = null;
+
+						break;
+					}
+
+					// Move on
+					current = current.next;
+					index++;
+				}
+			}
+
+			// Just remove the tail element
+			else {
+				this.map[this.tail.key] = void 0;
+				this._size--;
+
+				// [x]-[B] = [B]
+				this.tail = this.tail.next;
+				this.tail.prev = null;
+			}
 		}
 	}
 }
