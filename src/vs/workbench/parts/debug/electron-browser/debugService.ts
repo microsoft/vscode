@@ -477,7 +477,10 @@ export class DebugService implements debug.IDebugService {
 
 	public addReplExpression(name: string): TPromise<void> {
 		this.telemetryService.publicLog('debugService/addReplExpression');
-		return this.model.addReplExpression(this.session, this.viewModel.getFocusedStackFrame(), name);
+		const focussedStackFrame = this.viewModel.getFocusedStackFrame();
+		return this.model.addReplExpression(this.session, focussedStackFrame, name)
+			// Evaluate all watch expressions again since repl evaluation might have changed some.
+			.then(() => this.setFocusedStackFrameAndEvaluate(focussedStackFrame));
 	}
 
 	public logToRepl(value: string | { [key: string]: any }, severity?: severity): void {
