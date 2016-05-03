@@ -187,7 +187,7 @@ suite('Instantiation Service', () => {
 		assert.throws(() => service.createInstance(Target2Dep));
 		service.invokeFunction(function (a) {
 			assert.ok(a.get(IService1));
-			assert.ok(!a.get(IService2));
+			assert.ok(!a.get(IService2, optional));
 		});
 
 		collection.set(IService2, new Service2());
@@ -312,6 +312,19 @@ suite('Instantiation Service', () => {
 			return true;
 		}
 
+		assert.equal(service.invokeFunction(test), true);
+	});
+
+	test('Invoke - get service, optional', function () {
+		let collection = new ServiceCollection([IService1, new Service1()]);
+		let service = new InstantiationService(collection);
+
+		function test(accessor: ServicesAccessor) {
+			assert.ok(accessor.get(IService1) instanceof Service1);
+			assert.throws(() => accessor.get(IService2));
+			assert.equal(accessor.get(IService2, optional), undefined);
+			return true;
+		}
 		assert.equal(service.invokeFunction(test), true);
 	});
 

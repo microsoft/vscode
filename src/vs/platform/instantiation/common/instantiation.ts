@@ -59,7 +59,7 @@ export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
 }
 
 export interface ServicesAccessor {
-	get<T>(id: ServiceIdentifier<T>): T;
+	get<T>(id: ServiceIdentifier<T>, isOptional?: typeof optional): T;
 }
 
 export interface IFunctionSignature0<R> {
