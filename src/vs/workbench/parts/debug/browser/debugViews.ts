@@ -218,11 +218,13 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
+		const actionProvider = this.instantiationService.createInstance(viewer.CallStackActionProvider);
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: this.instantiationService.createInstance(viewer.CallStackDataSource),
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
-			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider)
+			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
+			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, actionProvider)
 		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
 
 		this.toDispose.push(this.tree.addListener2('selection', (e: tree.ISelectionEvent) => {
