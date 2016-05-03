@@ -80,3 +80,10 @@ export abstract class Disposable implements IDisposable {
 		return t;
 	}
 }
+
+export class Disposables extends Disposable {
+
+	public add(disposable: IDisposable): void {
+		this._register(disposable);
+	}
+}

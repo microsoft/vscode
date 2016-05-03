@@ -6,10 +6,12 @@
 'use strict';
 
 import 'vs/css!./zoneWidget';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {Disposables} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import {EventType, IEditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {Range} from 'vs/editor/common/core/range';
+import {Position} from 'vs/editor/common/core/position';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
 
 export interface IOptions {
@@ -20,7 +22,7 @@ export interface IOptions {
 	isAccessible?: boolean;
 }
 
-var defaultOptions:IOptions = {
+var defaultOptions: IOptions = {
 	showArrow: true,
 	showFrame: true,
 	frameColor: '',
@@ -31,14 +33,14 @@ var WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
 class ViewZoneDelegate implements IViewZone {
 
-	public domNode:HTMLElement;
-	public afterLineNumber:number;
-	public afterColumn:number;
-	public heightInLines:number;
-	private _onDomNodeTop:(top:number)=>void;
-	private _onComputedHeight:(height:number)=>void;
+	public domNode: HTMLElement;
+	public afterLineNumber: number;
+	public afterColumn: number;
+	public heightInLines: number;
+	private _onDomNodeTop: (top: number) => void;
+	private _onComputedHeight: (height: number) => void;
 
-	constructor (domNode:HTMLElement, afterLineNumber:number, afterColumn:number, heightInLines:number, onDomNodeTop:(top:number)=>void, onComputedHeight:(height:number)=>void) {
+	constructor(domNode: HTMLElement, afterLineNumber: number, afterColumn: number, heightInLines: number, onDomNodeTop: (top: number) => void, onComputedHeight: (height: number) => void) {
 		this.domNode = domNode;
 		this.afterLineNumber = afterLineNumber;
 		this.afterColumn = afterColumn;
@@ -47,11 +49,11 @@ class ViewZoneDelegate implements IViewZone {
 		this._onComputedHeight = onComputedHeight;
 	}
 
-	public onDomNodeTop(top:number):void {
+	public onDomNodeTop(top: number): void {
 		this._onDomNodeTop(top);
 	}
 
-	public onComputedHeight(height:number):void {
+	public onComputedHeight(height: number): void {
 		this._onComputedHeight(height);
 	}
 }
@@ -61,7 +63,7 @@ class OverlayWidgetDelegate implements IOverlayWidget {
 	private _id: string;
 	private _domNode: HTMLElement;
 
-	constructor (id: string, domNode: HTMLElement) {
+	constructor(id: string, domNode: HTMLElement) {
 		this._id = id;
 		this._domNode = domNode;
 	}
@@ -80,44 +82,35 @@ class OverlayWidgetDelegate implements IOverlayWidget {
 
 }
 
-export class ZoneWidget  {
+export class ZoneWidget {
 
-	private zoneId:number;
-	private lastView:any;
-	private overlayWidget: OverlayWidgetDelegate;
+	private _zoneId: number = -1;
+	private _overlayWidget: OverlayWidgetDelegate = null;
+	private _disposables = new Disposables();
 
-	public container: HTMLElement;
-	public shadowTop: HTMLElement;
-	public shadowBottom: HTMLElement;
-	public domNode:HTMLElement;
-	public position:IPosition;
-	public editor:ICodeEditor;
-	public options:IOptions;
+	public container: HTMLElement = null;
+	public domNode: HTMLElement;
+	public position: IPosition;
+	public editor: ICodeEditor;
+	public options: IOptions;
 
-	private listenersToRemove:ListenerUnbind[];
-
-	constructor(editor:ICodeEditor, options:IOptions = {}) {
+	constructor(editor: ICodeEditor, options: IOptions = {}) {
 		this.editor = editor;
 		this.options = objects.mixin(objects.clone(defaultOptions), options);
-		this.zoneId = -1;
-		this.overlayWidget = null;
-		this.lastView = null;
 		this.domNode = document.createElement('div');
 		if (!this.options.isAccessible) {
 			this.domNode.setAttribute('aria-hidden', 'true');
 			this.domNode.setAttribute('role', 'presentation');
 		}
 
-		this.container = null;
-		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.addListener(EventType.EditorLayout, (info:IEditorLayoutInfo) => {
-			var width = this.getWidth(info);
+		this._disposables.add(this.editor.addListener2(EventType.EditorLayout, (info: IEditorLayoutInfo) => {
+			var width = this._getWidth(info);
 			this.domNode.style.width = width + 'px';
 			this.onWidth(width);
 		}));
 	}
 
-	public create():void {
+	public create(): void {
 
 		dom.addClass(this.domNode, 'zone-widget');
 		dom.addClass(this.domNode, this.options.className);
@@ -129,44 +122,37 @@ export class ZoneWidget  {
 		this.fillContainer(this.container);
 	}
 
-	private getWidth(info:IEditorLayoutInfo=this.editor.getLayoutInfo()):number {
+	private _getWidth(info: IEditorLayoutInfo = this.editor.getLayoutInfo()): number {
 		return info.width - info.verticalScrollbarWidth;
 	}
 
-	private onViewZoneTop(top:number):void {
+	private _onViewZoneTop(top: number): void {
 		this.domNode.style.top = top + 'px';
 	}
 
-	private onViewZoneHeight(height:number):void {
+	private _onViewZoneHeight(height: number): void {
 		this.domNode.style.height = height + 'px';
 		this.doLayout(height - this._decoratingElementsHeight());
 	}
 
-	public show(where:IRange, heightInLines:number):void;
-	public show(where:IPosition, heightInLines:number):void;
-	public show(where:any, heightInLines:number):void {
-		if(typeof where.startLineNumber === 'number') {
-			this.showImpl(<IRange>where, heightInLines);
-		} else {
-			this.showImpl({
-				startLineNumber: (<IPosition>where).lineNumber,
-				startColumn: (<IPosition>where).column,
-				endLineNumber: (<IPosition>where).lineNumber,
-				endColumn: (<IPosition>where).column
-			}, heightInLines);
-		}
+	public show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+		const range = Range.isIRange(rangeOrPos)
+			? rangeOrPos
+			: Position.asEmptyRange(rangeOrPos);
+
+		this._showImpl(range, heightInLines);
 	}
 
 	private _decoratingElementsHeight(): number {
 		let lineHeight = this.editor.getConfiguration().lineHeight;
 		let result = 0;
 
-		if(this.options.showArrow) {
+		if (this.options.showArrow) {
 			let arrowHeight = Math.round(lineHeight / 3);
 			result += 2 * arrowHeight;
 		}
 
-		if(this.options.showFrame) {
+		if (this.options.showFrame) {
 			let frameThickness = Math.round(lineHeight / 9);
 			result += 2 * frameThickness;
 		}
@@ -174,13 +160,13 @@ export class ZoneWidget  {
 		return result;
 	}
 
-	private showImpl(where:IRange, heightInLines:number):void {
+	private _showImpl(where: IRange, heightInLines: number): void {
 		var position = {
 			lineNumber: where.startLineNumber,
 			column: where.startColumn
 		};
 
-		this.domNode.style.width = this.getWidth() + 'px';
+		this.domNode.style.width = this._getWidth() + 'px';
 
 		// Reveal position, to get the line rendered, such that the arrow can be positioned properly
 		this.editor.revealPosition(position);
@@ -192,7 +178,7 @@ export class ZoneWidget  {
 			arrowHeight = 0, frameThickness = 0;
 
 		// Render the arrow one 1/3 of an editor line height
-		if(this.options.showArrow) {
+		if (this.options.showArrow) {
 			arrowHeight = Math.round(lineHeight / 3);
 
 			arrow = document.createElement('div');
@@ -206,18 +192,18 @@ export class ZoneWidget  {
 		}
 
 		// Render the frame as 1/9 of an editor line height
-		if(this.options.showFrame) {
+		if (this.options.showFrame) {
 			frameThickness = Math.round(lineHeight / 9);
 		}
 
 		// insert zone widget
-		this.editor.changeViewZones((accessor:IViewZoneChangeAccessor) => {
-			if (this.zoneId !== -1) {
-				accessor.removeZone(this.zoneId);
+		this.editor.changeViewZones((accessor: IViewZoneChangeAccessor) => {
+			if (this._zoneId !== -1) {
+				accessor.removeZone(this._zoneId);
 			}
-			if (this.overlayWidget) {
-				this.editor.removeOverlayWidget(this.overlayWidget);
-				this.overlayWidget = null;
+			if (this._overlayWidget) {
+				this.editor.removeOverlayWidget(this._overlayWidget);
+				this._overlayWidget = null;
 			}
 			this.domNode.style.top = '-1000px';
 			var viewZone = new ViewZoneDelegate(
@@ -225,16 +211,16 @@ export class ZoneWidget  {
 				position.lineNumber,
 				position.column,
 				heightInLines,
-				(top:number) => this.onViewZoneTop(top),
-				(height:number) => this.onViewZoneHeight(height)
+				(top: number) => this._onViewZoneTop(top),
+				(height: number) => this._onViewZoneHeight(height)
 			);
-			this.zoneId = accessor.addZone(viewZone);
-			this.overlayWidget = new OverlayWidgetDelegate(WIDGET_ID + this.zoneId, this.domNode);
-			this.editor.addOverlayWidget(this.overlayWidget);
+			this._zoneId = accessor.addZone(viewZone);
+			this._overlayWidget = new OverlayWidgetDelegate(WIDGET_ID + this._zoneId, this.domNode);
+			this.editor.addOverlayWidget(this._overlayWidget);
 		});
 
 
-		if(this.options.showFrame) {
+		if (this.options.showFrame) {
 			this.container.style.borderTopColor = this.options.frameColor;
 			this.container.style.borderBottomColor = this.options.frameColor;
 			this.container.style.borderTopWidth = frameThickness + 'px';
@@ -258,35 +244,32 @@ export class ZoneWidget  {
 		this.position = position;
 	}
 
-	public dispose():void {
+	public dispose(): void {
 
-		this.listenersToRemove.forEach(function (element) {
-			element();
-		});
-		this.listenersToRemove = [];
+		this._disposables.dispose();
 
-		if (this.overlayWidget) {
-			this.editor.removeOverlayWidget(this.overlayWidget);
-			this.overlayWidget = null;
+		if (this._overlayWidget) {
+			this.editor.removeOverlayWidget(this._overlayWidget);
+			this._overlayWidget = null;
 		}
 
-		if (this.zoneId !== -1) {
+		if (this._zoneId !== -1) {
 			this.editor.changeViewZones((accessor) => {
-				accessor.removeZone(this.zoneId);
-				this.zoneId = -1;
+				accessor.removeZone(this._zoneId);
+				this._zoneId = -1;
 			});
 		}
 	}
 
-	public fillContainer(container:HTMLElement):void {
+	public fillContainer(container: HTMLElement): void {
 		// implement in subclass
 	}
 
-	public onWidth(widthInPixel:number):void {
+	public onWidth(widthInPixel: number): void {
 		// implement in subclass
 	}
 
-	public doLayout(heightInPixel:number):void {
+	public doLayout(heightInPixel: number): void {
 		// implement in subclass
 	}
 }
