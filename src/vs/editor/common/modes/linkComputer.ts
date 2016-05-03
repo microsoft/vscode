@@ -28,54 +28,65 @@ enum CharacterClass {
 	CannotEndIn = 2
 }
 
-var getCharacterClasses = (function() {
-	var FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"';
-	var CANNOT_END_WITH_CHARACTERS = '.,;';
-	var _cachedResult: CharacterClass[] = null;
-
-	var findLargestCharCode = (str:string):number => {
-		var r = 0;
-		for (var i = 0, len = str.length; i < len; i++) {
-			r = Math.max(r, str.charCodeAt(i));
-		}
-		return r;
-	};
-
-	var set = (str:string, toWhat:CharacterClass): void => {
-		for (var i = 0, len = str.length; i < len; i++) {
-			_cachedResult[str.charCodeAt(i)] = toWhat;
-		}
-	};
-
-	return function(): CharacterClass[] {
-		if (_cachedResult === null) {
-			// Find cachedResult size
-			var largestCharCode = Math.max(
-				findLargestCharCode(FORCE_TERMINATION_CHARACTERS),
-				findLargestCharCode(CANNOT_END_WITH_CHARACTERS)
-			);
-
-			// Initialize cachedResult
-			_cachedResult = [];
-			for (var i = 0; i < largestCharCode; i++) {
-				_cachedResult[i] = CharacterClass.None;
-			}
-
-			// Fill in cachedResult
-			set(FORCE_TERMINATION_CHARACTERS, CharacterClass.ForceTermination);
-			set(CANNOT_END_WITH_CHARACTERS, CharacterClass.CannotEndIn);
-		}
-
-		return _cachedResult;
-	};
-})();
-
 let _openParens = '('.charCodeAt(0);
 let _closeParens = ')'.charCodeAt(0);
 let _openSquareBracket = '['.charCodeAt(0);
 let _closeSquareBracket = ']'.charCodeAt(0);
 let _openCurlyBracket = '{'.charCodeAt(0);
 let _closeCurlyBracket = '}'.charCodeAt(0);
+
+class CharacterClassifier {
+
+	/**
+	 * Maintain a compact (fully initialized ASCII map for quickly classifying ASCII characters - used more often in code).
+	 */
+	private _asciiMap: CharacterClass[];
+
+	/**
+	 * The entire map (sparse array).
+	 */
+	private _map: CharacterClass[];
+
+	constructor() {
+		var FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
+		var CANNOT_END_WITH_CHARACTERS = '.,;';
+
+		this._asciiMap = [];
+		for (let i = 0; i < 256; i++) {
+			this._asciiMap[i] = CharacterClass.None;
+		}
+
+		this._map = [];
+
+		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
+			this._set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
+		}
+
+		for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
+			this._set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
+		}
+	}
+
+	private _set(charCode:number, charClass:CharacterClass): void {
+		if (charCode < 256) {
+			this._asciiMap[charCode] = charClass;
+		}
+		this._map[charCode] = charClass;
+	}
+
+	public classify(charCode:number): CharacterClass {
+		if (charCode < 256) {
+			return this._asciiMap[charCode];
+		}
+
+		let charClass = this._map[charCode];
+		if (charClass) {
+			return charClass;
+		}
+
+		return CharacterClass.None;
+	}
+}
 
 class LinkComputer {
 
@@ -101,8 +112,6 @@ class LinkComputer {
 			j:number,
 			lastIncludedCharIndex:number,
 			len:number,
-			characterClasses = getCharacterClasses(),
-			characterClassesLength = characterClasses.length,
 			linkBeginIndex:number,
 			state:number,
 			ch:string,
@@ -111,7 +120,8 @@ class LinkComputer {
 			resetStateMachine:boolean,
 			hasOpenParens:boolean,
 			hasOpenSquareBracket:boolean,
-			hasOpenCurlyBracket:boolean;
+			hasOpenCurlyBracket:boolean,
+			characterClassifier:CharacterClassifier = new CharacterClassifier();
 
 		for (i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			line = model.getLineContent(i);
@@ -153,7 +163,7 @@ class LinkComputer {
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
 						default:
-							chClass = (chCode < characterClassesLength ? characterClasses[chCode] : CharacterClass.None);
+							chClass = characterClassifier.classify(chCode);
 					}
 
 					// Check if character terminates link
@@ -163,7 +173,7 @@ class LinkComputer {
 						lastIncludedCharIndex = j - 1;
 						do {
 							chCode = line.charCodeAt(lastIncludedCharIndex);
-							chClass = (chCode < characterClassesLength ? characterClasses[chCode] : CharacterClass.None);
+							chClass = characterClassifier.classify(chCode);
 							if (chClass !== CharacterClass.CannotEndIn) {
 								break;
 							}
@@ -174,7 +184,7 @@ class LinkComputer {
 						resetStateMachine = true;
 					}
 				} else if (state === END_STATE) {
-					chClass = (chCode < characterClassesLength ? characterClasses[chCode] : CharacterClass.None);
+					chClass = characterClassifier.classify(chCode);
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
