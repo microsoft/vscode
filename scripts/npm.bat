@@ -6,6 +6,6 @@ for /f "tokens=2 delims=:, " %%a in ('findstr /R /C:"\"electronVersion\":.*" %~d
 set npm_config_arch="ia32"
 set HOME=~\.electron-gyp
 
-npm %*
+npm --runtime=electron %*
 
 endlocal
