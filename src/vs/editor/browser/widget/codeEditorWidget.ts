@@ -25,12 +25,13 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import {View} from 'vs/editor/browser/view/viewImpl';
+import {Disposable} from 'vs/base/common/lifecycle';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
 	protected domElement:HTMLElement;
-	private focusTracker:dom.IFocusTracker;
-	private _hasWidgetFocus: boolean;
+	private _focusTracker: CodeEditorWidgetFocusTracker;
 
 	_configuration:Configuration;
 
@@ -49,21 +50,15 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 	) {
 		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
 
-		this._hasWidgetFocus = false;
+		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
+		this._focusTracker.onChage(() => {
+			let hasFocus = this._focusTracker.hasFocus();
 
-		// track focus of the domElement and all its anchestors
-		this.focusTracker = dom.trackFocus(this.domElement);
-		this.focusTracker.addFocusListener(() => {
-			if (this.forcedWidgetFocusCount === 0) {
+			if (hasFocus) {
 				this._editorFocusContextKey.set(true);
-				this._hasWidgetFocus = true;
 				this.emit(editorCommon.EventType.EditorFocus, {});
-			}
-		});
-		this.focusTracker.addBlurListener(() => {
-			if (this.forcedWidgetFocusCount === 0) {
+			} else {
 				this._editorFocusContextKey.reset();
-				this._hasWidgetFocus = false;
 				this.emit(editorCommon.EventType.EditorBlur, {});
 			}
 		});
@@ -91,7 +86,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
-		this.focusTracker.dispose();
+		this._focusTracker.dispose();
 		super.dispose();
 	}
 
@@ -254,12 +249,20 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this._view.focus();
 	}
 
+	public beginForcedWidgetFocus(): void {
+		this._focusTracker.beginForcedFocus();
+	}
+
+	public endForcedWidgetFocus(): void {
+		this._focusTracker.endForcedFocus();
+	}
+
 	public isFocused(): boolean {
 		return this.hasView && this._view.isFocused();
 	}
 
 	public hasWidgetFocus(): boolean {
-		return this._hasWidgetFocus;
+		return this._focusTracker.hasFocus();
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
@@ -488,6 +491,64 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		}
 
 		return result;
+	}
+}
+
+class CodeEditorWidgetFocusTracker extends Disposable {
+
+	private _forcedWidgetFocusCount: number;
+	private _focusTrackerHasFocus: boolean;
+	private _focusTracker: dom.IFocusTracker;
+	private _actualHasFocus: boolean;
+
+	private _onChange: Emitter<void> = this._register(new Emitter<void>());
+	public onChage: Event<void> = this._onChange.event;
+
+	constructor(domElement:HTMLElement) {
+		super();
+
+		this._focusTrackerHasFocus = false;
+		this._forcedWidgetFocusCount = 0;
+		this._actualHasFocus = false;
+		this._focusTracker = this._register(dom.trackFocus(domElement));
+
+		this._focusTracker.addFocusListener(() => {
+			this._focusTrackerHasFocus = true;
+			this._update();
+		});
+		this._focusTracker.addBlurListener(() => {
+			this._focusTrackerHasFocus = false;
+			this._update();
+		});
+	}
+
+	public hasFocus(): boolean {
+		return this._actualHasFocus;
+	}
+
+	public beginForcedFocus(): void {
+		this._forcedWidgetFocusCount++;
+		this._update();
+	}
+
+	public endForcedFocus(): void {
+		this._forcedWidgetFocusCount--;
+		this._update();
+	}
+
+	private _update(): void {
+		let newActualHasFocus = this._focusTrackerHasFocus;
+		if (this._forcedWidgetFocusCount > 0) {
+			newActualHasFocus = true;
+		}
+
+		if (this._actualHasFocus === newActualHasFocus) {
+			// no change
+			return;
+		}
+
+		this._actualHasFocus = newActualHasFocus;
+		this._onChange.fire(void 0);
 	}
 }
 
