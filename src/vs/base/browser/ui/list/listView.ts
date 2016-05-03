@@ -93,14 +93,13 @@ export class ListView<T> implements IDisposable {
 			useShadows: false,
 			saveLastScrollTimeOnClassName: 'monaco-list-row'
 		});
-		this.scrollableElement.onScroll((e) => {
-			this.render(e.scrollTop, e.height);
-		});
+
+		const listener = this.scrollableElement.onScroll(e => this.render(e.scrollTop, e.height));
 
 		this._domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this._domNode);
 
-		this.toDispose = [this.rangeMap, this.gesture, this.scrollableElement];
+		this.toDispose = [this.rangeMap, this.gesture, listener, this.scrollableElement];
 
 		this.layout();
 	}
@@ -136,10 +135,9 @@ export class ListView<T> implements IDisposable {
 			}
 		}
 
-		this.rowsContainer.style.height = `${ this.getContentHeight() }px`;
-		this.scrollableElement.updateState({
-			scrollHeight: this.getContentHeight()
-		});
+		const scrollHeight = this.getContentHeight();
+		this.rowsContainer.style.height = `${ scrollHeight }px`;
+		this.scrollableElement.updateState({ scrollHeight });
 
 		return deleted.map(i => i.element);
 	}
@@ -261,9 +259,7 @@ export class ListView<T> implements IDisposable {
 	}
 
 	setScrollTop(scrollTop: number): void {
-		this.scrollableElement.updateState({
-			scrollTop: scrollTop
-		});
+		this.scrollableElement.updateState({ scrollTop });
 	}
 
 	// Events
