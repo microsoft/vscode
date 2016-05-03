@@ -208,7 +208,7 @@ export class CallStackDataSource implements tree.IDataSource {
 	}
 
 	public hasChildren(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Model || element instanceof model.Thread;
+		return element instanceof model.Model || (element instanceof model.Thread && (<model.Thread>element).stopped);
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
@@ -236,7 +236,10 @@ export class CallStackDataSource implements tree.IDataSource {
 }
 
 interface IThreadTemplateData {
+	thread: HTMLElement;
 	name: HTMLElement;
+	state: HTMLElement;
+	stateLabel: HTMLSpanElement;
 }
 
 interface ILoadMoreTemplateData {
@@ -285,7 +288,10 @@ export class CallStackRenderer implements tree.IRenderer {
 		}
 		if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
 			let data: IThreadTemplateData = Object.create(null);
-			data.name = dom.append(container, $('.thread'));
+			data.thread = dom.append(container, $('.thread'));
+			data.name = dom.append(data.thread, $('.name'));
+			data.state = dom.append(data.thread, $('.state'));
+			data.stateLabel = dom.append(data.state, $('span.label'));
 
 			return data;
 		}
@@ -312,6 +318,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 	private renderThread(thread: debug.IThread, data: IThreadTemplateData): void {
 		data.name.textContent = thread.name;
+		data.stateLabel.textContent = thread.stopped ? nls.localize('paused', "paused") : nls.localize('running', "running");
 	}
 
 	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {

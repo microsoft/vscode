@@ -65,7 +65,11 @@
 	margin-left: 0.8em;
 }
 
-.debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number	{ background-color: #ffffff; color: #666; }
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
+.debug-viewlet .monaco-tree .monaco-tree-row.selected .thread > .state > .label {
+	background-color: #ffffff;
+	color: #666;
+}
 
 .debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar {
 	float: right;
@@ -129,6 +133,26 @@
 .hc-black .debug-viewlet .debug-call-stack-title > .pause-message > .label.exception {
 	background-color: #6C2022;
 	color: inherit;
+}
+
+.debug-viewlet .debug-call-stack .thread {
+	display: flex;
+}
+
+.debug-viewlet .debug-call-stack .thread > .state {
+	flex: 1;
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding: 0 10px;
+	text-transform: uppercase;
+}
+
+.debug-viewlet .debug-call-stack .thread > .state > .label {
+	background: rgba(136, 136, 136, 0.3);
+	border-radius: 2px;
+	font-size: 0.8em;
+	padding: 0 3px;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame {
