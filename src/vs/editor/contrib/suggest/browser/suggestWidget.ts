@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import {isPromiseCanceledError, onUnexpectedError} from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {addClass, append, emmet as $, hide, removeClass, show, toggleClass} from 'vs/base/browser/dom';
@@ -21,7 +21,7 @@ import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableEleme
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {EventType, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import {EventType, IModeSupportChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {SuggestRegistry} from 'vs/editor/common/modes';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY} from '../common/suggest';
@@ -37,6 +37,7 @@ interface ISuggestionTemplateData {
 	typeLabel: HTMLElement;
 	documentationDetails: HTMLElement;
 	documentation: HTMLElement;
+	disposables: IDisposable[];
 }
 
 class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
@@ -45,6 +46,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	constructor(
 		private widget: SuggestWidget,
+		private editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const keybindings = keybindingService.lookupKeybindings('editor.action.triggerSuggest');
@@ -57,19 +59,34 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
 		const data = <ISuggestionTemplateData>Object.create(null);
+		data.disposables = [];
 		data.root = container;
-
 		data.icon = append(container, $('.icon'));
 		data.colorspan = append(data.icon, $('span.colorspan'));
 
 		const text = append(container, $('.text'));
 		const main = append(text, $('.main'));
 		data.highlightedLabel = new HighlightedLabel(main);
+		data.disposables.push(data.highlightedLabel);
 		data.typeLabel = append(main, $('span.type-label'));
+
 		const docs = append(text, $('.docs'));
 		data.documentation = append(docs, $('span.docs-text'));
 		data.documentationDetails = append(docs, $('span.docs-details.octicon.octicon-info'));
 		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
+
+		const configureFont = () => {
+			const fontInfo = this.editor.getConfiguration().fontInfo;
+			main.style.fontFamily = fontInfo.fontFamily;
+		};
+
+		configureFont();
+
+		data.disposables.push(this.editor.addListener2(EventType.ConfigurationChanged, (e: IConfigurationChangedEvent) => {
+			if (e.fontInfo) {
+				configureFont();
+			}
+		}));
 
 		return data;
 	}
@@ -116,6 +133,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	disposeTemplate(templateData: ISuggestionTemplateData): void {
 		templateData.highlightedLabel.dispose();
+		templateData.disposables = dispose(templateData.disposables);
 	}
 }
 
@@ -185,21 +203,40 @@ class SuggestionDetails {
 	private body: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
-	private ariaLabel:string;
+	private ariaLabel: string;
+	private disposables: IDisposable[];
 
-	constructor(container: HTMLElement, private widget: SuggestWidget) {
+	constructor(
+		container: HTMLElement,
+		private widget: SuggestWidget,
+		private editor: ICodeEditor
+	) {
+		this.disposables = [];
+
 		this.el = append(container, $('.details'));
+		this.disposables.push(toDisposable(() => container.removeChild(this.el)));
+
 		const header = append(this.el, $('.header'));
 		this.title = append(header, $('span.title'));
 		this.back = append(header, $('span.go-back.octicon.octicon-mail-reply'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
+
 		this.scrollbar = new DomScrollableElement(this.body, {});
 		append(this.el, this.scrollbar.getDomNode());
+		this.disposables.push(this.scrollbar);
+
 		this.type = append(this.body, $('p.type'));
 		this.docs = append(this.body, $('p.docs'));
-
 		this.ariaLabel = null;
+
+		this.configureFont();
+
+		this.disposables.push(this.editor.addListener2(EventType.ConfigurationChanged, (e: IConfigurationChangedEvent) => {
+			if (e.fontInfo) {
+				this.configureFont();
+			}
+		}));
 	}
 
 	get element() {
@@ -253,11 +290,14 @@ class SuggestionDetails {
 		this.scrollUp(80);
 	}
 
-	dispose(): void {
-		this.scrollbar.dispose();
+	private configureFont() {
+		const fontInfo = this.editor.getConfiguration().fontInfo;
+		this.title.style.fontFamily = fontInfo.fontFamily;
+		this.type.style.fontFamily = fontInfo.fontFamily;
+	}
 
-		this.el.parentElement.removeChild(this.el);
-		this.el = null;
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -323,9 +363,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
-		this.details = new SuggestionDetails(this.element, this);
+		this.details = new SuggestionDetails(this.element, this, this.editor);
 
-		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this);
+		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
 		this.delegate = new Delegate(() => this.list);
 		this.list = new List(this.listElement, this.delegate, [renderer]);
