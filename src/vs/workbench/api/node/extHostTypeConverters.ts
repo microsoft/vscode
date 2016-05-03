@@ -499,8 +499,7 @@ export namespace Command {
 	let _idPool = 1;
 
 	export function initialize(commands: ExtHostCommands) {
-		return commands.registerCommand(_delegateId, (args: [string]) => {
-			const [id] = args;
+		return commands.registerCommand(_delegateId, (id: string) => {
 			const command = _cache[id];
 			if (!command) {
 				// handle already disposed delegations graceful
