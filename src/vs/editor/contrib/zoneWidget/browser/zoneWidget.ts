@@ -93,7 +93,7 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	private _viewZone: ViewZoneDelegate = null;
 	private _overlayWidget: OverlayWidgetDelegate = null;
-	private _sash: Sash;
+	private _resizeSash: Sash;
 	private _disposables = new Disposables();
 
 	public container: HTMLElement = null;
@@ -144,9 +144,9 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		let containerHeight = height - this._decoratingElementsHeight();
 		this.container.style.height = `${containerHeight}px`;
-		this.doLayout(containerHeight);
+		this.doLayout(containerHeight, this._getWidth());
 
-		this._sash.layout();
+		this._resizeSash.layout();
 	}
 
 	public show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
@@ -180,7 +180,8 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 			column: where.startColumn
 		};
 
-		this.domNode.style.width = this._getWidth() + 'px';
+		const width = this._getWidth();
+		this.domNode.style.width = `${width}px`;
 
 		// Reveal position, to get the line rendered, such that the arrow can be positioned properly
 		this.editor.revealPosition(position);
@@ -247,7 +248,7 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this.container.style.overflow = 'hidden';
 
 
-		this.doLayout(containerHeight);
+		this.doLayout(containerHeight, width);
 
 		this.editor.setSelection(where);
 
@@ -283,22 +284,22 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		// implement in subclass
 	}
 
-	public doLayout(heightInPixel: number): void {
+	public doLayout(heightInPixel: number, widthInPixel: number): void {
 		// implement in subclass
 	}
 
 	// --- sash
 
 	private _initSash(): void{
-		this._sash = new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL });
+		this._resizeSash = new Sash(this.domNode, this, { orientation: Orientation.HORIZONTAL });
 
 		if (!this.options.isResizeable) {
-			this._sash.hide();
-			this._sash.disable();
+			this._resizeSash.hide();
+			this._resizeSash.disable();
 		}
 
 		let data: { startY: number; heightInLines: number; };
-		this._disposables.add(this._sash.addListener2('start', (e: ISashEvent) => {
+		this._disposables.add(this._resizeSash.addListener2('start', (e: ISashEvent) => {
 			if (this._viewZone) {
 				data = {
 					startY: e.startY,
@@ -307,11 +308,11 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 			}
 		}));
 
-		this._disposables.add(this._sash.addListener2('end', () => {
+		this._disposables.add(this._resizeSash.addListener2('end', () => {
 			data = undefined;
 		}));
 
-		this._disposables.add(this._sash.addListener2('change', (evt: ISashEvent) => {
+		this._disposables.add(this._resizeSash.addListener2('change', (evt: ISashEvent) => {
 			if (data) {
 				let lineDelta = (evt.currentY - data.startY) / this.editor.getConfiguration().lineHeight;
 				let roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);

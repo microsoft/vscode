@@ -10,13 +10,14 @@ import * as collections from 'vs/base/common/collections';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {getPathLabel} from 'vs/base/common/labels';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable, cAll, dispose, Disposables} from 'vs/base/common/lifecycle';
 import {Schemas} from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {$, Builder} from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
+import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
@@ -365,6 +366,65 @@ class Renderer extends LegacyRenderer {
 
 }
 
+class VSash {
+
+	private _disposables = new Disposables();
+	private _sash: Sash;
+	private _ratio: number;
+	private _height: number;
+	private _width: number;
+	private _onDidChangePercentages = new Emitter<VSash>();
+
+	constructor(container: HTMLElement, ratio:number) {
+		this._ratio = ratio;
+		this._sash = new Sash(container, <IVerticalSashLayoutProvider>{
+			getVerticalSashLeft: () => this._width * this._ratio,
+			getVerticalSashHeight: () => this._height
+		});
+
+		let data: { startX: number, startRatio: number };
+		this._disposables.add(this._sash.addListener2('start', (e: ISashEvent) => {
+			data = { startX: e.startX, startRatio: this._ratio };
+		}));
+
+		this._disposables.add(this._sash.addListener2('change', (e: ISashEvent) => {
+			let {currentX} = e;
+			let newRatio = data.startRatio * (currentX / data.startX);
+			if (newRatio > .05 && newRatio < .95) {
+				this._ratio = newRatio;
+				this._sash.layout();
+				this._onDidChangePercentages.fire(this);
+			}
+		}));
+	}
+
+	dispose() {
+		this._sash.dispose();
+		this._onDidChangePercentages.dispose();
+		this._disposables.dispose();
+	}
+
+	get onDidChangePercentages() {
+		return this._onDidChangePercentages.event;
+	}
+
+	set width(value: number) {
+		this._width = value;
+		this._sash.layout();
+	}
+
+	set height(value: number) {
+		this._height = value;
+		this._sash.layout();
+	}
+
+	get percentages() {
+		let left = 100 * this._ratio;
+		let right = 100 - left;
+		return [`${left}%`, `${right}%`];
+	}
+}
+
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -383,6 +443,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	private _tree: Tree;
 	private _treeContainer: Builder;
+	private _sash: VSash;
 	private _preview: ICodeEditor;
 	private _previewNotAvailableMessage: Model;
 	private _previewContainer: Builder;
@@ -411,6 +472,12 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._lastHeight = null;
 
 		this.create();
+	}
+
+	public dispose(): void {
+		this.setModel(null);
+		dispose<IDisposable>(this._preview, this._previewNotAvailableMessage, this._tree, this._sash);
+		super.dispose();
 	}
 
 	get onDidDoubleClick():Event<{ reference: URI, range: Range, originalEvent: MouseEvent }> {
@@ -452,6 +519,16 @@ export class ReferenceWidget extends PeekViewWidget {
 			this._previewNotAvailableMessage = new Model(nls.localize('missingPreviewMessage', "no preview available"), Model.DEFAULT_CREATION_OPTIONS, null);
 		});
 
+		// sash
+		this._sash = new VSash(containerElement, .8);
+		this._sash.onDidChangePercentages(() => {
+			let [left, right] = this._sash.percentages;
+			this._previewContainer.style({ width: left});
+			this._treeContainer.style({ width: right });
+			this._preview.layout();
+			this._tree.layout();
+		});
+
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
 			var config = {
@@ -472,26 +549,31 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	protected _doLayoutBody(heightInPixel: number): void {
-		super._doLayoutBody(heightInPixel);
+	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+		super._doLayoutBody(heightInPixel, widthInPixel);
 
-		var h = heightInPixel + 'px';
-		if (h === this._lastHeight) {
+		const height = heightInPixel + 'px';
+		if (height === this._lastHeight) {
 			return;
 		}
 
-		// set height
-		this._treeContainer.style({ height: h });
-		this._previewContainer.style({ height: h });
+		this._sash.height = heightInPixel;
+		this._sash.width = widthInPixel;
+
+		// set height/width
+		const [left, right] = this._sash.percentages;
+		this._previewContainer.style({ height, width: left});
+		this._treeContainer.style({ height, width: right });
 
 		// forward
 		this._tree.layout(heightInPixel);
 		this._preview.layout();
 
-		this._lastHeight = h;
+		this._lastHeight = height;
 	}
 
 	public onWidth(widthInPixel: number): void {
+		this._sash.width = widthInPixel;
 		this._preview.layout();
 	}
 
@@ -618,9 +700,4 @@ export class ReferenceWidget extends PeekViewWidget {
 			.done(null, onUnexpectedError);
 	}
 
-	public dispose(): void {
-		this.setModel(null);
-		dispose(<IDisposable[]>[this._preview, this._previewNotAvailableMessage, this._tree]);
-		super.dispose();
-	}
 }

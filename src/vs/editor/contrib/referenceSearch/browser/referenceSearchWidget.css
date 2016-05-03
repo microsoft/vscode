@@ -33,10 +33,6 @@
 	padding: 3em 0;
 }
 
-.monaco-editor .reference-zone-widget .preview {
-	width: 80%;
-}
-
 .monaco-editor .reference-zone-widget,
 .monaco-editor .reference-zone-widget .preview .monaco-editor,
 .monaco-editor .reference-zone-widget .preview .glyph-margin,
@@ -52,7 +48,6 @@
 
 .monaco-editor .reference-zone-widget .ref-tree {
 	background-color: #F3F3F3;
-	width: 20%;
 	color: #646465;
 	line-height: 22px;
 	font-size: 13px;
