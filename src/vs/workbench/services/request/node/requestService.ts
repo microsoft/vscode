@@ -22,6 +22,13 @@ import { getProxyAgent } from 'vs/base/node/proxy';
 import { createGunzip } from 'zlib';
 import { Stream } from 'stream';
 
+interface IHTTPConfiguration {
+	http?: {
+		proxy?: string;
+		proxyStrictSSL?: boolean;
+	};
+}
+
 export class RequestService extends BaseRequestService {
 
 	private disposables: IDisposable[];
@@ -36,15 +43,16 @@ export class RequestService extends BaseRequestService {
 		super(contextService, telemetryService);
 		this.disposables = [];
 
-		const configuration = configurationService.getConfiguration<any>();
-		this.proxyUrl = configuration.http && configuration.http.proxy;
-		this.strictSSL = configuration.http && configuration.http.proxyStrictSSL;
+		const config = configurationService.getConfiguration<IHTTPConfiguration>();
+		this.configure(config);
 
-		this.disposables.push(configurationService.onDidUpdateConfiguration(e => {
-			const configuration = e.config;
-			this.proxyUrl = configuration.http && configuration.http.proxy;
-			this.strictSSL = configuration.http && configuration.http.proxyStrictSSL;
-		}));
+		const disposable = configurationService.onDidUpdateConfiguration(e => this.configure(e.config));
+		this.disposables.push(disposable);
+	}
+
+	private configure(config: IHTTPConfiguration) {
+		this.proxyUrl = config.http && config.http.proxy;
+		this.strictSSL = config.http && config.http.proxyStrictSSL;
 	}
 
 	makeRequest(options: IXHROptions): TPromise<IXHRResponse> {
