@@ -514,6 +514,14 @@ export interface IEditorOptions {
 	 */
 	indentGuides?: boolean;
 	/**
+	 * Inserting and deleting whitespace follows tab stops.
+	 */
+	useTabStops?: boolean;
+	/**
+	 * Remove trailing auto inserted whitespace.
+	 */
+	trimAutoWhitespace?: boolean;
+	/**
 	 * The font family
 	 */
 	fontFamily?: string;
@@ -624,6 +632,8 @@ export interface IInternalEditorOptions {
 	folding: boolean;
 	renderWhitespace: boolean;
 	indentGuides: boolean;
+	useTabStops: boolean;
+	trimAutoWhitespace: boolean;
 
 	// ---- Options that are computed
 
@@ -702,6 +712,8 @@ export interface IConfigurationChangedEvent {
 	folding: boolean;
 	renderWhitespace: boolean;
 	indentGuides: boolean;
+	useTabStops: boolean;
+	trimAutoWhitespace: boolean;
 
 	// ---- Options that are computed
 	layoutInfo: boolean;
@@ -1121,6 +1133,11 @@ export interface IIdentifiedSingleEditOperation {
 	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
 	 */
 	forceMoveMarkers: boolean;
+	/**
+	 * This indicates that this operation is inserting automatic whitespace
+	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
+	 */
+	isAutoWhitespaceEdit?: boolean;
 }
 
 /**
@@ -1168,23 +1185,27 @@ export interface ITextModelResolvedOptions {
 	tabSize: number;
 	insertSpaces: boolean;
 	defaultEOL: DefaultEndOfLine;
+	trimAutoWhitespace: boolean;
 }
 
 export interface ITextModelCreationOptions {
 	tabSize: number;
 	insertSpaces: boolean;
 	detectIndentation: boolean;
+	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
 }
 
 export interface ITextModelUpdateOptions {
 	tabSize?: number;
 	insertSpaces?: boolean;
+	trimAutoWhitespace?: boolean;
 }
 
 export interface IModelOptionsChangedEvent {
 	tabSize: boolean;
 	insertSpaces: boolean;
+	trimAutoWhitespace: boolean;
 }
 
 /**

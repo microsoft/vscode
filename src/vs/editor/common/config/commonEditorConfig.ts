@@ -107,6 +107,8 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	folding: boolean;
 	renderWhitespace: boolean;
 	indentGuides: boolean;
+	useTabStops: boolean;
+	trimAutoWhitespace: boolean;
 	layoutInfo: editorCommon.IEditorLayoutInfo;
 	fontInfo: editorCommon.FontInfo;
 	editorClassName: string;
@@ -173,6 +175,8 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.folding = Boolean(input.folding);
 		this.renderWhitespace = Boolean(input.renderWhitespace);
 		this.indentGuides = Boolean(input.indentGuides);
+		this.useTabStops = Boolean(input.useTabStops);
+		this.trimAutoWhitespace = Boolean(input.trimAutoWhitespace);
 		this.layoutInfo = {
 			width: Number(input.layoutInfo.width)|0,
 			height: Number(input.layoutInfo.height)|0,
@@ -359,6 +363,8 @@ class InternalEditorOptionsHelper {
 			folding: toBoolean(opts.folding),
 			renderWhitespace: toBoolean(opts.renderWhitespace),
 			indentGuides: toBoolean(opts.indentGuides),
+			useTabStops: toBoolean(opts.useTabStops),
+			trimAutoWhitespace: toBoolean(opts.trimAutoWhitespace),
 
 			layoutInfo: layoutInfo,
 			fontInfo: fontInfo,
@@ -443,9 +449,11 @@ class InternalEditorOptionsHelper {
 			folding:						(prevOpts.folding !== newOpts.folding),
 			renderWhitespace:				(prevOpts.renderWhitespace !== newOpts.renderWhitespace),
 			indentGuides:					(prevOpts.indentGuides !== newOpts.indentGuides),
+			useTabStops:					(prevOpts.useTabStops !== newOpts.useTabStops),
+			trimAutoWhitespace:				(prevOpts.trimAutoWhitespace !== newOpts.trimAutoWhitespace),
 
 			layoutInfo: 					(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
-			fontInfo: 					(!prevOpts.fontInfo.equals(newOpts.fontInfo)),
+			fontInfo: 						(!prevOpts.fontInfo.equals(newOpts.fontInfo)),
 			editorClassName: 				(prevOpts.editorClassName !== newOpts.editorClassName),
 			wrappingInfo:					(!this._wrappingInfoEqual(prevOpts.wrappingInfo, newOpts.wrappingInfo)),
 			observedOuterWidth:				(prevOpts.observedOuterWidth !== newOpts.observedOuterWidth),
@@ -925,6 +933,16 @@ let editorConfiguration:IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+		},
+		'editor.useTabStops' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.useTabStops,
+			'description': nls.localize('useTabStops', "Inserting and deleting whitespace follows tab stops")
+		},
+		'editor.trimAutoWhitespace' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.trimAutoWhitespace,
+			'description': nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace")
 		},
 		'diffEditor.renderSideBySide' : {
 			'type': 'boolean',

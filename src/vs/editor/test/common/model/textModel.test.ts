@@ -15,7 +15,8 @@ function testGuessIndentation(defaultInsertSpaces:boolean, defaultTabSize:number
 		tabSize: defaultTabSize,
 		insertSpaces: defaultInsertSpaces,
 		detectIndentation: true,
-		defaultEOL: DefaultEndOfLine.LF
+		defaultEOL: DefaultEndOfLine.LF,
+		trimAutoWhitespace: true
 	}));
 	var r = m.getOptions();
 	m.dispose();
@@ -473,6 +474,7 @@ suite('Editor Model - TextModel', () => {
 			options: {
 				tabSize: 4,
 				insertSpaces: false,
+				trimAutoWhitespace: true,
 				defaultEOL: DefaultEndOfLine.LF
 			}
 		});
@@ -511,6 +513,7 @@ suite('Editor Model - TextModel', () => {
 			options: {
 				tabSize: 4,
 				insertSpaces: true,
+				trimAutoWhitespace: true,
 				defaultEOL: DefaultEndOfLine.LF
 			}
 		});

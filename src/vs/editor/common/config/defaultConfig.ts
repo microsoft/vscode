@@ -90,6 +90,8 @@ class ConfigClass implements IConfiguration {
 			folding: true,
 			renderWhitespace: false,
 			indentGuides: false,
+			useTabStops: true,
+			trimAutoWhitespace: true,
 
 			fontFamily: (
 				platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)

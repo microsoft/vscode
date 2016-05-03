@@ -11,6 +11,7 @@ import {EditStack} from 'vs/editor/common/model/editStack';
 import {ILineEdit, ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
 import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
+import * as strings from 'vs/base/common/strings';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -19,6 +20,7 @@ export interface IValidatedEditOperation {
 	rangeLength: number;
 	lines: string[];
 	forceMoveMarkers: boolean;
+	isAutoWhitespaceEdit: boolean;
 }
 
 interface IIdentifiedLineEdit extends ILineEdit{
@@ -37,6 +39,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	private _hasEditableRange:boolean;
 	private _editableRangeId:string;
 
+	private _trimAutoWhitespaceLines: number[];
+
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged2);
@@ -49,6 +53,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 		this._hasEditableRange = false;
 		this._editableRangeId = null;
+		this._trimAutoWhitespaceLines = null;
 	}
 
 	public dispose(): void {
@@ -63,6 +68,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		this._commandManager = new EditStack(this);
 		this._hasEditableRange = false;
 		this._editableRangeId = null;
+		this._trimAutoWhitespaceLines = null;
 	}
 
 	public pushStackElement(): void {
@@ -71,6 +77,61 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public pushEditOperations(beforeCursorState:editorCommon.IEditorSelection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): editorCommon.IEditorSelection[] {
 		return this.deferredEmit(() => {
+			if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
+				// Go through each saved line number and insert a trim whitespace edit
+				// if it is safe to do so (no conflicts with other edits).
+
+				let incomingEdits = editOperations.map((op) => {
+					return {
+						range: this.validateRange(op.range),
+						text: op.text
+					};
+				});
+
+				for (let i = 0, len = this._trimAutoWhitespaceLines.length; i < len; i++) {
+					let trimLineNumber = this._trimAutoWhitespaceLines[i];
+					let maxLineColumn = this.getLineMaxColumn(trimLineNumber);
+
+					let allowTrimLine = true;
+					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
+						let editRange = incomingEdits[i].range;
+						let editText = incomingEdits[i].text;
+
+						if (trimLineNumber < editRange.startLineNumber || trimLineNumber > editRange.endLineNumber) {
+							// `trimLine` is completely outside this edit
+							continue;
+						}
+
+						// At this point:
+						//   editRange.startLineNumber <= trimLine <= editRange.endLineNumber
+
+						if (
+							trimLineNumber === editRange.startLineNumber && editRange.startColumn === maxLineColumn
+							&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(0) === '\n'
+						) {
+							// This edit inserts a new line (and maybe other text) after `trimLine`
+							continue;
+						}
+
+						// Looks like we can't trim this line as it would interfere with an incoming edit
+						allowTrimLine = false;
+						break;
+					}
+
+					if (allowTrimLine) {
+						editOperations.push({
+							identifier: null,
+							range: new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn),
+							text: null,
+							forceMoveMarkers: false,
+							isAutoWhitespaceEdit: false
+						});
+					}
+
+				}
+
+				this._trimAutoWhitespaceLines = null;
+			}
 			return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 		});
 	}
@@ -145,7 +206,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			range: entireEditRange,
 			rangeLength: this.getValueLengthInRange(entireEditRange),
 			lines: result.join('').split('\n'),
-			forceMoveMarkers: forceMoveMarkers
+			forceMoveMarkers: forceMoveMarkers,
+			isAutoWhitespaceEdit: false
 		};
 	}
 
@@ -180,7 +242,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				range: validatedRange,
 				rangeLength: this.getValueLengthInRange(validatedRange),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
-				forceMoveMarkers: op.forceMoveMarkers
+				forceMoveMarkers: op.forceMoveMarkers,
+				isAutoWhitespaceEdit: op.isAutoWhitespaceEdit || false
 			};
 		}
 
@@ -212,16 +275,60 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		// Delta encode operations
 		let reverseRanges = EditableTextModel._getInverseEditRanges(operations);
 		let reverseOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+
+		let newTrimAutoWhitespaceCandidates: { lineNumber:number,oldContent:string }[] = [];
+
 		for (let i = 0; i < operations.length; i++) {
+			let op = operations[i];
+			let reverseRange = reverseRanges[i];
+
 			reverseOperations[i] = {
-				identifier: operations[i].identifier,
-				range: reverseRanges[i],
-				text: this.getValueInRange(operations[i].range),
-				forceMoveMarkers: operations[i].forceMoveMarkers
+				identifier: op.identifier,
+				range: reverseRange,
+				text: this.getValueInRange(op.range),
+				forceMoveMarkers: op.forceMoveMarkers
 			};
+
+			if (this._options.trimAutoWhitespace && op.isAutoWhitespaceEdit && op.range.isEmpty()) {
+				// Record already the future line numbers that might be auto whitespace removal candidates on next edit
+				for (let lineNumber = reverseRange.startLineNumber; lineNumber <= reverseRange.endLineNumber; lineNumber++) {
+					let currentLineContent = '';
+					if (lineNumber === reverseRange.startLineNumber) {
+						currentLineContent = this.getLineContent(op.range.startLineNumber);
+						if (strings.firstNonWhitespaceIndex(currentLineContent) !== -1) {
+							continue;
+						}
+					}
+					newTrimAutoWhitespaceCandidates.push({ lineNumber:lineNumber, oldContent:currentLineContent });
+				}
+			}
 		}
 
 		this._applyEdits(operations);
+
+		this._trimAutoWhitespaceLines = null;
+		if (this._options.trimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
+			// sort line numbers auto whitespace removal candidates for next edit descending
+			newTrimAutoWhitespaceCandidates.sort((a,b) => b.lineNumber - a.lineNumber);
+
+			this._trimAutoWhitespaceLines = [];
+			for (let i = 0, len = newTrimAutoWhitespaceCandidates.length; i < len; i++) {
+				let lineNumber = newTrimAutoWhitespaceCandidates[i].lineNumber;
+				if (i > 0 && newTrimAutoWhitespaceCandidates[i - 1].lineNumber === lineNumber) {
+					// Do not have the same line number twice
+					continue;
+				}
+
+				let prevContent = newTrimAutoWhitespaceCandidates[i].oldContent;
+				let lineContent = this.getLineContent(lineNumber);
+
+				if (lineContent.length === 0 || lineContent === prevContent || strings.firstNonWhitespaceIndex(lineContent) !== -1) {
+					continue;
+				}
+
+				this._trimAutoWhitespaceLines.push(lineNumber);
+			}
+		}
 
 		return reverseOperations;
 	}
@@ -311,7 +418,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				lineEditsQueue.reverse();
 
 				// `lineEditsQueue` now contains edits from smaller (line number,column) to larger (line number,column)
-				let currentLineNumber = lineEditsQueue[0].lineNumber, currentLineNumberStart = 0;
+				let currentLineNumber = lineEditsQueue[0].lineNumber;
+				let currentLineNumberStart = 0;
 
 				for (let i = 1, len = lineEditsQueue.length; i < len; i++) {
 					let lineNumber = lineEditsQueue[i].lineNumber;
