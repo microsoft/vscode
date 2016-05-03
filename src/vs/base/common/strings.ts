@@ -303,9 +303,19 @@ export function getLeadingWhitespace(str: string): string {
  * Returns last index of the string that is not whitespace.
  * If string is empty or contains only whitespaces, returns -1
  */
-export function lastNonWhitespaceIndex(str: string): number {
-	for (let i = str.length - 1; i >= 0; i--) {
-		if (str.charAt(i) !== ' ' && str.charAt(i) !== '\t') {
+export function lastNonWhitespaceIndex(str: string, startIndex: number = -1, spaces: string[] = [' ', '\t']): number {
+	if (startIndex === -1) {
+		startIndex = str.length - 1;
+	}
+	for (let i = startIndex; i >= 0; i--) {
+		let ch = str.charAt(i);
+		var match = false;
+		spaces.forEach((space) => {
+			if (ch === space) {
+				match = true;
+			}
+		});
+		if (!match) {
 			return i;
 		}
 	}

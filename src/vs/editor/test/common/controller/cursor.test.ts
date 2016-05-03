@@ -1120,44 +1120,50 @@ suite('Editor Controller - Regression tests', () => {
 			cursorCommand(cursor, H.Tab, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t', 'assert2');
 
+			cursorCommand(cursor, H.Type, { text: 'y'}, null, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty', 'assert2');
+
 			cursorCommand(cursor, H.Type, { text: '\n'}, null, 'keyboard');
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\t', 'assert3');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\t', 'assert3');
 
 			cursorCommand(cursor, H.Type, { text: 'x' });
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert4');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert4');
 
 			cursorCommand(cursor, H.CursorLeft, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert5');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert5');
 
 			cursorCommand(cursor, H.DeleteLeft, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert6');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert6');
 
 			cursorCommand(cursor, H.DeleteLeft, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\tx', 'assert7');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\tyx', 'assert7');
 
 			cursorCommand(cursor, H.DeleteLeft, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert8');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\tx', 'assert8');
 
 			cursorCommand(cursor, H.DeleteLeft, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert9');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert9');
+
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert10');
 
 			cursorCommand(cursor, H.Undo, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert10');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert11');
 
 			cursorCommand(cursor, H.Undo, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert11');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert12');
 
 			cursorCommand(cursor, H.Undo, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert12');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert13');
 
 			cursorCommand(cursor, H.Redo, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert13');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert14');
 
 			cursorCommand(cursor, H.Redo, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert14');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert15');
 
 			cursorCommand(cursor, H.Redo, {});
-			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert15');
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert16');
 		});
 	});
 
@@ -1166,6 +1172,7 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'var x = (3 + (5-7));'
 			],
+
 			mode: new BracketMode()
 		}, (model, cursor) => {
 			// ensure is tokenized
@@ -2076,6 +2083,174 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(2), 'Second line');
 			assert.equal(model.getLineContent(3), 'Third line');
 			assert.equal(model.getLineContent(4), '');
+		});
+	});
+
+	test('Trim whitespaces off', () => {
+		usingCursor({
+			text: [
+				'    some  line abc  '
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: true,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		}, (model, cursor) => {
+			cursor.configuration.editor.trimWhitespace = false;
+
+			// Move cursor to the end, verify that we do not trim whitespaces if line has values
+			moveTo(cursor, 1, model.getLineContent(1).length + 1);
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '    some  line abc  ');
+			assert.equal(model.getLineContent(2), '    ');
+
+			// Try to enter again, we should trimmed previous line
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '    some  line abc  ');
+			assert.equal(model.getLineContent(2), '    ');
+			assert.equal(model.getLineContent(3), '    ');
+		});
+	});
+
+	test('Trim whitespaces on enter, when empty line left', () => {
+		usingCursor({
+			text: [
+				'    some  line abc  '
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: true,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		}, (model, cursor) => {
+			cursor.configuration.editor.trimWhitespace = true;
+
+			// Move cursor to the end, verify that we do not trim whitespaces if line has values
+			moveTo(cursor, 1, model.getLineContent(1).length + 1);
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '    some  line abc  ');
+			assert.equal(model.getLineContent(2), '    ');
+
+			// Try to enter again, we should trimmed previous line
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '    some  line abc  ');
+			assert.equal(model.getLineContent(2), '');
+			assert.equal(model.getLineContent(3), '    ');
+
+			// More whitespaces
+			cursorCommand(cursor, H.Type, { text: '\t  ' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '    some  line abc  ');
+			assert.equal(model.getLineContent(2), '');
+			assert.equal(model.getLineContent(3), '    \t  ');
+
+			// Enter and verify that trimmed again
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '    some  line abc  ');
+			assert.equal(model.getLineContent(2), '');
+			assert.equal(model.getLineContent(3), '');
+			assert.equal(model.getLineContent(4), '          ');
+
+			// Trimmed if we will keep only text
+			moveTo(cursor, 1, 4);
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '');
+			assert.equal(model.getLineContent(2), '    some  line abc  ');
+			assert.equal(model.getLineContent(3), '');
+			assert.equal(model.getLineContent(4), '');
+			assert.equal(model.getLineContent(5), '          ');
+
+			// Trimmed if we will keep only text by selection
+			moveTo(cursor, 2, 4);
+			moveTo(cursor, 3, 1, true);
+			cursorCommand(cursor, H.Type, { text: '\n' }, null, "keyboard");
+			assert.equal(model.getLineContent(1), '');
+			assert.equal(model.getLineContent(2), '');
+			assert.equal(model.getLineContent(3), '');
+			assert.equal(model.getLineContent(4), '');
+			assert.equal(model.getLineContent(5), '          ');
+		});
+	});
+
+	test('UseTabStops is off', () => {
+		usingCursor({
+			text: [
+				'    x',
+				'        a    ',
+				'    '
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: true,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		}, (model, cursor) => {
+			cursor.configuration.editor.useTabStops = false;
+
+			// DeleteLeft removes just one whitespace
+			moveTo(cursor, 2, 9);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), '       a    ');
+		});
+	});
+
+	test('Backspace removes whitespaces with tab size', () => {
+		usingCursor({
+			text: [
+				'    x',
+				'        a    ',
+				'    '
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: true,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		}, (model, cursor) => {
+			cursor.configuration.editor.useTabStops = true;
+			cursor.configuration.editor.trimWhitespace = true;
+
+			// DeleteLeft does not remove tab size, because some text exists before
+			moveTo(cursor, 2, model.getLineContent(2).length + 1);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), '        a   ');
+
+			// DeleteLeft removes tab size = 4
+			moveTo(cursor, 2, 9);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), '    a   ');
+
+			// DeleteLeft removes tab size = 4
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), 'a   ');
+
+			// Undo DeleteLeft - get us back to original indentation
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), '        a   ');
+
+			// Nothing is broken when cursor is in (1,1)
+			moveTo(cursor, 1, 1);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(1), '    x');
+
+			// DeleteLeft on last line
+			moveTo(cursor, 3, model.getLineContent(3).length + 1);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(3), '');
+
+			// DeleteLeft with removing new line symbol
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getValue(EndOfLinePreference.LF), '    x\n        a   ');
+
+			// In case of selection DeleteLeft only deletes selected text
+			moveTo(cursor, 2, 3);
+			moveTo(cursor, 2, 4, true);
+			cursorCommand(cursor, H.DeleteLeft, {});
+			assert.equal(model.getLineContent(2), '       a   ');
 		});
 	});
 });

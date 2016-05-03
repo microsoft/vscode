@@ -1185,6 +1185,8 @@ export class OneCursorOp {
 		var enterAction = r.enterAction;
 		var indentation = r.indentation;
 
+		this._adjustLeftPosition(cursor, range);
+
 		if (enterAction.indentAction === IndentAction.None) {
 			// Nothing special
 			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
@@ -1410,6 +1412,24 @@ export class OneCursorOp {
 		}
 	}
 
+	/**
+	 * In case if cursor is at the end of the line and this line
+	 * contains only whitespaces - we will trim it when user press enter.
+	 *
+	 * Scenario covered: when you press 'Enter' multiple time and editor inserts
+	 * auto indent next lines, you don't want to leave previous lines with whitespaces.
+	 */
+	private static _adjustLeftPosition(cursor:OneCursor, range: editorCommon.IEditorRange): void {
+		if (!cursor.configuration.editor.trimWhitespace) {
+			return;
+		}
+
+		let lineContent = cursor.getLineContent(range.startLineNumber);
+		if (strings.lastNonWhitespaceIndex(lineContent.substring(0, range.startColumn - 1)) === -1) {
+			range.startColumn = 1;
+		}
+	}
+
 	public static actualType(cursor:OneCursor, text: string, keepPosition: boolean, ctx: IOneCursorOperationContext, range?: editorCommon.IEditorRange): boolean {
 		if (typeof range === 'undefined') {
 			range = cursor.getSelection();
@@ -1624,7 +1644,10 @@ export class OneCursorOp {
 
 		var deleteSelection: editorCommon.IEditorRange = cursor.getSelection();
 
+		var justCursor = false;
+
 		if (deleteSelection.isEmpty()) {
+			justCursor = true;
 			var position = cursor.getPosition();
 			var leftOfPosition = cursor.getLeftOfPosition(position.lineNumber, position.column);
 			deleteSelection = new Range(
@@ -1642,27 +1665,26 @@ export class OneCursorOp {
 
 		if (deleteSelection.startLineNumber !== deleteSelection.endLineNumber) {
 			ctx.shouldPushStackElementBefore = true;
+		} else if (cursor.configuration.editor.useTabStops && justCursor && deleteSelection.startColumn > 1) {
+			// In case if this is just simple cursor (not a selection) we want to help user to delete
+			// indented spaces when he is pressing backspace. Instead of deleting spaces one by one
+			// we will remove whole tab size.
+			let lineContent = cursor.getLineContent(deleteSelection.startLineNumber);
+			if (strings.lastNonWhitespaceIndex(lineContent, deleteSelection.startColumn - 1, [' ']) === -1) {
+				let tabSize = cursor.model.getOptions().tabSize;
+				deleteSelection.startColumn -= (((deleteSelection.startColumn % tabSize) || tabSize) - 1);
+			}
 		}
 
 		ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
 		return true;
 	}
 
-	private static _findLastNonWhitespaceChar(str:string, startIndex:number): number {
-		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
-			let ch = str.charAt(chIndex);
-			if (ch !== ' ' && ch !== '\t') {
-				return chIndex;
-			}
-		}
-		return -1;
-	}
-
 	private static deleteWordLeftWhitespace(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 		let position = cursor.getPosition();
 		let lineContent = cursor.getLineContent(position.lineNumber);
 		let startIndex = position.column - 2;
-		let lastNonWhitespace = this._findLastNonWhitespaceChar(lineContent, startIndex);
+		let lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex);
 		if (lastNonWhitespace + 1 < startIndex) {
 			// bingo
 			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, lastNonWhitespace + 2, position.lineNumber, position.column), '');
