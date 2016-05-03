@@ -94,8 +94,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 					let allowTrimLine = true;
 					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
-						let editRange = incomingEdits[i].range;
-						let editText = incomingEdits[i].text;
+						let editRange = incomingEdits[j].range;
+						let editText = incomingEdits[j].text;
 
 						if (trimLineNumber < editRange.startLineNumber || trimLineNumber > editRange.endLineNumber) {
 							// `trimLine` is completely outside this edit
