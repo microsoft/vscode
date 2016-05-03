@@ -397,7 +397,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		instantiationService: IInstantiationService,
 		editor: ICodeEditor
 	) {
-		super(editor, keybindingService, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, { frameColor: '#007ACC', showFrame: false, showArrow: true });
+		super(editor, keybindingService, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
 		this._editorService = editorService;
 		this._contextService = contextService;
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
