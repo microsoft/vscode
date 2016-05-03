@@ -267,28 +267,6 @@ export class DebugService implements debug.IDebugService {
 			}, errors.onUnexpectedError);
 		}));
 
-		this.toDisposeOnSessionEnd.push(this.session.onDidContinue(threadID => {
-			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-			// TODO@Isidor temporary workaround for #5835
-			if (strings.equalsIgnoreCase(this.session.configuration.type, 'go')) {
-				this.model.clearThreads(false);
-			} else {
-				this.model.clearThreads(false, threadID);
-			}
-
-			// Get a top stack frame of a stopped thread if there is any.
-			const threads = this.model.getThreads();
-			const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
-			const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
-			const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
-			const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
-
-			this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-			if (!stoppedThread) {
-				this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
-			}
-		}));
-
 		this.toDisposeOnSessionEnd.push(this.session.onDidThread(event => {
 			if (event.body.reason === 'started') {
 				this.getThreadData().done(null, errors.onUnexpectedError);
@@ -809,6 +787,91 @@ export class DebugService implements debug.IDebugService {
 
 	public getConfigurationManager(): debug.IConfigurationManager {
 		return this.configurationManager;
+	}
+
+	public next(threadId: number): TPromise<void> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.next({ threadId }).then(() => {
+			this.lazyTransitionToRunningState(threadId);
+		});
+	}
+
+	public stepIn(threadId: number): TPromise<void> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.stepIn({ threadId }).then(() => {
+			this.lazyTransitionToRunningState(threadId);
+		});
+	}
+
+	public stepOut(threadId: number): TPromise<void> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.stepOut({ threadId }).then(() => {
+			this.lazyTransitionToRunningState(threadId);
+		});
+	}
+
+	public continue(threadId: number): TPromise<void> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.continue({ threadId }).then(() => {
+			this.lazyTransitionToRunningState(threadId);
+		});
+	}
+
+	public pause(threadId: number): TPromise<any> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.pause({ threadId } );
+	}
+
+
+	private lazyTransitionToRunningState(threadId: number): void {
+		let cancelTransitionToRunningState = false;
+		const toDispose = this.session.onDidStop(e => {
+			if (e.body.threadId === threadId || e.body.allThreadsStopped) {
+				cancelTransitionToRunningState = true;
+			}
+		});
+
+		// Do not immediatly transition to running state since that might cause unnecessery flickering
+		// of the tree in the debug viewlet. Only transition if no stopped event has arrived in 500ms.
+		setTimeout(() => {
+			toDispose.dispose();
+			if (!cancelTransitionToRunningState) {
+				aria.status(nls.localize('debuggingContinued', "Debugging continued."));
+				// TODO@Isidor temporary workaround for #5835
+				if (strings.equalsIgnoreCase(this.session.configuration.type, 'go')) {
+					this.model.clearThreads(false);
+				} else {
+					this.model.clearThreads(false, threadId);
+				}
+
+				// Get a top stack frame of a stopped thread if there is any.
+				const threads = this.model.getThreads();
+				const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
+				const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
+				const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
+				const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
+
+				this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+				if (!stoppedThread) {
+					this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
+				}
+			}
+		}, 500);
 	}
 
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {

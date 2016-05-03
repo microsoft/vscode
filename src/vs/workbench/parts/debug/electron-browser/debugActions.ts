@@ -160,7 +160,7 @@ export class StepOverDebugAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().next({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+		return this.debugService.next(this.debugService.getViewModel().getFocusedThreadId());
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -177,7 +177,7 @@ export class StepIntoDebugAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().stepIn({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+		return this.debugService.stepIn(this.debugService.getViewModel().getFocusedThreadId());
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -194,7 +194,7 @@ export class StepOutDebugAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().stepOut({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+		return this.debugService.stepOut(this.debugService.getViewModel().getFocusedThreadId());
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -236,7 +236,7 @@ export class ContinueAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+		return this.debugService.continue(this.debugService.getViewModel().getFocusedThreadId());
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -253,7 +253,7 @@ export class PauseAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().pause({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+		return this.debugService.pause(this.debugService.getViewModel().getFocusedThreadId());
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -543,7 +543,7 @@ export class RunToCursorAction extends EditorAction {
 		});
 
 		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {
-			this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+			this.debugService.continue(this.debugService.getViewModel().getFocusedThreadId());
 		});
 	}
 
