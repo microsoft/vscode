@@ -15,10 +15,6 @@
 	padding-left: 8px; /* use padding and not margin to avoid overflow issues */
 	padding-right: 8px;
 	display: flex;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
 	box-sizing:	border-box;
 	overflow: hidden;
 }

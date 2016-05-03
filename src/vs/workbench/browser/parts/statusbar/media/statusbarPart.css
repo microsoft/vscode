@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .part.statusbar {
-	-webkit-box-sizing: border-box;
 	box-sizing: border-box;
 	z-index: 25;
 	width: 100%;
