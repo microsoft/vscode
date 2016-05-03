@@ -90,6 +90,8 @@ class CharacterClassifier {
 
 class LinkComputer {
 
+	private static _characterClassifier = new CharacterClassifier();
+
 	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):ILink {
 		return {
 			range: {
@@ -121,7 +123,7 @@ class LinkComputer {
 			hasOpenParens:boolean,
 			hasOpenSquareBracket:boolean,
 			hasOpenCurlyBracket:boolean,
-			characterClassifier:CharacterClassifier = new CharacterClassifier();
+			characterClassifier = LinkComputer._characterClassifier;
 
 		for (i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			line = model.getLineContent(i);
