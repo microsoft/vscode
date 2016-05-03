@@ -11,7 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import {Extensions, IConfigurationRegistry, IConfigurationNode} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
-import {DefaultConfig, DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
+import {DefaultConfig, DEFAULT_INDENTATION, GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
@@ -651,7 +651,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		let lineHeight = toInteger(opts.lineHeight, 0, 150);
 		if (lineHeight === 0) {
-			lineHeight = Math.round(1.3 * fontSize);
+			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
 		}
 
 		let result = InternalEditorOptionsHelper.createInternalEditorOptions(
