@@ -151,8 +151,6 @@ export class EditorGroup implements IEditorGroup {
 
 	public openEditor(editor: EditorInput, options?: IEditorOpenOptions): void {
 		const index = this.indexOf(editor);
-		const indexOfActive = this.indexOf(this.active);
-		const indexOfPreview = this.indexOf(this.preview);
 
 		const makeActive = (options && options.active) || !this.activeEditor;
 		const makePinned = options && options.pinned;
@@ -162,6 +160,7 @@ export class EditorGroup implements IEditorGroup {
 
 			// Insert into our list of editors if pinned or we are first
 			if (makePinned || !this.preview) {
+				const indexOfActive = this.indexOf(this.active);
 
 				// Insert to the RIGHT of active editor
 				if (DEFAULT_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
@@ -180,6 +179,8 @@ export class EditorGroup implements IEditorGroup {
 
 			// Handle preview
 			if (!makePinned) {
+				const indexOfPreview = this.indexOf(this.preview);
+
 				this.closeEditor(this.preview);
 				this.preview = editor;
 				this.splice(indexOfPreview, true, editor);
@@ -303,7 +304,7 @@ export class EditorGroup implements IEditorGroup {
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
 
 		// Perform on editors array
-		const args:any[] = [index, del ? 1 : 0];
+		const args: any[] = [index, del ? 1 : 0];
 		if (editor) {
 			args.push(editor);
 		}
