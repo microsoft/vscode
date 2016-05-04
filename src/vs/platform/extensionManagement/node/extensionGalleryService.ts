@@ -201,7 +201,7 @@ function extensionFilter(input: string): (e: IExtension) => boolean {
 	};
 }
 
-export class GalleryService implements IExtensionGalleryService {
+export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	serviceId = IExtensionGalleryService;
 
