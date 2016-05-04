@@ -10,7 +10,7 @@ import { parseArgs, helpMessage, ParsedArgs } from 'vs/code/node/argv';
 import pkg from 'vs/platform/package';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
-	return argv['list-extensions'];
+	return argv['list-extensions'] || !!argv['install-extension'];
 }
 
 interface IMainCli {
