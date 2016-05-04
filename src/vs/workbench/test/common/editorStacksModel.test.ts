@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setOpenEditorDirection, Direction} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
 
 function create(): IEditorStacksModel {
@@ -73,7 +73,8 @@ function input(): EditorInput {
 suite('Editor Stacks Model', () => {
 
 	teardown(() => {
-		index = 0;
+		index = 1;
+		setOpenEditorDirection(Direction.RIGHT);
 	});
 
 	test('Groups', function () {
@@ -263,6 +264,26 @@ suite('Editor Stacks Model', () => {
 		assert.equal(mru[0], input3);
 		assert.equal(mru[1], input2);
 		assert.equal(mru[2], input1);
+	});
+
+	test('Stack - Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
+		setOpenEditorDirection(Direction.LEFT);
+
+		const model = create();
+		const group = model.openGroup('group');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		// Pinned and Active
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: true, active: true });
+
+		assert.equal(group.getEditors()[0], input3);
+		assert.equal(group.getEditors()[1], input2);
+		assert.equal(group.getEditors()[2], input1);
 	});
 
 	test('Stack - Multiple Editors - Pinned and Not Active', function () {

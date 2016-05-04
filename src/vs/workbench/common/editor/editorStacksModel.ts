@@ -83,7 +83,10 @@ export enum Direction {
 	RIGHT
 }
 
-const DEFAULT_OPEN_EDITOR_DIRECTION = Direction.RIGHT; // open new editors to the right of existing ones
+let DEFAULT_OPEN_EDITOR_DIRECTION = Direction.RIGHT; // open new editors to the right of existing ones
+export function setOpenEditorDirection(dir: Direction): void {
+	DEFAULT_OPEN_EDITOR_DIRECTION = dir;
+}
 
 export class EditorGroup implements IEditorGroup {
 	private editors: EditorInput[];
