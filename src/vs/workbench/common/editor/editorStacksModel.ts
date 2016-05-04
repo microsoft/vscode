@@ -138,7 +138,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public isActive(editor: EditorInput): boolean {
-		return !!this.active && this.active.matches(editor);
+		return this.matches(this.active, editor);
 	}
 
 	public get previewEditor(): EditorInput {
@@ -146,7 +146,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public isPreview(editor: EditorInput): boolean {
-		return !!this.preview && this.preview.matches(editor);
+		return this.matches(this.preview, editor);
 	}
 
 	public openEditor(editor: EditorInput, options?: IEditorOpenOptions): void {
@@ -154,7 +154,7 @@ export class EditorGroup implements IEditorGroup {
 		const indexOfActive = this.indexOf(this.active);
 		const indexOfPreview = this.indexOf(this.preview);
 
-		const oldPreviewIsActive = this.preview && this.preview.matches(this.activeEditor);
+		const oldPreviewIsActive = this.matches(this.preview, this.activeEditor);
 
 		const makeActive = (options && options.active) || !this.activeEditor; // make active if this is the first editor to open
 		const makePinned = options && options.pinned;
@@ -215,7 +215,7 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		// Active Editor closed
-		if (editor.matches(this.active)) {
+		if (this.matches(this.active, editor)) {
 
 			// More than one editor
 			if (this.editors.length > 1) {
@@ -236,7 +236,7 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		// Preview Editor closed
-		if (editor.matches(this.preview)) {
+		if (this.matches(this.preview, editor)) {
 			this.preview = null;
 		}
 
@@ -252,7 +252,7 @@ export class EditorGroup implements IEditorGroup {
 			return; // not found
 		}
 
-		if (editor.matches(this.active)) {
+		if (this.matches(this.active, editor)) {
 			return; // already active
 		}
 
@@ -302,7 +302,7 @@ export class EditorGroup implements IEditorGroup {
 			return true; // no preview editor
 		}
 
-		return !this.preview.matches(editor);
+		return !this.matches(this.preview, editor);
 	}
 
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
@@ -336,7 +336,7 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		for (let i = 0; i < editors.length; i++) {
-			if (editors[i].matches(candidate)) {
+			if (this.matches(editors[i], candidate)) {
 				return i;
 			}
 		}
@@ -359,6 +359,10 @@ export class EditorGroup implements IEditorGroup {
 
 		// Set to front
 		this.mru.unshift(editor);
+	}
+
+	private matches(editorA: EditorInput, editorB: EditorInput): boolean {
+		return !!editorA && !!editorB && editorA.matches(editorB);
 	}
 }
 
