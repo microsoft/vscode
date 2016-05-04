@@ -21,7 +21,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { ExtensionsChannelId } from 'vs/workbench/parts/extensions/common/extensions';
+import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 import { shell } from 'electron';
 
