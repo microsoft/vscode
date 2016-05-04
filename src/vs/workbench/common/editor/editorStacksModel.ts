@@ -165,6 +165,7 @@ export class EditorGroup implements IEditorGroup {
 		const index = this.indexOf(editor);
 		const indexOfActive = this.indexOf(this.active);
 		const indexOfPreview = this.indexOf(this.preview);
+		let oldPreviewToClose:EditorInput;
 
 		const makeActive = options && options.active;
 		const makePinned = options && options.pinned;
@@ -174,7 +175,7 @@ export class EditorGroup implements IEditorGroup {
 
 			// Insert into our list of editors if pinned or we are first
 			if (makePinned || indexOfPreview === -1) {
-				if (indexOfActive === -1) {
+				if (!this._editors.length) {
 					this._editors.push(editor); // first editor in list
 				} else if (DEFAULT_OPEN_EDITOR_DIRECTION === Direction.LEFT) {
 					if (indexOfActive === 0) {
@@ -189,6 +190,7 @@ export class EditorGroup implements IEditorGroup {
 
 			// Otherwise replace preview one
 			else {
+				oldPreviewToClose = this.preview;
 				this.preview = editor;
 				this._editors[indexOfPreview] = editor;
 			}
@@ -200,6 +202,9 @@ export class EditorGroup implements IEditorGroup {
 			if (makeActive) {
 				this.setActive(editor);
 			}
+
+			// Close old preview editor if any
+			this.closeEditor(oldPreviewToClose);
 		}
 
 		// Existing editor
@@ -261,7 +266,7 @@ export class EditorGroup implements IEditorGroup {
 			return; // not found
 		}
 
-		if (this.active && this.active.matches(editor)) {
+		if (editor.matches(this.active)) {
 			return; // already active
 		}
 
@@ -272,18 +277,8 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public pin(editor: EditorInput): void {
-		const index = this.indexOf(editor);
-		if (index === -1) {
-			return; // editor not found
-		}
-
-		const previewIndex = this.indexOf(this.preview);
-		if (previewIndex === -1) {
-			return; // no editor in preview, cannot pin
-		}
-
-		if (previewIndex !== index) {
-			return; // editor already pinned
+		if (!this.isPreview(editor)) {
+			return; // can only pin a preview editor
 		}
 
 		// Convert the preview editor to be a pinned editor
@@ -291,6 +286,22 @@ export class EditorGroup implements IEditorGroup {
 
 		// Event
 		this._onEditorPinned.fire(editor);
+	}
+
+	public unpin(editor: EditorInput): void {
+		if (!this.isPinned(editor)) {
+			return; // can only unpin a pinned editor
+		}
+
+		// Set new
+		const oldPreview = this.preview;
+		this.preview = editor;
+
+		// Event
+		this._onEditorUnpinned.fire(editor);
+
+		// Close old preview editor if any
+		this.closeEditor(oldPreview);
 	}
 
 	public isPinned(editor: EditorInput): boolean {
@@ -306,34 +317,11 @@ export class EditorGroup implements IEditorGroup {
 		return !this.preview.matches(editor);
 	}
 
-	public unpin(editor: EditorInput): void {
-		const index = this.indexOf(editor);
-		if (index === -1) {
-			return; // editor not found
-		}
-
-		if (editor.matches(this.preview)) {
-			return; // editor already unpinned
-		}
-
-		const previewIndex = this.indexOf(this.preview);
-
-		// Make it our preview editor if we have no other
-		if (previewIndex === -1) {
-			this.preview = editor;
-		}
-
-		// Otherwise replace our existing one
-		else {
-			this._editors.splice(previewIndex, 1);
-			this.preview = editor;
-		}
-
-		// Event
-		this._onEditorUnpinned.fire(editor);
-	}
-
 	private indexOf(candidate: EditorInput): number {
+		if (!candidate) {
+			return -1;
+		}
+
 		for (let i = 0; i < this._editors.length; i++) {
 			if (this._editors[i].matches(candidate)) {
 				return i;
