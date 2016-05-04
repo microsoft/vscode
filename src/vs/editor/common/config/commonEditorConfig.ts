@@ -944,6 +944,11 @@ let editorConfiguration:IConfigurationNode = {
 			'default': DefaultConfig.editor.trimAutoWhitespace,
 			'description': nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace")
 		},
+		'editor.dismissPeekOnEsc' : {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('dismissPeekOnEsc', "Close peek editor when pressing ESC")
+		},
 		'diffEditor.renderSideBySide' : {
 			'type': 'boolean',
 			'default': true,

@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
-import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler, IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -390,17 +390,29 @@ KeybindingsRegistry.registerCommandDesc({
 		]
 	}
 });
-CommonEditorRegistry.registerEditorCommand('closeReferenceSearch', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_REFERENCE_SEARCH_VISIBLE, (accessor, editor, args) => {
+
+function closeActiveReferenceSearch(accessor, args) {
 	var outerEditor = getOuterEditor(accessor, args);
 	if (outerEditor) {
 		var controller = FindReferencesController.getController(outerEditor);
 		controller.closeReferenceSearch();
 	}
+}
+
+KeybindingsRegistry.registerCommandDesc({
+	id: 'closeReferenceSearch',
+	weight: CommonEditorRegistry.commandWeight(50),
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape],
+	when: KbExpr.and(KbExpr.has(CONTEXT_REFERENCE_SEARCH_VISIBLE), KbExpr.has('config.editor.dismissPeekOnEsc')),
+	handler: closeActiveReferenceSearch
 });
-CommonEditorRegistry.registerEditorCommand('closeReferenceSearchEditor', CommonEditorRegistry.commandWeight(-101), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, (accessor, editor, args) => {
-	var outerEditor = getOuterEditor(accessor, args);
-	if (outerEditor) {
-		var controller = FindReferencesController.getController(outerEditor);
-		controller.closeReferenceSearch();
-	}
+
+KeybindingsRegistry.registerCommandDesc({
+	id: 'closeReferenceSearchEditor',
+	weight: CommonEditorRegistry.commandWeight(-101),
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape],
+	when: KbExpr.and(KbExpr.has(ReferenceWidget.INNER_EDITOR_CONTEXT_KEY), KbExpr.has('config.editor.dismissPeekOnEsc')),
+	handler: closeActiveReferenceSearch
 });
