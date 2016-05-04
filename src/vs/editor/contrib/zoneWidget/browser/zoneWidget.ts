@@ -33,7 +33,7 @@ var defaultOptions: IOptions = {
 
 var WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
-class ViewZoneDelegate implements IViewZone {
+export class ViewZoneDelegate implements IViewZone {
 
 	public domNode: HTMLElement;
 	public id: number;
@@ -65,7 +65,7 @@ class ViewZoneDelegate implements IViewZone {
 	}
 }
 
-class OverlayWidgetDelegate implements IOverlayWidget {
+export class OverlayWidgetDelegate implements IOverlayWidget {
 
 	private _id: string;
 	private _domNode: HTMLElement;
