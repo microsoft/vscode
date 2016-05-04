@@ -28,6 +28,7 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	timestamp: string;
 	debugBrkPluginHost: string;
 	debugPluginHost: string;
+	'list-extensions': boolean;
 }
 
 const options: minimist.Opts = {
@@ -50,7 +51,8 @@ const options: minimist.Opts = {
 		'performance',
 		'verbose',
 		'logExtensionHostCommunication',
-		'disable-extensions'
+		'disable-extensions',
+		'list-extensions'
 	],
 	alias: {
 		help: 'h',
@@ -89,4 +91,5 @@ ${ indent }                      window.
 ${ indent }--user-data-dir <dir> Specifies the directory that user data is kept in,
 ${ indent }                      useful when running as root.
 ${ indent }-v, --version         Print version.
-${ indent }-w, --wait            Wait for the window to be closed before returning.`;
+${ indent }-w, --wait            Wait for the window to be closed before returning.
+${ indent }--list-extensions     List the installed extensions.`;

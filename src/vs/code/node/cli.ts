@@ -4,17 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import { parseArgs, helpMessage } from 'vs/code/node/argv';
-import pkg from 'vs/code/node/package';
+import { parseArgs, helpMessage, ParsedArgs } from 'vs/code/node/argv';
+import pkg from 'vs/platform/package';
 
-export function main(args: string[]) {
+function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
+	return argv['list-extensions'];
+}
+
+interface IMainCli {
+	main: (argv: ParsedArgs) => TPromise<void>;
+}
+
+export function main(args: string[]): TPromise<void> {
 	const argv = parseArgs(args);
 
 	if (argv.help) {
 		console.log(helpMessage);
 	} else if (argv.version) {
 		console.log(pkg.version);
+	} else if (shouldSpawnCliProcess(argv)) {
+		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
+		return mainCli.then(cli => cli.main(argv));
 	} else {
 		const env = assign({}, process.env, {
 			// this will signal Code that it was spawned from this module
@@ -30,12 +42,16 @@ export function main(args: string[]) {
 		});
 
 		if (argv.wait) {
-			child.on('exit', process.exit);
-			return;
+			return new TPromise<void>(c => child.once('exit', ()=> c(null)));
 		}
 	}
 
-	process.exit(0);
+	return TPromise.as(null);
 }
 
-main(process.argv.slice(2));
+main(process.argv.slice(2))
+	.then(() => process.exit(0))
+	.then(null, err => {
+		console.error(err.stack ? err.stack : err);
+		process.exit(1);
+	});
