@@ -96,4 +96,8 @@ ${ indent }--user-data-dir <dir> Specifies the directory that user data is kept 
 ${ indent }                      useful when running as root.
 ${ indent }-v, --version         Print version.
 ${ indent }-w, --wait            Wait for the window to be closed before returning.
-${ indent }--list-extensions     List the installed extensions.`;
+${ indent }--list-extensions     List the installed extensions.
+${ indent }--install-extension <extension>
+${ indent }                      Installs an extension.
+${ indent }--list-extensions <extension>
+${ indent }                      Uninstalls an extension.`;
