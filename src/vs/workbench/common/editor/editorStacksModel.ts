@@ -14,6 +14,7 @@ export interface IEditorGroup {
 
 	activeEditor: EditorInput;
 	previewEditor: EditorInput;
+	count: number;
 
 	onEditorActivated: Event<EditorInput>;
 	onEditorOpened: Event<EditorInput>;
@@ -112,6 +113,10 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorUnpinned = new Emitter<EditorInput>();
 	}
 
+	public get count(): number {
+		return this.editors.length;
+	}
+
 	public get onEditorActivated(): Event<EditorInput> {
 		return this._onEditorActivated.event;
 	}
@@ -155,7 +160,7 @@ export class EditorGroup implements IEditorGroup {
 	public openEditor(editor: EditorInput, options?: IEditorOpenOptions): void {
 		const index = this.indexOf(editor);
 
-		const makeActive = (options && options.active) || !this.activeEditor;
+		const makeActive = (options && options.active) || !this.activeEditor || this.matches(this.preview, this.activeEditor);
 		const makePinned = options && options.pinned;
 
 		// New editor
@@ -182,11 +187,13 @@ export class EditorGroup implements IEditorGroup {
 
 			// Handle preview
 			if (!makePinned) {
-				const indexOfPreview = this.indexOf(this.preview);
+				if (this.preview) {
+					const indexOfPreview = this.indexOf(this.preview);
+					this.closeEditor(this.preview);
+					this.splice(indexOfPreview, false, editor);
+				}
 
-				this.closeEditor(this.preview);
 				this.preview = editor;
-				this.splice(indexOfPreview, true, editor);
 			}
 
 			// Event
