@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IExtension, IGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
 import { IXHRResponse } from 'vs/base/common/http';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
-import { getExtensionId } from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import { getExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import product from 'vs/platform/product';
 
 export interface IGalleryExtensionFile {
@@ -201,9 +201,9 @@ function extensionFilter(input: string): (e: IExtension) => boolean {
 	};
 }
 
-export class GalleryService implements IGalleryService {
+export class GalleryService implements IExtensionGalleryService {
 
-	serviceId = IGalleryService;
+	serviceId = IExtensionGalleryService;
 
 	private extensionsGalleryUrl: string;
 	private extensionsCacheUrl: string;

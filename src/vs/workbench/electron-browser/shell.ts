@@ -65,8 +65,8 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
 import {getDelayedChannel} from 'vs/base/parts/ipc/common/ipc';
 import {connect} from 'vs/base/parts/ipc/node/ipc.net';
-import {IExtensionsChannel, ExtensionsChannelClient} from 'vs/workbench/parts/extensions/common/extensionsIpc';
-import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
+import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import {IExtensionManagementService} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 import 'vs/platform/opener/electron-browser/opener.contribution'; // self registering service
 
@@ -271,12 +271,12 @@ export class WorkbenchShell {
 		serviceCollection.set(ICodeEditorService, new CodeEditorServiceImpl());
 		serviceCollection.set(IEditorWorkerService, editorWorkerService);
 		serviceCollection.set(IThemeService, this.themeService);
-		serviceCollection.set(IExtensionsService, new ExtensionsChannelClient(this.initSharedProcessChannel(instantiationService, this.messageService)));
+		serviceCollection.set(IExtensionManagementService, new ExtensionManagementChannelClient(this.initSharedProcessChannel(instantiationService, this.messageService)));
 
 		return [instantiationService, serviceCollection];
 	}
 
-	private initSharedProcessChannel(instantiationService: IInstantiationService, messageService: IMessageService): IExtensionsChannel {
+	private initSharedProcessChannel(instantiationService: IInstantiationService, messageService: IMessageService): IExtensionManagementChannel {
 		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
 
 		sharedProcessClientPromise.done(service => {
@@ -288,10 +288,10 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		const extensionsChannelPromise = sharedProcessClientPromise
-			.then(client => client.getChannel<IExtensionsChannel>('extensions'));
+		const extensionManagementChannelPromise = sharedProcessClientPromise
+			.then(client => client.getChannel<IExtensionManagementChannel>('extensions'));
 
-		return getDelayedChannel<IExtensionsChannel>(extensionsChannelPromise);
+		return getDelayedChannel<IExtensionManagementChannel>(extensionManagementChannelPromise);
 	}
 
 	public open(): void {

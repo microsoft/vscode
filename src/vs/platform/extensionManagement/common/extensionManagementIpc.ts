@@ -7,10 +7,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionsService, IExtension, IExtensionManifest } from './extensions';
+import { IExtensionManagementService, IExtension, IExtensionManifest } from './extensionManagement';
 import Event from 'vs/base/common/event';
 
-export interface IExtensionsChannel extends IChannel {
+export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'event:onInstallExtension'): TPromise<void>;
 	call(command: 'event:onDidInstallExtension'): TPromise<void>;
 	call(command: 'event:onUninstallExtension'): TPromise<void>;
@@ -21,9 +21,9 @@ export interface IExtensionsChannel extends IChannel {
 	call(command: string, arg: any): TPromise<any>;
 }
 
-export class ExtensionsChannel implements IExtensionsChannel {
+export class ExtensionManagementChannel implements IExtensionManagementChannel {
 
-	constructor(private service: IExtensionsService) { }
+	constructor(private service: IExtensionManagementService) { }
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
@@ -38,11 +38,11 @@ export class ExtensionsChannel implements IExtensionsChannel {
 	}
 }
 
-export class ExtensionsChannelClient implements IExtensionsService {
+export class ExtensionManagementChannelClient implements IExtensionManagementService {
 
-	serviceId = IExtensionsService;
+	serviceId = IExtensionManagementService;
 
-	constructor(private channel: IExtensionsChannel) { }
+	constructor(private channel: IExtensionManagementChannel) { }
 
 	private _onInstallExtension = eventFromCall(this.channel, 'event:onInstallExtension');
 	get onInstallExtension(): Event<IExtensionManifest> { return this._onInstallExtension; }

@@ -5,8 +5,7 @@
 
 'use strict';
 
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtension, IExtensionsService, IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
 
@@ -29,10 +28,7 @@ export function getTelemetryData(extension: IExtension): any {
 	};
 }
 
-export function getOutdatedExtensions(accessor: ServicesAccessor): TPromise<IExtension[]> {
-	const extensionsService = accessor.get(IExtensionsService);
-	const galleryService = accessor.get(IGalleryService);
-
+export function getOutdatedExtensions(extensionsService: IExtensionManagementService, galleryService: IExtensionGalleryService): TPromise<IExtension[]> {
 	if (!galleryService.isEnabled()) {
 		return TPromise.as([]);
 	}

@@ -14,9 +14,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { ExtensionsChannel } from 'vs/workbench/parts/extensions/common/extensionsIpc';
-import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
-import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
+import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 
 function quit(err?: Error) {
 	if (err) {
@@ -44,17 +44,17 @@ function main(server: Server): void {
 
 	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
-	services.set(IExtensionsService, new SyncDescriptor(ExtensionsService));
+	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
-		const extensionsService = accessor.get(IExtensionsService);
-		const channel = new ExtensionsChannel(extensionsService);
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const channel = new ExtensionManagementChannel(extensionManagementService);
 		server.registerChannel('extensions', channel);
 
 		// eventually clean up old extensions
-		setTimeout(() => (extensionsService as ExtensionsService).removeDeprecatedExtensions(), 5000);
+		setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 5000);
 	});
 }
 

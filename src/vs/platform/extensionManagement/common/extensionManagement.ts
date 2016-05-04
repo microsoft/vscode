@@ -42,8 +42,8 @@ export interface IExtension extends IExtensionManifest {
 	path?: string;
 }
 
-export const IExtensionsService = createDecorator<IExtensionsService>('extensionsService');
-export const IGalleryService = createDecorator<IGalleryService>('galleryService');
+export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
+export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
 export interface IQueryOptions {
 	text?: string;
@@ -58,13 +58,13 @@ export interface IQueryResult {
 	getPage(pageNumber: number): TPromise<IExtension[]>;
 }
 
-export interface IGalleryService {
+export interface IExtensionGalleryService {
 	serviceId: ServiceIdentifier<any>;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions): TPromise<IQueryResult>;
 }
 
-export interface IExtensionsService {
+export interface IExtensionManagementService {
 	serviceId: ServiceIdentifier<any>;
 	onInstallExtension: Event<IExtensionManifest>;
 	onDidInstallExtension: Event<{ extension: IExtension; error?: Error; }>;

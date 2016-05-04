@@ -14,7 +14,7 @@ import { assign } from 'vs/base/common/objects';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionsService, IExtension, IExtensionManifest, IGalleryMetadata, IGalleryVersion } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionManagementService, IExtension, IExtensionManifest, IGalleryMetadata, IGalleryVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -83,9 +83,9 @@ function getExtensionId(extension: IExtensionManifest, version = extension.versi
 	return `${ extension.publisher }.${ extension.name }-${ version }`;
 }
 
-export class ExtensionsService implements IExtensionsService {
+export class ExtensionManagementService implements IExtensionManagementService {
 
-	serviceId = IExtensionsService;
+	serviceId = IExtensionManagementService;
 
 	private extensionsPath: string;
 	private obsoletePath: string;
