@@ -154,26 +154,27 @@ export class EditorGroup implements IEditorGroup {
 		const indexOfActive = this.indexOf(this.active);
 		const indexOfPreview = this.indexOf(this.preview);
 
-		const oldPreviewIsActive = this.matches(this.preview, this.activeEditor);
-
-		const makeActive = (options && options.active) || !this.activeEditor; // make active if this is the first editor to open
+		const makeActive = (options && options.active) || !this.activeEditor;
 		const makePinned = options && options.pinned;
 
 		// New editor
 		if (index === -1) {
 
 			// Insert into our list of editors if pinned or we are first
-			if (makePinned || indexOfPreview === -1) {
-				if (!this.editors.length) {
-					this.splice(0, false, editor); // first editor in list
-				} else if (DEFAULT_OPEN_EDITOR_DIRECTION === Direction.LEFT) {
-					if (indexOfActive === 0) {
+			if (makePinned || !this.preview) {
+
+				// Insert to the RIGHT of active editor
+				if (DEFAULT_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
+					this.splice(indexOfActive + 1, false, editor);
+				}
+
+				// Insert to the LEFT of active editor
+				else {
+					if (indexOfActive === 0 || !this.editors.length) {
 						this.splice(0, false, editor); // to the left becoming first editor in list
 					} else {
 						this.splice(indexOfActive - 1, false, editor); // to the left of active editor
 					}
-				} else {
-					this.splice(indexOfActive + 1, false, editor); // to the right of active editor
 				}
 			}
 
@@ -188,7 +189,7 @@ export class EditorGroup implements IEditorGroup {
 			this._onEditorOpened.fire(editor);
 
 			// Handle active
-			if (makeActive || oldPreviewIsActive) {
+			if (makeActive) {
 				this.setActive(editor);
 			}
 		}
@@ -218,15 +219,8 @@ export class EditorGroup implements IEditorGroup {
 		if (this.matches(this.active, editor)) {
 
 			// More than one editor
-			if (this.editors.length > 1) {
-				let newActiveEditor: EditorInput;
-				if (this.editors.length > index + 1) {
-					newActiveEditor = this.editors[index + 1]; // make next editor to the right active
-				} else {
-					newActiveEditor = this.editors[index - 1]; // make next editor to the left active
-				}
-
-				this.setActive(newActiveEditor);
+			if (this.mru.length > 1) {
+				this.setActive(this.mru[1]); // active editor is always first in MRU, so pick second editor after as new active
 			}
 
 			// One Editor
@@ -240,6 +234,7 @@ export class EditorGroup implements IEditorGroup {
 			this.preview = null;
 		}
 
+		// Remove from arrays
 		this.splice(index, true);
 
 		// Event
@@ -359,11 +354,9 @@ export class EditorGroup implements IEditorGroup {
 		const mruIndex = this.indexOf(editor, this.mru);
 
 		// Remove old index
-		if (mruIndex >= 0) {
-			this.mru.splice(mruIndex, 1);
-		}
+		this.mru.splice(mruIndex, 1);
 
-		// Set to front
+		// Set editor to front
 		this.mru.unshift(editor);
 	}
 
