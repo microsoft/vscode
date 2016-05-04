@@ -21,8 +21,7 @@ import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableEleme
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {EventType, IModeSupportChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
-import {SuggestRegistry} from 'vs/editor/common/modes';
+import {EventType, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY} from '../common/suggest';
 import {CompletionItem, CompletionModel} from './completionModel';
@@ -313,7 +312,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 	private state: State;
 	private isAuto: boolean;
-	private shouldShowEmptySuggestionList: boolean;
 	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<void>;
@@ -371,10 +369,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.list = new List(this.listElement, this.delegate, [renderer]);
 
 		this.toDispose = [
-			editor.addListener2(EventType.ModelChanged, () => this.onModelModeChanged()),
-			editor.addListener2(EventType.ModelModeChanged, () => this.onModelModeChanged()),
-			editor.addListener2(EventType.ModelModeSupportChanged, (e: IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
-			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
 			editor.addListener2(EventType.EditorTextBlur, () => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
@@ -384,7 +378,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.model.onDidCancel(e => this.onDidCancel(e))
 		];
 
-		this.onModelModeChanged();
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
 
@@ -511,12 +504,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			.then(() => this.currentSuggestionDetails = null);
 	}
 
-	private onModelModeChanged(): void {
-		const model = this.editor.getModel();
-		const supports = SuggestRegistry.all(model);
-		this.shouldShowEmptySuggestionList = supports.some(s => true);
-	}
-
 	private setState(state: State): void {
 		const stateChanged = this.state !== state;
 		this.state = state;
@@ -610,11 +597,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			if (e.auto) {
 				this.setState(State.Hidden);
 			} else {
-				if (this.shouldShowEmptySuggestionList) {
-					this.setState(State.Empty);
-				} else {
-					this.setState(State.Hidden);
-				}
+				this.setState(State.Empty);
 			}
 
 			this.completionModel = null;
