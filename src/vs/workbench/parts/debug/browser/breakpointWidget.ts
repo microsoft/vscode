@@ -58,7 +58,7 @@ export class BreakpointWidget extends ZoneWidget {
 		BreakpointWidget.INSTANCE.show({ lineNumber, column: 1 }, 2);
 	}
 
-	public fillContainer(container: HTMLElement): void {
+	protected _fillContainer(container: HTMLElement): void {
 		dom.addClass(container, 'breakpoint-widget');
 		const uri = this.editor.getModel().getAssociatedResource();
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();

@@ -80,7 +80,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 		super.show(where, heightInLines);
 	}
 
-	public fillContainer(container: HTMLElement): void {
+	protected _fillContainer(container: HTMLElement): void {
 		$(container).addClass('peekview-widget');
 
 		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
@@ -140,7 +140,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 		// implement me
 	}
 
-	public doLayout(heightInPixel: number, widthInPixel: number): void {
+	public _doLayout(heightInPixel: number, widthInPixel: number): void {
 
 		if (heightInPixel < 0) {
 			// Looks like the view zone got folded away!

@@ -89,7 +89,7 @@ class OverlayWidgetDelegate implements IOverlayWidget {
 
 }
 
-export class ZoneWidget implements IHorizontalSashLayoutProvider {
+export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	private _viewZone: ViewZoneDelegate = null;
 	private _overlayWidget: OverlayWidgetDelegate = null;
@@ -114,7 +114,7 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._disposables.add(this.editor.addListener2(EventType.EditorLayout, (info: IEditorLayoutInfo) => {
 			var width = this._getWidth(info);
 			this.domNode.style.width = width + 'px';
-			this.onWidth(width);
+			this._onWidth(width);
 		}));
 	}
 
@@ -126,7 +126,7 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this.container = document.createElement('div');
 		dom.addClass(this.container, 'zone-widget-container');
 		this.domNode.appendChild(this.container);
-		this.fillContainer(this.container);
+		this._fillContainer(this.container);
 
 		this._initSash();
 	}
@@ -144,7 +144,7 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		let containerHeight = height - this._decoratingElementsHeight();
 		this.container.style.height = `${containerHeight}px`;
-		this.doLayout(containerHeight, this._getWidth());
+		this._doLayout(containerHeight, this._getWidth());
 
 		this._resizeSash.layout();
 	}
@@ -248,7 +248,7 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this.container.style.overflow = 'hidden';
 
 
-		this.doLayout(containerHeight, width);
+		this._doLayout(containerHeight, width);
 
 		this.editor.setSelection(where);
 
@@ -276,15 +276,13 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 	}
 
-	public fillContainer(container: HTMLElement): void {
+	protected abstract _fillContainer(container: HTMLElement): void;
+
+	protected _onWidth(widthInPixel: number): void {
 		// implement in subclass
 	}
 
-	public onWidth(widthInPixel: number): void {
-		// implement in subclass
-	}
-
-	public doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
 		// implement in subclass
 	}
 

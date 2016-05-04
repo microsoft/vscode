@@ -214,7 +214,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._wireModelAndView();
 	}
 
-	public fillContainer(container: HTMLElement): void {
+	protected _fillContainer(container: HTMLElement): void {
 		this._container = container;
 
 		dom.addClass(this._container, 'marker-widget');

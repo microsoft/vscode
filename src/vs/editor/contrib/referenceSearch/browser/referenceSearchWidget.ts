@@ -572,7 +572,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._lastHeight = height;
 	}
 
-	public onWidth(widthInPixel: number): void {
+	public _onWidth(widthInPixel: number): void {
 		this._sash.width = widthInPixel;
 		this._preview.layout();
 	}
