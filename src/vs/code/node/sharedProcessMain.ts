@@ -10,7 +10,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IConfiguration } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
@@ -18,11 +17,6 @@ import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionsChannel } from 'vs/workbench/parts/extensions/common/extensionsIpc';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
-
-interface IInitData {
-	configuration: IConfiguration;
-	contextServiceOptions: { settings: any };
-}
 
 function quit(err?: Error) {
 	if (err) {
@@ -45,7 +39,7 @@ function setupPlanB(parentPid: number): void {
 	}, 5000);
 }
 
-function main(server: Server, initData: IInitData): void {
+function main(server: Server): void {
 	const services = new ServiceCollection();
 
 	services.set(IEventService, new SyncDescriptor(EventService));
@@ -98,8 +92,8 @@ function setupIPC(hook: string): TPromise<Server> {
 	return setup(true);
 }
 
-function handshake(): TPromise<IInitData> {
-	return new TPromise<IInitData>((c, e) => {
+function handshake(): TPromise<void> {
+	return new TPromise<void>((c, e) => {
 		process.once('message', c);
 		process.once('error', e);
 		process.send('hello');
@@ -107,6 +101,6 @@ function handshake(): TPromise<IInitData> {
 }
 
 TPromise.join<any>([setupIPC(process.env['VSCODE_SHARED_IPC_HOOK']), handshake()])
-	.then(r => main(r[0], r[1]))
+	.then(r => main(r[0]))
 	.then(() => setupPlanB(process.env['VSCODE_PID']))
 	.done(null, quit);

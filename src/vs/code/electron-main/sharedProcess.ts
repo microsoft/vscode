@@ -5,57 +5,21 @@
 
 import * as cp from 'child_process';
 import URI from 'vs/base/common/uri';
-import pkg from 'vs/platform/package';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import { IEnvironment } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/code/electron-main/env';
-import { ISettingsService } from 'vs/code/electron-main/settings';
-import { IUpdateService } from 'vs/code/electron-main/update-manager';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const boostrapPath = URI.parse(require.toUrl('bootstrap')).fsPath;
 
-function getEnvironment(envService: IEnvironmentService, updateManager: IUpdateService): IEnvironment {
-	let configuration: IEnvironment = assign({}, envService.cliArgs);
-	configuration.execPath = process.execPath;
-	configuration.appName = envService.product.nameLong;
-	configuration.appRoot = envService.appRoot;
-	configuration.version = pkg.version;
-	configuration.commitHash = envService.product.commit;
-	configuration.appSettingsHome = envService.appSettingsHome;
-	configuration.appSettingsPath = envService.appSettingsPath;
-	configuration.appKeybindingsPath = envService.appKeybindingsPath;
-	configuration.userExtensionsHome = envService.userExtensionsHome;
-	configuration.isBuilt = envService.isBuilt;
-	configuration.updateFeedUrl = updateManager.feedUrl;
-	configuration.updateChannel = updateManager.channel;
-	configuration.extensionsGallery = envService.product.extensionsGallery;
+function _spawnSharedProcess(): cp.ChildProcess {
+	const env = assign({}, process.env, {
+		AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain'
+	});
 
-	return configuration;
-}
-
-function _spawnSharedProcess(envService: IEnvironmentService, updateManager: IUpdateService, settingsManager: ISettingsService): cp.ChildProcess {
-	// Make sure the nls configuration travels to the shared process.
-	const opts = {
-		env: assign(assign({}, process.env), {
-			AMD_ENTRYPOINT: 'vs/code/node/sharedProcessMain'
-		})
-	};
-
-	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], opts);
+	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], { env });
 
 	// handshake
-	result.once('message', () => {
-		result.send({
-			configuration: {
-				env: getEnvironment(envService, updateManager)
-			},
-			contextServiceOptions: {
-				globalSettings: settingsManager.globalSettings
-			}
-		});
-	});
+	result.once('message', () => result.send('hey'));
 
 	return result;
 }
@@ -63,10 +27,6 @@ function _spawnSharedProcess(envService: IEnvironmentService, updateManager: IUp
 let spawnCount = 0;
 
 export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
-	const envService = accessor.get(IEnvironmentService);
-	const updateManager = accessor.get(IUpdateService);
-	const settingsManager = accessor.get(ISettingsService);
-
 	let child: cp.ChildProcess;
 
 	const spawn = () => {
@@ -74,7 +34,7 @@ export function spawnSharedProcess(accessor: ServicesAccessor): IDisposable {
 			return;
 		}
 
-		child = _spawnSharedProcess(envService, updateManager, settingsManager);
+		child = _spawnSharedProcess();
 		child.on('exit', spawn);
 	};
 
