@@ -355,6 +355,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	private renderThread(thread: debug.IThread, data: IThreadTemplateData): void {
+		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 		data.stateLabel.textContent = thread.stopped ? nls.localize('paused', "paused") : nls.localize('running', "running");
 	}
