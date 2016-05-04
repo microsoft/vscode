@@ -23,6 +23,7 @@ export interface IEditorGroup {
 
 	getEditors(mru?: boolean): EditorInput[];
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
+	closeEditor(editor: EditorInput): void;
 	setActive(editor: EditorInput): void;
 	isActive(editor: EditorInput): boolean;
 	isPreview(editor: EditorInput): boolean;
@@ -137,7 +138,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public isActive(editor: EditorInput): boolean {
-		return this.active && this.active.matches(editor);
+		return !!this.active && this.active.matches(editor);
 	}
 
 	public get previewEditor(): EditorInput {
@@ -145,16 +146,17 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public isPreview(editor: EditorInput): boolean {
-		return this.preview && this.preview.matches(editor);
+		return !!this.preview && this.preview.matches(editor);
 	}
 
 	public openEditor(editor: EditorInput, options?: IEditorOpenOptions): void {
 		const index = this.indexOf(editor);
 		const indexOfActive = this.indexOf(this.active);
 		const indexOfPreview = this.indexOf(this.preview);
-		let oldPreviewToClose: EditorInput;
 
-		const makeActive = options && options.active;
+		const oldPreviewIsActive = this.preview && this.preview.matches(this.activeEditor);
+
+		const makeActive = (options && options.active) || !this.activeEditor; // make active if this is the first editor to open
 		const makePinned = options && options.pinned;
 
 		// New editor
@@ -175,9 +177,9 @@ export class EditorGroup implements IEditorGroup {
 				}
 			}
 
-			// Otherwise replace preview one
-			else {
-				oldPreviewToClose = this.preview;
+			// Handle preview
+			if (!makePinned) {
+				this.closeEditor(this.preview);
 				this.preview = editor;
 				this.splice(indexOfPreview, true, editor);
 			}
@@ -185,13 +187,10 @@ export class EditorGroup implements IEditorGroup {
 			// Event
 			this._onEditorOpened.fire(editor);
 
-			// Make active
-			if (makeActive) {
+			// Handle active
+			if (makeActive || oldPreviewIsActive) {
 				this.setActive(editor);
 			}
-
-			// Close old preview editor if any
-			this.closeEditor(oldPreviewToClose);
 		}
 
 		// Existing editor
@@ -309,7 +308,11 @@ export class EditorGroup implements IEditorGroup {
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
 
 		// Perform on editors array
-		this.editors.splice(index, del ? 1 : 0, editor);
+		const args:any[] = [index, del];
+		if (editor) {
+			args.push(editor);
+		}
+		this.editors.splice.apply(this.editors, args);
 
 		// Add: make it LRU editor
 		if (!del && editor) {

@@ -7,36 +7,71 @@
 
 import * as assert from 'assert';
 import {EditorStacksModel, IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorInput} from 'vs/workbench/common/editor';
 
 function create(): IEditorStacksModel {
 	return new EditorStacksModel();
 }
 
-interface GroupEvents {
+interface ModelEvents {
 	opened: IEditorGroup[];
 	activated: IEditorGroup[];
 	closed: IEditorGroup[];
 }
 
-function groupListener(model: IEditorStacksModel): GroupEvents {
-	const groupEvents = {
+interface GroupEvents {
+	opened: EditorInput[];
+	activated: EditorInput[];
+	closed: EditorInput[];
+	pinned: EditorInput[];
+	unpinned: EditorInput[];
+}
+
+function modelListener(model: IEditorStacksModel): ModelEvents {
+	const modelEvents = {
 		opened: [],
 		activated: [],
 		closed: []
 	};
 
-	model.onGroupOpened(g => groupEvents.opened.push(g));
-	model.onGroupActivated(g => groupEvents.activated.push(g));
-	model.onGroupClosed(g => groupEvents.closed.push(g));
+	model.onGroupOpened(g => modelEvents.opened.push(g));
+	model.onGroupActivated(g => modelEvents.activated.push(g));
+	model.onGroupClosed(g => modelEvents.closed.push(g));
+
+	return modelEvents;
+}
+
+function groupListener(group: IEditorGroup): GroupEvents {
+	const groupEvents = {
+		opened: [],
+		closed: [],
+		activated: [],
+		pinned: [],
+		unpinned: []
+	};
+
+	group.onEditorOpened(e => groupEvents.opened.push(e));
+	group.onEditorClosed(e => groupEvents.closed.push(e));
+	group.onEditorActivated(e => groupEvents.activated.push(e));
+	group.onEditorPinned(e => groupEvents.pinned.push(e));
+	group.onEditorUnpinned(e => groupEvents.unpinned.push(e));
 
 	return groupEvents;
+}
+
+class TestEditorInput extends EditorInput {
+
+}
+
+function input(): EditorInput {
+	return new TestEditorInput();
 }
 
 suite('Editor Stacks Model', () => {
 
 	test('Groups', function () {
 		const model = create();
-		const events = groupListener(model);
+		const events = modelListener(model);
 
 		assert.equal(model.groups.length, 0);
 		assert.ok(!model.activeGroup);
@@ -74,5 +109,137 @@ suite('Editor Stacks Model', () => {
 		assert.equal(fourth, model.activeGroup);
 		model.closeGroup(fourth);
 		assert.equal(second, model.activeGroup);
+	});
+
+	test('Stack - One Editor', function () {
+		const model = create();
+		const group = model.openGroup('first');
+		const events = groupListener(group);
+
+		assert.equal(group.getEditors().length, 0);
+		assert.equal(group.getEditors(true).length, 0);
+
+		// Active && Pinned
+		const input1 = input();
+		group.openEditor(input1, { active: true, pinned: true });
+
+		assert.equal(group.getEditors().length, 1);
+		assert.equal(group.getEditors(true).length, 1);
+		assert.equal(group.activeEditor, input1);
+		assert.equal(group.isActive(input1), true);
+		assert.equal(group.isPreview(input1), false);
+		assert.equal(group.isPinned(input1), true);
+
+		assert.equal(events.opened[0], input1);
+		assert.equal(events.activated[0], input1);
+
+		group.closeEditor(input1);
+		assert.equal(group.getEditors().length, 0);
+		assert.equal(group.getEditors(true).length, 0);
+		assert.equal(group.activeEditor, void 0);
+		assert.equal(events.closed[0], input1);
+
+		// Active && Preview
+		const input2 = input();
+		group.openEditor(input2, { active: true, pinned: false });
+
+		assert.equal(group.getEditors().length, 1);
+		assert.equal(group.getEditors(true).length, 1);
+		assert.equal(group.activeEditor, input2);
+		assert.equal(group.isActive(input2), true);
+		assert.equal(group.isPreview(input2), true);
+		assert.equal(group.isPinned(input2), false);
+
+		assert.equal(events.opened[1], input2);
+		assert.equal(events.activated[1], input2);
+
+		group.closeEditor(input2);
+		assert.equal(group.getEditors().length, 0);
+		assert.equal(group.getEditors(true).length, 0);
+		assert.equal(group.activeEditor, void 0);
+		assert.equal(events.closed[1], input2);
+
+		group.closeEditor(input2);
+		assert.equal(group.getEditors().length, 0);
+		assert.equal(group.getEditors(true).length, 0);
+		assert.equal(group.activeEditor, void 0);
+		assert.equal(events.closed[1], input2);
+
+		// Nonactive && Pinned => gets active because its first editor
+		const input3 = input();
+		group.openEditor(input3, { active: false, pinned: true });
+
+		assert.equal(group.getEditors().length, 1);
+		assert.equal(group.getEditors(true).length, 1);
+		assert.equal(group.activeEditor, input3);
+		assert.equal(group.isActive(input3), true);
+		assert.equal(group.isPreview(input3), false);
+		assert.equal(group.isPinned(input3), true);
+
+		assert.equal(events.opened[2], input3);
+		assert.equal(events.activated[2], input3);
+
+		group.closeEditor(input3);
+		assert.equal(group.getEditors().length, 0);
+		assert.equal(group.getEditors(true).length, 0);
+		assert.equal(group.activeEditor, void 0);
+		assert.equal(events.closed[2], input3);
+
+		assert.equal(events.opened[2], input3);
+		assert.equal(events.activated[2], input3);
+
+		group.closeEditor(input3);
+		assert.equal(group.getEditors().length, 0);
+		assert.equal(group.getEditors(true).length, 0);
+		assert.equal(group.activeEditor, void 0);
+		assert.equal(events.closed[2], input3);
+
+		// Nonactive && Preview => gets active because its first editor
+		const input4 = input();
+		group.openEditor(input4);
+
+		assert.equal(group.getEditors().length, 1);
+		assert.equal(group.getEditors(true).length, 1);
+		assert.equal(group.activeEditor, input4);
+		assert.equal(group.isActive(input4), true);
+		assert.equal(group.isPreview(input4), true);
+		assert.equal(group.isPinned(input4), false);
+
+		assert.equal(events.opened[3], input4);
+		assert.equal(events.activated[3], input4);
+
+		group.closeEditor(input4);
+		assert.equal(group.getEditors().length, 0);
+		assert.equal(group.getEditors(true).length, 0);
+		assert.equal(group.activeEditor, void 0);
+		assert.equal(events.closed[3], input4);
+	});
+
+	test('Stack - Multiple Editors - Preview gets overwritten', function () {
+		const model = create();
+		const group = model.openGroup('first');
+		const events = groupListener(group);
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		// Non active, preview
+		group.openEditor(input1); // becomes active, preview
+		group.openEditor(input2); // overwrites preview
+		group.openEditor(input3); // overwrites preview
+
+		assert.equal(group.getEditors().length, 1);
+		assert.equal(group.getEditors(true).length, 1);
+		assert.equal(group.activeEditor, input3);
+		assert.equal(group.isActive(input3), true);
+		assert.equal(group.isPinned(input3), false);
+		assert.equal(group.isPreview(input3), true);
+
+		assert.equal(events.opened[0], input1);
+		assert.equal(events.opened[1], input2);
+		assert.equal(events.opened[2], input3);
+		assert.equal(events.closed[0], input1);
+		assert.equal(events.closed[1], input2);
 	});
 });
