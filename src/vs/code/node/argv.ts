@@ -30,6 +30,7 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	debugPluginHost: string;
 	'list-extensions': boolean;
 	'install-extension': string;
+	'uninstall-extension': string;
 }
 
 const options: minimist.Opts = {
@@ -40,7 +41,8 @@ const options: minimist.Opts = {
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'timestamp',
-		'install-extension'
+		'install-extension',
+		'uninstall-extension'
 	],
 	boolean: [
 		'help',

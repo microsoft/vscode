@@ -25,6 +25,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
+const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
 const useId = localize('useId', "Make sure you use the full extension id, eg: {0}", 'ms-vscode.csharp');
 
 class Main {
@@ -41,6 +42,8 @@ class Main {
 			return this.listExtensions();
 		} else if (argv['install-extension']) {
 			return this.installExtension(argv['install-extension']);
+		} else if (argv['uninstall-extension']) {
+			return this.uninstallExtension(argv['uninstall-extension']);
 		}
 	}
 
@@ -69,11 +72,24 @@ class Main {
 				console.log(localize('installing', "Installing..."));
 
 				return this.extensionManagementService.install(extension).then(extension => {
-					console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!",
-						getExtensionId(extension),
-						extension.version
-					));
+					console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
 				});
+			});
+		});
+	}
+
+	private uninstallExtension(id: string): TPromise<any> {
+		return this.extensionManagementService.getInstalled().then(installed => {
+			const [extension] = installed.filter(e => getExtensionId(e) === id);
+
+			if (!extension) {
+				return TPromise.wrapError(`${ notInstalled(id) }\n${ useId }`);
+			}
+
+			console.log(localize('uninstalling', "Uninstalling {0}...", id));
+
+			return this.extensionManagementService.uninstall(extension).then(() => {
+				console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
 			});
 		});
 	}
