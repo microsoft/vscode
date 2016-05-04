@@ -564,11 +564,16 @@ export class DebugService implements debug.IDebugService {
 			this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
-			if (changeViewState && !this.viewModel.changedWorkbenchViewState) {
-				// We only want to change the workbench view state on the first debug session #5738
-				this.viewModel.changedWorkbenchViewState = true;
-				this.viewletService.openViewlet(debug.VIEWLET_ID);
-				this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+			if (changeViewState) {
+				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions === 'openOnFirstSessionStart')) {
+					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+				}
+
+				if (!this.viewModel.changedWorkbenchViewState) {
+					// We only want to change the workbench view state on the first debug session #5738
+					this.viewModel.changedWorkbenchViewState = true;
+					this.viewletService.openViewlet(debug.VIEWLET_ID);
+				}
 			}
 
 			// Do not change status bar to orange if we are just running without debug.

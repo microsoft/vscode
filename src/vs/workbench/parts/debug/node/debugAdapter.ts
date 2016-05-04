@@ -106,6 +106,11 @@ export class Adapter {
 					default: null,
 					description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 				};
+				properties.internalConsoleOptions = {
+					enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+					default: 'openOnFirstSessionStart',
+					description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
+				};
 				this.warnRelativePaths(properties.outDir);
 				this.warnRelativePaths(properties.program);
 				this.warnRelativePaths(properties.cwd);

@@ -206,6 +206,7 @@ export interface IConfig {
 	sourceMaps?: boolean;
 	outDir?: string;
 	address?: string;
+	internalConsoleOptions?: string;
 	port?: number;
 	preLaunchTask?: string;
 	externalConsole?: boolean;
