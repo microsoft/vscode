@@ -20,7 +20,7 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
-const DEFAULT_MIN_PANEL_PART_HEIGHT = 170;
+const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
 const DEFAULT_MIN_EDITOR_PART_HEIGHT = 170;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
