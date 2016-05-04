@@ -27,6 +27,7 @@ const debugTreeOptions = {
 	ariaLabel: nls.localize('treeAriaLabel', "Debug Hover")
 };
 const MAX_ELEMENTS_SHOWN = 18;
+const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
 export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
@@ -182,7 +183,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		if (expression.reference === 0 || forceValueHover) {
 			this.treeContainer.hidden = true;
 			this.valueContainer.hidden = false;
-			viewer.renderExpressionValue(expression, this.valueContainer, false);
+			viewer.renderExpressionValue(expression, this.valueContainer, false, MAX_VALUE_RENDER_LENGTH_IN_HOVER);
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
 			if (focus) {
