@@ -83,34 +83,40 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups.length, 0);
 		assert.ok(!model.activeGroup);
 
-		const first = model.openGroup('group');
+		const first = model.openGroup('first');
 		assert.equal(events.opened[0], first);
 		assert.equal(events.activated[0], first);
 		assert.equal(model.activeGroup, first);
 		assert.equal(model.groups.length, 1);
+		assert.equal(model.groups[0], first);
 
 		const second = model.openGroup('second');
 		assert.equal(events.opened[1], second);
 		assert.equal(events.activated[1], second);
 		assert.equal(model.activeGroup, second);
 		assert.equal(model.groups.length, 2);
+		assert.equal(model.groups[1], second);
 
 		const third = model.openGroup('third');
 		assert.equal(events.opened[2], third);
 		assert.equal(events.activated[2], third);
 		assert.equal(model.activeGroup, third);
 		assert.equal(model.groups.length, 3);
+		assert.equal(model.groups[2], third);
 
 		model.closeGroup(first);
 		assert.equal(events.closed[0], first);
 		assert.equal(model.groups.length, 2);
 		assert.equal(model.activeGroup, third);
+		assert.equal(model.groups[0], second);
+		assert.equal(model.groups[1], third);
 
 		model.closeGroup(third);
 		assert.equal(events.closed[1], third);
 		assert.equal(events.activated[3], second);
 		assert.equal(model.activeGroup, second);
 		assert.equal(model.groups.length, 1);
+		assert.equal(model.groups[0], second);
 
 		const fourth = model.openGroup('fourth');
 		assert.equal(fourth, model.activeGroup);

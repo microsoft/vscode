@@ -308,7 +308,7 @@ export class EditorGroup implements IEditorGroup {
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
 
 		// Perform on editors array
-		const args:any[] = [index, del];
+		const args:any[] = [index, del ? 1 : 0];
 		if (editor) {
 			args.push(editor);
 		}
@@ -319,14 +319,20 @@ export class EditorGroup implements IEditorGroup {
 			this.mru.push(editor);
 		}
 
-		// Remove: remove from MRU
-		else if (del && !editor) {
-			this.mru.splice(this.indexOf(this.editors[index]), 1);
-		}
-
-		// Replace: replace MRU at location
+		// Remove / Replace
 		else {
-			this.mru.splice(this.indexOf(this.editors[index]), 1, editor);
+			const editorToDeleteOrReplace = this.editors[index];
+			const indexInMRU = this.indexOf(editorToDeleteOrReplace, this.mru);
+
+			// Remove: remove from MRU
+			if (del && !editor) {
+				this.mru.splice(indexInMRU, 1);
+			}
+
+			// Replace: replace MRU at location
+			else {
+				this.mru.splice(indexInMRU, 1, editor);
+			}
 		}
 	}
 
@@ -411,7 +417,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Subsequent group (add to the right of active)
 		else {
-			this._groups.splice(this.indexOf(this.active), 0, group);
+			this._groups.splice(this.indexOf(this.active) + 1, 0, group);
 		}
 
 		// Event
