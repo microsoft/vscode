@@ -15,7 +15,6 @@ import {IThemeService, IThemeData} from 'vs/workbench/services/themes/common/the
 import {getBaseThemeId, getSyntaxThemeId} from 'vs/platform/theme/common/themes';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {Preferences} from 'vs/workbench/common/constants';
 import {$} from 'vs/base/browser/builder';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -27,6 +26,7 @@ import pfs = require('vs/base/node/pfs');
 const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
 
 const THEME_CHANNEL = 'vscode:changeTheme';
+const THEME_PREF = 'workbench.theme';
 
 let defaultBaseTheme = getBaseThemeId(DEFAULT_THEME_ID);
 
@@ -126,10 +126,10 @@ export class ThemeService implements IThemeService {
 	public initialize(container: HTMLElement): TPromise<boolean> {
 		this.container = container;
 
-		let themeId = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, null);
+		let themeId = this.storageService.get(THEME_PREF, StorageScope.GLOBAL, null);
 		if (!themeId) {
 			themeId = DEFAULT_THEME_ID;
-			this.storageService.store(Preferences.THEME, themeId, StorageScope.GLOBAL);
+			this.storageService.store(THEME_PREF, themeId, StorageScope.GLOBAL);
 		}
 		return this.setTheme(themeId, false);
 	}
@@ -156,7 +156,7 @@ export class ThemeService implements IThemeService {
 				$(this.container).addClass(newThemeId);
 			}
 
-			this.storageService.store(Preferences.THEME, newThemeId, StorageScope.GLOBAL);
+			this.storageService.store(THEME_PREF, newThemeId, StorageScope.GLOBAL);
 			if (broadcastToAllWindows) {
 				this.windowService.broadcast({ channel: THEME_CHANNEL, payload: newThemeId });
 			}
@@ -167,7 +167,7 @@ export class ThemeService implements IThemeService {
 	}
 
 	public getTheme() {
-		return this.currentTheme || this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
+		return this.currentTheme || this.storageService.get(THEME_PREF, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 	}
 
 	private loadTheme(themeId: string, defaultId?: string): TPromise<IThemeData> {
