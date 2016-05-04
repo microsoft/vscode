@@ -50,11 +50,11 @@ function getNLSConfiguration() {
 
 	if (!locale) {
 		var userData = app.getPath('userData');
-		localeConfig = path.join(userData, 'User', 'locale.json');
+		var localeConfig = path.join(userData, 'User', 'locale.json');
 		if (fs.existsSync(localeConfig)) {
 			try {
 				var content = stripComments(fs.readFileSync(localeConfig, 'utf8'));
-				value = JSON.parse(content).locale;
+				var value = JSON.parse(content).locale;
 				if (value && typeof value === 'string') {
 					locale = value;
 				}
