@@ -395,23 +395,24 @@ export class ExtHostDocumentData extends MirrorModel2 {
 
 		if (line < 0) {
 			line = 0;
-			hasChanged = true;
-		}
-
-		if (line >= this._lines.length) {
-			line = this._lines.length - 1;
-			hasChanged = true;
-		}
-
-		if (character < 0) {
 			character = 0;
 			hasChanged = true;
 		}
-
-		let maxCharacter = this._lines[line].length;
-		if (character > maxCharacter) {
-			character = maxCharacter;
+		else if (line >= this._lines.length) {
+			line = this._lines.length - 1;
+			character = this._lines[line].length;
 			hasChanged = true;
+		}
+		else {
+			let maxCharacter = this._lines[line].length;
+			if (character < 0) {
+				character = 0;
+				hasChanged = true;
+			}
+			else if (character > maxCharacter) {
+				character = maxCharacter;
+				hasChanged = true;
+			}
 		}
 
 		if (!hasChanged) {
