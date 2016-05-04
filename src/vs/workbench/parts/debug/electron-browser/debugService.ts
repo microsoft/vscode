@@ -593,6 +593,10 @@ export class DebugService implements debug.IDebugService {
 			if (this.session) {
 				this.session.disconnect();
 			}
+			// Show the repl if some error got logged there #5870
+			if (this.model.getReplElements().length > 0) {
+				this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+			}
 
 			const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 			const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [CloseAction, configureAction];
