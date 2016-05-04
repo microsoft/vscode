@@ -29,7 +29,6 @@ import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';
@@ -423,6 +422,15 @@ class VSash {
 		let right = 100 - left;
 		return [`${left}%`, `${right}%`];
 	}
+
+	get ratio() {
+		return this._ratio;
+	}
+}
+
+export interface LayoutData {
+	ratio: number;
+	heightInLines: number;
 }
 
 /**
@@ -431,10 +439,6 @@ class VSash {
 export class ReferenceWidget extends PeekViewWidget {
 
 	public static INNER_EDITOR_CONTEXT_KEY = 'inReferenceSearchEditor';
-
-	private _editorService: IEditorService;
-	private _contextService: IWorkspaceContextService;
-	private _instantiationService: IInstantiationService;
 
 	private _decorationsManager: DecorationsManager;
 	private _model: ReferencesModel;
@@ -449,28 +453,16 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _previewContainer: Builder;
 	private _messageContainer: Builder;
 
-	private _lastHeight: string;
-
 	constructor(
-		editorService: IEditorService,
-		keybindingService: IKeybindingService,
-		contextService: IWorkspaceContextService,
-		instantiationService: IInstantiationService,
-		editor: ICodeEditor
+		editor: ICodeEditor,
+		public layoutData: LayoutData,
+		private _editorService: IEditorService,
+		private _contextService: IWorkspaceContextService,
+		private _instantiationService: IInstantiationService
 	) {
-		super(editor, keybindingService, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
-		this._editorService = editorService;
-		this._contextService = contextService;
-		this._instantiationService = instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
+		super(editor, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, { frameColor: '#007ACC', showFrame: false, showArrow: true, isResizeable: true });
 
-		this._tree = null;
-		this._treeContainer = null;
-
-		this._preview = null;
-		this._previewContainer = null;
-
-		this._lastHeight = null;
-
+		this._instantiationService = this._instantiationService.createChild(new ServiceCollection([IPeekViewService, this]));
 		this.create();
 	}
 
@@ -482,6 +474,10 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	get onDidDoubleClick():Event<{ reference: URI, range: Range, originalEvent: MouseEvent }> {
 		return this._onDidDoubleClick.event;
+	}
+
+	show(where: editorCommon.IRange) {
+		super.show(where, this.layoutData.heightInLines || 18);
 	}
 
 	protected _onTitleClick(e: MouseEvent): void {
@@ -520,13 +516,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 
 		// sash
-		this._sash = new VSash(containerElement, .8);
+		this._sash = new VSash(containerElement, this.layoutData.ratio || .8);
 		this._sash.onDidChangePercentages(() => {
 			let [left, right] = this._sash.percentages;
 			this._previewContainer.style({ width: left});
 			this._treeContainer.style({ width: right });
 			this._preview.layout();
 			this._tree.layout();
+			this.layoutData.ratio = this._sash.ratio;
 		});
 
 		// tree
@@ -553,23 +550,23 @@ export class ReferenceWidget extends PeekViewWidget {
 		super._doLayoutBody(heightInPixel, widthInPixel);
 
 		const height = heightInPixel + 'px';
-		if (height === this._lastHeight) {
-			return;
-		}
-
 		this._sash.height = heightInPixel;
 		this._sash.width = widthInPixel;
 
 		// set height/width
 		const [left, right] = this._sash.percentages;
-		this._previewContainer.style({ height, width: left});
+		this._previewContainer.style({ height, width: left });
 		this._treeContainer.style({ height, width: right });
 
 		// forward
 		this._tree.layout(heightInPixel);
 		this._preview.layout();
 
-		this._lastHeight = height;
+		// store layout data
+		this.layoutData = {
+			heightInLines: this._viewZone.heightInLines,
+			ratio: this._sash.ratio
+		};
 	}
 
 	public _onWidth(widthInPixel: number): void {

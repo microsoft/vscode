@@ -19,6 +19,7 @@ import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegi
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
@@ -31,7 +32,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {findReferences} from '../common/referenceSearch';
 import {EventType, ReferencesModel} from './referenceSearchModel';
-import {ReferenceWidget} from './referenceSearchWidget';
+import {ReferenceWidget, LayoutData} from './referenceSearchWidget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 export class FindReferencesController implements editorCommon.IEditorContribution {
@@ -51,7 +52,6 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 	private instantiationService: IInstantiationService;
 	private contextService: IWorkspaceContextService;
 	private peekViewService: IPeekViewService;
-	private keybindingService: IKeybindingService;
 
 	private _startTime: number = -1;
 	private _referenceSearchVisible: IKeybindingContextKey<boolean>;
@@ -60,13 +60,15 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		return <FindReferencesController> editor.getContribution(FindReferencesController.ID);
 	}
 
-	public constructor(editor: ICodeEditor,
+	public constructor(
+		editor: ICodeEditor,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService private _storageService: IStorageService,
 		@optional(IPeekViewService) peekViewService: IPeekViewService
 	) {
 		this._requestIdPool = 0;
@@ -77,7 +79,6 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		this.instantiationService = instantiationService;
 		this.peekViewService = peekViewService;
 		this.contextService = contextService;
-		this.keybindingService = keybindingService;
 		this._modelRevealing = false;
 		this._editor = editor;
 		this._referenceSearchVisible = keybindingService.createKey(CONTEXT_REFERENCE_SEARCH_VISIBLE, false);
@@ -123,18 +124,18 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 				this.clear();
 			}
 		}));
-
-		this._widget = new ReferenceWidget(this.editorService, this.keybindingService, this.contextService, this.instantiationService, this._editor);
+		const storageKey = 'peekViewLayout';
+		const data = <LayoutData> JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
+		this._widget = new ReferenceWidget(this._editor, data, this.editorService, this.contextService, this.instantiationService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
-		this._widget.show(range, 18);
+		this._widget.show(range);
 		this._callOnClear.push(this._widget.onDidClose(() => {
+			referencesPromise.cancel();
+
+			this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData));
 			this._widget = null;
 			this.clear();
 		}).dispose);
-
-		this._callOnClear.push(() => {
-			referencesPromise.cancel();
-		});
 
 		this._callOnClear.push(this._widget.onDidDoubleClick(event => {
 
@@ -199,7 +200,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 						return;
 					}
 					this._modelRevealing = false;
-					this._widget.show(this._model.currentReference.range, 18);
+					this._widget.show(this._model.currentReference.range);
 					this._widget.focus();
 				}, (err) => {
 					this._modelRevealing = false;
@@ -235,18 +236,18 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			this._startTime = -1;
 		}
 
-		this._referenceSearchVisible.reset();
-
-		cAll(this._callOnClear);
-
-		this._model = null;
-
 		var result = false;
 		if(this._widget) {
 			this._widget.dispose();
 			this._widget = null;
 			result = true;
 		}
+
+		this._referenceSearchVisible.reset();
+
+		cAll(this._callOnClear);
+
+		this._model = null;
 
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests

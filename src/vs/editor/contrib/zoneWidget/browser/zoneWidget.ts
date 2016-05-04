@@ -91,10 +91,10 @@ class OverlayWidgetDelegate implements IOverlayWidget {
 
 export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
-	private _viewZone: ViewZoneDelegate = null;
-	private _overlayWidget: OverlayWidgetDelegate = null;
-	private _resizeSash: Sash;
-	private _disposables = new Disposables();
+	protected _viewZone: ViewZoneDelegate = null;
+	protected _overlayWidget: OverlayWidgetDelegate = null;
+	protected _resizeSash: Sash;
+	protected _disposables = new Disposables();
 
 	public container: HTMLElement = null;
 	public domNode: HTMLElement;
