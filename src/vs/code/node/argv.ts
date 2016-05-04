@@ -29,8 +29,8 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	debugBrkPluginHost: string;
 	debugPluginHost: string;
 	'list-extensions': boolean;
-	'install-extension': string;
-	'uninstall-extension': string;
+	'install-extension': string | string[];
+	'uninstall-extension': string | string[];
 }
 
 const options: minimist.Opts = {

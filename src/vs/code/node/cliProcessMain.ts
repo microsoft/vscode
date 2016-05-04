@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { ParsedArgs } from 'vs/code/node/argv';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { sequence } from 'vs/base/common/async';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -41,57 +42,65 @@ class Main {
 		if (argv['list-extensions']) {
 			return this.listExtensions();
 		} else if (argv['install-extension']) {
-			return this.installExtension(argv['install-extension']);
+			const arg = argv['install-extension'];
+			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
+			return this.installExtension(ids);
 		} else if (argv['uninstall-extension']) {
-			return this.uninstallExtension(argv['uninstall-extension']);
+			const arg = argv['uninstall-extension'];
+			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
+			return this.uninstallExtension(ids);
 		}
 	}
 
 	private listExtensions(): TPromise<any> {
 		return this.extensionManagementService.getInstalled().then(extensions => {
-			extensions.forEach(e => console.log(`${ e.displayName } (${ getExtensionId(e) })`));
+			extensions.forEach(e => console.log(getExtensionId(e)));
 		});
 	}
 
-	private installExtension(id: string): TPromise<any> {
-		return this.extensionGalleryService.query({ ids: [id] }).then(result => {
-			const [extension] = result.firstPage;
+	private installExtension(ids: string[]): TPromise<any> {
+		return sequence(ids.map(id => () => {
+			return this.extensionGalleryService.query({ ids: [id] }).then(result => {
+				const [extension] = result.firstPage;
 
-			if (!extension) {
-				return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
-			}
-
-			return this.extensionManagementService.getInstalled().then(installed => {
-				const isInstalled = installed.some(e => getExtensionId(e) === id);
-
-				if (isInstalled) {
-					return TPromise.wrapError(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+				if (!extension) {
+					return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
 				}
 
-				console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
-				console.log(localize('installing', "Installing..."));
+				return this.extensionManagementService.getInstalled().then(installed => {
+					const isInstalled = installed.some(e => getExtensionId(e) === id);
 
-				return this.extensionManagementService.install(extension).then(extension => {
-					console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
+					if (isInstalled) {
+						return TPromise.wrapError(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+					}
+
+					console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
+					console.log(localize('installing', "Installing..."));
+
+					return this.extensionManagementService.install(extension).then(extension => {
+						console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
+					});
 				});
 			});
-		});
+		}));
 	}
 
-	private uninstallExtension(id: string): TPromise<any> {
-		return this.extensionManagementService.getInstalled().then(installed => {
-			const [extension] = installed.filter(e => getExtensionId(e) === id);
+	private uninstallExtension(ids: string[]): TPromise<any> {
+		return sequence(ids.map(id => () => {
+			return this.extensionManagementService.getInstalled().then(installed => {
+				const [extension] = installed.filter(e => getExtensionId(e) === id);
 
-			if (!extension) {
-				return TPromise.wrapError(`${ notInstalled(id) }\n${ useId }`);
-			}
+				if (!extension) {
+					return TPromise.wrapError(`${ notInstalled(id) }\n${ useId }`);
+				}
 
-			console.log(localize('uninstalling', "Uninstalling {0}...", id));
+				console.log(localize('uninstalling', "Uninstalling {0}...", id));
 
-			return this.extensionManagementService.uninstall(extension).then(() => {
-				console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
+				return this.extensionManagementService.uninstall(extension).then(() => {
+					console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id));
+				});
 			});
-		});
+		}));
 	}
 }
 
