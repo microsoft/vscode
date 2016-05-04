@@ -7,7 +7,7 @@
 
 export interface IIterator<T> {
 	next(): T;
-	hasNext(): boolean;
+	hasNext?(): boolean;
 }
 
 export class ArrayIterator<T> implements IIterator<T> {
