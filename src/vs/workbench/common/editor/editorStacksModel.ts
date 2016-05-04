@@ -308,6 +308,8 @@ export class EditorGroup implements IEditorGroup {
 		if (editor) {
 			args.push(editor);
 		}
+
+		const editorToDeleteOrReplace = this.editors[index];
 		this.editors.splice.apply(this.editors, args);
 
 		// Add: make it LRU editor
@@ -317,7 +319,6 @@ export class EditorGroup implements IEditorGroup {
 
 		// Remove / Replace
 		else {
-			const editorToDeleteOrReplace = this.editors[index];
 			const indexInMRU = this.indexOf(editorToDeleteOrReplace, this.mru);
 
 			// Remove: remove from MRU

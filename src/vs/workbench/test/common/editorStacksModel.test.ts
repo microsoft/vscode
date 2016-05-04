@@ -365,8 +365,99 @@ suite('Editor Stacks Model', () => {
 		assert.equal(mru[2], input2);
 	});
 
-// TODO Pin / Unpin
-// TODO Close makes next active
+	test('Stack - Multiple Editors - pin and unpin', function () {
+		const model = create();
+		const group = model.openGroup('group');
+		const events = groupListener(group);
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: false, active: true });
+
+		assert.equal(group.activeEditor, input3);
+
+		group.pin(input3);
+
+		assert.equal(group.activeEditor, input3);
+		assert.equal(group.isPinned(input3), true);
+		assert.equal(group.isPreview(input3), false);
+		assert.equal(group.isActive(input3), true);
+		assert.equal(events.pinned[0], input3);
+
+		group.unpin(input1);
+
+		assert.equal(group.activeEditor, input3);
+		assert.equal(group.isPinned(input1), false);
+		assert.equal(group.isPreview(input1), true);
+		assert.equal(group.isActive(input1), false);
+		assert.equal(events.unpinned[0], input1);
+
+		group.unpin(input2);
+
+		assert.equal(group.activeEditor, input3);
+		assert.equal(group.getEditors().length, 2); // 2 previews got merged into one
+		assert.equal(group.getEditors()[0], input2);
+		assert.equal(group.getEditors()[1], input3);
+		assert.equal(events.closed[0], input1);
+
+		group.unpin(input3);
+
+		assert.equal(group.activeEditor, input3);
+		assert.equal(group.getEditors().length, 1); // pinning replaced the preview
+		assert.equal(group.getEditors()[0], input3);
+		assert.equal(events.closed[1], input2);
+	});
+
+	test('Stack - Multiple Editors - closing picks next from MRU list', function () {
+		const model = create();
+		const group = model.openGroup('group');
+		const events = groupListener(group);
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		const input4 = input();
+		const input5 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input4, { pinned: true, active: true });
+		group.openEditor(input5, { pinned: true, active: true });
+
+		assert.equal(group.activeEditor, input5);
+		assert.equal(group.getEditors(true)[0], input5);
+
+		group.closeEditor(input5);
+		assert.equal(group.activeEditor, input4);
+		assert.equal(events.activated[5], input4);
+
+		group.setActive(input1);
+		group.setActive(input4);
+		group.closeEditor(input4);
+
+		assert.equal(group.activeEditor, input1);
+
+		group.closeEditor(input1);
+
+		assert.equal(group.activeEditor, input3);
+
+		group.setActive(input2);
+		group.closeEditor(input2);
+
+		assert.equal(group.activeEditor, input3);
+
+		group.closeEditor(input3);
+
+		assert.ok(!group.activeEditor);
+	});
+
+
+
 // TODO Open to the left (set DEFAULT_OPEN_EDITOR_DIRECTION)
 // TODO complex working sample covering all with comments
 
