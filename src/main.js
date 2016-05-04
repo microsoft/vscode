@@ -9,6 +9,8 @@ global.vscodeStart = Date.now();
 var app = require('electron').app;
 var fs = require('fs');
 var path = require('path');
+var paths = require('./paths');
+var pkg = require('../package.json');
 
 function stripComments(content) {
 	var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
@@ -107,19 +109,9 @@ try {
 	console.error(err);
 }
 
-// Set path according to being built or not
-if (process.env['VSCODE_DEV']) {
-	var appData = app.getPath('appData');
-	app.setPath('userData', path.join(appData, 'Code-Development'));
-}
-
-// Use custom user data dir if specified, required to run as root on Linux
-var args = process.argv;
-args.forEach(function (arg) {
-	if (arg.indexOf('--user-data-dir=') === 0) {
-		app.setPath('userData', arg.split('=')[1]);
-	}
-});
+// Set userData path before app 'ready' event
+var userData = paths.getUserDataPath(process.platform, pkg.name, process.argv);
+app.setPath('userData', userData);
 
 // Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 // the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
