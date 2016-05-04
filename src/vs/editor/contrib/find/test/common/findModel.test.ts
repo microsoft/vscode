@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import {Position} from 'vs/editor/common/core/position';
+import {Selection} from 'vs/editor/common/core/selection';
 import {Range} from 'vs/editor/common/core/range';
 import {Handler, ICommonCodeEditor, IRange} from 'vs/editor/common/editorCommon';
 import {FindModelBoundToEditorModel, parseReplaceString} from 'vs/editor/contrib/find/common/findModel';
@@ -1389,6 +1390,48 @@ suite('FindModel', () => {
 			[1, 1, 1, 1],
 			null,
 			[]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('selectAllMatches', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.selectAllMatches();
+
+		assert.deepEqual(editor.getSelections().map(s => s.toString()), [
+			new Selection(6, 14, 6, 19),
+			new Selection(6, 27, 6, 32),
+			new Selection(7, 14, 7, 19),
+			new Selection(8, 14, 8, 19)
+		].map(s => s.toString()));
+
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			null,
+			[
+				[6, 14, 6, 19],
+				[6, 27, 6, 32],
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
 		);
 
 		findModel.dispose();
