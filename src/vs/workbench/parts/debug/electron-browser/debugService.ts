@@ -565,7 +565,7 @@ export class DebugService implements debug.IDebugService {
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
 			if (changeViewState) {
-				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions === 'openOnFirstSessionStart')) {
+				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
