@@ -9,7 +9,7 @@ pushd %~dp0\..
 if not exist node_modules call .\scripts\npm.bat install
 
 :: Get electron
-node .\node_modules\gulp\bin\gulp.js electron
+if not exist .build\electron node .\node_modules\gulp\bin\gulp.js electron
 
 :: Build
 if not exist out node .\node_modules\gulp\bin\gulp.js compile
