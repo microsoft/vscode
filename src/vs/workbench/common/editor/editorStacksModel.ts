@@ -12,7 +12,6 @@ import {EditorInput} from 'vs/workbench/common/editor';
 
 export interface IEditorGroup {
 
-	editors: EditorInput[];
 	activeEditor: EditorInput;
 	previewEditor: EditorInput;
 
@@ -22,6 +21,7 @@ export interface IEditorGroup {
 	onEditorPinned: Event<EditorInput>;
 	onEditorUnpinned: Event<EditorInput>;
 
+	getEditors(mru?: boolean): EditorInput[];
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
 	setActive(editor: EditorInput): void;
 	isActive(editor: EditorInput): boolean;
@@ -77,18 +77,6 @@ export interface IEditorOpenOptions {
 
 // TODO what about editor input state (dirty decoration)?
 
-class List<T> {
-	private elements: T[];
-
-	constructor() {
-		this.elements = [];
-	}
-
-	public insert(entry: T, index?: number, dir?: Direction): void {
-
-	}
-}
-
 export enum Direction {
 	LEFT,
 	RIGHT
@@ -97,9 +85,8 @@ export enum Direction {
 const DEFAULT_OPEN_EDITOR_DIRECTION = Direction.RIGHT; // open new editors to the right of existing ones
 
 export class EditorGroup implements IEditorGroup {
-	private _editors: EditorInput[];
-
-	private mru: number[]; // indeces of editors in MRU order
+	private editors: EditorInput[];
+	private mru: EditorInput[];
 
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
@@ -111,7 +98,7 @@ export class EditorGroup implements IEditorGroup {
 	private _onEditorUnpinned: Emitter<EditorInput>;
 
 	constructor(private label: string) {
-		this._editors = [];
+		this.editors = [];
 		this.mru = [];
 
 		this._onEditorActivated = new Emitter<EditorInput>();
@@ -141,8 +128,8 @@ export class EditorGroup implements IEditorGroup {
 		return this._onEditorUnpinned.event;
 	}
 
-	public get editors(): EditorInput[] {
-		return this._editors.slice(0);
+	public getEditors(mru?: boolean): EditorInput[] {
+		return mru ? this.mru.slice(0) : this.editors.slice(0);
 	}
 
 	public get activeEditor(): EditorInput {
@@ -165,7 +152,7 @@ export class EditorGroup implements IEditorGroup {
 		const index = this.indexOf(editor);
 		const indexOfActive = this.indexOf(this.active);
 		const indexOfPreview = this.indexOf(this.preview);
-		let oldPreviewToClose:EditorInput;
+		let oldPreviewToClose: EditorInput;
 
 		const makeActive = options && options.active;
 		const makePinned = options && options.pinned;
@@ -175,16 +162,16 @@ export class EditorGroup implements IEditorGroup {
 
 			// Insert into our list of editors if pinned or we are first
 			if (makePinned || indexOfPreview === -1) {
-				if (!this._editors.length) {
-					this._editors.push(editor); // first editor in list
+				if (!this.editors.length) {
+					this.splice(0, false, editor); // first editor in list
 				} else if (DEFAULT_OPEN_EDITOR_DIRECTION === Direction.LEFT) {
 					if (indexOfActive === 0) {
-						this._editors.unshift(editor); // to the left becoming first editor in list
+						this.splice(0, false, editor); // to the left becoming first editor in list
 					} else {
-						this._editors.splice(indexOfActive - 1, 0, editor); // to the left of active editor
+						this.splice(indexOfActive - 1, false, editor); // to the left of active editor
 					}
 				} else {
-					this._editors.splice(indexOfActive, 0, editor); // to the right of active editor
+					this.splice(indexOfActive, false, editor); // to the right of active editor
 				}
 			}
 
@@ -192,7 +179,7 @@ export class EditorGroup implements IEditorGroup {
 			else {
 				oldPreviewToClose = this.preview;
 				this.preview = editor;
-				this._editors[indexOfPreview] = editor;
+				this.splice(indexOfPreview, true, editor);
 			}
 
 			// Event
@@ -232,12 +219,12 @@ export class EditorGroup implements IEditorGroup {
 		if (editor.matches(this.active)) {
 
 			// More than one editor
-			if (this._editors.length > 1) {
+			if (this.editors.length > 1) {
 				let newActiveEditor: EditorInput;
-				if (this._editors.length > index + 1) {
-					newActiveEditor = this._editors[index + 1]; // make next editor to the right active
+				if (this.editors.length > index + 1) {
+					newActiveEditor = this.editors[index + 1]; // make next editor to the right active
 				} else {
-					newActiveEditor = this._editors[index - 1]; // make next editor to the left active
+					newActiveEditor = this.editors[index - 1]; // make next editor to the left active
 				}
 
 				this.setActive(newActiveEditor);
@@ -254,7 +241,7 @@ export class EditorGroup implements IEditorGroup {
 			this.preview = null;
 		}
 
-		this._editors.splice(index, 1);
+		this.splice(index, true);
 
 		// Event
 		this._onEditorClosed.fire(editor);
@@ -271,6 +258,8 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		this.active = editor;
+
+		this.setMostRecentlyUsed(editor);
 
 		// Event
 		this._onEditorActivated.fire(editor);
@@ -317,18 +306,56 @@ export class EditorGroup implements IEditorGroup {
 		return !this.preview.matches(editor);
 	}
 
-	private indexOf(candidate: EditorInput): number {
+	private splice(index: number, del: boolean, editor?: EditorInput): void {
+
+		// Perform on editors array
+		this.editors.splice(index, del ? 1 : 0, editor);
+
+		// Add: make it LRU editor
+		if (!del && editor) {
+			this.mru.push(editor);
+		}
+
+		// Remove: remove from MRU
+		else if (del && !editor) {
+			this.mru.splice(this.indexOf(this.editors[index]), 1);
+		}
+
+		// Replace: replace MRU at location
+		else {
+			this.mru.splice(this.indexOf(this.editors[index]), 1, editor);
+		}
+	}
+
+	private indexOf(candidate: EditorInput, editors = this.editors): number {
 		if (!candidate) {
 			return -1;
 		}
 
-		for (let i = 0; i < this._editors.length; i++) {
-			if (this._editors[i].matches(candidate)) {
+		for (let i = 0; i < editors.length; i++) {
+			if (editors[i].matches(candidate)) {
 				return i;
 			}
 		}
 
 		return -1;
+	}
+
+	private setMostRecentlyUsed(editor: EditorInput): void {
+		const index = this.indexOf(editor);
+		if (index === -1) {
+			return; // editor not found
+		}
+
+		const mruIndex = this.indexOf(editor, this.mru);
+
+		// Remove old index
+		if (mruIndex >= 0) {
+			this.mru.splice(mruIndex, 1);
+		}
+
+		// Set to front
+		this.mru.unshift(editor);
 	}
 }
 
