@@ -12,7 +12,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
-import {IClipboardEvent, IKeyboardEventWrapper, ITextAreaWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
+import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
@@ -114,11 +114,14 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	private _onKeyPress = this._register(new Emitter<IKeyboardEventWrapper>());
 	public onKeyPress: Event<IKeyboardEventWrapper> = this._onKeyPress.event;
 
-	private _onCompositionStart = this._register(new Emitter<void>());
-	public onCompositionStart: Event<void> = this._onCompositionStart.event;
+	private _onCompositionStart = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionStart: Event<ICompositionEvent> = this._onCompositionStart.event;
 
-	private _onCompositionEnd = this._register(new Emitter<void>());
-	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+	private _onCompositionUpdate = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionUpdate: Event<ICompositionEvent> = this._onCompositionUpdate.event;
+
+	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
 
 	private _onInput = this._register(new Emitter<void>());
 	public onInput: Event<void> = this._onInput.event;
@@ -139,8 +142,9 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 		this._register(dom.addStandardDisposableListener(this._textArea, 'keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
 		this._register(dom.addStandardDisposableListener(this._textArea, 'keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
 		this._register(dom.addStandardDisposableListener(this._textArea, 'keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
-		this._register(dom.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire()));
-		this._register(dom.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire()));
+		this._register(dom.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire(e)));
+		this._register(dom.addDisposableListener(this._textArea, 'compositionupdate', (e) => this._onCompositionUpdate.fire(e)));
+		this._register(dom.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire(e)));
 		this._register(dom.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
 		this._register(dom.addDisposableListener(this._textArea, 'cut', (e:ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
 		this._register(dom.addDisposableListener(this._textArea, 'copy', (e:ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
@@ -213,6 +217,8 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	private contentWidth:number;
 	private scrollLeft:number;
 
+	private visibleRange:VisibleRange;
+
 	constructor(context:ViewContext, viewController:IViewController, viewHelper:IKeyboardHandlerHelper) {
 		super();
 
@@ -252,11 +258,11 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
 
 			// Find range pixel position
-			let visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
+			this.visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
-			if (visibleRange) {
-				StyleMutator.setTop(this.textArea.actual, visibleRange.top);
-				StyleMutator.setLeft(this.textArea.actual, this.contentLeft + visibleRange.left - this.scrollLeft);
+			if (this.visibleRange) {
+				StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
+				StyleMutator.setLeft(this.textArea.actual, this.contentLeft + this.visibleRange.left - this.scrollLeft);
 			}
 
 			if (browser.isIE11orEarlier) {
@@ -267,12 +273,24 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			StyleMutator.setHeight(this.textArea.actual, this._context.configuration.editor.lineHeight);
 			dom.addClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
+
+		this._toDispose.push(this.textAreaHandler.onCompositionUpdate((e) => {
+			// adjust width by its size
+			let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
+			let context = canvasElem.getContext('2d');
+			context.font = window.getComputedStyle(this.textArea.actual).font;
+			let metrics = context.measureText(e.data);
+			StyleMutator.setWidth(this.textArea.actual, metrics.width);
+		}));
+
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
 			this.textArea.actual.style.height = '';
 			this.textArea.actual.style.width = '';
 			StyleMutator.setLeft(this.textArea.actual, 0);
 			StyleMutator.setTop(this.textArea.actual, 0);
 			dom.removeClass(this.viewHelper.viewDomNode, 'ime-input');
+
+			this.visibleRange = null;
 		}));
 		this._toDispose.push(GlobalScreenReaderNVDA.onChange((value) => {
 			this.textAreaHandler.setStrategy(this._getStrategy());
@@ -316,6 +334,10 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
+		if (this.visibleRange) {
+			StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
+			StyleMutator.setLeft(this.textArea.actual, this.contentLeft + this.visibleRange.left - this.scrollLeft);
+		}
 		return false;
 	}
 
