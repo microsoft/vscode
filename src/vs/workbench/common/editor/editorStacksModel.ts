@@ -76,8 +76,6 @@ export interface IEditorOpenOptions {
 
 // Can be serialized and restored
 
-// TODO what about editor input state (dirty decoration)?
-
 export enum Direction {
 	LEFT,
 	RIGHT
@@ -173,7 +171,7 @@ export class EditorGroup implements IEditorGroup {
 						this.splice(indexOfActive - 1, false, editor); // to the left of active editor
 					}
 				} else {
-					this.splice(indexOfActive, false, editor); // to the right of active editor
+					this.splice(indexOfActive + 1, false, editor); // to the right of active editor
 				}
 			}
 
