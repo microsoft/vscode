@@ -580,6 +580,7 @@ export class DebugService implements debug.IDebugService {
 				glyphMargin: true
 			});
 			this.inDebugMode.set(true);
+			this.lazyTransitionToRunningState();
 
 			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints(), watchExpressionsCount: this.model.getWatchExpressions().length });
 		}).then(undefined, (error: any) => {
@@ -838,10 +839,10 @@ export class DebugService implements debug.IDebugService {
 	}
 
 
-	private lazyTransitionToRunningState(threadId: number): void {
+	private lazyTransitionToRunningState(threadId?: number): void {
 		let cancelTransitionToRunningState = false;
 		const toDispose = this.session.onDidStop(e => {
-			if (e.body.threadId === threadId || e.body.allThreadsStopped) {
+			if (e.body.threadId === threadId || e.body.allThreadsStopped || !threadId) {
 				cancelTransitionToRunningState = true;
 			}
 		});
