@@ -88,7 +88,7 @@ export class DebugService implements debug.IDebugService {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IEventService eventService: IEventService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IInstantiationService private instantiationService:IInstantiationService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
 		@ITaskService private taskService: ITaskService,
@@ -403,11 +403,11 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void>{
+	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
 		if (breakpoint) {
 			this.model.setEnablement(breakpoint, enable);
 			if (breakpoint instanceof model.Breakpoint) {
-				return this.sendBreakpoints((<model.Breakpoint> breakpoint).source.uri);
+				return this.sendBreakpoints((<model.Breakpoint>breakpoint).source.uri);
 			} else if (breakpoint instanceof model.FunctionBreakpoint) {
 				return this.sendFunctionBreakpoints();
 			}
@@ -489,53 +489,53 @@ export class DebugService implements debug.IDebugService {
 		this.removeReplExpressions();
 
 		return this.textFileService.saveAll()						// make sure all dirty files are saved
-		.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
-		.then(() => this.extensionService.onReady()
-		.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
-		.then(() => {
-			const configuration = this.configurationManager.configuration;
-			if (!configuration) {
-				return this.configurationManager.openConfigFile(false).then(openend => {
-					if (openend) {
-						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
-					}
-				});
-			}
+			.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
+				.then(() => this.extensionService.onReady()
+					.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
+						.then(() => {
+							const configuration = this.configurationManager.configuration;
+							if (!configuration) {
+								return this.configurationManager.openConfigFile(false).then(openend => {
+									if (openend) {
+										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
+									}
+								});
+							}
 
-			configuration.noDebug = noDebug;
-			if (!this.configurationManager.adapter) {
-				return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
-					: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the selected configuration in launch.json."),
-						{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
-			}
+							configuration.noDebug = noDebug;
+							if (!this.configurationManager.adapter) {
+								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
+									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the selected configuration in launch.json."),
+										{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+							}
 
-			return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
-				const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-				const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-				if (errorCount === 0 && !failureExitCode) {
-					return this.doCreateSession(configuration, changeViewState);
-				}
+							return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
+								const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+								if (errorCount === 0 && !failureExitCode) {
+									return this.doCreateSession(configuration, changeViewState);
+								}
 
-				this.messageService.show(severity.Error, {
-					message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-						errorCount === 1 ?  nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-						nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-					actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-						this.messageService.hideAll();
-						return this.doCreateSession(configuration, changeViewState);
-					})]
-				});
-			}, (err: TaskError) => {
-				if (err.code !== TaskErrors.NotConfigured) {
-					throw err;
-				}
+								this.messageService.show(severity.Error, {
+									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+									actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+										this.messageService.hideAll();
+										return this.doCreateSession(configuration, changeViewState);
+									})]
+								});
+							}, (err: TaskError) => {
+								if (err.code !== TaskErrors.NotConfigured) {
+									throw err;
+								}
 
-				this.messageService.show(err.severity, {
-					message: err.message,
-					actions: [CloseAction, this.taskService.configureAction()]
-				});
-			});
-		}))));
+								this.messageService.show(err.severity, {
+									message: err.message,
+									actions: [CloseAction, this.taskService.configureAction()]
+								});
+							});
+						}))));
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
@@ -579,7 +579,7 @@ export class DebugService implements debug.IDebugService {
 			if (!configuration.noDebug) {
 				this.partService.addClass('debugging');
 			}
-			this.extensionService.activateByEvent(`onDebug:${ configuration.type }`).done(null, errors.onUnexpectedError);
+			this.extensionService.activateByEvent(`onDebug:${configuration.type}`).done(null, errors.onUnexpectedError);
 			this.contextService.updateOptions('editor', {
 				glyphMargin: true
 			});
@@ -711,7 +711,7 @@ export class DebugService implements debug.IDebugService {
 
 		// set breakpoints back to unverified since the session ended.
 		// source reference changes across sessions, so we do not use it to persist the source.
-		const data: {[id: string]: { line: number, verified: boolean } } = { };
+		const data: { [id: string]: { line: number, verified: boolean } } = {};
 		this.model.getBreakpoints().forEach(bp => {
 			delete bp.source.raw.sourceReference;
 			data[bp.getId()] = { line: bp.lineNumber, verified: false };
@@ -843,7 +843,7 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		return this.session.pause({ threadId } );
+		return this.session.pause({ threadId });
 	}
 
 
@@ -911,14 +911,17 @@ export class DebugService implements debug.IDebugService {
 
 		const breakpointsToSend = arrays.distinct(
 			this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.source.uri.toString() === modelUri.toString()),
-			bp => `${ bp.desiredLineNumber }`
+			bp => `${bp.desiredLineNumber}`
 		);
 		const rawSource = breakpointsToSend.length > 0 ? breakpointsToSend[0].source.raw : Source.toRawSource(modelUri, this.model);
 
-		return this.session.setBreakpoints({ source: rawSource, lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
-			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })) }).then(response => {
-
-			const data: {[id: string]: { line?: number, verified: boolean } } = { };
+		return this.session.setBreakpoints({
+			source: rawSource,
+			lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
+			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber,
+			condition: bp.condition
+		}))}).then(response => {
+			const data: { [id: string]: { line?: number, verified: boolean } } = {};
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 			}
@@ -934,7 +937,7 @@ export class DebugService implements debug.IDebugService {
 
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 		return this.session.setFunctionBreakpoints({ breakpoints: breakpointsToSend }).then(response => {
-			const data: {[id: string]: { name?: string, verified?: boolean } } = { };
+			const data: { [id: string]: { name?: string, verified?: boolean } } = {};
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 			}

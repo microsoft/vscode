@@ -42,7 +42,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService:IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
@@ -64,7 +64,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				null,
 				true,
-				() =>  this.debugService.addBreakpoints([{ uri, lineNumber }])
+				() => this.debugService.addBreakpoints([{ uri, lineNumber }])
 			));
 			actions.push(this.instantiationService.createInstance(debugactions.AddConditionalBreakpointAction, debugactions.AddConditionalBreakpointAction.ID, debugactions.AddConditionalBreakpointAction.LABEL, this.editor, lineNumber));
 		}

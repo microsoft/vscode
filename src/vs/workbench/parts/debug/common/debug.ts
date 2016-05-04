@@ -444,8 +444,8 @@ export var DebugViewRegistry = <IDebugViewRegistry>new DebugViewRegistryImpl();
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
-export function formatPII(value:string, excludePII: boolean, args: {[key: string]: string}): string {
-	return value.replace(_formatPIIRegexp, function(match, group) {
+export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
+	return value.replace(_formatPIIRegexp, function (match, group) {
 		if (excludePII && group.length > 0 && group[0] !== '_') {
 			return match;
 		}

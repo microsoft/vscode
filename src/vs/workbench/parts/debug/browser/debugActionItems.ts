@@ -39,7 +39,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 		this.toDispose.push(this.debugService.onDidChangeState(state => {
 			this.select.disabled = state !== State.Inactive;
 		}));
-		this.toDispose.push(configurationService.onDidUpdateConfiguration(e  => {
+		this.toDispose.push(configurationService.onDidUpdateConfiguration(e => {
 			this.setOptions().done(null, errors.onUnexpectedError);
 		}));
 	}

@@ -110,7 +110,7 @@ export abstract class V8Protocol {
 			if (typeof rawData.event !== 'undefined') {
 				this.onEvent(rawData);
 			} else {
-				const response = <DebugProtocol.Response> rawData;
+				const response = <DebugProtocol.Response>rawData;
 				const clb = this.pendingRequests[response.request_seq];
 				if (clb) {
 					delete this.pendingRequests[response.request_seq];

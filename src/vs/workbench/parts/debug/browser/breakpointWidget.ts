@@ -120,7 +120,7 @@ export class BreakpointWidget extends ZoneWidget {
 	}
 }
 
-CommonEditorRegistry.registerEditorCommand(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID, CommonEditorRegistry.commandWeight(8), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]  }, false, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID, CommonEditorRegistry.commandWeight(8), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, (ctx, editor, args) => {
 	if (BreakpointWidget.INSTANCE) {
 		BreakpointWidget.INSTANCE.dispose();
 	}
