@@ -14,12 +14,15 @@ import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import { AIAdapter } from 'vs/base/node/aiAdapter';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
 import stdfork = require('vs/base/node/stdFork');
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import debug = require('vs/workbench/parts/debug/common/debug');
+import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { ExtensionsChannelId } from 'vs/workbench/parts/extensions/common/extensions';
+
 import { shell } from 'electron';
 
 export interface SessionExitedEvent extends DebugProtocol.ExitedEvent {
@@ -61,11 +64,12 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
-		private messageService: IMessageService,
-		private telemetryService: ITelemetryService,
 		private debugServerPort: number,
 		private adapter: Adapter,
-		private telemtryAdapter: AIAdapter
+		private telemtryAdapter: AIAdapter,
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IOutputService private outputService: IOutputService
 	) {
 		super();
 		this.emittedStopped = false;
@@ -327,7 +331,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 			// });
 			this.serverProcess.stderr.on('data', (data: string) => {
-				console.log(sanitize(data));
+				this.outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
 			});
 
 			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);

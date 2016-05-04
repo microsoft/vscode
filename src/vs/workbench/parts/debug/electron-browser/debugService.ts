@@ -547,8 +547,7 @@ export class DebugService implements debug.IDebugService {
 			telemetryInfo['common.vscodesessionid'] = info.sessionId;
 		}, errors.onUnexpectedError);
 		this.telemetryAdapter = new AIAdapter(key, this.configurationManager.adapter.type, null, telemetryInfo);
-		this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, this.configurationManager.adapter, this.telemetryAdapter);
-
+		this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.telemetryAdapter);
 		this.registerSessionListeners();
 
 		return this.session.initialize({
