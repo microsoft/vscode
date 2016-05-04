@@ -47,8 +47,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 	protected contributions:{ [key:string]:editorCommon.IEditorContribution; };
 
-	protected forcedWidgetFocusCount:number;
-
 	// --- Members logically associated to a model
 	protected model:editorCommon.IModel;
 	protected listenersToRemove:ListenerUnbind[];
@@ -111,8 +109,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			this._editorTabMovesFocusKey.set(true);
 		}
 		this._lifetimeDispose.push(this._configuration.onDidChange((e) => this.emit(editorCommon.EventType.ConfigurationChanged, e)));
-
-		this.forcedWidgetFocusCount = 0;
 
 		this._telemetryService = telemetryService;
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IKeybindingService, this._keybindingService]));
@@ -499,17 +495,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	public abstract layout(dimension?:editorCommon.IDimension): void;
 
 	public abstract focus(): void;
-
-	public beginForcedWidgetFocus(): void {
-		this.forcedWidgetFocusCount++;
-	}
-
-	public endForcedWidgetFocus(): void {
-		this.forcedWidgetFocusCount--;
-	}
-
+	public abstract beginForcedWidgetFocus(): void;
+	public abstract endForcedWidgetFocus(): void;
 	public abstract isFocused(): boolean;
-
 	public abstract hasWidgetFocus(): boolean;
 
 	public getContribution(id: string): editorCommon.IEditorContribution {

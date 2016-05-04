@@ -11,7 +11,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
-import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
+import {DEFAULT_INDENTATION, DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
 var LIMIT_FIND_COUNT = 999;
 
@@ -21,6 +21,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		tabSize: DEFAULT_INDENTATION.tabSize,
 		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
 		detectIndentation: false,
+		trimAutoWhitespace: DefaultConfig.editor.trimAutoWhitespace,
 		defaultEOL: editorCommon.DefaultEndOfLine.LF
 	};
 
@@ -56,7 +57,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		let somethingChanged = false;
 		let changed:editorCommon.IModelOptionsChangedEvent = {
 			tabSize: false,
-			insertSpaces: false
+			insertSpaces: false,
+			trimAutoWhitespace: false
 		};
 
 		if (typeof newOpts.insertSpaces !== 'undefined') {
@@ -71,6 +73,13 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 				somethingChanged = true;
 				changed.tabSize = true;
 				this._options.tabSize = newOpts.tabSize;
+			}
+		}
+		if (typeof newOpts.trimAutoWhitespace !== 'undefined') {
+			if (this._options.trimAutoWhitespace !== newOpts.trimAutoWhitespace) {
+				somethingChanged = true;
+				changed.trimAutoWhitespace = true;
+				this._options.trimAutoWhitespace = newOpts.trimAutoWhitespace;
 			}
 		}
 
@@ -244,6 +253,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			rawText = TextModel.toRawText(value, {
 				tabSize: this._options.tabSize,
 				insertSpaces: this._options.insertSpaces,
+				trimAutoWhitespace: this._options.trimAutoWhitespace,
 				detectIndentation: false,
 				defaultEOL: this._options.defaultEOL
 			});
@@ -624,12 +634,14 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			resolvedOpts = {
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
+				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
 			};
 		} else {
 			resolvedOpts = {
 				tabSize: opts.tabSize,
 				insertSpaces: opts.insertSpaces,
+				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
 			};
 		}
@@ -832,6 +844,7 @@ export class RawText {
 		return TextModel.toRawText(rawText, {
 			tabSize: opts.tabSize,
 			insertSpaces: opts.insertSpaces,
+			trimAutoWhitespace: opts.trimAutoWhitespace,
 			detectIndentation: false,
 			defaultEOL: opts.defaultEOL
 		});

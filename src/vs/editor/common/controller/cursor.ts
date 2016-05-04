@@ -40,6 +40,7 @@ interface IMultipleCursorOperationContext {
 	hasExecutedCommands: boolean;
 	isCursorUndo: boolean;
 	executeCommands: editorCommon.ICommand[];
+	isAutoWhitespaceCommand: boolean[];
 	postOperationRunnables: IPostOperationRunnable[];
 	requestScrollDeltaLines: number;
 	setColumnSelectToLineNumber: number;
@@ -313,6 +314,7 @@ export class Cursor extends EventEmitter {
 			eventSource: eventSource,
 			eventData: eventData,
 			executeCommands: [],
+			isAutoWhitespaceCommand: [],
 			hasExecutedCommands: false,
 			isCursorUndo: false,
 			postOperationRunnables: [],
@@ -440,7 +442,7 @@ export class Cursor extends EventEmitter {
 		this._columnSelectToLineNumber = ctx.setColumnSelectToLineNumber;
 		this._columnSelectToVisualColumn = ctx.setColumnSelectToVisualColumn;
 
-		ctx.hasExecutedCommands = this._internalExecuteCommands(ctx.executeCommands, ctx.postOperationRunnables) || ctx.hasExecutedCommands;
+		ctx.hasExecutedCommands = this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand, ctx.postOperationRunnables) || ctx.hasExecutedCommands;
 		ctx.executeCommands = [];
 
 		if (ctx.shouldPushStackElementAfter) {
@@ -480,7 +482,7 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
-	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
+	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand, isAutoWhitespaceCommand:boolean): ICommandData {
 		// This method acts as a transaction, if the command fails
 		// everything it has done is ignored
 		var operations: editorCommon.IIdentifiedSingleEditOperation[] = [],
@@ -498,7 +500,8 @@ export class Cursor extends EventEmitter {
 				},
 				range: selection,
 				text: text,
-				forceMoveMarkers: false
+				forceMoveMarkers: false,
+				isAutoWhitespaceEdit: isAutoWhitespaceCommand
 			});
 		};
 
@@ -560,7 +563,7 @@ export class Cursor extends EventEmitter {
 		};
 	}
 
-	private _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[]): ICommandsData {
+	private _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand:boolean[]): ICommandsData {
 		var oneResult: ICommandData;
 		var operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		var hadTrackedRanges: boolean[] = [];
@@ -568,7 +571,7 @@ export class Cursor extends EventEmitter {
 
 		for (var i = 0; i < commands.length; i++) {
 			if (commands[i]) {
-				oneResult = this._getEditOperationsFromCommand(ctx, i, commands[i]);
+				oneResult = this._getEditOperationsFromCommand(ctx, i, commands[i], isAutoWhitespaceCommand[i]);
 				operations = operations.concat(oneResult.operations);
 				hadTrackedRanges[i] = oneResult.hadTrackedRange;
 				anyoneHadTrackedRange = anyoneHadTrackedRange || hadTrackedRanges[i];
@@ -634,7 +637,7 @@ export class Cursor extends EventEmitter {
 		return loserCursorsMap;
 	}
 
-	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], isAutoWhitespaceCommand:boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
 		if (rawCmds.length === 1) {
 			return ;
 		}
@@ -690,15 +693,15 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _internalExecuteCommands(commands: editorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
 		var ctx:IExecContext = {
 			selectionStartMarkers: [],
 			positionMarkers: []
 		};
 
-		this._collapseDeleteCommands(commands, postOperationRunnables);
+		this._collapseDeleteCommands(commands, isAutoWhitespaceCommand, postOperationRunnables);
 
-		var r = this._innerExecuteCommands(ctx, commands, postOperationRunnables);
+		var r = this._innerExecuteCommands(ctx, commands, isAutoWhitespaceCommand, postOperationRunnables);
 		for (var i = 0; i < ctx.selectionStartMarkers.length; i++) {
 			this.model._removeMarker(ctx.selectionStartMarkers[i]);
 			this.model._removeMarker(ctx.positionMarkers[i]);
@@ -719,7 +722,7 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
-	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[], postOperationRunnables: IPostOperationRunnable[]): boolean {
 
 		if (this.configuration.editor.readOnly) {
 			return false;
@@ -731,7 +734,7 @@ export class Cursor extends EventEmitter {
 
 		var selectionsBefore = this.cursors.getSelections();
 
-		var commandsData = this._getEditOperations(ctx, commands);
+		var commandsData = this._getEditOperations(ctx, commands, isAutoWhitespaceCommand);
 		if (commandsData.operations.length === 0 && !commandsData.anyoneHadTrackedRange) {
 			return false;
 		}
@@ -771,6 +774,10 @@ export class Cursor extends EventEmitter {
 			}
 			for (var i = 0; i < inverseEditOperations.length; i++) {
 				var op = inverseEditOperations[i];
+				if (!op.identifier) {
+					// perhaps auto whitespace trim edits
+					continue;
+				}
 				groupedInverseEditOperations[op.identifier.major].push(op);
 			}
 			var minorBasedSorter = (a:editorCommon.IIdentifiedSingleEditOperation, b:editorCommon.IIdentifiedSingleEditOperation) => {
@@ -1080,6 +1087,7 @@ export class Cursor extends EventEmitter {
 				shouldRevealVerticalInCenter: false,
 				shouldRevealHorizontal: true,
 				executeCommand: null,
+				isAutoWhitespaceCommand: false,
 				postOperationRunnable: null,
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: false,
@@ -1100,6 +1108,7 @@ export class Cursor extends EventEmitter {
 			ctx.shouldPushStackElementAfter = ctx.shouldPushStackElementAfter || context.shouldPushStackElementAfter;
 
 			ctx.executeCommands[i] = context.executeCommand;
+			ctx.isAutoWhitespaceCommand[i] = context.isAutoWhitespaceCommand;
 			ctx.postOperationRunnables[i] = context.postOperationRunnable;
 		}
 

@@ -139,10 +139,6 @@
 }
 
 .quick-open-widget .extension .actions .action-item:active {
-	-ms-transform: none;
-	-webkit-transform: none;
-	-moz-transform: none;
-	-o-transform: none;
 	transform: none;
 }
 

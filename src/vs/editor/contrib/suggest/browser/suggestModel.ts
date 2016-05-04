@@ -200,6 +200,7 @@ export class SuggestModel implements IDisposable {
 		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
 		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
 		this.toDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.cancel()));
+		this.toDispose.push(SuggestRegistry.onDidChange(this.onSuggestRegistryChange, this));
 		this.onEditorConfigurationChange();
 	}
 
@@ -284,6 +285,19 @@ export class SuggestModel implements IDisposable {
 		} else {
 			this.onNewContext(ctx);
 		}
+	}
+
+	private onSuggestRegistryChange(): void {
+		if (this.state === State.Idle) {
+			return;
+		}
+
+		if (!SuggestRegistry.has(this.editor.getModel())) {
+			this.cancel();
+			return;
+		}
+
+		this.trigger(this.state === State.Auto, undefined, true);
 	}
 
 	public trigger(auto: boolean, triggerCharacter?: string, retrigger: boolean = false, groups?: ISuggestSupport[][]): void {

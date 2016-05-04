@@ -77,6 +77,7 @@ suite('ExtHostLanguageFeatures', function() {
 				options: {
 					tabSize: 4,
 					insertSpaces: true,
+					trimAutoWhitespace: true,
 					defaultEOL: EditorCommon.DefaultEndOfLine.LF
 				}
 			},

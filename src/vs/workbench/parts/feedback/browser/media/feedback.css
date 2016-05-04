@@ -71,10 +71,6 @@
 	margin: 6px 0 0;
 	width: 100%;
 	padding: 3px 2px;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
 	box-sizing:			border-box;
 }
 
@@ -117,13 +113,7 @@
 	padding: .5em 1.5em;
 	font-size: 1.1em;
 	margin: 0;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
 	box-sizing:			border-box;
-
-	-webkit-transition: width 200ms ease-out;
 	transition: width 200ms ease-out;
 }
 
@@ -146,11 +136,6 @@
 	display: inline-block;
 	margin: .5em 0;
 	cursor: pointer;
-
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
 	box-sizing:			border-box;
 }
 

@@ -157,4 +157,15 @@ suite('Strings', () => {
 		assert.strictEqual(strings.repeat(' ', 0), '');
 		assert.strictEqual(strings.repeat('abc', 2), 'abcabc');
 	});
+
+	test('lastNonWhitespaceIndex', () => {
+		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t '), 2);
+		assert.strictEqual(strings.lastNonWhitespaceIndex('abc'), 2);
+		assert.strictEqual(strings.lastNonWhitespaceIndex('abc\t'), 2);
+		assert.strictEqual(strings.lastNonWhitespaceIndex('abc '), 2);
+		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t '), 2);
+		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t abc \t \t '), 11);
+		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t abc \t \t ', 8), 2);
+		assert.strictEqual(strings.lastNonWhitespaceIndex('  \t \t '), -1);
+	});
 });

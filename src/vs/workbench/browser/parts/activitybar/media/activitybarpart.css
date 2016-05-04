@@ -7,10 +7,6 @@
 	z-index: 20;
 	min-width: 50px;
 	width: 50px;
-	-ms-transition: width 0.2s ease-out;
-	-moz-transition: width 0.2s ease-out;
-	-webkit-transition: width 0.2s ease-out;
-	-o-transition: width 0.2s ease-out;
 	transition: width 0.2s ease-out;
 }
 

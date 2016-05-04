@@ -193,6 +193,44 @@ export class BaseDebugController extends treedefaults.DefaultController {
 
 // call stack
 
+export class CallStackActionProvider implements renderer.IActionProvider {
+
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+		// noop
+	}
+
+	public hasActions(tree: tree.ITree, element: any): boolean {
+		return false;
+	}
+
+	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
+		return TPromise.as([]);
+	}
+
+	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
+		return element instanceof model.Thread;
+	}
+
+	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
+		const actions: actions.Action[] = [];
+		const thread = <model.Thread>element;
+		if (thread.stopped) {
+			actions.push(this.instantiationService.createInstance(debugactions.ContinueAction, debugactions.ContinueAction.ID, debugactions.ContinueAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.StepOverDebugAction, debugactions.StepOverDebugAction.ID, debugactions.StepOverDebugAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.StepIntoDebugAction, debugactions.StepIntoDebugAction.ID, debugactions.StepIntoDebugAction.LABEL));
+			actions.push(this.instantiationService.createInstance(debugactions.StepOutDebugAction, debugactions.StepOutDebugAction.ID, debugactions.StepOutDebugAction.LABEL));
+		} else {
+			actions.push(this.instantiationService.createInstance(debugactions.PauseAction, debugactions.PauseAction.ID, debugactions.PauseAction.LABEL));
+		}
+
+		return TPromise.as(actions);
+	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
+		return null;
+	}
+}
+
 export class CallStackDataSource implements tree.IDataSource {
 
 	constructor(@debug.IDebugService private debugService: debug.IDebugService) {
@@ -208,7 +246,7 @@ export class CallStackDataSource implements tree.IDataSource {
 	}
 
 	public hasChildren(tree: tree.ITree, element: any): boolean {
-		return element instanceof model.Model || element instanceof model.Thread;
+		return element instanceof model.Model || (element instanceof model.Thread && (<model.Thread>element).stopped);
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
@@ -236,7 +274,10 @@ export class CallStackDataSource implements tree.IDataSource {
 }
 
 interface IThreadTemplateData {
+	thread: HTMLElement;
 	name: HTMLElement;
+	state: HTMLElement;
+	stateLabel: HTMLSpanElement;
 }
 
 interface ILoadMoreTemplateData {
@@ -285,7 +326,10 @@ export class CallStackRenderer implements tree.IRenderer {
 		}
 		if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
 			let data: IThreadTemplateData = Object.create(null);
-			data.name = dom.append(container, $('.thread'));
+			data.thread = dom.append(container, $('.thread'));
+			data.name = dom.append(data.thread, $('.name'));
+			data.state = dom.append(data.thread, $('.state'));
+			data.stateLabel = dom.append(data.state, $('span.label'));
 
 			return data;
 		}
@@ -312,6 +356,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 	private renderThread(thread: debug.IThread, data: IThreadTemplateData): void {
 		data.name.textContent = thread.name;
+		data.stateLabel.textContent = thread.stopped ? nls.localize('paused', "paused") : nls.localize('running', "running");
 	}
 
 	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {
@@ -359,10 +404,8 @@ export class CallstackAccessibilityProvider implements tree.IAccessibilityProvid
 
 export class VariablesActionProvider implements renderer.IActionProvider {
 
-	private instantiationService: IInstantiationService;
-
-	constructor(instantiationService: IInstantiationService) {
-		this.instantiationService = instantiationService;
+	constructor(private instantiationService: IInstantiationService) {
+		// noop
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {

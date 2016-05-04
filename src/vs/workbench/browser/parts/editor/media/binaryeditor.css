@@ -5,17 +5,11 @@
 
 .monaco-workbench .binary-container {
 	padding-left: 20px;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing:		border-box;
-	-moz-box-sizing:	border-box;
-	-ms-box-sizing:		border-box;
 	box-sizing:			border-box;
 }
 
 .monaco-workbench .binary-container img {
 	background-position: 0 0, 8px 8px;
-	-webkit-background-size: 16px 16px;
-	-moz-background-size: 16px 16px;
 	background-size: 16px 16px;
 }
 

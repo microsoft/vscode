@@ -36,10 +36,6 @@
 	width: 100%;
 }
 
-.monaco-editor .suggest-widget > .tree {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
-}
-
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
 	-mox-box-sizing: border-box;
 	box-sizing: border-box;
@@ -88,17 +84,6 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
 	color: #A21B1B;
 }
-
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", sans-serif, "Droid Sans Fallback"; }
-.monaco-editor:lang(zh-Hans) .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
-.monaco-editor:lang(zh-Hans) .suggest-widget .monaco-list .monaco-list-row .docs { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-editor:lang(zh-Hant) .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
-.monaco-editor:lang(zh-Hant) .suggest-widget .monaco-list .monaco-list-row .docs { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
-.monaco-editor:lang(ja) .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
-.monaco-editor:lang(ja) .suggest-widget .monaco-list .monaco-list-row .docs { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
-.monaco-editor:lang(ko) .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
-.monaco-editor:lang(ko) .suggest-widget .monaco-list .monaco-list-row .docs { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label > span {
 	opacity: 1;

@@ -10,7 +10,7 @@ import {create} from 'vs/base/common/types';
 import * as assert from 'vs/base/common/assert';
 import {Graph} from 'vs/base/common/graph';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {ServiceIdentifier, IInstantiationService, ServicesAccessor, _util} from 'vs/platform/instantiation/common/instantiation';
+import {ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 
 
@@ -41,8 +41,12 @@ export class InstantiationService implements IInstantiationService {
 		let accessor: ServicesAccessor;
 		try {
 			accessor = {
-				get: <T>(id: ServiceIdentifier<T>) => {
-					return this._getOrCreateServiceInstance(id);
+				get: <T>(id: ServiceIdentifier<T>, isOptional?: typeof optional) => {
+					const result = this._getOrCreateServiceInstance(id);
+					if (!result && isOptional !== optional) {
+						throw new Error(`[invokeFunction] unkown service '${id}'`);
+					}
+					return result;
 				}
 			};
 			return signature.apply(undefined, [accessor].concat(args));

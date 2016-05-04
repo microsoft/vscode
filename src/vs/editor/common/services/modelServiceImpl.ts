@@ -26,7 +26,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
+import {DEFAULT_INDENTATION, DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {IMessageService} from 'vs/platform/message/common/message';
 
 export interface IRawModelData {
@@ -180,6 +180,7 @@ interface IRawConfig {
 		tabSize?: any;
 		insertSpaces?: any;
 		detectIndentation?: any;
+		trimAutoWhitespace?: any;
 	};
 }
 
@@ -219,7 +220,8 @@ export class ModelServiceImpl implements IModelService {
 			tabSize: DEFAULT_INDENTATION.tabSize,
 			insertSpaces: DEFAULT_INDENTATION.insertSpaces,
 			detectIndentation: DEFAULT_INDENTATION.detectIndentation,
-			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF
+			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF,
+			trimAutoWhitespace: DefaultConfig.editor.trimAutoWhitespace
 		};
 		this._threadService = threadService;
 		this._markerService = markerService;
@@ -240,7 +242,6 @@ export class ModelServiceImpl implements IModelService {
 		}
 
 		let readConfig = (config: IRawConfig) => {
-			const eol = config.files && config.files.eol;
 
 			let shouldShowMigrationMessage = false;
 
@@ -260,10 +261,16 @@ export class ModelServiceImpl implements IModelService {
 			}
 
 			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
+			const eol = config.files && config.files.eol;
 			if (eol === '\r\n') {
 				newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
 			} else if (eol === '\n') {
 				newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
+			}
+
+			let trimAutoWhitespace = this._modelCreationOptions.trimAutoWhitespace;
+			if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
+				trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
 			}
 
 			let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
@@ -275,7 +282,8 @@ export class ModelServiceImpl implements IModelService {
 				tabSize: tabSize,
 				insertSpaces: insertSpaces,
 				detectIndentation: detectIndentation,
-				defaultEOL: newDefaultEOL
+				defaultEOL: newDefaultEOL,
+				trimAutoWhitespace: trimAutoWhitespace
 			});
 
 
@@ -300,6 +308,7 @@ export class ModelServiceImpl implements IModelService {
 			(this._modelCreationOptions.detectIndentation === newOpts.detectIndentation)
 			&& (this._modelCreationOptions.insertSpaces === newOpts.insertSpaces)
 			&& (this._modelCreationOptions.tabSize === newOpts.tabSize)
+			&& (this._modelCreationOptions.trimAutoWhitespace === newOpts.trimAutoWhitespace)
 		) {
 			// Same indent opts, no need to touch created models
 			this._modelCreationOptions = newOpts;
@@ -315,10 +324,14 @@ export class ModelServiceImpl implements IModelService {
 
 			if (this._modelCreationOptions.detectIndentation) {
 				modelData.model.detectIndentation(this._modelCreationOptions.insertSpaces, this._modelCreationOptions.tabSize);
+				modelData.model.updateOptions({
+					trimAutoWhitespace: this._modelCreationOptions.trimAutoWhitespace
+				});
 			} else {
 				modelData.model.updateOptions({
 					insertSpaces: this._modelCreationOptions.insertSpaces,
-					tabSize: this._modelCreationOptions.tabSize
+					tabSize: this._modelCreationOptions.tabSize,
+					trimAutoWhitespace: this._modelCreationOptions.trimAutoWhitespace
 				});
 			}
 		}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panelPart';
+import 'vs/css!./media/panelpart';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyMod, KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';

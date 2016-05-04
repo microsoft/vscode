@@ -142,10 +142,6 @@
 	margin-right: 0;
 	position: relative;
 	top: 2px;
-	-webkit-transition: width 150ms, margin-right 150ms ease-in;
-	-o-transition: 		width 150ms, margin-right 150ms ease-in;
-	-moz-transition: 	width 150ms, margin-right 150ms ease-in;
-	-ms-transition: 	width 150ms, margin-right 150ms ease-in;
 	transition:			width 150ms, margin-right 150ms ease-in;
 }
 
@@ -241,12 +237,6 @@
 .search-viewlet .findInFileMatch,
 .monaco-editor .findInFileMatch {
 	background-color: rgba(234, 92, 0, 0.3);
-	-webkit-animation-duration: 0;
-	-webkit-animation-name: inherit !important;
-	-moz-animation-duration: 0;
-	-moz-animation-name: inherit !important;
-	-ms-animation-duration: 0;
-	-ms-animation-name: inherit !important;
 	animation-duration: 0;
 	animation-name: inherit !important;
 }
@@ -255,7 +245,6 @@
 .monaco-editor.hc-black .findInFileMatch {
 	background: none !important;
 	border: 1px dotted #f38518;
-	-moz-box-sizing: border-box;
 	box-sizing: border-box;
 }
 

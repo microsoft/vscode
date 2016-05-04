@@ -29,6 +29,7 @@ export interface IOneCursorOperationContext {
 	shouldPushStackElementBefore: boolean;
 	shouldPushStackElementAfter: boolean;
 	executeCommand: editorCommon.ICommand;
+	isAutoWhitespaceCommand: boolean;
 	postOperationRunnable: IPostOperationRunnable;
 	requestScrollDeltaLines: number;
 }
@@ -145,7 +146,13 @@ export class OneCursor {
 	private _selEndMarker: string;
 	private _selDirection: editorCommon.SelectionDirection;
 
-	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, modeConfiguration: IModeConfiguration, viewModelHelper:IViewModelHelper) {
+	constructor(
+		editorId: number,
+		model: editorCommon.IModel,
+		configuration: editorCommon.IConfiguration,
+		modeConfiguration: IModeConfiguration,
+		viewModelHelper:IViewModelHelper
+	) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
@@ -526,6 +533,9 @@ export class OneCursor {
 	}
 	public getVisibleColumnFromColumn(lineNumber:number, column:number): number {
 		return this.helper.visibleColumnFromColumn(this.model, lineNumber, column);
+	}
+	public getColumnFromVisibleColumn(lineNumber:number, column:number): number {
+		return this.helper.columnFromVisibleColumn(this.model, lineNumber, column);
 	}
 	public getViewVisibleColumnFromColumn(viewLineNumber:number, viewColumn:number): number {
 		return this.helper.visibleColumnFromColumn(this.viewModelHelper.viewModel, viewLineNumber, viewColumn);
@@ -1185,6 +1195,7 @@ export class OneCursorOp {
 		var enterAction = r.enterAction;
 		var indentation = r.indentation;
 
+		ctx.isAutoWhitespaceCommand = true;
 		if (enterAction.indentAction === IndentAction.None) {
 			// Nothing special
 			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
@@ -1500,6 +1511,8 @@ export class OneCursorOp {
 
 		if (selection.isEmpty()) {
 
+			ctx.isAutoWhitespaceCommand = true;
+
 			let typeText = '';
 
 			if (cursor.model.getLineMaxColumn(selection.startLineNumber) === 1) {
@@ -1626,13 +1639,34 @@ export class OneCursorOp {
 
 		if (deleteSelection.isEmpty()) {
 			var position = cursor.getPosition();
-			var leftOfPosition = cursor.getLeftOfPosition(position.lineNumber, position.column);
-			deleteSelection = new Range(
-				leftOfPosition.lineNumber,
-				leftOfPosition.column,
-				position.lineNumber,
-				position.column
-			);
+
+			if (cursor.configuration.editor.useTabStops && position.column > 1) {
+				let lineContent = cursor.getLineContent(position.lineNumber);
+
+				let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
+				let lastIndentationColumn = (
+					firstNonWhitespaceIndex === -1
+						? /* entire string is whitespace */lineContent.length + 1
+						: firstNonWhitespaceIndex + 1
+				);
+
+				if (position.column <= lastIndentationColumn) {
+					let fromVisibleColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
+					let toVisibleColumn = CursorMoveHelper.prevTabColumn(fromVisibleColumn, cursor.model.getOptions().tabSize);
+					let toColumn = cursor.getColumnFromVisibleColumn(position.lineNumber, toVisibleColumn);
+					deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
+				} else {
+					deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column);
+				}
+			} else {
+				var leftOfPosition = cursor.getLeftOfPosition(position.lineNumber, position.column);
+				deleteSelection = new Range(
+					leftOfPosition.lineNumber,
+					leftOfPosition.column,
+					position.lineNumber,
+					position.column
+				);
+			}
 		}
 
 		if (deleteSelection.isEmpty()) {
@@ -1648,21 +1682,11 @@ export class OneCursorOp {
 		return true;
 	}
 
-	private static _findLastNonWhitespaceChar(str:string, startIndex:number): number {
-		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
-			let ch = str.charAt(chIndex);
-			if (ch !== ' ' && ch !== '\t') {
-				return chIndex;
-			}
-		}
-		return -1;
-	}
-
 	private static deleteWordLeftWhitespace(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 		let position = cursor.getPosition();
 		let lineContent = cursor.getLineContent(position.lineNumber);
 		let startIndex = position.column - 2;
-		let lastNonWhitespace = this._findLastNonWhitespaceChar(lineContent, startIndex);
+		let lastNonWhitespace = strings.lastNonWhitespaceIndex(lineContent, startIndex);
 		if (lastNonWhitespace + 1 < startIndex) {
 			// bingo
 			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, lastNonWhitespace + 2, position.lineNumber, position.column), '');
@@ -1980,6 +2004,10 @@ class CursorHelper {
 
 	public visibleColumnFromColumn(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
 		return this.moveHelper.visibleColumnFromColumn(model, lineNumber, column);
+	}
+
+	public columnFromVisibleColumn(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return this.moveHelper.columnFromVisibleColumn(model, lineNumber, column);
 	}
 
 	private _createWord(lineContent: string, wordType:WordType, start: number, end: number): IFindWordResult {

@@ -443,7 +443,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				tabSize: this._options.tabSize,
 				insertSpaces: this._options.insertSpaces,
 				detectIndentation: false,
-				defaultEOL: this._options.defaultEOL
+				defaultEOL: this._options.defaultEOL,
+				trimAutoWhitespace: this._options.trimAutoWhitespace
 			});
 		}
 		this.setValueFromRawText(rawText, newModeOrPromise);

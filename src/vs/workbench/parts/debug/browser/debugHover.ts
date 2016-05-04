@@ -12,8 +12,8 @@ import * as nls from 'vs/nls';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
+import { EventType, IConfigurationChangedEvent, IEditorPosition, IEditorRange } from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import editorcommon = require('vs/editor/common/editorCommon');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
@@ -37,7 +37,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private domNode: HTMLElement;
 	public isVisible: boolean;
 	private tree: ITree;
-	private showAtPosition: editorcommon.IEditorPosition;
+	private showAtPosition: IEditorPosition;
 	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
 	private valueContainer: HTMLElement;
@@ -53,7 +53,23 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(editor)
 		}, debugTreeOptions);
+
 		this.toDispose = [];
+		this.registerListeners();
+
+		this.valueContainer = dom.append(this.domNode, $('.value'));
+		this.valueContainer.tabIndex = 0;
+		this.valueContainer.setAttribute('role', 'tooltip');
+
+		this.isVisible = false;
+		this.showAtPosition = null;
+		this.highlightDecorations = [];
+
+		this.editor.addContentWidget(this);
+		this.editor.applyFontInfo(this.domNode);
+	}
+
+	private registerListeners(): void {
 		this.toDispose.push(this.tree.addListener2('item:expanded', () => {
 			this.layoutTree();
 		}));
@@ -66,15 +82,11 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				this.hide();
 			}
 		}));
-		this.valueContainer = dom.append(this.domNode, $('.value'));
-		this.valueContainer.tabIndex = 0;
-		this.valueContainer.setAttribute('role', 'tooltip');
-
-		this.isVisible = false;
-		this.showAtPosition = null;
-		this.highlightDecorations = [];
-
-		this.editor.addContentWidget(this);
+		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, (e: IConfigurationChangedEvent) => {
+			if (e.fontInfo) {
+				this.editor.applyFontInfo(this.domNode);
+			}
+		}));
 	}
 
 	public getId(): string {
@@ -85,7 +97,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
-	public showAt(range: editorcommon.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void> {
+	public showAt(range: IEditorRange, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
 		const model = this.editor.getModel();
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
@@ -162,7 +174,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}).then(() => variables.length === 1 ? TPromise.as(variables[0]) : TPromise.as(null));
 	}
 
-	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
+	private doShow(position: IEditorPosition, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
 		this.showAtPosition = position;
 		this.isVisible = true;
 		this.stoleFocus = focus;

@@ -212,18 +212,19 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 	public resolve(refresh?: boolean): TPromise<EditorModel> {
 		let modelPromise: TPromise<EditorModel>;
+		let resource = this.resource.toString();
 
 		// Keep clients who resolved the input to support proper disposal
-		let clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()];
+		let clients = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource];
 		if (types.isUndefinedOrNull(clients)) {
-			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()] = [this];
+			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource] = [this];
 		} else if (this.indexOfClient() === -1) {
-			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].push(this);
+			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[resource].push(this);
 		}
 
 		// Check for running loader to ensure the model is only ever loaded once
-		if (FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()]) {
-			return FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()];
+		if (FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource]) {
+			return FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource];
 		}
 
 		// Use Cached Model if present
@@ -235,24 +236,24 @@ export class FileEditorInput extends CommonFileEditorInput {
 		// Refresh Cached Model if present
 		else if (cachedModel && refresh) {
 			modelPromise = cachedModel.load();
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = modelPromise;
+			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = modelPromise;
 		}
 
 		// Otherwise Create Model and Load
 		else {
 			modelPromise = this.createAndLoadModel();
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = modelPromise;
+			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = modelPromise;
 		}
 
 		return modelPromise.then((resolvedModel: TextFileEditorModel | BinaryEditorModel) => {
 			if (resolvedModel instanceof TextFileEditorModel) {
 				CACHE.add(this.resource, resolvedModel); // Store into the text model cache unless this file is binary
 			}
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = null; // Remove from pending loaders
+			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = null; // Remove from pending loaders
 
 			return resolvedModel;
 		}, (error) => {
-			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = null; // Remove from pending loaders in case of an error
+			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[resource] = null; // Remove from pending loaders in case of an error
 
 			return TPromise.wrapError(error);
 		});

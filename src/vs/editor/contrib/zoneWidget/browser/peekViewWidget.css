@@ -49,6 +49,7 @@
 .monaco-editor .peekview-widget > .body {
 	border-top: 1px solid #007ACC;
 	border-bottom: 1px solid #007ACC;
+	position: relative;
 }
 
 /* Dark Theme */

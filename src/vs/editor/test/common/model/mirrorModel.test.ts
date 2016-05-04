@@ -106,6 +106,7 @@ suite('Editor Model - MirrorModel', () => {
 			options: {
 				tabSize: 4,
 				insertSpaces: true,
+				trimAutoWhitespace: true,
 				defaultEOL: editorCommon.DefaultEndOfLine.LF
 			}
 		})]));
@@ -336,6 +337,7 @@ suite('Editor Model - MirrorModel Eventing', () => {
 			options: {
 				tabSize: 4,
 				insertSpaces: true,
+				trimAutoWhitespace: true,
 				defaultEOL: editorCommon.DefaultEndOfLine.LF
 			}
 		})]));

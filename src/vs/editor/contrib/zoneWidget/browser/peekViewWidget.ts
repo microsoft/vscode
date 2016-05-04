@@ -140,7 +140,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 		// implement me
 	}
 
-	public doLayout(heightInPixel: number): void {
+	public doLayout(heightInPixel: number, widthInPixel: number): void {
 
 		if (heightInPixel < 0) {
 			// Looks like the view zone got folded away!
@@ -152,16 +152,16 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2),
 			bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
 
-		this._doLayoutHead(headHeight);
-		this._doLayoutBody(bodyHeight);
+		this._doLayoutHead(headHeight, widthInPixel);
+		this._doLayoutBody(bodyHeight, widthInPixel);
 	}
 
-	protected _doLayoutHead(heightInPixel: number): void {
+	protected _doLayoutHead(heightInPixel: number, widthInPixel: number): void {
 		this._headElement.style.height = strings.format('{0}px', heightInPixel);
 		this._headElement.style.lineHeight = this._headElement.style.height;
 	}
 
-	protected _doLayoutBody(heightInPixel: number): void {
+	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		this._bodyElement.style.height = strings.format('{0}px', heightInPixel);
 	}
 }
