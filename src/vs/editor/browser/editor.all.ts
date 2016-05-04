@@ -30,7 +30,7 @@ import 'vs/editor/contrib/outlineMarker/browser/outlineMarker';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/quickFix/browser/quickFix';
 import 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
-import 'vs/editor/contrib/rename/browser/rename2';
+import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/smartSelect/common/smartSelect';
 import 'vs/editor/contrib/smartSelect/common/jumpToBracket';
 import 'vs/editor/contrib/snippet/common/snippet';
