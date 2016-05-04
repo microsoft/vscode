@@ -25,7 +25,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestStorageService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {

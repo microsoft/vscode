@@ -29,7 +29,7 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/common/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';

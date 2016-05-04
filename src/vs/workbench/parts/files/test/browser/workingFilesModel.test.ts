@@ -24,7 +24,7 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {TestFileService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/common/servicesTestUtils';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';

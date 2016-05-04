@@ -6,7 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TestContextService, TestStorageService, TestEventService, TestEditorService, TestQuickOpenService} from 'vs/workbench/test/browser/servicesTestUtils';
+import 'vs/workbench/browser/parts/editor/editor.contribution'; // make sure to load all contributed editor things into tests
+import {TestContextService, TestStorageService, TestEventService, TestEditorService, TestQuickOpenService} from 'vs/workbench/test/common/servicesTestUtils';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {Registry} from 'vs/platform/platform';
 import {EditorHistoryModel, EditorHistoryEntry} from 'vs/workbench/browser/parts/quickopen/editorHistoryModel';

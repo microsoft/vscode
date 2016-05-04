@@ -15,7 +15,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {TestContextService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IFileMatch} from 'vs/platform/search/common/search';
 

@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
-import {TestEditorService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestEditorService} from 'vs/workbench/test/common/servicesTestUtils';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';

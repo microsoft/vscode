@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/workbench/browser/parts/editor/editor.contribution'; // make sure to load all contributed editor things into tests
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Paths = require('vs/base/common/paths');
@@ -27,7 +26,6 @@ import {IEditorInput, IEditorModel, Position, IEditor, IResourceInput, ITextEdit
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import Lifecycle = require('vs/base/common/lifecycle');
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 
