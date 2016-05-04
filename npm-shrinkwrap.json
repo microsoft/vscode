@@ -396,9 +396,9 @@
       "resolved": "https://registry.npmjs.org/typechecker/-/typechecker-2.0.8.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.8.0-pre.3",
-      "from": "vscode-debugprotocol@1.8.0-pre.3",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.8.0-pre.3.tgz"
+      "version": "1.8.0",
+      "from": "vscode-debugprotocol@1.8.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.8.0.tgz"
     },
     "vscode-textmate": {
       "version": "1.0.11",
