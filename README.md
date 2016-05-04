@@ -5,7 +5,7 @@ Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-comple
 Once installed, do remember to [configure the path](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version) to the python executable.
 
 ##Features
-* Linting (PyLint, Pep8, Flake8 with config files and plugins)
+* Linting (PyLint, Pep8, Flake8, pydocstyle with config files and plugins)
 * Intellisense and autocompletion
 * Code formatting (autopep8, yapf, with config files)
 * Renaming, Viewing references, Going to definitions, Go to Symbols
@@ -49,6 +49,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
  + pylint can be turned on/off (default is on), supports standard configuaration files
  + pep8 can be turned on/off (default is off), supports standard configuaration files
  + flake8 can be turned on/off (default is on), supports standard configuaration files
+ + pydocstyle can be turned on/off (default is on), supports standard configuaration files
  + Different categories of errors reported by pylint can be configured as warnings, errors, information or hits
  + Path to pylint, pep8 and flake8 and pep8 can be configured
  + Custom plugins such as pylint plugin for Django can be easily used by modifying the settings as follows:
@@ -94,6 +95,8 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
  + pip install pep8
 * Flake8 is installed for linting (optional)
  + pip install flake8
+* pydocstyle is installed for linting (optional)
+ + pip install pydocstyle
 * Autopep8 is installed for code formatting (optional) 
  + pip install pep8
  + pip install --upgrade autopep8
@@ -103,6 +106,9 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
  + pip install nose
 
 ## Change Log
+
+### Version 0.3.6
+* Added support for linting using pydocstyle [#56](https://github.com/DonJayamanne/pythonVSCode/issues/56)
 
 ### Version 0.3.5
 * Fixed printing of unicode characters when evaulating expressions [#73](https://github.com/DonJayamanne/pythonVSCode/issues/73)

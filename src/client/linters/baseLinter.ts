@@ -34,7 +34,7 @@ export enum LintMessageSeverity {
     Information
 }
 
-function matchNamedRegEx(data, regex): IRegexGroup {
+export function matchNamedRegEx(data, regex): IRegexGroup {
     if (NamedRegexp === null) {
         NamedRegexp = require('named-js-regexp');
     }

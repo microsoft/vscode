@@ -270,6 +270,11 @@
                     "default": false,
                     "description": "Whether to lint Python files using flake8"
                 },
+                "python.linting.pydocstyleEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to lint Python files using pydocstyle"
+                },
                 "python.linting.lintOnTextChange": {
                     "type": "boolean",
                     "default": true,
@@ -354,6 +359,11 @@
                     "type": "string",
                     "default": "flake8",
                     "description": "Path to flake8, you can use a custom version of flake8 by modifying this setting to include the full path."
+                },
+                "python.linting.pydocStylePath": {
+                    "type": "string",
+                    "default": "pydocstyle",
+                    "description": "Path to pydocstyle, you can use a custom version of pydocstyle by modifying this setting to include the full path."
                 },
                 "python.formatting.provider": {
                     "type": "string",

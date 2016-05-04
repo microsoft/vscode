@@ -28,6 +28,7 @@ export interface ILintingSettings {
     pylintEnabled: boolean;
     pep8Enabled: boolean;
     flake8Enabled: boolean;
+    pydocstyleEnabled: boolean;
     lintOnTextChange: boolean;
     lintOnSave: boolean;
     maxNumberOfProblems: number;
@@ -35,6 +36,7 @@ export interface ILintingSettings {
     pylintPath: string;
     pep8Path: string;
     flake8Path: string;
+    pydocStylePath: string;
 }
 export interface IFormattingSettings {
     provider: string;
