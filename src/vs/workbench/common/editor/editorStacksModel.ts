@@ -8,7 +8,7 @@
 import Event, {Emitter} from 'vs/base/common/event';
 import {EditorInput} from 'vs/workbench/common/editor';
 
-/// --- API ----
+/// --- API-Start ----
 
 export interface IEditorGroup {
 
@@ -51,6 +51,8 @@ export interface IEditorOpenOptions {
 	pinned?: boolean;
 	active?: boolean;
 }
+
+/// --- API-End ----
 
 // N Groups with labels (start with Left, Center, Right)
 // Group has a List of editors
