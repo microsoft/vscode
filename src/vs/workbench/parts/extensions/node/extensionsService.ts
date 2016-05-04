@@ -17,14 +17,14 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionsService, IExtension, IExtensionManifest, IGalleryMetadata, IGalleryVersion } from 'vs/workbench/parts/extensions/common/extensions';
 import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
-import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { UserSettings } from 'vs/workbench/node/userSettings';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
 import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
-import pkg from 'vs/code/node/package';
+import pkg from 'vs/platform/package';
 
 function parseManifest(raw: string): TPromise<IExtensionManifest> {
 	return new Promise((c, e) => {
@@ -104,10 +104,9 @@ export class ExtensionsService implements IExtensionsService {
 	onDidUninstallExtension: Event<IExtension> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		const env = contextService.getConfiguration().env;
-		this.extensionsPath = env.userExtensionsHome;
+		this.extensionsPath = environmentService.extensionsPath;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
 		this.obsoleteFileLimiter = new Limiter(1);
 	}
@@ -307,8 +306,9 @@ export class ExtensionsService implements IExtensionsService {
 	// This should be pushed down and not rely on the context service
 	private request(url: string): TPromise<IRequestOptions> {
 		const settings = TPromise.join([
-			UserSettings.getValue(this.contextService, 'http.proxy'),
-			UserSettings.getValue(this.contextService, 'http.proxyStrictSSL')
+			// TODO@Joao we need a nice configuration service here!
+			UserSettings.getValue(this.environmentService.userDataPath, 'http.proxy'),
+			UserSettings.getValue(this.environmentService.userDataPath, 'http.proxyStrictSSL')
 		]);
 
 		return settings.then(settings => {

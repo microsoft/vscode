@@ -12,7 +12,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { getExtensionId } from 'vs/workbench/parts/extensions/common/extensionsUtil';
-import product from 'vs/code/node/product';
+import product from 'vs/platform/product';
 
 export interface IGalleryExtensionFile {
 	assetType: string;

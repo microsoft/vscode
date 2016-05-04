@@ -5,7 +5,7 @@
 
 import * as cp from 'child_process';
 import URI from 'vs/base/common/uri';
-import pkg from 'vs/code/node/package';
+import pkg from 'vs/platform/package';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
