@@ -190,7 +190,7 @@ export class EditorGroup implements IEditorGroup {
 				// Replace existing preview with this editor if we have a preview
 				if (this.preview) {
 					const indexOfPreview = this.indexOf(this.preview);
-					this.closeEditor(this.preview); // TODO this can cause the next in MRU list to become active which may be unwanted
+					this.closeEditor(this.preview, !makeActive); // optimization to prevent multiple setActive() in one call
 					this.splice(indexOfPreview, false, editor);
 				}
 
@@ -221,14 +221,14 @@ export class EditorGroup implements IEditorGroup {
 		}
 	}
 
-	public closeEditor(editor: EditorInput): void {
+	public closeEditor(editor: EditorInput, openNext = true): void {
 		const index = this.indexOf(editor);
 		if (index === -1) {
 			return; // not found
 		}
 
 		// Active Editor closed
-		if (this.matches(this.active, editor)) {
+		if (openNext && this.matches(this.active, editor)) {
 
 			// More than one editor
 			if (this.mru.length > 1) {
