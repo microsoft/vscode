@@ -65,7 +65,6 @@ export interface IEditorOpenOptions {
 // Open
 //   To the left / to the right (setting)
 // Close
-//   Reveals from the left / from the right (setting)
 // Close Others
 // Close Editors to the Right
 // Close All
@@ -160,13 +159,13 @@ export class EditorGroup implements IEditorGroup {
 	public openEditor(editor: EditorInput, options?: IEditorOpenOptions): void {
 		const index = this.indexOf(editor);
 
-		const makeActive = (options && options.active) || !this.activeEditor || this.matches(this.preview, this.activeEditor);
 		const makePinned = options && options.pinned;
+		const makeActive = (options && options.active) || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
 		// New editor
 		if (index === -1) {
 
-			// Insert into our list of editors if pinned or we are first
+			// Insert into our list of editors if pinned or we have no preview editor
 			if (makePinned || !this.preview) {
 				const indexOfActive = this.indexOf(this.active);
 
@@ -187,9 +186,11 @@ export class EditorGroup implements IEditorGroup {
 
 			// Handle preview
 			if (!makePinned) {
+
+				// Replace existing preview with this editor if we have a preview
 				if (this.preview) {
 					const indexOfPreview = this.indexOf(this.preview);
-					this.closeEditor(this.preview);
+					this.closeEditor(this.preview); // TODO this can cause the next in MRU list to become active which may be unwanted
 					this.splice(indexOfPreview, false, editor);
 				}
 
@@ -264,6 +265,7 @@ export class EditorGroup implements IEditorGroup {
 
 		this.active = editor;
 
+		// Bring to front in MRU list
 		this.setMostRecentlyUsed(editor);
 
 		// Event
@@ -379,7 +381,7 @@ export class EditorGroup implements IEditorGroup {
 
 export class EditorStacksModel implements IEditorStacksModel {
 	private _groups: EditorGroup[];
-	private active: EditorGroup; // index of group with currently active editor
+	private active: EditorGroup;
 
 	private _onGroupOpened: Emitter<EditorGroup>;
 	private _onGroupClosed: Emitter<EditorGroup>;

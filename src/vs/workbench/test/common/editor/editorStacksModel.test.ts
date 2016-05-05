@@ -74,7 +74,7 @@ function input(id = String(index++)): EditorInput {
 
 suite('Editor Stacks Model', () => {
 
-	teardown(() => {
+	teardown(() =>  {
 		index = 1;
 		setOpenEditorDirection(Direction.RIGHT);
 	});
@@ -490,6 +490,38 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 	});
 
+	test('Stack - Multiple Editors - Pinned & Non Active', function () {
+		const model = create();
+		const group = model.openGroup('group');
+
+
+		const input1 = input();
+		group.openEditor(input1);
+		assert.equal(group.activeEditor, input1);
+		assert.equal(group.previewEditor, input1);
+		assert.equal(group.getEditors()[0], input1);
+		assert.equal(group.count, 1);
+
+		const input2 = input();
+		group.openEditor(input2, { pinned: true, active: false });
+		assert.equal(group.activeEditor, input1);
+		assert.equal(group.previewEditor, input1);
+		assert.equal(group.getEditors()[0], input1);
+		assert.equal(group.getEditors()[1], input2);
+		assert.equal(group.count, 2);
+
+		const input3 = input();
+		group.openEditor(input3, { pinned: true, active: false });
+		assert.equal(group.activeEditor, input1);
+		assert.equal(group.previewEditor, input1);
+		assert.equal(group.getEditors()[0], input1);
+		assert.equal(group.getEditors()[1], input3);
+		assert.equal(group.getEditors()[2], input2);
+		assert.equal(group.isPinned(input1), false);
+		assert.equal(group.isPinned(input2), true);
+		assert.equal(group.isPinned(input3), true);
+		assert.equal(group.count, 3);
+	});
 
 	test('Stack - Multiple Editors - real user example', function () {
 		const model = create();
@@ -599,7 +631,4 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, null);
 		assert.equal(group.previewEditor, null);
 	});
-
-
-
 });
