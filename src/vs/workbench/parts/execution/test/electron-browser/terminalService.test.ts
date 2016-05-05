@@ -6,8 +6,8 @@
 'use strict';
 
 import {equal} from 'assert';
-import {WinTerminalService, LinuxTerminalService} from 'vs/workbench/parts/execution/electron-browser/terminalService';
-import {DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX} from 'vs/workbench/parts/execution/electron-browser/terminal';
+import {WinTerminalService, LinuxTerminalService, MacTerminalService} from 'vs/workbench/parts/execution/electron-browser/terminalService';
+import {DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX, DEFAULT_TERMINAL_MAC} from 'vs/workbench/parts/execution/electron-browser/terminal';
 
 suite('Execution - TerminalService', () => {
 	let mockOnExit;
@@ -18,6 +18,7 @@ suite('Execution - TerminalService', () => {
 		mockConfig = {
 			externalTerminal: {
 				windowsExec: 'testWindowsShell',
+				macExec: 'testMacShell',
 				linuxExec: 'testLinuxShell'
 			}
 		};
@@ -70,6 +71,51 @@ suite('Execution - TerminalService', () => {
 			mockSpawner,
 			mockConfig,
 			testShell,
+			testCwd,
+			mockOnExit,
+			mockOnError
+		);
+	});
+
+	test("MacTerminalService - uses terminal from configuration", done => {
+		let testCwd = 'path/to/workspace';
+		let mockSpawner = {
+			spawn: (command, args, opts) => {
+				// assert
+				equal(args[1], mockConfig.externalTerminal.macExec, 'terminal should equal expected');
+				done();
+				return {
+					on: (evt) => evt
+				}
+			}
+		};
+		let testService = new MacTerminalService(mockConfig);
+		(<any>testService).spawnTerminal(
+			mockSpawner,
+			mockConfig,
+			testCwd,
+			mockOnExit,
+			mockOnError
+		);
+	});
+
+	test("MacTerminalService - uses default terminal when configuration.terminal.external.macExec is undefined", done => {
+		let testCwd = 'path/to/workspace';
+		let mockSpawner = {
+			spawn: (command, args, opts) => {
+				// assert
+				equal(args[1], DEFAULT_TERMINAL_MAC, 'terminal should equal expected')
+				done();
+				return {
+					on: (evt) => evt
+				}
+			}
+		};
+		mockConfig.externalTerminal.macExec = undefined;
+		let testService = new MacTerminalService(mockConfig);
+		(<any>testService).spawnTerminal(
+			mockSpawner,
+			mockConfig,
 			testCwd,
 			mockOnExit,
 			mockOnError
