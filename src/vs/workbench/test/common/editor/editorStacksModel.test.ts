@@ -31,6 +31,7 @@ interface ModelEvents {
 	opened: IEditorGroup[];
 	activated: IEditorGroup[];
 	closed: IEditorGroup[];
+	moved: IEditorGroup[];
 }
 
 interface GroupEvents {
@@ -45,12 +46,14 @@ function modelListener(model: IEditorStacksModel): ModelEvents {
 	const modelEvents = {
 		opened: [],
 		activated: [],
-		closed: []
+		closed: [],
+		moved: []
 	};
 
 	model.onGroupOpened(g => modelEvents.opened.push(g));
 	model.onGroupActivated(g => modelEvents.activated.push(g));
 	model.onGroupClosed(g => modelEvents.closed.push(g));
+	model.onGroupMoved(g => modelEvents.moved.push(g));
 
 	return modelEvents;
 }
@@ -131,7 +134,7 @@ suite('Editor Stacks Model', () => {
 		setOpenEditorDirection(Direction.RIGHT);
 	});
 
-	test('Groups', function () {
+	test('Groups - Basic', function () {
 		const model = create();
 		const events = modelListener(model);
 
@@ -191,6 +194,31 @@ suite('Editor Stacks Model', () => {
 		model.closeAllGroups();
 
 		assert.equal(model.groups.length, 0);
+	});
+
+	test('Groups - Move Groups', function () {
+		const model = create();
+		const events = modelListener(model);
+
+		const group1 = model.openGroup('first');
+		const group2 = model.openGroup('second');
+
+		model.moveGroup(group1, 1);
+		assert.equal(events.moved[0], group1);
+		assert.equal(model.groups[0], group2);
+		assert.equal(model.groups[1], group1);
+
+		model.moveGroup(group1, 0);
+		assert.equal(model.groups[0], group1);
+		assert.equal(model.groups[1], group2);
+
+		const group3 = model.openGroup('third');
+
+		model.moveGroup(group1, 2);
+
+		assert.equal(model.groups[0], group2);
+		assert.equal(model.groups[1], group3);
+		assert.equal(model.groups[2], group1);
 	});
 
 	test('Stack - One Editor', function () {

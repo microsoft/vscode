@@ -48,6 +48,7 @@ export interface IEditorStacksModel {
 	onGroupOpened: Event<IEditorGroup>;
 	onGroupClosed: Event<IEditorGroup>;
 	onGroupActivated: Event<IEditorGroup>;
+	onGroupMoved: Event<IEditorGroup>;
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
@@ -56,6 +57,8 @@ export interface IEditorStacksModel {
 
 	closeGroup(group: IEditorGroup): void;
 	closeAllGroups(): void;
+
+	moveGroup(group: IEditorGroup, toIndex: number);
 
 	setActive(group: IEditorGroup): void;
 }
@@ -68,7 +71,6 @@ export interface IEditorOpenOptions {
 /// --- API-End ----
 
 // Move Editor
-// Move Group
 
 export enum Direction {
 	LEFT,
@@ -494,6 +496,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	private _onGroupOpened: Emitter<EditorGroup>;
 	private _onGroupClosed: Emitter<EditorGroup>;
+	private _onGroupMoved: Emitter<EditorGroup>;
 	private _onGroupActivated: Emitter<EditorGroup>;
 
 	constructor(
@@ -508,10 +511,12 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupOpened = new Emitter<EditorGroup>();
 		this._onGroupClosed = new Emitter<EditorGroup>();
 		this._onGroupActivated = new Emitter<EditorGroup>();
+		this._onGroupMoved = new Emitter<EditorGroup>();
 
 		this.toDispose.push(this._onGroupOpened);
 		this.toDispose.push(this._onGroupClosed);
 		this.toDispose.push(this._onGroupActivated);
+		this.toDispose.push(this._onGroupMoved);
 
 		this.load();
 		this.registerListeners();
@@ -531,6 +536,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	public get onGroupActivated(): Event<EditorGroup> {
 		return this._onGroupActivated.event;
+	}
+
+	public get onGroupMoved(): Event<EditorGroup> {
+		return this._onGroupMoved.event;
 	}
 
 	public get groups(): EditorGroup[] {
@@ -612,6 +621,20 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.active = group;
 
 		this._onGroupActivated.fire(this.active);
+	}
+
+	public moveGroup(group: EditorGroup, toIndex: number): void {
+		const index = this.indexOf(group);
+		if (index < 0) {
+			return;
+		}
+
+		// Move
+		this._groups.splice(index, 1);
+		this._groups.splice(toIndex, 0, group);
+
+		// Event
+		this._onGroupMoved.fire(group);
 	}
 
 	private indexOf(group: EditorGroup): number {
