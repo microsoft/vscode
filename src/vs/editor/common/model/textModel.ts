@@ -14,6 +14,7 @@ import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
 import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 
 var LIMIT_FIND_COUNT = 999;
+export const LONG_LINE_BOUNDARY = 1000;
 
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
 
@@ -21,8 +22,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		tabSize: DEFAULT_INDENTATION.tabSize,
 		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
 		detectIndentation: false,
+		defaultEOL: editorCommon.DefaultEndOfLine.LF,
 		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
-		defaultEOL: editorCommon.DefaultEndOfLine.LF
 	};
 
 	_lines:ModelLine[];
@@ -382,7 +383,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	public isDominatedByLongLines(longLineBoundary:number): boolean {
+	public isDominatedByLongLines(): boolean {
 		var smallLineCharCount = 0,
 			longLineCharCount = 0,
 			i: number,
@@ -392,7 +393,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		for (i = 0, len = this._lines.length; i < len; i++) {
 			lineLength = lines[i].text.length;
-			if (lineLength >= longLineBoundary) {
+			if (lineLength >= LONG_LINE_BOUNDARY) {
 				longLineCharCount += lineLength;
 			} else {
 				smallLineCharCount += lineLength;

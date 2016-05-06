@@ -78,15 +78,6 @@ class InternalEditorOptionsHelper {
 
 		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
 
-		let stopLineTokenizationAfter:number;
-		if (typeof opts.stopLineTokenizationAfter !== 'undefined') {
-			stopLineTokenizationAfter = toInteger(opts.stopLineTokenizationAfter, -1);
-		} else if (wrappingColumn >= 0) {
-			stopLineTokenizationAfter = -1;
-		} else {
-			stopLineTokenizationAfter = 10000;
-		}
-
 		let stopRenderingLineAfter:number;
 		if (typeof opts.stopRenderingLineAfter !== 'undefined') {
 			stopRenderingLineAfter = toInteger(opts.stopRenderingLineAfter, -1);
@@ -201,8 +192,6 @@ class InternalEditorOptionsHelper {
 		});
 
 		return new editorCommon.InternalEditorOptions({
-			stopLineTokenizationAfter: stopLineTokenizationAfter,
-			longLineBoundary: toInteger(opts.longLineBoundary),
 			lineHeight: fontInfo.lineHeight, // todo -> duplicated in styling
 			readOnly: readOnly,
 			wordSeparators: String(opts.wordSeparators),

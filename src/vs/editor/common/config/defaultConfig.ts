@@ -69,9 +69,6 @@ class ConfigClass implements IConfiguration {
 			wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
 			wordWrapBreakObtrusiveCharacters: '.',
 			tabFocusMode: false,
-			// stopLineTokenizationAfter
-			// stopRenderingLineAfter
-			longLineBoundary: 300,
 
 			// Features
 			hover: true,

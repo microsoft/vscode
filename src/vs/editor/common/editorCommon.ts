@@ -409,23 +409,11 @@ export interface IEditorOptions {
 	tabFocusMode?:boolean;
 
 	/**
-	 * Performance guard: Stop tokenizing a line after x characters.
-	 * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
-	 * Use -1 to never stop tokenization.
-	 */
-	stopLineTokenizationAfter?:number;
-	/**
 	 * Performance guard: Stop rendering a line after x characters.
 	 * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
 	 * Use -1 to never stop rendering
 	 */
 	stopRenderingLineAfter?:number;
-	/**
-	 * Performance guard: Force viewport width wrapping if more than half of the
-	 * characters in a model are on lines of length >= `longLineBoundary`.
-	 * Defaults to 300.
-	 */
-	longLineBoundary?:number;
 	/**
 	 * Enable hover.
 	 * Defaults to true.
@@ -900,8 +888,6 @@ export class EditorContribOptions {
 export class InternalEditorOptions {
 	_internalEditorOptionsBrand: void;
 
-	stopLineTokenizationAfter:number; // todo: move to model opts
-	longLineBoundary:number; // todo: move to model opts
 	lineHeight:number; // todo: move to fontInfo
 
 	readOnly:boolean;
@@ -918,8 +904,6 @@ export class InternalEditorOptions {
 	contribInfo: EditorContribOptions;
 
 	constructor(source: {
-		stopLineTokenizationAfter:number;
-		longLineBoundary:number;
 		lineHeight:number;
 		readOnly:boolean;
 		wordSeparators: string;
@@ -932,8 +916,6 @@ export class InternalEditorOptions {
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
 	}) {
-		this.stopLineTokenizationAfter = source.stopLineTokenizationAfter|0;
-		this.longLineBoundary = source.longLineBoundary|0;
 		this.lineHeight = source.lineHeight|0;
 		this.readOnly = Boolean(source.readOnly);
 		this.wordSeparators = String(source.wordSeparators);
@@ -949,9 +931,7 @@ export class InternalEditorOptions {
 
 	public equals(other:InternalEditorOptions): boolean {
 		return (
-			this.stopLineTokenizationAfter === other.stopLineTokenizationAfter
-			&& this.longLineBoundary === other.longLineBoundary
-			&& this.lineHeight === other.lineHeight
+			this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
@@ -967,8 +947,6 @@ export class InternalEditorOptions {
 
 	public createChangeEvent(newOpts:InternalEditorOptions): IConfigurationChangedEvent {
 		return {
-			stopLineTokenizationAfter: (this.stopLineTokenizationAfter !== newOpts.stopLineTokenizationAfter),
-			longLineBoundary: (this.longLineBoundary !== newOpts.longLineBoundary),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			readOnly: (this.readOnly !== newOpts.readOnly),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
@@ -992,8 +970,6 @@ export class InternalEditorOptions {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	stopLineTokenizationAfter: boolean;
-	longLineBoundary: boolean;
 	lineHeight: boolean;
 	readOnly: boolean;
 	wordSeparators: boolean;
@@ -1546,11 +1522,11 @@ export interface ITextModel {
 
 	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
-	 * sit in lines with length < `longLineBoundary`. Second bucket (B) is of
-	 * characters that sit in lines with length >= `longLineBoundary`.
+	 * sit in lines with length < `LONG_LINE_BOUNDARY`. Second bucket (B) is of
+	 * characters that sit in lines with length >= `LONG_LINE_BOUNDARY`.
 	 * If count(B) > count(A) return true. Returns false otherwise.
 	 */
-	isDominatedByLongLines(longLineBoundary:number): boolean;
+	isDominatedByLongLines(): boolean;
 
 	/**
 	 * Get the number of lines in the model.
@@ -1649,12 +1625,6 @@ export interface IFoundBracket {
  * A model that is tokenized.
  */
 export interface ITokenizedModel extends ITextModel {
-
-	/**
-	 * Set the value at which to stop tokenization.
-	 * The default is 10000.
-	 */
-	setStopLineTokenizationAfter(stopLineTokenizationAfter:number): void;
 
 	/**
 	 * Tokenize if necessary and get the tokens for the line `lineNumber`.

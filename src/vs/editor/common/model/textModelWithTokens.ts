@@ -11,7 +11,6 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {StopWatch} from 'vs/base/common/stopwatch';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
@@ -178,7 +177,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _modeListener: IDisposable;
 	private _modeToModelBinder:ModeToModelBinder;
 	private _tokensInflatorMap:TokensInflatorMap;
-	private _stopLineTokenizationAfter:number;
 
 	private _invalidLineStartIndex:number;
 	private _lastState:IState;
@@ -201,7 +199,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._modeListener = null;
 		this._modeToModelBinder = null;
 		this._tokensInflatorMap = null;
-		this._stopLineTokenizationAfter = DefaultConfig.editor.stopLineTokenizationAfter;
 
 		this._invalidLineStartIndex = 0;
 		this._lastState = null;
@@ -404,10 +401,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._beginBackgroundTokenization();
 	}
 
-	public setStopLineTokenizationAfter(stopLineTokenizationAfter:number): void {
-		this._stopLineTokenizationAfter = stopLineTokenizationAfter;
-	}
-
 	public getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean = false): editorCommon.ILineTokens {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
@@ -589,7 +582,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			tokenizedChars = 0,
 			currentCharsToTokenize = 0,
 			currentEstimatedTimeToTokenize = 0,
-			stopLineTokenizationAfter = this._stopLineTokenizationAfter,
 			sw = StopWatch.create(false),
 			elapsedTime: number;
 
@@ -607,9 +599,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 			// Compute how many characters will be tokenized for this line
 			currentCharsToTokenize = this._lines[lineNumber - 1].text.length;
-			if (stopLineTokenizationAfter !== -1 && currentCharsToTokenize > stopLineTokenizationAfter) {
-				currentCharsToTokenize = stopLineTokenizationAfter;
-			}
 
 			if (tokenizedChars > 0) {
 				// If we have enough history, estimate how long tokenizing this line would take
@@ -659,10 +648,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _updateTokensUntilLine(lineNumber:number, emitEvents:boolean): void {
 		var linesLength = this._lines.length;
 		var endLineIndex = lineNumber - 1;
-		var stopLineTokenizationAfter = this._stopLineTokenizationAfter;
-		if (stopLineTokenizationAfter === -1) {
-			stopLineTokenizationAfter = 1000000000; // 1 billion, if a line is so long, you have other trouble :).
-		}
+		var stopLineTokenizationAfter = 1000000000; // 1 billion, if a line is so long, you have other trouble :).
 
 		var fromLineNumber = this._invalidLineStartIndex + 1, toLineNumber = lineNumber;
 

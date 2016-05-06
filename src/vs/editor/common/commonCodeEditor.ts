@@ -669,8 +669,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		if (this.model) {
 			this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
 			this._langIdKey.set(this.model.getMode().getId());
-			this.model.setStopLineTokenizationAfter(this._configuration.editor.stopLineTokenizationAfter);
-			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines(this._configuration.editor.longLineBoundary));
+			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
 
 			this.model.onBeforeAttached();
 
