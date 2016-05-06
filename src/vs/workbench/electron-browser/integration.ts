@@ -22,6 +22,7 @@ import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/co
 import {IWindowService}from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import * as browser from 'vs/base/browser/browser';
 
 import win = require('vs/workbench/electron-browser/window');
 
@@ -116,6 +117,9 @@ export class ElectronIntegration {
 			this.messageService.show(Severity.Info, message);
 		});
 
+		// Ensure others can listen to zoom level changes
+		browser.setZoomLevel(webFrame.getZoomLevel());
+
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {
@@ -135,6 +139,8 @@ export class ElectronIntegration {
 
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
+				// Ensure others can listen to zoom level changes
+				browser.setZoomLevel(webFrame.getZoomLevel());
 			}
 		});
 

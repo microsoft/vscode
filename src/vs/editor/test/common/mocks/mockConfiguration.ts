@@ -25,6 +25,10 @@ export class MockConfiguration extends CommonEditorConfiguration {
 		return 100;
 	}
 
+	protected _getCanUseTranslate3d(): boolean {
+		return true;
+	}
+
 	protected readConfiguration(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
 			fontFamily: 'mockFont',

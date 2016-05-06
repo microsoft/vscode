@@ -37,6 +37,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			'decorationsOverviewRuler',
 			scrollHeight,
 			this._context.configuration.editor.lineHeight,
+			this._context.configuration.editor.viewInfo.canUseTranslate3d,
 			DecorationsOverviewRuler.DECORATION_HEIGHT,
 			DecorationsOverviewRuler.DECORATION_HEIGHT,
 			getVerticalOffsetForLine
@@ -77,6 +78,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, false);
+			shouldRender = true;
+		}
+
+		if (e.viewInfo.canUseTranslate3d) {
+			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.viewInfo.canUseTranslate3d, false);
 			shouldRender = true;
 		}
 

@@ -650,6 +650,7 @@ export class InternalEditorViewOptions {
 	_internalEditorViewOptionsBrand: void;
 
 	theme:string;
+	canUseTranslate3d:boolean;
 	experimentalScreenReader: boolean;
 	rulers: number[];
 	ariaLabel: string;
@@ -671,6 +672,7 @@ export class InternalEditorViewOptions {
 
 	constructor(source:{
 		theme:string;
+		canUseTranslate3d:boolean;
 		experimentalScreenReader: boolean;
 		rulers: number[];
 		ariaLabel: string;
@@ -691,6 +693,7 @@ export class InternalEditorViewOptions {
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
 		this.theme = String(source.theme);
+		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
 		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
@@ -742,6 +745,7 @@ export class InternalEditorViewOptions {
 	public equals(other:InternalEditorViewOptions): boolean {
 		return (
 			this.theme === other.theme
+			&& this.canUseTranslate3d === other.canUseTranslate3d
 			&& this.experimentalScreenReader === other.experimentalScreenReader
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
@@ -766,6 +770,7 @@ export class InternalEditorViewOptions {
 	public createChangeEvent(newOpts:InternalEditorViewOptions): IViewConfigurationChangedEvent {
 		return {
 			theme: this.theme !== newOpts.theme,
+			canUseTranslate3d: this.canUseTranslate3d !== newOpts.canUseTranslate3d,
 			experimentalScreenReader: this.experimentalScreenReader !== newOpts.experimentalScreenReader,
 			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
 			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
@@ -794,6 +799,7 @@ export class InternalEditorViewOptions {
 
 export interface IViewConfigurationChangedEvent {
 	theme: boolean;
+	canUseTranslate3d: boolean;
 	experimentalScreenReader: boolean;
 	rulers: boolean;
 	ariaLabel:  boolean;

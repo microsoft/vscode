@@ -73,7 +73,8 @@ class InternalEditorOptionsHelper {
 		fontInfo: editorCommon.FontInfo,
 		editorClassName:string,
 		isDominatedByLongLines:boolean,
-		lineCount: number
+		lineCount: number,
+		canUseTranslate3d: boolean
 	): editorCommon.InternalEditorOptions {
 
 		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
@@ -155,6 +156,7 @@ class InternalEditorOptionsHelper {
 
 		let viewInfo = new editorCommon.InternalEditorViewOptions({
 			theme: opts.theme,
+			canUseTranslate3d: canUseTranslate3d,
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
 			rulers: toSortedIntegerArray(opts.rulers),
 			ariaLabel: String(opts.ariaLabel),
@@ -398,7 +400,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			})),
 			editorClassName,
 			this._isDominatedByLongLines,
-			this._lineCount
+			this._lineCount,
+			this._getCanUseTranslate3d()
 		);
 	}
 
@@ -422,6 +425,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected abstract getOuterWidth(): number;
 
 	protected abstract getOuterHeight(): number;
+
+	protected abstract _getCanUseTranslate3d(): boolean;
 
 	protected abstract readConfiguration(styling: editorCommon.BareFontInfo): editorCommon.FontInfo;
 }

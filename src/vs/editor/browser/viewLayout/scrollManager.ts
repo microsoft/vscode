@@ -36,7 +36,7 @@ export class ScrollManager implements IDisposable {
 		var configScrollbarOpts = this.configuration.editor.viewInfo.scrollbar;
 
 		var scrollbarOptions:ScrollableElementCreationOptions = {
-			canUseTranslate3d: true,
+			canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
 			horizontal: configScrollbarOpts.horizontal,
@@ -64,9 +64,9 @@ export class ScrollManager implements IDisposable {
 
 		this.toDispose.push(this.configuration.onDidChange((e:IConfigurationChangedEvent) => {
 			this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme);
-			if (e.viewInfo.scrollbar) {
+			if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
 				let newOpts:ScrollableElementChangeOptions = {
-					canUseTranslate3d: true,
+					canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
 					handleMouseWheel: this.configuration.editor.viewInfo.scrollbar.handleMouseWheel,
 					mouseWheelScrollSensitivity: this.configuration.editor.viewInfo.scrollbar.mouseWheelScrollSensitivity
 				};

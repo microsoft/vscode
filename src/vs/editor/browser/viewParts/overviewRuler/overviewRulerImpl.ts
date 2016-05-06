@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {OverviewRulerPosition, OverviewRulerLane} from 'vs/editor/common/editorCommon';
 import {OverviewRulerZone, ColorZone} from 'vs/editor/browser/editorBrowser';
@@ -278,8 +277,9 @@ export class OverviewRulerImpl {
 	private _domNode: HTMLCanvasElement;
 	private _lanesCount:number;
 	private _zoneManager: ZoneManager;
+	private _canUseTranslate3d: boolean;
 
-	constructor(canvasLeftOffset:number, cssClassName:string, scrollHeight:number, lineHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(canvasLeftOffset:number, cssClassName:string, scrollHeight:number, lineHeight:number, canUseTranslate3d:boolean, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
 		this._canvasLeftOffset = canvasLeftOffset;
 
 		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
@@ -287,6 +287,8 @@ export class OverviewRulerImpl {
 		this._domNode.style.position = 'absolute';
 
 		this._lanesCount = 3;
+
+		this._canUseTranslate3d = canUseTranslate3d;
 
 		this._zoneManager = new ZoneManager(getVerticalOffsetForLine);
 		this._zoneManager.setMinimumHeight(minimumHeight);
@@ -366,6 +368,13 @@ export class OverviewRulerImpl {
 		}
 	}
 
+	public setCanUseTranslate3d(canUseTranslate3d:boolean, render:boolean): void {
+		this._canUseTranslate3d = canUseTranslate3d;
+		if (render) {
+			this.render(true);
+		}
+	}
+
 	public setZones(zones:OverviewRulerZone[], render:boolean): void {
 		this._zoneManager.setZones(zones);
 		if (render) {
@@ -380,7 +389,7 @@ export class OverviewRulerImpl {
 		if (this._zoneManager.getOuterHeight() === 0) {
 			return false;
 		}
-		if (browser.canUseTranslate3d) {
+		if (this._canUseTranslate3d) {
 			StyleMutator.setTransform(this._domNode, 'translate3d(0px, 0px, 0px)');
 		} else {
 			StyleMutator.setTransform(this._domNode, '');

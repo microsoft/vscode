@@ -106,6 +106,11 @@ export abstract class AbstractScrollbar extends Widget {
 
 	// ----------------- Update state
 
+	public setCanUseTranslate3d(canUseTranslate3d: boolean): boolean {
+		this._canUseTranslate3d = canUseTranslate3d;
+		return true;
+	}
+
 	protected _onElementSize(visibleSize: number): boolean {
 		if (this._scrollbarState.setVisibleSize(visibleSize)) {
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());

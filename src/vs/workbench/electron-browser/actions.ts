@@ -19,6 +19,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import * as browser from 'vs/base/browser/browser';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -171,6 +172,8 @@ export class ZoomInAction extends Action {
 
 	public run(): TPromise<boolean> {
 		webFrame.setZoomLevel(webFrame.getZoomLevel() + 1);
+		// Ensure others can listen to zoom level changes
+		browser.setZoomLevel(webFrame.getZoomLevel());
 
 		return TPromise.as(true);
 	}
@@ -222,6 +225,8 @@ export class ZoomOutAction extends BaseZoomAction {
 		}
 
 		webFrame.setZoomLevel(newZoomLevelCandiate);
+		// Ensure others can listen to zoom level changes
+		browser.setZoomLevel(webFrame.getZoomLevel());
 
 		return TPromise.as(true);
 	}
@@ -243,6 +248,8 @@ export class ZoomResetAction extends BaseZoomAction {
 	public run(): TPromise<boolean> {
 		const level = this.getConfiguredZoomLevel();
 		webFrame.setZoomLevel(level);
+		// Ensure others can listen to zoom level changes
+		browser.setZoomLevel(webFrame.getZoomLevel());
 
 		return TPromise.as(true);
 	}
