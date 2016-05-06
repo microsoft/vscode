@@ -14,8 +14,6 @@ import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
 
-/// --- API-Start ----
-
 export interface IEditorGroup {
 
 	label: string;
@@ -26,11 +24,13 @@ export interface IEditorGroup {
 	onEditorActivated: Event<EditorInput>;
 	onEditorOpened: Event<EditorInput>;
 	onEditorClosed: Event<EditorInput>;
+	onEditorMoved: Event<EditorInput>;
 	onEditorPinned: Event<EditorInput>;
 	onEditorUnpinned: Event<EditorInput>;
 
 	getEditors(mru?: boolean): EditorInput[];
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
+	moveEditor(editor: EditorInput, toIndex: number): void;
 	closeEditor(editor: EditorInput): void;
 	closeEditors(except: EditorInput, direction?: Direction): void;
 	closeAllEditors(): void;
@@ -68,10 +68,6 @@ export interface IEditorOpenOptions {
 	active?: boolean;
 }
 
-/// --- API-End ----
-
-// Move Editor
-
 export enum Direction {
 	LEFT,
 	RIGHT
@@ -103,9 +99,12 @@ export class EditorGroup implements IEditorGroup {
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
 
+	private toDispose: IDisposable[];
+
 	private _onEditorActivated: Emitter<EditorInput>;
 	private _onEditorOpened: Emitter<EditorInput>;
 	private _onEditorClosed: Emitter<EditorInput>;
+	private _onEditorMoved: Emitter<EditorInput>;
 	private _onEditorPinned: Emitter<EditorInput>;
 	private _onEditorUnpinned: Emitter<EditorInput>;
 
@@ -115,6 +114,7 @@ export class EditorGroup implements IEditorGroup {
 	) {
 		this.editors = [];
 		this.mru = [];
+		this.toDispose = [];
 
 		if (typeof arg1 === 'object') {
 			this.deserialize(arg1);
@@ -125,8 +125,11 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
 		this._onEditorClosed = new Emitter<EditorInput>();
+		this._onEditorMoved = new Emitter<EditorInput>();
 		this._onEditorPinned = new Emitter<EditorInput>();
 		this._onEditorUnpinned = new Emitter<EditorInput>();
+
+		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned);
 	}
 
 	public get label(): string {
@@ -147,6 +150,10 @@ export class EditorGroup implements IEditorGroup {
 
 	public get onEditorClosed(): Event<EditorInput> {
 		return this._onEditorClosed.event;
+	}
+
+	public get onEditorMoved(): Event<EditorInput> {
+		return this._onEditorMoved.event;
 	}
 
 	public get onEditorPinned(): Event<EditorInput> {
@@ -305,6 +312,20 @@ export class EditorGroup implements IEditorGroup {
 		// Optimize: close all non active editors first to produce less upstream work
 		this.mru.filter(e => e !== this.active).forEach(e => this.closeEditor(e));
 		this.closeEditor(this.active);
+	}
+
+	public moveEditor(editor: EditorInput, toIndex: number): void {
+		const index = this.indexOf(editor);
+		if (index < 0) {
+			return;
+		}
+
+		// Move
+		this.editors.splice(index, 1);
+		this.editors.splice(toIndex, 0, editor);
+
+		// Event
+		this._onEditorMoved.fire(editor);
 	}
 
 	public setActive(editor: EditorInput): void {
@@ -472,11 +493,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public dispose(): void {
-		this._onEditorActivated.dispose();
-		this._onEditorClosed.dispose();
-		this._onEditorOpened.dispose();
-		this._onEditorPinned.dispose();
-		this._onEditorUnpinned.dispose();
+		dispose(this.toDispose);
 	}
 }
 
@@ -513,10 +530,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupActivated = new Emitter<EditorGroup>();
 		this._onGroupMoved = new Emitter<EditorGroup>();
 
-		this.toDispose.push(this._onGroupOpened);
-		this.toDispose.push(this._onGroupClosed);
-		this.toDispose.push(this._onGroupActivated);
-		this.toDispose.push(this._onGroupMoved);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved);
 
 		this.load();
 		this.registerListeners();

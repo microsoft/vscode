@@ -40,6 +40,7 @@ interface GroupEvents {
 	closed: EditorInput[];
 	pinned: EditorInput[];
 	unpinned: EditorInput[];
+	moved: EditorInput[];
 }
 
 function modelListener(model: IEditorStacksModel): ModelEvents {
@@ -64,7 +65,8 @@ function groupListener(group: IEditorGroup): GroupEvents {
 		closed: [],
 		activated: [],
 		pinned: [],
-		unpinned: []
+		unpinned: [],
+		moved: []
 	};
 
 	group.onEditorOpened(e => groupEvents.opened.push(e));
@@ -72,6 +74,7 @@ function groupListener(group: IEditorGroup): GroupEvents {
 	group.onEditorActivated(e => groupEvents.activated.push(e));
 	group.onEditorPinned(e => groupEvents.pinned.push(e));
 	group.onEditorUnpinned(e => groupEvents.unpinned.push(e));
+	group.onEditorMoved(e => groupEvents.moved.push(e));
 
 	return groupEvents;
 }
@@ -593,6 +596,50 @@ suite('Editor Stacks Model', () => {
 
 		assert.ok(!group.activeEditor);
 		assert.equal(group.count, 0);
+	});
+
+	test('Stack - Multiple Editors - move editor', function () {
+		const model = create();
+		const group = model.openGroup('group');
+		const events = groupListener(group);
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		const input4 = input();
+		const input5 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+
+		group.moveEditor(input1, 1);
+
+		assert.equal(events.moved[0], input1);
+		assert.equal(group.getEditors()[0], input2);
+		assert.equal(group.getEditors()[1], input1);
+
+		group.setActive(input1);
+		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input4, { pinned: true, active: true });
+		group.openEditor(input5, { pinned: true, active: true });
+
+		group.moveEditor(input4, 0);
+
+		assert.equal(events.moved[1], input4);
+		assert.equal(group.getEditors()[0], input4);
+		assert.equal(group.getEditors()[1], input2);
+		assert.equal(group.getEditors()[2], input1);
+		assert.equal(group.getEditors()[3], input3);
+		assert.equal(group.getEditors()[4], input5);
+
+		group.moveEditor(input4, 3);
+		group.moveEditor(input2, 1);
+
+		assert.equal(group.getEditors()[0], input1);
+		assert.equal(group.getEditors()[1], input2);
+		assert.equal(group.getEditors()[2], input3);
+		assert.equal(group.getEditors()[3], input4);
+		assert.equal(group.getEditors()[4], input5);
 	});
 
 	test('Stack - Multiple Editors - Pinned & Non Active', function () {
