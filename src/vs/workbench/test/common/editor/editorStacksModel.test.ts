@@ -600,6 +600,62 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 3);
 	});
 
+	test('Stack - Multiple Editors - Close Others, Close Left, Close Right', function () {
+		const model = create();
+		const group = model.openGroup('group');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		const input4 = input();
+		const input5 = input();
+
+		group.openEditor(input1, { active: true, pinned: true });
+		group.openEditor(input2, { active: true, pinned: true });
+		group.openEditor(input3, { active: true, pinned: true });
+		group.openEditor(input4, { active: true, pinned: true });
+		group.openEditor(input5, { active: true, pinned: true });
+
+		// Close Others
+		group.closeEditors(group.activeEditor);
+		assert.equal(group.activeEditor, input5);
+		assert.equal(group.count, 1);
+
+		group.closeAllEditors();
+		group.openEditor(input1, { active: true, pinned: true });
+		group.openEditor(input2, { active: true, pinned: true });
+		group.openEditor(input3, { active: true, pinned: true });
+		group.openEditor(input4, { active: true, pinned: true });
+		group.openEditor(input5, { active: true, pinned: true });
+		group.setActive(input3);
+
+		// Close Left
+		assert.equal(group.activeEditor, input3);
+		group.closeEditors(group.activeEditor, Direction.LEFT);
+		assert.equal(group.activeEditor, input3);
+		assert.equal(group.count, 3);
+		assert.equal(group.getEditors()[0], input3);
+		assert.equal(group.getEditors()[1], input4);
+		assert.equal(group.getEditors()[2], input5);
+
+		group.closeAllEditors();
+		group.openEditor(input1, { active: true, pinned: true });
+		group.openEditor(input2, { active: true, pinned: true });
+		group.openEditor(input3, { active: true, pinned: true });
+		group.openEditor(input4, { active: true, pinned: true });
+		group.openEditor(input5, { active: true, pinned: true });
+		group.setActive(input3);
+
+		// Close Right
+		assert.equal(group.activeEditor, input3);
+		group.closeEditors(group.activeEditor, Direction.RIGHT);
+		assert.equal(group.activeEditor, input3);
+		assert.equal(group.count, 3);
+		assert.equal(group.getEditors()[0], input1);
+		assert.equal(group.getEditors()[1], input2);
+		assert.equal(group.getEditors()[2], input3);
+	});
+
 	test('Stack - Multiple Editors - real user example', function () {
 		const model = create();
 		const group = model.openGroup('group');

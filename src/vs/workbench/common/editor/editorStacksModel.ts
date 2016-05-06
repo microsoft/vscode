@@ -32,6 +32,7 @@ export interface IEditorGroup {
 	getEditors(mru?: boolean): EditorInput[];
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
 	closeEditor(editor: EditorInput): void;
+	closeEditors(except: EditorInput, direction?: Direction): void;
 	closeAllEditors(): void;
 	setActive(editor: EditorInput): void;
 	isActive(editor: EditorInput): boolean;
@@ -66,8 +67,6 @@ export interface IEditorOpenOptions {
 
 /// --- API-End ----
 
-// Close Others
-// Close Editors to the Right
 // Move Editor
 // Move Group
 
@@ -271,6 +270,32 @@ export class EditorGroup implements IEditorGroup {
 
 		// Event
 		this._onEditorClosed.fire(editor);
+	}
+
+	public closeEditors(except: EditorInput, direction: Direction): void {
+		const index = this.indexOf(except);
+		if (index === -1) {
+			return; // not found
+		}
+
+		// Close to the left
+		if (direction === Direction.LEFT) {
+			for (let i = index - 1; i >= 0; i--) {
+				this.closeEditor(this.editors[i]);
+			}
+		}
+
+		// Close to the right
+		else if (direction === Direction.RIGHT) {
+			for (let i = this.editors.length - 1; i > index; i--) {
+				this.closeEditor(this.editors[i]);
+			}
+		}
+
+		// Both directions
+		else {
+			this.mru.filter(e => e !== except).forEach(e => this.closeEditor(e));
+		}
 	}
 
 	public closeAllEditors(): void {
