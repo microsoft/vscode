@@ -7,12 +7,11 @@
 import errors = require('vs/base/common/errors');
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
-import {IEnvironment} from 'vs/platform/workspace/common/workspace';
 import {AIAdapter, IAIAdapter} from 'vs/base/node/aiAdapter';
 import winreg = require('winreg');
 import os = require('os');
 
-namespace StorageKeys {
+export namespace StorageKeys {
 	export const sqmUserId: string = 'telemetry.sqm.userId';
 	export const sqmMachineId: string = 'telemetry.sqm.machineId';
 	export const lastSessionDate: string = 'telemetry.lastSessionDate';
@@ -21,8 +20,7 @@ namespace StorageKeys {
 
 export class AppInsightsAppender implements ITelemetryAppender {
 
-	public static EVENT_NAME_PREFIX: string = 'monacoworkbench';
-
+	private static EVENT_NAME_PREFIX: string = 'monacoworkbench';
 	private static SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
 	private storageService: IStorageService;
@@ -33,32 +31,27 @@ export class AppInsightsAppender implements ITelemetryAppender {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		env: IEnvironment,
-		_testing_client?: any
+		config: {key: string; asimovKey: string},
+		_testing_client?: IAIAdapter
 	) {
 		this.commonProperties = {};
 		this.commonMetrics = {};
 		this.storageService = storageService;
 
-		let key = env.aiConfig && env.aiConfig.key;
-		let asimovKey = env.aiConfig && env.aiConfig.asimovKey;
-
-		// for test
+		let {key, asimovKey} = config;
 		if (_testing_client) {
+			// for test
 			this.appInsights = _testing_client;
-
 			if (asimovKey) {
 				this.appInsightsVortex = _testing_client;
 			}
-			return;
-		}
-
-		if (key) {
-			this.appInsights = new AIAdapter(AppInsightsAppender.EVENT_NAME_PREFIX, undefined, key);
-		}
-
-		if (asimovKey) {
-			this.appInsightsVortex = new AIAdapter(AppInsightsAppender.EVENT_NAME_PREFIX, undefined, asimovKey);
+		} else {
+			if (key) {
+				this.appInsights = new AIAdapter(AppInsightsAppender.EVENT_NAME_PREFIX, undefined, key);
+			}
+			if (asimovKey) {
+				this.appInsightsVortex = new AIAdapter(AppInsightsAppender.EVENT_NAME_PREFIX, undefined, asimovKey);
+			}
 		}
 
 		this.loadAddtionaProperties();

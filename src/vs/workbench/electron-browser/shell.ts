@@ -209,7 +209,7 @@ export class WorkbenchShell {
 				extensionsRoot: this.configuration.env.userExtensionsHome,
 				version: this.configuration.env.version,
 				commitHash: this.configuration.env.commitHash,
-				appender: [new AppInsightsAppender(this.storageService, this.configuration.env)]
+				appender: [new AppInsightsAppender(this.storageService, this.configuration.env.aiConfig)]
 			});
 		} else {
 			this.telemetryService = NullTelemetryService;

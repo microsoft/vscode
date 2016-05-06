@@ -6,7 +6,8 @@
 
 import * as assert from 'assert';
 import {IAIAdapter} from 'vs/base/node/aiAdapter';
-import {AppInsightsAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
+import {AppInsightsAppender, StorageKeys} from 'vs/platform/telemetry/node/appInsightsAppender';
+import {TestStorageService} from 'vs/workbench/test/browser/servicesTestUtils';
 
 interface IAppInsightsEvent {
 	eventName: string;
@@ -19,7 +20,7 @@ class AIAdapterMock implements IAIAdapter {
 	public IsTrackingPageView: boolean = false;
 	public exceptions: any[] =[];
 
-	constructor(private prefix: string, private eventPrefix: string, client?: any) {
+	constructor(private prefix: string) {
 	}
 
 	public log(eventName: string, data?: any): void {
@@ -37,27 +38,13 @@ class AIAdapterMock implements IAIAdapter {
 	}
 }
 
-let envKeyNoAsimov: any = {
-	aiConfig: {
-		key: '123',
-		asimovKey: undefined
-	}
-};
-
-let envKeyAsimov: any = {
-	aiConfig: {
-		key: '123',
-		asimovKey: 'AIF-123'
-	}
-};
-
 suite('Telemetry - AppInsightsTelemetryAppender', () => {
 	var appInsightsMock: AIAdapterMock;
 	var appender: AppInsightsAppender;
 
 	setup(() => {
-		appInsightsMock = new AIAdapterMock(AppInsightsAppender.EVENT_NAME_PREFIX, AppInsightsAppender.EVENT_NAME_PREFIX);
-		appender = new AppInsightsAppender(null, envKeyNoAsimov, appInsightsMock);
+		appInsightsMock = new AIAdapterMock('testPrefix');
+		appender = new AppInsightsAppender(new TestStorageService(), { key: '123', asimovKey: undefined }, appInsightsMock);
 	});
 
 	teardown(() => {
@@ -68,7 +55,35 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 		appender.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, AppInsightsAppender.EVENT_NAME_PREFIX+'/testEvent');
+		assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
+	});
+
+	test('test additional properties', () => {
+		appender.log('testEvent');
+		assert.equal(appInsightsMock.events.length, 1);
+
+		let [first] = appInsightsMock.events;
+		assert.equal(first.eventName, 'testPrefix/testEvent');
+		assert.ok('common.osVersion' in first.data);
+		assert.ok('common.isNewSession' in first.data);
+		assert.ok('common.firstSessionDate' in first.data);
+		assert.ok(!('common.lastSessionDate' in first.data)); // conditional, see below
+		// assert.ok('common.version.shell' in first.data); // only when running on electron
+		// assert.ok('common.version.renderer' in first.data);
+		if (process.platform === 'win32') { // SQM only on windows
+			assert.ok('common.sqm.userid' in first.data);
+			assert.ok('common.sqm.machineid' in first.data);
+		}
+	});
+
+	test('test additional properties with storage data', () => {
+		const storage = new TestStorageService();
+		storage.store(StorageKeys.lastSessionDate, 'somevalue');
+		let appender = new AppInsightsAppender(storage, { key: '123', asimovKey: undefined }, appInsightsMock);
+		appender.log('testEvent');
+		let [first] = appInsightsMock.events;
+		assert.ok('common.lastSessionDate' in first.data); // conditional
+		appender.dispose();
 	});
 
 	test('Event with data', () => {
@@ -79,7 +94,7 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 		});
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, AppInsightsAppender.EVENT_NAME_PREFIX+'/testEvent');
+		assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
 
 		assert.equal(appInsightsMock.events[0].data['title'], 'some title');
 		assert.equal(appInsightsMock.events[0].data['width'], 100);
@@ -88,14 +103,14 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 	});
 
 	test('Test asimov', () => {
-		appender = new AppInsightsAppender(null, envKeyAsimov, appInsightsMock);
+		appender = new AppInsightsAppender(new TestStorageService(), { key: '123', asimovKey: 'AIF-123' }, appInsightsMock);
 
 		appender.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 2);
-		assert.equal(appInsightsMock.events[0].eventName, AppInsightsAppender.EVENT_NAME_PREFIX+'/testEvent');
+		assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
 
 		// test vortex
-		assert.equal(appInsightsMock.events[1].eventName, AppInsightsAppender.EVENT_NAME_PREFIX+'/testEvent');
+		assert.equal(appInsightsMock.events[1].eventName, 'testPrefix/testEvent');
 	});
 });
