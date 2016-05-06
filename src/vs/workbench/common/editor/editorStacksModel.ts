@@ -448,6 +448,14 @@ export class EditorGroup implements IEditorGroup {
 		this.active = this.mru[0];
 		this.preview = this.editors[data.preview];
 	}
+
+	public dispose(): void {
+		this._onEditorActivated.dispose();
+		this._onEditorClosed.dispose();
+		this._onEditorOpened.dispose();
+		this._onEditorPinned.dispose();
+		this._onEditorUnpinned.dispose();
+	}
 }
 
 interface ISerializedEditorStacksModel {
@@ -476,9 +484,14 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.toDispose = [];
 
 		this._groups = [];
+
 		this._onGroupOpened = new Emitter<EditorGroup>();
 		this._onGroupClosed = new Emitter<EditorGroup>();
 		this._onGroupActivated = new Emitter<EditorGroup>();
+
+		this.toDispose.push(this._onGroupOpened);
+		this.toDispose.push(this._onGroupClosed);
+		this.toDispose.push(this._onGroupActivated);
 
 		this.load();
 		this.registerListeners();
@@ -557,8 +570,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 			}
 		}
 
-		// Close Editors in Group first
+		// Close Editors in Group first and dispose then
 		group.closeAllEditors();
+		group.dispose();
 
 		// Splice from groups
 		this._groups.splice(index, 1);
