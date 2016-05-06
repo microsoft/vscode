@@ -11,7 +11,6 @@ import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {escapeRegExpCharacters} from 'vs/base/common/strings';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
@@ -205,10 +204,8 @@ export class WorkbenchShell {
 
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
-				cleanupPatterns: [
-					[new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), ''],
-					[new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi'), '']
-				],
+				appRoot: this.configuration.env.appRoot,
+				extensionsRoot: this.configuration.env.userExtensionsHome,
 				version: this.configuration.env.version,
 				commitHash: this.configuration.env.commitHash
 			});

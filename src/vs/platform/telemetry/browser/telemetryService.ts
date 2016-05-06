@@ -7,6 +7,7 @@
 
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
+import {escapeRegExpCharacters} from 'vs/base/common/strings';
 import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import ErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
@@ -17,14 +18,13 @@ import {withDefaults, cloneAndChange} from 'vs/base/common/objects';
 
 export interface ITelemetryServiceConfig {
 	userOptIn?: boolean;
-
 	enableHardIdle?: boolean;
 	enableSoftIdle?: boolean;
 	sessionID?: string;
 	commitHash?: string;
 	version?: string;
-
-	cleanupPatterns?: [RegExp,string][];
+	appRoot?: string;
+	extensionsRoot?: string;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -50,6 +50,7 @@ export class TelemetryService implements ITelemetryService {
 	private _startTime = new Date();
 	private _optInFriendly = ['optInStatus']; //holds a cache of predefined events that can be sent regardress of user optin status
 	private _userIdHash: string;
+	private _cleanupPatterns: [RegExp, string][]= [];
 
 	constructor(config?: ITelemetryServiceConfig) {
 		this._configuration = withDefaults(config, <ITelemetryServiceConfig>{
@@ -57,14 +58,20 @@ export class TelemetryService implements ITelemetryService {
 			sessionID: uuid.generateUuid() + Date.now(),
 			enableHardIdle: true,
 			enableSoftIdle: true,
-			userOptIn: true,
+			userOptIn: true
 		});
 
 		// static cleanup patterns for:
 		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
 		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		this._configuration.cleanupPatterns.push(
+		if (this._configuration.appRoot) {
+			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(this._configuration.appRoot), 'gi'), '']);
+		}
+		if (this._configuration.extensionsRoot) {
+			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(this._configuration.extensionsRoot), 'gi'), '']);
+		}
+		this._cleanupPatterns.push(
 			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
 			[/file:\/\/\/.*/gi, ''],
 			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
@@ -186,7 +193,7 @@ export class TelemetryService implements ITelemetryService {
 	private _cleanupInfo(stack: string): string {
 
 		// sanitize with configured cleanup patterns
-		for (let tuple of this._configuration.cleanupPatterns) {
+		for (let tuple of this._cleanupPatterns) {
 			let [regexp, replaceValue] = tuple;
 			stack = stack.replace(regexp, replaceValue);
 		}
