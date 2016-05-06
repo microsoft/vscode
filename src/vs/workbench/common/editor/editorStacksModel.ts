@@ -7,14 +7,21 @@
 
 import Event, {Emitter} from 'vs/base/common/event';
 import {EditorInput} from 'vs/workbench/common/editor';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {dispose, IDisposable} from 'vs/base/common/lifecycle';
+import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {Registry} from 'vs/platform/platform';
 
 /// --- API-Start ----
 
 export interface IEditorGroup {
 
+	label: string;
+	count: number;
 	activeEditor: EditorInput;
 	previewEditor: EditorInput;
-	count: number;
 
 	onEditorActivated: Event<EditorInput>;
 	onEditorOpened: Event<EditorInput>;
@@ -88,7 +95,21 @@ export function setOpenEditorDirection(dir: Direction): void {
 	DEFAULT_OPEN_EDITOR_DIRECTION = dir;
 }
 
+interface ISerializedEditorInput {
+	id: string;
+	value: string;
+}
+
+interface ISerializedEditorGroup {
+	label: string;
+	editors: ISerializedEditorInput[];
+	mru: number[];
+	preview: number;
+}
+
 export class EditorGroup implements IEditorGroup {
+	private _label: string;
+
 	private editors: EditorInput[];
 	private mru: EditorInput[];
 
@@ -101,15 +122,28 @@ export class EditorGroup implements IEditorGroup {
 	private _onEditorPinned: Emitter<EditorInput>;
 	private _onEditorUnpinned: Emitter<EditorInput>;
 
-	constructor(private label: string) {
+	constructor(
+		arg1: string | ISerializedEditorGroup,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		this.editors = [];
 		this.mru = [];
+
+		if (typeof arg1 === 'object') {
+			this.deserialize(arg1);
+		} else {
+			this._label = arg1;
+		}
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
 		this._onEditorClosed = new Emitter<EditorInput>();
 		this._onEditorPinned = new Emitter<EditorInput>();
 		this._onEditorUnpinned = new Emitter<EditorInput>();
+	}
+
+	public get label(): string {
+		return this._label;
 	}
 
 	public get count(): number {
@@ -377,9 +411,58 @@ export class EditorGroup implements IEditorGroup {
 	private matches(editorA: EditorInput, editorB: EditorInput): boolean {
 		return !!editorA && !!editorB && editorA.matches(editorB);
 	}
+
+	public serialize(): ISerializedEditorGroup {
+		let registry = (<IEditorRegistry>Registry.as(Extensions.Editors));
+
+		// Serialize all editor inputs so that we can store them.
+		// Editors that cannot be serialized need to be ignored
+		// from mru, active and preview if any.
+		let serializableEditors: EditorInput[] = [];
+		let serializedEditors: ISerializedEditorInput[] = [];
+		this.editors.forEach(e => {
+			let factory = registry.getEditorInputFactory(e.getId());
+			if (factory) {
+				let value = factory.serialize(e);
+				if (typeof value === 'string') {
+					serializedEditors.push({ id: e.getId(), value });
+					serializableEditors.push(e);
+				}
+			}
+		});
+
+		const serializableMru = this.mru.filter(e => serializableEditors.indexOf(e) >= 0).map(e => serializableEditors.indexOf(e));
+
+		return {
+			label: this.label,
+			editors: serializedEditors,
+			mru: serializableMru,
+			preview: serializableEditors.indexOf(this.preview),
+		};
+	}
+
+	private deserialize(data: ISerializedEditorGroup): void {
+		let registry = (<IEditorRegistry>Registry.as(Extensions.Editors));
+
+		this._label = data.label;
+		this.editors = data.editors.map(e => registry.getEditorInputFactory(e.id).deserialize(this.instantiationService, e.value));
+		this.mru = data.mru.map(i => this.editors[i]);
+		this.active = this.mru[0];
+		this.preview = this.editors[data.preview];
+	}
+}
+
+interface ISerializedEditorStacksModel {
+	groups: ISerializedEditorGroup[];
+	active: number;
 }
 
 export class EditorStacksModel implements IEditorStacksModel {
+
+	private static STORAGE_KEY = 'editorStacks.model';
+
+	private toDispose: IDisposable[];
+
 	private _groups: EditorGroup[];
 	private active: EditorGroup;
 
@@ -387,11 +470,24 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupClosed: Emitter<EditorGroup>;
 	private _onGroupActivated: Emitter<EditorGroup>;
 
-	constructor() {
+	constructor(
+		@IStorageService private storageService: IStorageService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		this.toDispose = [];
+
 		this._groups = [];
 		this._onGroupOpened = new Emitter<EditorGroup>();
 		this._onGroupClosed = new Emitter<EditorGroup>();
 		this._onGroupActivated = new Emitter<EditorGroup>();
+
+		this.load();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.lifecycleService.onShutdown(() => this.onShutdown()));
 	}
 
 	public get onGroupOpened(): Event<EditorGroup> {
@@ -415,7 +511,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public openGroup(label: string): EditorGroup {
-		const group = new EditorGroup(label);
+		const group = this.instantiationService.createInstance(EditorGroup, label);
 
 		// First group
 		if (!this.active) {
@@ -478,5 +574,61 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	private indexOf(group: EditorGroup): number {
 		return this._groups.indexOf(group);
+	}
+
+	private save(): void {
+		let activeIndex = this.indexOf(this.active);
+		let activeIsEmptyGroup = false;
+
+		// Exclude empty groups (can happen if an editor cannot be serialized)
+		let serializedGroups = this._groups.map(g => g.serialize());
+		let serializedNonEmptyGroups: ISerializedEditorGroup[] = [];
+		serializedGroups.forEach((g, index) => {
+
+			// non empty group
+			if (g.editors.length > 0) {
+				serializedNonEmptyGroups.push(g);
+			}
+
+			// empty group
+			else {
+				if (activeIndex === index) {
+					activeIsEmptyGroup = true; // our active group is empty after serialization!
+				}
+			}
+		});
+
+		// Determine serializable active index
+		let serializableActiveIndex: number;
+		if (activeIsEmptyGroup && serializedGroups.length > 0) {
+			serializableActiveIndex = 0; // just make first group active if active is empty and we have other groups to pick from
+		} else if (activeIsEmptyGroup) {
+			serializableActiveIndex = void 0; // there are no groups to make active
+		} else {
+			serializableActiveIndex = activeIndex; // active group is not empty and can be serialized
+		}
+
+		const serialized: ISerializedEditorStacksModel = {
+			groups: serializedNonEmptyGroups,
+			active: serializableActiveIndex
+		};
+
+		this.storageService.store(EditorStacksModel.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE);
+	}
+
+	private load(): void {
+		const modelRaw = this.storageService.get(EditorStacksModel.STORAGE_KEY, StorageScope.WORKSPACE);
+		if (modelRaw) {
+			const serialized: ISerializedEditorStacksModel = JSON.parse(modelRaw);
+
+			this._groups = serialized.groups.map(s => this.instantiationService.createInstance(EditorGroup, s));
+			this.active = this._groups[serialized.active];
+		}
+	}
+
+	private onShutdown(): void {
+		this.save();
+
+		dispose(this.toDispose);
 	}
 }

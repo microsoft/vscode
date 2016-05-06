@@ -8,9 +8,20 @@
 import * as assert from 'assert';
 import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setOpenEditorDirection, Direction} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
+import {TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {IStorageService} from 'vs/platform/storage/common/storage';
+import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
 function create(): IEditorStacksModel {
-	return new EditorStacksModel();
+	let services = new ServiceCollection();
+	services.set(IStorageService, new TestStorageService());
+	services.set(ILifecycleService, NullLifecycleService);
+
+	let inst = new InstantiationService(services);
+
+	return inst.createInstance(EditorStacksModel);
 }
 
 interface ModelEvents {
@@ -74,7 +85,7 @@ function input(id = String(index++)): EditorInput {
 
 suite('Editor Stacks Model', () => {
 
-	teardown(() =>  {
+	teardown(() => {
 		index = 1;
 		setOpenEditorDirection(Direction.RIGHT);
 	});
