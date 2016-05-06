@@ -42,6 +42,10 @@ export class RemoteTelemetryService implements ITelemetryService {
 		this._proxy = threadService.getRemotable(RemoteTelemetryServiceHelper);
 	}
 
+	get isOptedIn(): boolean {
+		throw notImplemented();
+	}
+
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return this._proxy.$getTelemetryInfo();
 	}

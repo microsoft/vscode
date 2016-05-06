@@ -114,6 +114,10 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
+	get isOptedIn(): boolean {
+		return this._configuration.userOptIn;
+	}
+
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as(this._telemetryInfo);
 	}

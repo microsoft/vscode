@@ -33,6 +33,8 @@ export interface ITelemetryService {
 
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
+	isOptedIn: boolean;
+
 	addTelemetryAppender(appender: ITelemetryAppender): IDisposable;
 }
 
@@ -66,6 +68,7 @@ export const NullTelemetryService: ITelemetryService = {
 	timedPublicLog(name: string, data?: any): ITimerEvent { return nullEvent; },
 	publicLog(eventName: string, data?: any): void { },
 	addTelemetryAppender(appender): IDisposable { return { dispose() { } }; },
+	isOptedIn: true,
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({
 			instanceId: 'someValue.instanceId',
