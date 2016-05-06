@@ -2106,7 +2106,9 @@ export interface IEditorWhitespace {
 /**
  * A description for the overview ruler position.
  */
-export interface IOverviewRulerPosition {
+export class OverviewRulerPosition {
+	_overviewRulerPositionBrand: void;
+
 	/**
 	 * Width of the overview ruler
 	 */
@@ -2123,6 +2125,31 @@ export interface IOverviewRulerPosition {
 	 * Right position for the overview ruler
 	 */
 	right:number;
+
+	constructor(source:{
+		width:number;
+		height:number;
+		top:number;
+		right:number;
+	}) {
+		this.width = source.width|0;
+		this.height = source.height|0;
+		this.top = source.top|0;
+		this.right = source.right|0;
+	}
+
+	public equals(other:OverviewRulerPosition): boolean {
+		return (
+			this.width === other.width
+			&& this.height === other.height
+			&& this.top === other.top
+			&& this.right === other.right
+		);
+	}
+
+	public clone(): OverviewRulerPosition {
+		return new OverviewRulerPosition(this);
+	}
 }
 
 /**
@@ -2202,7 +2229,7 @@ export interface IEditorLayoutInfo {
 	/**
 	 * The position of the overview ruler.
 	 */
-	overviewRuler:IOverviewRulerPosition;
+	overviewRuler:OverviewRulerPosition;
 }
 
 /**

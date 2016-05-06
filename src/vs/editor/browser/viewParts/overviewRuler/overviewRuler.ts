@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IConfigurationChangedEvent, IOverviewRulerPosition, IScrollEvent} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, OverviewRulerPosition, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {IOverviewRuler, OverviewRulerZone} from 'vs/editor/browser/editorBrowser';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
@@ -58,7 +58,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return this._overviewRuler.getDomNode();
 	}
 
-	public setLayout(position:IOverviewRulerPosition): void {
+	public setLayout(position:OverviewRulerPosition): void {
 		this._overviewRuler.setLayout(position, true);
 	}
 

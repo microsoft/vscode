@@ -6,7 +6,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {IOverviewRulerPosition, OverviewRulerLane} from 'vs/editor/common/editorCommon';
+import {OverviewRulerPosition, OverviewRulerLane} from 'vs/editor/common/editorCommon';
 import {OverviewRulerZone, ColorZone} from 'vs/editor/browser/editorBrowser';
 
 class ZoneManager {
@@ -302,7 +302,7 @@ export class OverviewRulerImpl {
 		this._zoneManager = null;
 	}
 
-	public setLayout(position:IOverviewRulerPosition, render:boolean): void {
+	public setLayout(position:OverviewRulerPosition, render:boolean): void {
 		StyleMutator.setTop(this._domNode, position.top);
 		StyleMutator.setRight(this._domNode, position.right);
 

@@ -459,7 +459,7 @@ export interface IOverviewRuler {
 	getDomNode(): HTMLElement;
 	dispose(): void;
 	setZones(zones:OverviewRulerZone[]): void;
-	setLayout(position:editorCommon.IOverviewRulerPosition): void;
+	setLayout(position:editorCommon.OverviewRulerPosition): void;
 }
 /**
  * A rich code editor.

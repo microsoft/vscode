@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IEditorLayoutInfo} from 'vs/editor/common/editorCommon';
+import {IEditorLayoutInfo, OverviewRulerPosition} from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider, IEditorLayoutProviderOpts} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
@@ -53,12 +53,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 800,
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -100,12 +100,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 11,
 			horizontalScrollbarHeight: 12,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 13,
 				width: 11,
 				height: (800 - 2 * 13),
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -147,12 +147,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 800,
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -194,12 +194,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -241,12 +241,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -288,12 +288,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -335,12 +335,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -382,12 +382,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -429,12 +429,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
+			})
 		});
 	});
 
@@ -476,12 +476,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
+			})
 		});
 	});
 });

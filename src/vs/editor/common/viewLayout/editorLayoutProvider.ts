@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorLayoutInfo, IOverviewRulerPosition} from 'vs/editor/common/editorCommon';
+import {IEditorLayoutInfo, OverviewRulerPosition} from 'vs/editor/common/editorCommon';
 
 export interface IEditorLayoutProviderOpts {
 	outerWidth:number;
@@ -24,35 +24,6 @@ export interface IEditorLayoutProviderOpts {
 	verticalScrollbarHasArrows:boolean;
 	scrollbarArrowSize: number;
 	horizontalScrollbarHeight:number;
-}
-
-export class OverviewRulerPosition implements IOverviewRulerPosition {
-	_overviewRulerPositionBrand: void;
-
-	public width:number;
-	public height:number;
-	public top:number;
-	public right:number;
-
-	constructor(source:IOverviewRulerPosition) {
-		this.width = source.width|0;
-		this.height = source.height|0;
-		this.top = source.top|0;
-		this.right = source.right|0;
-	}
-
-	public equals(other:OverviewRulerPosition): boolean {
-		return (
-			this.width === other.width
-			&& this.height === other.height
-			&& this.top === other.top
-			&& this.right === other.right
-		);
-	}
-
-	public clone(): OverviewRulerPosition {
-		return new OverviewRulerPosition(this);
-	}
 }
 
 export class EditorLayoutInfo implements IEditorLayoutInfo {
@@ -93,7 +64,7 @@ export class EditorLayoutInfo implements IEditorLayoutInfo {
 		this.contentHeight = source.contentHeight|0;
 		this.verticalScrollbarWidth = source.verticalScrollbarWidth|0;
 		this.horizontalScrollbarHeight = source.horizontalScrollbarHeight|0;
-		this.overviewRuler = new OverviewRulerPosition(source.overviewRuler);
+		this.overviewRuler = source.overviewRuler.clone();
 	}
 
 	public equals(other:EditorLayoutInfo): boolean {
@@ -183,12 +154,12 @@ export class EditorLayoutProvider {
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			horizontalScrollbarHeight: horizontalScrollbarHeight,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: verticalArrowSize,
 				width: verticalScrollbarWidth,
 				height: (outerHeight - 2 * verticalArrowSize),
 				right: 0
-			}
+			})
 		});
 	}
 

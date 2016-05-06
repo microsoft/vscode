@@ -653,18 +653,18 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		var freeSpace = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH - 2*DiffEditorWidget.ONE_OVERVIEW_WIDTH;
 		var layoutInfo = this.modifiedEditor.getLayoutInfo();
 		if (layoutInfo) {
-			this._originalOverviewRuler.setLayout({
+			this._originalOverviewRuler.setLayout(new editorCommon.OverviewRulerPosition({
 				top: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				right: freeSpace + DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				height: this._height
-			});
-			this._modifiedOverviewRuler.setLayout({
+			}));
+			this._modifiedOverviewRuler.setLayout(new editorCommon.OverviewRulerPosition({
 				top: 0,
 				right: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				height: this._height
-			});
+			}));
 		}
 	}
 
