@@ -148,6 +148,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
 					this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
 				}
+				if (error && error.showUser === false) {
+					return TPromise.as(null);
+				}
 
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
