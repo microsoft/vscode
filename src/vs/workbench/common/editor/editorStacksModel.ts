@@ -66,6 +66,7 @@ export interface IEditorStacksModel {
 export interface IEditorOpenOptions {
 	pinned?: boolean;
 	active?: boolean;
+	index?: number;
 }
 
 export enum Direction {
@@ -197,8 +198,13 @@ export class EditorGroup implements IEditorGroup {
 			if (makePinned || !this.preview) {
 				const indexOfActive = this.indexOf(this.active);
 
+				// Insert into specific position
+				if (options && typeof options.index === 'number') {
+					this.splice(options.index, false, editor);
+				}
+
 				// Insert to the RIGHT of active editor
-				if (CONFIG_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
+				else if (CONFIG_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
 					this.splice(indexOfActive + 1, false, editor);
 				}
 
@@ -245,6 +251,11 @@ export class EditorGroup implements IEditorGroup {
 			// Activate it
 			if (makeActive) {
 				this.setActive(editor);
+			}
+
+			// Respect index
+			if (options && typeof options.index === 'number') {
+				this.moveEditor(editor, options.index);
 			}
 		}
 	}

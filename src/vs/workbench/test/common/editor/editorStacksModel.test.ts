@@ -642,10 +642,59 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.getEditors()[4], input5);
 	});
 
+	test('Stack - Multiple Editors - move editor across groups', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group1');
+
+		const g1_input1 = input();
+		const g1_input2 = input();
+		const g2_input1 = input();
+
+		group1.openEditor(g1_input1, { active: true, pinned: true });
+		group1.openEditor(g1_input2, { active: true, pinned: true });
+		group2.openEditor(g2_input1, { active: true, pinned: true });
+
+		// A move across groups is a close in the one group and an open in the other group at a specific index
+		group2.closeEditor(g2_input1);
+		group1.openEditor(g2_input1, { active: true, pinned: true, index: 1 });
+
+		assert.equal(group1.count, 3);
+		assert.equal(group1.getEditors()[0], g1_input1);
+		assert.equal(group1.getEditors()[1], g2_input1);
+		assert.equal(group1.getEditors()[2], g1_input2);
+	});
+
+	test('Stack - Multiple Editors - move editor across groups (input already exists in group 1)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group1');
+
+		const g1_input1 = input();
+		const g1_input2 = input();
+		const g1_input3 = input();
+		const g2_input1 = g1_input2;
+
+		group1.openEditor(g1_input1, { active: true, pinned: true });
+		group1.openEditor(g1_input2, { active: true, pinned: true });
+		group1.openEditor(g1_input3, { active: true, pinned: true });
+		group2.openEditor(g2_input1, { active: true, pinned: true });
+
+		// A move across groups is a close in the one group and an open in the other group at a specific index
+		group2.closeEditor(g2_input1);
+		group1.openEditor(g2_input1, { active: true, pinned: true, index: 0 });
+
+		assert.equal(group1.count, 3);
+		assert.equal(group1.getEditors()[0], g1_input2);
+		assert.equal(group1.getEditors()[1], g1_input1);
+		assert.equal(group1.getEditors()[2], g1_input3);
+	});
+
 	test('Stack - Multiple Editors - Pinned & Non Active', function () {
 		const model = create();
 		const group = model.openGroup('group');
-
 
 		const input1 = input();
 		group.openEditor(input1);
