@@ -23,6 +23,7 @@ import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/
 import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
+import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 export interface IEditorPart {
 	setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]>;
@@ -35,6 +36,7 @@ export interface IEditorPart {
 	getActiveEditorInput(): EditorInput;
 	moveEditor(from: Position, to: Position): void;
 	arrangeEditors(arrangement: EditorArrangement): void;
+	getStacksModel(): IEditorStacksModel;
 }
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
@@ -324,6 +326,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		return model.getAssociatedResource().toString() === input.resource.toString() ? model : null;
 	}
+
+	public getStacksModel(): IEditorStacksModel {
+		return this.editorPart.getStacksModel();
+	}
 }
 
 // Helper that implements IEditorPart through an instance of IEditorService
@@ -371,6 +377,10 @@ class EditorPartDelegate implements IEditorPart {
 
 	public closeEditors(othersOnly?: boolean): TPromise<void> {
 		return this.editorService.closeEditors(othersOnly);
+	}
+
+	public getStacksModel(): IEditorStacksModel {
+		return this.editorService.getStacksModel();
 	}
 }
 

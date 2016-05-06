@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 export enum EditorArrangement {
 	MINIMIZE_OTHERS,
@@ -115,4 +116,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input
 	 */
 	inputToType(input: IResourceInput): TPromise<IEditorInput>;
+
+	/**
+	 * Provides access to the editor stacks model
+	 */
+	getStacksModel(): IEditorStacksModel;
 }

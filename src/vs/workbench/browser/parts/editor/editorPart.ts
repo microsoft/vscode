@@ -40,6 +40,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IProgressService} from 'vs/platform/progress/common/progress';
+import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 const EDITOR_STATE_STORAGE_KEY = 'editorpart.editorState';
 
@@ -67,6 +68,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private dimension: Dimension;
 	private sideBySideControl: SideBySideEditorControl;
 	private memento: any;
+	private stacksModel:EditorStacksModel;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleInputs: EditorInput[];
@@ -118,6 +120,8 @@ export class EditorPart extends Part implements IEditorPart {
 
 		this.pendingEditorInputsToClose = [];
 		this.pendingEditorInputCloseTimeout = null;
+
+		this.stacksModel = this.instantiationService.createInstance(EditorStacksModel);
 	}
 
 	private createPositionArray(multiArray: boolean): any[] {
@@ -128,6 +132,10 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		return array;
+	}
+
+	public getStacksModel(): EditorStacksModel {
+		return this.stacksModel;
 	}
 
 	public getActiveEditorInput(): EditorInput {

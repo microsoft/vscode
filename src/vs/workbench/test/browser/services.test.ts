@@ -42,6 +42,7 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
+import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -109,6 +110,10 @@ class TestEditorPart implements IEditorPart {
 
 	public arrangeEditors(arrangement: EditorArrangement): void {
 		// Unsuported
+	}
+
+	public getStacksModel(): IEditorStacksModel {
+		return null; // Unsuported
 	}
 }
 
