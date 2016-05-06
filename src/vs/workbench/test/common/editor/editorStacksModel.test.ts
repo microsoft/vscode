@@ -695,8 +695,8 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model:IEditorStacksModel = inst.createInstance(EditorStacksModel);
-		const group = model.openGroup('group');
+		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+		let group = model.openGroup('group');
 
 		const input1 = input();
 		group.openEditor(input1);
@@ -714,10 +714,175 @@ suite('Editor Stacks Model', () => {
 		model = inst.createInstance(EditorStacksModel);
 
 		assert.equal(model.groups.length, 1);
+
+		group = model.activeGroup;
+
 		assert.equal(group.count, 1);
 		assert.equal(group.activeEditor.matches(input1), true);
 		assert.equal(group.previewEditor.matches(input1), true);
 		assert.equal(group.label, 'group');
 		assert.equal(group.isActive(input1), true);
+	});
+
+	test('Stack - Multiple Groups, Multiple editors - persist', function () {
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+
+		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+
+		let group1 = model.openGroup('group1');
+
+		const g1_input1 = input();
+		const g1_input2 = input();
+		const g1_input3 = input();
+
+		group1.openEditor(g1_input1, { active: true, pinned: true });
+		group1.openEditor(g1_input2, { active: true, pinned: false });
+		group1.openEditor(g1_input3, { active: false, pinned: true });
+
+		let group2 = model.openGroup('group2');
+
+		const g2_input1 = input();
+		const g2_input2 = input();
+		const g2_input3 = input();
+
+		group2.openEditor(g2_input1, { active: true, pinned: true });
+		group2.openEditor(g2_input2, { active: false, pinned: false });
+		group2.openEditor(g2_input3, { active: false, pinned: true });
+
+		assert.equal(model.groups.length, 2);
+		assert.equal(group1.count, 3);
+		assert.equal(group2.count, 3);
+		assert.equal(group1.activeEditor.matches(g1_input2), true);
+		assert.equal(group2.activeEditor.matches(g2_input1), true);
+		assert.equal(group1.previewEditor.matches(g1_input2), true);
+		assert.equal(group2.previewEditor.matches(g2_input2), true);
+		assert.equal(group1.label, 'group1');
+		assert.equal(group2.label, 'group2');
+
+		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
+		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
+		assert.equal(group1.getEditors(true)[2].matches(g1_input3), true);
+
+		assert.equal(group2.getEditors(true)[0].matches(g2_input1), true);
+		assert.equal(group2.getEditors(true)[1].matches(g2_input2), true);
+		assert.equal(group2.getEditors(true)[2].matches(g2_input3), true);
+
+		lifecycle.fireShutdown();
+
+		// Create model again - should load from storage
+		model = inst.createInstance(EditorStacksModel);
+
+		group1 = model.groups[0];
+		group2 = model.groups[1];
+
+		assert.equal(model.groups.length, 2);
+		assert.equal(group1.count, 3);
+		assert.equal(group2.count, 3);
+		assert.equal(group1.activeEditor.matches(g1_input2), true);
+		assert.equal(group2.activeEditor.matches(g2_input1), true);
+		assert.equal(group1.previewEditor.matches(g1_input2), true);
+		assert.equal(group2.previewEditor.matches(g2_input2), true);
+		assert.equal(group1.label, 'group1');
+		assert.equal(group2.label, 'group2');
+
+		assert.equal(group1.getEditors(true)[0].matches(g1_input2), true);
+		assert.equal(group1.getEditors(true)[1].matches(g1_input1), true);
+		assert.equal(group1.getEditors(true)[2].matches(g1_input3), true);
+
+		assert.equal(group2.getEditors(true)[0].matches(g2_input1), true);
+		assert.equal(group2.getEditors(true)[1].matches(g2_input2), true);
+		assert.equal(group2.getEditors(true)[2].matches(g2_input3), true);
+	});
+
+	test('Stack - Single group, multiple editors - persist (some not persistable)', function () {
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+
+		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+
+		let group = model.openGroup('group1');
+
+		const serializableInput1 = input();
+		const nonSerializableInput2 = input('2', true);
+		const serializableInput2 = input();
+
+		group.openEditor(serializableInput1, { active: true, pinned: true });
+		group.openEditor(nonSerializableInput2, { active: true, pinned: false });
+		group.openEditor(serializableInput2, { active: false, pinned: true });
+
+		assert.equal(group.count, 3);
+		assert.equal(group.activeEditor.matches(nonSerializableInput2), true);
+		assert.equal(group.previewEditor.matches(nonSerializableInput2), true);
+
+		assert.equal(group.getEditors(true)[0].matches(nonSerializableInput2), true);
+		assert.equal(group.getEditors(true)[1].matches(serializableInput1), true);
+		assert.equal(group.getEditors(true)[2].matches(serializableInput2), true);
+
+		lifecycle.fireShutdown();
+
+		// Create model again - should load from storage
+		model = inst.createInstance(EditorStacksModel);
+
+		group = model.groups[0];
+
+		assert.equal(group.count, 2);
+		assert.equal(group.activeEditor.matches(serializableInput1), true);
+		assert.equal(group.previewEditor, null);
+
+		assert.equal(group.getEditors(true)[0].matches(serializableInput1), true);
+		assert.equal(group.getEditors(true)[1].matches(serializableInput2), true);
+	});
+
+	test('Stack - Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+
+		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+
+		let group1 = model.openGroup('group1');
+		let group2 = model.openGroup('group1');
+
+		const serializableInput1 = input();
+		const serializableInput2 = input();
+		const nonSerializableInput = input('2', true);
+
+		group1.openEditor(serializableInput1, { pinned: true });
+		group1.openEditor(serializableInput2);
+
+		group2.openEditor(nonSerializableInput);
+
+		lifecycle.fireShutdown();
+
+		// Create model again - should load from storage
+		model = inst.createInstance(EditorStacksModel);
+
+		group1 = model.groups[0];
+
+		assert.equal(model.groups.length, 1);
+		assert.equal(group1.count, 2);
+		assert.equal(group1.getEditors()[0].matches(serializableInput1), true);
+		assert.equal(group1.getEditors()[1].matches(serializableInput2), true);
 	});
 });
