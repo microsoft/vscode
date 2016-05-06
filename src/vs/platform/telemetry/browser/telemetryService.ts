@@ -21,7 +21,6 @@ export interface ITelemetryServiceConfig {
 	userOptIn?: boolean;
 	enableHardIdle?: boolean;
 	enableSoftIdle?: boolean;
-	sessionID?: string;
 	commitHash?: string;
 	version?: string;
 	appRoot?: string;
@@ -54,8 +53,6 @@ export class TelemetryService implements ITelemetryService {
 	constructor(config?: ITelemetryServiceConfig) {
 		this._configuration = withDefaults(config, <ITelemetryServiceConfig>{
 			appender: [],
-			cleanupPatterns: [],
-			sessionID: uuid.generateUuid() + Date.now(),
 			enableHardIdle: true,
 			enableSoftIdle: true,
 			userOptIn: true
@@ -78,7 +75,7 @@ export class TelemetryService implements ITelemetryService {
 		);
 
 		this._telemetryInfo = {
-			sessionId: this._configuration.sessionID,
+			sessionId: uuid.generateUuid() + Date.now(),
 			instanceId: undefined,
 			machineId: undefined
 		};

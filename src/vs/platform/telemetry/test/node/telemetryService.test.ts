@@ -650,17 +650,6 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Telemetry Service uses provided session ID', sinon.test(function() {
-
-		let testSessionId = 'test session id';
-		let service = new TelemetryService({ sessionID: testSessionId, appender: [] });
-
-		return service.getTelemetryInfo().then(info => {
-			assert.equal(info.sessionId, testSessionId);
-			service.dispose();
-		});
-	}));
-
 	test('Telemetry Service respects user opt-in settings', sinon.test(function() {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({userOptIn: false, appender: [testAppender] });
