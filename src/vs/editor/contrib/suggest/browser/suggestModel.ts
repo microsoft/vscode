@@ -262,7 +262,7 @@ export class SuggestModel implements IDisposable {
 
 		const isInactive = this.state === State.Idle;
 
-		if (isInactive && !this.editor.getConfiguration().quickSuggestions) {
+		if (isInactive && !this.editor.getConfiguration().contribInfo.quickSuggestions) {
 			return;
 		}
 
@@ -396,7 +396,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private onEditorConfigurationChange(): void {
-		this.autoSuggestDelay = this.editor.getConfiguration().quickSuggestionsDelay;
+		this.autoSuggestDelay = this.editor.getConfiguration().contribInfo.quickSuggestionsDelay;
 
 		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay < 0) {
 			this.autoSuggestDelay = 10;

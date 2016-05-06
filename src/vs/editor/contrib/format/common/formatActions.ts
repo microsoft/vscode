@@ -53,7 +53,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this.callOnModel = cAll(this.callOnModel);
 
 		// we are disabled
-		if (!this.editor.getConfiguration().formatOnType) {
+		if (!this.editor.getConfiguration().contribInfo.formatOnType) {
 			return;
 		}
 

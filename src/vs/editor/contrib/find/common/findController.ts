@@ -565,7 +565,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		}
 
 		this.lastWordUnderCursor = null;
-		if (!this.editor.getConfiguration().selectionHighlight) {
+		if (!this.editor.getConfiguration().contribInfo.selectionHighlight) {
 			return;
 		}
 

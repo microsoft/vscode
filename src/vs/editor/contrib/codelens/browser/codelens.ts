@@ -345,6 +345,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	private _instanceCount: number;
 	private _editor: editorBrowser.ICodeEditor;
 	private _modelService: IModelService;
+	private _isEnabled: boolean;
 
 	private _globalToDispose: IDisposable[];
 
@@ -367,6 +368,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._instanceCount = (++CodeLensContribution.INSTANCE_COUNT);
 		this._editor = editor;
 		this._modelService = modelService;
+		this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
 		this._configurationService = configurationService;
 		this._keybindingService = keybindingService;
 		this._messageService = messageService;
@@ -386,7 +388,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
-			if (e.referenceInfos) {
+			let prevIsEnabled = this._isEnabled;
+			this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+			if (prevIsEnabled !== this._isEnabled) {
 				this.onModelChange();
 			}
 		}));
@@ -425,7 +429,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		if (!this._editor.getConfiguration().referenceInfos) {
+		if (!this._isEnabled) {
 			return;
 		}
 

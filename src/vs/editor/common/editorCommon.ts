@@ -825,28 +825,13 @@ export interface IViewConfigurationChangedEvent {
 	scrollbar: boolean;
 }
 
-/**
- * Internal configuration options (transformed or computed) for the editor.
- */
-export interface IInternalEditorOptions {
-	wordSeparators: string;
+export class EditorContribOptions {
 	selectionClipboard: boolean;
-
-	// ---- Options that are transparent - get no massaging
-	theme:string;
-	readOnly:boolean;
-	fontLigatures:boolean;
-	tabFocusMode:boolean;
-	stopLineTokenizationAfter:number;
-	longLineBoundary:number;
-
-	// ---- Options that are transparent - get no massaging
 	hover:boolean;
 	contextmenu:boolean;
 	quickSuggestions:boolean;
 	quickSuggestionsDelay:number;
 	iconsInSuggestions:boolean;
-	autoClosingBrackets:boolean;
 	formatOnType:boolean;
 	suggestOnTriggerCharacters: boolean;
 	acceptSuggestionOnEnter: boolean;
@@ -854,27 +839,94 @@ export interface IInternalEditorOptions {
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	folding: boolean;
+
+	constructor(source:{
+		selectionClipboard: boolean;
+		hover:boolean;
+		contextmenu:boolean;
+		quickSuggestions:boolean;
+		quickSuggestionsDelay:number;
+		iconsInSuggestions:boolean;
+		formatOnType:boolean;
+		suggestOnTriggerCharacters: boolean;
+		acceptSuggestionOnEnter: boolean;
+		selectionHighlight:boolean;
+		outlineMarkers: boolean;
+		referenceInfos: boolean;
+		folding: boolean;
+	}) {
+		this.selectionClipboard = Boolean(source.selectionClipboard);
+		this.hover = Boolean(source.hover);
+		this.contextmenu = Boolean(source.contextmenu);
+		this.quickSuggestions = Boolean(source.quickSuggestions);
+		this.quickSuggestionsDelay = source.quickSuggestionsDelay|0;
+		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
+		this.formatOnType = Boolean(source.formatOnType);
+		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
+		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
+		this.selectionHighlight = Boolean(source.selectionHighlight);
+		this.outlineMarkers = Boolean(source.outlineMarkers);
+		this.referenceInfos = Boolean(source.referenceInfos);
+		this.folding = Boolean(source.folding);
+	}
+
+	public equals(other: EditorContribOptions): boolean {
+		return (
+			this.selectionClipboard === other.selectionClipboard
+			&& this.hover === other.hover
+			&& this.contextmenu === other.contextmenu
+			&& this.quickSuggestions === other.quickSuggestions
+			&& this.quickSuggestionsDelay === other.quickSuggestionsDelay
+			&& this.iconsInSuggestions === other.iconsInSuggestions
+			&& this.formatOnType === other.formatOnType
+			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
+			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
+			&& this.selectionHighlight === other.selectionHighlight
+			&& this.outlineMarkers === other.outlineMarkers
+			&& this.referenceInfos === other.referenceInfos
+			&& this.folding === other.folding
+		);
+	}
+
+	public clone(): EditorContribOptions {
+		return new EditorContribOptions(this);
+	}
+}
+
+/**
+ * Internal configuration options (transformed or computed) for the editor.
+ */
+export interface IInternalEditorOptions {
+	readOnly:boolean;
+
+	// ---- cursor options
+	wordSeparators: string;
+	autoClosingBrackets:boolean;
 	useTabStops: boolean;
+	pageSize:number;
+	tabFocusMode:boolean;
+
+	// ---- model options
 	trimAutoWhitespace: boolean;
+	stopLineTokenizationAfter:number;
+	longLineBoundary:number;
+
+	// ---- Options that are transparent - get no massaging
+	theme:string; // todo: move to viewInfo
+	fontLigatures:boolean; // todo: move to fontInfo
 
 	// ---- Options that are computed
 
 	layoutInfo: EditorLayoutInfo;
-
 	fontInfo: FontInfo;
-
 	viewInfo: InternalEditorViewOptions;
-
 	wrappingInfo: EditorWrappingInfo;
+	contribInfo: EditorContribOptions;
 
 	/**
 	 * Computed line height (deduced from theme and CSS) in px.
 	 */
-	lineHeight:number;
-	/**
-	 * Computed page size (deduced from editor size) in lines.
-	 */
-	pageSize:number;
+	lineHeight:number; // todo: move to fontInfo
 }
 
 /**
@@ -882,7 +934,6 @@ export interface IInternalEditorOptions {
  */
 export interface IConfigurationChangedEvent {
 	wordSeparators: boolean;
-	selectionClipboard: boolean;
 
 	// ---- Options that are transparent - get no massaging
 	theme: boolean;
@@ -893,18 +944,7 @@ export interface IConfigurationChangedEvent {
 	longLineBoundary: boolean;
 
 	// ---- Options that are transparent - get no massaging
-	hover: boolean;
-	contextmenu: boolean;
-	quickSuggestions: boolean;
-	quickSuggestionsDelay: boolean;
-	iconsInSuggestions: boolean;
 	autoClosingBrackets: boolean;
-	formatOnType: boolean;
-	suggestOnTriggerCharacters: boolean;
-	selectionHighlight: boolean;
-	outlineMarkers: boolean;
-	referenceInfos: boolean;
-	folding: boolean;
 	useTabStops: boolean;
 	trimAutoWhitespace: boolean;
 
@@ -913,6 +953,7 @@ export interface IConfigurationChangedEvent {
 	fontInfo: boolean;
 	viewInfo: IViewConfigurationChangedEvent;
 	wrappingInfo: boolean;
+	contribInfo: boolean;
 	lineHeight: boolean;
 	pageSize: boolean;
 }

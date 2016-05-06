@@ -89,7 +89,7 @@ export class SuggestController implements IEditorContribution {
 
 		if (this.editor.getConfiguration().readOnly
 			|| !this.editor.getModel()
-			|| !this.editor.getConfiguration().suggestOnTriggerCharacters) {
+			|| !this.editor.getConfiguration().contribInfo.suggestOnTriggerCharacters) {
 
 			return;
 		}

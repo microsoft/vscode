@@ -66,63 +66,39 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	_internalEditorOptionsBrand: void;
 
 	wordSeparators: string;
-	selectionClipboard: boolean;
 	theme:string;
 	readOnly:boolean;
 	fontLigatures:boolean;
 	tabFocusMode:boolean;
 	stopLineTokenizationAfter:number;
 	longLineBoundary:number;
-	hover:boolean;
-	contextmenu:boolean;
-	quickSuggestions:boolean;
-	quickSuggestionsDelay:number;
-	iconsInSuggestions:boolean;
 	autoClosingBrackets:boolean;
-	formatOnType:boolean;
-	suggestOnTriggerCharacters: boolean;
-	acceptSuggestionOnEnter: boolean;
-	selectionHighlight:boolean;
-	outlineMarkers: boolean;
-	referenceInfos: boolean;
-	folding: boolean;
 	useTabStops: boolean;
 	trimAutoWhitespace: boolean;
 	layoutInfo: editorCommon.EditorLayoutInfo;
 	fontInfo: editorCommon.FontInfo;
 	viewInfo: editorCommon.InternalEditorViewOptions;
 	wrappingInfo: editorCommon.EditorWrappingInfo;
+	contribInfo: editorCommon.EditorContribOptions;
 	lineHeight:number;
 	pageSize:number;
 
 	constructor(input:editorCommon.IInternalEditorOptions) {
 		this.wordSeparators = String(input.wordSeparators);
-		this.selectionClipboard = Boolean(input.selectionClipboard);
 		this.theme = String(input.theme);
 		this.readOnly = Boolean(input.readOnly);
 		this.fontLigatures = Boolean(input.fontLigatures);
 		this.tabFocusMode = Boolean(input.tabFocusMode);
 		this.stopLineTokenizationAfter = Number(input.stopLineTokenizationAfter)|0;
 		this.longLineBoundary = Number(input.longLineBoundary)|0;
-		this.hover = Boolean(input.hover);
-		this.contextmenu = Boolean(input.contextmenu);
-		this.quickSuggestions = Boolean(input.quickSuggestions);
-		this.quickSuggestionsDelay = Number(input.quickSuggestionsDelay)|0;
-		this.iconsInSuggestions = Boolean(input.iconsInSuggestions);
 		this.autoClosingBrackets = Boolean(input.autoClosingBrackets);
-		this.formatOnType = Boolean(input.formatOnType);
-		this.suggestOnTriggerCharacters = Boolean(input.suggestOnTriggerCharacters);
-		this.acceptSuggestionOnEnter = Boolean(input.acceptSuggestionOnEnter);
-		this.selectionHighlight = Boolean(input.selectionHighlight);
-		this.outlineMarkers = Boolean(input.outlineMarkers);
-		this.referenceInfos = Boolean(input.referenceInfos);
-		this.folding = Boolean(input.folding);
 		this.useTabStops = Boolean(input.useTabStops);
 		this.trimAutoWhitespace = Boolean(input.trimAutoWhitespace);
 		this.layoutInfo = input.layoutInfo.clone();
 		this.fontInfo = input.fontInfo.clone();
 		this.viewInfo = input.viewInfo.clone();
 		this.wrappingInfo = input.wrappingInfo.clone();
+		this.contribInfo = input.contribInfo.clone();
 		this.lineHeight = Number(input.lineHeight)|0;
 		this.pageSize = Number(input.pageSize)|0;
 	}
@@ -251,23 +227,13 @@ class InternalEditorOptionsHelper {
 			scrollbar: scrollbar,
 		});
 
-		return {
-			// ---- Options that are transparent - get no massaging
-			theme: opts.theme,
-			readOnly: readOnly,
-			wordSeparators: String(opts.wordSeparators),
+		let contribInfo = new editorCommon.EditorContribOptions({
 			selectionClipboard: toBoolean(opts.selectionClipboard),
-			fontLigatures: toBoolean(opts.fontLigatures),
-			tabFocusMode: tabFocusMode,
-			stopLineTokenizationAfter: stopLineTokenizationAfter,
-			longLineBoundary: toInteger(opts.longLineBoundary),
-
 			hover: toBoolean(opts.hover),
 			contextmenu: toBoolean(opts.contextmenu),
 			quickSuggestions: toBoolean(opts.quickSuggestions),
 			quickSuggestionsDelay: toInteger(opts.quickSuggestionsDelay),
 			iconsInSuggestions: toBoolean(opts.iconsInSuggestions),
-			autoClosingBrackets: toBoolean(opts.autoClosingBrackets),
 			formatOnType: toBoolean(opts.formatOnType),
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
@@ -275,6 +241,19 @@ class InternalEditorOptionsHelper {
 			outlineMarkers: toBoolean(opts.outlineMarkers),
 			referenceInfos: toBoolean(opts.referenceInfos),
 			folding: toBoolean(opts.folding),
+		});
+
+		return {
+			// ---- Options that are transparent - get no massaging
+			theme: opts.theme,
+			readOnly: readOnly,
+			wordSeparators: String(opts.wordSeparators),
+			fontLigatures: toBoolean(opts.fontLigatures),
+			tabFocusMode: tabFocusMode,
+			stopLineTokenizationAfter: stopLineTokenizationAfter,
+			longLineBoundary: toInteger(opts.longLineBoundary),
+
+			autoClosingBrackets: toBoolean(opts.autoClosingBrackets),
 			useTabStops: toBoolean(opts.useTabStops),
 			trimAutoWhitespace: toBoolean(opts.trimAutoWhitespace),
 
@@ -282,6 +261,7 @@ class InternalEditorOptionsHelper {
 			fontInfo: fontInfo,
 			viewInfo: viewInfo,
 			wrappingInfo: wrappingInfo,
+			contribInfo: contribInfo,
 
 			lineHeight: fontInfo.lineHeight, // todo -> duplicated in styling
 			pageSize: pageSize,
@@ -327,7 +307,6 @@ class InternalEditorOptionsHelper {
 	public static createConfigurationChangedEvent(prevOpts:InternalEditorOptions, newOpts:InternalEditorOptions): editorCommon.IConfigurationChangedEvent {
 		return {
 			wordSeparators:					(prevOpts.wordSeparators !== newOpts.wordSeparators),
-			selectionClipboard:				(prevOpts.selectionClipboard !== newOpts.selectionClipboard),
 
 			theme:							(prevOpts.theme !== newOpts.theme),
 			readOnly:						(prevOpts.readOnly !== newOpts.readOnly),
@@ -336,18 +315,7 @@ class InternalEditorOptionsHelper {
 			stopLineTokenizationAfter:		(prevOpts.stopLineTokenizationAfter !== newOpts.stopLineTokenizationAfter),
 			longLineBoundary:				(prevOpts.longLineBoundary !== newOpts.longLineBoundary),
 
-			hover:							(prevOpts.hover !== newOpts.hover),
-			contextmenu:					(prevOpts.contextmenu !== newOpts.contextmenu),
-			quickSuggestions:				(prevOpts.quickSuggestions !== newOpts.quickSuggestions),
-			quickSuggestionsDelay:			(prevOpts.quickSuggestionsDelay !== newOpts.quickSuggestionsDelay),
-			iconsInSuggestions:				(prevOpts.iconsInSuggestions !== newOpts.iconsInSuggestions),
 			autoClosingBrackets:			(prevOpts.autoClosingBrackets !== newOpts.autoClosingBrackets),
-			formatOnType:					(prevOpts.formatOnType !== newOpts.formatOnType),
-			suggestOnTriggerCharacters:		(prevOpts.suggestOnTriggerCharacters !== newOpts.suggestOnTriggerCharacters),
-			selectionHighlight:				(prevOpts.selectionHighlight !== newOpts.selectionHighlight),
-			outlineMarkers:					(prevOpts.outlineMarkers !== newOpts.outlineMarkers),
-			referenceInfos:					(prevOpts.referenceInfos !== newOpts.referenceInfos),
-			folding:						(prevOpts.folding !== newOpts.folding),
 			useTabStops:					(prevOpts.useTabStops !== newOpts.useTabStops),
 			trimAutoWhitespace:				(prevOpts.trimAutoWhitespace !== newOpts.trimAutoWhitespace),
 
@@ -355,6 +323,7 @@ class InternalEditorOptionsHelper {
 			fontInfo: 						(!prevOpts.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo:						prevOpts.viewInfo.createChangeEvent(newOpts.viewInfo),
 			wrappingInfo:					(!prevOpts.wrappingInfo.equals(newOpts.wrappingInfo)),
+			contribInfo:					(!prevOpts.contribInfo.equals(newOpts.contribInfo)),
 			lineHeight:						(prevOpts.lineHeight !== newOpts.lineHeight),
 			pageSize:						(prevOpts.pageSize !== newOpts.pageSize),
 		};

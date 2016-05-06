@@ -73,7 +73,7 @@ export class QuickFixModel extends EventEmitter {
 		this.lightBulp = new LightBulpWidget(editor, (pos) => { this.onLightBulpClicked(pos); });
 
 		this.enableAutoQuckFix = false; // turn off for now
-		this.autoSuggestDelay = this.editor.getConfiguration().quickSuggestionsDelay;
+		this.autoSuggestDelay = this.editor.getConfiguration().contribInfo.quickSuggestionsDelay;
 		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay > 2000 || this.autoSuggestDelay < 0) {
 			this.autoSuggestDelay = 300;
 		}
