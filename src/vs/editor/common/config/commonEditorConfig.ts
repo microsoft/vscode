@@ -81,7 +81,6 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	wrappingInfo: editorCommon.EditorWrappingInfo;
 	contribInfo: editorCommon.EditorContribOptions;
 	lineHeight:number;
-	pageSize:number;
 
 	constructor(input:editorCommon.IInternalEditorOptions) {
 		this.wordSeparators = String(input.wordSeparators);
@@ -100,7 +99,6 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.wrappingInfo = input.wrappingInfo.clone();
 		this.contribInfo = input.contribInfo.clone();
 		this.lineHeight = Number(input.lineHeight)|0;
-		this.pageSize = Number(input.pageSize)|0;
 	}
 }
 
@@ -163,8 +161,6 @@ class InternalEditorOptionsHelper {
 			scrollbarArrowSize: scrollbar.arrowSize,
 			verticalScrollbarHasArrows: scrollbar.verticalHasArrows
 		});
-
-		let pageSize = Math.floor(layoutInfo.height / fontInfo.lineHeight) - 2;
 
 		if (isDominatedByLongLines && wrappingColumn > 0) {
 			// Force viewport width wrapping if model is dominated by long lines
@@ -264,7 +260,6 @@ class InternalEditorOptionsHelper {
 			contribInfo: contribInfo,
 
 			lineHeight: fontInfo.lineHeight, // todo -> duplicated in styling
-			pageSize: pageSize,
 		};
 	}
 
@@ -325,7 +320,6 @@ class InternalEditorOptionsHelper {
 			wrappingInfo:					(!prevOpts.wrappingInfo.equals(newOpts.wrappingInfo)),
 			contribInfo:					(!prevOpts.contribInfo.equals(newOpts.contribInfo)),
 			lineHeight:						(prevOpts.lineHeight !== newOpts.lineHeight),
-			pageSize:						(prevOpts.pageSize !== newOpts.pageSize),
 		};
 	}
 }

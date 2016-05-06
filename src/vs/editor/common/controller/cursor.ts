@@ -66,7 +66,7 @@ interface ICommandsData {
 export class Cursor extends EventEmitter {
 
 	private editorId:number;
-	/*private*/ configuration:editorCommon.IConfiguration;
+	private configuration:editorCommon.IConfiguration;
 	private model:editorCommon.IModel;
 
 	private modelUnbinds:IDisposable[];
@@ -1288,11 +1288,11 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _moveDown(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveDown(oneCursor, inSelectionMode, isPaged, oneCtx));
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveDown(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
 	}
 
 	private _moveUp(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveUp(oneCursor, inSelectionMode, isPaged, oneCtx));
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveUp(oneCursor, inSelectionMode, isPaged, ctx.eventData && ctx.eventData.pageSize || 0, oneCtx));
 	}
 
 	private _moveToBeginningOfLine(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
@@ -1451,12 +1451,12 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.requestScrollDeltaLines = isPaged ? -this.configuration.editor.pageSize : -1;
+		ctx.requestScrollDeltaLines = isPaged ? -this.cursors.getAll()[0].getPageSize() : -1;
 		return true;
 	}
 
 	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.requestScrollDeltaLines = isPaged ? this.configuration.editor.pageSize : 1;
+		ctx.requestScrollDeltaLines = isPaged ? this.cursors.getAll()[0].getPageSize() : 1;
 		return true;
 	}
 

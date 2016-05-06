@@ -903,7 +903,6 @@ export interface IInternalEditorOptions {
 	wordSeparators: string;
 	autoClosingBrackets:boolean;
 	useTabStops: boolean;
-	pageSize:number;
 	tabFocusMode:boolean;
 
 	// ---- model options
@@ -955,7 +954,6 @@ export interface IConfigurationChangedEvent {
 	wrappingInfo: boolean;
 	contribInfo: boolean;
 	lineHeight: boolean;
-	pageSize: boolean;
 }
 
 /**
