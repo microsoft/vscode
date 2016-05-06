@@ -988,7 +988,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;
 
-		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped;
+		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
 		if (debugActive && !breakpoint.verified) {
 			tree.addTraits('disabled', [breakpoint]);
 			if (breakpoint.message) {
