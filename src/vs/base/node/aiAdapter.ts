@@ -60,7 +60,7 @@ export class AIAdapter implements IAIAdapter {
 
 	constructor(
 		private _eventPrefix: string,
-		private _additionalDataToLog: () => TPromise<{ [key: string]: string | number }>,
+		private _additionalDataToLog: () => TPromise<{ [key: string]: any }>,
 		clientFactoryOrAiKey: (() => typeof appInsights.client) | string // allow factory function for testing
 	) {
 		if (!this._additionalDataToLog) {
@@ -140,11 +140,13 @@ export class AIAdapter implements IAIAdapter {
 			return;
 		}
 		this._additionalDataToLog().then(additionalData => {
-			data = mixin(data, additionalData);
+			return mixin(data, additionalData);
+		}, err => {
+			console.error(err); // ignore?
+			return data;
+		}).done(data => {
 			let {properties, measurements} = AIAdapter._getData(data);
 			this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
-		}, err => {
-			console.error(err);
 		});
 	}
 
