@@ -68,22 +68,6 @@ export const canUseTranslate3d = !isIE9 && !isFirefox;
 
 export const enableEmptySelectionClipboard = isWebKit;
 
-let _disablePushState = false;
-
-/**
- * Returns if the browser supports the history.pushState function or not.
- */
-export function canPushState() {
-	return (!_disablePushState && globals.history && globals.history.pushState);
-}
-
-/**
- * Helpful when we detect that pushing state does not work for some reason (e.g. FF prevents pushState for security reasons in some cases)
- */
-export function disablePushState() {
-	_disablePushState = true;
-}
-
 /**
  * Returns if the browser supports CSS 3 animations.
  */
@@ -114,10 +98,6 @@ export function hasCSSAnimationSupport() {
 	}
 
 	return this._hasCSSAnimationSupport;
-}
-
-export function isInWebWorker(): boolean {
-	return !globals.document && typeof ((<any>globals).importScripts) !== 'undefined';
 }
 
 export function supportsExecCommand(command: string): boolean {

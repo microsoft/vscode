@@ -9,7 +9,6 @@ import 'vs/css!./inputBox';
 import nls = require('vs/nls');
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import * as browser from 'vs/base/browser/browserService';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -204,7 +203,7 @@ export class InputBox extends Widget {
 	}
 
 	public hasFocus(): boolean {
-		return browser.getService().document.activeElement === this.input;
+		return document.activeElement === this.input;
 	}
 
 	public select(range: IRange = null): void {
