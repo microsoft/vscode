@@ -51,7 +51,7 @@ export const NullTelemetryService: ITelemetryService = {
 };
 
 export interface ITelemetryAppender extends IDisposable {
-	log(eventName: string, data?: any): void;
+	log(eventName: string, data?: any): any;
 }
 
 // --- util

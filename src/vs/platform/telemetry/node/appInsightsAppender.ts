@@ -5,6 +5,8 @@
 'use strict';
 
 import errors = require('vs/base/common/errors');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {mixin} from 'vs/base/common/objects';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
 import {AIAdapter, IAIAdapter} from 'vs/base/node/aiAdapter';
@@ -23,21 +25,15 @@ export class AppInsightsAppender implements ITelemetryAppender {
 	private static EVENT_NAME_PREFIX: string = 'monacoworkbench';
 	private static SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
-	private storageService: IStorageService;
 	private appInsights: IAIAdapter;
 	private appInsightsVortex: IAIAdapter;
-	private commonProperties: { [key: string]: string };
-	private commonMetrics: { [key: string]: number };
+	private _additionalProperties: TPromise<{ [key: string]: any }>;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		config: {key: string; asimovKey: string},
 		_testing_client?: IAIAdapter
 	) {
-		this.commonProperties = {};
-		this.commonMetrics = {};
-		this.storageService = storageService;
-
 		let {key, asimovKey} = config;
 		if (_testing_client) {
 			// for test
@@ -54,130 +50,118 @@ export class AppInsightsAppender implements ITelemetryAppender {
 			}
 		}
 
-		this.loadAddtionaProperties();
+		this._additionalProperties = AppInsightsAppender._loadAddtionalProperties(storageService);
 	}
 
-	private loadAddtionaProperties(): void {
+	private static _loadAddtionalProperties(storageService: IStorageService): TPromise<{ [key: string]: any }> {
+
+		const result: { [key: string]: any } = Object.create(null);
+		let promises: TPromise<any>[] = [];
+
 		// add shell & render version
 		if (process.versions) {
-			this.commonProperties['version.shell'] = (<any>process).versions['electron'];
-			this.commonProperties['version.renderer'] = (<any>process).versions['chrome'];
+			result['common.version.shell'] = (<any>process).versions['electron'];
+			result['common.version.renderer'] = (<any>process).versions['chrome'];
 		}
 
 		// add SQM data for windows machines
 		if (process.platform === 'win32') {
-			var sqmUserId = this.storageService.get(StorageKeys.sqmUserId);
+			var sqmUserId = storageService.get(StorageKeys.sqmUserId);
 			if (sqmUserId) {
-				this.commonProperties['sqm.userid'] = sqmUserId;
+				result['common.sqm.userid'] = sqmUserId;
 			} else {
-				AppInsightsAppender._getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'UserId', winreg.HKCU, (error, result: string) => {
-					if (!error && result) {
-						this.commonProperties['sqm.userid'] = result;
-						this.storageService.store(StorageKeys.sqmUserId, result);
+				promises.push(AppInsightsAppender._getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'UserId', winreg.HKCU).then(result => {
+					if (result) {
+						result['common.sqm.userid'] = result;
+						storageService.store(StorageKeys.sqmUserId, result);
 					}
-				});
+				}));
 			}
 
-			var sqmMachineId = this.storageService.get(StorageKeys.sqmMachineId);
+			var sqmMachineId = storageService.get(StorageKeys.sqmMachineId);
 			if (sqmMachineId) {
-				this.commonProperties['sqm.machineid'] = sqmMachineId;
+				result['common.sqm.machineid'] = sqmMachineId;
 			}
 			else {
-				AppInsightsAppender._getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'MachineId', winreg.HKLM, (error, result) => {
-					if (!error && result) {
-						this.commonProperties['sqm.machineid'] = result;
-						this.storageService.store(StorageKeys.sqmMachineId, result);
+				promises.push(AppInsightsAppender._getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'MachineId', winreg.HKLM).then(result => {
+					if (result) {
+						result['common.sqm.machineid'] = result;
+						storageService.store(StorageKeys.sqmMachineId, result);
 					}
-				});
+				}));
 			}
 		}
 
-		var firstSessionDate = this.storageService.get(StorageKeys.firstSessionDate);
+		var firstSessionDate = storageService.get(StorageKeys.firstSessionDate);
 		if (!firstSessionDate) {
 			firstSessionDate = (new Date()).toUTCString();
-			this.storageService.store(StorageKeys.firstSessionDate, firstSessionDate);
+			storageService.store(StorageKeys.firstSessionDate, firstSessionDate);
 		}
-		this.commonProperties['firstSessionDate'] = firstSessionDate;
+		result['common.firstSessionDate'] = firstSessionDate;
 
 		//report last session date and isNewSession flag
-		var lastSessionDate = this.storageService.get(StorageKeys.lastSessionDate);
+		var lastSessionDate = storageService.get(StorageKeys.lastSessionDate);
 		if (!lastSessionDate) {
-			this.commonMetrics['isNewSession'] = 1;
+			result['common.isNewSession'] = 1;
 		} else {
-			this.commonMetrics['isNewSession'] = 0;
-			this.commonProperties['lastSessionDate'] = lastSessionDate;
+			result['common.isNewSession'] = 0;
+			result['common.lastSessionDate'] = lastSessionDate;
 		}
 
-		this.storageService.store(StorageKeys.lastSessionDate, (new Date()).toUTCString());
+		storageService.store(StorageKeys.lastSessionDate, (new Date()).toUTCString());
 
 		if (os) {
-			this.commonProperties['osVersion'] = os.release();
+			result['common.osVersion'] = os.release();
 		}
+
+		return TPromise.join(promises).then(() => result, () => result);
 	}
 
-	private static _getWinRegKeyData(key: string, name: string, hive: string, callback: (error: Error, userId: string) => void): void {
-		if (process.platform === 'win32') {
-			try {
-				var reg = new winreg({
-					hive: hive,
-					key: key
-				});
-
-				reg.get(name, (e, result) => {
-					if (e || !result) {
-						callback(e, null);
-					} else {
-						callback(null, result.value);
-					}
-				});
-			} catch (err) {
-				errors.onUnexpectedError(err);
-				callback(err, null);
+	private static _getWinRegKeyData(key: string, name: string, hive: string): TPromise<string> {
+		return new TPromise<string>((resolve, reject) => {
+			if (process.platform === 'win32') {
+				try {
+					var reg = new winreg({ hive, key });
+					reg.get(name, (e, result) => {
+						if (e || !result) {
+							reject(null);
+						} else {
+							resolve(result.value);
+						}
+					});
+				} catch (err) {
+					errors.onUnexpectedError(err);
+					reject(err);
+				}
+			} else {
+				resolve(null);
 			}
-		} else {
-			callback(null, null);
-		}
+		}).then(undefined, err => {
+			// we only want success
+			return undefined;
+		});
 	}
 
-	public log(eventName: string, data?: any): void {
-
-		data = data || Object.create(null);
-		data = this.addCommonMetrics(data);
-		data = this.addCommonProperties(data);
-
-		if (this.appInsights) {
-			this.appInsights.log(eventName, data);
-		}
-
-		if (this.appInsightsVortex) {
-			this.appInsightsVortex.log(eventName, data);
-		}
+	public log(eventName: string, data?: any): TPromise<any> {
+		return this._additionalProperties.then(additionalProperties => {
+			data = mixin(data, additionalProperties);
+			if (this.appInsights) {
+				this.appInsights.log(eventName, data);
+			}
+			if (this.appInsightsVortex) {
+				this.appInsightsVortex.log(eventName, data);
+			}
+		});
 	}
 
 	public dispose(): void {
 		if (this.appInsights) {
 			this.appInsights.dispose();
 		}
-
 		if (this.appInsightsVortex) {
 			this.appInsightsVortex.dispose();
 		}
-
 		this.appInsights = null;
 		this.appInsightsVortex = null;
-	}
-
-	protected addCommonProperties(properties: any): any {
-		for (var prop in this.commonProperties) {
-			properties['common.' + prop] = this.commonProperties[prop];
-		}
-		return properties;
-	}
-
-	protected addCommonMetrics(metrics: any): any {
-		for (var prop in this.commonMetrics) {
-			metrics['common.' + prop] = this.commonMetrics[prop];
-		}
-		return metrics;
 	}
 }

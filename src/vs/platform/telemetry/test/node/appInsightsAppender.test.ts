@@ -52,65 +52,66 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 	});
 
 	test('Simple event', () => {
-		appender.log('testEvent');
-
-		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
+		return appender.log('testEvent').then(_ => {
+			assert.equal(appInsightsMock.events.length, 1);
+			assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
+		});
 	});
 
 	test('test additional properties', () => {
-		appender.log('testEvent');
-		assert.equal(appInsightsMock.events.length, 1);
+		return appender.log('testEvent').then(_ => {
+			assert.equal(appInsightsMock.events.length, 1);
 
-		let [first] = appInsightsMock.events;
-		assert.equal(first.eventName, 'testPrefix/testEvent');
-		assert.ok('common.osVersion' in first.data);
-		assert.ok('common.isNewSession' in first.data);
-		assert.ok('common.firstSessionDate' in first.data);
-		assert.ok(!('common.lastSessionDate' in first.data)); // conditional, see below
-		// assert.ok('common.version.shell' in first.data); // only when running on electron
-		// assert.ok('common.version.renderer' in first.data);
-		if (process.platform === 'win32') { // SQM only on windows
-			assert.ok('common.sqm.userid' in first.data);
-			assert.ok('common.sqm.machineid' in first.data);
-		}
+			let [first] = appInsightsMock.events;
+			assert.equal(first.eventName, 'testPrefix/testEvent');
+			assert.ok('common.osVersion' in first.data);
+			assert.ok('common.isNewSession' in first.data);
+			assert.ok('common.firstSessionDate' in first.data);
+			assert.ok(!('common.lastSessionDate' in first.data)); // conditional, see below
+			// assert.ok('common.version.shell' in first.data); // only when running on electron
+			// assert.ok('common.version.renderer' in first.data);
+			if (process.platform === 'win32') { // SQM only on windows
+				assert.ok('common.sqm.userid' in first.data);
+				assert.ok('common.sqm.machineid' in first.data);
+			}
+		});
 	});
 
 	test('test additional properties with storage data', () => {
 		const storage = new TestStorageService();
 		storage.store(StorageKeys.lastSessionDate, 'somevalue');
 		let appender = new AppInsightsAppender(storage, { key: '123', asimovKey: undefined }, appInsightsMock);
-		appender.log('testEvent');
-		let [first] = appInsightsMock.events;
-		assert.ok('common.lastSessionDate' in first.data); // conditional
-		appender.dispose();
+		return appender.log('testEvent').then(_ => {
+			let [first] = appInsightsMock.events;
+			assert.ok('common.lastSessionDate' in first.data); // conditional
+			appender.dispose();
+		});
 	});
 
 	test('Event with data', () => {
-		appender.log('testEvent', {
+		return appender.log('testEvent', {
 			title: 'some title',
 			width: 100,
 			height: 200
+		}).then(_ => {
+			assert.equal(appInsightsMock.events.length, 1);
+			assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
+
+			assert.equal(appInsightsMock.events[0].data['title'], 'some title');
+			assert.equal(appInsightsMock.events[0].data['width'], 100);
+			assert.equal(appInsightsMock.events[0].data['height'], 200);
 		});
-
-		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
-
-		assert.equal(appInsightsMock.events[0].data['title'], 'some title');
-		assert.equal(appInsightsMock.events[0].data['width'], 100);
-		assert.equal(appInsightsMock.events[0].data['height'], 200);
-
 	});
 
 	test('Test asimov', () => {
 		appender = new AppInsightsAppender(new TestStorageService(), { key: '123', asimovKey: 'AIF-123' }, appInsightsMock);
 
-		appender.log('testEvent');
+		return appender.log('testEvent').then(_ => {
+			assert.equal(appInsightsMock.events.length, 2);
+			assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
 
-		assert.equal(appInsightsMock.events.length, 2);
-		assert.equal(appInsightsMock.events[0].eventName, 'testPrefix/testEvent');
-
-		// test vortex
-		assert.equal(appInsightsMock.events[1].eventName, 'testPrefix/testEvent');
+			// test vortex
+			assert.equal(appInsightsMock.events[1].eventName, 'testPrefix/testEvent');
+		});
 	});
 });
