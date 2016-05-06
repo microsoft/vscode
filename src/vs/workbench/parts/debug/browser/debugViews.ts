@@ -151,7 +151,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Debug Watch Expressions")));
+		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel'}, "Debug Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -225,7 +225,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
 			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
+		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel'}, "Debug Call Stack")));
 
 		this.toDispose.push(this.tree.addListener2('selection', (e: tree.ISelectionEvent) => {
 			if (!e.selection.length || !e.payload) {
@@ -380,7 +380,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					return first.desiredLineNumber - second.desiredLineNumber;
 				}
 			}
-		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Debug Breakpoints")));
+		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'breakpointsAriaTreeLabel'}, "Debug Breakpoints")));
 
 		const debugModel = this.debugService.getModel();
 
