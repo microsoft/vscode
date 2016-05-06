@@ -13,7 +13,7 @@ import {Extensions, IConfigurationRegistry, IConfigurationNode} from 'vs/platfor
 import {Registry} from 'vs/platform/platform';
 import {DefaultConfig, DEFAULT_INDENTATION, GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
+import {EditorLayoutProvider, EditorLayoutInfo} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
 /**
  * Experimental screen reader support toggle
@@ -109,7 +109,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	indentGuides: boolean;
 	useTabStops: boolean;
 	trimAutoWhitespace: boolean;
-	layoutInfo: editorCommon.IEditorLayoutInfo;
+	layoutInfo: EditorLayoutInfo;
 	fontInfo: editorCommon.FontInfo;
 	editorClassName: string;
 	wrappingInfo: editorCommon.IEditorWrappingInfo;
@@ -177,39 +177,8 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.indentGuides = Boolean(input.indentGuides);
 		this.useTabStops = Boolean(input.useTabStops);
 		this.trimAutoWhitespace = Boolean(input.trimAutoWhitespace);
-		this.layoutInfo = {
-			width: Number(input.layoutInfo.width)|0,
-			height: Number(input.layoutInfo.height)|0,
-			glyphMarginLeft: Number(input.layoutInfo.glyphMarginLeft)|0,
-			glyphMarginWidth: Number(input.layoutInfo.glyphMarginWidth)|0,
-			glyphMarginHeight: Number(input.layoutInfo.glyphMarginHeight)|0,
-			lineNumbersLeft: Number(input.layoutInfo.lineNumbersLeft)|0,
-			lineNumbersWidth: Number(input.layoutInfo.lineNumbersWidth)|0,
-			lineNumbersHeight: Number(input.layoutInfo.lineNumbersHeight)|0,
-			decorationsLeft: Number(input.layoutInfo.decorationsLeft)|0,
-			decorationsWidth: Number(input.layoutInfo.decorationsWidth)|0,
-			decorationsHeight: Number(input.layoutInfo.decorationsHeight)|0,
-			contentLeft: Number(input.layoutInfo.contentLeft)|0,
-			contentWidth: Number(input.layoutInfo.contentWidth)|0,
-			contentHeight: Number(input.layoutInfo.contentHeight)|0,
-			verticalScrollbarWidth: Number(input.layoutInfo.verticalScrollbarWidth)|0,
-			horizontalScrollbarHeight: Number(input.layoutInfo.horizontalScrollbarHeight)|0,
-			overviewRuler:{
-				width: Number(input.layoutInfo.overviewRuler.width)|0,
-				height: Number(input.layoutInfo.overviewRuler.height)|0,
-				top: Number(input.layoutInfo.overviewRuler.top)|0,
-				right: Number(input.layoutInfo.overviewRuler.right)|0,
-			}
-		};
-		this.fontInfo = new editorCommon.FontInfo(
-			input.fontInfo.fontFamily,
-			input.fontInfo.fontSize,
-			input.fontInfo.lineHeight,
-			input.fontInfo.typicalHalfwidthCharacterWidth,
-			input.fontInfo.typicalFullwidthCharacterWidth,
-			input.fontInfo.spaceWidth,
-			input.fontInfo.maxDigitWidth
-		);
+		this.layoutInfo = new EditorLayoutInfo(input.layoutInfo);
+		this.fontInfo = input.fontInfo.clone();
 		this.editorClassName = input.editorClassName;
 		this.wrappingInfo = {
 			isViewportWrapping: Boolean(input.wrappingInfo.isViewportWrapping),
@@ -403,7 +372,7 @@ class InternalEditorOptionsHelper {
 		};
 	}
 
-	public static createConfigurationChangedEvent(prevOpts:editorCommon.IInternalEditorOptions, newOpts:editorCommon.IInternalEditorOptions): editorCommon.IConfigurationChangedEvent {
+	public static createConfigurationChangedEvent(prevOpts:InternalEditorOptions, newOpts:InternalEditorOptions): editorCommon.IConfigurationChangedEvent {
 		return {
 			experimentalScreenReader:		(prevOpts.experimentalScreenReader !== newOpts.experimentalScreenReader),
 			rulers:							(!this._numberArraysEqual(prevOpts.rulers, newOpts.rulers)),
@@ -452,7 +421,7 @@ class InternalEditorOptionsHelper {
 			useTabStops:					(prevOpts.useTabStops !== newOpts.useTabStops),
 			trimAutoWhitespace:				(prevOpts.trimAutoWhitespace !== newOpts.trimAutoWhitespace),
 
-			layoutInfo: 					(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
+			layoutInfo: 					(!prevOpts.layoutInfo.equals(newOpts.layoutInfo)),
 			fontInfo: 						(!prevOpts.fontInfo.equals(newOpts.fontInfo)),
 			editorClassName: 				(prevOpts.editorClassName !== newOpts.editorClassName),
 			wrappingInfo:					(!this._wrappingInfoEqual(prevOpts.wrappingInfo, newOpts.wrappingInfo)),
@@ -666,11 +635,11 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			this.getOuterWidth(),
 			this.getOuterHeight(),
 			opts,
-			this.readConfiguration(new editorCommon.BareFontInfo(
-				fontFamily,
-				fontSize,
-				lineHeight
-			)),
+			this.readConfiguration(new editorCommon.BareFontInfo({
+				fontFamily: fontFamily,
+				fontSize: fontSize,
+				lineHeight: lineHeight
+			})),
 			editorClassName,
 			this._isDominatedByLongLines,
 			this._lineCount

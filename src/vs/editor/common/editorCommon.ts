@@ -2407,10 +2407,14 @@ export class BareFontInfo {
 	fontSize: number;
 	lineHeight: number;
 
-	constructor(fontFamily: string, fontSize: number, lineHeight: number) {
-		this.fontFamily = String(fontFamily);
-		this.fontSize = fontSize|0;
-		this.lineHeight = lineHeight|0;
+	constructor(opts: {
+		fontFamily: string;
+		fontSize: number;
+		lineHeight: number;
+	}) {
+		this.fontFamily = String(opts.fontFamily);
+		this.fontSize = opts.fontSize|0;
+		this.lineHeight = opts.lineHeight|0;
 	}
 
 	public getId(): string {
@@ -2426,20 +2430,20 @@ export class FontInfo extends BareFontInfo {
 	spaceWidth:number;
 	maxDigitWidth: number;
 
-	constructor(
-		fontFamily: string,
-		fontSize: number,
-		lineHeight: number,
-		typicalHalfwidthCharacterWidth:number,
-		typicalFullwidthCharacterWidth:number,
-		spaceWidth:number,
-		maxDigitWidth: number
-	) {
-		super(fontFamily, fontSize, lineHeight);
-		this.typicalHalfwidthCharacterWidth = typicalHalfwidthCharacterWidth;
-		this.typicalFullwidthCharacterWidth = typicalFullwidthCharacterWidth;
-		this.spaceWidth = spaceWidth;
-		this.maxDigitWidth = maxDigitWidth;
+	constructor(opts:{
+		fontFamily: string;
+		fontSize: number;
+		lineHeight: number;
+		typicalHalfwidthCharacterWidth:number;
+		typicalFullwidthCharacterWidth:number;
+		spaceWidth:number;
+		maxDigitWidth: number;
+	}) {
+		super(opts);
+		this.typicalHalfwidthCharacterWidth = opts.typicalHalfwidthCharacterWidth;
+		this.typicalFullwidthCharacterWidth = opts.typicalFullwidthCharacterWidth;
+		this.spaceWidth = opts.spaceWidth;
+		this.maxDigitWidth = opts.maxDigitWidth;
 	}
 
 	public equals(other:FontInfo): boolean {
@@ -2452,6 +2456,10 @@ export class FontInfo extends BareFontInfo {
 			&& this.spaceWidth === other.spaceWidth
 			&& this.maxDigitWidth === other.maxDigitWidth
 		);
+	}
+
+	public clone(): FontInfo {
+		return new FontInfo(this);
 	}
 }
 

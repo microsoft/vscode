@@ -207,15 +207,15 @@ class CSSBasedConfiguration extends Disposable {
 			maxDigitWidth = Math.max(maxDigitWidth, digits[i].width);
 		}
 
-		return new FontInfo(
-			bareFontInfo.fontFamily,
-			bareFontInfo.fontSize,
-			bareFontInfo.lineHeight,
-			typicalHalfwidthCharacter.width,
-			typicalFullwidthCharacter.width,
-			space.width,
-			maxDigitWidth
-		);
+		return new FontInfo({
+			fontFamily: bareFontInfo.fontFamily,
+			fontSize: bareFontInfo.fontSize,
+			lineHeight: bareFontInfo.lineHeight,
+			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
+			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
+			spaceWidth: space.width,
+			maxDigitWidth: maxDigitWidth
+		});
 	}
 }
 
