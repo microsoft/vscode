@@ -14,6 +14,7 @@ import {Registry} from 'vs/platform/platform';
 import {DefaultConfig, DEFAULT_INDENTATION, GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 /**
  * Experimental screen reader support toggle
@@ -76,7 +77,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	roundedSelection:boolean;
 	theme:string;
 	readOnly:boolean;
-	scrollbar:editorCommon.IInternalEditorScrollbarOptions;
+	scrollbar:editorCommon.InternalEditorScrollbarOptions;
 	overviewRulerLanes:number;
 	cursorBlinking:string;
 	cursorStyle:editorCommon.TextEditorCursorStyle;
@@ -131,20 +132,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.roundedSelection = Boolean(input.roundedSelection);
 		this.theme = String(input.theme);
 		this.readOnly = Boolean(input.readOnly);
-		this.scrollbar = {
-			arrowSize: Number(input.scrollbar.arrowSize)|0,
-			vertical: String(input.scrollbar.vertical),
-			horizontal: String(input.scrollbar.horizontal),
-			useShadows: Boolean(input.scrollbar.useShadows),
-			verticalHasArrows: Boolean(input.scrollbar.verticalHasArrows),
-			horizontalHasArrows: Boolean(input.scrollbar.horizontalHasArrows),
-			handleMouseWheel: Boolean(input.scrollbar.handleMouseWheel),
-			horizontalScrollbarSize: Number(input.scrollbar.horizontalScrollbarSize)|0,
-			horizontalSliderSize: Number(input.scrollbar.horizontalSliderSize)|0,
-			verticalScrollbarSize: Number(input.scrollbar.verticalScrollbarSize)|0,
-			verticalSliderSize: Number(input.scrollbar.verticalSliderSize)|0,
-			mouseWheelScrollSensitivity: Number(input.scrollbar.mouseWheelScrollSensitivity),
-		};
+		this.scrollbar = input.scrollbar.clone();
 		this.overviewRulerLanes = Number(input.overviewRulerLanes)|0;
 		this.cursorBlinking = String(input.cursorBlinking);
 		this.cursorStyle = Number(input.cursorStyle)|0;
@@ -348,12 +336,24 @@ class InternalEditorOptionsHelper {
 		};
 	}
 
-	private static _sanitizeScrollbarOpts(raw:editorCommon.IEditorScrollbarOptions, mouseWheelScrollSensitivity:number): editorCommon.IInternalEditorScrollbarOptions {
+	private static _sanitizeScrollbarOpts(raw:editorCommon.IEditorScrollbarOptions, mouseWheelScrollSensitivity:number): editorCommon.InternalEditorScrollbarOptions {
+
+		var visibilityFromString = (visibility: string) => {
+			switch (visibility) {
+				case 'hidden':
+					return ScrollbarVisibility.Hidden;
+				case 'visible':
+					return ScrollbarVisibility.Visible;
+				default:
+					return ScrollbarVisibility.Auto;
+			}
+		};
+
 		let horizontalScrollbarSize = toIntegerWithDefault(raw.horizontalScrollbarSize, 10);
 		let verticalScrollbarSize = toIntegerWithDefault(raw.verticalScrollbarSize, 14);
-		return {
-			vertical: toStringSet(raw.vertical, ['auto', 'visible', 'hidden'], 'auto'),
-			horizontal: toStringSet(raw.horizontal, ['auto', 'visible', 'hidden'], 'auto'),
+		return new editorCommon.InternalEditorScrollbarOptions({
+			vertical: visibilityFromString(raw.vertical),
+			horizontal: visibilityFromString(raw.horizontal),
 
 			arrowSize: toIntegerWithDefault(raw.arrowSize, 11),
 			useShadows: toBooleanWithDefault(raw.useShadows, true),
@@ -369,7 +369,7 @@ class InternalEditorOptionsHelper {
 
 			handleMouseWheel: toBooleanWithDefault(raw.handleMouseWheel, true),
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
-		};
+		});
 	}
 
 	public static createConfigurationChangedEvent(prevOpts:InternalEditorOptions, newOpts:InternalEditorOptions): editorCommon.IConfigurationChangedEvent {
@@ -387,7 +387,7 @@ class InternalEditorOptionsHelper {
 			roundedSelection:				(prevOpts.roundedSelection !== newOpts.roundedSelection),
 			theme:							(prevOpts.theme !== newOpts.theme),
 			readOnly:						(prevOpts.readOnly !== newOpts.readOnly),
-			scrollbar:						(!this._scrollbarOptsEqual(prevOpts.scrollbar, newOpts.scrollbar)),
+			scrollbar:						(!prevOpts.scrollbar.equals(newOpts.scrollbar)),
 			overviewRulerLanes:				(prevOpts.overviewRulerLanes !== newOpts.overviewRulerLanes),
 			cursorBlinking:					(prevOpts.cursorBlinking !== newOpts.cursorBlinking),
 			cursorStyle:					(prevOpts.cursorStyle !== newOpts.cursorStyle),
@@ -430,23 +430,6 @@ class InternalEditorOptionsHelper {
 			lineHeight:						(prevOpts.lineHeight !== newOpts.lineHeight),
 			pageSize:						(prevOpts.pageSize !== newOpts.pageSize),
 		};
-	}
-
-	private static _scrollbarOptsEqual(a:editorCommon.IInternalEditorScrollbarOptions, b:editorCommon.IInternalEditorScrollbarOptions): boolean {
-		return (
-			a.arrowSize === b.arrowSize
-			&& a.vertical === b.vertical
-			&& a.horizontal === b.horizontal
-			&& a.useShadows === b.useShadows
-			&& a.verticalHasArrows === b.verticalHasArrows
-			&& a.horizontalHasArrows === b.horizontalHasArrows
-			&& a.handleMouseWheel === b.handleMouseWheel
-			&& a.horizontalScrollbarSize === b.horizontalScrollbarSize
-			&& a.horizontalSliderSize === b.horizontalSliderSize
-			&& a.verticalScrollbarSize === b.verticalScrollbarSize
-			&& a.verticalSliderSize === b.verticalSliderSize
-			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
-		);
 	}
 
 	private static _wrappingInfoEqual(a:editorCommon.IEditorWrappingInfo, b:editorCommon.IEditorWrappingInfo): boolean {
@@ -538,16 +521,6 @@ function toIntegerWithDefault(source:any, defaultValue:number): number {
 		return defaultValue;
 	}
 	return toInteger(source);
-}
-
-function toStringSet(source:any, allowedValues:string[], defaultValue:string): string {
-	if (typeof source !== 'string') {
-		return defaultValue;
-	}
-	if (allowedValues.indexOf(source) === -1) {
-		return defaultValue;
-	}
-	return source;
 }
 
 interface IValidatedIndentationOptions {

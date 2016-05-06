@@ -17,7 +17,8 @@ import Keyboard = require('vs/base/browser/keyboardEvent');
 import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
 import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElement');
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
@@ -407,7 +408,7 @@ export class TreeView extends HeightMap {
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
 	private rowsContainer: HTMLElement;
-	private scrollableElement: ScrollableElementImpl.ScrollableElement;
+	private scrollableElement: ScrollableElement;
 	private wrapperGesture: Touch.Gesture;
 	private msGesture: MSGesture;
 	private lastPointerType:string;
@@ -486,10 +487,10 @@ export class TreeView extends HeightMap {
 
 		this.wrapper = document.createElement('div');
 		this.wrapper.className = 'monaco-tree-wrapper';
-		this.scrollableElement = new ScrollableElementImpl.ScrollableElement(this.wrapper, {
+		this.scrollableElement = new ScrollableElement(this.wrapper, {
 			canUseTranslate3d: false,
-			horizontal: 'hidden',
-			vertical: context.options.verticalScrollMode || 'auto',
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
 			useShadows: context.options.useShadows,
 			saveLastScrollTimeOnClassName: 'monaco-tree-row'
 		});

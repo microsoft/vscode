@@ -8,6 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { RangeMap, IRange } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
@@ -88,8 +89,8 @@ export class ListView<T> implements IDisposable {
 
 		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
 			canUseTranslate3d: false,
-			horizontal: 'hidden',
-			vertical: 'auto',
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
 			useShadows: false,
 			saveLastScrollTimeOnClassName: 'monaco-list-row'
 		});

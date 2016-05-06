@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
+export enum ScrollbarVisibility {
+	Auto = 1,
+	Hidden = 2,
+	Visible = 3
+}
 
 export interface ScrollableElementCreationOptions {
 	/**
@@ -55,7 +59,7 @@ export interface ScrollableElementCreationOptions {
 	 * Accepted values: 'auto' (on mouse over), 'visible' (always visible), 'hidden' (never visible)
 	 * Defaults to 'auto'.
 	 */
-	horizontal?: string;
+	horizontal?: ScrollbarVisibility;
 	/**
 	 * Height (in px) of the horizontal scrollbar.
 	 * Defaults to 10.
@@ -76,7 +80,7 @@ export interface ScrollableElementCreationOptions {
 	 * Accepted values: 'auto' (on mouse over), 'visible' (always visible), 'hidden' (never visible)
 	 * Defaults to 'auto'.
 	 */
-	vertical?: string;
+	vertical?: ScrollbarVisibility;
 	/**
 	 * Width (in px) of the vertical scrollbar.
 	 * Defaults to 10.
@@ -114,11 +118,11 @@ export interface ScrollableElementResolvedOptions {
 	mouseWheelScrollSensitivity: number;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement;
-	horizontal: Visibility;
+	horizontal: ScrollbarVisibility;
 	horizontalScrollbarSize: number;
 	horizontalSliderSize: number;
 	horizontalHasArrows: boolean;
-	vertical: Visibility;
+	vertical: ScrollbarVisibility;
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;

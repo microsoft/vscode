@@ -12,8 +12,9 @@ import {Widget} from 'vs/base/browser/ui/widget';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ScrollbarArrow, ScrollbarArrowOptions} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import {Visibility, ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
+import {ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 import {Scrollable} from 'vs/base/common/scrollable';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -37,7 +38,7 @@ export interface AbstractScrollbarOptions {
 	lazyRender:boolean;
 	host: ScrollbarHost;
 	scrollbarState: ScrollbarState;
-	visibility: Visibility;
+	visibility: ScrollbarVisibility;
 	extraScrollbarClassName: string;
 	scrollable: Scrollable;
 }

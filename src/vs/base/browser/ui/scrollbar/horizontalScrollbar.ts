@@ -7,11 +7,10 @@
 import {AbstractScrollbar, ScrollbarHost, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {IDomNodePosition} from 'vs/base/browser/dom';
-import {ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility, ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {Scrollable, ScrollEvent} from 'vs/base/common/scrollable';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ARROW_IMG_SIZE} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
@@ -22,8 +21,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			host: host,
 			scrollbarState: new ScrollbarState(
 				(options.horizontalHasArrows ? options.arrowSize : 0),
-				(options.horizontal === Visibility.Hidden ? 0 : options.horizontalScrollbarSize),
-				(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize)
+				(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize),
+				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize)
 			),
 			visibility: options.horizontal,
 			extraScrollbarClassName: 'horizontal',

@@ -19,6 +19,7 @@ import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 /**
  * An implementation of editor for diffing binary files like images or videos.
@@ -58,7 +59,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		this.leftBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Left Custom Scrollbars
-		this.leftScrollbar = new DomScrollableElement(leftBinaryContainerElement, { canUseTranslate3d: false, horizontal: 'hidden', vertical: 'hidden' });
+		this.leftScrollbar = new DomScrollableElement(leftBinaryContainerElement, { canUseTranslate3d: false, horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Hidden });
 		parent.getHTMLElement().appendChild(this.leftScrollbar.getDomNode());
 		$(this.leftScrollbar.getDomNode()).addClass('binarydiff-left');
 
@@ -76,7 +77,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		this.rightBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Right Custom Scrollbars
-		this.rightScrollbar = new DomScrollableElement(rightBinaryContainerElement, { canUseTranslate3d: false,horizontal: 'hidden', vertical: 'hidden' });
+		this.rightScrollbar = new DomScrollableElement(rightBinaryContainerElement, { canUseTranslate3d: false, horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Hidden });
 		parent.getHTMLElement().appendChild(this.rightScrollbar.getDomNode());
 		$(this.rightScrollbar.getDomNode()).addClass('binarydiff-right');
 	}

@@ -14,6 +14,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export type KeyCode = KeyCode;
 export type KeyMod = KeyMod;
@@ -561,10 +562,12 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	originalEditable?: boolean;
 }
 
-export interface IInternalEditorScrollbarOptions {
+export class InternalEditorScrollbarOptions {
+	_internalEditorScrollbarOptionsBrand: void;
+
 	arrowSize:number;
-	vertical:string;
-	horizontal:string;
+	vertical:ScrollbarVisibility;
+	horizontal:ScrollbarVisibility;
 	useShadows:boolean;
 	verticalHasArrows:boolean;
 	horizontalHasArrows:boolean;
@@ -574,6 +577,55 @@ export interface IInternalEditorScrollbarOptions {
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	mouseWheelScrollSensitivity: number;
+
+	constructor(source:{
+		arrowSize:number;
+		vertical:ScrollbarVisibility;
+		horizontal:ScrollbarVisibility;
+		useShadows:boolean;
+		verticalHasArrows:boolean;
+		horizontalHasArrows:boolean;
+		handleMouseWheel: boolean;
+		horizontalScrollbarSize: number;
+		horizontalSliderSize: number;
+		verticalScrollbarSize: number;
+		verticalSliderSize: number;
+		mouseWheelScrollSensitivity: number;
+	}) {
+		this.arrowSize = source.arrowSize|0;
+		this.vertical = source.vertical|0;
+		this.horizontal = source.horizontal|0;
+		this.useShadows = Boolean(source.useShadows);
+		this.verticalHasArrows = Boolean(source.verticalHasArrows);
+		this.horizontalHasArrows = Boolean(source.horizontalHasArrows);
+		this.handleMouseWheel = Boolean(source.handleMouseWheel);
+		this.horizontalScrollbarSize = source.horizontalScrollbarSize|0;
+		this.horizontalSliderSize = source.horizontalSliderSize|0;
+		this.verticalScrollbarSize = source.verticalScrollbarSize|0;
+		this.verticalSliderSize = source.verticalSliderSize|0;
+		this.mouseWheelScrollSensitivity = Number(source.mouseWheelScrollSensitivity);
+	}
+
+	public equals(other:InternalEditorScrollbarOptions): boolean {
+		return (
+			this.arrowSize === other.arrowSize
+			&& this.vertical === other.vertical
+			&& this.horizontal === other.horizontal
+			&& this.useShadows === other.useShadows
+			&& this.verticalHasArrows === other.verticalHasArrows
+			&& this.horizontalHasArrows === other.horizontalHasArrows
+			&& this.handleMouseWheel === other.handleMouseWheel
+			&& this.horizontalScrollbarSize === other.horizontalScrollbarSize
+			&& this.horizontalSliderSize === other.horizontalSliderSize
+			&& this.verticalScrollbarSize === other.verticalScrollbarSize
+			&& this.verticalSliderSize === other.verticalSliderSize
+			&& this.mouseWheelScrollSensitivity === other.mouseWheelScrollSensitivity
+		);
+	}
+
+	public clone(): InternalEditorScrollbarOptions {
+		return new InternalEditorScrollbarOptions(this);
+	}
 }
 
 export interface IEditorWrappingInfo {
@@ -599,7 +651,7 @@ export interface IInternalEditorOptions {
 	roundedSelection:boolean;
 	theme:string;
 	readOnly:boolean;
-	scrollbar:IInternalEditorScrollbarOptions;
+	scrollbar:InternalEditorScrollbarOptions;
 	overviewRulerLanes:number;
 	cursorBlinking:string;
 	cursorStyle:TextEditorCursorStyle;

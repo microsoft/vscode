@@ -27,6 +27,7 @@ import DOM = require('vs/base/browser/dom');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {IDisposable,dispose} from 'vs/base/common/lifecycle';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -190,7 +191,7 @@ export class QuickOpenWidget implements IModelProvider {
 					twistiePixels: 11,
 					indentPixels: 0,
 					alwaysFocused: true,
-					verticalScrollMode: 'visible',
+					verticalScrollMode: ScrollbarVisibility.Visible,
 					ariaLabel: nls.localize('treeAriaLabel', "Quick Picker")
 				});
 
