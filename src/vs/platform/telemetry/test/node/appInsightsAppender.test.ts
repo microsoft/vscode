@@ -37,21 +37,19 @@ class AIAdapterMock implements IAIAdapter {
 	}
 }
 
-class ContextServiceMock {
-
-	constructor(private key?: string, private asimovKey?: string) {}
-
-	getConfiguration(): any {
-		return {
-			env: {
-				aiConfig: {
-					key: this.key,
-					asimovKey: this.asimovKey
-				}
-			}
-		};
+let envKeyNoAsimov: any = {
+	aiConfig: {
+		key: '123',
+		asimovKey: undefined
 	}
-}
+};
+
+let envKeyAsimov: any = {
+	aiConfig: {
+		key: '123',
+		asimovKey: 'AIF-123'
+	}
+};
 
 suite('Telemetry - AppInsightsTelemetryAppender', () => {
 	var appInsightsMock: AIAdapterMock;
@@ -59,7 +57,7 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 
 	setup(() => {
 		appInsightsMock = new AIAdapterMock(AppInsightsAppender.EVENT_NAME_PREFIX, AppInsightsAppender.EVENT_NAME_PREFIX);
-		appender = new AppInsightsAppender(null,<any> new ContextServiceMock('123'), appInsightsMock);
+		appender = new AppInsightsAppender(null, envKeyNoAsimov, appInsightsMock);
 	});
 
 	teardown(() => {
@@ -90,7 +88,7 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 	});
 
 	test('Test asimov', () => {
-		appender = new AppInsightsAppender(null, <any> new ContextServiceMock('123', 'AIF-123'), appInsightsMock);
+		appender = new AppInsightsAppender(null, envKeyAsimov, appInsightsMock);
 
 		appender.log('testEvent');
 
