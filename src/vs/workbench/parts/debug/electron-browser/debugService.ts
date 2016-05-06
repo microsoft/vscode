@@ -289,7 +289,8 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.push(this.session.onDidOutput(event => {
 			if (event.body && event.body.category === 'telemetry') {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
-				if (this.telemetryAdapter) {
+				// and the user opted in telemetry
+				if (this.telemetryAdapter && this.telemetryService.isOptedIn) {
 					this.telemetryAdapter.log(event.body.output, event.body.data);
 				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
