@@ -8,16 +8,19 @@
 import * as assert from 'assert';
 import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setOpenEditorDirection, Direction} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
-import {TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
+import {TestStorageService, TestLifecycleService} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {Registry} from 'vs/platform/platform';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 function create(): IEditorStacksModel {
 	let services = new ServiceCollection();
 	services.set(IStorageService, new TestStorageService());
-	services.set(ILifecycleService, NullLifecycleService);
+	services.set(ILifecycleService, new TestLifecycleService());
 
 	let inst = new InstantiationService(services);
 
@@ -75,13 +78,51 @@ class TestEditorInput extends EditorInput {
 	constructor(public id: string) {
 		super();
 	}
-	public getId() { return 'id'; }
+	public getId() { return 'testEditorInput'; }
+	public resolve() { return null; }
+
+	public matches(other: TestEditorInput): boolean {
+		return this.id === other.id;
+	}
+}
+
+class NonSerializableTestEditorInput extends EditorInput {
+	constructor(public id: string) {
+		super();
+	}
+	public getId() { return 'testEditorInput-nonSerializable'; }
 	public resolve() { return null; }
 }
 
-function input(id = String(index++)): EditorInput {
-	return new TestEditorInput(id);
+function input(id = String(index++), nonSerializable?: boolean): EditorInput {
+	return nonSerializable ? new NonSerializableTestEditorInput(id) : new TestEditorInput(id);
 }
+
+interface ISerializedTestInput {
+	id: string;
+}
+
+class TestEditorInputFactory implements IEditorInputFactory {
+
+	constructor() { }
+
+	public serialize(editorInput: EditorInput): string {
+		let testEditorInput = <TestEditorInput>editorInput;
+		let testInput: ISerializedTestInput = {
+			id: testEditorInput.id
+		};
+
+		return JSON.stringify(testInput);
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		let testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
+
+		return new TestEditorInput(testInput.id);
+	}
+}
+
+(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory('testEditorInput', TestEditorInputFactory);
 
 suite('Editor Stacks Model', () => {
 
@@ -641,5 +682,42 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 		assert.equal(group.activeEditor, null);
 		assert.equal(group.previewEditor, null);
+	});
+
+	test('Stack - Single Group, Single Editor - persist', function () {
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+
+		let model:IEditorStacksModel = inst.createInstance(EditorStacksModel);
+		const group = model.openGroup('group');
+
+		const input1 = input();
+		group.openEditor(input1);
+
+		assert.equal(model.groups.length, 1);
+		assert.equal(group.count, 1);
+		assert.equal(group.activeEditor.matches(input1), true);
+		assert.equal(group.previewEditor.matches(input1), true);
+		assert.equal(group.label, 'group');
+		assert.equal(group.isActive(input1), true);
+
+		lifecycle.fireShutdown();
+
+		// Create model again - should load from storage
+		model = inst.createInstance(EditorStacksModel);
+
+		assert.equal(model.groups.length, 1);
+		assert.equal(group.count, 1);
+		assert.equal(group.activeEditor.matches(input1), true);
+		assert.equal(group.previewEditor.matches(input1), true);
+		assert.equal(group.label, 'group');
+		assert.equal(group.isActive(input1), true);
 	});
 });

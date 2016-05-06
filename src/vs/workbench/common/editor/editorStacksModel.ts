@@ -95,12 +95,12 @@ export function setOpenEditorDirection(dir: Direction): void {
 	DEFAULT_OPEN_EDITOR_DIRECTION = dir;
 }
 
-interface ISerializedEditorInput {
+export interface ISerializedEditorInput {
 	id: string;
 	value: string;
 }
 
-interface ISerializedEditorGroup {
+export interface ISerializedEditorGroup {
 	label: string;
 	editors: ISerializedEditorInput[];
 	mru: number[];

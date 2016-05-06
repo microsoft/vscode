@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import Event from 'vs/base/common/event';
+import Event, {Emitter} from 'vs/base/common/event';
 import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
 import http = require('vs/base/common/http');
@@ -28,6 +28,7 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -459,5 +460,28 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 	public onDidUpdateConfiguration() {
 		return { dispose() { } };
+	}
+}
+
+export class TestLifecycleService implements ILifecycleService {
+
+	public serviceId = ILifecycleService;
+
+	private _onWillShutdown = new Emitter<ShutdownEvent>();
+	private _onShutdown = new Emitter<void>();
+
+	constructor() {
+	}
+
+	public fireShutdown(): void {
+		this._onShutdown.fire();
+	}
+
+	public get onWillShutdown(): Event<ShutdownEvent> {
+		return this._onWillShutdown.event;
+	}
+
+	public get onShutdown(): Event<void> {
+		return this._onShutdown.event;
 	}
 }
