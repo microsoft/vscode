@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import types = require('vs/base/common/types');
+import {isObject} from 'vs/base/common/types';
 import {safeStringify, mixin} from 'vs/base/common/objects';
-
-import appInsights = require('applicationinsights');
+import {TPromise} from 'vs/base/common/winjs.base';
+import * as appInsights from 'applicationinsights';
 
 export interface IAIAdapter {
 	log(eventName: string, data?: any): void;
@@ -15,144 +15,148 @@ export interface IAIAdapter {
 	dispose(): void;
 }
 
+namespace AI {
+
+	let _initialized = false;
+
+	function ensureAIEngineIsInitialized(): void {
+		if (_initialized === false) {
+			// we need to pass some fake key, otherwise AI throws an exception
+			appInsights.setup('2588e01f-f6c9-4cd6-a348-143741f8d702')
+				.setAutoCollectConsole(false)
+				.setAutoCollectExceptions(false)
+				.setAutoCollectPerformance(false)
+				.setAutoCollectRequests(false);
+
+			_initialized = true;
+		}
+	}
+
+	export function getClient(aiKey: string): typeof appInsights.client {
+
+		ensureAIEngineIsInitialized();
+
+		const client = appInsights.getClient(aiKey);
+		client.channel.setOfflineMode(true);
+		client.context.tags[client.context.keys.deviceMachineName] = ''; //prevent App Insights from reporting machine name
+		if (aiKey.indexOf('AIF-') === 0) {
+			client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		}
+		return client;
+	}
+}
+
+interface Properties {
+	[key: string]: string;
+}
+
+interface Measurements {
+	[key: string]: number;
+}
+
 export class AIAdapter implements IAIAdapter {
 
-	private appInsights: typeof appInsights.client;
+	private _aiClient: typeof appInsights.client;
 
 	constructor(
-		private aiKey: string,
-		private eventPrefix: string,
-		/* for test only */
-		client?: any,
-		private additionalDataToLog?: any
+		private _eventPrefix: string,
+		private _additionalDataToLog: () => TPromise<{ [key: string]: string | number }>,
+		clientFactoryOrAiKey: (() => typeof appInsights.client) | string // allow factory function for testing
 	) {
-		// for test
-		if (client) {
-			this.appInsights = client;
-			return;
+		if (!this._additionalDataToLog) {
+			this._additionalDataToLog = () => TPromise.as(undefined);
 		}
-
-		if (aiKey) {
-			// if another client is already initialized
-			if (appInsights.client) {
-					this.appInsights = appInsights.getClient(aiKey);
-					// no other way to enable offline mode
-					this.appInsights.channel.setOfflineMode(true);
-
-			} else {
-				this.appInsights = appInsights.setup(aiKey)
-						.setAutoCollectRequests(false)
-						.setAutoCollectPerformance(false)
-						.setAutoCollectExceptions(false)
-						.setOfflineMode(true)
-						.start()
-						.client;
-			}
-
-
-			if(aiKey.indexOf('AIF-') === 0) {
-				this.appInsights.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-			}
-
-			this.setupAIClient(this.appInsights);
+		if (typeof clientFactoryOrAiKey === 'string') {
+			this._aiClient = AI.getClient(clientFactoryOrAiKey);
+		} else if (typeof clientFactoryOrAiKey === 'function') {
+			this._aiClient = clientFactoryOrAiKey();
 		}
 	}
 
-	private setupAIClient(client: typeof appInsights.client): void {
-		//prevent App Insights from reporting machine name
-		if (client && client.context &&
-			client.context.keys && client.context.tags) {
-			var machineNameKey = client.context.keys.deviceMachineName;
-			client.context.tags[machineNameKey] = '';
-		}
-	}
+	private static _getData(data?: any): { properties: Properties, measurements: Measurements } {
 
-	private getData(data?: any): any {
-		var properties: {[key: string]: string;} = {};
-		var measurements: {[key: string]: number;} = {};
+		const properties: Properties = Object.create(null);
+		const measurements: Measurements = Object.create(null);
 
-		var event_data = this.flaten(data);
-		for(var prop in event_data) {
+		const flat = Object.create(null);
+		AIAdapter._flaten(data, flat);
+
+		for (let prop in flat) {
 			// enforce property names less than 150 char, take the last 150 char
-			var propName = prop && prop.length > 150 ? prop.substr( prop.length - 149) : prop;
-			var property = event_data[prop];
-			if (types.isNumber(property)) {
-				measurements[propName] = property;
+			prop = prop.length > 150 ? prop.substr(prop.length - 149) : prop;
+			var value = flat[prop];
 
-			} else if (types.isBoolean(property)) {
-				measurements[propName] = property ? 1:0;
-			} else if (types.isString(property)) {
-				//enforce proeprty value to be less than 1024 char, take the first 1024 char
-				var propValue = property && property.length > 1024 ? property.substring(0, 1023): property;
-				properties[propName] = propValue;
-			} else if (!types.isUndefined(property) && property !== null) {
-				properties[propName] = property;
+			if (typeof value === 'number') {
+				measurements[prop] = value;
+
+			} else if (typeof value === 'boolean') {
+				measurements[prop] = value ? 1 : 0;
+
+			} else if (typeof value === 'string') {
+				//enforce property value to be less than 1024 char, take the first 1024 char
+				properties[prop] = value.substring(0, 1023);
+
+			} else if (typeof value !== 'undefined' && value !== null) {
+				properties[prop] = value;
 			}
 		}
 
 		return {
-			properties: properties,
-			measurements: measurements
+			properties,
+			measurements
 		};
 	}
 
-	private flaten(obj:any, order:number = 0, prefix? : string): any {
-		var result:{[key:string]: any} = {};
-		var properties = obj ? Object.getOwnPropertyNames(obj) : [];
-		for (var i =0; i < properties.length; i++) {
-			var item = properties[i];
-			var index = prefix ? prefix + item : item;
+	private static _flaten(obj: any, result: {[key: string]: any }, order: number = 0, prefix?: string): void {
+		if (!obj) {
+			return;
+		}
 
-			if (types.isArray(obj[item])) {
-				try {
-					result[index] = safeStringify(obj[item]);
-				} catch (e) {
-					// workaround for catching the edge case for #18383
-					// safe stringfy should never throw circular object exception
-					result[index] = '[Circular-Array]';
-				}
-			} else if (obj[item] instanceof Date) {
-				result[index] = (<Date> obj[item]).toISOString();
-			} else if (types.isObject(obj[item])) {
+		for(var item of Object.getOwnPropertyNames(obj)){
+			const value = obj[item];
+			const index = prefix ? prefix + item : item;
+
+			if (Array.isArray(value)) {
+				result[index] = safeStringify(value);
+
+			} else if (value instanceof Date) {
+				// TODO unsure why this is here and not in _getData
+				result[index] = value.toISOString();
+
+			} else if (isObject(value)) {
 				if (order < 2) {
-					var item_result = this.flaten(obj[item], order + 1, index + '.');
-					for (var prop in item_result) {
-						result[prop] = item_result[prop];
-					}
+					AIAdapter._flaten(value, result, order + 1, index + '.');
 				} else {
-					try {
-						result[index] = safeStringify(obj[item]);
-					} catch (e) {
-						// workaround for catching the edge case for #18383
-						// safe stringfy should never throw circular object exception
-						result[index] = '[Circular]';
-					}
+					result[index] = safeStringify(value);
 				}
 			} else {
-				result[index] = obj[item];
+				result[index] = value;
 			}
 		}
-		return result;
 	}
 
 	public log(eventName: string, data?: any): void {
-		if (this.additionalDataToLog) {
-			data = mixin(data, this.additionalDataToLog);
+		if (!this._aiClient) {
+			return;
 		}
-		var result = this.getData(data);
-
-		if (this.appInsights) {
-			this.appInsights.trackEvent(this.eventPrefix+'/'+eventName, result.properties, result.measurements);
-		}
+		this._additionalDataToLog().then(additionalData => {
+			data = mixin(data, additionalData);
+			let {properties, measurements} = AIAdapter._getData(data);
+			this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
+		}, err => {
+			console.error(err);
+		});
 	}
 
 	public logException(exception: any): void {
-		if (this.appInsights) {
-			this.appInsights.trackException(exception);
+		if (this._aiClient) {
+			this._aiClient.trackException(exception);
 		}
 	}
 
 	public dispose(): void {
-		this.appInsights = null;
+		this._aiClient.sendPendingData(() => {
+			// all data flushed
+		});
 	}
 }

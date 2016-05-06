@@ -54,11 +54,11 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		}
 
 		if (key) {
-			this.appInsights = new AIAdapter(key, AppInsightsAppender.EVENT_NAME_PREFIX);
+			this.appInsights = new AIAdapter(AppInsightsAppender.EVENT_NAME_PREFIX, undefined, key);
 		}
 
 		if (asimovKey) {
-			this.appInsightsVortex = new AIAdapter(asimovKey, AppInsightsAppender.EVENT_NAME_PREFIX);
+			this.appInsightsVortex = new AIAdapter(AppInsightsAppender.EVENT_NAME_PREFIX, undefined, asimovKey);
 		}
 
 		this.loadAddtionaProperties();

@@ -21,9 +21,9 @@ class AppInsightsMock {
 
 	public trackEvent(eventName: string, properties?: { string?: string; }, measurements?: { string?: number; }): void {
 		this.events.push({
-			eventName: eventName,
-			properties: properties,
-			measurements: measurements
+			eventName,
+			properties,
+			measurements
 		});
 	}
 	public trackPageView(): void {
@@ -32,6 +32,10 @@ class AppInsightsMock {
 
 	public trackException(exception: any): void {
 		this.exceptions.push(exception);
+	}
+
+	public sendPendingData(callback): void {
+		// called on dispose
 	}
 }
 
@@ -42,7 +46,7 @@ suite('AIAdapter', () => {
 
 	setup(() => {
 		appInsightsMock = new AppInsightsMock();
-		adapter = new AIAdapter(null, prefix, appInsightsMock);
+		adapter = new AIAdapter(prefix, undefined, () => appInsightsMock);
 	});
 
 	teardown(() => {

@@ -541,13 +541,14 @@ export class DebugService implements debug.IDebugService {
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
 		this.setStateAndEmit(debug.State.Initializing);
-		const key = this.configurationManager.adapter.aiKey;
-		const telemetryInfo = Object.create(null);
-		this.telemetryService.getTelemetryInfo().then(info => {
-			telemetryInfo['common.vscodemachineid'] = info.machineId;
-			telemetryInfo['common.vscodesessionid'] = info.sessionId;
-		}, errors.onUnexpectedError);
-		this.telemetryAdapter = new AIAdapter(key, this.configurationManager.adapter.type, null, telemetryInfo);
+		this.telemetryAdapter = new AIAdapter(this.configurationManager.adapter.type, () => {
+			return this.telemetryService.getTelemetryInfo().then(info => {
+				const telemetryInfo: { [key: string]: string } = Object.create(null);
+				telemetryInfo['common.vscodemachineid'] = info.machineId;
+				telemetryInfo['common.vscodesessionid'] = info.sessionId;
+				return telemetryInfo;
+			});
+		}, this.configurationManager.adapter.aiKey);
 		this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.telemetryAdapter);
 		this.registerSessionListeners();
 
