@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {ITimerEvent, nullEvent} from 'vs/base/common/timer';
-import {createDecorator, ServiceIdentifier, IInstantiationService, ServicesAccessor, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -34,40 +34,12 @@ export interface ITelemetryService {
 	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
 	isOptedIn: boolean;
-
-	addTelemetryAppender(appender: ITelemetryAppender): IDisposable;
-}
-
-export namespace Extenstions {
-
-	let _telemetryAppenderCtors: IConstructorSignature0<ITelemetryAppender>[] = [];
-
-	export const TelemetryAppenders = {
-		activate(accessor: ServicesAccessor): void {
-			const telemetryService = accessor.get(ITelemetryService);
-			const instantiationService = accessor.get(IInstantiationService);
-			for (let ctor of _telemetryAppenderCtors) {
-				const instance = instantiationService.createInstance(ctor);
-				telemetryService.addTelemetryAppender(instance);
-			}
-			// can only be done once
-			_telemetryAppenderCtors = undefined;
-		},
-		registerTelemetryAppenderDescriptor(ctor: IConstructorSignature0<ITelemetryAppender>): void {
-			_telemetryAppenderCtors.push(ctor);
-		}
-	};
-};
-
-export interface ITelemetryAppendersRegistry {
-	activate(instantiationService: IInstantiationService): void;
 }
 
 export const NullTelemetryService: ITelemetryService = {
 	serviceId: undefined,
 	timedPublicLog(name: string, data?: any): ITimerEvent { return nullEvent; },
 	publicLog(eventName: string, data?: any): void { },
-	addTelemetryAppender(appender): IDisposable { return { dispose() { } }; },
 	isOptedIn: true,
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return TPromise.as({

@@ -62,7 +62,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService, Extenstions as TelemetryExtensions} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
@@ -389,8 +389,6 @@ export class Workbench implements IPartService {
 		<IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar).setInstantiationService(this.instantiationService);
 		<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench).setInstantiationService(this.instantiationService);
 		<IEditorRegistry>Registry.as(EditorExtensions.Editors).setInstantiationService(this.instantiationService);
-
-		this.instantiationService.invokeFunction(TelemetryExtensions.TelemetryAppenders.activate);
 	}
 
 	private initSettings(): void {

@@ -17,6 +17,7 @@ import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
 import {withDefaults, cloneAndChange} from 'vs/base/common/objects';
 
 export interface ITelemetryServiceConfig {
+	appender: ITelemetryAppender[];
 	userOptIn?: boolean;
 	enableHardIdle?: boolean;
 	enableSoftIdle?: boolean;
@@ -40,7 +41,6 @@ export class TelemetryService implements ITelemetryService {
 
 	protected _telemetryInfo: ITelemetryInfo;
 	protected _configuration: ITelemetryServiceConfig;
-	protected _appenders: ITelemetryAppender[] = [];
 	protected _disposables: IDisposable[] = [];
 
 	private _timeKeeper: TimeKeeper;
@@ -54,6 +54,7 @@ export class TelemetryService implements ITelemetryService {
 
 	constructor(config?: ITelemetryServiceConfig) {
 		this._configuration = withDefaults(config, <ITelemetryServiceConfig>{
+			appender: [],
 			cleanupPatterns: [],
 			sessionID: uuid.generateUuid() + Date.now(),
 			enableHardIdle: true,
@@ -131,7 +132,7 @@ export class TelemetryService implements ITelemetryService {
 
 	public dispose(): void {
 		this._disposables = dispose(this._disposables);
-		for (let appender of this._appenders) {
+		for (let appender of this._configuration.appender) {
 			appender.dispose();
 		}
 	}
@@ -185,7 +186,7 @@ export class TelemetryService implements ITelemetryService {
 			}
 		});
 
-		for (let appender of this._appenders) {
+		for (let appender of this._configuration.appender) {
 			appender.log(eventName, data);
 		}
 	}
@@ -199,18 +200,6 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 		return stack;
-	}
-
-	public addTelemetryAppender(appender: ITelemetryAppender): IDisposable {
-		this._appenders.push(appender);
-		return {
-			dispose: () => {
-				let index = this._appenders.indexOf(appender);
-				if (index > -1) {
-					this._appenders.splice(index, 1);
-				}
-			}
-		};
 	}
 }
 

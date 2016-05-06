@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-/* tslint:disable:semicolon */
-
 import errors = require('vs/base/common/errors');
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {AIAdapter, IAIAdapter} from 'vs/base/node/aiAdapter';
-
 import winreg = require('winreg');
 import os = require('os');
 
@@ -22,7 +19,7 @@ class StorageKeys {
 	public static firstSessionDate: string = 'telemetry.firstSessionDate';
 }
 
-export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
+export class AppInsightsAppender implements ITelemetryAppender {
 
 	public static EVENT_NAME_PREFIX: string = 'monacoworkbench';
 
@@ -40,8 +37,7 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		/* for test only */
-		client: any
+		_testing_client?: any
 	) {
 		this.commonProperties = {};
 		this.commonMetrics = {};
@@ -54,21 +50,21 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 		let asimovKey = config ? config.asimovKey: null;
 
 		// for test
-		if (client) {
-			this.appInsights = client;
+		if (_testing_client) {
+			this.appInsights = _testing_client;
 
 			if (asimovKey) {
-				this.appInsightsVortex = client;
+				this.appInsightsVortex = _testing_client;
 			}
 			return;
 		}
 
 		if (key) {
-			this.appInsights = new AIAdapter(key, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX);
+			this.appInsights = new AIAdapter(key, AppInsightsAppender.EVENT_NAME_PREFIX);
 		}
 
 		if(asimovKey) {
-			this.appInsightsVortex = new AIAdapter(asimovKey, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX);
+			this.appInsightsVortex = new AIAdapter(asimovKey, AppInsightsAppender.EVENT_NAME_PREFIX);
 		}
 
 		this.loadAddtionaProperties();
@@ -87,7 +83,7 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 			if (sqmUserId) {
 				this.commonProperties['sqm.userid'] = sqmUserId;
 			} else {
-				this.getWinRegKeyData(NodeAppInsightsTelemetryAppender.SQM_KEY, 'UserId', winreg.HKCU, (error, result: string) => {
+				this.getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'UserId', winreg.HKCU, (error, result: string) => {
 					if (!error && result) {
 						this.commonProperties['sqm.userid'] = result;
 						this.storageService.store(StorageKeys.sqmUserId, result);
@@ -100,7 +96,7 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 				this.commonProperties['sqm.machineid'] = sqmMachineId;
 			}
 			else {
-				this.getWinRegKeyData(NodeAppInsightsTelemetryAppender.SQM_KEY, 'MachineId', winreg.HKLM,(error, result) => {
+				this.getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'MachineId', winreg.HKLM,(error, result) => {
 					if (!error && result) {
 						this.commonProperties['sqm.machineid'] = result;
 						this.storageService.store(StorageKeys.sqmMachineId, result);

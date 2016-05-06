@@ -21,6 +21,7 @@ import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {ElectronTelemetryService} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
+import {AppInsightsAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
 import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
@@ -207,7 +208,8 @@ export class WorkbenchShell {
 				appRoot: this.configuration.env.appRoot,
 				extensionsRoot: this.configuration.env.userExtensionsHome,
 				version: this.configuration.env.version,
-				commitHash: this.configuration.env.commitHash
+				commitHash: this.configuration.env.commitHash,
+				appender: [new AppInsightsAppender(this.storageService, this.contextService)]
 			});
 		} else {
 			this.telemetryService = NullTelemetryService;

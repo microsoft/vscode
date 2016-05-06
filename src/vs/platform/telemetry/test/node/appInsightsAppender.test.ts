@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {IAIAdapter} from 'vs/base/node/aiAdapter';
-import { NodeAppInsightsTelemetryAppender } from 'vs/workbench/parts/telemetry/node/nodeAppInsightsTelemetryAppender';
+import {AppInsightsAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
 
 interface IAppInsightsEvent {
 	eventName: string;
@@ -49,17 +49,17 @@ class ContextServiceMock {
 					asimovKey: this.asimovKey
 				}
 			}
-		}
+		};
 	}
 }
 
 suite('Telemetry - AppInsightsTelemetryAppender', () => {
 	var appInsightsMock: AIAdapterMock;
-	var appender: NodeAppInsightsTelemetryAppender;
+	var appender: AppInsightsAppender;
 
 	setup(() => {
-		appInsightsMock = new AIAdapterMock(NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX);
-		appender = new NodeAppInsightsTelemetryAppender(null,<any> new ContextServiceMock('123'), appInsightsMock);
+		appInsightsMock = new AIAdapterMock(AppInsightsAppender.EVENT_NAME_PREFIX, AppInsightsAppender.EVENT_NAME_PREFIX);
+		appender = new AppInsightsAppender(null,<any> new ContextServiceMock('123'), appInsightsMock);
 	});
 
 	teardown(() => {
@@ -70,7 +70,7 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 		appender.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+'/testEvent');
+		assert.equal(appInsightsMock.events[0].eventName, AppInsightsAppender.EVENT_NAME_PREFIX+'/testEvent');
 	});
 
 	test('Event with data', () => {
@@ -81,7 +81,7 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 		});
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+'/testEvent');
+		assert.equal(appInsightsMock.events[0].eventName, AppInsightsAppender.EVENT_NAME_PREFIX+'/testEvent');
 
 		assert.equal(appInsightsMock.events[0].data['title'], 'some title');
 		assert.equal(appInsightsMock.events[0].data['width'], 100);
@@ -90,14 +90,14 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 	});
 
 	test('Test asimov', () => {
-		appender = new NodeAppInsightsTelemetryAppender(null, <any> new ContextServiceMock('123', 'AIF-123'), appInsightsMock);
+		appender = new AppInsightsAppender(null, <any> new ContextServiceMock('123', 'AIF-123'), appInsightsMock);
 
 		appender.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 2);
-		assert.equal(appInsightsMock.events[0].eventName, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+'/testEvent');
+		assert.equal(appInsightsMock.events[0].eventName, AppInsightsAppender.EVENT_NAME_PREFIX+'/testEvent');
 
 		// test vortex
-		assert.equal(appInsightsMock.events[1].eventName, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+'/testEvent');
+		assert.equal(appInsightsMock.events[1].eventName, AppInsightsAppender.EVENT_NAME_PREFIX+'/testEvent');
 	});
 });
