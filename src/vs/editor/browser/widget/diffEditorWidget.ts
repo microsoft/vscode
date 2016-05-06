@@ -24,6 +24,7 @@ import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineR
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
+import {Configuration} from 'vs/editor/browser/config/configuration';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;
@@ -1109,7 +1110,7 @@ class ForeignViewZonesIterator {
 	}
 }
 
-class ViewZonesComputer {
+abstract class ViewZonesComputer {
 
 	private lineChanges:editorCommon.ILineChange[];
 	private originalForeignVZ:editorCommon.IEditorWhitespace[];
@@ -1301,13 +1302,9 @@ class ViewZonesComputer {
 		return result;
 	}
 
-	_produceOriginalFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone {
-		throw new Error('NotImplemented');
-	}
+	protected abstract _produceOriginalFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone;
 
-	_produceModifiedFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone {
-		throw new Error('NotImplemented');
-	}
+	protected abstract _produceModifiedFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone;
 }
 
 class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEditorWidgetStyle, IVerticalSashLayoutProvider {
@@ -1766,6 +1763,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		var domNode = document.createElement('div');
 		domNode.className = 'view-lines line-delete';
 		domNode.innerHTML = html.join('');
+		Configuration.applyFontInfoSlow(domNode, this.modifiedEditorConfiguration.fontInfo);
 
 		return {
 			shouldNotShrink: true,
