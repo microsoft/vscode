@@ -178,6 +178,20 @@ suite('Editor Stacks Model', () => {
 		assert.equal(fourth, model.activeGroup);
 		model.closeGroup(fourth);
 		assert.equal(second, model.activeGroup);
+
+		model.closeGroup(second);
+		assert.equal(model.groups.length, 0);
+
+		model.openGroup('first');
+		model.openGroup('second');
+		model.openGroup('third');
+		model.openGroup('fourth');
+
+		assert.equal(model.groups.length, 4);
+
+		model.closeAllGroups();
+
+		assert.equal(model.groups.length, 0);
 	});
 
 	test('Stack - One Editor', function () {
@@ -319,6 +333,11 @@ suite('Editor Stacks Model', () => {
 		assert.equal(mru[0], input3);
 		assert.equal(mru[1], input2);
 		assert.equal(mru[2], input1);
+
+		group.closeAllEditors();
+
+		assert.equal(events.closed.length, 3);
+		assert.equal(group.count, 0);
 	});
 
 	test('Stack - Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
@@ -326,6 +345,7 @@ suite('Editor Stacks Model', () => {
 
 		const model = create();
 		const group = model.openGroup('group');
+		const events = groupListener(group);
 
 		const input1 = input();
 		const input2 = input();
@@ -339,6 +359,11 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.getEditors()[0], input3);
 		assert.equal(group.getEditors()[1], input2);
 		assert.equal(group.getEditors()[2], input1);
+
+		model.closeAllGroups();
+
+		assert.equal(events.closed.length, 3);
+		assert.equal(group.count, 0);
 	});
 
 	test('Stack - Multiple Editors - Pinned and Not Active', function () {

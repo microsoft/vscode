@@ -32,6 +32,7 @@ export interface IEditorGroup {
 	getEditors(mru?: boolean): EditorInput[];
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
 	closeEditor(editor: EditorInput): void;
+	closeAllEditors(): void;
 	setActive(editor: EditorInput): void;
 	isActive(editor: EditorInput): boolean;
 	isPreview(editor: EditorInput): boolean;
@@ -51,7 +52,10 @@ export interface IEditorStacksModel {
 	activeGroup: IEditorGroup;
 
 	openGroup(label: string): IEditorGroup;
+
 	closeGroup(group: IEditorGroup): void;
+	closeAllGroups(): void;
+
 	setActive(group: IEditorGroup): void;
 }
 
@@ -62,28 +66,10 @@ export interface IEditorOpenOptions {
 
 /// --- API-End ----
 
-// N Groups with labels (start with Left, Center, Right)
-// Group has a List of editors
-// Group can have N editors state pinned and 1 state preview
-// Group has 1 active edutir
-// Group has MRV(isible) list of editors
-
-// Model has actions to work with inputs
-// Open
-//   To the left / to the right (setting)
-// Close
 // Close Others
 // Close Editors to the Right
-// Close All
-// Close All in Group
 // Move Editor
 // Move Group
-// Pin Editor
-// Unpin Editor
-
-// Model has resulting events from operations
-
-// Can be serialized and restored
 
 export enum Direction {
 	LEFT,
@@ -290,6 +276,13 @@ export class EditorGroup implements IEditorGroup {
 
 		// Event
 		this._onEditorClosed.fire(editor);
+	}
+
+	public closeAllEditors(): void {
+
+		// Optimize: close all non active editors first to produce less upstream work
+		this.mru.filter(e => e !== this.active).forEach(e => this.closeEditor(e));
+		this.closeEditor(this.active);
 	}
 
 	public setActive(editor: EditorInput): void {
@@ -564,11 +557,21 @@ export class EditorStacksModel implements IEditorStacksModel {
 			}
 		}
 
+		// Close Editors in Group first
+		group.closeAllEditors();
+
 		// Splice from groups
 		this._groups.splice(index, 1);
 
 		// Event
 		this._onGroupClosed.fire(group);
+	}
+
+	public closeAllGroups(): void {
+
+		// Optimize: close all non active groups first to produce less upstream work
+		this.groups.filter(g => g !== this.active).forEach(g => this.closeGroup(g));
+		this.closeGroup(this.active);
 	}
 
 	public setActive(group: EditorGroup): void {
