@@ -40,7 +40,6 @@ import 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import 'vs/editor/contrib/toggleWordWrap/common/toggleWordWrap';
 import 'vs/css!vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import 'vs/editor/contrib/workerStatusReporter/browser/workerStatusReporter';
 import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
 import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/indentation/common/indentation';

@@ -18,9 +18,6 @@ export interface IThreadService {
 	// --- BEGIN deprecated methods
 	isInMainThread: boolean;
 
-	addStatusListener(listener: IThreadServiceStatusListener): void;
-	removeStatusListener(listener: IThreadServiceStatusListener): void;
-
 	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
 	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[]): TPromise<any>;
 
@@ -113,16 +110,4 @@ export enum ThreadAffinity {
 	Group8 = 8,
 	Group9 = 9,
 	All = 10
-}
-
-export interface IWorkerStatus {
-	queueSize: number;
-}
-
-export interface IThreadServiceStatus {
-	workers: IWorkerStatus[];
-}
-
-export interface IThreadServiceStatusListener {
-	onThreadServiceStatus(status: IThreadServiceStatus): void;
 }
