@@ -25,10 +25,7 @@ class TestTelemetryAppender implements Telemetry.ITelemetryAppender {
 	}
 
 	public log(eventName: string, data?: any): void {
-		this.events.push({
-			eventName: eventName,
-			data: data
-		});
+		this.events.push({ eventName, data });
 	}
 
 	public getEventsCount() {
@@ -133,6 +130,30 @@ suite('TelemetryService', () => {
 			service.dispose();
 		});
 	}));
+
+	test('default properties', function () {
+		let testAppender = new TestTelemetryAppender();
+		let service = new TelemetryService({ appender: [testAppender] });
+
+		return service.getTelemetryInfo().then(info => {
+
+			service.publicLog('testEvent');
+			let [first] = testAppender.events;
+
+			assert.equal(Object.keys(first.data).length, 9);
+			assert.ok('sessionID' in first.data);
+			assert.ok('timestamp' in first.data);
+			assert.ok('version' in first.data);
+			assert.ok('commitHash' in first.data);
+			assert.ok('common.platform' in first.data);
+			assert.ok('common.timesincesessionstart' in first.data);
+			assert.ok('common.sequence' in first.data);
+			assert.ok('common.instanceId' in first.data);
+			assert.ok('common.machineId' in first.data);
+
+			service.dispose();
+		});
+	});
 
 	test('Event with data', sinon.test(function() {
 		let testAppender = new TestTelemetryAppender();
