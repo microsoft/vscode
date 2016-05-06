@@ -87,7 +87,7 @@ export class ListView<T> implements IDisposable {
 		this.gesture = new Gesture(this.rowsContainer);
 
 		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
-			forbidTranslate3dUse: true,
+			canUseTranslate3d: false,
 			horizontal: 'hidden',
 			vertical: 'auto',
 			useShadows: false,

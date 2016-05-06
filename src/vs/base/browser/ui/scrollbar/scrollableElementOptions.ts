@@ -8,9 +8,9 @@ import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityContro
 
 export interface ScrollableElementCreationOptions {
 	/**
-	 * Prevent the scrollbar rendering from using translate3d. Defaults to false.
+	 * Allow scrollbar rendering to use translate3d.
 	 */
-	forbidTranslate3dUse?: boolean;
+	canUseTranslate3d: boolean;
 	/**
 	 * The scrollable element should not do any DOM mutations until renderNow() is called.
 	 * Defaults to false.
@@ -98,8 +98,14 @@ export interface ScrollableElementCreationOptions {
 	saveLastScrollTimeOnClassName?: string;
 }
 
+export interface ScrollableElementChangeOptions {
+	canUseTranslate3d: boolean;
+	handleMouseWheel?: boolean;
+	mouseWheelScrollSensitivity?: number;
+}
+
 export interface ScrollableElementResolvedOptions {
-	forbidTranslate3dUse: boolean;
+	canUseTranslate3d: boolean;
 	lazyRender: boolean;
 	className: string;
 	useShadows: boolean;

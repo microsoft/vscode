@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Browser from 'vs/base/browser/browser';
 import * as Platform from 'vs/base/common/platform';
 import * as DomUtils from 'vs/base/browser/dom';
 import {IMouseEvent, StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
@@ -34,7 +33,7 @@ export interface ScrollbarHost {
 }
 
 export interface AbstractScrollbarOptions {
-	forbidTranslate3dUse: boolean;
+	canUseTranslate3d: boolean;
 	lazyRender:boolean;
 	host: ScrollbarHost;
 	scrollbarState: ScrollbarState;
@@ -45,7 +44,7 @@ export interface AbstractScrollbarOptions {
 
 export abstract class AbstractScrollbar extends Widget {
 
-	protected _forbidTranslate3dUse: boolean;
+	protected _canUseTranslate3d: boolean;
 	protected _host: ScrollbarHost;
 	protected _scrollable: Scrollable;
 	private _lazyRender: boolean;
@@ -60,7 +59,7 @@ export abstract class AbstractScrollbar extends Widget {
 
 	constructor(opts:AbstractScrollbarOptions) {
 		super();
-		this._forbidTranslate3dUse = opts.forbidTranslate3dUse;
+		this._canUseTranslate3d = opts.canUseTranslate3d;
 		this._lazyRender = opts.lazyRender;
 		this._host = opts.host;
 		this._scrollable = opts.scrollable;
@@ -69,10 +68,6 @@ export abstract class AbstractScrollbar extends Widget {
 		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		this._shouldRender = true;
 		this.domNode = createFastDomNode(document.createElement('div'));
-		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
-			// Put the scrollbar in its own layer
-			this.domNode.setTransform('translate3d(0px, 0px, 0px)');
-		}
 
 		this._visibilityController.setDomNode(this.domNode);
 		this.domNode.setPosition('absolute');
@@ -158,6 +153,13 @@ export abstract class AbstractScrollbar extends Widget {
 			return;
 		}
 		this._shouldRender = false;
+
+		if (this._canUseTranslate3d) {
+			// Put the scrollbar in its own layer
+			this.domNode.setTransform('translate3d(0px, 0px, 0px)');
+		} else {
+			this.domNode.setTransform('');
+		}
 
 		this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());
 		this._updateSlider(this._scrollbarState.getSliderSize(), this._scrollbarState.getArrowSize() + this._scrollbarState.getSliderPosition());

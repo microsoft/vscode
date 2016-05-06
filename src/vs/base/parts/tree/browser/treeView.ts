@@ -487,7 +487,7 @@ export class TreeView extends HeightMap {
 		this.wrapper = document.createElement('div');
 		this.wrapper.className = 'monaco-tree-wrapper';
 		this.scrollableElement = new ScrollableElementImpl.ScrollableElement(this.wrapper, {
-			forbidTranslate3dUse: true,
+			canUseTranslate3d: false,
 			horizontal: 'hidden',
 			vertical: context.options.verticalScrollMode || 'auto',
 			useShadows: context.options.useShadows,

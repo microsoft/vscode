@@ -285,9 +285,6 @@ export class OverviewRulerImpl {
 		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
 		this._domNode.className = cssClassName;
 		this._domNode.style.position = 'absolute';
-		if (browser.canUseTranslate3d) {
-			this._domNode.style.transform = 'translate3d(0px, 0px, 0px)';
-		}
 
 		this._lanesCount = 3;
 
@@ -382,6 +379,11 @@ export class OverviewRulerImpl {
 		}
 		if (this._zoneManager.getOuterHeight() === 0) {
 			return false;
+		}
+		if (browser.canUseTranslate3d) {
+			StyleMutator.setTransform(this._domNode, 'translate3d(0px, 0px, 0px)');
+		} else {
+			StyleMutator.setTransform(this._domNode, '');
 		}
 
 		const width = this._zoneManager.getWidth();

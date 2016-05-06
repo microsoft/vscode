@@ -6,7 +6,7 @@
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import {ScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollableElementCreationOptions, ScrollableElementChangeOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IOverviewRulerLayoutInfo, ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, INewScrollPosition} from 'vs/editor/common/editorCommon';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
@@ -36,6 +36,7 @@ export class ScrollManager implements IDisposable {
 		var configScrollbarOpts = this.configuration.editor.scrollbar;
 
 		var scrollbarOptions:ScrollableElementCreationOptions = {
+			canUseTranslate3d: true,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
 			horizontal: configScrollbarOpts.horizontal,
@@ -64,7 +65,12 @@ export class ScrollManager implements IDisposable {
 		this.toDispose.push(this.configuration.onDidChange((e:IConfigurationChangedEvent) => {
 			this.scrollbar.updateClassName(this.configuration.editor.theme);
 			if (e.scrollbar) {
-				this.scrollbar.updateOptions(this.configuration.editor.scrollbar);
+				let newOpts:ScrollableElementChangeOptions = {
+					canUseTranslate3d: true,
+					handleMouseWheel: this.configuration.editor.scrollbar.handleMouseWheel,
+					mouseWheelScrollSensitivity: this.configuration.editor.scrollbar.mouseWheelScrollSensitivity
+				};
+				this.scrollbar.updateOptions(newOpts);
 			}
 		}));
 

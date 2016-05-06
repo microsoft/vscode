@@ -13,6 +13,7 @@ import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 
 enum RenderType {
 	Hidden,
@@ -30,7 +31,7 @@ export class ViewCursors extends ViewPart {
 
 	private _isVisible: boolean;
 
-	private _domNode: HTMLElement;
+	private _domNode: FastDomNode;
 
 	private _blinkTimer: number;
 
@@ -49,13 +50,10 @@ export class ViewCursors extends ViewPart {
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
 
-		this._domNode = document.createElement('div');
+		this._domNode = createFastDomNode(document.createElement('div'));
 		this._updateDomClassName();
-		if (browser.canUseTranslate3d) {
-			this._domNode.style.transform = 'translate3d(0px, 0px, 0px)';
-		}
 
-		this._domNode.appendChild(this._primaryCursor.getDomNode());
+		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._blinkTimer = -1;
 
@@ -72,7 +70,7 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		return this._domNode.domNode;
 	}
 
 	// --- begin event handlers
@@ -227,7 +225,7 @@ export class ViewCursors extends ViewPart {
 	// --- end blinking logic
 
 	private _updateDomClassName(): void {
-		this._domNode.className = this._getClassName();
+		this._domNode.setClassName(this._getClassName());
 	}
 
 	private _getClassName(): string {
@@ -290,6 +288,12 @@ export class ViewCursors extends ViewPart {
 		this._primaryCursor.render(ctx);
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].render(ctx);
+		}
+
+		if (browser.canUseTranslate3d) {
+			this._domNode.setTransform('translate3d(0px, 0px, 0px)');
+		} else {
+			this._domNode.setTransform('');
 		}
 	}
 }

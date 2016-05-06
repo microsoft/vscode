@@ -221,7 +221,7 @@ class SuggestionDetails {
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
 
-		this.scrollbar = new DomScrollableElement(this.body, {});
+		this.scrollbar = new DomScrollableElement(this.body, { canUseTranslate3d: false });
 		append(this.el, this.scrollbar.getDomNode());
 		this.disposables.push(this.scrollbar);
 

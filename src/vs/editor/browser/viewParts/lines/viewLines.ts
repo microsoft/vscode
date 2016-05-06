@@ -408,9 +408,12 @@ export class ViewLines extends ViewLayer {
 
 		// (4) handle scrolling
 		if (browser.canUseTranslate3d) {
-			var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
+			let transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
 			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform);
+			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
+			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
 		} else {
+			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, '');
 			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
 			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
 		}
