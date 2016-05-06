@@ -38,11 +38,11 @@ export class ViewLine implements IVisibleLineData {
 
 	constructor(context:ViewContext) {
 		this._context = context;
-		this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
-		this._indentGuides = this._context.configuration.editor.indentGuides;
+		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
+		this._indentGuides = this._context.configuration.editor.viewInfo.indentGuides;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
 		this._fontLigatures = this._context.configuration.editor.fontLigatures;
 
 		this._domNode = null;
@@ -84,11 +84,11 @@ export class ViewLine implements IVisibleLineData {
 		this._isMaybeInvalid = true;
 	}
 	public onConfigurationChanged(e:IConfigurationChangedEvent): void {
-		if (e.renderWhitespace) {
-			this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
+		if (e.viewInfo.renderWhitespace) {
+			this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		}
-		if (e.indentGuides) {
-			this._indentGuides = this._context.configuration.editor.indentGuides;
+		if (e.viewInfo.indentGuides) {
+			this._indentGuides = this._context.configuration.editor.viewInfo.indentGuides;
 		}
 		if (e.fontInfo) {
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
@@ -96,8 +96,8 @@ export class ViewLine implements IVisibleLineData {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.stopRenderingLineAfter) {
-			this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		if (e.viewInfo.stopRenderingLineAfter) {
+			this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
 		}
 		if (e.fontLigatures) {
 			this._fontLigatures = this._context.configuration.editor.fontLigatures;

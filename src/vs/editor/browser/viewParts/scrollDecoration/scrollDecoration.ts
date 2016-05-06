@@ -28,7 +28,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._scrollTop = 0;
 		this._width = 0;
 		this._shouldShow = false;
-		this._useShadows = this._context.configuration.editor.scrollbar.useShadows;
+		this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
 		this._domNode = document.createElement('div');
 	}
 
@@ -48,8 +48,8 @@ export class ScrollDecorationViewPart extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
-		if (e.scrollbar) {
-			this._useShadows = this._context.configuration.editor.scrollbar.useShadows;
+		if (e.viewInfo.scrollbar) {
+			this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
 		}
 		return this._updateShouldShow();
 	}

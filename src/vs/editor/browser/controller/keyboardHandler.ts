@@ -311,7 +311,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		if (GlobalScreenReaderNVDA.getValue()) {
 			return TextAreaStrategy.NVDA;
 		}
-		if (this._context.configuration.editor.experimentalScreenReader) {
+		if (this._context.configuration.editor.viewInfo.experimentalScreenReader) {
 			return TextAreaStrategy.NVDA;
 		}
 		return TextAreaStrategy.IENarrator;
@@ -326,7 +326,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		if (e.fontInfo) {
 			Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		}
-		if (e.experimentalScreenReader) {
+		if (e.viewInfo.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
 		}
 		return false;

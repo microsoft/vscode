@@ -65,32 +65,17 @@ export class ConfigurationWithDefaults {
 export class InternalEditorOptions implements editorCommon.IInternalEditorOptions {
 	_internalEditorOptionsBrand: void;
 
-	experimentalScreenReader: boolean;
-	rulers: number[];
 	wordSeparators: string;
 	selectionClipboard: boolean;
-	ariaLabel: string;
-	lineNumbers:any;
-	selectOnLineNumbers:boolean;
-	glyphMargin:boolean;
-	revealHorizontalRightPadding:number;
-	roundedSelection:boolean;
 	theme:string;
 	readOnly:boolean;
-	scrollbar:editorCommon.InternalEditorScrollbarOptions;
-	overviewRulerLanes:number;
-	cursorBlinking:string;
-	cursorStyle:editorCommon.TextEditorCursorStyle;
 	fontLigatures:boolean;
-	hideCursorInOverviewRuler:boolean;
-	scrollBeyondLastLine:boolean;
 	wrappingIndent: editorCommon.WrappingIndent;
 	wordWrapBreakBeforeCharacters: string;
 	wordWrapBreakAfterCharacters: string;
 	wordWrapBreakObtrusiveCharacters: string;
 	tabFocusMode:boolean;
 	stopLineTokenizationAfter:number;
-	stopRenderingLineAfter: number;
 	longLineBoundary:number;
 	forcedTokenizationBoundary:number;
 	hover:boolean;
@@ -106,46 +91,27 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	folding: boolean;
-	renderWhitespace: boolean;
-	indentGuides: boolean;
 	useTabStops: boolean;
 	trimAutoWhitespace: boolean;
 	layoutInfo: editorCommon.EditorLayoutInfo;
 	fontInfo: editorCommon.FontInfo;
-	editorClassName: string;
+	viewInfo: editorCommon.InternalEditorViewOptions;
 	wrappingInfo: editorCommon.IEditorWrappingInfo;
-	observedOuterWidth:number;
-	observedOuterHeight:number;
 	lineHeight:number;
 	pageSize:number;
 
 	constructor(input:editorCommon.IInternalEditorOptions) {
-		this.experimentalScreenReader = Boolean(input.experimentalScreenReader);
-		this.rulers = Array.prototype.slice.call(input.rulers, 0);
 		this.wordSeparators = String(input.wordSeparators);
 		this.selectionClipboard = Boolean(input.selectionClipboard);
-		this.ariaLabel = String(input.ariaLabel);
-		this.lineNumbers = input.lineNumbers || false;
-		this.selectOnLineNumbers = Boolean(input.selectOnLineNumbers);
-		this.glyphMargin = Boolean(input.glyphMargin);
-		this.revealHorizontalRightPadding = Number(input.revealHorizontalRightPadding)|0;
-		this.roundedSelection = Boolean(input.roundedSelection);
 		this.theme = String(input.theme);
 		this.readOnly = Boolean(input.readOnly);
-		this.scrollbar = input.scrollbar.clone();
-		this.overviewRulerLanes = Number(input.overviewRulerLanes)|0;
-		this.cursorBlinking = String(input.cursorBlinking);
-		this.cursorStyle = Number(input.cursorStyle)|0;
 		this.fontLigatures = Boolean(input.fontLigatures);
-		this.hideCursorInOverviewRuler = Boolean(input.hideCursorInOverviewRuler);
-		this.scrollBeyondLastLine = Boolean(input.scrollBeyondLastLine);
 		this.wrappingIndent = input.wrappingIndent;
 		this.wordWrapBreakBeforeCharacters = String(input.wordWrapBreakBeforeCharacters);
 		this.wordWrapBreakAfterCharacters = String(input.wordWrapBreakAfterCharacters);
 		this.wordWrapBreakObtrusiveCharacters = String(input.wordWrapBreakObtrusiveCharacters);
 		this.tabFocusMode = Boolean(input.tabFocusMode);
 		this.stopLineTokenizationAfter = Number(input.stopLineTokenizationAfter)|0;
-		this.stopRenderingLineAfter = Number(input.stopRenderingLineAfter)|0;
 		this.longLineBoundary = Number(input.longLineBoundary)|0;
 		this.forcedTokenizationBoundary = Number(input.forcedTokenizationBoundary)|0;
 		this.hover = Boolean(input.hover);
@@ -161,19 +127,15 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.outlineMarkers = Boolean(input.outlineMarkers);
 		this.referenceInfos = Boolean(input.referenceInfos);
 		this.folding = Boolean(input.folding);
-		this.renderWhitespace = Boolean(input.renderWhitespace);
-		this.indentGuides = Boolean(input.indentGuides);
 		this.useTabStops = Boolean(input.useTabStops);
 		this.trimAutoWhitespace = Boolean(input.trimAutoWhitespace);
 		this.layoutInfo = input.layoutInfo.clone();
 		this.fontInfo = input.fontInfo.clone();
-		this.editorClassName = input.editorClassName;
+		this.viewInfo = input.viewInfo.clone();
 		this.wrappingInfo = {
 			isViewportWrapping: Boolean(input.wrappingInfo.isViewportWrapping),
 			wrappingColumn: Number(input.wrappingInfo.wrappingColumn)|0,
 		};
-		this.observedOuterWidth = Number(input.observedOuterWidth)|0;
-		this.observedOuterHeight = Number(input.observedOuterHeight)|0;
 		this.lineHeight = Number(input.lineHeight)|0;
 		this.pageSize = Number(input.pageSize)|0;
 	}
@@ -274,34 +236,40 @@ class InternalEditorOptionsHelper {
 			tabFocusMode = true;
 		}
 
-		return {
-			// ---- Options that are transparent - get no massaging
+		let viewInfo = new editorCommon.InternalEditorViewOptions({
+			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
+			rulers: toSortedIntegerArray(opts.rulers),
+			ariaLabel: String(opts.ariaLabel),
 			lineNumbers: lineNumbers,
 			selectOnLineNumbers: toBoolean(opts.selectOnLineNumbers),
 			glyphMargin: glyphMargin,
 			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
 			roundedSelection: toBoolean(opts.roundedSelection),
-			theme: opts.theme,
-			readOnly: readOnly,
-			scrollbar: scrollbar,
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			cursorBlinking: opts.cursorBlinking,
-			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
-			rulers: toSortedIntegerArray(opts.rulers),
-			wordSeparators: String(opts.wordSeparators),
-			selectionClipboard: toBoolean(opts.selectionClipboard),
-			ariaLabel: String(opts.ariaLabel),
 			cursorStyle: cursorStyleFromString(opts.cursorStyle),
-			fontLigatures: toBoolean(opts.fontLigatures),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
+			editorClassName: editorClassName,
+			stopRenderingLineAfter: stopRenderingLineAfter,
+			renderWhitespace: toBoolean(opts.renderWhitespace),
+			indentGuides: toBoolean(opts.indentGuides),
+			scrollbar: scrollbar,
+		});
+
+		return {
+			// ---- Options that are transparent - get no massaging
+			theme: opts.theme,
+			readOnly: readOnly,
+			wordSeparators: String(opts.wordSeparators),
+			selectionClipboard: toBoolean(opts.selectionClipboard),
+			fontLigatures: toBoolean(opts.fontLigatures),
 			wrappingIndent: wrappingIndentFromString(opts.wrappingIndent),
 			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 			tabFocusMode: tabFocusMode,
 			stopLineTokenizationAfter: stopLineTokenizationAfter,
-			stopRenderingLineAfter: stopRenderingLineAfter,
 			longLineBoundary: toInteger(opts.longLineBoundary),
 			forcedTokenizationBoundary: toInteger(opts.forcedTokenizationBoundary),
 
@@ -318,18 +286,13 @@ class InternalEditorOptionsHelper {
 			outlineMarkers: toBoolean(opts.outlineMarkers),
 			referenceInfos: toBoolean(opts.referenceInfos),
 			folding: toBoolean(opts.folding),
-			renderWhitespace: toBoolean(opts.renderWhitespace),
-			indentGuides: toBoolean(opts.indentGuides),
 			useTabStops: toBoolean(opts.useTabStops),
 			trimAutoWhitespace: toBoolean(opts.trimAutoWhitespace),
 
 			layoutInfo: layoutInfo,
 			fontInfo: fontInfo,
-			editorClassName: editorClassName,
+			viewInfo: viewInfo,
 			wrappingInfo: wrappingInfo,
-
-			observedOuterWidth: outerWidth,
-			observedOuterHeight: outerHeight,
 
 			lineHeight: fontInfo.lineHeight, // todo -> duplicated in styling
 			pageSize: pageSize,
@@ -374,33 +337,18 @@ class InternalEditorOptionsHelper {
 
 	public static createConfigurationChangedEvent(prevOpts:InternalEditorOptions, newOpts:InternalEditorOptions): editorCommon.IConfigurationChangedEvent {
 		return {
-			experimentalScreenReader:		(prevOpts.experimentalScreenReader !== newOpts.experimentalScreenReader),
-			rulers:							(!this._numberArraysEqual(prevOpts.rulers, newOpts.rulers)),
 			wordSeparators:					(prevOpts.wordSeparators !== newOpts.wordSeparators),
 			selectionClipboard:				(prevOpts.selectionClipboard !== newOpts.selectionClipboard),
-			ariaLabel:						(prevOpts.ariaLabel !== newOpts.ariaLabel),
 
-			lineNumbers:					(prevOpts.lineNumbers !== newOpts.lineNumbers),
-			selectOnLineNumbers:			(prevOpts.selectOnLineNumbers !== newOpts.selectOnLineNumbers),
-			glyphMargin:					(prevOpts.glyphMargin !== newOpts.glyphMargin),
-			revealHorizontalRightPadding:	(prevOpts.revealHorizontalRightPadding !== newOpts.revealHorizontalRightPadding),
-			roundedSelection:				(prevOpts.roundedSelection !== newOpts.roundedSelection),
 			theme:							(prevOpts.theme !== newOpts.theme),
 			readOnly:						(prevOpts.readOnly !== newOpts.readOnly),
-			scrollbar:						(!prevOpts.scrollbar.equals(newOpts.scrollbar)),
-			overviewRulerLanes:				(prevOpts.overviewRulerLanes !== newOpts.overviewRulerLanes),
-			cursorBlinking:					(prevOpts.cursorBlinking !== newOpts.cursorBlinking),
-			cursorStyle:					(prevOpts.cursorStyle !== newOpts.cursorStyle),
 			fontLigatures:					(prevOpts.fontLigatures !== newOpts.fontLigatures),
-			hideCursorInOverviewRuler:		(prevOpts.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler),
-			scrollBeyondLastLine:			(prevOpts.scrollBeyondLastLine !== newOpts.scrollBeyondLastLine),
 			wrappingIndent:					(prevOpts.wrappingIndent !== newOpts.wrappingIndent),
 			wordWrapBreakBeforeCharacters:	(prevOpts.wordWrapBreakBeforeCharacters !== newOpts.wordWrapBreakBeforeCharacters),
 			wordWrapBreakAfterCharacters:	(prevOpts.wordWrapBreakAfterCharacters !== newOpts.wordWrapBreakAfterCharacters),
 			wordWrapBreakObtrusiveCharacters:(prevOpts.wordWrapBreakObtrusiveCharacters !== newOpts.wordWrapBreakObtrusiveCharacters),
 			tabFocusMode:					(prevOpts.tabFocusMode !== newOpts.tabFocusMode),
 			stopLineTokenizationAfter:		(prevOpts.stopLineTokenizationAfter !== newOpts.stopLineTokenizationAfter),
-			stopRenderingLineAfter:			(prevOpts.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter),
 			longLineBoundary:				(prevOpts.longLineBoundary !== newOpts.longLineBoundary),
 			forcedTokenizationBoundary:		(prevOpts.forcedTokenizationBoundary !== newOpts.forcedTokenizationBoundary),
 
@@ -416,17 +364,13 @@ class InternalEditorOptionsHelper {
 			outlineMarkers:					(prevOpts.outlineMarkers !== newOpts.outlineMarkers),
 			referenceInfos:					(prevOpts.referenceInfos !== newOpts.referenceInfos),
 			folding:						(prevOpts.folding !== newOpts.folding),
-			renderWhitespace:				(prevOpts.renderWhitespace !== newOpts.renderWhitespace),
-			indentGuides:					(prevOpts.indentGuides !== newOpts.indentGuides),
 			useTabStops:					(prevOpts.useTabStops !== newOpts.useTabStops),
 			trimAutoWhitespace:				(prevOpts.trimAutoWhitespace !== newOpts.trimAutoWhitespace),
 
 			layoutInfo: 					(!prevOpts.layoutInfo.equals(newOpts.layoutInfo)),
 			fontInfo: 						(!prevOpts.fontInfo.equals(newOpts.fontInfo)),
-			editorClassName: 				(prevOpts.editorClassName !== newOpts.editorClassName),
+			viewInfo:						prevOpts.viewInfo.createChangeEvent(newOpts.viewInfo),
 			wrappingInfo:					(!this._wrappingInfoEqual(prevOpts.wrappingInfo, newOpts.wrappingInfo)),
-			observedOuterWidth:				(prevOpts.observedOuterWidth !== newOpts.observedOuterWidth),
-			observedOuterHeight:			(prevOpts.observedOuterHeight !== newOpts.observedOuterHeight),
 			lineHeight:						(prevOpts.lineHeight !== newOpts.lineHeight),
 			pageSize:						(prevOpts.pageSize !== newOpts.pageSize),
 		};
@@ -439,17 +383,6 @@ class InternalEditorOptionsHelper {
 		);
 	}
 
-	private static _numberArraysEqual(a:number[], b:number[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
 }
 
 function toBoolean(value:any): boolean {
@@ -577,7 +510,16 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		let keys = Object.keys(changeEvent);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let key = keys[i];
-			if (changeEvent[key]) {
+			if (changeEvent[key] === true) {
+				hasChanged = true;
+				break;
+			}
+		}
+
+		keys = Object.keys(changeEvent.viewInfo);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let key = keys[i];
+			if (changeEvent[key] === true) {
 				hasChanged = true;
 				break;
 			}

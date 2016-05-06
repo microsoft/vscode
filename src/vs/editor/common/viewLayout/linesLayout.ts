@@ -29,7 +29,7 @@ export class LinesLayout {
 	constructor(configuration: editorCommon.IConfiguration, model:IViewModel) {
 		this.configuration = configuration;
 		this._lineHeight = this.configuration.editor.lineHeight;
-		this._scrollBeyondLastLine = this.configuration.editor.scrollBeyondLastLine;
+		this._scrollBeyondLastLine = this.configuration.editor.viewInfo.scrollBeyondLastLine;
 
 		this.model = model;
 		this.verticalObjects = new VerticalObjects();
@@ -40,8 +40,8 @@ export class LinesLayout {
 		if (e.lineHeight) {
 			this._lineHeight = this.configuration.editor.lineHeight;
 		}
-		if (e.scrollBeyondLastLine) {
-			this._scrollBeyondLastLine = this.configuration.editor.scrollBeyondLastLine;
+		if (e.viewInfo.scrollBeyondLastLine) {
+			this._scrollBeyondLastLine = this.configuration.editor.viewInfo.scrollBeyondLastLine;
 		}
 	}
 

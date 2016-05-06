@@ -41,7 +41,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			DecorationsOverviewRuler.DECORATION_HEIGHT,
 			getVerticalOffsetForLine
 		);
-		this._overviewRuler.setLanesCount(this._context.configuration.editor.overviewRulerLanes, false);
+		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 
@@ -49,7 +49,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._zonesFromDecorations = [];
 
 		this._shouldUpdateCursorPosition = true;
-		this._hideCursor = this._context.configuration.editor.hideCursorInOverviewRuler;
+		this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 
 		this._zonesFromCursors = [];
 		this._cursorPositions = [];
@@ -71,7 +71,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 		var prevLanesCount = this._overviewRuler.getLanesCount();
-		var newLanesCount = this._context.configuration.editor.overviewRulerLanes;
+		var newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
 
 		var shouldRender = false;
 
@@ -85,8 +85,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 			shouldRender = true;
 		}
 
-		if (e.hideCursorInOverviewRuler) {
-			this._hideCursor = this._context.configuration.editor.hideCursorInOverviewRuler;
+		if (e.viewInfo.hideCursorInOverviewRuler) {
+			this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 			this._shouldUpdateCursorPosition = true;
 			shouldRender = true;
 		}

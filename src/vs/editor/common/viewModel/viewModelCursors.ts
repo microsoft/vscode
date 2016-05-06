@@ -47,7 +47,7 @@ export class ViewModelCursors {
 		this.lastCursorPositionChangedEvent = e;
 
 		var position = this.converter.validateViewPosition(e.viewPosition.lineNumber, e.viewPosition.column, e.position),
-			stopRenderingLineAfter = this.configuration.editor.stopRenderingLineAfter;
+			stopRenderingLineAfter = this.configuration.editor.viewInfo.stopRenderingLineAfter;
 
 		// Limit position to be somewhere where it can actually be rendered
 		if (stopRenderingLineAfter !== -1 && position.column > stopRenderingLineAfter) {

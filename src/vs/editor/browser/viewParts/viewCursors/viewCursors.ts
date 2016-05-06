@@ -44,8 +44,8 @@ export class ViewCursors extends ViewPart {
 		super(context);
 
 		this._readOnly = this._context.configuration.editor.readOnly;
-		this._cursorBlinking = this._context.configuration.editor.cursorBlinking;
-		this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
+		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
@@ -146,16 +146,16 @@ export class ViewCursors extends ViewPart {
 		if (e.readOnly) {
 			this._readOnly = this._context.configuration.editor.readOnly;
 		}
-		if (e.cursorBlinking) {
-			this._cursorBlinking = this._context.configuration.editor.cursorBlinking;
+		if (e.viewInfo.cursorBlinking) {
+			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		}
-		if (e.cursorStyle) {
-			this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		if (e.viewInfo.cursorStyle) {
+			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		}
 
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
-		if (e.cursorStyle) {
+		if (e.viewInfo.cursorStyle) {
 			this._updateDomClassName();
 		}
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {

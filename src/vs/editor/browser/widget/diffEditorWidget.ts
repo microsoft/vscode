@@ -1778,14 +1778,14 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
 
-		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace, config.indentGuides);
+		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.viewInfo.renderWhitespace, config.viewInfo.indentGuides);
 
 		let r = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
 			config.fontInfo.spaceWidth,
-			config.stopRenderingLineAfter,
-			config.renderWhitespace,
+			config.viewInfo.stopRenderingLineAfter,
+			config.viewInfo.renderWhitespace,
 			parts.getParts()
 		));
 

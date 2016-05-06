@@ -260,7 +260,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		let targetIsContent = (t.type === editorCommon.MouseTargetType.CONTENT_TEXT || t.type === editorCommon.MouseTargetType.CONTENT_EMPTY);
 		let targetIsGutter = (t.type === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS || t.type === editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS);
 		let targetIsLineNumbers = (t.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
-		let selectOnLineNumbers = this._context.configuration.editor.selectOnLineNumbers;
+		let selectOnLineNumbers = this._context.configuration.editor.viewInfo.selectOnLineNumbers;
 		let targetIsViewZone = (t.type === editorCommon.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorCommon.MouseTargetType.GUTTER_VIEW_ZONE);
 
 		let shouldHandle = e.leftButton;

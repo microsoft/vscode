@@ -213,9 +213,9 @@ export class MouseTargetFactory {
 
 		// Is it the textarea cover?
 		if (REGEX.IS_TEXTAREA_COVER.test(path)) {
-			if (this._context.configuration.editor.glyphMargin) {
+			if (this._context.configuration.editor.viewInfo.glyphMargin) {
 				return this.createMouseTargetFromGlyphMargin(t, mouseVerticalOffset, mouseColumn);
-			} else if (this._context.configuration.editor.lineNumbers) {
+			} else if (this._context.configuration.editor.viewInfo.lineNumbers) {
 				return this.createMouseTargetFromLineNumbers(t, mouseVerticalOffset, mouseColumn);
 			} else {
 				return this.createMouseTargetFromLinesDecorationsChild(t, mouseVerticalOffset, mouseColumn);
@@ -359,8 +359,8 @@ export class MouseTargetFactory {
 		if (adjustedPosy <= editorContent.top) {
 			adjustedPosy = editorContent.top + 1;
 		}
-		if (adjustedPosy >= editorContent.top + this._context.configuration.editor.observedOuterHeight) {
-			adjustedPosy = editorContent.top + this._context.configuration.editor.observedOuterHeight - 1;
+		if (adjustedPosy >= editorContent.top + this._context.configuration.editor.layoutInfo.height) {
+			adjustedPosy = editorContent.top + this._context.configuration.editor.layoutInfo.height - 1;
 		}
 
 		var hitx = e.posx - document.body.scrollLeft;

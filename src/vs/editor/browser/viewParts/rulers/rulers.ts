@@ -26,7 +26,7 @@ export class Rulers extends ViewPart {
 		this._layoutProvider = layoutProvider;
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'view-rulers';
-		this._rulers = this._context.configuration.editor.rulers;
+		this._rulers = this._context.configuration.editor.viewInfo.rulers;
 		this._height = this._context.configuration.editor.layoutInfo.contentHeight;
 		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 	}
@@ -38,8 +38,8 @@ export class Rulers extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		if (e.rulers || e.layoutInfo || e.fontInfo) {
-			this._rulers = this._context.configuration.editor.rulers;
+		if (e.viewInfo.rulers || e.layoutInfo || e.fontInfo) {
+			this._rulers = this._context.configuration.editor.viewInfo.rulers;
 			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
 			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 			return true;

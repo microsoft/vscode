@@ -111,7 +111,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.linesContent = document.createElement('div');
 		this.linesContent.className = editorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background';
 		this.domNode = document.createElement('div');
-		this.domNode.className = configuration.editor.editorClassName;
+		this.domNode.className = configuration.editor.viewInfo.editorClassName;
 
 		this.overflowGuardContainer = document.createElement('div');
 		this.overflowGuardContainer.className = editorBrowser.ClassNames.OVERFLOW_GUARD;
@@ -177,7 +177,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', this._context.configuration.editor.ariaLabel);
+		this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-haspopup', 'false');
@@ -193,10 +193,10 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// (there have been reports of tiny blinking cursors)
 		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
 		this.textAreaCover = document.createElement('div');
-		if (this._context.configuration.editor.glyphMargin) {
+		if (this._context.configuration.editor.viewInfo.glyphMargin) {
 			this.textAreaCover.className = 'monaco-editor-background ' + editorBrowser.ClassNames.GLYPH_MARGIN + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER;
 		} else {
-			if (this._context.configuration.editor.lineNumbers) {
+			if (this._context.configuration.editor.viewInfo.lineNumbers) {
 				this.textAreaCover.className = 'monaco-editor-background ' + editorBrowser.ClassNames.LINE_NUMBERS + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER;
 			} else {
 				this.textAreaCover.className = 'monaco-editor-background ' + editorBrowser.ClassNames.TEXTAREA_COVER;
@@ -448,11 +448,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return false;
 	}
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
-		if (e.editorClassName) {
-			this.domNode.className = this._context.configuration.editor.editorClassName;
+		if (e.viewInfo.editorClassName) {
+			this.domNode.className = this._context.configuration.editor.viewInfo.editorClassName;
 		}
-		if (e.ariaLabel) {
-			this.textArea.setAttribute('aria-label', this._context.configuration.editor.ariaLabel);
+		if (e.viewInfo.ariaLabel) {
+			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
 		}
 		return false;
 	}

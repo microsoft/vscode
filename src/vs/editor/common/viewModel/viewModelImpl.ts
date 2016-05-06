@@ -419,8 +419,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 		var modelLineNumber = modelPosition.lineNumber;
 
-		if (typeof this.configuration.editor.lineNumbers === 'function') {
-			return this.configuration.editor.lineNumbers(modelLineNumber);
+		if (typeof this.configuration.editor.viewInfo.lineNumbers === 'function') {
+			return this.configuration.editor.viewInfo.lineNumbers(modelLineNumber);
 		}
 
 		return modelLineNumber.toString();

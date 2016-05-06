@@ -633,38 +633,183 @@ export interface IEditorWrappingInfo {
 	wrappingColumn: number;
 }
 
-/**
- * Internal configuration options (transformed or computed) for the editor.
- */
-export interface IInternalEditorOptions {
+export class InternalEditorViewOptions {
 	experimentalScreenReader: boolean;
 	rulers: number[];
-	wordSeparators: string;
-	selectionClipboard: boolean;
 	ariaLabel: string;
-
-	// ---- Options that are transparent - get no massaging
 	lineNumbers:any;
 	selectOnLineNumbers:boolean;
 	glyphMargin:boolean;
 	revealHorizontalRightPadding:number;
 	roundedSelection:boolean;
-	theme:string;
-	readOnly:boolean;
-	scrollbar:InternalEditorScrollbarOptions;
 	overviewRulerLanes:number;
 	cursorBlinking:string;
 	cursorStyle:TextEditorCursorStyle;
-	fontLigatures:boolean;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
+	editorClassName: string;
+	stopRenderingLineAfter: number;
+	renderWhitespace: boolean;
+	indentGuides: boolean;
+	scrollbar:InternalEditorScrollbarOptions;
+
+	constructor(source:{
+		experimentalScreenReader: boolean;
+		rulers: number[];
+		ariaLabel: string;
+		lineNumbers:any;
+		selectOnLineNumbers:boolean;
+		glyphMargin:boolean;
+		revealHorizontalRightPadding:number;
+		roundedSelection:boolean;
+		overviewRulerLanes:number;
+		cursorBlinking:string;
+		cursorStyle:TextEditorCursorStyle;
+		hideCursorInOverviewRuler:boolean;
+		scrollBeyondLastLine:boolean;
+		editorClassName: string;
+		stopRenderingLineAfter: number;
+		renderWhitespace: boolean;
+		indentGuides: boolean;
+		scrollbar:InternalEditorScrollbarOptions;
+	}) {
+		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
+		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
+		this.ariaLabel = String(source.ariaLabel);
+		this.lineNumbers = source.lineNumbers;
+		this.selectOnLineNumbers = Boolean(source.selectOnLineNumbers);
+		this.glyphMargin = Boolean(source.glyphMargin);
+		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding|0;
+		this.roundedSelection = Boolean(source.roundedSelection);
+		this.overviewRulerLanes = source.overviewRulerLanes|0;
+		this.cursorBlinking = String(source.cursorBlinking);
+		this.cursorStyle = source.cursorStyle|0;
+		this.hideCursorInOverviewRuler = Boolean(source.hideCursorInOverviewRuler);
+		this.scrollBeyondLastLine = Boolean(source.scrollBeyondLastLine);
+		this.editorClassName = String(source.editorClassName);
+		this.stopRenderingLineAfter = source.stopRenderingLineAfter|0;
+		this.renderWhitespace = Boolean(source.renderWhitespace);
+		this.indentGuides = Boolean(source.indentGuides);
+		this.scrollbar = source.scrollbar.clone();
+	}
+
+	private static _toSortedIntegerArray(source:any): number[] {
+		if (!Array.isArray(source)) {
+			return [];
+		}
+		let arrSource = <any[]>source;
+		let result = arrSource.map(el => {
+			let r = parseInt(el, 10);
+			if (isNaN(r)) {
+				return 0;
+			}
+			return r;
+		});
+		result.sort();
+		return result;
+	}
+
+	private static _numberArraysEqual(a:number[], b:number[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public equals(other:InternalEditorViewOptions): boolean {
+		return (
+			this.experimentalScreenReader === other.experimentalScreenReader
+			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
+			&& this.ariaLabel === other.ariaLabel
+			&& this.lineNumbers === other.lineNumbers
+			&& this.selectOnLineNumbers === other.selectOnLineNumbers
+			&& this.glyphMargin === other.glyphMargin
+			&& this.revealHorizontalRightPadding === other.revealHorizontalRightPadding
+			&& this.roundedSelection === other.roundedSelection
+			&& this.overviewRulerLanes === other.overviewRulerLanes
+			&& this.cursorBlinking === other.cursorBlinking
+			&& this.cursorStyle === other.cursorStyle
+			&& this.hideCursorInOverviewRuler === other.hideCursorInOverviewRuler
+			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
+			&& this.editorClassName === other.editorClassName
+			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+			&& this.renderWhitespace === other.renderWhitespace
+			&& this.indentGuides === other.indentGuides
+			&& this.scrollbar.equals(other.scrollbar)
+		);
+	}
+
+	public createChangeEvent(newOpts:InternalEditorViewOptions): IViewConfigurationChangedEvent {
+		return {
+			experimentalScreenReader: this.experimentalScreenReader !== newOpts.experimentalScreenReader,
+			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
+			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
+			lineNumbers: this.lineNumbers !== newOpts.lineNumbers,
+			selectOnLineNumbers: this.selectOnLineNumbers !== newOpts.selectOnLineNumbers,
+			glyphMargin: this.glyphMargin !== newOpts.glyphMargin,
+			revealHorizontalRightPadding: this.revealHorizontalRightPadding !== newOpts.revealHorizontalRightPadding,
+			roundedSelection: this.roundedSelection !== newOpts.roundedSelection,
+			overviewRulerLanes: this.overviewRulerLanes !== newOpts.overviewRulerLanes,
+			cursorBlinking: this.cursorBlinking !== newOpts.cursorBlinking,
+			cursorStyle: this.cursorStyle !== newOpts.cursorStyle,
+			hideCursorInOverviewRuler: this.hideCursorInOverviewRuler !== newOpts.hideCursorInOverviewRuler,
+			scrollBeyondLastLine: this.scrollBeyondLastLine !== newOpts.scrollBeyondLastLine,
+			editorClassName: this.editorClassName !== newOpts.editorClassName,
+			stopRenderingLineAfter: this.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter,
+			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
+			indentGuides: this.indentGuides !== newOpts.indentGuides,
+			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
+		};
+	}
+
+	public clone(): InternalEditorViewOptions {
+		return new InternalEditorViewOptions(this);
+	}
+}
+
+export interface IViewConfigurationChangedEvent {
+	experimentalScreenReader: boolean;
+	rulers: boolean;
+	ariaLabel:  boolean;
+	lineNumbers: boolean;
+	selectOnLineNumbers: boolean;
+	glyphMargin: boolean;
+	revealHorizontalRightPadding: boolean;
+	roundedSelection: boolean;
+	overviewRulerLanes: boolean;
+	cursorBlinking: boolean;
+	cursorStyle: boolean;
+	hideCursorInOverviewRuler: boolean;
+	scrollBeyondLastLine: boolean;
+	editorClassName:  boolean;
+	stopRenderingLineAfter:  boolean;
+	renderWhitespace:  boolean;
+	indentGuides:  boolean;
+	scrollbar: boolean;
+}
+
+/**
+ * Internal configuration options (transformed or computed) for the editor.
+ */
+export interface IInternalEditorOptions {
+	wordSeparators: string;
+	selectionClipboard: boolean;
+
+	// ---- Options that are transparent - get no massaging
+	theme:string;
+	readOnly:boolean;
+	fontLigatures:boolean;
 	wrappingIndent: WrappingIndent;
 	wordWrapBreakBeforeCharacters: string;
 	wordWrapBreakAfterCharacters: string;
 	wordWrapBreakObtrusiveCharacters: string;
 	tabFocusMode:boolean;
 	stopLineTokenizationAfter:number;
-	stopRenderingLineAfter: number;
 	longLineBoundary:number;
 	forcedTokenizationBoundary:number;
 
@@ -682,8 +827,6 @@ export interface IInternalEditorOptions {
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	folding: boolean;
-	renderWhitespace: boolean;
-	indentGuides: boolean;
 	useTabStops: boolean;
 	trimAutoWhitespace: boolean;
 
@@ -692,18 +835,11 @@ export interface IInternalEditorOptions {
 	layoutInfo: EditorLayoutInfo;
 
 	fontInfo: FontInfo;
-	editorClassName: string;
+
+	viewInfo: InternalEditorViewOptions;
 
 	wrappingInfo: IEditorWrappingInfo;
 
-	/**
-	 * Computed width of the container of the editor in px.
-	 */
-	observedOuterWidth:number;
-	/**
-	 * Computed height of the container of the editor in px.
-	 */
-	observedOuterHeight:number;
 	/**
 	 * Computed line height (deduced from theme and CSS) in px.
 	 */
@@ -718,34 +854,19 @@ export interface IInternalEditorOptions {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	experimentalScreenReader: boolean;
-	rulers: boolean;
 	wordSeparators: boolean;
 	selectionClipboard: boolean;
-	ariaLabel: boolean;
 
 	// ---- Options that are transparent - get no massaging
-	lineNumbers: boolean;
-	selectOnLineNumbers: boolean;
-	glyphMargin: boolean;
-	revealHorizontalRightPadding: boolean;
-	roundedSelection: boolean;
 	theme: boolean;
 	readOnly: boolean;
-	scrollbar: boolean;
-	overviewRulerLanes: boolean;
-	cursorBlinking: boolean;
-	cursorStyle: boolean;
 	fontLigatures: boolean;
-	hideCursorInOverviewRuler: boolean;
-	scrollBeyondLastLine: boolean;
 	wrappingIndent: boolean;
 	wordWrapBreakBeforeCharacters: boolean;
 	wordWrapBreakAfterCharacters: boolean;
 	wordWrapBreakObtrusiveCharacters: boolean;
 	tabFocusMode: boolean;
 	stopLineTokenizationAfter: boolean;
-	stopRenderingLineAfter: boolean;
 	longLineBoundary: boolean;
 	forcedTokenizationBoundary: boolean;
 
@@ -762,18 +883,14 @@ export interface IConfigurationChangedEvent {
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
 	folding: boolean;
-	renderWhitespace: boolean;
-	indentGuides: boolean;
 	useTabStops: boolean;
 	trimAutoWhitespace: boolean;
 
 	// ---- Options that are computed
 	layoutInfo: boolean;
 	fontInfo: boolean;
-	editorClassName: boolean;
+	viewInfo: IViewConfigurationChangedEvent;
 	wrappingInfo: boolean;
-	observedOuterWidth: boolean;
-	observedOuterHeight: boolean;
 	lineHeight: boolean;
 	pageSize: boolean;
 }
