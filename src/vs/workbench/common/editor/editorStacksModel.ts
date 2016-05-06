@@ -81,11 +81,6 @@ export function setOpenEditorDirection(dir: Direction): void {
 	CONFIG_OPEN_EDITOR_DIRECTION = dir;
 }
 
-let CONFIG_ALLOW_EMPTY_GROUPS = false; // setting to allow empty groups or not
-export function setAllowEmptyGroups(allow: boolean): void {
-	CONFIG_ALLOW_EMPTY_GROUPS = allow;
-}
-
 export interface ISerializedEditorInput {
 	id: string;
 	value: string;
@@ -605,32 +600,30 @@ export class EditorStacksModel implements IEditorStacksModel {
 		let serializedGroups = this._groups.map(g => g.serialize());
 		let serializableActiveIndex = activeIndex;
 
-		// Exclude empty groups (can happen if an editor cannot be serialized)
-		if (!CONFIG_ALLOW_EMPTY_GROUPS) {
-			let serializedNonEmptyGroups: ISerializedEditorGroup[] = [];
-			serializedGroups.forEach((g, index) => {
+		// Exclude now empty groups (can happen if an editor cannot be serialized)
+		let serializedNonEmptyGroups: ISerializedEditorGroup[] = [];
+		serializedGroups.forEach((g, index) => {
 
-				// non empty group
-				if (g.editors.length > 0) {
-					serializedNonEmptyGroups.push(g);
-				}
-
-				// empty group that is active
-				else if (activeIndex === index) {
-					activeIsEmptyGroup = true; // our active group is empty after serialization!
-				}
-			});
-
-			serializedGroups = serializedNonEmptyGroups;
-
-			// Determine serializable active index
-			if (activeIsEmptyGroup && serializedGroups.length > 0) {
-				serializableActiveIndex = 0; // just make first group active if active is empty and we have other groups to pick from
-			} else if (activeIsEmptyGroup) {
-				serializableActiveIndex = void 0; // there are no groups to make active
-			} else {
-				serializableActiveIndex = activeIndex; // active group is not empty and can be serialized
+			// non empty group
+			if (g.editors.length > 0) {
+				serializedNonEmptyGroups.push(g);
 			}
+
+			// empty group that is active
+			else if (activeIndex === index) {
+				activeIsEmptyGroup = true; // our active group is empty after serialization!
+			}
+		});
+
+		serializedGroups = serializedNonEmptyGroups;
+
+		// Determine serializable active index
+		if (activeIsEmptyGroup && serializedGroups.length > 0) {
+			serializableActiveIndex = 0; // just make first group active if active is empty and we have other groups to pick from
+		} else if (activeIsEmptyGroup) {
+			serializableActiveIndex = void 0; // there are no groups to make active
+		} else {
+			serializableActiveIndex = activeIndex; // active group is not empty and can be serialized
 		}
 
 		const serialized: ISerializedEditorStacksModel = {
