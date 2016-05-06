@@ -90,9 +90,14 @@ export enum Direction {
 	RIGHT
 }
 
-let DEFAULT_OPEN_EDITOR_DIRECTION = Direction.RIGHT; // open new editors to the right of existing ones
+let CONFIG_OPEN_EDITOR_DIRECTION = Direction.RIGHT; // open new editors to the right of existing ones
 export function setOpenEditorDirection(dir: Direction): void {
-	DEFAULT_OPEN_EDITOR_DIRECTION = dir;
+	CONFIG_OPEN_EDITOR_DIRECTION = dir;
+}
+
+let CONFIG_ALLOW_EMPTY_GROUPS = false; // setting to allow empty groups or not
+export function setAllowEmptyGroups(allow: boolean): void {
+	CONFIG_ALLOW_EMPTY_GROUPS = allow;
 }
 
 export interface ISerializedEditorInput {
@@ -204,7 +209,7 @@ export class EditorGroup implements IEditorGroup {
 				const indexOfActive = this.indexOf(this.active);
 
 				// Insert to the RIGHT of active editor
-				if (DEFAULT_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
+				if (CONFIG_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
 					this.splice(indexOfActive + 1, false, editor);
 				}
 
@@ -580,36 +585,39 @@ export class EditorStacksModel implements IEditorStacksModel {
 		let activeIndex = this.indexOf(this.active);
 		let activeIsEmptyGroup = false;
 
-		// Exclude empty groups (can happen if an editor cannot be serialized)
 		let serializedGroups = this._groups.map(g => g.serialize());
-		let serializedNonEmptyGroups: ISerializedEditorGroup[] = [];
-		serializedGroups.forEach((g, index) => {
+		let serializableActiveIndex = activeIndex;
 
-			// non empty group
-			if (g.editors.length > 0) {
-				serializedNonEmptyGroups.push(g);
-			}
+		// Exclude empty groups (can happen if an editor cannot be serialized)
+		if (!CONFIG_ALLOW_EMPTY_GROUPS) {
+			let serializedNonEmptyGroups: ISerializedEditorGroup[] = [];
+			serializedGroups.forEach((g, index) => {
 
-			// empty group
-			else {
-				if (activeIndex === index) {
+				// non empty group
+				if (g.editors.length > 0) {
+					serializedNonEmptyGroups.push(g);
+				}
+
+				// empty group that is active
+				else if (activeIndex === index) {
 					activeIsEmptyGroup = true; // our active group is empty after serialization!
 				}
-			}
-		});
+			});
 
-		// Determine serializable active index
-		let serializableActiveIndex: number;
-		if (activeIsEmptyGroup && serializedGroups.length > 0) {
-			serializableActiveIndex = 0; // just make first group active if active is empty and we have other groups to pick from
-		} else if (activeIsEmptyGroup) {
-			serializableActiveIndex = void 0; // there are no groups to make active
-		} else {
-			serializableActiveIndex = activeIndex; // active group is not empty and can be serialized
+			serializedGroups = serializedNonEmptyGroups;
+
+			// Determine serializable active index
+			if (activeIsEmptyGroup && serializedGroups.length > 0) {
+				serializableActiveIndex = 0; // just make first group active if active is empty and we have other groups to pick from
+			} else if (activeIsEmptyGroup) {
+				serializableActiveIndex = void 0; // there are no groups to make active
+			} else {
+				serializableActiveIndex = activeIndex; // active group is not empty and can be serialized
+			}
 		}
 
 		const serialized: ISerializedEditorStacksModel = {
-			groups: serializedNonEmptyGroups,
+			groups: serializedGroups,
 			active: serializableActiveIndex
 		};
 

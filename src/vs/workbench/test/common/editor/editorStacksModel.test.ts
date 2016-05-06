@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setOpenEditorDirection, Direction} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setAllowEmptyGroups, setOpenEditorDirection, Direction} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {TestStorageService, TestLifecycleService} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -129,6 +129,7 @@ suite('Editor Stacks Model', () => {
 	teardown(() => {
 		index = 1;
 		setOpenEditorDirection(Direction.RIGHT);
+		setAllowEmptyGroups(false);
 	});
 
 	test('Groups', function () {
@@ -882,6 +883,48 @@ suite('Editor Stacks Model', () => {
 
 		assert.equal(model.groups.length, 1);
 		assert.equal(group1.count, 2);
+		assert.equal(group1.getEditors()[0].matches(serializableInput1), true);
+		assert.equal(group1.getEditors()[1].matches(serializableInput2), true);
+	});
+
+	test('Stack - Multiple groups, multiple editors - persist (some not persistable, causes empty group, allow empty groups)', function () {
+		setAllowEmptyGroups(true);
+
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+
+		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+
+		let group1 = model.openGroup('group1');
+		let group2 = model.openGroup('group1');
+
+		const serializableInput1 = input();
+		const serializableInput2 = input();
+		const nonSerializableInput = input('2', true);
+
+		group1.openEditor(serializableInput1, { pinned: true });
+		group1.openEditor(serializableInput2);
+
+		group2.openEditor(nonSerializableInput);
+
+		lifecycle.fireShutdown();
+
+		// Create model again - should load from storage
+		model = inst.createInstance(EditorStacksModel);
+
+		group1 = model.groups[0];
+		group2 = model.groups[1];
+
+		assert.equal(model.groups.length, 2);
+		assert.equal(group1.count, 2);
+		assert.equal(group2.count, 0);
 		assert.equal(group1.getEditors()[0].matches(serializableInput1), true);
 		assert.equal(group1.getEditors()[1].matches(serializableInput2), true);
 	});
