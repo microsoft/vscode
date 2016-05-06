@@ -48,7 +48,6 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 
 	private _threadService: IThreadService;
 	private _messageService: IMessageService;
-	private _telemetryService: ITelemetryService;
 	private _proxy: ExtHostExtensionService;
 	private _isDev: boolean;
 	private _extensionsStatus: { [id: string]: IExtensionsStatus };
@@ -59,8 +58,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	constructor(
 		contextService: IWorkspaceContextService,
 		threadService: IThreadService,
-		messageService: IMessageService,
-		telemetryService: ITelemetryService
+		messageService: IMessageService
 	) {
 		super(false);
 		let config = contextService.getConfiguration();
@@ -69,7 +67,6 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._messageService = messageService;
 		threadService.registerRemotableInstance(MainProcessExtensionService, this);
 		this._threadService = threadService;
-		this._telemetryService = telemetryService;
 		this._proxy = this._threadService.getRemotable(ExtHostExtensionService);
 		this._extensionsStatus = {};
 

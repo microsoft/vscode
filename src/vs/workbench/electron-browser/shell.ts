@@ -230,7 +230,7 @@ export class WorkbenchShell {
 
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
 
-		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
+		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService);
 
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
