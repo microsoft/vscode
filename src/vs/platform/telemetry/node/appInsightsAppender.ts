@@ -7,16 +7,16 @@
 import errors = require('vs/base/common/errors');
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEnvironment} from 'vs/platform/workspace/common/workspace';
 import {AIAdapter, IAIAdapter} from 'vs/base/node/aiAdapter';
 import winreg = require('winreg');
 import os = require('os');
 
-class StorageKeys {
-	public static sqmUserId: string = 'telemetry.sqm.userId';
-	public static sqmMachineId: string = 'telemetry.sqm.machineId';
-	public static lastSessionDate: string = 'telemetry.lastSessionDate';
-	public static firstSessionDate: string = 'telemetry.firstSessionDate';
+namespace StorageKeys {
+	export const sqmUserId: string = 'telemetry.sqm.userId';
+	export const sqmMachineId: string = 'telemetry.sqm.machineId';
+	export const lastSessionDate: string = 'telemetry.lastSessionDate';
+	export const firstSessionDate: string = 'telemetry.firstSessionDate';
 }
 
 export class AppInsightsAppender implements ITelemetryAppender {
@@ -25,29 +25,23 @@ export class AppInsightsAppender implements ITelemetryAppender {
 
 	private static SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
-	private storageService:IStorageService;
-	private contextService: IWorkspaceContextService;
-
+	private storageService: IStorageService;
 	private appInsights: IAIAdapter;
 	private appInsightsVortex: IAIAdapter;
-
-	protected commonProperties: {[key:string] : string};
-	protected commonMetrics: {[key: string]: number};
+	private commonProperties: { [key: string]: string };
+	private commonMetrics: { [key: string]: number };
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		env: IEnvironment,
 		_testing_client?: any
 	) {
 		this.commonProperties = {};
 		this.commonMetrics = {};
-
-		this.contextService = contextService;
 		this.storageService = storageService;
 
-		let config = this.contextService.getConfiguration().env.aiConfig;
-		let key = config ? config.key: null;
-		let asimovKey = config ? config.asimovKey: null;
+		let key = env.aiConfig && env.aiConfig.key;
+		let asimovKey = env.aiConfig && env.aiConfig.asimovKey;
 
 		// for test
 		if (_testing_client) {
@@ -63,7 +57,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 			this.appInsights = new AIAdapter(key, AppInsightsAppender.EVENT_NAME_PREFIX);
 		}
 
-		if(asimovKey) {
+		if (asimovKey) {
 			this.appInsightsVortex = new AIAdapter(asimovKey, AppInsightsAppender.EVENT_NAME_PREFIX);
 		}
 
@@ -83,7 +77,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 			if (sqmUserId) {
 				this.commonProperties['sqm.userid'] = sqmUserId;
 			} else {
-				this.getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'UserId', winreg.HKCU, (error, result: string) => {
+				AppInsightsAppender._getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'UserId', winreg.HKCU, (error, result: string) => {
 					if (!error && result) {
 						this.commonProperties['sqm.userid'] = result;
 						this.storageService.store(StorageKeys.sqmUserId, result);
@@ -96,7 +90,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 				this.commonProperties['sqm.machineid'] = sqmMachineId;
 			}
 			else {
-				this.getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'MachineId', winreg.HKLM,(error, result) => {
+				AppInsightsAppender._getWinRegKeyData(AppInsightsAppender.SQM_KEY, 'MachineId', winreg.HKLM, (error, result) => {
 					if (!error && result) {
 						this.commonProperties['sqm.machineid'] = result;
 						this.storageService.store(StorageKeys.sqmMachineId, result);
@@ -106,7 +100,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		}
 
 		var firstSessionDate = this.storageService.get(StorageKeys.firstSessionDate);
-		if(!firstSessionDate) {
+		if (!firstSessionDate) {
 			firstSessionDate = (new Date()).toUTCString();
 			this.storageService.store(StorageKeys.firstSessionDate, firstSessionDate);
 		}
@@ -114,7 +108,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 
 		//report last session date and isNewSession flag
 		var lastSessionDate = this.storageService.get(StorageKeys.lastSessionDate);
-		if(!lastSessionDate) {
+		if (!lastSessionDate) {
 			this.commonMetrics['isNewSession'] = 1;
 		} else {
 			this.commonMetrics['isNewSession'] = 0;
@@ -128,7 +122,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		}
 	}
 
-	private getWinRegKeyData(key: string, name: string, hive: string, callback: (error: Error, userId: string) => void): void {
+	private static _getWinRegKeyData(key: string, name: string, hive: string, callback: (error: Error, userId: string) => void): void {
 		if (process.platform === 'win32') {
 			try {
 				var reg = new winreg({
