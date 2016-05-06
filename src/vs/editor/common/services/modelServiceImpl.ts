@@ -26,7 +26,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {DEFAULT_INDENTATION, DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 import {IMessageService} from 'vs/platform/message/common/message';
 
 export interface IRawModelData {
@@ -221,7 +221,7 @@ export class ModelServiceImpl implements IModelService {
 			insertSpaces: DEFAULT_INDENTATION.insertSpaces,
 			detectIndentation: DEFAULT_INDENTATION.detectIndentation,
 			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF,
-			trimAutoWhitespace: DefaultConfig.editor.trimAutoWhitespace
+			trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE
 		};
 		this._threadService = threadService;
 		this._markerService = markerService;

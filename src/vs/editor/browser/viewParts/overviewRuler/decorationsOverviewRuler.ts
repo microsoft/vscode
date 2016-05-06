@@ -42,7 +42,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			getVerticalOffsetForLine
 		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
-		let theme = this._context.configuration.editor.theme;
+		let theme = this._context.configuration.editor.viewInfo.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 
 		this._shouldUpdateDecorations = true;
@@ -91,8 +91,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 			shouldRender = true;
 		}
 
-		if (e.theme) {
-			let theme = this._context.configuration.editor.theme;
+		if (e.viewInfo.theme) {
+			let theme = this._context.configuration.editor.viewInfo.theme;
 			this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 			shouldRender = true;
 		}

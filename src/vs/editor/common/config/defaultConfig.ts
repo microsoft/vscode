@@ -18,6 +18,7 @@ export const DEFAULT_INDENTATION = {
 	insertSpaces: true,
 	detectIndentation: true
 };
+export const DEFAULT_TRIM_AUTO_WHITESPACE = true;
 
 const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
 const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
@@ -90,7 +91,6 @@ class ConfigClass implements IConfiguration {
 			renderWhitespace: false,
 			indentGuides: false,
 			useTabStops: true,
-			trimAutoWhitespace: true,
 
 			fontFamily: (
 				platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)

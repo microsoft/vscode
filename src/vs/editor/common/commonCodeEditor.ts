@@ -181,7 +181,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		}
 	}
 
-	public getConfiguration(): editorCommon.IInternalEditorOptions {
+	public getConfiguration(): editorCommon.InternalEditorOptions {
 		return this._configuration.editorClone;
 	}
 

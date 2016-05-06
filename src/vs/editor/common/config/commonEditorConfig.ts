@@ -11,7 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import {Extensions, IConfigurationRegistry, IConfigurationNode} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
-import {DefaultConfig, DEFAULT_INDENTATION, GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
+import {DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE, GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
@@ -62,46 +62,6 @@ export class ConfigurationWithDefaults {
 	}
 }
 
-export class InternalEditorOptions implements editorCommon.IInternalEditorOptions {
-	_internalEditorOptionsBrand: void;
-
-	wordSeparators: string;
-	theme:string;
-	readOnly:boolean;
-	fontLigatures:boolean;
-	tabFocusMode:boolean;
-	stopLineTokenizationAfter:number;
-	longLineBoundary:number;
-	autoClosingBrackets:boolean;
-	useTabStops: boolean;
-	trimAutoWhitespace: boolean;
-	layoutInfo: editorCommon.EditorLayoutInfo;
-	fontInfo: editorCommon.FontInfo;
-	viewInfo: editorCommon.InternalEditorViewOptions;
-	wrappingInfo: editorCommon.EditorWrappingInfo;
-	contribInfo: editorCommon.EditorContribOptions;
-	lineHeight:number;
-
-	constructor(input:editorCommon.IInternalEditorOptions) {
-		this.wordSeparators = String(input.wordSeparators);
-		this.theme = String(input.theme);
-		this.readOnly = Boolean(input.readOnly);
-		this.fontLigatures = Boolean(input.fontLigatures);
-		this.tabFocusMode = Boolean(input.tabFocusMode);
-		this.stopLineTokenizationAfter = Number(input.stopLineTokenizationAfter)|0;
-		this.longLineBoundary = Number(input.longLineBoundary)|0;
-		this.autoClosingBrackets = Boolean(input.autoClosingBrackets);
-		this.useTabStops = Boolean(input.useTabStops);
-		this.trimAutoWhitespace = Boolean(input.trimAutoWhitespace);
-		this.layoutInfo = input.layoutInfo.clone();
-		this.fontInfo = input.fontInfo.clone();
-		this.viewInfo = input.viewInfo.clone();
-		this.wrappingInfo = input.wrappingInfo.clone();
-		this.contribInfo = input.contribInfo.clone();
-		this.lineHeight = Number(input.lineHeight)|0;
-	}
-}
-
 class InternalEditorOptionsHelper {
 
 	constructor() {
@@ -114,7 +74,7 @@ class InternalEditorOptionsHelper {
 		editorClassName:string,
 		isDominatedByLongLines:boolean,
 		lineCount: number
-	): editorCommon.IInternalEditorOptions {
+	): editorCommon.InternalEditorOptions {
 
 		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
 
@@ -203,6 +163,7 @@ class InternalEditorOptionsHelper {
 		}
 
 		let viewInfo = new editorCommon.InternalEditorViewOptions({
+			theme: opts.theme,
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
 			rulers: toSortedIntegerArray(opts.rulers),
 			ariaLabel: String(opts.ariaLabel),
@@ -239,28 +200,21 @@ class InternalEditorOptionsHelper {
 			folding: toBoolean(opts.folding),
 		});
 
-		return {
-			// ---- Options that are transparent - get no massaging
-			theme: opts.theme,
-			readOnly: readOnly,
-			wordSeparators: String(opts.wordSeparators),
-			fontLigatures: toBoolean(opts.fontLigatures),
-			tabFocusMode: tabFocusMode,
+		return new editorCommon.InternalEditorOptions({
 			stopLineTokenizationAfter: stopLineTokenizationAfter,
 			longLineBoundary: toInteger(opts.longLineBoundary),
-
+			lineHeight: fontInfo.lineHeight, // todo -> duplicated in styling
+			readOnly: readOnly,
+			wordSeparators: String(opts.wordSeparators),
 			autoClosingBrackets: toBoolean(opts.autoClosingBrackets),
 			useTabStops: toBoolean(opts.useTabStops),
-			trimAutoWhitespace: toBoolean(opts.trimAutoWhitespace),
-
+			tabFocusMode: tabFocusMode,
 			layoutInfo: layoutInfo,
 			fontInfo: fontInfo,
 			viewInfo: viewInfo,
 			wrappingInfo: wrappingInfo,
 			contribInfo: contribInfo,
-
-			lineHeight: fontInfo.lineHeight, // todo -> duplicated in styling
-		};
+		});
 	}
 
 	private static _sanitizeScrollbarOpts(raw:editorCommon.IEditorScrollbarOptions, mouseWheelScrollSensitivity:number): editorCommon.InternalEditorScrollbarOptions {
@@ -297,30 +251,6 @@ class InternalEditorOptionsHelper {
 			handleMouseWheel: toBooleanWithDefault(raw.handleMouseWheel, true),
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
 		});
-	}
-
-	public static createConfigurationChangedEvent(prevOpts:InternalEditorOptions, newOpts:InternalEditorOptions): editorCommon.IConfigurationChangedEvent {
-		return {
-			wordSeparators:					(prevOpts.wordSeparators !== newOpts.wordSeparators),
-
-			theme:							(prevOpts.theme !== newOpts.theme),
-			readOnly:						(prevOpts.readOnly !== newOpts.readOnly),
-			fontLigatures:					(prevOpts.fontLigatures !== newOpts.fontLigatures),
-			tabFocusMode:					(prevOpts.tabFocusMode !== newOpts.tabFocusMode),
-			stopLineTokenizationAfter:		(prevOpts.stopLineTokenizationAfter !== newOpts.stopLineTokenizationAfter),
-			longLineBoundary:				(prevOpts.longLineBoundary !== newOpts.longLineBoundary),
-
-			autoClosingBrackets:			(prevOpts.autoClosingBrackets !== newOpts.autoClosingBrackets),
-			useTabStops:					(prevOpts.useTabStops !== newOpts.useTabStops),
-			trimAutoWhitespace:				(prevOpts.trimAutoWhitespace !== newOpts.trimAutoWhitespace),
-
-			layoutInfo: 					(!prevOpts.layoutInfo.equals(newOpts.layoutInfo)),
-			fontInfo: 						(!prevOpts.fontInfo.equals(newOpts.fontInfo)),
-			viewInfo:						prevOpts.viewInfo.createChangeEvent(newOpts.viewInfo),
-			wrappingInfo:					(!prevOpts.wrappingInfo.equals(newOpts.wrappingInfo)),
-			contribInfo:					(!prevOpts.contribInfo.equals(newOpts.contribInfo)),
-			lineHeight:						(prevOpts.lineHeight !== newOpts.lineHeight),
-		};
 	}
 }
 
@@ -412,8 +342,8 @@ export interface IElementSizeObserver {
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
-	public editor:InternalEditorOptions;
-	public editorClone:InternalEditorOptions;
+	public editor:editorCommon.InternalEditorOptions;
+	public editorClone:editorCommon.InternalEditorOptions;
 
 	protected _configWithDefaults:ConfigurationWithDefaults;
 	protected _elementSizeObserver: IElementSizeObserver;
@@ -429,9 +359,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._elementSizeObserver = elementSizeObserver;
 		this._isDominatedByLongLines = false;
 		this._lineCount = 1;
-
 		this.editor = this._computeInternalOptions();
-		this.editorClone = new InternalEditorOptions(this.editor);
+		this.editorClone = this.editor.clone();
 	}
 
 	public dispose(): void {
@@ -439,41 +368,25 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	protected _recomputeOptions(): void {
-		let oldOpts = this.editor;
-		this.editor = this._computeInternalOptions();
-		this.editorClone = new InternalEditorOptions(this.editor);
+		this._setOptions(this._computeInternalOptions());
+	}
 
-		let changeEvent = InternalEditorOptionsHelper.createConfigurationChangedEvent(oldOpts, this.editor);
-
-		let hasChanged = false;
-		let keys = Object.keys(changeEvent);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let key = keys[i];
-			if (changeEvent[key] === true) {
-				hasChanged = true;
-				break;
-			}
+	private _setOptions(newOptions:editorCommon.InternalEditorOptions): void {
+		if (this.editor && this.editor.equals(newOptions)) {
+			return;
 		}
 
-		keys = Object.keys(changeEvent.viewInfo);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let key = keys[i];
-			if (changeEvent[key] === true) {
-				hasChanged = true;
-				break;
-			}
-		}
-
-		if (hasChanged) {
-			this._onDidChange.fire(changeEvent);
-		}
+		let changeEvent = this.editor.createChangeEvent(newOptions);
+		this.editor = newOptions;
+		this.editorClone = this.editor.clone();
+		this._onDidChange.fire(changeEvent);
 	}
 
 	public getRawOptions(): editorCommon.IEditorOptions {
 		return this._configWithDefaults.getEditorOptions();
 	}
 
-	private _computeInternalOptions(): InternalEditorOptions {
+	private _computeInternalOptions(): editorCommon.InternalEditorOptions {
 		let opts = this._configWithDefaults.getEditorOptions();
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
@@ -485,7 +398,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
 		}
 
-		let result = InternalEditorOptionsHelper.createInternalEditorOptions(
+		return InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),
 			this.getOuterHeight(),
 			opts,
@@ -498,8 +411,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			this._isDominatedByLongLines,
 			this._lineCount
 		);
-
-		return new InternalEditorOptions(result);
 	}
 
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
@@ -764,7 +675,7 @@ let editorConfiguration:IConfigurationNode = {
 		},
 		'editor.trimAutoWhitespace' : {
 			'type': 'boolean',
-			'default': DefaultConfig.editor.trimAutoWhitespace,
+			'default': DEFAULT_TRIM_AUTO_WHITESPACE,
 			'description': nls.localize('trimAutoWhitespace', "Remove trailing auto inserted whitespace")
 		},
 		'editor.dismissPeekOnEsc' : {

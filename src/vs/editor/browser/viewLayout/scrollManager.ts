@@ -40,7 +40,7 @@ export class ScrollManager implements IDisposable {
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
 			horizontal: configScrollbarOpts.horizontal,
-			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.theme,
+			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme,
 			useShadows: false,
 			lazyRender: true,
 			saveLastScrollTimeOnClassName: ClassNames.VIEW_LINE
@@ -63,7 +63,7 @@ export class ScrollManager implements IDisposable {
 		}));
 
 		this.toDispose.push(this.configuration.onDidChange((e:IConfigurationChangedEvent) => {
-			this.scrollbar.updateClassName(this.configuration.editor.theme);
+			this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme);
 			if (e.viewInfo.scrollbar) {
 				let newOpts:ScrollableElementChangeOptions = {
 					canUseTranslate3d: true,

@@ -23,7 +23,6 @@ export class ViewLine implements IVisibleLineData {
 	private _spaceWidth: number;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
-	protected _fontLigatures: boolean;
 
 	private _domNode: FastDomNode;
 
@@ -43,7 +42,6 @@ export class ViewLine implements IVisibleLineData {
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
-		this._fontLigatures = this._context.configuration.editor.fontLigatures;
 
 		this._domNode = null;
 		this._isInvalid = true;
@@ -98,9 +96,6 @@ export class ViewLine implements IVisibleLineData {
 		}
 		if (e.viewInfo.stopRenderingLineAfter) {
 			this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
-		}
-		if (e.fontLigatures) {
-			this._fontLigatures = this._context.configuration.editor.fontLigatures;
 		}
 		this._isInvalid = true;
 	}
@@ -311,18 +306,6 @@ class WebKitViewLine extends ViewLine {
 
 	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 		let output = super._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
-
-		if (this._fontLigatures && output.length === 1 && endColumn > 1 && endColumn === this._charOffsetInPart.length) {
-			let lastSpanBoundingClientRect = (<HTMLElement>this._getReadingTarget().lastChild).getBoundingClientRect();
-			let lastSpanBoundingClientRectRight = lastSpanBoundingClientRect.right - clientRectDeltaLeft;
-			if (startColumn === endColumn) {
-				output[0].left = lastSpanBoundingClientRectRight;
-				output[0].width = 0;
-			} else {
-				output[0].width = lastSpanBoundingClientRectRight - output[0].left;
-			}
-			return output;
-		}
 
 		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._charOffsetInPart.length)) {
 			return output;

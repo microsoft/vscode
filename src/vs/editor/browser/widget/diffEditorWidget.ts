@@ -1718,7 +1718,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private originalModel:editorCommon.IModel;
-	private modifiedEditorConfiguration:editorCommon.IInternalEditorOptions;
+	private modifiedEditorConfiguration:editorCommon.InternalEditorOptions;
 	private modifiedEditorTabSize:number;
 
 	constructor(lineChanges:editorCommon.ILineChange[], originalForeignVZ:editorCommon.IEditorWhitespace[], modifiedForeignVZ:editorCommon.IEditorWhitespace[], originalEditor:editorBrowser.ICodeEditor, modifiedEditor:editorBrowser.ICodeEditor) {
@@ -1773,7 +1773,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.IInternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
+	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.InternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
 		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);

@@ -11,7 +11,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
-import {DEFAULT_INDENTATION, DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 
 var LIMIT_FIND_COUNT = 999;
 
@@ -21,7 +21,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		tabSize: DEFAULT_INDENTATION.tabSize,
 		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
 		detectIndentation: false,
-		trimAutoWhitespace: DefaultConfig.editor.trimAutoWhitespace,
+		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
 		defaultEOL: editorCommon.DefaultEndOfLine.LF
 	};
 

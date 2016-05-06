@@ -400,7 +400,6 @@ export interface IEditorOptions {
 	 */
 	wordWrapBreakObtrusiveCharacters?: string;
 
-//	autoSize?:boolean;
 	/**
 	 * Control what pressing Tab does.
 	 * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
@@ -511,10 +510,6 @@ export interface IEditorOptions {
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
 	useTabStops?: boolean;
-	/**
-	 * Remove trailing auto inserted whitespace.
-	 */
-	trimAutoWhitespace?: boolean;
 	/**
 	 * The font family
 	 */
@@ -666,6 +661,7 @@ export class EditorWrappingInfo {
 export class InternalEditorViewOptions {
 	_internalEditorViewOptionsBrand: void;
 
+	theme:string;
 	experimentalScreenReader: boolean;
 	rulers: number[];
 	ariaLabel: string;
@@ -686,6 +682,7 @@ export class InternalEditorViewOptions {
 	scrollbar:InternalEditorScrollbarOptions;
 
 	constructor(source:{
+		theme:string;
 		experimentalScreenReader: boolean;
 		rulers: number[];
 		ariaLabel: string;
@@ -705,6 +702,7 @@ export class InternalEditorViewOptions {
 		indentGuides: boolean;
 		scrollbar:InternalEditorScrollbarOptions;
 	}) {
+		this.theme = String(source.theme);
 		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
 		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
 		this.ariaLabel = String(source.ariaLabel);
@@ -755,7 +753,8 @@ export class InternalEditorViewOptions {
 
 	public equals(other:InternalEditorViewOptions): boolean {
 		return (
-			this.experimentalScreenReader === other.experimentalScreenReader
+			this.theme === other.theme
+			&& this.experimentalScreenReader === other.experimentalScreenReader
 			&& InternalEditorViewOptions._numberArraysEqual(this.rulers, other.rulers)
 			&& this.ariaLabel === other.ariaLabel
 			&& this.lineNumbers === other.lineNumbers
@@ -778,6 +777,7 @@ export class InternalEditorViewOptions {
 
 	public createChangeEvent(newOpts:InternalEditorViewOptions): IViewConfigurationChangedEvent {
 		return {
+			theme: this.theme !== newOpts.theme,
 			experimentalScreenReader: this.experimentalScreenReader !== newOpts.experimentalScreenReader,
 			rulers: (!InternalEditorViewOptions._numberArraysEqual(this.rulers, newOpts.rulers)),
 			ariaLabel: this.ariaLabel !== newOpts.ariaLabel,
@@ -805,6 +805,7 @@ export class InternalEditorViewOptions {
 }
 
 export interface IViewConfigurationChangedEvent {
+	theme: boolean;
 	experimentalScreenReader: boolean;
 	rulers: boolean;
 	ariaLabel:  boolean;
@@ -896,64 +897,114 @@ export class EditorContribOptions {
 /**
  * Internal configuration options (transformed or computed) for the editor.
  */
-export interface IInternalEditorOptions {
-	readOnly:boolean;
+export class InternalEditorOptions {
+	_internalEditorOptionsBrand: void;
 
+	stopLineTokenizationAfter:number; // todo: move to model opts
+	longLineBoundary:number; // todo: move to model opts
+	lineHeight:number; // todo: move to fontInfo
+
+	readOnly:boolean;
 	// ---- cursor options
 	wordSeparators: string;
 	autoClosingBrackets:boolean;
 	useTabStops: boolean;
 	tabFocusMode:boolean;
-
-	// ---- model options
-	trimAutoWhitespace: boolean;
-	stopLineTokenizationAfter:number;
-	longLineBoundary:number;
-
-	// ---- Options that are transparent - get no massaging
-	theme:string; // todo: move to viewInfo
-	fontLigatures:boolean; // todo: move to fontInfo
-
-	// ---- Options that are computed
-
+	// ---- grouped options
 	layoutInfo: EditorLayoutInfo;
 	fontInfo: FontInfo;
 	viewInfo: InternalEditorViewOptions;
 	wrappingInfo: EditorWrappingInfo;
 	contribInfo: EditorContribOptions;
 
-	/**
-	 * Computed line height (deduced from theme and CSS) in px.
-	 */
-	lineHeight:number; // todo: move to fontInfo
+	constructor(source: {
+		stopLineTokenizationAfter:number;
+		longLineBoundary:number;
+		lineHeight:number;
+		readOnly:boolean;
+		wordSeparators: string;
+		autoClosingBrackets:boolean;
+		useTabStops: boolean;
+		tabFocusMode:boolean;
+		layoutInfo: EditorLayoutInfo;
+		fontInfo: FontInfo;
+		viewInfo: InternalEditorViewOptions;
+		wrappingInfo: EditorWrappingInfo;
+		contribInfo: EditorContribOptions;
+	}) {
+		this.stopLineTokenizationAfter = source.stopLineTokenizationAfter|0;
+		this.longLineBoundary = source.longLineBoundary|0;
+		this.lineHeight = source.lineHeight|0;
+		this.readOnly = Boolean(source.readOnly);
+		this.wordSeparators = String(source.wordSeparators);
+		this.autoClosingBrackets = Boolean(source.autoClosingBrackets);
+		this.useTabStops = Boolean(source.useTabStops);
+		this.tabFocusMode = Boolean(source.tabFocusMode);
+		this.layoutInfo = source.layoutInfo.clone();
+		this.fontInfo = source.fontInfo.clone();
+		this.viewInfo = source.viewInfo.clone();
+		this.wrappingInfo = source.wrappingInfo.clone();
+		this.contribInfo = source.contribInfo.clone();
+	}
+
+	public equals(other:InternalEditorOptions): boolean {
+		return (
+			this.stopLineTokenizationAfter === other.stopLineTokenizationAfter
+			&& this.longLineBoundary === other.longLineBoundary
+			&& this.lineHeight === other.lineHeight
+			&& this.readOnly === other.readOnly
+			&& this.wordSeparators === other.wordSeparators
+			&& this.autoClosingBrackets === other.autoClosingBrackets
+			&& this.useTabStops === other.useTabStops
+			&& this.tabFocusMode === other.tabFocusMode
+			&& this.layoutInfo.equals(other.layoutInfo)
+			&& this.fontInfo.equals(other.fontInfo)
+			&& this.viewInfo.equals(other.viewInfo)
+			&& this.wrappingInfo.equals(other.wrappingInfo)
+			&& this.contribInfo.equals(other.contribInfo)
+		);
+	}
+
+	public createChangeEvent(newOpts:InternalEditorOptions): IConfigurationChangedEvent {
+		return {
+			stopLineTokenizationAfter: (this.stopLineTokenizationAfter !== newOpts.stopLineTokenizationAfter),
+			longLineBoundary: (this.longLineBoundary !== newOpts.longLineBoundary),
+			lineHeight: (this.lineHeight !== newOpts.lineHeight),
+			readOnly: (this.readOnly !== newOpts.readOnly),
+			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
+			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
+			useTabStops: (this.useTabStops !== newOpts.useTabStops),
+			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
+			layoutInfo: (!this.layoutInfo.equals(newOpts.layoutInfo)),
+			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
+			viewInfo: this.viewInfo.createChangeEvent(newOpts.viewInfo),
+			wrappingInfo: (!this.wrappingInfo.equals(newOpts.wrappingInfo)),
+			contribInfo: (!this.contribInfo.equals(newOpts.contribInfo)),
+		};
+	}
+
+	public clone(): InternalEditorOptions {
+		return new InternalEditorOptions(this);
+	}
 }
 
 /**
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	wordSeparators: boolean;
-
-	// ---- Options that are transparent - get no massaging
-	theme: boolean;
-	readOnly: boolean;
-	fontLigatures: boolean;
-	tabFocusMode: boolean;
 	stopLineTokenizationAfter: boolean;
 	longLineBoundary: boolean;
-
-	// ---- Options that are transparent - get no massaging
+	lineHeight: boolean;
+	readOnly: boolean;
+	wordSeparators: boolean;
 	autoClosingBrackets: boolean;
 	useTabStops: boolean;
-	trimAutoWhitespace: boolean;
-
-	// ---- Options that are computed
+	tabFocusMode: boolean;
 	layoutInfo: boolean;
 	fontInfo: boolean;
 	viewInfo: IViewConfigurationChangedEvent;
 	wrappingInfo: boolean;
 	contribInfo: boolean;
-	lineHeight: boolean;
 }
 
 /**
@@ -2789,7 +2840,7 @@ export class FontInfo extends BareFontInfo {
 export interface IConfiguration {
 	onDidChange: Event<IConfigurationChangedEvent>;
 
-	editor:IInternalEditorOptions;
+	editor:InternalEditorOptions;
 
 	setLineCount(lineCount:number): void;
 }
@@ -3314,7 +3365,7 @@ export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * Returns the current editor's configuration
 	 */
-	getConfiguration(): IInternalEditorOptions;
+	getConfiguration(): InternalEditorOptions;
 
 	/**
 	 * Returns the 'raw' editor's configuration, as it was applied over the defaults, but without any computed members.
