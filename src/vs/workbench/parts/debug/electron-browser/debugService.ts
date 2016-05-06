@@ -862,7 +862,7 @@ export class DebugService implements debug.IDebugService {
 			if (!cancelTransitionToRunningState) {
 				aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 				// TODO@Isidor temporary workaround for #5835
-				if (strings.equalsIgnoreCase(this.session.configuration.type, 'go')) {
+				if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'go')) {
 					this.model.clearThreads(false);
 				} else {
 					this.model.clearThreads(false, threadId);
