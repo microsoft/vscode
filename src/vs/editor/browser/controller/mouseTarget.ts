@@ -6,7 +6,7 @@
 
 import {Position} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
-import {IEditorLayoutInfo, IEditorPosition, IEditorRange, IPosition, MouseTargetType} from 'vs/editor/common/editorCommon';
+import {EditorLayoutInfo, IEditorPosition, IEditorRange, IPosition, MouseTargetType} from 'vs/editor/common/editorCommon';
 import {ClassNames, IMouseTarget, IViewZoneData} from 'vs/editor/browser/editorBrowser';
 import {IDomNodePosition} from 'vs/base/browser/dom';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
@@ -177,7 +177,7 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:ISimplifiedMouseEvent, testEventTarget:boolean): IMouseTarget {
+	public createMouseTarget(layoutInfo:EditorLayoutInfo, editorContent:IDomNodePosition, e:ISimplifiedMouseEvent, testEventTarget:boolean): IMouseTarget {
 		try {
 			var r = this._unsafeCreateMouseTarget(layoutInfo, editorContent, e, testEventTarget);
 			return r;
@@ -186,7 +186,7 @@ export class MouseTargetFactory {
 		}
 	}
 
-	private _unsafeCreateMouseTarget(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:ISimplifiedMouseEvent, testEventTarget:boolean): IMouseTarget {
+	private _unsafeCreateMouseTarget(layoutInfo:EditorLayoutInfo, editorContent:IDomNodePosition, e:ISimplifiedMouseEvent, testEventTarget:boolean): IMouseTarget {
 		var mouseVerticalOffset = Math.max(0, this._viewHelper.getScrollTop() + (e.posy - editorContent.top));
 		var mouseContentHorizontalOffset = this._viewHelper.getScrollLeft() + (e.posx - editorContent.left) - layoutInfo.contentLeft;
 		let mouseColumn = this._getMouseColumn(mouseContentHorizontalOffset);
@@ -594,7 +594,7 @@ export class MouseTargetFactory {
 		};
 	}
 
-	public getMouseColumn(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:ISimplifiedMouseEvent): number {
+	public getMouseColumn(layoutInfo:EditorLayoutInfo, editorContent:IDomNodePosition, e:ISimplifiedMouseEvent): number {
 		let mouseContentHorizontalOffset = this._viewHelper.getScrollLeft() + (e.posx - editorContent.left) - layoutInfo.contentLeft;
 		return this._getMouseColumn(mouseContentHorizontalOffset);
 	}

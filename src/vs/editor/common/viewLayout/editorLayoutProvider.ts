@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorLayoutInfo, OverviewRulerPosition} from 'vs/editor/common/editorCommon';
+import {EditorLayoutInfo, OverviewRulerPosition} from 'vs/editor/common/editorCommon';
 
 export interface IEditorLayoutProviderOpts {
 	outerWidth:number;
@@ -26,76 +26,7 @@ export interface IEditorLayoutProviderOpts {
 	horizontalScrollbarHeight:number;
 }
 
-export class EditorLayoutInfo implements IEditorLayoutInfo {
-	_editorLayoutInfoBrand: void;
-
-	public width:number;
-	public height:number;
-	public glyphMarginLeft:number;
-	public glyphMarginWidth:number;
-	public glyphMarginHeight:number;
-	public lineNumbersLeft:number;
-	public lineNumbersWidth:number;
-	public lineNumbersHeight:number;
-	public decorationsLeft:number;
-	public decorationsWidth:number;
-	public decorationsHeight:number;
-	public contentLeft:number;
-	public contentWidth:number;
-	public contentHeight:number;
-	public verticalScrollbarWidth:number;
-	public horizontalScrollbarHeight:number;
-	public overviewRuler:OverviewRulerPosition;
-
-	constructor(source:IEditorLayoutInfo) {
-		this.width = source.width|0;
-		this.height = source.height|0;
-		this.glyphMarginLeft = source.glyphMarginLeft|0;
-		this.glyphMarginWidth = source.glyphMarginWidth|0;
-		this.glyphMarginHeight = source.glyphMarginHeight|0;
-		this.lineNumbersLeft = source.lineNumbersLeft|0;
-		this.lineNumbersWidth = source.lineNumbersWidth|0;
-		this.lineNumbersHeight = source.lineNumbersHeight|0;
-		this.decorationsLeft = source.decorationsLeft|0;
-		this.decorationsWidth = source.decorationsWidth|0;
-		this.decorationsHeight = source.decorationsHeight|0;
-		this.contentLeft = source.contentLeft|0;
-		this.contentWidth = source.contentWidth|0;
-		this.contentHeight = source.contentHeight|0;
-		this.verticalScrollbarWidth = source.verticalScrollbarWidth|0;
-		this.horizontalScrollbarHeight = source.horizontalScrollbarHeight|0;
-		this.overviewRuler = source.overviewRuler.clone();
-	}
-
-	public equals(other:EditorLayoutInfo): boolean {
-		return (
-			this.width === other.width
-			&& this.height === other.height
-			&& this.glyphMarginLeft === other.glyphMarginLeft
-			&& this.glyphMarginWidth === other.glyphMarginWidth
-			&& this.glyphMarginHeight === other.glyphMarginHeight
-			&& this.lineNumbersLeft === other.lineNumbersLeft
-			&& this.lineNumbersWidth === other.lineNumbersWidth
-			&& this.lineNumbersHeight === other.lineNumbersHeight
-			&& this.decorationsLeft === other.decorationsLeft
-			&& this.decorationsWidth === other.decorationsWidth
-			&& this.decorationsHeight === other.decorationsHeight
-			&& this.contentLeft === other.contentLeft
-			&& this.contentWidth === other.contentWidth
-			&& this.contentHeight === other.contentHeight
-			&& this.verticalScrollbarWidth === other.verticalScrollbarWidth
-			&& this.horizontalScrollbarHeight === other.horizontalScrollbarHeight
-			&& this.overviewRuler.equals(other.overviewRuler)
-		);
-	}
-
-	public clone(): EditorLayoutInfo {
-		return new EditorLayoutInfo(this);
-	}
-}
-
 export class EditorLayoutProvider {
-
 	public static compute(_opts:IEditorLayoutProviderOpts): EditorLayoutInfo {
 		const outerWidth = _opts.outerWidth|0;
 		const outerHeight = _opts.outerHeight|0;

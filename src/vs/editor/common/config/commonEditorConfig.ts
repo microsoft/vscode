@@ -13,7 +13,7 @@ import {Extensions, IConfigurationRegistry, IConfigurationNode} from 'vs/platfor
 import {Registry} from 'vs/platform/platform';
 import {DefaultConfig, DEFAULT_INDENTATION, GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {EditorLayoutProvider, EditorLayoutInfo} from 'vs/editor/common/viewLayout/editorLayoutProvider';
+import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
 /**
  * Experimental screen reader support toggle
@@ -109,7 +109,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	indentGuides: boolean;
 	useTabStops: boolean;
 	trimAutoWhitespace: boolean;
-	layoutInfo: EditorLayoutInfo;
+	layoutInfo: editorCommon.EditorLayoutInfo;
 	fontInfo: editorCommon.FontInfo;
 	editorClassName: string;
 	wrappingInfo: editorCommon.IEditorWrappingInfo;
@@ -177,7 +177,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.indentGuides = Boolean(input.indentGuides);
 		this.useTabStops = Boolean(input.useTabStops);
 		this.trimAutoWhitespace = Boolean(input.trimAutoWhitespace);
-		this.layoutInfo = new EditorLayoutInfo(input.layoutInfo);
+		this.layoutInfo = input.layoutInfo.clone();
 		this.fontInfo = input.fontInfo.clone();
 		this.editorClassName = input.editorClassName;
 		this.wrappingInfo = {

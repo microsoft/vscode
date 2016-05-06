@@ -74,7 +74,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
 		return true;

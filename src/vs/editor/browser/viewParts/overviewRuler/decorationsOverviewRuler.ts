@@ -100,7 +100,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return shouldRender;
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._overviewRuler.setLayout(layoutInfo.overviewRuler, false);
 		return true;
 	}

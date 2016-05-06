@@ -637,7 +637,7 @@ export interface IInternalEditorOptions {
 
 	// ---- Options that are computed
 
-	layoutInfo: IEditorLayoutInfo;
+	layoutInfo: EditorLayoutInfo;
 
 	fontInfo: FontInfo;
 	editorClassName: string;
@@ -2155,7 +2155,9 @@ export class OverviewRulerPosition {
 /**
  * The internal layout details of the editor.
  */
-export interface IEditorLayoutInfo {
+export class EditorLayoutInfo {
+	_editorLayoutInfoBrand: void;
+
 	/**
 	 * Full editor width.
 	 */
@@ -2230,6 +2232,70 @@ export interface IEditorLayoutInfo {
 	 * The position of the overview ruler.
 	 */
 	overviewRuler:OverviewRulerPosition;
+
+	constructor(source:{
+		width:number;
+		height:number;
+		glyphMarginLeft:number;
+		glyphMarginWidth:number;
+		glyphMarginHeight:number;
+		lineNumbersLeft:number;
+		lineNumbersWidth:number;
+		lineNumbersHeight:number;
+		decorationsLeft:number;
+		decorationsWidth:number;
+		decorationsHeight:number;
+		contentLeft:number;
+		contentWidth:number;
+		contentHeight:number;
+		verticalScrollbarWidth:number;
+		horizontalScrollbarHeight:number;
+		overviewRuler:OverviewRulerPosition;
+	}) {
+		this.width = source.width|0;
+		this.height = source.height|0;
+		this.glyphMarginLeft = source.glyphMarginLeft|0;
+		this.glyphMarginWidth = source.glyphMarginWidth|0;
+		this.glyphMarginHeight = source.glyphMarginHeight|0;
+		this.lineNumbersLeft = source.lineNumbersLeft|0;
+		this.lineNumbersWidth = source.lineNumbersWidth|0;
+		this.lineNumbersHeight = source.lineNumbersHeight|0;
+		this.decorationsLeft = source.decorationsLeft|0;
+		this.decorationsWidth = source.decorationsWidth|0;
+		this.decorationsHeight = source.decorationsHeight|0;
+		this.contentLeft = source.contentLeft|0;
+		this.contentWidth = source.contentWidth|0;
+		this.contentHeight = source.contentHeight|0;
+		this.verticalScrollbarWidth = source.verticalScrollbarWidth|0;
+		this.horizontalScrollbarHeight = source.horizontalScrollbarHeight|0;
+		this.overviewRuler = source.overviewRuler.clone();
+	}
+
+	public equals(other:EditorLayoutInfo): boolean {
+		return (
+			this.width === other.width
+			&& this.height === other.height
+			&& this.glyphMarginLeft === other.glyphMarginLeft
+			&& this.glyphMarginWidth === other.glyphMarginWidth
+			&& this.glyphMarginHeight === other.glyphMarginHeight
+			&& this.lineNumbersLeft === other.lineNumbersLeft
+			&& this.lineNumbersWidth === other.lineNumbersWidth
+			&& this.lineNumbersHeight === other.lineNumbersHeight
+			&& this.decorationsLeft === other.decorationsLeft
+			&& this.decorationsWidth === other.decorationsWidth
+			&& this.decorationsHeight === other.decorationsHeight
+			&& this.contentLeft === other.contentLeft
+			&& this.contentWidth === other.contentWidth
+			&& this.contentHeight === other.contentHeight
+			&& this.verticalScrollbarWidth === other.verticalScrollbarWidth
+			&& this.horizontalScrollbarHeight === other.horizontalScrollbarHeight
+			&& this.overviewRuler.equals(other.overviewRuler)
+		);
+	}
+
+	public clone(): EditorLayoutInfo {
+		return new EditorLayoutInfo(this);
+	}
 }
 
 /**
@@ -3114,7 +3180,7 @@ export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * Get the layout info for the editor.
 	 */
-	getLayoutInfo(): IEditorLayoutInfo;
+	getLayoutInfo(): EditorLayoutInfo;
 
 	/**
 	 * Prevent the editor from sending a widgetFocusLost event,

@@ -87,7 +87,7 @@ export class ViewZones extends ViewPart {
 		return this._recomputeWhitespacesProps();
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 

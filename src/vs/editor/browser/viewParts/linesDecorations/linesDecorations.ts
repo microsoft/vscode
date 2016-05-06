@@ -68,7 +68,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._decorationsLeft = layoutInfo.decorationsLeft;
 		this._decorationsWidth = layoutInfo.decorationsWidth;
 		return true;

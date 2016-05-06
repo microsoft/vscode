@@ -656,7 +656,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		};
 	}
 
-	public getLayoutInfo(): editorCommon.IEditorLayoutInfo {
+	public getLayoutInfo(): editorCommon.EditorLayoutInfo {
 		return this._configuration.editor.layoutInfo;
 	}
 

@@ -111,7 +111,7 @@ export class ViewContentWidgets extends ViewPart {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._contentLeft = layoutInfo.contentLeft;
 
 		if (this._contentWidth !== layoutInfo.contentWidth) {

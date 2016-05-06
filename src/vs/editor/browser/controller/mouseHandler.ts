@@ -179,8 +179,8 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	}
 
 	// --- begin event handlers
-	_layoutInfo:editorCommon.IEditorLayoutInfo;
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	_layoutInfo:editorCommon.EditorLayoutInfo;
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._layoutInfo = layoutInfo;
 		return false;
 	}
