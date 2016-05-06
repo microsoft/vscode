@@ -49,7 +49,6 @@ export class TelemetryService implements ITelemetryService {
 	private _eventCount = 0;
 	private _startTime = new Date();
 	private _optInFriendly = ['optInStatus']; //holds a cache of predefined events that can be sent regardress of user optin status
-	private _userIdHash: string;
 	private _cleanupPatterns: [RegExp, string][]= [];
 
 	constructor(config?: ITelemetryServiceConfig) {
@@ -171,7 +170,6 @@ export class TelemetryService implements ITelemetryService {
 		data['sessionID'] = this._telemetryInfo.sessionId;
 		data['timestamp'] = eventDate;
 		data['version'] = this._configuration.version;
-		data['userId'] = this._userIdHash;
 		data['commitHash'] = this._configuration.commitHash;
 		data['common.platform'] = Platform.Platform[Platform.platform];
 		data['common.timesincesessionstart'] = (eventDate.getTime() - this._startTime.getTime());
