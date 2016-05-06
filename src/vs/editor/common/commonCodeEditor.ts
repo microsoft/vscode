@@ -675,9 +675,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			this.model.onBeforeAttached();
 
 			var hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				this._configuration.editor.wordWrapBreakBeforeCharacters,
-				this._configuration.editor.wordWrapBreakAfterCharacters,
-				this._configuration.editor.wordWrapBreakObtrusiveCharacters
+				this._configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
+				this._configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
+				this._configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
 			);
 
 			var linesCollection = new SplitLinesCollection(
@@ -686,7 +686,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				this.model.getOptions().tabSize,
 				this._configuration.editor.wrappingInfo.wrappingColumn,
 				this._configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
-				this._configuration.editor.wrappingIndent
+				this._configuration.editor.wrappingInfo.wrappingIndent
 			);
 
 			this.viewModel = new ViewModel(

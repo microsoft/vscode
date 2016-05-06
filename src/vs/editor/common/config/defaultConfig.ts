@@ -71,7 +71,6 @@ class ConfigClass implements IConfiguration {
 			// stopLineTokenizationAfter
 			// stopRenderingLineAfter
 			longLineBoundary: 300,
-			forcedTokenizationBoundary: 1000,
 
 			// Features
 			hover: true,

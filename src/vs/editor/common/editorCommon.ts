@@ -428,13 +428,6 @@ export interface IEditorOptions {
 	 */
 	longLineBoundary?:number;
 	/**
-	 * Performance guard: Tokenize in the background if the [wrapped] lines count is above
-	 * this number. If the [wrapped] lines count is below this number, then the view will
-	 * always force tokenization before rendering.
-	 * Defaults to 1000.
-	 */
-	forcedTokenizationBoundary?:number;
-	/**
 	 * Enable hover.
 	 * Defaults to true.
 	 */
@@ -628,12 +621,51 @@ export class InternalEditorScrollbarOptions {
 	}
 }
 
-export interface IEditorWrappingInfo {
+export class EditorWrappingInfo {
+	_editorWrappingInfoBrand: void;
+
 	isViewportWrapping: boolean;
 	wrappingColumn: number;
+	wrappingIndent: WrappingIndent;
+	wordWrapBreakBeforeCharacters: string;
+	wordWrapBreakAfterCharacters: string;
+	wordWrapBreakObtrusiveCharacters: string;
+
+	constructor(source:{
+		isViewportWrapping: boolean;
+		wrappingColumn: number;
+		wrappingIndent: WrappingIndent;
+		wordWrapBreakBeforeCharacters: string;
+		wordWrapBreakAfterCharacters: string;
+		wordWrapBreakObtrusiveCharacters: string;
+	}) {
+		this.isViewportWrapping = Boolean(source.isViewportWrapping);
+		this.wrappingColumn = source.wrappingColumn|0;
+		this.wrappingIndent = source.wrappingIndent|0;
+		this.wordWrapBreakBeforeCharacters = String(source.wordWrapBreakBeforeCharacters);
+		this.wordWrapBreakAfterCharacters = String(source.wordWrapBreakAfterCharacters);
+		this.wordWrapBreakObtrusiveCharacters = String(source.wordWrapBreakObtrusiveCharacters);
+	}
+
+	public equals(other:EditorWrappingInfo): boolean {
+		return (
+			this.isViewportWrapping === other.isViewportWrapping
+			&& this.wrappingColumn === other.wrappingColumn
+			&& this.wrappingIndent === other.wrappingIndent
+			&& this.wordWrapBreakBeforeCharacters === other.wordWrapBreakBeforeCharacters
+			&& this.wordWrapBreakAfterCharacters === other.wordWrapBreakAfterCharacters
+			&& this.wordWrapBreakObtrusiveCharacters === other.wordWrapBreakObtrusiveCharacters
+		);
+	}
+
+	public clone(): EditorWrappingInfo {
+		return new EditorWrappingInfo(this);
+	}
 }
 
 export class InternalEditorViewOptions {
+	_internalEditorViewOptionsBrand: void;
+
 	experimentalScreenReader: boolean;
 	rulers: number[];
 	ariaLabel: string;
@@ -804,14 +836,9 @@ export interface IInternalEditorOptions {
 	theme:string;
 	readOnly:boolean;
 	fontLigatures:boolean;
-	wrappingIndent: WrappingIndent;
-	wordWrapBreakBeforeCharacters: string;
-	wordWrapBreakAfterCharacters: string;
-	wordWrapBreakObtrusiveCharacters: string;
 	tabFocusMode:boolean;
 	stopLineTokenizationAfter:number;
 	longLineBoundary:number;
-	forcedTokenizationBoundary:number;
 
 	// ---- Options that are transparent - get no massaging
 	hover:boolean;
@@ -838,7 +865,7 @@ export interface IInternalEditorOptions {
 
 	viewInfo: InternalEditorViewOptions;
 
-	wrappingInfo: IEditorWrappingInfo;
+	wrappingInfo: EditorWrappingInfo;
 
 	/**
 	 * Computed line height (deduced from theme and CSS) in px.
@@ -861,14 +888,9 @@ export interface IConfigurationChangedEvent {
 	theme: boolean;
 	readOnly: boolean;
 	fontLigatures: boolean;
-	wrappingIndent: boolean;
-	wordWrapBreakBeforeCharacters: boolean;
-	wordWrapBreakAfterCharacters: boolean;
-	wordWrapBreakObtrusiveCharacters: boolean;
 	tabFocusMode: boolean;
 	stopLineTokenizationAfter: boolean;
 	longLineBoundary: boolean;
-	forcedTokenizationBoundary: boolean;
 
 	// ---- Options that are transparent - get no massaging
 	hover: boolean;

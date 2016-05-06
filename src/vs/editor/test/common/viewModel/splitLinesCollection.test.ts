@@ -84,9 +84,9 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		let config = new MockConfiguration({});
 
 		let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-			config.editor.wordWrapBreakBeforeCharacters,
-			config.editor.wordWrapBreakAfterCharacters,
-			config.editor.wordWrapBreakObtrusiveCharacters
+			config.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
+			config.editor.wrappingInfo.wordWrapBreakAfterCharacters,
+			config.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
 		);
 
 		let model = new Model([
@@ -104,7 +104,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			model.getOptions().tabSize,
 			config.editor.wrappingInfo.wrappingColumn,
 			config.editor.fontInfo.typicalFullwidthCharacterWidth / config.editor.fontInfo.typicalHalfwidthCharacterWidth,
-			config.editor.wrappingIndent
+			config.editor.wrappingInfo.wrappingIndent
 		);
 
 		linesCollection.setHiddenAreas([{

@@ -70,14 +70,9 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	theme:string;
 	readOnly:boolean;
 	fontLigatures:boolean;
-	wrappingIndent: editorCommon.WrappingIndent;
-	wordWrapBreakBeforeCharacters: string;
-	wordWrapBreakAfterCharacters: string;
-	wordWrapBreakObtrusiveCharacters: string;
 	tabFocusMode:boolean;
 	stopLineTokenizationAfter:number;
 	longLineBoundary:number;
-	forcedTokenizationBoundary:number;
 	hover:boolean;
 	contextmenu:boolean;
 	quickSuggestions:boolean;
@@ -96,7 +91,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	layoutInfo: editorCommon.EditorLayoutInfo;
 	fontInfo: editorCommon.FontInfo;
 	viewInfo: editorCommon.InternalEditorViewOptions;
-	wrappingInfo: editorCommon.IEditorWrappingInfo;
+	wrappingInfo: editorCommon.EditorWrappingInfo;
 	lineHeight:number;
 	pageSize:number;
 
@@ -106,14 +101,9 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.theme = String(input.theme);
 		this.readOnly = Boolean(input.readOnly);
 		this.fontLigatures = Boolean(input.fontLigatures);
-		this.wrappingIndent = input.wrappingIndent;
-		this.wordWrapBreakBeforeCharacters = String(input.wordWrapBreakBeforeCharacters);
-		this.wordWrapBreakAfterCharacters = String(input.wordWrapBreakAfterCharacters);
-		this.wordWrapBreakObtrusiveCharacters = String(input.wordWrapBreakObtrusiveCharacters);
 		this.tabFocusMode = Boolean(input.tabFocusMode);
 		this.stopLineTokenizationAfter = Number(input.stopLineTokenizationAfter)|0;
 		this.longLineBoundary = Number(input.longLineBoundary)|0;
-		this.forcedTokenizationBoundary = Number(input.forcedTokenizationBoundary)|0;
 		this.hover = Boolean(input.hover);
 		this.contextmenu = Boolean(input.contextmenu);
 		this.quickSuggestions = Boolean(input.quickSuggestions);
@@ -132,10 +122,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.layoutInfo = input.layoutInfo.clone();
 		this.fontInfo = input.fontInfo.clone();
 		this.viewInfo = input.viewInfo.clone();
-		this.wrappingInfo = {
-			isViewportWrapping: Boolean(input.wrappingInfo.isViewportWrapping),
-			wrappingColumn: Number(input.wrappingInfo.wrappingColumn)|0,
-		};
+		this.wrappingInfo = input.wrappingInfo.clone();
 		this.lineHeight = Number(input.lineHeight)|0;
 		this.pageSize = Number(input.pageSize)|0;
 	}
@@ -208,26 +195,33 @@ class InternalEditorOptionsHelper {
 			wrappingColumn = 0;
 		}
 
-		let wrappingInfo: editorCommon.IEditorWrappingInfo;
-
+		let bareWrappingInfo: { isViewportWrapping: boolean; wrappingColumn: number; };
 		if (wrappingColumn === 0) {
 			// If viewport width wrapping is enabled
-			wrappingInfo = {
+			bareWrappingInfo = {
 				isViewportWrapping: true,
 				wrappingColumn: Math.max(1, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
 			};
 		} else if (wrappingColumn > 0) {
 			// Wrapping is enabled
-			wrappingInfo = {
+			bareWrappingInfo = {
 				isViewportWrapping: false,
 				wrappingColumn: wrappingColumn
 			};
 		} else {
-			wrappingInfo = {
+			bareWrappingInfo = {
 				isViewportWrapping: false,
 				wrappingColumn: -1
 			};
 		}
+		let wrappingInfo = new editorCommon.EditorWrappingInfo({
+			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
+			wrappingColumn: bareWrappingInfo.wrappingColumn,
+			wrappingIndent: wrappingIndentFromString(opts.wrappingIndent),
+			wordWrapBreakBeforeCharacters: String(opts.wordWrapBreakBeforeCharacters),
+			wordWrapBreakAfterCharacters: String(opts.wordWrapBreakAfterCharacters),
+			wordWrapBreakObtrusiveCharacters: String(opts.wordWrapBreakObtrusiveCharacters),
+		});
 
 		let readOnly = toBoolean(opts.readOnly);
 
@@ -264,14 +258,9 @@ class InternalEditorOptionsHelper {
 			wordSeparators: String(opts.wordSeparators),
 			selectionClipboard: toBoolean(opts.selectionClipboard),
 			fontLigatures: toBoolean(opts.fontLigatures),
-			wrappingIndent: wrappingIndentFromString(opts.wrappingIndent),
-			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
-			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 			tabFocusMode: tabFocusMode,
 			stopLineTokenizationAfter: stopLineTokenizationAfter,
 			longLineBoundary: toInteger(opts.longLineBoundary),
-			forcedTokenizationBoundary: toInteger(opts.forcedTokenizationBoundary),
 
 			hover: toBoolean(opts.hover),
 			contextmenu: toBoolean(opts.contextmenu),
@@ -343,14 +332,9 @@ class InternalEditorOptionsHelper {
 			theme:							(prevOpts.theme !== newOpts.theme),
 			readOnly:						(prevOpts.readOnly !== newOpts.readOnly),
 			fontLigatures:					(prevOpts.fontLigatures !== newOpts.fontLigatures),
-			wrappingIndent:					(prevOpts.wrappingIndent !== newOpts.wrappingIndent),
-			wordWrapBreakBeforeCharacters:	(prevOpts.wordWrapBreakBeforeCharacters !== newOpts.wordWrapBreakBeforeCharacters),
-			wordWrapBreakAfterCharacters:	(prevOpts.wordWrapBreakAfterCharacters !== newOpts.wordWrapBreakAfterCharacters),
-			wordWrapBreakObtrusiveCharacters:(prevOpts.wordWrapBreakObtrusiveCharacters !== newOpts.wordWrapBreakObtrusiveCharacters),
 			tabFocusMode:					(prevOpts.tabFocusMode !== newOpts.tabFocusMode),
 			stopLineTokenizationAfter:		(prevOpts.stopLineTokenizationAfter !== newOpts.stopLineTokenizationAfter),
 			longLineBoundary:				(prevOpts.longLineBoundary !== newOpts.longLineBoundary),
-			forcedTokenizationBoundary:		(prevOpts.forcedTokenizationBoundary !== newOpts.forcedTokenizationBoundary),
 
 			hover:							(prevOpts.hover !== newOpts.hover),
 			contextmenu:					(prevOpts.contextmenu !== newOpts.contextmenu),
@@ -370,19 +354,11 @@ class InternalEditorOptionsHelper {
 			layoutInfo: 					(!prevOpts.layoutInfo.equals(newOpts.layoutInfo)),
 			fontInfo: 						(!prevOpts.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo:						prevOpts.viewInfo.createChangeEvent(newOpts.viewInfo),
-			wrappingInfo:					(!this._wrappingInfoEqual(prevOpts.wrappingInfo, newOpts.wrappingInfo)),
+			wrappingInfo:					(!prevOpts.wrappingInfo.equals(newOpts.wrappingInfo)),
 			lineHeight:						(prevOpts.lineHeight !== newOpts.lineHeight),
 			pageSize:						(prevOpts.pageSize !== newOpts.pageSize),
 		};
 	}
-
-	private static _wrappingInfoEqual(a:editorCommon.IEditorWrappingInfo, b:editorCommon.IEditorWrappingInfo): boolean {
-		return (
-			a.isViewportWrapping === b.isViewportWrapping
-			&& a.wrappingColumn === b.wrappingColumn
-		);
-	}
-
 }
 
 function toBoolean(value:any): boolean {
