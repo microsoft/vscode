@@ -219,7 +219,7 @@ export class ViewZones extends ViewPart {
 			// TODO@Alex: change `newOrdinal` too
 
 			if (changed) {
-				zone.delegate.onComputedHeight(props.heightInPx);
+				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
 				this.setShouldRender();
 			}
 		}
