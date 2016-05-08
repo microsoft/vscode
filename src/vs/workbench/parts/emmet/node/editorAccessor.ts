@@ -124,6 +124,9 @@ export class EditorAccessor implements emmet.Editor {
 		if (syntax === 'sass') { // sass is really sccs... map it to scss
 			return'scss';
 		}
+		if (syntax === 'stylus') { // map stylus to css
+			return'css';
+		}
 		return syntax;
 	}
 
