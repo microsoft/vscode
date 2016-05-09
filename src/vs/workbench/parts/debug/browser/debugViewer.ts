@@ -241,6 +241,9 @@ export class CallStackDataSource implements tree.IDataSource {
 		if (typeof element === 'number') {
 			return element.toString();
 		}
+		if (typeof element === 'string') {
+			return element;
+		}
 
 		return element.getId();
 	}
@@ -260,6 +263,9 @@ export class CallStackDataSource implements tree.IDataSource {
 
 	private getThreadChildren(thread: debug.IThread): TPromise<any> {
 		return thread.getCallStack(this.debugService).then((callStack: any[]) => {
+			if (thread.stoppedDetails.framesErrorMessage) {
+				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
 				return callStack.concat([thread.threadId]);
 			}
@@ -280,6 +286,10 @@ interface IThreadTemplateData {
 	stateLabel: HTMLSpanElement;
 }
 
+interface IErrorTemplateData {
+	label: HTMLElement;
+}
+
 interface ILoadMoreTemplateData {
 	label: HTMLElement;
 }
@@ -296,6 +306,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 	private static THREAD_TEMPLATE_ID = 'thread';
 	private static STACK_FRAME_TEMPLATE_ID = 'stackFrame';
+	private static ERROR_TEMPLATE_ID = 'error';
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
@@ -313,6 +324,9 @@ export class CallStackRenderer implements tree.IRenderer {
 		if (element instanceof model.StackFrame) {
 			return CallStackRenderer.STACK_FRAME_TEMPLATE_ID;
 		}
+		if (typeof element === 'string') {
+			return CallStackRenderer.ERROR_TEMPLATE_ID;
+		}
 
 		return CallStackRenderer.LOAD_MORE_TEMPLATE_ID;
 	}
@@ -321,6 +335,12 @@ export class CallStackRenderer implements tree.IRenderer {
 		if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
 			let data: ILoadMoreTemplateData = Object.create(null);
 			data.label = dom.append(container, $('.load-more'));
+
+			return data;
+		}
+		if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
+			let data: ILoadMoreTemplateData = Object.create(null);
+			data.label = dom.append(container, $('.error'));
 
 			return data;
 		}
@@ -349,6 +369,8 @@ export class CallStackRenderer implements tree.IRenderer {
 			this.renderThread(element, templateData);
 		} else if (templateId === CallStackRenderer.STACK_FRAME_TEMPLATE_ID) {
 			this.renderStackFrame(element, templateData);
+		} else if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
+			this.renderError(element, templateData);
 		} else {
 			this.renderLoadMore(element, templateData);
 		}
@@ -358,6 +380,11 @@ export class CallStackRenderer implements tree.IRenderer {
 		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 		data.stateLabel.textContent = thread.stopped ? nls.localize('paused', "paused") : nls.localize('running', "running");
+	}
+
+	private renderError(element: string, data: IErrorTemplateData) {
+		data.label.textContent = element;
+		data.label.title = nls.localize('stackFrameError', "An error occurred while requesting the stack trace");
 	}
 
 	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {

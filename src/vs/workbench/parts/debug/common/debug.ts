@@ -34,6 +34,7 @@ export interface IRawStoppedDetails {
 	threadId?: number;
 	text?: string;
 	totalFrames?: number;
+	framesErrorMessage?: string;
 }
 
 // model
