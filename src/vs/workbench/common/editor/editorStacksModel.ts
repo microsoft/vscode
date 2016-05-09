@@ -307,7 +307,7 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorClosed.fire(editor);
 	}
 
-	public closeEditors(except: EditorInput, direction: Direction): void {
+	public closeEditors(except: EditorInput, direction?: Direction): void {
 		const index = this.indexOf(except);
 		if (index === -1) {
 			return; // not found

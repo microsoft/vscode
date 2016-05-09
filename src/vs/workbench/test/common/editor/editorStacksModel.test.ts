@@ -17,7 +17,7 @@ import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} fr
 import {Registry} from 'vs/platform/platform';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
-function create(): IEditorStacksModel {
+function create(): EditorStacksModel {
 	let services = new ServiceCollection();
 	services.set(IStorageService, new TestStorageService());
 	services.set(ILifecycleService, new TestLifecycleService());
@@ -951,7 +951,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
 		let group = model.openGroup('group');
 
 		const input1 = input();
@@ -991,7 +991,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
 
 		let group1 = model.openGroup('group1');
 
@@ -1069,7 +1069,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
 
 		let group = model.openGroup('group1');
 
@@ -1115,7 +1115,7 @@ suite('Editor Stacks Model', () => {
 
 		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
 
-		let model: IEditorStacksModel = inst.createInstance(EditorStacksModel);
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
 
 		let group1 = model.openGroup('group1');
 		let group2 = model.openGroup('group1');
