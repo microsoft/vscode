@@ -512,8 +512,9 @@ export class DebugService implements debug.IDebugService {
 
 							return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
 								const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+								const successExitCode = taskSummary && taskSummary.exitCode === 0;
 								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-								if (errorCount === 0 && !failureExitCode) {
+								if (successExitCode || (errorCount === 0 && !failureExitCode)) {
 									return this.doCreateSession(configuration, changeViewState);
 								}
 
