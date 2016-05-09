@@ -12,6 +12,7 @@ import {PythonFormattingEditProvider} from './providers/formatProvider';
 import * as sortImports from './sortImports';
 import {LintProvider} from './providers/lintProvider';
 import {PythonSymbolProvider} from './providers/symbolProvider';
+import * as formatOnSaveProvider from './providers/formatOnSaveProvider';
 // import * as languageClient from './languageClient';
 import * as path from 'path';
 import * as settings from './common/configSettings'
@@ -22,7 +23,7 @@ import {activateUnitTestProvider} from './providers/testProvider';
 
 const PYTHON: vscode.DocumentFilter = { language: 'python', scheme: 'file' }
 let outChannel: vscode.OutputChannel;
-  
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -45,6 +46,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonFormattingEditProvider(context, pythonSettings, outChannel)));
 
     context.subscriptions.push(new LintProvider(context, pythonSettings, outChannel));
+
+    context.subscriptions.push(formatOnSaveProvider.initialize(PYTHON, context, pythonSettings, outChannel));
 }
 
 // this method is called when your extension is deactivated

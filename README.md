@@ -41,6 +41,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
     "C:/Program Files (x86)/Google/google_appengine/lib" ]
 ```
 * [Code formatting](https://github.com/DonJayamanne/pythonVSCode/wiki/Formatting)
+ + Auto formatting of code upon saving changes (default to 'Off')
  + Use either yapf or autopep8 for code formatting (defaults to autopep8)
  + auutopep8 configuration files supported
  + yapf configuration files supported
@@ -109,6 +110,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 
 ### Version 0.3.6
 * Added support for linting using pydocstyle [#56](https://github.com/DonJayamanne/pythonVSCode/issues/56)
+* Added support for auto-formatting documents upon saving (turned off by default) [#27](https://github.com/DonJayamanne/pythonVSCode/issues/27)
 
 ### Version 0.3.5
 * Fixed printing of unicode characters when evaulating expressions [#73](https://github.com/DonJayamanne/pythonVSCode/issues/73)

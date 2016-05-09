@@ -42,6 +42,7 @@ export interface IFormattingSettings {
     provider: string;
     autopep8Path: string;
     yapfPath: string;
+    formatOnSave:boolean;
 }
 export interface IAutoCompeteSettings {
     extraPaths: string[];

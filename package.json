@@ -2,7 +2,7 @@
     "name": "python",
     "displayName": "Python",
     "description": "Linting, Debugging (multi-threaded, remote), Intellisense, auto-completion, code formatting, snippets, and more.",
-    "version": "0.3.5",
+    "version": "0.3.6",
     "publisher": "donjayamanne",
     "license": "SEE LICENSE IN LICENSE or README.MD",
     "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
@@ -240,10 +240,10 @@
                         "stopOnEntry": true,
                         "program": "${workspaceRoot}/console.py",
                         "args": [
-            				"dev",
-            				"runserver",
-            				"--noreload=True"
-            			],
+                            "dev",
+                            "runserver",
+                            "--noreload=True"
+                        ],
                         "debugOptions": [
                             "WaitOnAbnormalExit",
                             "WaitOnNormalExit",
@@ -400,6 +400,11 @@
                     "type": "string",
                     "default": "yapf",
                     "description": "Path to yapf, you can use a custom version of yapf by modifying this setting to include the full path."
+                },
+                "python.formatting.formatOnSave": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Format the document upon saving."
                 },
                 "python.autoComplete.extraPaths": {
                     "type": "array",
