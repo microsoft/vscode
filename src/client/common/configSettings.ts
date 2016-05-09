@@ -15,6 +15,7 @@ export interface IUnitTestSettings {
     nosetestsEnabled: boolean;
     nosetestPath: string;
     unittestEnabled: boolean;
+    outputWindow: string;
 }
 export interface IPylintCategorySeverity {
     convention: vscode.DiagnosticSeverity;
@@ -37,12 +38,14 @@ export interface ILintingSettings {
     pep8Path: string;
     flake8Path: string;
     pydocStylePath: string;
+    outputWindow: string;
 }
 export interface IFormattingSettings {
     provider: string;
     autopep8Path: string;
     yapfPath: string;
-    formatOnSave:boolean;
+    formatOnSave: boolean;
+    outputWindow: string;
 }
 export interface IAutoCompeteSettings {
     extraPaths: string[];

@@ -382,6 +382,11 @@
                     "default": "pydocstyle",
                     "description": "Path to pydocstyle, you can use a custom version of pydocstyle by modifying this setting to include the full path."
                 },
+                "python.linting.outputWindow": {
+                    "type": "string",
+                    "default": "Python",
+                    "description": "The output window name for the linting messages, defaults to Python output window."
+                },
                 "python.formatting.provider": {
                     "type": "string",
                     "default": "autopep8",
@@ -406,6 +411,11 @@
                     "default": false,
                     "description": "Format the document upon saving."
                 },
+                "python.formatting.outputWindow": {
+                    "type": "string",
+                    "default": "Python",
+                    "description": "The output window name for the formatting messages, defaults to Python output window."
+                },
                 "python.autoComplete.extraPaths": {
                     "type": "array",
                     "default": [],
@@ -425,6 +435,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Whether to enable or disable unit testing using standard unittest (built into Python)."
+                },
+                "python.unitTest.outputWindow": {
+                    "type": "string",
+                    "default": "Python",
+                    "description": "The output window name for the unit test messages, defaults to Python output window."
                 }
             }
         }
