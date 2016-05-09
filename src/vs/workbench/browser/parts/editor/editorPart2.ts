@@ -41,10 +41,10 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {EditorStacksModel, IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, IEditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 
 export class EditorPart extends Part implements IEditorPart {
-	private stacksModel: IEditorStacksModel;
+	private stacksModel: EditorStacksModel;
 	private groupsToEditor: { [groupId: number]: BaseEditor; };
 	private sideBySideControl: SideBySideEditorControl;
 	private memento: any;
@@ -168,7 +168,7 @@ export class EditorPart extends Part implements IEditorPart {
 		super.dispose();
 	}
 
-	private groupOfEditor(editor: BaseEditor): IEditorGroup {
+	private groupOfEditor(editor: BaseEditor): EditorGroup {
 		for (let groupId of Object.keys(this.groupsToEditor)) {
 			let groupEditor = this.groupsToEditor[groupId];
 			if (groupEditor === editor) {

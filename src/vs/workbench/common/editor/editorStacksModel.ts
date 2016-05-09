@@ -30,18 +30,18 @@ export interface IEditorGroup {
 	onEditorUnpinned: Event<EditorInput>;
 
 	getEditors(mru?: boolean): EditorInput[];
-	openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
-	moveEditor(editor: EditorInput, toIndex: number): void;
-	closeEditor(editor: EditorInput): void;
-	closeEditors(except: EditorInput, direction?: Direction): void;
-	closeAllEditors(): void;
-	setActive(editor: EditorInput): void;
+	// openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
+	// moveEditor(editor: EditorInput, toIndex: number): void;
+	// closeEditor(editor: EditorInput): void;
+	// closeEditors(except: EditorInput, direction?: Direction): void;
+	// closeAllEditors(): void;
+	// setActive(editor: EditorInput): void;
 	isActive(editor: EditorInput): boolean;
 	isPreview(editor: EditorInput): boolean;
 	isPinned(editor: EditorInput): boolean;
 
-	pin(editor: EditorInput): void;
-	unpin(editor: EditorInput): void;
+	// pin(editor: EditorInput): void;
+	// unpin(editor: EditorInput): void;
 }
 
 export interface IEditorStacksModel {
