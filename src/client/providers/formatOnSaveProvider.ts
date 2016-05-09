@@ -8,7 +8,7 @@ import {YapfFormatter} from './../formatters/yapfFormatter';
 import {AutoPep8Formatter} from './../formatters/autoPep8Formatter';
 import * as settings from './../common/configSettings';
 
-export function initialize(languageFilter:vscode.DocumentFilter, context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel): vscode.Disposable {
+export function activate(languageFilter: vscode.DocumentFilter, context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
     let rootDir = context.asAbsolutePath(".");
     let formatters = new Map<string, BaseFormatter>();
     let pythonSettings = settings;
@@ -24,7 +24,7 @@ export function initialize(languageFilter:vscode.DocumentFilter, context: vscode
     // the file is written to disk.	
     let ignoreNextSave = new WeakSet<vscode.TextDocument>();
 
-    return vscode.workspace.onDidSaveTextDocument(document => {
+    var subscription = vscode.workspace.onDidSaveTextDocument(document => {
         if (document.languageId !== languageFilter.language || ignoreNextSave.has(document)) {
             return;
         }
@@ -46,4 +46,6 @@ export function initialize(languageFilter:vscode.DocumentFilter, context: vscode
             });
         }
     }, null, null);
+
+    context.subscriptions.push(subscription);
 }
