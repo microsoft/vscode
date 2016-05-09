@@ -77,21 +77,20 @@ export class ContextMenuService implements IContextMenuService {
 					x = pos.x;
 					y = pos.y;
 				}
-				
+
 				let zoom = webFrame.getZoomFactor();
 				x *= zoom;
 				y *= zoom;
 
 				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+				if (delegate.onHide) {
+					delegate.onHide(undefined);
+				}
 			});
 		});
 	}
 
 	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate): void {
-		if (delegate.onHide) {
-			delegate.onHide(false);
-		}
-
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
