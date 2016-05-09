@@ -59,7 +59,7 @@ export interface IEditorStacksModel {
 	openGroup(label: string): IEditorGroup;
 
 	closeGroup(group: IEditorGroup): void;
-	closeAllGroups(): void;
+	closeGroups(except?: IEditorGroup): void;
 
 	moveGroup(group: IEditorGroup, toIndex: number): void;
 
@@ -659,11 +659,15 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupClosed.fire(group);
 	}
 
-	public closeAllGroups(): void {
+	public closeGroups(except?: EditorGroup): void {
 
 		// Optimize: close all non active groups first to produce less upstream work
-		this.groups.filter(g => g !== this.active).forEach(g => this.closeGroup(g));
-		this.closeGroup(this.active);
+		this.groups.filter(g => g !== this.active && g !== except).forEach(g => this.closeGroup(g));
+
+		// Close active unless configured to skip
+		if (this.active !== except) {
+			this.closeGroup(this.active);
+		}
 	}
 
 	public setActive(group: EditorGroup): void {

@@ -194,7 +194,7 @@ suite('Editor Stacks Model', () => {
 
 		assert.equal(model.groups.length, 4);
 
-		model.closeAllGroups();
+		model.closeGroups();
 
 		assert.equal(model.groups.length, 0);
 	});
@@ -243,10 +243,36 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.getGroup(group1.id), group1);
 		assert.equal(model.getGroup(group3.id), group3);
 
-		model.closeAllGroups();
+		model.closeGroups();
 
 		assert.equal(model.getGroup(group1.id), null);
 		assert.equal(model.getGroup(group3.id), null);
+	});
+
+	test('Groups - Close All Groups except active', function () {
+		const model = create();
+
+		model.openGroup('first');
+		model.openGroup('second');
+		const group3 = model.openGroup('third');
+
+		model.closeGroups(model.activeGroup);
+
+		assert.equal(model.groups.length, 1);
+		assert.equal(model.activeGroup, group3);
+	});
+
+	test('Groups - Close All Groups except inactive', function () {
+		const model = create();
+
+		model.openGroup('first');
+		const group2 = model.openGroup('second');
+		model.openGroup('third');
+
+		model.closeGroups(group2);
+
+		assert.equal(model.groups.length, 1);
+		assert.equal(model.activeGroup, group2);
 	});
 
 	test('Stack - One Editor', function () {
@@ -415,7 +441,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.getEditors()[1], input2);
 		assert.equal(group.getEditors()[2], input1);
 
-		model.closeAllGroups();
+		model.closeGroups();
 
 		assert.equal(events.closed.length, 3);
 		assert.equal(group.count, 0);
