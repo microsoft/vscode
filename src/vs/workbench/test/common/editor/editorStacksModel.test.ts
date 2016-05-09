@@ -224,6 +224,31 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups[2], group1);
 	});
 
+	test('Groups - Group Identifiers', function () {
+		const model = create();
+
+		const group1 = model.openGroup('first');
+		const group2 = model.openGroup('second');
+		const group3 = model.openGroup('third');
+
+		assert.equal(model.getGroup(group1.id), group1);
+		assert.equal(model.getGroup(group2.id), group2);
+		assert.equal(model.getGroup(group3.id), group3);
+
+		model.closeGroup(group2);
+		assert.equal(model.getGroup(group2.id), null);
+
+		model.moveGroup(group1, 1);
+
+		assert.equal(model.getGroup(group1.id), group1);
+		assert.equal(model.getGroup(group3.id), group3);
+
+		model.closeAllGroups();
+
+		assert.equal(model.getGroup(group1.id), null);
+		assert.equal(model.getGroup(group3.id), null);
+	});
+
 	test('Stack - One Editor', function () {
 		const model = create();
 		const group = model.openGroup('group');

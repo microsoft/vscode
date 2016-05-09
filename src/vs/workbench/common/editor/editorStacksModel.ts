@@ -16,6 +16,7 @@ import {Registry} from 'vs/platform/platform';
 
 export interface IEditorGroup {
 
+	id: GroupIdentifier;
 	label: string;
 	count: number;
 	activeEditor: EditorInput;
@@ -53,15 +54,19 @@ export interface IEditorStacksModel {
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
 
+	getGroup(id: GroupIdentifier): IEditorGroup;
+
 	openGroup(label: string): IEditorGroup;
 
 	closeGroup(group: IEditorGroup): void;
 	closeAllGroups(): void;
 
-	moveGroup(group: IEditorGroup, toIndex: number);
+	moveGroup(group: IEditorGroup, toIndex: number): void;
 
 	setActive(group: IEditorGroup): void;
 }
+
+export type GroupIdentifier = number;
 
 export interface IEditorOpenOptions {
 	pinned?: boolean;
@@ -92,6 +97,10 @@ export interface ISerializedEditorGroup {
 }
 
 export class EditorGroup implements IEditorGroup {
+
+	private static IDS = 0;
+
+	private _id: GroupIdentifier;
 	private _label: string;
 
 	private editors: EditorInput[];
@@ -113,6 +122,8 @@ export class EditorGroup implements IEditorGroup {
 		arg1: string | ISerializedEditorGroup,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
+		this._id = EditorGroup.IDS++;
+
 		this.editors = [];
 		this.mru = [];
 		this.toDispose = [];
@@ -131,6 +142,10 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorUnpinned = new Emitter<EditorInput>();
 
 		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned);
+	}
+
+	public get id(): GroupIdentifier {
+		return this._id;
 	}
 
 	public get label(): string {
@@ -520,6 +535,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private toDispose: IDisposable[];
 
 	private _groups: EditorGroup[];
+	private groupToIdentifier: { [id: number]: EditorGroup };
 	private active: EditorGroup;
 
 	private _onGroupOpened: Emitter<EditorGroup>;
@@ -535,6 +551,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.toDispose = [];
 
 		this._groups = [];
+		this.groupToIdentifier = Object.create(null);
 
 		this._onGroupOpened = new Emitter<EditorGroup>();
 		this._onGroupClosed = new Emitter<EditorGroup>();
@@ -575,6 +592,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this.active;
 	}
 
+	public getGroup(id: GroupIdentifier): EditorGroup {
+		return this.groupToIdentifier[id];
+	}
+
 	public openGroup(label: string): EditorGroup {
 		const group = this.instantiationService.createInstance(EditorGroup, label);
 
@@ -587,6 +608,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 		else {
 			this._groups.splice(this.indexOf(this.active) + 1, 0, group);
 		}
+
+		this.groupToIdentifier[group.id] = group;
 
 		// Event
 		this._onGroupOpened.fire(group);
@@ -630,6 +653,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Splice from groups
 		this._groups.splice(index, 1);
+		this.groupToIdentifier[group.id] = void 0;
 
 		// Event
 		this._onGroupClosed.fire(group);
@@ -714,6 +738,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 			this._groups = serialized.groups.map(s => this.instantiationService.createInstance(EditorGroup, s));
 			this.active = this._groups[serialized.active];
+			this._groups.forEach(g => this.groupToIdentifier[g.id] = g);
 		}
 	}
 
