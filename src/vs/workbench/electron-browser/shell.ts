@@ -205,8 +205,8 @@ export class WorkbenchShell {
 
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			this.telemetryService = new ElectronTelemetryService({
-				appender: [new AppInsightsAppender(this.storageService, this.configuration.env.aiConfig)],
-				commonProperties: [getDefaultProperties(this.storageService, this.contextService)],
+				appender: [new AppInsightsAppender(this.configuration.env.aiConfig)],
+				commonProperties: [getDefaultProperties(this.storageService)],
 				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
 			}, this.configurationService, this.contextService);
 		} else {
