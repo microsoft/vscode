@@ -13,7 +13,7 @@ import ConfigurationRegistry = require('vs/platform/configuration/common/configu
 
 ModesRegistry.registerCompatMode({
 	id: 'sass',
-	extensions: ['.scss'],
+	extensions: ['.scss', '.styl', '.stylus'],
 	aliases: ['Sass', 'sass', 'scss'],
 	mimetypes: ['text/x-scss', 'text/scss'],
 	moduleId: 'vs/languages/sass/common/sass',
