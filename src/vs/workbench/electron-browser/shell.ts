@@ -20,7 +20,7 @@ import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ElectronTelemetryService} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
+import {ElectronTelemetryService, getDefaultProperties} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
 import {AppInsightsAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
@@ -204,13 +204,11 @@ export class WorkbenchShell {
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
-			this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
-				appRoot: this.configuration.env.appRoot,
-				extensionsRoot: this.configuration.env.userExtensionsHome,
-				version: this.configuration.env.version,
-				commitHash: this.configuration.env.commitHash,
-				appender: [new AppInsightsAppender(this.storageService, this.configuration.env.aiConfig)]
-			});
+			this.telemetryService = new ElectronTelemetryService({
+				appender: [new AppInsightsAppender(this.storageService, this.configuration.env.aiConfig)],
+				commonProperties: [getDefaultProperties(this.storageService, this.contextService)],
+				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
+			}, this.configurationService, this.contextService);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}

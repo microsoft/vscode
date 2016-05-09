@@ -8,23 +8,57 @@
 import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import {escapeRegExpCharacters} from 'vs/base/common/strings';
+import {IWorkspaceContextService, IEnvironment} from 'vs/platform/workspace/common/workspace';
 import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import ErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
-import {withDefaults, cloneAndChange} from 'vs/base/common/objects';
+import {withDefaults, cloneAndChange, mixin} from 'vs/base/common/objects';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender[];
+	commonProperties?: TPromise<{ [name: string]: any }>[];
+	piiPaths?: string[];
 	userOptIn?: boolean;
 	enableHardIdle?: boolean;
 	enableSoftIdle?: boolean;
-	commitHash?: string;
-	version?: string;
-	appRoot?: string;
-	extensionsRoot?: string;
+}
+
+function createDefaultProperties(environment: IEnvironment): { [name: string]: any } {
+
+	let seq = 0;
+	const startTime = Date.now();
+	const sessionID = uuid.generateUuid() + Date.now();
+
+	let result = {
+		sessionID,
+		commitHash: environment.commitHash,
+		version: environment.version
+	};
+
+	// complex names and dynamic values
+	Object.defineProperties(result, {
+		'timestamp': {
+			get: () => new Date(),
+			enumerable: true
+		},
+		'common.timesincesessionstart': {
+			get: () => Date.now() - startTime,
+			enumerable: true
+		},
+		'common.platform': {
+			get: () => Platform.Platform[Platform.platform],
+			enumerable: true
+		},
+		'common.sequence': {
+			get: () => seq++,
+			enumerable: true
+		}
+	});
+
+	return result;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -33,52 +67,48 @@ export class TelemetryService implements ITelemetryService {
 	public static SOFT_IDLE_TIME = 2 * 60 * 1000;
 	public static IDLE_START_EVENT_NAME = 'UserIdleStart';
 	public static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
-
 	public static ERROR_FLUSH_TIMEOUT: number = 5 * 1000;
 
 	public serviceId = ITelemetryService;
 
-	protected _telemetryInfo: ITelemetryInfo;
 	protected _configuration: ITelemetryServiceConfig;
 	protected _disposables: IDisposable[] = [];
 
 	private _timeKeeper: TimeKeeper;
 	private _hardIdleMonitor: IdleMonitor;
 	private _softIdleMonitor: IdleMonitor;
-	private _eventCount = 0;
-	private _startTime = new Date();
-	private _optInFriendly = ['optInStatus']; //holds a cache of predefined events that can be sent regardress of user optin status
-	private _cleanupPatterns: [RegExp, string][]= [];
 
-	constructor(config?: ITelemetryServiceConfig) {
+	private _commonProperties: TPromise<{ [name: string]: any }>;
+	private _cleanupPatterns: [RegExp, string][] = [];
+
+	constructor(
+		config: ITelemetryServiceConfig,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
 		this._configuration = withDefaults(config, <ITelemetryServiceConfig>{
 			appender: [],
+			commonProperties: [],
+			piiPaths: [],
 			enableHardIdle: true,
 			enableSoftIdle: true,
 			userOptIn: true
 		});
 
+		this._commonProperties = TPromise.join(this._configuration.commonProperties)
+			.then(values => values.reduce((p, c) => mixin(p, c), createDefaultProperties(contextService.getConfiguration().env)));
+
 		// static cleanup patterns for:
 		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
 		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		if (this._configuration.appRoot) {
-			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(this._configuration.appRoot), 'gi'), '']);
-		}
-		if (this._configuration.extensionsRoot) {
-			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(this._configuration.extensionsRoot), 'gi'), '']);
+		for (let piiPath of this._configuration.piiPaths) {
+			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
 		}
 		this._cleanupPatterns.push(
 			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
 			[/file:\/\/\/.*/gi, ''],
 			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
 		);
-
-		this._telemetryInfo = {
-			sessionId: uuid.generateUuid() + Date.now(),
-			instanceId: undefined,
-			machineId: undefined
-		};
 
 		this._timeKeeper = new TimeKeeper();
 		this._disposables.push(this._timeKeeper);
@@ -123,7 +153,14 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as(this._telemetryInfo);
+		return this._commonProperties.then(values => {
+			// well known properties
+			let sessionId = values['sessionID'];
+			let instanceId = values['common.instanceId'];
+			let machineId = values['common.machineId'];
+
+			return { sessionId, instanceId, machineId };
+		});
 	}
 
 	public dispose(): void {
@@ -151,39 +188,30 @@ export class TelemetryService implements ITelemetryService {
 			return;
 		}
 
-		// don't send events when the user is optout unless the event is flaged as optin friendly
-		if (!this._configuration.userOptIn && this._optInFriendly.indexOf(eventName) === -1) {
+		// don't send events when the user is optout unless the event is the opt{in|out} signal
+		if (!this._configuration.userOptIn && eventName !== 'optInStatus') {
 			return;
 		}
 
-		this._eventCount++;
-
-		if (!data) {
-			data = Object.create(null);
-		}
-
 		// (first) add common properties
-		let eventDate: Date = new Date();
-		data['sessionID'] = this._telemetryInfo.sessionId;
-		data['timestamp'] = eventDate;
-		data['version'] = this._configuration.version;
-		data['commitHash'] = this._configuration.commitHash;
-		data['common.platform'] = Platform.Platform[Platform.platform];
-		data['common.timesincesessionstart'] = (eventDate.getTime() - this._startTime.getTime());
-		data['common.sequence'] = this._eventCount;
-		data['common.instanceId'] = this._telemetryInfo.instanceId;
-		data['common.machineId'] = this._telemetryInfo.machineId;
+		this._commonProperties.then(values => {
 
-		// (last) remove all PII from data
-		data = cloneAndChange(data, value => {
-			if (typeof value === 'string') {
-				return this._cleanupInfo(value);
+			data = mixin(data, values);
+
+			// (last) remove all PII from data
+			data = cloneAndChange(data, value => {
+				if (typeof value === 'string') {
+					return this._cleanupInfo(value);
+				}
+			});
+
+			for (let appender of this._configuration.appender) {
+				appender.log(eventName, data);
 			}
-		});
 
-		for (let appender of this._configuration.appender) {
-			appender.log(eventName, data);
-		}
+		}).done(undefined, err => {
+			console.error(err);
+		});
 	}
 
 	private _cleanupInfo(stack: string): string {
