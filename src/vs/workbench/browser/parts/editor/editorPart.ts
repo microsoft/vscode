@@ -227,195 +227,152 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	private doShowEditor(editorDescriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
+	private doShowEditor(descriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
 
 		// Return early if the currently visible editor can handle the input
-		if (this.visibleEditors[position] && editorDescriptor.describes(this.visibleEditors[position])) {
-			return this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()] || TPromise.as(this.visibleEditors[position]);
+		if (this.visibleEditors[position] && descriptor.describes(this.visibleEditors[position])) {
+			return this.mapEditorCreationPromiseToEditor[position][descriptor.getId()] || TPromise.as(this.visibleEditors[position]);
 		}
 
-		let activeEditorHidePromise: TPromise<BaseEditor>;
-		if (this.visibleEditors[position]) {
-			activeEditorHidePromise = this.hideEditor(this.visibleEditors[position], position, false); // Editor can not handle Input (Close this Editor)
-		} else {
-			activeEditorHidePromise = TPromise.as(null); // Editor needs to be created first
-		}
+		// If we have an active editor, hide it first
+		return (this.visibleEditors[position] ? this.doHideEditor(this.visibleEditors[position], position, false) : TPromise.as(null)).then(() => {
 
-		return activeEditorHidePromise.then(() => {
-			let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Creating Editor: {0}', editorDescriptor.getName()));
+			// Create Editor
+			let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Creating Editor: {0}', descriptor.getName()));
+			return this.doCreateEditor(descriptor, position, monitor).then(editor => {
 
-			// We need the container for this editor now
-			let editorContainer = this.mapEditorToEditorContainers[position][editorDescriptor.getId()];
-			let newlyCreatedEditorContainerBuilder: Builder;
-			if (!editorContainer) {
-
-				// Build Container off-DOM
-				editorContainer = $().div({
-					'class': 'editor-container',
-					id: editorDescriptor.getId()
-				}, (div) => {
-					newlyCreatedEditorContainerBuilder = div;
-				});
-
-				// Remember editor container
-				this.mapEditorToEditorContainers[position][editorDescriptor.getId()] = editorContainer;
-			}
-
-			// Create or get editor from cache
-			let editor = this.instantiatedEditors[position].filter(e => editorDescriptor.describes(e))[0] || null;
-			let loadOrGetEditorPromise: TPromise<BaseEditor>;
-			if (editor === null) {
-
-				// Check if loading is pending from another openEditor
-				let pendingEditorLoad = this.mapEditorLoadingPromiseToEditor[position][editorDescriptor.getId()];
-				if (pendingEditorLoad) {
-					loadOrGetEditorPromise = pendingEditorLoad;
-				}
-
-				// Otherwise load
-				else {
-					let loaded = false;
-					let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), editorDescriptor.getId(), true);
-					let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
-
-					loadOrGetEditorPromise = editorInstantiationService.createInstance(editorDescriptor).then((editor: BaseEditor) => {
-						loaded = true;
-						this.instantiatedEditors[position].push(editor);
-						delete this.mapEditorLoadingPromiseToEditor[position][editorDescriptor.getId()];
-
-						return editor;
-					}, (error) => {
-						loaded = true;
-						delete this.mapEditorLoadingPromiseToEditor[position][editorDescriptor.getId()];
-
-						return TPromise.wrapError(error);
-					});
-
-					if (!loaded) {
-						this.mapEditorLoadingPromiseToEditor[position][editorDescriptor.getId()] = loadOrGetEditorPromise;
-					}
-				}
-			} else {
-				loadOrGetEditorPromise = TPromise.as(editor);
-			}
-
-			return loadOrGetEditorPromise.then((editor) => {
-
-				// Make sure that the user meanwhile did not open another editor
-				if (monitor.token !== this.editorOpenToken[position]) {
+				// Make sure that the user meanwhile did not open another editor or something went wrong
+				if (!editor || !this.visibleEditors[position] || editor.getId() !== this.visibleEditors[position].getId()) {
 					timerEvent.stop();
-
-					// Stop loading promise if any
 					monitor.cancel();
 
 					return null;
 				}
 
-				// Remember Editor at position
-				this.visibleEditors[position] = editor;
+				// Show in side by side control
+				this.sideBySideControl.show(editor, this.mapEditorToEditorContainers[position][descriptor.getId()], position, options && options.preserveFocus, widthRatios);
 
-				// Register as Emitter to Workbench Bus
-				this.visibleEditorListeners[position].push(this.eventService.addEmitter(this.visibleEditors[position], this.visibleEditors[position].getId()));
+				// Indicate to editor that it is now visible
+				return editor.setVisible(true, position).then(() => {
 
-				let createEditorPromise: TPromise<any>;
-				if (newlyCreatedEditorContainerBuilder) { // Editor created for the first time
+					// Make sure the editor is layed out
+					this.sideBySideControl.layout(position);
 
-					// create editor
-					let created = false;
-					createEditorPromise = editor.create(newlyCreatedEditorContainerBuilder).then(() => {
-						created = true;
-						delete this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()];
-					}, (error) => {
-						created = true;
-						delete this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()];
+					// Emit Editor-Opened Event
+					this.emit(WorkbenchEventType.EDITOR_OPENED, new EditorEvent(editor, editor.getId(), input, options, position));
 
-						return TPromise.wrapError(error);
-					});
+					timerEvent.stop();
 
-					if (!created) {
-						this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()] = createEditorPromise;
-					}
-				}
-
-				// Editor already exists but is hidden or pending to create
-				else {
-
-					// Check if create is pending from another openEditor
-					let pendingEditorCreate = this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()];
-					if (pendingEditorCreate) {
-						createEditorPromise = pendingEditorCreate;
-					} else {
-						createEditorPromise = TPromise.as(null);
-					}
-				}
-
-				// Fill Content and Actions
-				return createEditorPromise.then(() => {
-
-					// Make sure that the user meanwhile did not open another editor
-					if (!this.visibleEditors[position] || editor.getId() !== this.visibleEditors[position].getId()) {
-						timerEvent.stop();
-
-						// Stop loading promise if any
-						monitor.cancel();
-
-						return null;
-					}
-
-					// Show in side by side control
-					this.sideBySideControl.show(editor, editorContainer, position, options && options.preserveFocus, widthRatios);
-
-					// Indicate to editor that it is now visible
-					return editor.setVisible(true, position).then(() => {
-
-						// Make sure the editor is layed out
-						this.sideBySideControl.layout(position);
-
-						// Emit Editor-Opened Event
-						this.emit(WorkbenchEventType.EDITOR_OPENED, new EditorEvent(editor, editor.getId(), input, options, position));
-
-						timerEvent.stop();
-
-						return editor;
-					});
-				}, (e: any) => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
-			});
+					return editor;
+				});
+			}, (e: any) => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
 		});
 	}
 
-	private doCloseEditor(input: EditorInput, position: Position): TPromise<BaseEditor> {
-		if (this.visibleEditors[position]) {
+	private doCreateEditor(descriptor: EditorDescriptor, position: Position, monitor: ProgressMonitor): TPromise<BaseEditor> {
 
-			// Reset counter
-			this.editorSetInputErrorCounter[position] = 0;
+		// We need the container for this editor now
+		let editorContainer = this.mapEditorToEditorContainers[position][descriptor.getId()];
+		let newlyCreatedEditorContainerBuilder: Builder;
+		if (!editorContainer) {
 
-			// Emit Input-Changing Event
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
-
-			// Hide Editor
-			return this.hideEditor(this.visibleEditors[position], position, true).then(() => {
-
-				// Emit Input-Changed Event
-				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
-
-				// Focus next editor if there is still an active one left
-				let currentActiveEditor = this.sideBySideControl.getActiveEditor();
-				if (currentActiveEditor) {
-					return this.openEditor(currentActiveEditor.input, null, currentActiveEditor.position).then(() => {
-
-						// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
-						// the user is actively changing focus with the mouse from left to right.
-						this.onEditorFocusChanged();
-
-						return currentActiveEditor;
-					});
-				}
-
-				return TPromise.as<BaseEditor>(null);
+			// Build Container off-DOM
+			editorContainer = $().div({
+				'class': 'editor-container',
+				id: descriptor.getId()
+			}, (div) => {
+				newlyCreatedEditorContainerBuilder = div;
 			});
+
+			// Remember editor container
+			this.mapEditorToEditorContainers[position][descriptor.getId()] = editorContainer;
 		}
 
-		return TPromise.as<BaseEditor>(null);
+		// Create or get editor from cache
+		let instantiatedEditor = this.instantiatedEditors[position].filter(e => descriptor.describes(e))[0];
+		let loadOrGetEditorPromise: TPromise<BaseEditor>;
+		if (!instantiatedEditor) {
+
+			// Check if loading is pending from another openEditor
+			let pendingEditorLoad = this.mapEditorLoadingPromiseToEditor[position][descriptor.getId()];
+			if (pendingEditorLoad) {
+				loadOrGetEditorPromise = pendingEditorLoad;
+			}
+
+			// Otherwise load
+			else {
+				let loaded = false;
+				let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
+				let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
+
+				loadOrGetEditorPromise = editorInstantiationService.createInstance(descriptor).then((editor: BaseEditor) => {
+					loaded = true;
+					this.instantiatedEditors[position].push(editor);
+					delete this.mapEditorLoadingPromiseToEditor[position][descriptor.getId()];
+
+					return editor;
+				}, (error) => {
+					loaded = true;
+					delete this.mapEditorLoadingPromiseToEditor[position][descriptor.getId()];
+
+					return TPromise.wrapError(error);
+				});
+
+				if (!loaded) {
+					this.mapEditorLoadingPromiseToEditor[position][descriptor.getId()] = loadOrGetEditorPromise;
+				}
+			}
+		} else {
+			loadOrGetEditorPromise = TPromise.as(instantiatedEditor);
+		}
+
+		return loadOrGetEditorPromise.then((editor) => {
+
+			// Make sure that the user meanwhile did not open another editor
+			if (monitor.token !== this.editorOpenToken[position]) {
+				monitor.cancel();
+
+				return null;
+			}
+
+			// Remember Editor at position
+			this.visibleEditors[position] = editor;
+
+			// Register as Emitter to Workbench Bus
+			this.visibleEditorListeners[position].push(this.eventService.addEmitter(this.visibleEditors[position], this.visibleEditors[position].getId()));
+
+			let createEditorPromise: TPromise<any>;
+			if (newlyCreatedEditorContainerBuilder) { // Editor created for the first time
+				let created = false;
+				createEditorPromise = editor.create(newlyCreatedEditorContainerBuilder).then(() => {
+					created = true;
+					delete this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
+				}, (error) => {
+					created = true;
+					delete this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
+
+					return TPromise.wrapError(error);
+				});
+
+				if (!created) {
+					this.mapEditorCreationPromiseToEditor[position][descriptor.getId()] = createEditorPromise;
+				}
+			}
+
+			// Editor already exists but is hidden or pending to create
+			else {
+
+				// Check if create is pending from another openEditor
+				let pendingEditorCreate = this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
+				if (pendingEditorCreate) {
+					createEditorPromise = pendingEditorCreate;
+				} else {
+					createEditorPromise = TPromise.as(null);
+				}
+			}
+
+			return createEditorPromise.then(() => editor);
+		});
 	}
 
 	private doSetInput(editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): TPromise<BaseEditor> {
@@ -531,7 +488,42 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	private hideEditor(editor: BaseEditor, position: Position, layoutAndRochade: boolean): TPromise<BaseEditor> {
+	private doCloseEditor(input: EditorInput, position: Position): TPromise<BaseEditor> {
+		if (this.visibleEditors[position]) {
+
+			// Reset counter
+			this.editorSetInputErrorCounter[position] = 0;
+
+			// Emit Input-Changing Event
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
+
+			// Hide Editor
+			return this.doHideEditor(this.visibleEditors[position], position, true).then(() => {
+
+				// Emit Input-Changed Event
+				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
+
+				// Focus next editor if there is still an active one left
+				let currentActiveEditor = this.sideBySideControl.getActiveEditor();
+				if (currentActiveEditor) {
+					return this.openEditor(currentActiveEditor.input, null, currentActiveEditor.position).then(() => {
+
+						// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
+						// the user is actively changing focus with the mouse from left to right.
+						this.onEditorFocusChanged();
+
+						return currentActiveEditor;
+					});
+				}
+
+				return TPromise.as<BaseEditor>(null);
+			});
+		}
+
+		return TPromise.as<BaseEditor>(null);
+	}
+
+	private doHideEditor(editor: BaseEditor, position: Position, layoutAndRochade: boolean): TPromise<BaseEditor> {
 		let editorContainer = this.mapEditorToEditorContainers[position][editor.getId()];
 
 		// Hide in side by side control
