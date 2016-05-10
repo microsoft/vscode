@@ -40,16 +40,16 @@ export function isStringArray(value: any): value is string[] {
 }
 
 /**
- * @returns whether the provided parameter is a JavaScript Object or not.
+ *
+ * @returns whether the provided parameter is of type `object` but **not**
+ *	`null`, an `array`, a `regexp`, nor a `date`.
  */
 export function isObject(obj: any): obj is any {
-
-	// Needed for IE8
-	if (typeof obj === 'undefined' || obj === null) {
-		return false;
-	}
-
-	return Object.prototype.toString.call(obj) === '[object Object]';
+	return typeof obj === 'object'
+		&& obj !== null
+		&& !Array.isArray(obj)
+		&& !(obj instanceof RegExp)
+		&& !(obj instanceof Date);
 }
 
 /**
