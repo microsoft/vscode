@@ -21,7 +21,6 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 * Snippets
 
 ##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
-* Support for Virtual Environments (in development)
 
 ## Feature Details (with configuration)
 * IDE Features
