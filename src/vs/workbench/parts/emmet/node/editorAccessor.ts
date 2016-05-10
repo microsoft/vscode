@@ -27,7 +27,7 @@ export class EditorAccessor implements emmet.Editor {
 
 	public noExpansionOccurred(): void {
 		// return the tab key handling back to the editor
-		this.editor.trigger('emmet', Handler.Tab, {});
+		this.editor.trigger('keyboard', Handler.Tab, {});
 	}
 
 	public isEmmetEnabledMode(): boolean {
