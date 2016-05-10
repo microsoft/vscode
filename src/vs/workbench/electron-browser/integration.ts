@@ -139,8 +139,7 @@ export class ElectronIntegration {
 
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
-				// Ensure others can listen to zoom level changes
-				browser.setZoomLevel(webFrame.getZoomLevel());
+				browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
 			}
 		});
 
