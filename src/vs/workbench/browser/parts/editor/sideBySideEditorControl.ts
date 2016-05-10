@@ -11,7 +11,7 @@ import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
-import {EventEmitter} from 'vs/base/common/eventEmitter';
+import Event, {Emitter} from 'vs/base/common/event';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import errors = require('vs/base/common/errors');
 import {isWindows} from 'vs/base/common/platform';
@@ -45,14 +45,10 @@ export enum Rochade {
 	CENTER_AND_RIGHT_TO_LEFT
 }
 
-export const EventType = {
-	EDITOR_FOCUS_CHANGED: 'editorFocusChanged'
-};
-
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
-export class SideBySideEditorControl extends EventEmitter implements IVerticalSashLayoutProvider {
+export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 
 	private static MIN_EDITOR_WIDTH = 170;
 	private static EDITOR_TITLE_HEIGHT = 35;
@@ -91,6 +87,8 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
 	private editorInputStateChangeListener: () => void;
 
+	private _onEditorFocusChange: Emitter<void>;
+
 	constructor(
 		parent: Builder,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -103,8 +101,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super();
-
 		this.parent = parent;
 		this.dimension = new Dimension(0, 0);
 
@@ -121,6 +117,8 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.visibleEditors = [];
 		this.visibleEditorContainers = [];
 		this.visibleEditorFocusTrackers = [];
+
+		this._onEditorFocusChange = new Emitter<void>();
 
 		this.closeEditorAction = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CLOSE_EDITOR_ACTION_ID, CLOSE_EDITOR_ACTION_LABEL));
 		POSITIONS.map((position) => this.closeEditorAction[position].setPosition(position) || (this.closeEditorAction[position].class = 'close-editor-action'));
@@ -159,6 +157,10 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title .title-label span, ' +
 			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .monaco-editor .view-lines', grabbingCursor
 		);
+	}
+
+	public get onEditorFocusChange(): Event<void> {
+		return this._onEditorFocusChange.event;
 	}
 
 	public show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void {
@@ -330,7 +332,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 			}
 
 			// Re-emit to outside
-			this.emit(EventType.EDITOR_FOCUS_CHANGED);
+			this._onEditorFocusChange.fire();
 		}
 	}
 
@@ -1540,6 +1542,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.visibleEditors = null;
 		this.visibleEditorContainers = null;
 
-		super.dispose();
+		this._onEditorFocusChange.dispose();
 	}
 }

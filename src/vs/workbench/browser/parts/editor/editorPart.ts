@@ -27,7 +27,7 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, IEditorInputActionContext, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {EventType as SideBySideEventType, SideBySideEditorControl, Rochade} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
+import {SideBySideEditorControl, Rochade} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
@@ -897,7 +897,8 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Side by Side Control
 		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea);
-		this.toUnbind.push(this.sideBySideControl.addListener(SideBySideEventType.EDITOR_FOCUS_CHANGED, () => { this.onEditorFocusChanged(); }));
+		const unbind = this.sideBySideControl.onEditorFocusChange(() => this.onEditorFocusChanged());
+		this.toUnbind.push(() => unbind.dispose());
 
 		// get settings
 		this.memento = this.getMemento(this.storageService, MementoScope.WORKSPACE);
