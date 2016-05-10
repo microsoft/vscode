@@ -5,17 +5,21 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IActionRunner} from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IEventService} from 'vs/platform/event/common/event';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {Renderer, DataSource, Controller} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 
 const $ = dom.emmet;
@@ -23,7 +27,7 @@ const $ = dom.emmet;
 export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	private static MEMENTO_COLLAPSED = 'openEditors.memento.collapsed';
-	private static DEFAULT_MAX_VISIBLE_EDITORS = 9;
+	private static DEFAULT_MAX_VISIBLE_OPEN_EDITORS = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
 
 	private settings: any;
@@ -36,9 +40,11 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IMessageService messageService: IMessageService,
+		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, contextMenuService);
@@ -46,7 +52,6 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.settings = settings;
 		this.model = editorService.getStacksModel();
 		this.lastDirtyCount = 0;
-		console.log(this.getExpandedBodySize(this.model));
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -84,6 +89,89 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.tree.expandAll(this.model.groups).done(null, errors.onUnexpectedError);
 	}
 
+	public create(): TPromise<void> {
+
+		// Load Config
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
+
+		// listeners
+		this.registerListeners();
+
+		return super.create();
+	}
+
+	private registerListeners(): void {
+
+		// update on model changes
+
+		// listen to untitled
+		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledFileDirty()));
+		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledFileDeleted()));
+
+		// listen to files being changed locally
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
+
+		// Also handle configuration updates
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
+		// TODO@isidor change configuration name
+		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.workingFiles && configuration.explorer.workingFiles.maxVisible;
+		if (typeof visibleOpenEditors === 'number') {
+			this.maxVisibleOpenEditors = visibleOpenEditors;
+		} else {
+			this.maxVisibleOpenEditors = OpenEditorsView.DEFAULT_MAX_VISIBLE_OPEN_EDITORS;
+		}
+
+		// TODO@isidor change configuration name
+		let dynamicHeight = configuration && configuration.explorer && configuration.explorer.workingFiles && configuration.explorer.workingFiles.dynamicHeight;
+		if (typeof dynamicHeight === 'boolean') {
+			this.dynamicHeight = dynamicHeight;
+		} else {
+			this.dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
+		}
+
+		// Adjust expanded body size
+		this.expandedBodySize = this.getExpandedBodySize(this.model);
+	}
+
+	private onTextFileDirty(e: TextFileChangeEvent): void {
+		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
+			this.updateDirtyIndicator(); // no indication needed when auto save is enabled for short delay
+		}
+	}
+
+	private onTextFileSaved(e: TextFileChangeEvent): void {
+		if (this.lastDirtyCount > 0) {
+			this.updateDirtyIndicator();
+		}
+	}
+
+	private onTextFileSaveError(e: TextFileChangeEvent): void {
+		this.updateDirtyIndicator();
+	}
+
+	private onTextFileReverted(e: TextFileChangeEvent): void {
+		if (this.lastDirtyCount > 0) {
+			this.updateDirtyIndicator();
+		}
+	}
+
+	private onUntitledFileDirty(): void {
+		this.updateDirtyIndicator();
+	}
+
+	private onUntitledFileDeleted(): void {
+		if (this.lastDirtyCount > 0) {
+			this.updateDirtyIndicator();
+		}
+	}
+
 	private updateDirtyIndicator(): void {
 		let dirty = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirty;
@@ -99,7 +187,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		return OpenEditorsView.computeExpandedBodySize(model, this.maxVisibleOpenEditors, this.dynamicHeight);
 	}
 
-	private static computeExpandedBodySize(model: IEditorStacksModel, maxVisibleOpenEditors = OpenEditorsView.DEFAULT_MAX_VISIBLE_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
+	private static computeExpandedBodySize(model: IEditorStacksModel, maxVisibleOpenEditors = OpenEditorsView.DEFAULT_MAX_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
 		const entryCount = model.groups.reduce((sum, group) => sum + group.count, 0);
 
 		let itemsToShow: number;
