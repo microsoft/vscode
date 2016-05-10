@@ -85,8 +85,12 @@ export class State extends AbstractState {
 		return false;
 	}
 
-	private nextName(stream:Modes.IStream):string {
+	private nextElementName(stream:Modes.IStream):string {
 		return stream.advanceIfRegExp(/^[_:\w][_:\w-.\d]*/).toLowerCase();
+	}
+
+	private nextAttributeName(stream:Modes.IStream):string {
+		return stream.advanceIfRegExp(/^[^\s"'>/=\x00-\x0F\x7F\x80-\x9F]*/).toLowerCase();
 	}
 
 	public tokenize(stream:Modes.IStream) : Modes.ITokenizationResult {
@@ -133,7 +137,7 @@ export class State extends AbstractState {
 				break;
 
 			case States.OpeningEndTag:
-				var tagName = this.nextName(stream);
+				var tagName = this.nextElementName(stream);
 				if (tagName.length > 0){
 					return {
 						type: State.escapeTagName(tagName),
@@ -149,7 +153,7 @@ export class State extends AbstractState {
 				}
 
 			case States.OpeningStartTag:
-				this.lastTagName = this.nextName(stream);
+				this.lastTagName = this.nextElementName(stream);
 				if (this.lastTagName.length > 0) {
 					this.lastAttributeName = null;
 					if ('script' === this.lastTagName || 'style' === this.lastTagName) {
@@ -165,18 +169,22 @@ export class State extends AbstractState {
 
 			case States.WithinTag:
 				if (stream.skipWhitespace2() || stream.eos()) {
+					this.lastAttributeName = ''; // remember that we have seen a whitespace
 					return { type: '' };
 				} else {
-					var name:string = this.nextName(stream);
-					if (name.length > 0) {
-						this.lastAttributeName = name;
-						this.kind = States.AttributeName;
-						return { type: htmlTokenTypes.ATTRIB_NAME };
-
-					} else if (stream.advanceIfString2('/>')) {
-							this.kind = States.Content;
-							return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
-					} if (stream.advanceIfCharCode2('>'.charCodeAt(0))) {
+					if (this.lastAttributeName === '') {
+						var name = this.nextAttributeName(stream);
+						if (name.length > 0) {
+							this.lastAttributeName = name;
+							this.kind = States.AttributeName;
+							return { type: htmlTokenTypes.ATTRIB_NAME };
+						}
+					}
+					if (stream.advanceIfString2('/>')) {
+						this.kind = States.Content;
+						return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
+					}
+					if (stream.advanceIfCharCode2('>'.charCodeAt(0))) {
 						if (tagsEmbeddingContent.indexOf(this.lastTagName) !== -1) {
 							this.kind = States.WithinEmbeddedContent;
 							return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
@@ -200,6 +208,7 @@ export class State extends AbstractState {
 					return { type: htmlTokenTypes.DELIM_ASSIGN };
 				} else {
 					this.kind = States.WithinTag;
+					this.lastAttributeName = '';
 					return this.tokenize(stream); // no advance yet - jump to WithinTag
 				}
 
@@ -231,6 +240,7 @@ export class State extends AbstractState {
 							this.kind = States.WithinTag;
 							this.attributeValue = '';
 							this.attributeValueQuote = '';
+							this.lastAttributeName = null;
 						} else {
 							var part = stream.next();
 							this.attributeValue += part;
@@ -241,6 +251,7 @@ export class State extends AbstractState {
 					let attributeValue = stream.advanceIfRegExp(/^[^\s"'`=<>]+/);
 					if (attributeValue.length > 0) {
 						this.kind = States.WithinTag;
+						this.lastAttributeName = null;
 						return { type: htmlTokenTypes.ATTRIB_VALUE };
 					}
 					var ch = stream.peek();
@@ -251,6 +262,7 @@ export class State extends AbstractState {
 						return { type: htmlTokenTypes.ATTRIB_VALUE };
 					} else {
 						this.kind = States.WithinTag;
+						this.lastAttributeName = null;
 						return this.tokenize(stream); // no advance yet - jump to WithinTag
 					}
 				}
