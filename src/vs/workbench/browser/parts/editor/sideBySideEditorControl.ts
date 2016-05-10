@@ -29,8 +29,7 @@ import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/acti
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -95,10 +94,8 @@ export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 		@IMessageService private messageService: IMessageService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IContextViewService private contextViewService: IContextViewService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IEventService private eventService: IEventService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.parent = parent;
