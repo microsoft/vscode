@@ -135,9 +135,9 @@ export class HTMLWorker {
 			return callback(false, model);
 		}
 
-		let modeAtPosition = modelAtPosition.getMode();
+		let modeAtPositionMode = modelAtPosition.getMode();
 
-		return callback(modeAtPosition.getId() !== this._modeId, modelAtPosition);
+		return callback(modeAtPositionMode.getId() !== this._modeId, modelAtPosition);
 	}
 
 	_delegateToAllModes<T>(resource:URI, callback:(models:EditorCommon.IMirrorModel[]) => T): T {
