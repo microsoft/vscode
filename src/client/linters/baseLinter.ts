@@ -62,18 +62,17 @@ export abstract class BaseLinter {
         return Promise.resolve([]);
     }
 
-    protected run(commandLine: string, filePath: string, txtDocumentLines: string[], regEx: string = REGEX): Promise<ILintMessage[]> {
+    protected run(commandLine: string, filePath: string, txtDocumentLines: string[], cwd: string, regEx: string = REGEX): Promise<ILintMessage[]> {
         var outputChannel = this.outputChannel;
         var linterId = this.Id;
 
         return new Promise<ILintMessage[]>((resolve, reject) => {
-            var fileDir = path.dirname(filePath);
-            sendCommand(commandLine, fileDir, true).then(data => {
+            sendCommand(commandLine, cwd, true).then(data => {
                 outputChannel.clear();
-                outputChannel.append(data); 
+                outputChannel.append(data);
                 var outputLines = data.split(/\r?\n/g);
                 var diagnostics: ILintMessage[] = [];
-                outputLines.filter((value, index) => index <= this.pythonSettings.linting.maxNumberOfProblems).forEach(line=> {
+                outputLines.filter((value, index) => index <= this.pythonSettings.linting.maxNumberOfProblems).forEach(line => {
                     var match = matchNamedRegEx(line, regEx);
                     if (match == null) {
                         return;
@@ -86,7 +85,7 @@ export abstract class BaseLinter {
                         var sourceLine = txtDocumentLines[match.line - 1];
                         var sourceStart = sourceLine.substring(match.column - 1);
                         var endCol = txtDocumentLines[match.line - 1].length;
-                        
+
                         //try to get the first word from the startig position
                         var possibleProblemWords = sourceStart.match(/\w+/g);
                         var possibleWord: string;
@@ -111,7 +110,7 @@ export abstract class BaseLinter {
                 });
 
                 resolve(diagnostics);
-            }, error=> {
+            }, error => {
                 outputChannel.appendLine(`Linting with ${linterId} failed. If not installed please turn if off in settings.\n ${error}`);
                 window.showInformationMessage(`Linting with ${linterId} failed. If not installed please turn if off in settings. View Python output for details.`);
             });

@@ -3,7 +3,7 @@
 import * as path from 'path';
 import * as baseLinter from './baseLinter';
 import * as settings from './../common/configSettings';
-import {OutputChannel} from 'vscode';
+import {OutputChannel, workspace} from 'vscode';
 
 const PYLINT_COMMANDLINE = " --msg-template='{line},{column},{category},{msg_id}:{msg}' --reports=n --output-format=text";
 
@@ -32,7 +32,7 @@ export class Linter extends baseLinter.BaseLinter {
         var pylintPath = this.pythonSettings.linting.pylintPath;
         var cmdLine = `${pylintPath} ${PYLINT_COMMANDLINE} "${filePath}"`;
         return new Promise<baseLinter.ILintMessage[]>((resolve, reject) => {
-            this.run(cmdLine, filePath, txtDocumentLines).then(messages=> {
+            this.run(cmdLine, filePath, txtDocumentLines, workspace.rootPath).then(messages=> {
                 messages.forEach(msg=> {
                     msg.severity = this.parseMessagesSeverity(msg.type);
                 });
