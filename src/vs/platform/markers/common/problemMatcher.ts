@@ -281,8 +281,8 @@ class AbstractLineMatcher implements ILineMatcher {
 	}
 
 	private createLocation(startLine: number, startColumn: number, endLine: number, endColumn: number): Location {
-		if (startLine && startColumn && endLine && endColumn) {
-			return { startLineNumber: startLine, startColumn: startColumn, endLineNumber: endLine, endColumn: endColumn };
+		if (startLine && startColumn && endColumn) {
+			return { startLineNumber: startLine, startColumn: startColumn, endLineNumber: endLine || startLine, endColumn: endColumn };
 		}
 		if (startLine && startColumn) {
 			return { startLineNumber: startLine, startColumn: startColumn, endLineNumber: startLine, endColumn: startColumn };
