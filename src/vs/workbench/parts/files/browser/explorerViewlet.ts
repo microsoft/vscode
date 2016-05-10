@@ -17,7 +17,7 @@ import {SplitView} from 'vs/base/browser/ui/splitview/splitview';
 import {ActionRunner, FileViewletState} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {EmptyView} from 'vs/workbench/parts/files/browser/views/emptyView';
-import {WorkingFilesView} from 'vs/workbench/parts/files/browser/views/workingFilesView';
+import {OpenEditorsView} from 'vs/workbench/parts/files/browser/views/openEditorsView';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -29,8 +29,8 @@ export class ExplorerViewlet extends Viewlet {
 	private views: IViewletView[];
 
 	private explorerView: ExplorerView;
-	private workingFilesView: WorkingFilesView;
-	private lastFocusedView: ExplorerView | WorkingFilesView | EmptyView;
+	private openEditorsView: OpenEditorsView;
+	private lastFocusedView: ExplorerView | OpenEditorsView | EmptyView;
 	private focusListener: IDisposable;
 
 	private viewletSettings: any;
@@ -58,24 +58,24 @@ export class ExplorerViewlet extends Viewlet {
 		this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
 
 		// Working files view
-		this.addWorkingFilesView();
+		this.addOpenEditorsView();
 
 		// Explorer view
 		this.addExplorerView();
 
 		// Track focus
-		this.focusListener = this.splitView.onFocus((view: ExplorerView | WorkingFilesView | EmptyView) => {
+		this.focusListener = this.splitView.onFocus((view: ExplorerView | OpenEditorsView | EmptyView) => {
 			this.lastFocusedView = view;
 		});
 
 		return TPromise.join(this.views.map((view) => view.create())).then(() => void 0);
 	}
 
-	private addWorkingFilesView(): void {
-		this.workingFilesView = this.instantiationService.createInstance(WorkingFilesView, this.getActionRunner(), this.viewletSettings);
-		this.splitView.addView(this.workingFilesView);
+	private addOpenEditorsView(): void {
+		this.openEditorsView = this.instantiationService.createInstance(OpenEditorsView, this.getActionRunner(), this.viewletSettings);
+		this.splitView.addView(this.openEditorsView);
 
-		this.views.push(this.workingFilesView);
+		this.views.push(this.openEditorsView);
 	}
 
 	private addExplorerView(): void {
@@ -99,8 +99,8 @@ export class ExplorerViewlet extends Viewlet {
 		return this.explorerView;
 	}
 
-	public getWorkingFilesView(): WorkingFilesView {
-		return this.workingFilesView;
+	public getOpenEditorsView(): OpenEditorsView {
+		return this.openEditorsView;
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -117,26 +117,26 @@ export class ExplorerViewlet extends Viewlet {
 			return;
 		}
 
-		if (this.hasSelectionOrFocus(this.workingFilesView)) {
-			return this.workingFilesView.focusBody();
+		if (this.hasSelectionOrFocus(this.openEditorsView)) {
+			return this.openEditorsView.focusBody();
 		}
 
 		if (this.hasSelectionOrFocus(this.explorerView)) {
 			return this.explorerView.focusBody();
 		}
 
-		if (this.workingFilesView && this.workingFilesView.isExpanded()) {
-			return this.workingFilesView.focusBody();
+		if (this.openEditorsView && this.openEditorsView.isExpanded()) {
+			return this.openEditorsView.focusBody();
 		}
 
 		if (this.explorerView && this.explorerView.isExpanded()) {
 			return this.explorerView.focusBody();
 		}
 
-		return this.workingFilesView.focus();
+		return this.openEditorsView.focus();
 	}
 
-	private hasSelectionOrFocus(view: ExplorerView | WorkingFilesView | EmptyView): boolean {
+	private hasSelectionOrFocus(view: ExplorerView | OpenEditorsView | EmptyView): boolean {
 		if (!view) {
 			return false;
 		}
@@ -145,7 +145,7 @@ export class ExplorerViewlet extends Viewlet {
 			return false;
 		}
 
-		if (view instanceof ExplorerView || view instanceof WorkingFilesView) {
+		if (view instanceof ExplorerView || view instanceof OpenEditorsView) {
 			const viewer = view.getViewer();
 			if (!viewer) {
 				return false;
@@ -172,7 +172,7 @@ export class ExplorerViewlet extends Viewlet {
 
 	public getOptimalWidth(): number {
 		let additionalMargin = 16;
-		let workingFilesViewWidth = this.getWorkingFilesView().getOptimalWidth();
+		let workingFilesViewWidth = this.openEditorsView.getOptimalWidth();
 		let explorerView = this.getExplorerView();
 		let explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
 		let optimalWidth = Math.max(workingFilesViewWidth, explorerViewWidth);

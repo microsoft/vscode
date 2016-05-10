@@ -2281,10 +2281,10 @@ export class AddToWorkingFiles extends Action {
 	}
 }
 
-export class FocusWorkingFiles extends Action {
+export class FocusOpenEditors extends Action {
 
-	public static ID = 'workbench.files.action.focusWorkingFiles';
-	public static LABEL = nls.localize('focusWorkingFiles', "Focus on Working Files");
+	public static ID = 'workbench.files.action.focusOpenEditors';
+	public static LABEL = nls.localize('focusOpenEditors', "Focus on Open Editors");
 
 	constructor(
 		id: string,
@@ -2296,8 +2296,8 @@ export class FocusWorkingFiles extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
-			viewlet.getWorkingFilesView().expand();
-			viewlet.getWorkingFilesView().getViewer().DOMFocus();
+			viewlet.getOpenEditorsView().expand();
+			viewlet.getOpenEditorsView().getViewer().DOMFocus();
 		});
 	}
 }
@@ -2354,8 +2354,8 @@ export class ShowActiveFileInExplorer extends Action {
 						explorerView.select(fileInput.getResource(), true);
 					}
 				} else {
-					const workingFilesView = viewlet.getWorkingFilesView();
-					workingFilesView.expand();
+					const openEditorsView = viewlet.getOpenEditorsView();
+					openEditorsView.expand();
 				}
 			});
 		} else {

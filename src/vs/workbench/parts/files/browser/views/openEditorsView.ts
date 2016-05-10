@@ -7,6 +7,7 @@ import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {IActionRunner} from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
+import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -113,5 +114,17 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}
 
 		return itemsToShow * Renderer.ITEM_HEIGHT;
+	}
+
+	public getOptimalWidth():number {
+		let parentNode = this.tree.getHTMLElement();
+		let childNodes = [].slice.call(parentNode.querySelectorAll('.monaco-file-label > .file-name'));
+		return dom.getLargestChildWidth(parentNode, childNodes);
+	}
+
+	public shutdown(): void {
+		this.settings[OpenEditorsView.MEMENTO_COLLAPSED] = (this.state === CollapsibleState.COLLAPSED);
+
+		super.shutdown();
 	}
 }
