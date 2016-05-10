@@ -33,6 +33,7 @@ suite('LESS - LESS Parser', () => {
 		assertNode('@-co42lor', parser, parser._parseVariable.bind(parser));
 		assertNode('@@foo', parser, parser._parseVariable.bind(parser));
 		assertNode('@@@foo', parser, parser._parseVariable.bind(parser));
+		assertNode('@12ooo', parser, parser._parseVariable.bind(parser));
 		assertNoNode('@ @foo', parser, parser._parseFunction.bind(parser));
 		assertNoNode('@-@foo', parser, parser._parseFunction.bind(parser));
 	});
