@@ -109,38 +109,6 @@ export class EditorPart extends Part implements IEditorPart {
 		this.stacksModel = this.instantiationService.createInstance(EditorStacksModel);
 	}
 
-	public getStacksModel(): EditorStacksModel {
-		return this.stacksModel;
-	}
-
-	public getActiveEditorInput(): EditorInput {
-		if (!this.sideBySideControl) {
-			return null; // too early
-		}
-
-		let lastActiveEditor = this.sideBySideControl.getActiveEditor();
-
-		return lastActiveEditor ? lastActiveEditor.input : null;
-	}
-
-	public getActiveEditor(): BaseEditor {
-		if (!this.sideBySideControl) {
-			return null; // too early
-		}
-
-		return this.sideBySideControl.getActiveEditor();
-	}
-
-	public getVisibleEditors(): BaseEditor[] {
-		return this.visibleEditors ? this.visibleEditors.filter((editor) => !!editor) : [];
-	}
-
-	public setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]> {
-		return this.closeEditors().then(() => {
-			return this.restoreEditorState(inputs, options);
-		});
-	}
-
 	public openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	public openEditor(input?: EditorInput, options?: EditorOptions, position?: Position, widthRatios?: number[]): TPromise<BaseEditor>;
 	public openEditor(input?: EditorInput, options?: EditorOptions, arg3?: any, widthRatios?: number[]): TPromise<BaseEditor> {
@@ -199,55 +167,22 @@ export class EditorPart extends Part implements IEditorPart {
 			this.visibleInputListeners[position] = null;
 		}
 
-		// Close editor when input provided and input gets disposed
-		if (input) {
-			this.visibleInputListeners[position] = input.addListener(EventType.DISPOSE, () => {
-
-				// Keep the inputs to close. We use this to support multiple inputs closing
-				// right after each other and this helps avoid layout issues with the delayed
-				// timeout based closing below
-				if (input === this.visibleInputs[position]) {
-					this.pendingEditorInputsToClose.push(input);
-					this.startDelayedCloseEditorsFromInputDispose();
-				}
-			});
-		}
-
 		// Close any opened editor at position if input is null
-		if (input === null) {
-			if (this.visibleEditors[position]) {
-
-				// Reset counter
-				this.editorSetInputErrorCounter[position] = 0;
-
-				// Emit Input-Changing Event
-				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
-
-				// Hide Editor
-				return this.hideEditor(this.visibleEditors[position], position, true).then(() => {
-
-					// Emit Input-Changed Event
-					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
-
-					// Focus next editor if there is still an active one left
-					let currentActiveEditor = this.sideBySideControl.getActiveEditor();
-					if (currentActiveEditor) {
-						return this.openEditor(currentActiveEditor.input, null, currentActiveEditor.position).then(() => {
-
-							// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
-							// the user is actively changing focus with the mouse from left to right.
-							this.onEditorFocusChanged();
-
-							return currentActiveEditor;
-						});
-					}
-
-					return TPromise.as<BaseEditor>(null);
-				});
-			}
-
-			return TPromise.as<BaseEditor>(null);
+		if (!input) {
+			return this.doCloseEditor(input, position);
 		}
+
+		// Close editor when input provided and input gets disposed
+		this.visibleInputListeners[position] = input.addListener(EventType.DISPOSE, () => {
+
+			// Keep the inputs to close. We use this to support multiple inputs closing
+			// right after each other and this helps avoid layout issues with the delayed
+			// timeout based closing below
+			if (input === this.visibleInputs[position]) {
+				this.pendingEditorInputsToClose.push(input);
+				this.startDelayedCloseEditorsFromInputDispose();
+			}
+		});
 
 		// Lookup Editor and Assert
 		let editorDescriptor = (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).getEditor(input);
@@ -425,6 +360,41 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
+	private doCloseEditor(input: EditorInput, position: Position): TPromise<BaseEditor> {
+		if (this.visibleEditors[position]) {
+
+			// Reset counter
+			this.editorSetInputErrorCounter[position] = 0;
+
+			// Emit Input-Changing Event
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
+
+			// Hide Editor
+			return this.hideEditor(this.visibleEditors[position], position, true).then(() => {
+
+				// Emit Input-Changed Event
+				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
+
+				// Focus next editor if there is still an active one left
+				let currentActiveEditor = this.sideBySideControl.getActiveEditor();
+				if (currentActiveEditor) {
+					return this.openEditor(currentActiveEditor.input, null, currentActiveEditor.position).then(() => {
+
+						// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
+						// the user is actively changing focus with the mouse from left to right.
+						this.onEditorFocusChanged();
+
+						return currentActiveEditor;
+					});
+				}
+
+				return TPromise.as<BaseEditor>(null);
+			});
+		}
+
+		return TPromise.as<BaseEditor>(null);
+	}
+
 	private startDelayedCloseEditorsFromInputDispose(): void {
 
 		// To prevent race conditions, we call the close in a timeout because it can well be
@@ -586,48 +556,17 @@ export class EditorPart extends Part implements IEditorPart {
 			this.doRochade(this.visibleInputListeners, from, to, null);
 			this.doRochade(this.visibleEditors, from, to, null);
 			this.doRochade(this.editorOpenToken, from, to, null);
-			this.doRochade(this.mapEditorLoadingPromiseToEditor, from, to, {});
-			this.doRochade(this.mapEditorCreationPromiseToEditor, from, to, {});
+			this.doRochade(this.mapEditorLoadingPromiseToEditor, from, to, Object.create(null));
+			this.doRochade(this.mapEditorCreationPromiseToEditor, from, to, Object.create(null));
 			this.doRochade(this.visibleEditorListeners, from, to, []);
 			this.doRochade(this.instantiatedEditors, from, to, []);
-			this.doRochade(this.mapEditorToEditorContainers, from, to, {});
+			this.doRochade(this.mapEditorToEditorContainers, from, to, Object.create(null));
 		}
 	}
 
 	private doRochade(array: any[], from: Position, to: Position, empty: any): void {
 		array[to] = array[from];
 		array[from] = empty;
-	}
-
-	public moveEditor(from: Position, to: Position): void {
-		if (!this.visibleEditors[from] || !this.visibleEditors[to] || from === to) {
-			return; // Ignore if we cannot move
-		}
-
-		// Move widgets
-		this.sideBySideControl.move(from, to);
-
-		// Move data structures
-		arrays.move(this.visibleInputs, from, to);
-		arrays.move(this.visibleInputListeners, from, to);
-		arrays.move(this.visibleEditors, from, to);
-		arrays.move(this.visibleEditorListeners, from, to);
-		arrays.move(this.editorOpenToken, from, to);
-		arrays.move(this.mapEditorLoadingPromiseToEditor, from, to);
-		arrays.move(this.mapEditorCreationPromiseToEditor, from, to);
-		arrays.move(this.instantiatedEditors, from, to);
-		arrays.move(this.mapEditorToEditorContainers, from, to);
-
-		// Update all title areas
-		this.sideBySideControl.updateEditorTitleArea();
-
-		// Restore focus
-		let activeEditor = this.sideBySideControl.getActiveEditor();
-		this.openEditor(activeEditor.input, null, activeEditor.position).done(null, errors.onUnexpectedError);
-	}
-
-	public arrangeEditors(arrangement: EditorArrangement): void {
-		this.sideBySideControl.arrangeEditors(arrangement);
 	}
 
 	private setInput(editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, loadingPromise: TPromise<void>): TPromise<BaseEditor> {
@@ -794,6 +733,69 @@ export class EditorPart extends Part implements IEditorPart {
 
 			return editor;
 		});
+	}
+
+	public getStacksModel(): EditorStacksModel {
+		return this.stacksModel;
+	}
+
+	public getActiveEditorInput(): EditorInput {
+		if (!this.sideBySideControl) {
+			return null; // too early
+		}
+
+		let lastActiveEditor = this.sideBySideControl.getActiveEditor();
+
+		return lastActiveEditor ? lastActiveEditor.input : null;
+	}
+
+	public getActiveEditor(): BaseEditor {
+		if (!this.sideBySideControl) {
+			return null; // too early
+		}
+
+		return this.sideBySideControl.getActiveEditor();
+	}
+
+	public getVisibleEditors(): BaseEditor[] {
+		return this.visibleEditors ? this.visibleEditors.filter((editor) => !!editor) : [];
+	}
+
+	public setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]> {
+		return this.closeEditors().then(() => {
+			return this.restoreEditorState(inputs, options);
+		});
+	}
+
+	public moveEditor(from: Position, to: Position): void {
+		if (!this.visibleEditors[from] || !this.visibleEditors[to] || from === to) {
+			return; // Ignore if we cannot move
+		}
+
+		// Move widgets
+		this.sideBySideControl.move(from, to);
+
+		// Move data structures
+		arrays.move(this.visibleInputs, from, to);
+		arrays.move(this.visibleInputListeners, from, to);
+		arrays.move(this.visibleEditors, from, to);
+		arrays.move(this.visibleEditorListeners, from, to);
+		arrays.move(this.editorOpenToken, from, to);
+		arrays.move(this.mapEditorLoadingPromiseToEditor, from, to);
+		arrays.move(this.mapEditorCreationPromiseToEditor, from, to);
+		arrays.move(this.instantiatedEditors, from, to);
+		arrays.move(this.mapEditorToEditorContainers, from, to);
+
+		// Update all title areas
+		this.sideBySideControl.updateEditorTitleArea();
+
+		// Restore focus
+		let activeEditor = this.sideBySideControl.getActiveEditor();
+		this.openEditor(activeEditor.input, null, activeEditor.position).done(null, errors.onUnexpectedError);
+	}
+
+	public arrangeEditors(arrangement: EditorArrangement): void {
+		this.sideBySideControl.arrangeEditors(arrangement);
 	}
 
 	public createContentArea(parent: Builder): Builder {

@@ -556,7 +556,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		let actions = this.mapActionsToEditors[from];
 		this.mapActionsToEditors[to] = actions;
-		this.mapActionsToEditors[from] = null;
+		this.mapActionsToEditors[from] = Object.create(null);
 
 		// Update last active position
 		if (this.lastActivePosition === from) {
