@@ -9,7 +9,6 @@ else
 fi
 
 cd $ROOT
-pwd
 
 # Node modules
 test -d node_modules || ./scripts/npm.sh install
