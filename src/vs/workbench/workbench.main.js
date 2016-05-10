@@ -78,7 +78,7 @@ define([
 
 	'vs/workbench/parts/feedback/electron-browser/feedback.contribution',
 
-	'vs/workbench/parts/gettingStarted/electron-browser/electronGettingStarted.contribution',
+	'vs/workbench/parts/welcome/electron-browser/electronGettingStarted.contribution',
 
 	'vs/workbench/parts/update/electron-browser/update.contribution',
 
