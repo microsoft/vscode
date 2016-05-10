@@ -5,60 +5,27 @@
 
 'use strict';
 
-import * as Platform from 'vs/base/common/platform';
-import * as uuid from 'vs/base/common/uuid';
+import {localize} from 'vs/nls';
 import {escapeRegExpCharacters} from 'vs/base/common/strings';
-import {IWorkspaceContextService, IEnvironment} from 'vs/platform/workspace/common/workspace';
 import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {optional} from 'vs/platform/instantiation/common/instantiation';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import ErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
-import {withDefaults, cloneAndChange, mixin} from 'vs/base/common/objects';
+import {cloneAndChange, mixin} from 'vs/base/common/objects';
+import {Registry} from 'vs/platform/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender[];
-	commonProperties?: TPromise<{ [name: string]: any }>[];
+	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
 	userOptIn?: boolean;
 	enableHardIdle?: boolean;
 	enableSoftIdle?: boolean;
-}
-
-function createDefaultProperties(environment: IEnvironment): { [name: string]: any } {
-
-	let seq = 0;
-	const startTime = Date.now();
-	const sessionID = uuid.generateUuid() + Date.now();
-
-	let result = {
-		sessionID,
-		commitHash: environment.commitHash,
-		version: environment.version
-	};
-
-	// complex names and dynamic values
-	Object.defineProperties(result, {
-		'timestamp': {
-			get: () => new Date(),
-			enumerable: true
-		},
-		'common.timesincesessionstart': {
-			get: () => Date.now() - startTime,
-			enumerable: true
-		},
-		'common.platform': {
-			get: () => Platform.Platform[Platform.platform],
-			enumerable: true
-		},
-		'common.sequence': {
-			get: () => seq++,
-			enumerable: true
-		}
-	});
-
-	return result;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -71,31 +38,25 @@ export class TelemetryService implements ITelemetryService {
 
 	public serviceId = ITelemetryService;
 
-	protected _configuration: ITelemetryServiceConfig;
-	protected _disposables: IDisposable[] = [];
-
+	private _configuration: ITelemetryServiceConfig;
+	private _disposables: IDisposable[] = [];
 	private _timeKeeper: TimeKeeper;
 	private _hardIdleMonitor: IdleMonitor;
 	private _softIdleMonitor: IdleMonitor;
-
-	private _commonProperties: TPromise<{ [name: string]: any }>;
 	private _cleanupPatterns: [RegExp, string][] = [];
 
 	constructor(
 		config: ITelemetryServiceConfig,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@optional(IConfigurationService) private _configurationService: IConfigurationService
 	) {
-		this._configuration = withDefaults(config, <ITelemetryServiceConfig>{
+		this._configuration = mixin(config, <ITelemetryServiceConfig>{
 			appender: [],
-			commonProperties: [],
+			commonProperties: TPromise.as({}),
 			piiPaths: [],
 			enableHardIdle: true,
 			enableSoftIdle: true,
 			userOptIn: true
-		});
-
-		this._commonProperties = TPromise.join(this._configuration.commonProperties)
-			.then(values => values.reduce((p, c) => mixin(p, c), createDefaultProperties(contextService.getConfiguration().env)));
+		}, false);
 
 		// static cleanup patterns for:
 		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
@@ -127,6 +88,17 @@ export class TelemetryService implements ITelemetryService {
 			this._softIdleMonitor.addOneTimeIdleListener(() => this._onUserIdle());
 			this._disposables.push(this._softIdleMonitor);
 		}
+
+		if (this._configurationService) {
+			this._updateUserOptIn();
+			this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
+			this.publicLog('optInStatus', { optIn: this._configuration.userOptIn });
+		}
+	}
+
+	private _updateUserOptIn(): void {
+		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
+		this._configuration.userOptIn = config ? config.enableTelemetry : this._configuration.userOptIn;
 	}
 
 	private _onUserIdle(): void {
@@ -153,7 +125,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return this._commonProperties.then(values => {
+		return this._configuration.commonProperties.then(values => {
 			// well known properties
 			let sessionId = values['sessionID'];
 			let instanceId = values['common.instanceId'];
@@ -179,23 +151,20 @@ export class TelemetryService implements ITelemetryService {
 		return event;
 	}
 
-	public publicLog(eventName: string, data?: any): void {
-		this._handleEvent(eventName, data);
-	}
+	public publicLog(eventName: string, data?: any): TPromise<any> {
 
-	private _handleEvent(eventName: string, data?: any): void {
 		if (this._hardIdleMonitor && this._hardIdleMonitor.getStatus() === UserStatus.Idle) {
-			return;
+			return TPromise.as(undefined);
 		}
 
 		// don't send events when the user is optout unless the event is the opt{in|out} signal
 		if (!this._configuration.userOptIn && eventName !== 'optInStatus') {
-			return;
+			return TPromise.as(undefined);
 		}
 
-		// (first) add common properties
-		this._commonProperties.then(values => {
+		return this._configuration.commonProperties.then(values => {
 
+			// (first) add common properties
 			data = mixin(data, values);
 
 			// (last) remove all PII from data
@@ -209,7 +178,8 @@ export class TelemetryService implements ITelemetryService {
 				appender.log(eventName, data);
 			}
 
-		}).done(undefined, err => {
+		}, err => {
+			// unsure what to do now...
 			console.error(err);
 		});
 	}
@@ -226,3 +196,19 @@ export class TelemetryService implements ITelemetryService {
 	}
 }
 
+
+const TELEMETRY_SECTION_ID = 'telemetry';
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	'id': TELEMETRY_SECTION_ID,
+	'order': 20,
+	'type': 'object',
+	'title': localize('telemetryConfigurationTitle', "Telemetry configuration"),
+	'properties': {
+		'telemetry.enableTelemetry': {
+			'type': 'boolean',
+			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to Microsoft."),
+			'default': true
+		}
+	}
+});

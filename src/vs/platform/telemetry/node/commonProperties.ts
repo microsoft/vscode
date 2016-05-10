@@ -3,23 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import getmac = require('getmac');
-import crypto = require('crypto');
-import winreg = require('winreg');
-import os = require('os');
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
+import * as getmac from 'getmac';
+import * as crypto from 'crypto';
+import * as winreg from 'winreg';
+import * as Platform from 'vs/base/common/platform';
+import * as os from 'os';
+import {TPromise} from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
-import {TelemetryService, ITelemetryServiceConfig} from 'vs/platform/telemetry/browser/telemetryService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {Registry} from 'vs/platform/platform';
 
-const TELEMETRY_SECTION_ID = 'telemetry';
 
 namespace StorageKeys {
 	export const MachineId = 'telemetry.machineId';
@@ -31,10 +25,15 @@ namespace StorageKeys {
 	export const SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 }
 
-export function getDefaultProperties(storageService: IStorageService): TPromise<{ [name: string]: string }> {
+export function resolveCommonProperties(storageService: IStorageService, contextService: IWorkspaceContextService): TPromise<{ [name: string]: string }> {
+
 	let result: { [name: string]: any } = Object.create(null);
 
+	result['sessionID'] = uuid.generateUuid() + Date.now();
+	result['commitHash'] = contextService.getConfiguration().env.commitHash;
+
 	// add shell & render version
+	result['version'] = contextService.getConfiguration().env.version;
 	result['common.version.shell'] = process.versions && (<any>process).versions['electron'];
 	result['common.version.renderer'] = process.versions && (<any>process).versions['chrome'];
 	result['common.osVersion'] = os.release();
@@ -48,15 +47,39 @@ export function getDefaultProperties(storageService: IStorageService): TPromise<
 	result['common.lastSessionDate'] = lastSessionDate;
 	result['common.isNewSession'] = !lastSessionDate ? 1 : 0;
 
+
+	// dynamic properties which value differs on each call
+	let seq = 0;
+	const startTime = Date.now();
+	Object.defineProperties(result, {
+		'timestamp': {
+			get: () => new Date(),
+			enumerable: true
+		},
+		'common.timesincesessionstart': {
+			get: () => Date.now() - startTime,
+			enumerable: true
+		},
+		'common.platform': {
+			get: () => Platform.Platform[Platform.platform],
+			enumerable: true
+		},
+		'common.sequence': {
+			get: () => seq++,
+			enumerable: true
+		}
+	});
+
 	// promise based properties
-	result['common.instanceId'] = getOrCreateInstanceId(storageService);
-	result['common.machineId'] = getOrCreateMachineId(storageService);
+	let promises: TPromise<any>[] = [];
+	promises.push(getOrCreateInstanceId(storageService).then(value => result['common.instanceId'] = value));
+	promises.push(getOrCreateMachineId(storageService).then(value => result['common.machineId'] = value));
 	if (process.platform === 'win32') {
-		result['common.sqm.userid'] = getSqmUserId(storageService);
-		result['common.sqm.machineid'] = getSqmMachineId(storageService);
+		promises.push(getSqmUserId(storageService).then(value => result['common.sqm.userid']= value));
+		promises.push(getSqmMachineId(storageService).then(value => result['common.sqm.machineid']= value));
 	}
 
-	return TPromise.join(result);
+	return TPromise.join(promises).then(_ => result);
 }
 
 function getOrCreateInstanceId( storageService: IStorageService): TPromise<string> {
@@ -142,37 +165,3 @@ function getWinRegKeyData(key: string, name: string, hive: string): TPromise<str
 		return undefined;
 	});
 }
-
-export class ElectronTelemetryService extends TelemetryService implements ITelemetryService {
-
-	constructor(
-		configuration: ITelemetryServiceConfig,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService contextService:IWorkspaceContextService
-	) {
-		super(configuration, contextService);
-
-		this._updateUserOptIn();
-		this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
-		this.publicLog('optInStatus', { optIn: this._configuration.userOptIn });
-	}
-
-	private _updateUserOptIn(): void {
-		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
-		this._configuration.userOptIn = config ? config.enableTelemetry : this._configuration.userOptIn;
-	}
-}
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': TELEMETRY_SECTION_ID,
-	'order': 20,
-	'type': 'object',
-	'title': nls.localize('telemetryConfigurationTitle', "Telemetry configuration"),
-	'properties': {
-		'telemetry.enableTelemetry': {
-			'type': 'boolean',
-			'description': nls.localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to Microsoft."),
-			'default': true
-		}
-	}
-});
