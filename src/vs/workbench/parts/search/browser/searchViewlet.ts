@@ -292,7 +292,10 @@ class SearchRenderer extends ActionsRenderer {
 			elements.push(strings.escape(preview.after));
 			elements.push('</span>');
 
-			$('a.plain').innerHtml(elements.join(strings.empty)).appendTo(domElement);
+			$('a.plain')
+				.innerHtml(elements.join(strings.empty))
+				.title((preview.before + preview.inside + preview.after).trim().substr(0, 999))
+				.appendTo(domElement);
 		}
 
 		return null;
