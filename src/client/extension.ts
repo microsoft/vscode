@@ -12,14 +12,12 @@ import {PythonFormattingEditProvider} from './providers/formatProvider';
 import * as sortImports from './sortImports';
 import {LintProvider} from './providers/lintProvider';
 import {PythonSymbolProvider} from './providers/symbolProvider';
-import * as formatOnSaveProvider from './providers/formatOnSaveProvider';
-// import * as languageClient from './languageClient';
+import {activateFormatOnSaveProvider} from './providers/formatOnSaveProvider';
 import * as path from 'path';
 import * as settings from './common/configSettings'
 import {activateUnitTestProvider} from './providers/testProvider';
 
 // import {PythonSignatureHelpProvider} from './providers/signatureProvider';
-// import {PythonIndentFormatProvider} from './providers/indentFormatProvider';
 
 const PYTHON: vscode.DocumentFilter = { language: 'python', scheme: 'file' }
 let unitTestOutChannel: vscode.OutputChannel;
@@ -40,6 +38,17 @@ export function activate(context: vscode.ExtensionContext) {
 
     sortImports.activate(context);
     activateUnitTestProvider(context, pythonSettings, unitTestOutChannel);
+    activateFormatOnSaveProvider(PYTHON, context, pythonSettings, formatOutChannel);
+
+    //Enable indentAction
+    vscode.languages.setLanguageConfiguration(PYTHON.language, {
+        onEnterRules: [
+            {
+                beforeText: /^(?:def|class|for|if|elif|else|while|try|with|finally).*?:\s*$/,
+                action: { indentAction: vscode.IndentAction.Indent }
+            }
+        ]
+    });
 
     context.subscriptions.push(vscode.languages.registerRenameProvider(PYTHON, new PythonRenameProvider(context)));
     context.subscriptions.push(vscode.languages.registerHoverProvider(PYTHON, new PythonHoverProvider(context)));
@@ -50,9 +59,7 @@ export function activate(context: vscode.ExtensionContext) {
     // context.subscriptions.push(vscode.languages.registerSignatureHelpProvider(PYTHON, new PythonSignatureHelpProvider(context), '('));
 
     context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonFormattingEditProvider(context, pythonSettings, formatOutChannel)));
-
     context.subscriptions.push(new LintProvider(context, pythonSettings, lintingOutChannel));
-    formatOnSaveProvider.activate(PYTHON, context, pythonSettings, formatOutChannel);
 }
 
 // this method is called when your extension is deactivated

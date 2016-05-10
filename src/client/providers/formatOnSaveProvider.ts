@@ -8,7 +8,7 @@ import {YapfFormatter} from './../formatters/yapfFormatter';
 import {AutoPep8Formatter} from './../formatters/autoPep8Formatter';
 import * as settings from './../common/configSettings';
 
-export function activate(languageFilter: vscode.DocumentFilter, context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
+export function activateFormatOnSaveProvider(languageFilter: vscode.DocumentFilter, context: vscode.ExtensionContext, settings: settings.IPythonSettings, outputChannel: vscode.OutputChannel) {
     let rootDir = context.asAbsolutePath(".");
     let formatters = new Map<string, BaseFormatter>();
     let pythonSettings = settings;
