@@ -7,9 +7,12 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import tree = require('vs/base/parts/tree/browser/tree');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import dom = require('vs/base/browser/dom');
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
+
+const $ = dom.emmet;
 
 export class DataSource implements tree.IDataSource {
 
@@ -41,22 +44,60 @@ export class DataSource implements tree.IDataSource {
 	}
 }
 
+interface IEditorTemplateData {
+	root: HTMLElement;
+}
+
+interface IEditorGroupTemplateData {
+	root: HTMLElement;
+}
+
 export class Renderer implements tree.IRenderer {
+
 	public static ITEM_HEIGHT = 22;
+	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
+	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
 	public getHeight(tree: tree.ITree, element: any): number {
 		return Renderer.ITEM_HEIGHT;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
-		return null;
+		if (element instanceof EditorGroup) {
+			return Renderer.EDITOR_GROUP_TEMPLATE_ID;
+		}
+
+		return Renderer.OPEN_EDITOR_TEMPLATE_ID;
 	}
 
 	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === Renderer.EDITOR_GROUP_TEMPLATE_ID) {
+			const editorGroupTemplate: IEditorGroupTemplateData = Object.create(null);
+			editorGroupTemplate.root = dom.append(container, $('.editor-group'));
 
+			return editorGroupTemplate;
+		}
+
+		const editorTemplate: IEditorTemplateData = Object.create(null);
+		editorTemplate.root = dom.append(container, $('.open-editor'));
+
+		return editorTemplate;
 	}
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
+		if (templateId === Renderer.EDITOR_GROUP_TEMPLATE_ID) {
+			this.renderEditorGroup(tree, element, templateData);
+		} else {
+			this.renderOpenEditor(tree, element, templateData);
+		}
+	}
+
+	private renderEditorGroup(tree: tree.ITree, editorGroup: IEditorGroup, templateData: IEditorTemplateData): void {
+		templateData.root.textContent = editorGroup.label;
+	}
+
+	private renderOpenEditor(tree: tree.ITree, editor: EditorInput, templateData: IEditorTemplateData): void {
+		templateData.root.textContent = editor.getName();
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {

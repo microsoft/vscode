@@ -80,6 +80,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		// Show groups only if there is more than 1
 		const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
 		this.tree.setInput(treeInput).done(null, errors.onUnexpectedError);
+		this.tree.expandAll(this.model.groups).done(null, errors.onUnexpectedError);
 	}
 
 	private updateDirtyIndicator(): void {
