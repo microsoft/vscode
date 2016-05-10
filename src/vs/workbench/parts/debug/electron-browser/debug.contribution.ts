@@ -6,15 +6,18 @@
 import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
+import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import errors = require('vs/base/common/errors');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
+import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KbExpr, IKeybindings } from 'vs/platform/keybinding/common/keybindingService';
-import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import wbaregistry = require('vs/workbench/common/actionRegistry');
 import viewlet = require('vs/workbench/browser/viewlet');
 import panel = require('vs/workbench/browser/panel');
@@ -112,6 +115,18 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ToggleReplA
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.AddFunctionBreakpointAction, dbgactions.AddFunctionBreakpointAction.ID, dbgactions.AddFunctionBreakpointAction.LABEL), 'Debug: Add Function Breakpoint', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ReapplyBreakpointsAction, dbgactions.ReapplyBreakpointsAction.ID, dbgactions.ReapplyBreakpointsAction.LABEL), 'Debug: Reapply All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.RunAction, dbgactions.RunAction.ID, dbgactions.RunAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.F5 }, KbExpr.not(debug.CONTEXT_IN_DEBUG_MODE)), 'Debug: Start Without Debugging', debugCategory);
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_workbench.startDebug',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, configurationName: string) {
+		const debugService = accessor.get(debug.IDebugService);
+		(configurationName ? debugService.getConfigurationManager().setConfiguration(configurationName) : TPromise.as(null))
+			.done(() => debugService.createSession(false), errors.onUnexpectedError);
+	},
+	when: KbExpr.not(debug.CONTEXT_IN_DEBUG_MODE),
+	primary: undefined
+});
 
 // register service
 registerSingleton(IDebugService, service.DebugService);

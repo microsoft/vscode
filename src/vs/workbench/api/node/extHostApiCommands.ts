@@ -188,6 +188,15 @@ class ExtHostApiCommands {
 				{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
 			]
 		});
+
+		this._register('vscode.startDebug', (configurationName?: string) => {
+			return this._commands.executeCommand('_workbench.startDebug', configurationName);
+		}, {
+			description: 'Start a debugging session.',
+			args: [
+				{ name: 'configurationName', description: '(optional) Name of the debug configuration from \'launch.json\' to use.' }
+			]
+		});
 	}
 
 	// --- command impl
