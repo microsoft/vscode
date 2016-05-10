@@ -14,7 +14,6 @@ import {EventType} from 'vs/base/common/events';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
-import assert = require('vs/base/common/assert');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import {IEditorViewState, IEditor} from 'vs/editor/common/editorCommon';
@@ -57,7 +56,8 @@ interface IEditorState {
 /**
  * TODO@stacks
  * - need to listen to any input dispose that is opened in a stack not just the visible one to close a non active editor
- * -
+ * 		-> maybe just hook up a listener to the model.close event and let the model listen on dispose? this would also nicely
+ * 		-> cover the unpin() case
  */
 
 /**
@@ -164,6 +164,14 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private doOpenEditor(input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[]): TPromise<BaseEditor> {
+
+		// We need an editor descriptor for the input
+		let editorDescriptor = (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).getEditor(input);
+		if (!editorDescriptor) {
+			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', input)));
+		}
+
+		// Opened to the side
 		if (position !== Position.LEFT) {
 
 			// Log side by side use
@@ -197,32 +205,29 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 		});
 
-		// Lookup Editor and Assert
-		let editorDescriptor = (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).getEditor(input);
-		assert.ok(editorDescriptor, strings.format('Can not find a registered editor for the input {0}', input));
-
-		// Handle Active Editor showing
-		let activeEditorHidePromise: TPromise<BaseEditor>;
-		if (this.visibleEditors[position]) {
-
-			// Editor can handle Input
-			if (editorDescriptor.describes(this.visibleEditors[position])) {
-
-				// If the editor is currently being created, join this process to avoid issues
-				let pendingEditorCreationPromise = this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()];
-				if (!pendingEditorCreationPromise) {
-					pendingEditorCreationPromise = TPromise.as(null);
-				}
-
-				return pendingEditorCreationPromise.then(() => {
-					return this.setInput(this.visibleEditors[position], input, options, position, loadingPromise);
-				});
+		// Show editor
+		return this.doShowEditor(editorDescriptor, input, options, position, widthRatios, loadingPromise, editorOpenToken).then(editor => {
+			if (!editor) {
+				return TPromise.as<BaseEditor>(null); // canceled or other error
 			}
 
-			// Editor can not handle Input (Close this Editor)
-			activeEditorHidePromise = this.hideEditor(this.visibleEditors[position], position, false);
+			// Set input to editor
+			this.setInput(editor, input, options, position, loadingPromise);
+		});
+	}
+
+	private doShowEditor(editorDescriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[], loadingPromise: TPromise<void>, editorOpenToken: number): TPromise<BaseEditor> {
+
+		// Return early if the currently visible editor can handle the input
+		if (this.visibleEditors[position] && editorDescriptor.describes(this.visibleEditors[position])) {
+			return this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()] || TPromise.as(this.visibleEditors[position]);
+		}
+
+		let activeEditorHidePromise: TPromise<BaseEditor>;
+		if (this.visibleEditors[position]) {
+			activeEditorHidePromise = this.hideEditor(this.visibleEditors[position], position, false); // Editor can not handle Input (Close this Editor)
 		} else {
-			activeEditorHidePromise = TPromise.as(null);
+			activeEditorHidePromise = TPromise.as(null); // Editor needs to be created first
 		}
 
 		return activeEditorHidePromise.then(() => {
@@ -246,7 +251,7 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			// Create or get editor from cache
-			let editor = this.getEditorFromCache(editorDescriptor, position);
+			let editor = this.instantiatedEditors[position].filter(e => editorDescriptor.describes(e))[0] || null;
 			let loadOrGetEditorPromise: TPromise<BaseEditor>;
 			if (editor === null) {
 
@@ -259,7 +264,10 @@ export class EditorPart extends Part implements IEditorPart {
 				// Otherwise load
 				else {
 					let loaded = false;
-					loadOrGetEditorPromise = this.createEditor(editorDescriptor, newlyCreatedEditorContainerBuilder.getHTMLElement(), position).then((editor) => {
+					let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), editorDescriptor.getId(), true);
+					let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
+
+					loadOrGetEditorPromise = editorInstantiationService.createInstance(editorDescriptor).then((editor:BaseEditor) => {
 						loaded = true;
 						this.instantiatedEditors[position].push(editor);
 						delete this.mapEditorLoadingPromiseToEditor[position][editorDescriptor.getId()];
@@ -357,8 +365,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 						timerEvent.stop();
 
-						// Set Input
-						return this.setInput(editor, input, options, position, loadingPromise);
+						return editor;
 					});
 				}, (e: any) => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
 			});
@@ -549,25 +556,6 @@ export class EditorPart extends Part implements IEditorPart {
 				this.openEditor(oldInput, null, position).done(null, errors.onUnexpectedError);
 			}
 		});
-	}
-
-	private getEditorFromCache(editorDescriptor: EditorDescriptor, position: Position): BaseEditor {
-
-		// Check for existing instantiated editor
-		for (let i = 0; i < this.instantiatedEditors[position].length; i++) {
-			if (editorDescriptor.describes(this.instantiatedEditors[position][i])) {
-				return this.instantiatedEditors[position][i];
-			}
-		}
-
-		return null;
-	}
-
-	private createEditor(editorDescriptor: EditorDescriptor, editorDomNode: HTMLElement, position: Position): TPromise<BaseEditor> {
-		let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), editorDescriptor.getId(), true);
-		let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
-
-		return editorInstantiationService.createInstance(editorDescriptor);
 	}
 
 	private hideEditor(editor: BaseEditor, position: Position, layoutAndRochade: boolean): TPromise<BaseEditor> {
