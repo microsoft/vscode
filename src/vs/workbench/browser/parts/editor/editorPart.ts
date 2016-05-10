@@ -55,6 +55,12 @@ interface IEditorState {
 }
 
 /**
+ * TODO@stacks
+ * - need to listen to any input dispose that is opened in a stack not just the visible one to close a non active editor
+ * -
+ */
+
+/**
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
  */
@@ -118,44 +124,25 @@ export class EditorPart extends Part implements IEditorPart {
 		if (!options) { options = null; }
 
 		// Determine position to open editor in (left, center, right)
-		const position = this.findPosition(arg3, widthRatios);
+		const position = this.validatePosition(arg3, widthRatios);
 
-		// In case the position is invalid, return early. This can happen when the user tries to open a side editor
-		// when the maximum number of allowed editors is reached and no more side editor can be opened.
-		if (position === null) {
-			return TPromise.as<BaseEditor>(null);
-		}
-
-		// Prevent bad UI issues by ignoring any attempt to open an editor if at the same time an editor is
-		// either creating or loading at this position. Not very nice, but helpful and typically should not cause issues.
-		if (Object.keys(this.mapEditorLoadingPromiseToEditor[position]).length > 0 || Object.keys(this.mapEditorCreationPromiseToEditor[position]).length > 0) {
-			return TPromise.as<BaseEditor>(null);
-		}
-
-		// Prevent bad UI issues by ignoring openEditor() calls while the user is dragging an editor
-		if (this.sideBySideControl.isDragging()) {
+		// Some conditions under which we prevent the request
+		if (
+			position === null ||															// invalid position
+			Object.keys(this.mapEditorLoadingPromiseToEditor[position]).length > 0 ||		// pending editor load
+			Object.keys(this.mapEditorCreationPromiseToEditor[position]).length > 0 ||		// pending editor create
+			this.sideBySideControl.isDragging()												// pending editor DND
+		) {
 			return TPromise.as<BaseEditor>(null);
 		}
 
 		// Emit early open event to allow for veto
-		let event = new EditorEvent(this.visibleEditors[position], this.visibleEditors[position] && this.visibleEditors[position].getId(), input, options, position);
-		this.emit(WorkbenchEventType.EDITOR_INPUT_OPENING, event);
-		if (event.isPrevented()) {
-			return TPromise.as<BaseEditor>(null);
-		}
-
-		// Do ref counting of this method
-		this.editorOpenToken[position]++;
-		let editorOpenToken = this.editorOpenToken[position];
-
-		// Log side by side use
-		if (input && position !== Position.LEFT) {
-			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
-		}
-
-		// Determine options if the editor opens to the side by looking at same input already opened
-		if (input && position !== Position.LEFT) {
-			options = this.findSideOptions(input, options, position);
+		if (input) {
+			let event = new EditorEvent(this.visibleEditors[position], this.visibleEditors[position] && this.visibleEditors[position].getId(), input, options, position);
+			this.emit(WorkbenchEventType.EDITOR_INPUT_OPENING, event);
+			if (event.isPrevented()) {
+				return TPromise.as<BaseEditor>(null);
+			}
 		}
 
 		// Remember as visible input for this position
@@ -167,9 +154,23 @@ export class EditorPart extends Part implements IEditorPart {
 			this.visibleInputListeners[position] = null;
 		}
 
-		// Close any opened editor at position if input is null
-		if (!input) {
-			return this.doCloseEditor(input, position);
+		// Open: input is provided
+		if (input) {
+			return this.doOpenEditor(input, options, position, widthRatios);
+		}
+
+		// Close: input is null
+		return this.doCloseEditor(input, position);
+	}
+
+	private doOpenEditor(input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[]): TPromise<BaseEditor> {
+		if (position !== Position.LEFT) {
+
+			// Log side by side use
+			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
+
+			// Determine options if the editor opens to the side by looking at same input already opened
+			options = this.findSideOptions(input, options, position);
 		}
 
 		// Close editor when input provided and input gets disposed
@@ -184,9 +185,9 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 		});
 
-		// Lookup Editor and Assert
-		let editorDescriptor = (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).getEditor(input);
-		assert.ok(editorDescriptor, strings.format('Can not find a registered editor for the input {0}', input));
+		// Do ref counting on editor open to prevent race conditions
+		this.editorOpenToken[position]++;
+		const editorOpenToken = this.editorOpenToken[position];
 
 		// Progress Indication
 		let loadingPromise: TPromise<void> = TPromise.timeout(this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */).then(() => {
@@ -195,6 +196,10 @@ export class EditorPart extends Part implements IEditorPart {
 				this.sideBySideControl.setLoading(position, input);
 			}
 		});
+
+		// Lookup Editor and Assert
+		let editorDescriptor = (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).getEditor(input);
+		assert.ok(editorDescriptor, strings.format('Can not find a registered editor for the input {0}', input));
 
 		// Handle Active Editor showing
 		let activeEditorHidePromise: TPromise<BaseEditor>;
@@ -393,142 +398,6 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		return TPromise.as<BaseEditor>(null);
-	}
-
-	private startDelayedCloseEditorsFromInputDispose(): void {
-
-		// To prevent race conditions, we call the close in a timeout because it can well be
-		// that an input is being disposed with the intent to replace it with some other input
-		// right after.
-		if (this.pendingEditorInputCloseTimeout === null) {
-			this.pendingEditorInputCloseTimeout = setTimeout(() => {
-				this.closeEditors(false, this.pendingEditorInputsToClose).done(null, errors.onUnexpectedError);
-
-				// Reset
-				this.pendingEditorInputCloseTimeout = null;
-				this.pendingEditorInputsToClose = [];
-			}, 0);
-		}
-	}
-
-	public closeEditors(othersOnly?: boolean, inputs?: EditorInput[]): TPromise<void> {
-		let promises: TPromise<BaseEditor>[] = [];
-
-		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
-		for (var i = 0; i < editors.length; i++) {
-			var editor = editors[i];
-			if (othersOnly && this.getActiveEditor() === editor) {
-				continue;
-			}
-
-			if (!inputs || inputs.some(inp => inp === editor.input)) {
-				promises.push(this.openEditor(null, null, editor.position));
-			}
-		}
-
-		return TPromise.join(promises).then(() => void 0);
-	}
-
-	private findPosition(sideBySide?: boolean, widthRatios?: number[]): Position;
-	private findPosition(desiredPosition?: Position, widthRatios?: number[]): Position;
-	private findPosition(arg1?: any, widthRatios?: number[]): Position {
-
-		// With defined width ratios, always trust the provided position
-		if (widthRatios && types.isNumber(arg1)) {
-			return arg1;
-		}
-
-		// No editor open
-		let visibleEditors = this.getVisibleEditors();
-		let activeEditor = this.getActiveEditor();
-		if (visibleEditors.length === 0 || !activeEditor) {
-			return Position.LEFT; // can only be LEFT
-		}
-
-		// Position is unknown: pick last active or LEFT
-		if (types.isUndefinedOrNull(arg1) || arg1 === false) {
-			let lastActivePosition = this.sideBySideControl.getActivePosition();
-
-			return lastActivePosition || Position.LEFT;
-		}
-
-		// Position is sideBySide: Find position relative to active editor
-		if (arg1 === true) {
-			switch (activeEditor.position) {
-				case Position.LEFT:
-					return Position.CENTER;
-				case Position.CENTER:
-					return Position.RIGHT;
-				case Position.RIGHT:
-					return null; // Cannot open to the side of the right most editor
-			}
-
-			return null; // Prevent opening to the side
-		}
-
-		// Position is provided, validate it
-		if (arg1 === Position.RIGHT && visibleEditors.length === 1) {
-			return Position.CENTER;
-		}
-
-		return arg1;
-	}
-
-	private findSideOptions(input: EditorInput, options: EditorOptions, position: Position): EditorOptions {
-
-		// Return early if the input is already showing at the position
-		if (this.visibleEditors[position] && input.matches(this.visibleEditors[position].input)) {
-			return options;
-		}
-
-		// Return early if explicit text options are defined
-		if (options instanceof TextEditorOptions && (<TextEditorOptions>options).hasOptionsDefined()) {
-			return options;
-		}
-
-		// Otherwise try to copy viewstate over from an existing opened editor with same input
-		let viewState: IEditorViewState = null;
-		let editors = this.getVisibleEditors();
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-
-			if (!(editor instanceof BaseTextEditor)) {
-				continue; // Only works with text editors
-			}
-
-			// Found a match
-			if (input.matches(editor.input)) {
-				let codeEditor = <IEditor>editor.getControl();
-				viewState = <IEditorViewState>codeEditor.saveViewState();
-
-				break;
-			}
-		}
-
-		// Found view state
-		if (viewState) {
-			let textEditorOptions: TextEditorOptions = null;
-
-			// Merge into existing text editor options if given
-			if (options instanceof TextEditorOptions) {
-				textEditorOptions = <TextEditorOptions>options;
-				textEditorOptions.viewState(viewState);
-
-				return textEditorOptions;
-			}
-
-			// Otherwise create new
-			textEditorOptions = new TextEditorOptions();
-			textEditorOptions.viewState(viewState);
-			if (options) {
-				textEditorOptions.forceOpen = options.forceOpen;
-				textEditorOptions.preserveFocus = options.preserveFocus;
-			}
-
-			return textEditorOptions;
-		}
-
-		return options;
 	}
 
 	private rochade(rochade: Rochade): void;
@@ -733,6 +602,24 @@ export class EditorPart extends Part implements IEditorPart {
 
 			return editor;
 		});
+	}
+
+	public closeEditors(othersOnly?: boolean, inputs?: EditorInput[]): TPromise<void> {
+		let promises: TPromise<BaseEditor>[] = [];
+
+		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
+		for (var i = 0; i < editors.length; i++) {
+			var editor = editors[i];
+			if (othersOnly && this.getActiveEditor() === editor) {
+				continue;
+			}
+
+			if (!inputs || inputs.some(inp => inp === editor.input)) {
+				promises.push(this.openEditor(null, null, editor.position));
+			}
+		}
+
+		return TPromise.join(promises).then(() => void 0);
 	}
 
 	public getStacksModel(): EditorStacksModel {
@@ -1036,5 +923,124 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Pass to super
 		super.dispose();
+	}
+
+
+
+	//
+	// --- Helpers
+	//
+
+	private validatePosition(sideBySide?: boolean, widthRatios?: number[]): Position;
+	private validatePosition(desiredPosition?: Position, widthRatios?: number[]): Position;
+	private validatePosition(arg1?: any, widthRatios?: number[]): Position {
+
+		// With defined width ratios, always trust the provided position
+		if (widthRatios && types.isNumber(arg1)) {
+			return arg1;
+		}
+
+		// No editor open
+		let visibleEditors = this.getVisibleEditors();
+		let activeEditor = this.getActiveEditor();
+		if (visibleEditors.length === 0 || !activeEditor) {
+			return Position.LEFT; // can only be LEFT
+		}
+
+		// Position is unknown: pick last active or LEFT
+		if (types.isUndefinedOrNull(arg1) || arg1 === false) {
+			let lastActivePosition = this.sideBySideControl.getActivePosition();
+
+			return lastActivePosition || Position.LEFT;
+		}
+
+		// Position is sideBySide: Find position relative to active editor
+		if (arg1 === true) {
+			switch (activeEditor.position) {
+				case Position.LEFT:
+					return Position.CENTER;
+				case Position.CENTER:
+					return Position.RIGHT;
+				case Position.RIGHT:
+					return null; // Cannot open to the side of the right most editor
+			}
+
+			return null; // Prevent opening to the side
+		}
+
+		// Position is provided, validate it
+		if (arg1 === Position.RIGHT && visibleEditors.length === 1) {
+			return Position.CENTER;
+		}
+
+		return arg1;
+	}
+
+	private findSideOptions(input: EditorInput, options: EditorOptions, position: Position): EditorOptions {
+		if (
+			(this.visibleEditors[position] && input.matches(this.visibleEditors[position].input)) ||	// Return early if the input is already showing at the position
+			(options instanceof TextEditorOptions && (<TextEditorOptions>options).hasOptionsDefined())	// Return early if explicit text options are defined
+		) {
+			return options;
+		}
+
+		// Otherwise try to copy viewstate over from an existing opened editor with same input
+		let viewState: IEditorViewState = null;
+		let editors = this.getVisibleEditors();
+		for (let i = 0; i < editors.length; i++) {
+			let editor = editors[i];
+
+			if (!(editor instanceof BaseTextEditor)) {
+				continue; // Only works with text editors
+			}
+
+			// Found a match
+			if (input.matches(editor.input)) {
+				let codeEditor = <IEditor>editor.getControl();
+				viewState = <IEditorViewState>codeEditor.saveViewState();
+
+				break;
+			}
+		}
+
+		// Found view state
+		if (viewState) {
+			let textEditorOptions: TextEditorOptions = null;
+
+			// Merge into existing text editor options if given
+			if (options instanceof TextEditorOptions) {
+				textEditorOptions = <TextEditorOptions>options;
+				textEditorOptions.viewState(viewState);
+
+				return textEditorOptions;
+			}
+
+			// Otherwise create new
+			textEditorOptions = new TextEditorOptions();
+			textEditorOptions.viewState(viewState);
+			if (options) {
+				textEditorOptions.mixin(options);
+			}
+
+			return textEditorOptions;
+		}
+
+		return options;
+	}
+
+	private startDelayedCloseEditorsFromInputDispose(): void {
+
+		// To prevent race conditions, we call the close in a timeout because it can well be
+		// that an input is being disposed with the intent to replace it with some other input
+		// right after.
+		if (this.pendingEditorInputCloseTimeout === null) {
+			this.pendingEditorInputCloseTimeout = setTimeout(() => {
+				this.closeEditors(false, this.pendingEditorInputsToClose).done(null, errors.onUnexpectedError);
+
+				// Reset
+				this.pendingEditorInputCloseTimeout = null;
+				this.pendingEditorInputsToClose = [];
+			}, 0);
+		}
 	}
 }

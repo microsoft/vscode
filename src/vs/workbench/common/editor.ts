@@ -263,12 +263,33 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Helper to create EditorOptions inline.
 	 */
-	public static create(settings: { preserveFocus?: boolean; forceOpen?: boolean; }): EditorOptions {
+	public static create(settings: {
+		preserveFocus?: boolean;
+		forceOpen?: boolean;
+		forceActive?: boolean,
+		pinned?: boolean,
+		active?: boolean,
+		index?: number
+	}): EditorOptions {
 		let options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
+		options.forceActive = settings.forceActive;
+		options.pinned = settings.pinned;
+		options.index = settings.index;
 
 		return options;
+	}
+
+	/**
+	 * Inherit all options from other EditorOptions instance.
+	 */
+	public mixin(other: EditorOptions): void {
+		this.preserveFocus = other.preserveFocus;
+		this.forceOpen = other.forceOpen;
+		this.forceActive = other.forceActive;
+		this.pinned = other.pinned;
+		this.index = other.index;
 	}
 
 	/**
@@ -287,8 +308,16 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Ensures that the editor is being activated even if the input is already showing. This only applies
 	 * if there is more than one editor open already and preserveFocus is set to false.
+	 *
+	 * TODO@stacks does this still apply?
 	 */
 	public forceActive: boolean;
+
+	/**
+	 * TODO@stacks clean up
+	 */
+	public pinned: boolean;
+	public index: number;
 
 	/**
 	 * Returns true if this options is identical to the otherOptions.
