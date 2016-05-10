@@ -155,7 +155,10 @@ var hygiene = exports.hygiene = function (some, options) {
 	});
 
 	var copyrights = es.through(function (file) {
-		if (file.contents.toString('utf8').indexOf(copyrightHeader) !== 0) {
+		// strip cr's from contents to support windows crlf case
+		var eolFileContent = file.contents.toString('utf8').replace(/\r\n/g, '\n');
+		var eolCopyrightHeader = copyrightHeader.replace(/\r\n/g, '\n');
+		if (eolFileContent.indexOf(eolCopyrightHeader) !== 0) {
 			console.error(file.relative + ': Missing or bad copyright statement');
 			errorCount++;
 		}
