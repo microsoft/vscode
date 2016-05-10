@@ -30,15 +30,18 @@ export interface IEditorGroup {
 	onEditorUnpinned: Event<EditorInput>;
 
 	getEditors(mru?: boolean): EditorInput[];
+	isActive(editor: EditorInput): boolean;
+	isPreview(editor: EditorInput): boolean;
+	isPinned(editor: EditorInput): boolean;
+
+	// --- Modifying:
+
 	// openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
 	// moveEditor(editor: EditorInput, toIndex: number): void;
 	// closeEditor(editor: EditorInput): void;
 	// closeEditors(except: EditorInput, direction?: Direction): void;
 	// closeAllEditors(): void;
 	// setActive(editor: EditorInput): void;
-	isActive(editor: EditorInput): boolean;
-	isPreview(editor: EditorInput): boolean;
-	isPinned(editor: EditorInput): boolean;
 
 	// pin(editor: EditorInput): void;
 	// unpin(editor: EditorInput): void;
@@ -56,14 +59,16 @@ export interface IEditorStacksModel {
 
 	getGroup(id: GroupIdentifier): IEditorGroup;
 
-	openGroup(label: string): IEditorGroup;
+	// --- Modifying:
 
-	closeGroup(group: IEditorGroup): void;
-	closeGroups(except?: IEditorGroup): void;
+	// openGroup(label: string): IEditorGroup;
 
-	moveGroup(group: IEditorGroup, toIndex: number): void;
+	// closeGroup(group: IEditorGroup): void;
+	// closeGroups(except?: IEditorGroup): void;
 
-	setActive(group: IEditorGroup): void;
+	// moveGroup(group: IEditorGroup, toIndex: number): void;
+
+	// setActive(group: IEditorGroup): void;
 }
 
 export type GroupIdentifier = number;

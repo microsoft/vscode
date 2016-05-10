@@ -150,7 +150,7 @@ export class EditorPart extends Part implements IEditorPart {
 		if (!options) { options = null; }
 
 		// Determine position to open editor in (left, center, right)
-		let position = this.findPosition(arg3, widthRatios);
+		const position = this.findPosition(arg3, widthRatios);
 
 		// In case the position is invalid, return early. This can happen when the user tries to open a side editor
 		// when the maximum number of allowed editors is reached and no more side editor can be opened.
