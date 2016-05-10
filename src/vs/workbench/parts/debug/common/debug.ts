@@ -372,7 +372,7 @@ export interface IDebugService {
 	/**
 	 * Creates a new debug session. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createSession(noDebug: boolean): TPromise<any>;
+	createSession(noDebug: boolean, configuration?: IConfig): TPromise<any>;
 
 	/**
 	 * Restarts an active debug session or creates a new one if there is no active session.

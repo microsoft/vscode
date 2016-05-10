@@ -189,12 +189,12 @@ class ExtHostApiCommands {
 			]
 		});
 
-		this._register('vscode.startDebug', (configurationName?: string) => {
-			return this._commands.executeCommand('_workbench.startDebug', configurationName);
+		this._register('vscode.startDebug', (configuration?: any) => {
+			return this._commands.executeCommand('_workbench.startDebug', configuration);
 		}, {
 			description: 'Start a debugging session.',
 			args: [
-				{ name: 'configurationName', description: '(optional) Name of the debug configuration from \'launch.json\' to use.' }
+				{ name: 'configuration', description: '(optional) Name of the debug configuration from \'launch.json\' to use. Or a configuration json object to use.' }
 			]
 		});
 	}

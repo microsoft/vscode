@@ -6,9 +6,7 @@
 import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
-import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import errors = require('vs/base/common/errors');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
@@ -119,10 +117,14 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.RunAction, 
 KeybindingsRegistry.registerCommandDesc({
 	id: '_workbench.startDebug',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, configurationName: string) {
+	handler(accessor: ServicesAccessor, configuration: any) {
 		const debugService = accessor.get(debug.IDebugService);
-		(configurationName ? debugService.getConfigurationManager().setConfiguration(configurationName) : TPromise.as(null))
-			.done(() => debugService.createSession(false), errors.onUnexpectedError);
+		if (typeof configuration === 'string') {
+			return debugService.getConfigurationManager().setConfiguration(configuration)
+				.then(() => debugService.createSession(false));
+		}
+
+		return debugService.createSession(false, configuration);
 	},
 	when: KbExpr.not(debug.CONTEXT_IN_DEBUG_MODE),
 	primary: undefined
