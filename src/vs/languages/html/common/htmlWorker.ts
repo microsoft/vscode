@@ -166,14 +166,6 @@ export class HTMLWorker {
 		});
 	}
 
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().logicalSelectionSupport) {
-				return model.getMode().logicalSelectionSupport.getRangesToPosition(model.getAssociatedResource(), position);
-			}
-		});
-	}
-
 	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().declarationSupport) {

@@ -283,7 +283,6 @@ export class CSSMode extends AbstractMode {
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
-	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public outlineSupport: Modes.IOutlineSupport;
@@ -339,7 +338,6 @@ export class CSSMode extends AbstractMode {
 		// this.referenceSupport = new ReferenceSupport(this.getId(), {
 		// 	tokens: [cssTokenTypes.TOKEN_PROPERTY + '.css', cssTokenTypes.TOKEN_VALUE + '.css', cssTokenTypes.TOKEN_SELECTOR_TAG + '.css'],
 		// 	findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
-		this.logicalSelectionSupport = this;
 		this.outlineSupport = this;
 		// this.declarationSupport = new DeclarationSupport(this.getId(), {
 		// 	tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
@@ -411,11 +409,6 @@ export class CSSMode extends AbstractMode {
 	static $findReferences = OneWorkerAttr(CSSMode, CSSMode.prototype.findReferences);
 	public findReferences(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position));
-	}
-
-	static $getRangesToPosition = OneWorkerAttr(CSSMode, CSSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(CSSMode, CSSMode.prototype.getOutline);

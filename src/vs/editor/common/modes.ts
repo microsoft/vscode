@@ -227,11 +227,6 @@ export interface IMode {
 	outlineSupport?:IOutlineSupport;
 
 	/**
-	 * Optional adapter to support logical selection.
-	 */
-	logicalSelectionSupport?:ILogicalSelectionSupport;
-
-	/**
 	 * Optional adapter to support formatting.
 	 */
 	formattingSupport?:IFormattingSupport;
@@ -501,17 +496,6 @@ export interface IOutlineEntry {
 export interface IOutlineSupport {
 	getOutline(resource:URI):TPromise<IOutlineEntry[]>;
 	outlineGroupLabel?: { [name: string]: string; };
-}
-
-/**
- * Interface used to compute a hierachry of logical ranges.
- */
-export interface ILogicalSelectionEntry {
-	type:string;
-	range:editorCommon.IRange;
-}
-export interface ILogicalSelectionSupport {
-	getRangesToPosition(resource:URI, position:editorCommon.IPosition):TPromise<ILogicalSelectionEntry[]>;
 }
 
 /**

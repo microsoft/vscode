@@ -294,7 +294,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public referenceSupport: Modes.IReferenceSupport;
-	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public formattingSupport: Modes.IFormattingSupport;
 	public parameterHintsSupport: Modes.IParameterHintsSupport;
 	public suggestSupport: Modes.ISuggestSupport;
@@ -325,7 +324,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: ['invalid'],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
-		this.logicalSelectionSupport = this;
 
 		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
 			triggerCharacters: ['(', ','],
@@ -493,11 +491,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	static $findReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findReferences);
 	public findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position, includeDeclaration));
-	}
-
-	static $getRangesToPosition = OneWorkerAttr(HTMLMode, HTMLMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $findDeclaration = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findDeclaration);

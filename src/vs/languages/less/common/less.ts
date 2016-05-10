@@ -181,7 +181,6 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
-	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public outlineSupport: Modes.IOutlineSupport;
@@ -211,7 +210,6 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [lessTokenTypes.TOKEN_PROPERTY + '.less', lessTokenTypes.TOKEN_VALUE + '.less', 'variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
-		this.logicalSelectionSupport = this;
 		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: ['variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
@@ -265,11 +263,6 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 	static $suggest = OneWorkerAttr(LESSMode, LESSMode.prototype.suggest);
 	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this._worker((w) => w.suggest(resource, position));
-	}
-
-	static $getRangesToPosition = OneWorkerAttr(LESSMode, LESSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $computeInfo = OneWorkerAttr(LESSMode, LESSMode.prototype.computeInfo);

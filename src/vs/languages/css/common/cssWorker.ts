@@ -210,34 +210,6 @@ export class CSSWorker {
 
 	}
 
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
-
-		return this.languageService.join().then(() => {
-
-			let model = this.resourceService.get(resource),
-				offset = model.getOffsetFromPosition(position),
-				styleSheet = this.languageService.getStylesheet(resource),
-				path = nodes.getNodePath(styleSheet, offset),
-				result: Modes.ILogicalSelectionEntry[] = [];
-
-			for (let i = 0; i < path.length; i++) {
-				let node = path[i];
-				if(node.offset === -1 || node.length === -1) {
-					continue;
-				}
-				if(node.parent && node.parent.offset === node.offset && node.parent.length === node.length) {
-					continue;
-				}
-				result.push({
-					type: 'node',
-					range: this._range(node, model)
-				});
-			}
-
-			return result;
-		});
-	}
-
 	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
 
 		return this.languageService.join().then(() => {

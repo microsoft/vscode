@@ -14,8 +14,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {EventType, ICommonCodeEditor, ICursorPositionChangedEvent, IEditorActionDescriptorData, IEditorRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {ILogicalSelectionEntry} from 'vs/editor/common/modes';
-import {TokenSelectionSupport} from './tokenSelectionSupport';
+import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
 // --- selection state machine
 
@@ -55,7 +54,6 @@ class SmartSelect extends EditorAction {
 
 		var selection = this.editor.getSelection();
 		var model = this.editor.getModel();
-		var selectionSupport = model.getMode().logicalSelectionSupport || this._tokenSelectionSupport;
 
 		// forget about current state
 		if (state) {
@@ -66,8 +64,7 @@ class SmartSelect extends EditorAction {
 
 		var promise:TPromise<void> = TPromise.as(null);
 		if (!state) {
-
-			promise = selectionSupport.getRangesToPosition(model.getAssociatedResource(), selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
+			promise = this._tokenSelectionSupport.getRangesToPosition(model.getAssociatedResource(), selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
 
 				if (arrays.isFalsyOrEmpty(elements)) {
 					return;
