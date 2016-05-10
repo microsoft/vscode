@@ -110,7 +110,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 
 ## Change Log
 
-### Version 0.3.6
+### Version 0.3.7
 * Added support for auto indenting of some keywords [#83](https://github.com/DonJayamanne/pythonVSCode/issues/83)
 
 ### Version 0.3.6
