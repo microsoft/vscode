@@ -223,7 +223,7 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			// Set input to editor
-			this.doSetInput(editor, input, options, position, monitor);
+			return this.doSetInput(editor, input, options, position, monitor);
 		});
 	}
 
