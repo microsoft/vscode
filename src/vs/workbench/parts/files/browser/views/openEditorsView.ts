@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import errors = require('vs/base/common/errors');
 import {IActionRunner} from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
+import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {OpenEditorsRenderer} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {Renderer, DataSource} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 
 const $ = dom.emmet;
 
@@ -26,11 +29,13 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private maxVisibleOpenEditors: number;
 	private dynamicHeight: boolean;
 
+	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
 	private lastDirtyCount: number;
 
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IMessageService messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
@@ -38,7 +43,9 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, contextMenuService);
 
 		this.settings = settings;
+		this.model = editorService.getStacksModel();
 		this.lastDirtyCount = 0;
+		console.log(this.getExpandedBodySize(this.model));
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -56,7 +63,21 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.treeContainer = super.renderViewTree(container);
 		dom.addClass(this.treeContainer, 'explorer-open-editors');
 
-		// TODO@Isidor create tree
+		const dataSource = this.instantiationService.createInstance(DataSource);
+		const renderer = this.instantiationService.createInstance(Renderer);
+
+		this.tree = new Tree(this.treeContainer, {
+			dataSource,
+			renderer
+		}, {
+			indentPixels: 0,
+			twistiePixels: 8,
+			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
+		});
+
+		// Show groups only if there is more than 1
+		const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
+		this.tree.setInput(treeInput).done(null, errors.onUnexpectedError);
 	}
 
 	private updateDirtyIndicator(): void {
@@ -70,12 +91,12 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}
 	}
 
-	public getExpandedBodySize(model: IEditorStacksModel): number {
+	private getExpandedBodySize(model: IEditorStacksModel): number {
 		return OpenEditorsView.computeExpandedBodySize(model, this.maxVisibleOpenEditors, this.dynamicHeight);
 	}
 
 	private static computeExpandedBodySize(model: IEditorStacksModel, maxVisibleOpenEditors = OpenEditorsView.DEFAULT_MAX_VISIBLE_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
-		let entryCount = model.groups.reduce((sum, group) => sum + group.count, 0);
+		const entryCount = model.groups.reduce((sum, group) => sum + group.count, 0);
 
 		let itemsToShow: number;
 		if (dynamicHeight) {
@@ -88,6 +109,6 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			itemsToShow += model.groups.length;
 		}
 
-		return itemsToShow * OpenEditorsRenderer.ITEM_HEIGHT;
+		return itemsToShow * Renderer.ITEM_HEIGHT;
 	}
 }
