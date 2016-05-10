@@ -7,6 +7,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 ##Features
 * Linting (PyLint, Pep8, Flake8, pydocstyle with config files and plugins)
 * Intellisense and autocompletion
+* Auto indenting
 * Code formatting (autopep8, yapf, with config files)
 * Renaming, Viewing references, Going to definitions, Go to Symbols
 * View signature and similar by hovering over a function or method
@@ -24,6 +25,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 
 ## Feature Details (with configuration)
 * IDE Features
+ + Auto indenting
  + Rename and navigate to symbols
  + Go to, Peek and hover definition
  + Find all references
@@ -107,6 +109,9 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
  + pip install nose
 
 ## Change Log
+
+### Version 0.3.6
+* Added support for auto indenting of some keywords [#83](https://github.com/DonJayamanne/pythonVSCode/issues/83)
 
 ### Version 0.3.6
 * Added support for linting using pydocstyle [#56](https://github.com/DonJayamanne/pythonVSCode/issues/56)

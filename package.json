@@ -2,7 +2,7 @@
     "name": "python",
     "displayName": "Python",
     "description": "Linting, Debugging (multi-threaded, remote), Intellisense, auto-completion, code formatting, snippets, and more.",
-    "version": "0.3.6",
+    "version": "0.3.7",
     "publisher": "donjayamanne",
     "license": "SEE LICENSE IN LICENSE or README.MD",
     "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
