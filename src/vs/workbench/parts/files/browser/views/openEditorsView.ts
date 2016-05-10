@@ -15,7 +15,7 @@ import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {Renderer, DataSource} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import {Renderer, DataSource, Controller} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 
 const $ = dom.emmet;
 
@@ -65,10 +65,12 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		const dataSource = this.instantiationService.createInstance(DataSource);
 		const renderer = this.instantiationService.createInstance(Renderer);
+		const controller = this.instantiationService.createInstance(Controller);
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource,
-			renderer
+			renderer,
+			controller
 		}, {
 			indentPixels: 0,
 			twistiePixels: 8,
