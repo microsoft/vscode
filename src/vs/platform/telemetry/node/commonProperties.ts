@@ -47,7 +47,6 @@ export function resolveCommonProperties(storageService: IStorageService, context
 	result['common.lastSessionDate'] = lastSessionDate;
 	result['common.isNewSession'] = !lastSessionDate ? 1 : 0;
 
-
 	// dynamic properties which value differs on each call
 	let seq = 0;
 	const startTime = Date.now();

@@ -21,7 +21,7 @@ import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {TelemetryService} from  'vs/platform/telemetry/browser/telemetryService';
-import {AppInsightsAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
+import {createAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
 import {resolveCommonProperties} from 'vs/platform/telemetry/node/commonProperties';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
@@ -206,7 +206,7 @@ export class WorkbenchShell {
 
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			this.telemetryService = new TelemetryService({
-				appender: [new AppInsightsAppender(this.configuration.env.aiConfig)],
+				appender: createAppender(this.configuration.env),
 				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
 				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
 			}, this.configurationService);

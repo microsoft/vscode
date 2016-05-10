@@ -16,7 +16,7 @@ import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import aria = require('vs/base/browser/ui/aria/aria');
-import { AIAdapter } from 'vs/base/node/aiAdapter';
+import { IAIAdapter, createAIAdapter } from 'vs/base/parts/ai/node/ai';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -67,7 +67,7 @@ export class DebugService implements debug.IDebugService {
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
 	private debugStringEditorInputs: DebugStringEditorInput[];
-	private telemetryAdapter: AIAdapter;
+	private telemetryAdapter: IAIAdapter;
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: lifecycle.IDisposable[];
@@ -542,14 +542,17 @@ export class DebugService implements debug.IDebugService {
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
 		this.setStateAndEmit(debug.State.Initializing);
-		this.telemetryAdapter = new AIAdapter(this.configurationManager.adapter.type, () => {
-			return this.telemetryService.getTelemetryInfo().then(info => {
-				const telemetryInfo: { [key: string]: string } = Object.create(null);
-				telemetryInfo['common.vscodemachineid'] = info.machineId;
-				telemetryInfo['common.vscodesessionid'] = info.sessionId;
-				return telemetryInfo;
-			});
-		}, this.configurationManager.adapter.aiKey);
+
+		this.telemetryService.getTelemetryInfo().then(info => {
+			const telemetryInfo: { [key: string]: string } = Object.create(null);
+			telemetryInfo['common.vscodemachineid'] = info.machineId;
+			telemetryInfo['common.vscodesessionid'] = info.sessionId;
+			return telemetryInfo;
+		}).then(data => {
+			let {aiKey, type} = this.configurationManager.adapter;
+			this.telemetryAdapter = createAIAdapter(aiKey, type, data);
+		});
+
 		this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.telemetryAdapter);
 		this.registerSessionListeners();
 

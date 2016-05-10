@@ -4,16 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as appInsights from 'applicationinsights';
 import {isObject} from 'vs/base/common/types';
 import {safeStringify, mixin} from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as appInsights from 'applicationinsights';
-
-export interface IAIAdapter {
-	log(eventName: string, data?: any): void;
-	logException(exception: any): void;
-	dispose(): void;
-}
 
 namespace AI {
 
@@ -54,7 +48,7 @@ interface Measurements {
 	[key: string]: number;
 }
 
-export class AIAdapter implements IAIAdapter {
+export class AIAdapter {
 
 	private _aiClient: typeof appInsights.client;
 
@@ -150,17 +144,14 @@ export class AIAdapter implements IAIAdapter {
 		});
 	}
 
-	public logException(exception: any): void {
+	public dispose(): TPromise<any> {
 		if (this._aiClient) {
-			this._aiClient.trackException(exception);
-		}
-	}
-
-	public dispose(): void {
-		if (this._aiClient) {
-			this._aiClient.sendPendingData(() => {
-				// all data flushed
-				this._aiClient = undefined;
+			return new TPromise(resolve => {
+				this._aiClient.sendPendingData(() => {
+					// all data flushed
+					this._aiClient = undefined;
+					resolve(void 0);
+				});
 			});
 		}
 	}

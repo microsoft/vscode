@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { registerAIChannel } from 'vs/base/parts/ai/node/ai.app';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -52,6 +53,7 @@ function main(server: Server): void {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const channel = new ExtensionManagementChannel(extensionManagementService);
 		server.registerChannel('extensions', channel);
+		registerAIChannel(server);
 
 		// eventually clean up old extensions
 		setTimeout(() => (extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions(), 5000);
