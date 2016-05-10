@@ -157,8 +157,11 @@ export class AIAdapter implements IAIAdapter {
 	}
 
 	public dispose(): void {
-		this._aiClient.sendPendingData(() => {
-			// all data flushed
-		});
+		if (this._aiClient) {
+			this._aiClient.sendPendingData(() => {
+				// all data flushed
+				this._aiClient = undefined;
+			});
+		}
 	}
 }
