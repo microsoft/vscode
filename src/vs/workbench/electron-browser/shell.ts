@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
+import {dispose, IDisposable, Disposables} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
@@ -198,6 +198,7 @@ export class WorkbenchShell {
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
 		let serviceCollection = new ServiceCollection();
 		let instantiationService = new InstantiationService(serviceCollection, true);
+		let disposables = new Disposables();
 
 		this.windowService = new WindowService();
 
@@ -205,39 +206,41 @@ export class WorkbenchShell {
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
-			this.telemetryService = new TelemetryService({
+			const config = {
 				appender: createAppender(this.configuration.env),
 				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
 				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
-			}, this.configurationService);
+			};
+			let telemetryService = new TelemetryService(config, this.configurationService);
+			this.telemetryService = telemetryService;
+			disposables.add(telemetryService, ...config.appender);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService);
 
-		let fileService = new FileService(
+		let fileService = disposables.add(new FileService(
 			this.configurationService,
 			this.eventService,
 			this.contextService,
 			this.messageService
-		);
+		));
+
 
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
-		this.toUnbind.push(lifecycleService.onShutdown(() => fileService.dispose()));
-
+		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
 
 		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService);
 
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
-		let requestService = new RequestService(
+		let requestService = disposables.add(new RequestService(
 			this.contextService,
 			this.configurationService,
 			this.telemetryService
-		);
-		this.toUnbind.push(lifecycleService.onShutdown(() => requestService.dispose()));
+		));
 
 		let markerService = new MainProcessMarkerService(this.threadService);
 
@@ -247,6 +250,7 @@ export class WorkbenchShell {
 
 		let untitledEditorService = instantiationService.createInstance(UntitledEditorService);
 		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService);
+
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		serviceCollection.set(IEventService, this.eventService);

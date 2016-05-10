@@ -91,7 +91,7 @@ suite('TelemetryService', () => {
 			assert.equal(testAppender.getEventsCount(), 1);
 
 			service.dispose();
-			assert.equal(testAppender.isDisposed, true);
+			assert.equal(!testAppender.isDisposed, true);
 		});
 	}));
 

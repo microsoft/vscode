@@ -137,9 +137,6 @@ export class TelemetryService implements ITelemetryService {
 
 	public dispose(): void {
 		this._disposables = dispose(this._disposables);
-		for (let appender of this._configuration.appender) {
-			appender.dispose();
-		}
 	}
 
 	public timedPublicLog(name: string, data?: any): ITimerEvent {
