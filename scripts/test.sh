@@ -8,6 +8,7 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
+cd $ROOT
 pwd
 
 # Node modules
