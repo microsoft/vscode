@@ -23,8 +23,8 @@ import {Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
-let SPLIT_EDITOR_ACTION_ID = 'workbench.action.splitEditor';
-let SPLIT_EDITOR_ACTION_LABEL = nls.localize('splitEditor', "Split Editor");
+export let SPLIT_EDITOR_ACTION_ID = 'workbench.action.splitEditor';
+export let SPLIT_EDITOR_ACTION_LABEL = nls.localize('splitEditor', "Split Editor");
 export class SplitEditorAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -422,16 +422,28 @@ function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 	return null;
 }
 
+
+export let CLOSE_EDITOR_ACTION_ID = 'workbench.action.closeEditor';
+export let CLOSE_EDITOR_ACTION_LABEL = nls.localize('closeEditor', "Close Editor");
 export class CloseEditorAction extends Action {
+	private position: Position;
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
+	public setPosition(position: Position): void {
+		this.position = position;
+	}
+
 	public run(): TPromise<any> {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			return this.editorService.closeEditor(activeEditor);
+		if (types.isUndefinedOrNull(this.position)) {
+			let activeEditor = this.editorService.getActiveEditor();
+			if (activeEditor) {
+				return this.editorService.closeEditor(activeEditor);
+			}
+		} else {
+			return this.editorService.closeEditor(this.position);
 		}
 
 		return TPromise.as(false);
@@ -572,8 +584,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherEditorsActio
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SPLIT_EDITOR_ACTION_ID, SPLIT_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CycleEditorAction, CYCLE_EDITOR_ACTION_ID, CYCLE_EDITOR_ACTION_LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-	// on mac this keybinding is reserved to cycle between windows
-	mac: { primary: null }
+	mac: { primary: null } // on mac this keybinding is reserved to cycle between windows
 }), 'View: Cycle Between Opened Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstEditorAction, FOCUS_FIRST_EDITOR_ACTION_ID, FOCUS_FIRST_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus into Left Hand Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondEditorAction, FOCUS_SECOND_EDITOR_ACTION_ID, FOCUS_SECOND_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus into Side Editor', category);

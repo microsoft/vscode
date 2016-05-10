@@ -68,7 +68,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private dimension: Dimension;
 	private sideBySideControl: SideBySideEditorControl;
 	private memento: any;
-	private stacksModel:EditorStacksModel;
+	private stacksModel: EditorStacksModel;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleInputs: EditorInput[];
@@ -445,7 +445,7 @@ export class EditorPart extends Part implements IEditorPart {
 						// Set Input
 						return this.setInput(editor, input, options, position, loadingPromise);
 					});
-				}, (e: any) => this.showError(e));
+				}, (e: any) => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
 			});
 		});
 	}
@@ -734,8 +734,22 @@ export class EditorPart extends Part implements IEditorPart {
 			// Stop loading promise if any
 			loadingPromise.cancel();
 
-			// Report error
-			this.onSetInputError(e, editor, input, options, position);
+			// Report error only if this was not us restoring previous error state
+			if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
+				let errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), errors.toErrorMessage(e));
+
+				let error: any;
+				if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {
+					error = errors.create(errorMessage, { actions: (<IMessageWithAction>e).actions }); // Support error actions from thrower
+				} else {
+					error = errorMessage;
+				}
+
+				this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+			}
+
+			this.sideBySideControl.getProgressBar(position).done().getContainer().hide();
+			this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
 
 			// Recover from this error by closing the editor if the attempt of setInput failed and we are not having any previous input
 			if (!oldInput && this.visibleInputs[position] === input && input) {
@@ -1012,30 +1026,6 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.layout(this.dimension);
 
 		return sizes;
-	}
-
-	private onSetInputError(e: any, editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position): void {
-
-		// only show an error if this was not us restoring previous error state
-		if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
-			let errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), errors.toErrorMessage(e));
-
-			let error: any;
-			if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {
-				error = errors.create(errorMessage, { actions: (<IMessageWithAction>e).actions }); // Support error actions from thrower
-			} else {
-				error = errorMessage;
-			}
-
-			this.showError(error);
-		}
-
-		this.sideBySideControl.getProgressBar(position).done().getContainer().hide();
-		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
-	}
-
-	private showError(e: any): () => void {
-		return this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e);
 	}
 
 	public shutdown(): void {

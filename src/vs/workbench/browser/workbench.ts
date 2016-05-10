@@ -27,7 +27,7 @@ import {TextEditorOptions, EditorInput, EditorOptions} from 'vs/workbench/common
 import {Part} from 'vs/workbench/browser/part';
 import {HistoryService} from 'vs/workbench/services/history/browser/history';
 import {ActivitybarPart} from 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import {EditorPart} from 'vs/workbench/browser/parts/editor/editorPart2';
+import {EditorPart} from 'vs/workbench/browser/parts/editor/editorPart';
 import {SidebarPart} from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import {PanelPart} from 'vs/workbench/browser/parts/panel/panelPart';
 import {StatusbarPart} from 'vs/workbench/browser/parts/statusbar/statusbarPart';

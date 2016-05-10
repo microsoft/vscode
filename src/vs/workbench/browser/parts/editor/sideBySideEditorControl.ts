@@ -20,7 +20,7 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, IInputStatus, TextEditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, IInputStatus} from 'vs/workbench/common/editor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EventType as BaseEventType} from 'vs/base/common/events';
 import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
@@ -35,6 +35,8 @@ import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {SplitEditorAction, SPLIT_EDITOR_ACTION_ID, SPLIT_EDITOR_ACTION_LABEL, CloseEditorAction, CLOSE_EDITOR_ACTION_ID, CLOSE_EDITOR_ACTION_LABEL} from 'vs/workbench/browser/actions/triggerEditorActions';
 
 export enum Rochade {
 	NONE,
@@ -51,6 +53,7 @@ export const EventType = {
  * Helper class to manage multiple side by side editors for the editor part.
  */
 export class SideBySideEditorControl extends EventEmitter implements IVerticalSashLayoutProvider {
+
 	private static MIN_EDITOR_WIDTH = 170;
 	private static EDITOR_TITLE_HEIGHT = 35;
 	private static SNAP_TO_MINIMIZED_THRESHOLD = 50;
@@ -69,9 +72,9 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private editorInputStateDescription: Builder[];
 	private progressBar: ProgressBar[];
 	private editorActionsToolbar: ToolBar[];
-	private closeEditorAction: Action[];
 
-	private splitEditorAction: Action;
+	private closeEditorAction: CloseEditorAction[];
+	private splitEditorAction: SplitEditorAction;
 
 	private leftSash: Sash;
 	private startLeftContainerWidth: number;
@@ -97,7 +100,8 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		@IContextViewService private contextViewService: IContextViewService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IEventService private eventService: IEventService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -118,11 +122,11 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.visibleEditorContainers = [];
 		this.visibleEditorFocusTrackers = [];
 
-		this.closeEditorAction = POSITIONS.map((position) => {
-			return this.makeCloseEditorAction(position);
-		});
+		this.closeEditorAction = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CLOSE_EDITOR_ACTION_ID, CLOSE_EDITOR_ACTION_LABEL));
+		POSITIONS.map((position) => this.closeEditorAction[position].setPosition(position) || (this.closeEditorAction[position].class = 'close-editor-action'));
+		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SPLIT_EDITOR_ACTION_ID, SPLIT_EDITOR_ACTION_LABEL);
+		this.splitEditorAction.class = 'split-editor-action';
 
-		this.splitEditorAction = this.makeSplitEditorAction();
 		this.initStyles();
 
 		this.registerListeners();
@@ -134,9 +138,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private registerListeners(): void {
 
 		// Update editor input state indicators on state changes
-		this.editorInputStateChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => {
-			this.updateEditorInputStateIndicator(event);
-		});
+		this.editorInputStateChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => this.updateEditorInputStateIndicator(event));
 	}
 
 	private initStyles(): void {
@@ -157,36 +159,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title .title-label span, ' +
 			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .monaco-editor .view-lines', grabbingCursor
 		);
-	}
-
-	private makeCloseEditorAction(position: Position): Action {
-		return new Action('close.editor.action', nls.localize('close', "Close"), 'close-editor-action', true, () => {
-			return this.editorService.closeEditor(position);
-		});
-	}
-
-	private makeSplitEditorAction(): Action {
-		return new Action('split.editor.action', nls.localize('splitEditor', "Split Editor"), 'split-editor-action', true, () => {
-			let activeEditor = this.editorService.getActiveEditor();
-			let editorCount = this.getVisibleEditorCount();
-
-			// Special case: If the user wants to split the left hand editor with 2 editors open, push the center one to the right
-			if (editorCount > 1 && activeEditor.position === Position.LEFT) {
-				let centerInput = this.visibleEditors[Position.CENTER].input;
-
-				let options = new TextEditorOptions();
-				options.preserveFocus = true;
-
-				return this.editorService.openEditor(activeEditor.input, options, Position.CENTER).then(() => {
-					return this.editorService.openEditor(centerInput, options, Position.RIGHT).then(() => {
-						return this.editorService.focusEditor(Position.CENTER);
-					});
-				});
-			}
-
-			// Otherwise just continue to open to the side
-			return this.editorService.openEditor(activeEditor.input, null, true);
-		});
 	}
 
 	public show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void {
