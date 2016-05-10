@@ -26,7 +26,7 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {SideBySideEditorControl, Rochade} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
+import {SideBySideEditorControl, Rochade, ISideBySideEditorControl} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
@@ -60,7 +60,7 @@ interface IEditorState {
  */
 export class EditorPart extends Part implements IEditorPart {
 	private dimension: Dimension;
-	private sideBySideControl: SideBySideEditorControl;
+	private sideBySideControl: ISideBySideEditorControl;
 	private memento: any;
 	private stacksModel: EditorStacksModel;
 

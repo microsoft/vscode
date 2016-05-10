@@ -49,10 +49,39 @@ interface IEditorActions {
 	secondary: IAction[];
 }
 
+export interface ISideBySideEditorControl {
+
+	onEditorFocusChange: Event<void>;
+
+	show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void;
+	hide(editor: BaseEditor, container: Builder, position: Position, layoutAndRochade: boolean): Rochade;
+
+	setActive(editor: BaseEditor): void;
+
+	getActiveEditor(): BaseEditor;
+	getActivePosition(): Position;
+
+	move(from: Position, to: Position): void;
+
+	isDragging(): boolean;
+	setLoading(position: Position, input: EditorInput): void;
+	getProgressBar(position: Position): ProgressBar;
+	layout(dimension: Dimension): void;
+	layout(position: Position): void;
+
+	updateEditorTitleArea(): void;
+	clearTitle(position: Position): void;
+
+	arrangeEditors(arrangement: EditorArrangement): void;
+
+	getWidthRatios(): number[];
+	dispose(): void;
+}
+
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
-export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
+export class SideBySideEditorControl implements ISideBySideEditorControl, IVerticalSashLayoutProvider {
 
 	private static MIN_EDITOR_WIDTH = 170;
 	private static EDITOR_TITLE_HEIGHT = 35;
@@ -265,18 +294,7 @@ export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 	}
 
 	private getVisibleEditorCount(): number {
-		let c = 0;
-		this.visibleEditors.forEach((editor) => {
-			if (editor) {
-				c++;
-			}
-		});
-
-		return c;
-	}
-
-	private indexOf(editor: BaseEditor): number {
-		return this.visibleEditors.indexOf(editor);
+		return this.visibleEditors.filter(v => !!v).length;
 	}
 
 	private trackFocus(editor: BaseEditor, position: Position): void {
@@ -301,7 +319,7 @@ export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 
 		// Update active editor and position
 		if (this.lastActiveEditor !== editor) {
-			this.doSetActive(editor, this.indexOf(editor));
+			this.doSetActive(editor, this.visibleEditors.indexOf(editor));
 
 			// Automatically maximize this position if it has min editor width
 			if (this.containerWidth[this.lastActivePosition] === SideBySideEditorControl.MIN_EDITOR_WIDTH) {
