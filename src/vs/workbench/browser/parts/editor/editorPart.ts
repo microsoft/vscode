@@ -20,11 +20,10 @@ import types = require('vs/base/common/types');
 import {IEditorViewState, IEditor} from 'vs/editor/common/editorCommon';
 import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
-import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
-import {IAction} from 'vs/base/common/actions';
+import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
-import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, IEditorInputActionContext, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {SideBySideEditorControl, Rochade} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
@@ -43,11 +42,6 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 const EDITOR_STATE_STORAGE_KEY = 'editorpart.editorState';
-
-interface IEditorActions {
-	primary: IAction[];
-	secondary: IAction[];
-}
 
 interface IEditorStateEntry {
 	inputId: string;
@@ -72,12 +66,11 @@ export class EditorPart extends Part implements IEditorPart {
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleInputs: EditorInput[];
-	private visibleInputListeners: { (): void; }[];
+	private visibleInputListeners: Function[];
 	private visibleEditors: BaseEditor[];
-	private visibleEditorListeners: { (): void; }[][];
+	private visibleEditorListeners: Function[][];
 	private instantiatedEditors: BaseEditor[][];
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
-	private mapActionsToEditors: { [editorId: string]: IEditorActions; }[];
 	private mapEditorLoadingPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private mapEditorCreationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
@@ -100,38 +93,20 @@ export class EditorPart extends Part implements IEditorPart {
 		this.visibleInputListeners = [];
 		this.visibleEditors = [];
 
-		this.editorOpenToken = [];
-		for (let i = 0; i < POSITIONS.length; i++) {
-			this.editorOpenToken[i] = 0;
-		}
+		this.editorOpenToken = arrays.fill(POSITIONS.length, () => 0);
+		this.editorSetInputErrorCounter = arrays.fill(POSITIONS.length, () => 0);
 
-		this.editorSetInputErrorCounter = [];
-		for (let i = 0; i < POSITIONS.length; i++) {
-			this.editorSetInputErrorCounter[i] = 0;
-		}
+		this.visibleEditorListeners = arrays.fill(POSITIONS.length, () => []);
+		this.instantiatedEditors = arrays.fill(POSITIONS.length, () => []);
 
-		this.visibleEditorListeners = this.createPositionArray(true);
-		this.instantiatedEditors = this.createPositionArray(true);
-
-		this.mapEditorToEditorContainers = this.createPositionArray(false);
-		this.mapActionsToEditors = this.createPositionArray(false);
-		this.mapEditorLoadingPromiseToEditor = this.createPositionArray(false);
-		this.mapEditorCreationPromiseToEditor = this.createPositionArray(false);
+		this.mapEditorToEditorContainers = arrays.fill(POSITIONS.length, () => Object.create(null));
+		this.mapEditorLoadingPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
+		this.mapEditorCreationPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
 
 		this.pendingEditorInputsToClose = [];
 		this.pendingEditorInputCloseTimeout = null;
 
 		this.stacksModel = this.instantiationService.createInstance(EditorStacksModel);
-	}
-
-	private createPositionArray(multiArray: boolean): any[] {
-		let array: any[] = [];
-
-		for (let i = 0; i < POSITIONS.length; i++) {
-			array[i] = multiArray ? [] : {};
-		}
-
-		return array;
 	}
 
 	public getStacksModel(): EditorStacksModel {
@@ -616,7 +591,6 @@ export class EditorPart extends Part implements IEditorPart {
 			this.doRochade(this.visibleEditorListeners, from, to, []);
 			this.doRochade(this.instantiatedEditors, from, to, []);
 			this.doRochade(this.mapEditorToEditorContainers, from, to, {});
-			this.doRochade(this.mapActionsToEditors, from, to, {});
 		}
 	}
 
@@ -643,10 +617,9 @@ export class EditorPart extends Part implements IEditorPart {
 		arrays.move(this.mapEditorCreationPromiseToEditor, from, to);
 		arrays.move(this.instantiatedEditors, from, to);
 		arrays.move(this.mapEditorToEditorContainers, from, to);
-		arrays.move(this.mapActionsToEditors, from, to);
 
 		// Update all title areas
-		this.updateEditorTitleArea();
+		this.sideBySideControl.updateEditorTitleArea();
 
 		// Restore focus
 		let activeEditor = this.sideBySideControl.getActiveEditor();
@@ -692,7 +665,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// in that case notify others about the input change event as well as to make sure that the
 				// editor title area is up to date.
 				if (this.visibleInputs[position] && this.visibleInputs[position].matches(input)) {
-					this.updateEditorTitleArea();
+					this.sideBySideControl.updateEditorTitleArea();
 					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), this.visibleInputs[position], options, position));
 				}
 
@@ -714,7 +687,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Update Title Area if input changed
 			if (inputChanged) {
-				this.updateEditorTitleArea();
+				this.sideBySideControl.updateEditorTitleArea();
 			}
 
 			// Emit Input-Changed Event (if input changed)
@@ -821,71 +794,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 			return editor;
 		});
-	}
-
-	private updateEditorTitleArea(): void {
-		let activePosition = this.sideBySideControl.getActivePosition();
-
-		// Update each position individually
-		for (let i = 0; i < POSITIONS.length; i++) {
-			let editor = this.visibleEditors[i];
-			let input = editor ? editor.input : null;
-
-			if (input && editor) {
-				this.doUpdateEditorTitleArea(editor, input, i, activePosition === i);
-			}
-		}
-	}
-
-	private doUpdateEditorTitleArea(editor: BaseEditor, input: EditorInput, position: Position, isActive?: boolean): void {
-		let primaryActions: IAction[] = [];
-		let secondaryActions: IAction[] = [];
-
-		// Handle toolbar only if side is active
-		if (isActive) {
-
-			// Handle Editor Actions
-			let editorActions = this.mapActionsToEditors[position][editor.getId()];
-			if (!editorActions) {
-				editorActions = this.getEditorActionsForContext(editor, editor, position);
-				this.mapActionsToEditors[position][editor.getId()] = editorActions;
-			}
-
-			primaryActions.push(...editorActions.primary);
-			secondaryActions.push(...editorActions.secondary);
-
-			// Handle Editor Input Actions
-			let editorInputActions = this.getEditorActionsForContext({ input: input, editor: editor, position: position }, editor, position);
-
-			primaryActions.push(...editorInputActions.primary);
-			secondaryActions.push(...editorInputActions.secondary);
-		}
-
-		// Apply to title in side by side control
-		this.sideBySideControl.setTitle(position, input, prepareActions(primaryActions), prepareActions(secondaryActions), isActive);
-	}
-
-	private getEditorActionsForContext(context: BaseEditor, editor: BaseEditor, position: Position): IEditorActions;
-	private getEditorActionsForContext(context: IEditorInputActionContext, editor: BaseEditor, position: Position): IEditorActions;
-	private getEditorActionsForContext(context: any, editor: BaseEditor, position: Position): IEditorActions {
-		let primaryActions: IAction[] = [];
-		let secondaryActions: IAction[] = [];
-
-		// From Editor
-		if (context instanceof BaseEditor) {
-			primaryActions.push(...(<BaseEditor>context).getActions());
-			secondaryActions.push(...(<BaseEditor>context).getSecondaryActions());
-		}
-
-		// From Contributions
-		let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
-		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(Scope.EDITOR, context));
-		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.EDITOR, context));
-
-		return {
-			primary: primaryActions,
-			secondary: secondaryActions
-		};
 	}
 
 	public createContentArea(parent: Builder): Builder {
@@ -1014,7 +922,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Update Title Area
-		this.updateEditorTitleArea();
+		this.sideBySideControl.updateEditorTitleArea();
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
@@ -1076,7 +984,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 	public dispose(): void {
 		this.mapEditorToEditorContainers = null;
-		this.mapActionsToEditors = null;
 
 		// Reset Tokens
 		this.editorOpenToken = [];

@@ -8,7 +8,7 @@
 import 'vs/css!./media/sidebyside';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
-import {Scope, IActionBarRegistry, Extensions} from 'vs/workbench/browser/actionBarRegistry';
+import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import Event, {Emitter} from 'vs/base/common/event';
@@ -19,7 +19,7 @@ import types = require('vs/base/common/types');
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, IInputStatus} from 'vs/workbench/common/editor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EventType as BaseEventType} from 'vs/base/common/events';
@@ -42,6 +42,11 @@ export enum Rochade {
 	CENTER_TO_LEFT,
 	RIGHT_TO_CENTER,
 	CENTER_AND_RIGHT_TO_LEFT
+}
+
+interface IEditorActions {
+	primary: IAction[];
+	secondary: IAction[];
 }
 
 /**
@@ -67,6 +72,8 @@ export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 	private editorInputStateDescription: Builder[];
 	private progressBar: ProgressBar[];
 	private editorActionsToolbar: ToolBar[];
+
+	private mapActionsToEditors: { [editorId: string]: IEditorActions; }[];
 
 	private closeEditorAction: CloseEditorAction[];
 	private splitEditorAction: SplitEditorAction;
@@ -114,6 +121,8 @@ export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 		this.visibleEditors = [];
 		this.visibleEditorContainers = [];
 		this.visibleEditorFocusTrackers = [];
+
+		this.mapActionsToEditors = arrays.fill(POSITIONS.length, () => Object.create(null));
 
 		this._onEditorFocusChange = new Emitter<void>();
 
@@ -518,13 +527,18 @@ export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 
 		// Change data structures
 		let listeners = this.visibleEditorFocusTrackers[from];
-		this.visibleEditorContainers[to] = editorContainer;
-		this.visibleEditors[to] = editor;
 		this.visibleEditorFocusTrackers[to] = listeners;
-
-		this.visibleEditorContainers[from] = null;
-		this.visibleEditors[from] = null;
 		this.visibleEditorFocusTrackers[from] = null;
+
+		this.visibleEditorContainers[to] = editorContainer;
+		this.visibleEditorContainers[from] = null;
+
+		this.visibleEditors[to] = editor;
+		this.visibleEditors[from] = null;
+
+		let actions = this.mapActionsToEditors[from];
+		this.mapActionsToEditors[to] = actions;
+		this.mapActionsToEditors[from] = null;
 
 		// Update last active position
 		if (this.lastActivePosition === from) {
@@ -614,6 +628,7 @@ export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorFocusTrackers, from, to);
 		arrays.move(this.containerWidth, from, to);
+		arrays.move(this.mapActionsToEditors, from, to);
 
 		// Layout
 		if (!this.leftSash.isHidden()) {
@@ -767,6 +782,71 @@ export class SideBySideEditorControl implements IVerticalSashLayoutProvider {
 		}
 
 		return false;
+	}
+
+	public updateEditorTitleArea(): void {
+		let activePosition = this.lastActivePosition;
+
+		// Update each position individually
+		for (let i = 0; i < POSITIONS.length; i++) {
+			let editor = this.visibleEditors[i];
+			let input = editor ? editor.input : null;
+
+			if (input && editor) {
+				this.doUpdateEditorTitleArea(editor, input, i, activePosition === i);
+			}
+		}
+	}
+
+	private doUpdateEditorTitleArea(editor: BaseEditor, input: EditorInput, position: Position, isActive?: boolean): void {
+		let primaryActions: IAction[] = [];
+		let secondaryActions: IAction[] = [];
+
+		// Handle toolbar only if side is active
+		if (isActive) {
+
+			// Handle Editor Actions
+			let editorActions = this.mapActionsToEditors[position][editor.getId()];
+			if (!editorActions) {
+				editorActions = this.getEditorActionsForContext(editor, editor, position);
+				this.mapActionsToEditors[position][editor.getId()] = editorActions;
+			}
+
+			primaryActions.push(...editorActions.primary);
+			secondaryActions.push(...editorActions.secondary);
+
+			// Handle Editor Input Actions
+			let editorInputActions = this.getEditorActionsForContext({ input: input, editor: editor, position: position }, editor, position);
+
+			primaryActions.push(...editorInputActions.primary);
+			secondaryActions.push(...editorInputActions.secondary);
+		}
+
+		// Apply to title in side by side control
+		this.setTitle(position, input, prepareActions(primaryActions), prepareActions(secondaryActions), isActive);
+	}
+
+	private getEditorActionsForContext(context: BaseEditor, editor: BaseEditor, position: Position): IEditorActions;
+	private getEditorActionsForContext(context: IEditorInputActionContext, editor: BaseEditor, position: Position): IEditorActions;
+	private getEditorActionsForContext(context: any, editor: BaseEditor, position: Position): IEditorActions {
+		let primaryActions: IAction[] = [];
+		let secondaryActions: IAction[] = [];
+
+		// From Editor
+		if (context instanceof BaseEditor) {
+			primaryActions.push(...(<BaseEditor>context).getActions());
+			secondaryActions.push(...(<BaseEditor>context).getSecondaryActions());
+		}
+
+		// From Contributions
+		let actionBarRegistry = <IActionBarRegistry>Registry.as(Extensions.Actionbar);
+		primaryActions.push(...actionBarRegistry.getActionBarActionsForContext(Scope.EDITOR, context));
+		secondaryActions.push(...actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.EDITOR, context));
+
+		return {
+			primary: primaryActions,
+			secondary: secondaryActions
+		};
 	}
 
 	private fillTitleArea(parent: Builder, position: Position): void {
