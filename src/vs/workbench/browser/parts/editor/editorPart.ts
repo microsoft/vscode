@@ -53,6 +53,19 @@ interface IEditorState {
 	widthRatio: number[];
 }
 
+class ProgressMonitor {
+
+	constructor(private _token: number, private progressPromise: TPromise<void>) { }
+
+	public get token(): number {
+		return this._token;
+	}
+
+	public cancel(): void {
+		this.progressPromise.cancel();
+	}
+}
+
 /**
  * TODO@stacks
  * - need to listen to any input dispose that is opened in a stack not just the visible one to close a non active editor
@@ -193,30 +206,28 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 		});
 
-		// Do ref counting on editor open to prevent race conditions
+		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
 		const editorOpenToken = this.editorOpenToken[position];
-
-		// Progress Indication
-		let loadingPromise: TPromise<void> = TPromise.timeout(this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */).then(() => {
+		const monitor = new ProgressMonitor(editorOpenToken, TPromise.timeout(this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */).then(() => {
 			if (editorOpenToken === this.editorOpenToken[position]) {
 				this.sideBySideControl.getProgressBar(position).infinite().getContainer().show();
 				this.sideBySideControl.setLoading(position, input);
 			}
-		});
+		}));
 
 		// Show editor
-		return this.doShowEditor(editorDescriptor, input, options, position, widthRatios, loadingPromise, editorOpenToken).then(editor => {
+		return this.doShowEditor(editorDescriptor, input, options, position, widthRatios, monitor).then(editor => {
 			if (!editor) {
 				return TPromise.as<BaseEditor>(null); // canceled or other error
 			}
 
 			// Set input to editor
-			this.setInput(editor, input, options, position, loadingPromise);
+			this.doSetInput(editor, input, options, position, monitor);
 		});
 	}
 
-	private doShowEditor(editorDescriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[], loadingPromise: TPromise<void>, editorOpenToken: number): TPromise<BaseEditor> {
+	private doShowEditor(editorDescriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
 
 		// Return early if the currently visible editor can handle the input
 		if (this.visibleEditors[position] && editorDescriptor.describes(this.visibleEditors[position])) {
@@ -267,7 +278,7 @@ export class EditorPart extends Part implements IEditorPart {
 					let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), editorDescriptor.getId(), true);
 					let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 
-					loadOrGetEditorPromise = editorInstantiationService.createInstance(editorDescriptor).then((editor:BaseEditor) => {
+					loadOrGetEditorPromise = editorInstantiationService.createInstance(editorDescriptor).then((editor: BaseEditor) => {
 						loaded = true;
 						this.instantiatedEditors[position].push(editor);
 						delete this.mapEditorLoadingPromiseToEditor[position][editorDescriptor.getId()];
@@ -291,11 +302,11 @@ export class EditorPart extends Part implements IEditorPart {
 			return loadOrGetEditorPromise.then((editor) => {
 
 				// Make sure that the user meanwhile did not open another editor
-				if (editorOpenToken !== this.editorOpenToken[position]) {
+				if (monitor.token !== this.editorOpenToken[position]) {
 					timerEvent.stop();
 
 					// Stop loading promise if any
-					loadingPromise.cancel();
+					monitor.cancel();
 
 					return null;
 				}
@@ -346,7 +357,7 @@ export class EditorPart extends Part implements IEditorPart {
 						timerEvent.stop();
 
 						// Stop loading promise if any
-						loadingPromise.cancel();
+						monitor.cancel();
 
 						return null;
 					}
@@ -407,45 +418,7 @@ export class EditorPart extends Part implements IEditorPart {
 		return TPromise.as<BaseEditor>(null);
 	}
 
-	private rochade(rochade: Rochade): void;
-	private rochade(from: Position, to: Position): void;
-	private rochade(arg1: any, arg2?: any): void {
-		if (types.isUndefinedOrNull(arg2)) {
-			let rochade = <Rochade>arg1;
-			switch (rochade) {
-				case Rochade.CENTER_TO_LEFT:
-					this.rochade(Position.CENTER, Position.LEFT);
-					break;
-				case Rochade.RIGHT_TO_CENTER:
-					this.rochade(Position.RIGHT, Position.CENTER);
-					break;
-				case Rochade.CENTER_AND_RIGHT_TO_LEFT:
-					this.rochade(Position.CENTER, Position.LEFT);
-					this.rochade(Position.RIGHT, Position.CENTER);
-					break;
-			}
-		} else {
-			let from = <Position>arg1;
-			let to = <Position>arg2;
-
-			this.doRochade(this.visibleInputs, from, to, null);
-			this.doRochade(this.visibleInputListeners, from, to, null);
-			this.doRochade(this.visibleEditors, from, to, null);
-			this.doRochade(this.editorOpenToken, from, to, null);
-			this.doRochade(this.mapEditorLoadingPromiseToEditor, from, to, Object.create(null));
-			this.doRochade(this.mapEditorCreationPromiseToEditor, from, to, Object.create(null));
-			this.doRochade(this.visibleEditorListeners, from, to, []);
-			this.doRochade(this.instantiatedEditors, from, to, []);
-			this.doRochade(this.mapEditorToEditorContainers, from, to, Object.create(null));
-		}
-	}
-
-	private doRochade(array: any[], from: Position, to: Position, empty: any): void {
-		array[to] = array[from];
-		array[from] = empty;
-	}
-
-	private setInput(editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, loadingPromise: TPromise<void>): TPromise<BaseEditor> {
+	private doSetInput(editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): TPromise<BaseEditor> {
 
 		// Emit Input-/Options-Changed Event as appropiate
 		let oldInput = editor.getInput();
@@ -465,7 +438,7 @@ export class EditorPart extends Part implements IEditorPart {
 			this.editorSetInputErrorCounter[position] = 0;
 
 			// Stop loading promise if any
-			loadingPromise.cancel();
+			monitor.cancel();
 
 			// Make sure that the user meanwhile has not opened another input
 			if (this.visibleInputs[position] !== input) {
@@ -520,7 +493,7 @@ export class EditorPart extends Part implements IEditorPart {
 			this.editorSetInputErrorCounter[position]++;
 
 			// Stop loading promise if any
-			loadingPromise.cancel();
+			monitor.cancel();
 
 			// Report error only if this was not us restoring previous error state
 			if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
@@ -915,6 +888,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 
 
+
+
+
 	//
 	// --- Helpers
 	//
@@ -1030,5 +1006,43 @@ export class EditorPart extends Part implements IEditorPart {
 				this.pendingEditorInputsToClose = [];
 			}, 0);
 		}
+	}
+
+	private rochade(rochade: Rochade): void;
+	private rochade(from: Position, to: Position): void;
+	private rochade(arg1: any, arg2?: any): void {
+		if (types.isUndefinedOrNull(arg2)) {
+			let rochade = <Rochade>arg1;
+			switch (rochade) {
+				case Rochade.CENTER_TO_LEFT:
+					this.rochade(Position.CENTER, Position.LEFT);
+					break;
+				case Rochade.RIGHT_TO_CENTER:
+					this.rochade(Position.RIGHT, Position.CENTER);
+					break;
+				case Rochade.CENTER_AND_RIGHT_TO_LEFT:
+					this.rochade(Position.CENTER, Position.LEFT);
+					this.rochade(Position.RIGHT, Position.CENTER);
+					break;
+			}
+		} else {
+			let from = <Position>arg1;
+			let to = <Position>arg2;
+
+			this.doRochade(this.visibleInputs, from, to, null);
+			this.doRochade(this.visibleInputListeners, from, to, null);
+			this.doRochade(this.visibleEditors, from, to, null);
+			this.doRochade(this.editorOpenToken, from, to, null);
+			this.doRochade(this.mapEditorLoadingPromiseToEditor, from, to, Object.create(null));
+			this.doRochade(this.mapEditorCreationPromiseToEditor, from, to, Object.create(null));
+			this.doRochade(this.visibleEditorListeners, from, to, []);
+			this.doRochade(this.instantiatedEditors, from, to, []);
+			this.doRochade(this.mapEditorToEditorContainers, from, to, Object.create(null));
+		}
+	}
+
+	private doRochade(array: any[], from: Position, to: Position, empty: any): void {
+		array[to] = array[from];
+		array[from] = empty;
 	}
 }
