@@ -151,14 +151,6 @@ export function toObject<T,R>(arr: T[], keyMap: (T) => string, valueMap: (T) => 
 	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: valueMap(d) }), Object.create(null));
 }
 
-/**
- * Returns a new object that has all values of {{obj}}
- * plus those from {{defaults}}.
- */
-export function withDefaults<T>(obj: T, defaults: T): T {
-	return mixin(clone(defaults), obj || {});
-}
-
 export function equals(one: any, other: any): boolean {
 	if (one === other) {
 		return true;
