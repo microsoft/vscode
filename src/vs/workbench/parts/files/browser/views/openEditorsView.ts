@@ -16,10 +16,11 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
+import {EditorInput} from 'vs/workbench/common/editor';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {Renderer, DataSource, Controller} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 
 const $ = dom.emmet;
@@ -104,6 +105,11 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private registerListeners(): void {
 
 		// update on model changes
+		this.toDispose.push(this.model.onGroupActivated(e => this.onEditorGroupUpdated(e)));
+		this.toDispose.push(this.model.onGroupClosed(e => this.onEditorGroupUpdated(e)));
+		this.toDispose.push(this.model.onGroupMoved(e => this.onEditorGroupUpdated(e)));
+		this.toDispose.push(this.model.onGroupOpened(e => this.onEditorGroupUpdated(e)));
+		this.toDispose.push(this.model.onGroupRenamed(e => this.onEditorGroupUpdated(e)));
 
 		// listen to untitled
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledFileDirty()));
@@ -117,6 +123,36 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		// Also handle configuration updates
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+	}
+
+	private onEditorGroupUpdated(e: IEditorGroup): void {
+		if (this.isDisposed) {
+			return;
+		}
+
+		// View size
+		this.expandedBodySize = this.getExpandedBodySize(this.model);
+
+		if (this.tree) {
+			// Show in tree
+			this.tree.refresh().done(null, errors.onUnexpectedError);
+
+			// Make sure to keep active editor input highlighted
+			if (this.model.activeGroup) {
+				this.highlightEntry(this.model.activeGroup.activeEditor);
+			}
+		}
+	}
+
+	private highlightEntry(entry: EditorInput): void {
+		this.tree.clearFocus();
+		this.tree.clearSelection();
+
+		if (entry) {
+			this.tree.setFocus(entry);
+			this.tree.setSelection([entry]);
+			this.tree.reveal(entry).done(null, errors.onUnexpectedError);
+		}
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
