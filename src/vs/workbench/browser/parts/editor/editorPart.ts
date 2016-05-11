@@ -25,7 +25,7 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {SideBySideEditorControl, Rochade, ISideBySideEditorControl} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
+import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
@@ -212,7 +212,7 @@ export class EditorPart extends Part implements IEditorPart {
 		const editorOpenToken = this.editorOpenToken[position];
 		const monitor = new ProgressMonitor(editorOpenToken, TPromise.timeout(this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */).then(() => {
 			if (editorOpenToken === this.editorOpenToken[position]) {
-				this.sideBySideControl.getProgressBar(position).infinite().getContainer().show();
+				this.sideBySideControl.updateProgress(position, ProgressState.INFINITE);
 				this.sideBySideControl.setLoading(position, input);
 			}
 		}));
@@ -423,15 +423,14 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			// Progress Done
-			this.sideBySideControl.getProgressBar(position).done().getContainer().hide();
+			this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
-			// Update Title Area if input changed
 			if (inputChanged) {
+
+				// Update Title Area if input changed
 				this.sideBySideControl.updateEditorTitleArea();
-			}
 
-			// Emit Input-Changed Event (if input changed)
-			if (inputChanged) {
+				// Emit Input-Changed Event (if input changed)
 				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), input, options, position));
 			}
 
@@ -439,48 +438,52 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Fullfill promise with Editor that is being used
 			return editor;
-		}, (e: any) => {
 
-			// Keep counter
-			this.editorSetInputErrorCounter[position]++;
+		}, (e: any) => this.doHandleSetInputError(e, editor, input, oldInput, options, position, monitor));
+	}
 
-			// Stop loading promise if any
-			monitor.cancel();
+	private doHandleSetInputError(e: Error | IMessageWithAction, editor: BaseEditor, input: EditorInput, oldInput: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): void {
 
-			// Report error only if this was not us restoring previous error state
-			if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
-				let errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), errors.toErrorMessage(e));
+		// Keep counter
+		this.editorSetInputErrorCounter[position]++;
 
-				let error: any;
-				if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {
-					error = errors.create(errorMessage, { actions: (<IMessageWithAction>e).actions }); // Support error actions from thrower
-				} else {
-					error = errorMessage;
-				}
+		// Stop loading promise if any
+		monitor.cancel();
 
-				this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+		// Report error only if this was not us restoring previous error state
+		if (this.partService.isCreated() && !errors.isPromiseCanceledError(e)) {
+			let errorMessage = nls.localize('editorOpenError', "Unable to open '{0}': {1}.", input.getName(), errors.toErrorMessage(e));
+
+			let error: any;
+			if (e && (<IMessageWithAction>e).actions && (<IMessageWithAction>e).actions.length) {
+				error = errors.create(errorMessage, { actions: (<IMessageWithAction>e).actions }); // Support error actions from thrower
+			} else {
+				error = errorMessage;
 			}
 
-			this.sideBySideControl.getProgressBar(position).done().getContainer().hide();
-			this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
+			this.messageService.show(Severity.Error, types.isString(error) ? new Error(error) : error);
+		}
 
-			// Recover from this error by closing the editor if the attempt of setInput failed and we are not having any previous input
-			if (!oldInput && this.visibleInputs[position] === input && input) {
-				this.openEditor(null, null, position).done(null, errors.onUnexpectedError);
-			}
+		this.sideBySideControl.updateProgress(position, ProgressState.DONE);
+		
+		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
 
-			// We need to check our error counter here to prevent reentrant setInput() calls. If the workbench is in error state
-			// to the disk, opening a file would fail and we would try to open the previous file which would fail too. So we
-			// stop trying to open a previous file if we detect that we failed more than once already
-			else if (this.editorSetInputErrorCounter[position] > 1) {
-				this.openEditor(null, null, position).done(null, errors.onUnexpectedError);
-			}
+		// Recover from this error by closing the editor if the attempt of setInput failed and we are not having any previous input
+		if (!oldInput && this.visibleInputs[position] === input && input) {
+			this.openEditor(null, null, position).done(null, errors.onUnexpectedError);
+		}
 
-			// Otherwise if we had oldInput, properly restore it so that the active input points to the previous one
-			else if (oldInput) {
-				this.openEditor(oldInput, null, position).done(null, errors.onUnexpectedError);
-			}
-		});
+		// We need to check our error counter here to prevent reentrant setInput() calls. If the workbench is in error state
+		// to the disk, opening a file would fail and we would try to open the previous file which would fail too. So we
+		// stop trying to open a previous file if we detect that we failed more than once already
+		else if (this.editorSetInputErrorCounter[position] > 1) {
+			this.openEditor(null, null, position).done(null, errors.onUnexpectedError);
+		}
+
+		// Otherwise if we had oldInput, properly restore it so that the active input points to the previous one
+		else if (oldInput) {
+			this.openEditor(oldInput, null, position).done(null, errors.onUnexpectedError);
+		}
 	}
 
 	private doCloseEditor(input: EditorInput, position: Position): TPromise<BaseEditor> {
@@ -525,7 +528,7 @@ export class EditorPart extends Part implements IEditorPart {
 		let rochade = this.sideBySideControl.hide(editor, editorContainer, position, layoutAndRochade);
 
 		// Clear any running Progress
-		this.sideBySideControl.getProgressBar(position).stop().getContainer().hide();
+		this.sideBySideControl.updateProgress(position, ProgressState.STOP);
 
 		// Clear Listeners
 		while (this.visibleEditorListeners[position].length) {
@@ -672,7 +675,7 @@ export class EditorPart extends Part implements IEditorPart {
 			if (editorState && editorState.editors) {
 
 				// Find inputs to restore
-				let registry = (<IEditorRegistry>Registry.as(EditorExtensions.Editors));
+				let registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
 				let inputs: EditorInput[] = [];
 
 				widthRatios = editorState.widthRatio;
@@ -791,7 +794,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private saveEditorState(): void {
-		let registry = (<IEditorRegistry>Registry.as(EditorExtensions.Editors));
+		let registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
 		let editors = this.getVisibleEditors();
 		let activeEditor = this.getActiveEditor();
 

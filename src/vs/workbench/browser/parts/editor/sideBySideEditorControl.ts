@@ -44,6 +44,12 @@ export enum Rochade {
 	CENTER_AND_RIGHT_TO_LEFT
 }
 
+export enum ProgressState {
+	INFINITE,
+	DONE,
+	STOP
+}
+
 interface IEditorActions {
 	primary: IAction[];
 	secondary: IAction[];
@@ -64,8 +70,12 @@ export interface ISideBySideEditorControl {
 	move(from: Position, to: Position): void;
 
 	isDragging(): boolean;
+
 	setLoading(position: Position, input: EditorInput): void;
+
 	getProgressBar(position: Position): ProgressBar;
+	updateProgress(position: Position, state: ProgressState): void;
+
 	layout(dimension: Dimension): void;
 	layout(position: Position): void;
 
@@ -1212,7 +1222,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		return actionItem;
 	}
 
-	public setTitle(position: Position, input: EditorInput, primaryActions: IAction[], secondaryActions: IAction[], isActive: boolean): void {
+	private setTitle(position: Position, input: EditorInput, primaryActions: IAction[], secondaryActions: IAction[], isActive: boolean): void {
 
 		// Activity class
 		if (isActive) {
@@ -1238,11 +1248,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.titleDescription[position].title(verboseDescription);
 
 		// Editor Input State Description
-		if (input) {
-			this.setEditorInputStateIndicator(input, input.getStatus(), position);
-		} else {
-			this.setEditorInputStateIndicator(null, null, null);
-		}
+		this.setEditorInputStateIndicator(input, input.getStatus(), position);
 
 		// Support split editor action if visible editor count is < 3 and editor supports it
 		if (isActive && this.getVisibleEditorCount() < 3 && this.lastActiveEditor.supportsSplitEditor()) {
@@ -1253,9 +1259,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.editorActionsToolbar[position].setActions(primaryActions, secondaryActions)();
 
 		// Add a close action
-		if (input) {
-			this.editorActionsToolbar[position].addPrimaryAction(this.closeEditorAction[position])();
-		}
+		this.editorActionsToolbar[position].addPrimaryAction(this.closeEditorAction[position])();
 	}
 
 	public setLoading(position: Position, input: EditorInput): void {
@@ -1268,9 +1272,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.editorActionsToolbar[position].setActions([], [])();
 
 		// Add a close action
-		if (input) {
-			this.editorActionsToolbar[position].addPrimaryAction(this.closeEditorAction[position])();
-		}
+		this.editorActionsToolbar[position].addPrimaryAction(this.closeEditorAction[position])();
 	}
 
 	public clearTitle(position: Position): void {
@@ -1595,6 +1597,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	public getProgressBar(position: Position): ProgressBar {
 		return this.progressBar[position];
+	}
+
+	public updateProgress(position: Position, state: ProgressState): void {
+		switch (state) {
+			case ProgressState.INFINITE:
+				this.progressBar[position].infinite().getContainer().show();
+				break;
+			case ProgressState.DONE:
+				this.progressBar[position].done().getContainer().hide();
+				break;
+			case ProgressState.STOP:
+				this.progressBar[position].stop().getContainer().hide();
+				break;
+		}
 	}
 
 	public dispose(): void {
