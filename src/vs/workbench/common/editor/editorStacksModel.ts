@@ -696,6 +696,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public setActive(group: EditorGroup): void {
+		if (this.active === group) {
+			return;
+		}
+
 		this.active = group;
 
 		this._onGroupActivated.fire(this.active);

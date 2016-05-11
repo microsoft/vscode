@@ -38,7 +38,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 
 const EDITOR_STATE_STORAGE_KEY = 'editorpart.editorState';
 
@@ -417,10 +417,18 @@ export class EditorPart extends Part implements IEditorPart {
 				return editor;
 			}
 
+			const preserveFocus = options && options.preserveFocus;
+			const pinned = options && options.pinned;
+			const index = options && options.index;
+
 			// Focus (unless prevented)
-			if (!options || !options.preserveFocus) {
+			if (!preserveFocus) {
 				editor.focus();
 			}
+
+			// Update stacks
+			const group = this.ensureGroup(position, !preserveFocus);
+			group.openEditor(input, { active: true, pinned, index });
 
 			// Progress Done
 			this.sideBySideControl.updateProgress(position, ProgressState.DONE);
@@ -1021,5 +1029,18 @@ export class EditorPart extends Part implements IEditorPart {
 	private doRochade(array: any[], from: Position, to: Position, empty: any): void {
 		array[to] = array[from];
 		array[from] = empty;
+	}
+
+	private ensureGroup(position: Position, activate = true): EditorGroup {
+		let group = this.stacksModel.groups[position];
+		if (!group) {
+			group = this.stacksModel.openGroup(position === Position.LEFT ? nls.localize('leftGroup', "Left") : position === Position.CENTER ? nls.localize('centerGroup', "Center") : nls.localize('rightGroup', "Right"), activate);
+		}
+
+		if (activate) {
+			this.stacksModel.setActive(group);
+		}
+
+		return group;
 	}
 }
