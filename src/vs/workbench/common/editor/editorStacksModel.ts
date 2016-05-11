@@ -28,6 +28,7 @@ export interface IEditorGroup {
 	onEditorMoved: Event<EditorInput>;
 	onEditorPinned: Event<EditorInput>;
 	onEditorUnpinned: Event<EditorInput>;
+	onEditorChanged: Event<EditorInput>;
 
 	getEditors(mru?: boolean): EditorInput[];
 	isActive(editor: EditorInput): boolean;
@@ -54,6 +55,7 @@ export interface IEditorStacksModel {
 	onGroupActivated: Event<IEditorGroup>;
 	onGroupMoved: Event<IEditorGroup>;
 	onGroupRenamed: Event<IEditorGroup>;
+	onModelChanged: Event<IEditorGroup>;
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
@@ -127,6 +129,7 @@ export class EditorGroup implements IEditorGroup {
 	private _onEditorMoved: Emitter<EditorInput>;
 	private _onEditorPinned: Emitter<EditorInput>;
 	private _onEditorUnpinned: Emitter<EditorInput>;
+	private _onEditorChanged: Emitter<EditorInput>;
 
 	constructor(
 		arg1: string | ISerializedEditorGroup,
@@ -150,8 +153,9 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorMoved = new Emitter<EditorInput>();
 		this._onEditorPinned = new Emitter<EditorInput>();
 		this._onEditorUnpinned = new Emitter<EditorInput>();
+		this._onEditorChanged = new Emitter<EditorInput>();
 
-		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned);
+		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorChanged);
 	}
 
 	public get id(): GroupIdentifier {
@@ -192,6 +196,10 @@ export class EditorGroup implements IEditorGroup {
 
 	public get onEditorUnpinned(): Event<EditorInput> {
 		return this._onEditorUnpinned.event;
+	}
+
+	public get onEditorChanged(): Event<EditorInput> {
+		return this._onEditorChanged.event;
 	}
 
 	public getEditors(mru?: boolean): EditorInput[] {
@@ -261,7 +269,7 @@ export class EditorGroup implements IEditorGroup {
 			}
 
 			// Event
-			this._onEditorOpened.fire(editor);
+			this.fireEvent(this._onEditorOpened, editor);
 
 			// Handle active
 			if (makeActive) {
@@ -318,7 +326,7 @@ export class EditorGroup implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		this._onEditorClosed.fire(editor);
+		this.fireEvent(this._onEditorClosed, editor);
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {
@@ -365,7 +373,7 @@ export class EditorGroup implements IEditorGroup {
 		this.editors.splice(toIndex, 0, editor);
 
 		// Event
-		this._onEditorMoved.fire(editor);
+		this.fireEvent(this._onEditorMoved, editor);
 	}
 
 	public setActive(editor: EditorInput): void {
@@ -384,7 +392,7 @@ export class EditorGroup implements IEditorGroup {
 		this.setMostRecentlyUsed(editor);
 
 		// Event
-		this._onEditorActivated.fire(editor);
+		this.fireEvent(this._onEditorActivated, editor);
 	}
 
 	public pin(editor: EditorInput): void {
@@ -396,7 +404,7 @@ export class EditorGroup implements IEditorGroup {
 		this.preview = null;
 
 		// Event
-		this._onEditorPinned.fire(editor);
+		this.fireEvent(this._onEditorPinned, editor);
 	}
 
 	public unpin(editor: EditorInput): void {
@@ -409,7 +417,7 @@ export class EditorGroup implements IEditorGroup {
 		this.preview = editor;
 
 		// Event
-		this._onEditorUnpinned.fire(editor);
+		this.fireEvent(this._onEditorUnpinned, editor);
 
 		// Close old preview editor if any
 		this.closeEditor(oldPreview);
@@ -426,6 +434,11 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		return !this.matches(this.preview, editor);
+	}
+
+	private fireEvent(emitter: Emitter<EditorInput>, editor: EditorInput): void {
+		emitter.fire(editor);
+		this._onEditorChanged.fire(editor);
 	}
 
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
@@ -559,6 +572,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupMoved: Emitter<EditorGroup>;
 	private _onGroupActivated: Emitter<EditorGroup>;
 	private _onGroupRenamed: Emitter<EditorGroup>;
+	private _onModelChanged: Emitter<EditorGroup>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -575,8 +589,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupActivated = new Emitter<EditorGroup>();
 		this._onGroupMoved = new Emitter<EditorGroup>();
 		this._onGroupRenamed = new Emitter<EditorGroup>();
+		this._onModelChanged = new Emitter<EditorGroup>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved, this._onGroupRenamed);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged);
 
 		this.registerListeners();
 	}
@@ -605,6 +620,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._onGroupRenamed.event;
 	}
 
+	public get onModelChanged(): Event<EditorGroup> {
+		return this._onModelChanged.event;
+	}
+
 	public get groups(): EditorGroup[] {
 		this.ensureLoaded();
 
@@ -626,7 +645,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	public openGroup(label: string, activate = true): EditorGroup {
 		this.ensureLoaded();
 
-		const group = this.instantiationService.createInstance(EditorGroup, label);
+		const group = this.doCreateGroup(label);
 
 		// First group
 		if (!this._activeGroup) {
@@ -641,7 +660,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.groupToIdentifier[group.id] = group;
 
 		// Event
-		this._onGroupOpened.fire(group);
+		this.fireEvent(this._onGroupOpened, group);
 
 		// Activate if we are first or set to activate groups
 		if (!this._activeGroup || activate) {
@@ -655,7 +674,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.ensureLoaded();
 
 		group.label = label;
-		this._onGroupRenamed.fire(group);
+		this.fireEvent(this._onGroupRenamed, group);
 	}
 
 	public closeGroup(group: EditorGroup): void {
@@ -696,7 +715,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.groupToIdentifier[group.id] = void 0;
 
 		// Event
-		this._onGroupClosed.fire(group);
+		this.fireEvent(this._onGroupClosed, group);
 	}
 
 	public closeGroups(except?: EditorGroup): void {
@@ -720,7 +739,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		this._activeGroup = group;
 
-		this._onGroupActivated.fire(this._activeGroup);
+		this.fireEvent(this._onGroupActivated, group);
 	}
 
 	public moveGroup(group: EditorGroup, toIndex: number): void {
@@ -736,7 +755,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._groups.splice(toIndex, 0, group);
 
 		// Event
-		this._onGroupMoved.fire(group);
+		this.fireEvent(this._onGroupMoved, group);
 	}
 
 	private indexOf(group: EditorGroup): number {
@@ -784,6 +803,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.storageService.store(EditorStacksModel.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE);
 	}
 
+	private fireEvent(emitter: Emitter<EditorGroup>, group: EditorGroup): void {
+		emitter.fire(group);
+		this._onModelChanged.fire(group);
+	}
+
 	private ensureLoaded(): void {
 		if (!this.loaded) {
 			this.loaded = true;
@@ -796,10 +820,24 @@ export class EditorStacksModel implements IEditorStacksModel {
 		if (modelRaw) {
 			const serialized: ISerializedEditorStacksModel = JSON.parse(modelRaw);
 
-			this._groups = serialized.groups.map(s => this.instantiationService.createInstance(EditorGroup, s));
+			this._groups = serialized.groups.map(s => this.doCreateGroup(s));
 			this._activeGroup = this._groups[serialized.active];
 			this._groups.forEach(g => this.groupToIdentifier[g.id] = g);
 		}
+	}
+
+	private doCreateGroup(arg1: string | ISerializedEditorGroup): EditorGroup {
+		const group = this.instantiationService.createInstance(EditorGroup, arg1);
+
+		// Funnel editor changes in the group through our event aggregator
+		const l1 = group.onEditorChanged(e => this._onModelChanged.fire(group));
+		const l2 = this.onGroupClosed(g => {
+			if (g === group) {
+				dispose(l1, l2);
+			}
+		});
+
+		return group;
 	}
 
 	private onShutdown(): void {

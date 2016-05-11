@@ -240,6 +240,41 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups[2], group1);
 	});
 
+	test('Groups - Event Aggregation', function () {
+		const model = create();
+
+		let groupEvents:IEditorGroup[] = [];
+		let count = groupEvents.length;
+		model.onModelChanged(group => {
+			groupEvents.push(group);
+		});
+
+
+		const first = model.openGroup('first');
+		assert.ok(groupEvents.length > count);
+		count = groupEvents.length;
+
+		const second = model.openGroup('second');
+		assert.ok(groupEvents.length > count);
+		count = groupEvents.length;
+
+		model.renameGroup(second, 'renamed');
+		assert.ok(groupEvents.length > count);
+		count = groupEvents.length;
+
+		const input1 = input();
+		first.openEditor(input1);
+		assert.ok(groupEvents.length > count);
+		count = groupEvents.length;
+
+		first.closeEditor(input1);
+		assert.ok(groupEvents.length > count);
+		count = groupEvents.length;
+
+		model.closeGroup(second);
+		assert.ok(groupEvents.length > count);
+	});
+
 	test('Groups - Open group but do not set active', function () {
 		const model = create();
 		const events = modelListener(model);
