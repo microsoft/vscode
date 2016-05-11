@@ -5,6 +5,7 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
+import {RunOnceScheduler} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IActionRunner} from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
@@ -20,7 +21,7 @@ import {EditorInput} from 'vs/workbench/common/editor';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {Renderer, DataSource, Controller} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 
 const $ = dom.emmet;
@@ -38,6 +39,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
 	private lastDirtyCount: number;
+	private updateTreeScheduler: RunOnceScheduler;
 
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IMessageService messageService: IMessageService,
@@ -53,6 +55,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.settings = settings;
 		this.model = editorService.getStacksModel();
 		this.lastDirtyCount = 0;
+		this.updateTreeScheduler = new RunOnceScheduler(() => this.updateTree(), 0);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -105,11 +108,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private registerListeners(): void {
 
 		// update on model changes
-		this.toDispose.push(this.model.onGroupActivated(e => this.onEditorGroupUpdated(e)));
-		this.toDispose.push(this.model.onGroupClosed(e => this.onEditorGroupUpdated(e)));
-		this.toDispose.push(this.model.onGroupMoved(e => this.onEditorGroupUpdated(e)));
-		this.toDispose.push(this.model.onGroupOpened(e => this.onEditorGroupUpdated(e)));
-		this.toDispose.push(this.model.onGroupRenamed(e => this.onEditorGroupUpdated(e)));
+		this.toDispose.push(this.model.onModelChanged(e => this.updateTreeScheduler.schedule()));
 
 		// listen to untitled
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledFileDirty()));
@@ -125,7 +124,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
-	private onEditorGroupUpdated(e: IEditorGroup): void {
+	private updateTree(): void {
 		if (this.isDisposed) {
 			return;
 		}
