@@ -79,6 +79,11 @@ class ProgressMonitor {
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
  */
 export class EditorPart extends Part implements IEditorPart {
+
+	private static GROUP_LEFT_LABEL = nls.localize('leftGroup', "Left");
+	private static GROUP_CENTER_LABEL = nls.localize('centerGroup', "Center");
+	private static GROUP_RIGHT_LABEL = nls.localize('rightGroup', "Right");
+
 	private dimension: Dimension;
 	private sideBySideControl: ISideBySideEditorControl;
 	private memento: any;
@@ -1068,7 +1073,20 @@ export class EditorPart extends Part implements IEditorPart {
 	private ensureGroup(position: Position, activate = true): EditorGroup {
 		let group = this.getGroup(position);
 		if (!group) {
-			group = this.stacksModel.openGroup(position === Position.LEFT ? nls.localize('leftGroup', "Left") : position === Position.CENTER ? nls.localize('centerGroup', "Center") : nls.localize('rightGroup', "Right"), activate);
+			let label: string;
+			switch (position) {
+				case Position.LEFT:
+					label = EditorPart.GROUP_LEFT_LABEL;
+					break;
+				case Position.CENTER:
+					label = EditorPart.GROUP_RIGHT_LABEL;
+					break;
+				case Position.RIGHT:
+					this.getGroup(Position.CENTER).label = EditorPart.GROUP_CENTER_LABEL; // opening at Position RIGHT makes previous right => center
+					label = EditorPart.GROUP_RIGHT_LABEL;
+			}
+
+			group = this.stacksModel.openGroup(label, activate);
 		}
 
 		if (activate) {
