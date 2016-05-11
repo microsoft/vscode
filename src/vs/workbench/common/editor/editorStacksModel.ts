@@ -642,17 +642,22 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this.groupToIdentifier[id];
 	}
 
-	public openGroup(label: string, activate = true): EditorGroup {
+	public openGroup(label: string, activate = true, index?: number): EditorGroup {
 		this.ensureLoaded();
 
 		const group = this.doCreateGroup(label);
 
+		// Direct index provided
+		if (typeof index === 'number') {
+			this._groups[index] = group;
+		}
+
 		// First group
-		if (!this._activeGroup) {
+		else if (!this._activeGroup) {
 			this._groups.push(group);
 		}
 
-		// Subsequent group (add to the right of active)
+		// Subsequent group (open to the right of active one)
 		else {
 			this._groups.splice(this.indexOf(this._activeGroup) + 1, 0, group);
 		}

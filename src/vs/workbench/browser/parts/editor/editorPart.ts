@@ -778,10 +778,10 @@ export class EditorPart extends Part implements IEditorPart {
 		const editor = this.visibleEditors[position];
 		if (editor) {
 
-			// Model
+			// Update stacks model
 			this.stacksModel.setActive(this.getGroup(position));
 
-			// UI
+			// Update UI
 			this.sideBySideControl.setActive(editor);
 		}
 	}
@@ -1073,19 +1073,18 @@ export class EditorPart extends Part implements IEditorPart {
 	private ensureGroup(position: Position, activate = true): EditorGroup {
 		let group = this.getGroup(position);
 		if (!group) {
-			let label: string;
-			switch (position) {
-				case Position.LEFT:
-					label = EditorPart.GROUP_LEFT_LABEL;
-					break;
-				case Position.CENTER:
-					label = EditorPart.GROUP_RIGHT_LABEL;
-					break;
-				case Position.RIGHT:
-					label = EditorPart.GROUP_RIGHT_LABEL;
+
+			// Race condition: it could be that someone quickly opens editors one after
+			// the other and we are asked to open an editor in position 2 before position
+			// 1 was opened. Therefor we must ensure that all groups are created up to
+			// the point where we are asked for.
+			for (let i = 0; i < position; i++) {
+				if (!this.hasGroup(i)) {
+					this.stacksModel.openGroup('', false, i);
+				}
 			}
 
-			group = this.stacksModel.openGroup(label, activate);
+			group = this.stacksModel.openGroup('', activate, position);
 			this.updateGroupLabels();
 		}
 
@@ -1123,5 +1122,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private getGroup(position: Position): EditorGroup {
 		return this.stacksModel.groups[position];
+	}
+
+	private hasGroup(position: Position): boolean {
+		return !!this.getGroup(position);
 	}
 }

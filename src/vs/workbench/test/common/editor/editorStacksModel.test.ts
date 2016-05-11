@@ -312,6 +312,18 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.getGroup(group3.id), null);
 	});
 
+	test('Groups - Open Group at Index', function () {
+		const model = create();
+
+		const group1 = model.openGroup('first', false, 2);
+		const group2 = model.openGroup('second', false, 1);
+		const group3 = model.openGroup('third', false, 0);
+
+		assert.equal(model.groups[0], group3);
+		assert.equal(model.groups[1], group2);
+		assert.equal(model.groups[2], group1);
+	});
+
 	test('Groups - Close All Groups except active', function () {
 		const model = create();
 
