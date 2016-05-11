@@ -422,17 +422,17 @@ export class EditorPart extends Part implements IEditorPart {
 				return editor;
 			}
 
-			const preserveFocus = options && options.preserveFocus;
+			const focus = !options || !options.preserveFocus;
 			const pinned = options && options.pinned;
 			const index = options && options.index;
 
 			// Focus (unless prevented)
-			if (!preserveFocus) {
+			if (focus) {
 				editor.focus();
 			}
 
 			// Update stacks
-			const group = this.ensureGroup(position, !preserveFocus);
+			const group = this.ensureGroup(position, focus);
 			group.openEditor(input, { active: true, pinned, index });
 
 			// Progress Done
@@ -531,6 +531,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Update stacks model
 			this.stacksModel.closeGroup(group);
+			this.updateGroupLabels();
 
 			// Emit Input-Changed Event
 			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
@@ -1047,7 +1048,6 @@ export class EditorPart extends Part implements IEditorPart {
 				case Rochade.CENTER_AND_RIGHT_TO_LEFT:
 					this.rochade(Position.CENTER, Position.LEFT);
 					this.rochade(Position.RIGHT, Position.CENTER);
-					break;
 			}
 		} else {
 			let from = <Position>arg1;
@@ -1082,11 +1082,11 @@ export class EditorPart extends Part implements IEditorPart {
 					label = EditorPart.GROUP_RIGHT_LABEL;
 					break;
 				case Position.RIGHT:
-					this.getGroup(Position.CENTER).label = EditorPart.GROUP_CENTER_LABEL; // opening at Position RIGHT makes previous right => center
 					label = EditorPart.GROUP_RIGHT_LABEL;
 			}
 
 			group = this.stacksModel.openGroup(label, activate);
+			this.updateGroupLabels();
 		}
 
 		if (activate) {
@@ -1094,6 +1094,31 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		return group;
+	}
+
+	private updateGroupLabels(): void {
+		const groups = this.stacksModel.groups;
+		if (!groups.length) {
+			return;
+		}
+
+		// LEFT | CENTER | RIGHT
+		if (groups.length > 2) {
+			this.stacksModel.renameGroup(this.getGroup(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+			this.stacksModel.renameGroup(this.getGroup(Position.CENTER), EditorPart.GROUP_CENTER_LABEL);
+			this.stacksModel.renameGroup(this.getGroup(Position.RIGHT), EditorPart.GROUP_RIGHT_LABEL);
+		}
+
+		// LEFT | RIGHT
+		else if (groups.length > 1) {
+			this.stacksModel.renameGroup(this.getGroup(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+			this.stacksModel.renameGroup(this.getGroup(Position.CENTER), EditorPart.GROUP_RIGHT_LABEL);
+		}
+
+		// LEFT
+		else {
+			this.stacksModel.renameGroup(this.getGroup(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+		}
 	}
 
 	private getGroup(position: Position): EditorGroup {

@@ -673,8 +673,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 	public renameGroup(group: EditorGroup, label: string): void {
 		this.ensureLoaded();
 
+		if (group.label !== label) {
 		group.label = label;
 		this.fireEvent(this._onGroupRenamed, group);
+	}
 	}
 
 	public closeGroup(group: EditorGroup): void {
