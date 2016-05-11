@@ -306,34 +306,25 @@ export class EditorPart extends Part implements IEditorPart {
 			// Register as Emitter to Workbench Bus
 			this.visibleEditorListeners[position].push(this.eventService.addEmitter(this.visibleEditors[position], this.visibleEditors[position].getId()));
 
-			let createEditorPromise: TPromise<any>;
-			if (newlyCreatedEditorContainerBuilder) { // Editor created for the first time
-				let created = false;
-				createEditorPromise = editor.create(newlyCreatedEditorContainerBuilder).then(() => {
-					created = true;
-					delete this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
-				}, (error) => {
-					created = true;
-					delete this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
-
-					return TPromise.wrapError(error);
-				});
-
-				if (!created) {
-					this.mapEditorCreationPromiseToEditor[position][descriptor.getId()] = createEditorPromise;
-				}
+			// Editor already created or pending to be created, just return it
+			if (!newlyCreatedEditorContainerBuilder) {
+				return (this.mapEditorCreationPromiseToEditor[position][descriptor.getId()] || TPromise.as(null)).then(() => editor);
 			}
 
-			// Editor already exists but is hidden or pending to create
-			else {
+			// Otherwise Editor needs to be created()
+			let created = false;
+			let createEditorPromise = editor.create(newlyCreatedEditorContainerBuilder).then(() => {
+				created = true;
+				delete this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
+			}, (error) => {
+				created = true;
+				delete this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
 
-				// Check if create is pending from another openEditor
-				let pendingEditorCreate = this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
-				if (pendingEditorCreate) {
-					createEditorPromise = pendingEditorCreate;
-				} else {
-					createEditorPromise = TPromise.as(null);
-				}
+				return TPromise.wrapError(error);
+			});
+
+			if (!created) {
+				this.mapEditorCreationPromiseToEditor[position][descriptor.getId()] = createEditorPromise.then(() => editor);
 			}
 
 			return createEditorPromise.then(() => editor);
