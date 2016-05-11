@@ -178,3 +178,13 @@ function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
 		next ? (<TextDiffEditor>candidates[0]).getDiffNavigator().next() : (<TextDiffEditor>candidates[0]).getDiffNavigator().previous();
 	}
 }
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_workbench.printStacksModel',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor) {
+		console.log(`\n${accessor.get(IWorkbenchEditorService).getStacksModel().toString()}\n`);
+	},
+	when: undefined,
+	primary: undefined
+});

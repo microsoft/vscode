@@ -60,6 +60,8 @@ export interface IEditorStacksModel {
 
 	getGroup(id: GroupIdentifier): IEditorGroup;
 
+	toString(): string;
+
 	// --- Modifying:
 
 	// openGroup(label: string, activate: boolean): IEditorGroup;
@@ -549,8 +551,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private loaded: boolean;
 
 	private _groups: EditorGroup[];
+	private _activeGroup: EditorGroup;
 	private groupToIdentifier: { [id: number]: EditorGroup };
-	private active: EditorGroup;
 
 	private _onGroupOpened: Emitter<EditorGroup>;
 	private _onGroupClosed: Emitter<EditorGroup>;
@@ -612,7 +614,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	public get activeGroup(): EditorGroup {
 		this.ensureLoaded();
 
-		return this.active;
+		return this._activeGroup;
 	}
 
 	public getGroup(id: GroupIdentifier): EditorGroup {
@@ -627,13 +629,13 @@ export class EditorStacksModel implements IEditorStacksModel {
 		const group = this.instantiationService.createInstance(EditorGroup, label);
 
 		// First group
-		if (!this.active) {
+		if (!this._activeGroup) {
 			this._groups.push(group);
 		}
 
 		// Subsequent group (add to the right of active)
 		else {
-			this._groups.splice(this.indexOf(this.active) + 1, 0, group);
+			this._groups.splice(this.indexOf(this._activeGroup) + 1, 0, group);
 		}
 
 		this.groupToIdentifier[group.id] = group;
@@ -642,7 +644,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupOpened.fire(group);
 
 		// Activate if we are first or set to activate groups
-		if (!this.active || activate) {
+		if (!this._activeGroup || activate) {
 			this.setActive(group);
 		}
 
@@ -665,7 +667,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}
 
 		// Active group closed: Find a new active one to the right
-		if (group === this.active) {
+		if (group === this._activeGroup) {
 
 			// More than one group
 			if (this._groups.length > 1) {
@@ -681,7 +683,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 			// One group
 			else {
-				this.active = null;
+				this._activeGroup = null;
 			}
 		}
 
@@ -701,24 +703,24 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.ensureLoaded();
 
 		// Optimize: close all non active groups first to produce less upstream work
-		this.groups.filter(g => g !== this.active && g !== except).forEach(g => this.closeGroup(g));
+		this.groups.filter(g => g !== this._activeGroup && g !== except).forEach(g => this.closeGroup(g));
 
 		// Close active unless configured to skip
-		if (this.active !== except) {
-			this.closeGroup(this.active);
+		if (this._activeGroup !== except) {
+			this.closeGroup(this._activeGroup);
 		}
 	}
 
 	public setActive(group: EditorGroup): void {
 		this.ensureLoaded();
 
-		if (this.active === group) {
+		if (this._activeGroup === group) {
 			return;
 		}
 
-		this.active = group;
+		this._activeGroup = group;
 
-		this._onGroupActivated.fire(this.active);
+		this._onGroupActivated.fire(this._activeGroup);
 	}
 
 	public moveGroup(group: EditorGroup, toIndex: number): void {
@@ -742,7 +744,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private save(): void {
-		let activeIndex = this.indexOf(this.active);
+		let activeIndex = this.indexOf(this._activeGroup);
 		let activeIsEmptyGroup = false;
 
 		let serializedGroups = this._groups.map(g => g.serialize());
@@ -795,7 +797,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 			const serialized: ISerializedEditorStacksModel = JSON.parse(modelRaw);
 
 			this._groups = serialized.groups.map(s => this.instantiationService.createInstance(EditorGroup, s));
-			this.active = this._groups[serialized.active];
+			this._activeGroup = this._groups[serialized.active];
 			this._groups.forEach(g => this.groupToIdentifier[g.id] = g);
 		}
 	}
@@ -804,5 +806,33 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.save();
 
 		dispose(this.toDispose);
+	}
+
+	public toString(): string {
+		const lines: string[] = [];
+
+		this.groups.forEach(g => {
+			if (this._activeGroup === g) {
+				lines.push(`Group: ${g.label}`);
+			} else {
+				lines.push(`Group: ${g.label} [active]`);
+			}
+
+			g.getEditors().forEach(e => {
+				let label = `\t${e.getName()}`;
+
+				if (g.previewEditor === e) {
+					label = `${label} [preview]`;
+				}
+
+				if (g.activeEditor === e) {
+					label = `${label} [active]`;
+				}
+
+				lines.push(label);
+			});
+		});
+
+		return lines.join('\n');
 	}
 }
