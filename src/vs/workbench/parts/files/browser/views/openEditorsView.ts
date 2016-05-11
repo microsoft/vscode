@@ -17,7 +17,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
-import {EditorInput} from 'vs/workbench/common/editor';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -143,21 +142,21 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 			// Make sure to keep active editor input highlighted
 			if (this.model.activeGroup) {
-				this.highlightEntry(this.model.activeGroup.activeEditor);
+				// this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
 			}
 		}
 	}
 
-	private highlightEntry(entry: EditorInput): void {
-		this.tree.clearFocus();
-		this.tree.clearSelection();
+	// private highlightEntry(entry: OpenEditor): void {
+	// 	this.tree.clearFocus();
+	// 	this.tree.clearSelection();
 
-		if (entry) {
-			this.tree.setFocus(entry);
-			this.tree.setSelection([entry]);
-			this.tree.reveal(entry).done(null, errors.onUnexpectedError);
-		}
-	}
+	// 	if (entry) {
+	// 		this.tree.setFocus(entry);
+	// 		this.tree.setSelection([entry]);
+	// 		this.tree.reveal(entry).done(null, errors.onUnexpectedError);
+	// 	}
+	// }
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
 		// TODO@isidor change configuration name
