@@ -53,6 +53,7 @@ export interface IEditorStacksModel {
 	onGroupClosed: Event<IEditorGroup>;
 	onGroupActivated: Event<IEditorGroup>;
 	onGroupMoved: Event<IEditorGroup>;
+	onGroupRenamed: Event<IEditorGroup>;
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
@@ -62,6 +63,8 @@ export interface IEditorStacksModel {
 	// --- Modifying:
 
 	// openGroup(label: string): IEditorGroup;
+
+	// renameGroup(group: IEditorGroup, newLabel: string): void
 
 	// closeGroup(group: IEditorGroup): void;
 	// closeGroups(except?: IEditorGroup): void;
@@ -155,6 +158,10 @@ export class EditorGroup implements IEditorGroup {
 
 	public get label(): string {
 		return this._label;
+	}
+
+	public set label(label: string) {
+		this._label = label;
 	}
 
 	public get count(): number {
@@ -547,6 +554,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupClosed: Emitter<EditorGroup>;
 	private _onGroupMoved: Emitter<EditorGroup>;
 	private _onGroupActivated: Emitter<EditorGroup>;
+	private _onGroupRenamed: Emitter<EditorGroup>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -562,8 +570,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupClosed = new Emitter<EditorGroup>();
 		this._onGroupActivated = new Emitter<EditorGroup>();
 		this._onGroupMoved = new Emitter<EditorGroup>();
+		this._onGroupRenamed = new Emitter<EditorGroup>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved, this._onGroupRenamed);
 
 		this.load();
 		this.registerListeners();
@@ -587,6 +596,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	public get onGroupMoved(): Event<EditorGroup> {
 		return this._onGroupMoved.event;
+	}
+
+	public get onGroupRenamed(): Event<EditorGroup> {
+		return this._onGroupRenamed.event;
 	}
 
 	public get groups(): EditorGroup[] {
@@ -623,6 +636,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.setActive(group);
 
 		return group;
+	}
+
+	public renameGroup(group: EditorGroup, label: string): void {
+		group.label = label;
+		this._onGroupRenamed.fire(group);
 	}
 
 	public closeGroup(group: EditorGroup): void {

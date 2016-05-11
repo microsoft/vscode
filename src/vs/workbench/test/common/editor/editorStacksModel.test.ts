@@ -32,6 +32,7 @@ interface ModelEvents {
 	activated: IEditorGroup[];
 	closed: IEditorGroup[];
 	moved: IEditorGroup[];
+	renamed: IEditorGroup[];
 }
 
 interface GroupEvents {
@@ -48,13 +49,15 @@ function modelListener(model: IEditorStacksModel): ModelEvents {
 		opened: [],
 		activated: [],
 		closed: [],
-		moved: []
+		moved: [],
+		renamed: []
 	};
 
 	model.onGroupOpened(g => modelEvents.opened.push(g));
 	model.onGroupActivated(g => modelEvents.activated.push(g));
 	model.onGroupClosed(g => modelEvents.closed.push(g));
 	model.onGroupMoved(g => modelEvents.moved.push(g));
+	model.onGroupRenamed(g => modelEvents.renamed.push(g));
 
 	return modelEvents;
 }
@@ -200,6 +203,19 @@ suite('Editor Stacks Model', () => {
 	});
 
 	test('Groups - Move Groups', function () {
+		const model = create();
+		const events = modelListener(model);
+
+		model.openGroup('first');
+		const group2 = model.openGroup('second');
+
+		model.renameGroup(group2, 'renamed');
+
+		assert.equal(group2.label, 'renamed');
+		assert.equal(group2, events.renamed[0]);
+	});
+
+	test('Groups - Rename Group', function () {
 		const model = create();
 		const events = modelListener(model);
 
