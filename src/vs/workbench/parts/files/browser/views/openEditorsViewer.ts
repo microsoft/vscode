@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import tree = require('vs/base/parts/tree/browser/tree');
@@ -156,5 +157,16 @@ export class Controller extends treedefaults.DefaultController {
 		}
 
 		return super.onEnter(tree, event);
+	}
+}
+
+export class AccessibilityProvider implements tree.IAccessibilityProvider {
+
+	getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof EditorGroup) {
+			return nls.localize('editorGroupAriaLabel', "{0}, Editor Group", (<EditorGroup>element).label);
+		}
+
+		return nls.localize('openEditorAriaLabel', "{0}, Open Editor", (<OpenEditor>element).getName());
 	}
 }
