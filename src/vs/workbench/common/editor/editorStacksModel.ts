@@ -835,7 +835,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 			// TODO@stacks remove this once stacks are stable; prevent bad stored state
 			const invalidId = this.validate(serialized);
 			if (invalidId) {
-				console.warn('Ignoring invalid stacks model', serialized, invalidId);
+				console.warn(`Ignoring invalid stacks model (Error code: ${invalidId}): ${JSON.stringify(serialized)}`);
+				console.warn(serialized);
 				return;
 			}
 
