@@ -505,7 +505,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.editorSetInputErrorCounter[position] = 0;
 
 		// Update stacks model
-		const group = this.stacksModel.getGroup(position);
+		const group = this.getGroup(position);
 		group.closeEditor(group.activeEditor); // TODO@stacks allow to close any non active editor
 
 		// Close group is this is the last editor in group
