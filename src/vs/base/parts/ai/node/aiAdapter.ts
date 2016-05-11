@@ -54,16 +54,17 @@ export class AIAdapter {
 
 	constructor(
 		private _eventPrefix: string,
-		private _additionalDataToLog: () => TPromise<{ [key: string]: any }>,
-		clientFactoryOrAiKey: (() => typeof appInsights.client) | string // allow factory function for testing
+		private _defaultData: { [key: string]: any },
+		aiKeyOrClientFactory: string | (() => typeof appInsights.client) // allow factory function for testing
 	) {
-		if (!this._additionalDataToLog) {
-			this._additionalDataToLog = () => TPromise.as(undefined);
+		if (!this._defaultData) {
+			this._defaultData = Object.create(null);
 		}
-		if (typeof clientFactoryOrAiKey === 'string') {
-			this._aiClient = AI.getClient(clientFactoryOrAiKey);
-		} else if (typeof clientFactoryOrAiKey === 'function') {
-			this._aiClient = clientFactoryOrAiKey();
+
+		if (typeof aiKeyOrClientFactory === 'string') {
+			this._aiClient = AI.getClient(aiKeyOrClientFactory);
+		} else if (typeof aiKeyOrClientFactory === 'function') {
+			this._aiClient = aiKeyOrClientFactory();
 		}
 	}
 
@@ -133,15 +134,9 @@ export class AIAdapter {
 		if (!this._aiClient) {
 			return;
 		}
-		this._additionalDataToLog().then(additionalData => {
-			return mixin(data, additionalData);
-		}, err => {
-			console.error(err); // ignore?
-			return data;
-		}).done(data => {
-			let {properties, measurements} = AIAdapter._getData(data);
-			this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
-		});
+		data = mixin(data, this._defaultData);
+		let {properties, measurements} = AIAdapter._getData(data);
+		this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
 	}
 
 	public dispose(): TPromise<any> {

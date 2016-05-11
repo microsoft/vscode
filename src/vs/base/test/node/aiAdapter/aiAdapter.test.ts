@@ -62,7 +62,7 @@ suite('AIAdapter', () => {
 	});
 
 	test('addional data', () => {
-		adapter = new AIAdapter(prefix, () => TPromise.as({ first: '1st', second: 2, third: true }), () => appInsightsMock);
+		adapter = new AIAdapter(prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
 		adapter.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 1);
