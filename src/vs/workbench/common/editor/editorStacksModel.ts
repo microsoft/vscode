@@ -546,6 +546,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	private toDispose: IDisposable[];
 
+	private loaded: boolean;
+
 	private _groups: EditorGroup[];
 	private groupToIdentifier: { [id: number]: EditorGroup };
 	private active: EditorGroup;
@@ -574,7 +576,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved, this._onGroupRenamed);
 
-		this.load();
 		this.registerListeners();
 	}
 
@@ -603,18 +604,26 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public get groups(): EditorGroup[] {
+		this.ensureLoaded();
+
 		return this._groups.slice(0);
 	}
 
 	public get activeGroup(): EditorGroup {
+		this.ensureLoaded();
+
 		return this.active;
 	}
 
 	public getGroup(id: GroupIdentifier): EditorGroup {
+		this.ensureLoaded();
+
 		return this.groupToIdentifier[id];
 	}
 
 	public openGroup(label: string, activate = true): EditorGroup {
+		this.ensureLoaded();
+
 		const group = this.instantiationService.createInstance(EditorGroup, label);
 
 		// First group
@@ -641,11 +650,15 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public renameGroup(group: EditorGroup, label: string): void {
+		this.ensureLoaded();
+
 		group.label = label;
 		this._onGroupRenamed.fire(group);
 	}
 
 	public closeGroup(group: EditorGroup): void {
+		this.ensureLoaded();
+
 		const index = this.indexOf(group);
 		if (index < 0) {
 			return; // group does not exist
@@ -685,6 +698,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public closeGroups(except?: EditorGroup): void {
+		this.ensureLoaded();
 
 		// Optimize: close all non active groups first to produce less upstream work
 		this.groups.filter(g => g !== this.active && g !== except).forEach(g => this.closeGroup(g));
@@ -696,6 +710,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public setActive(group: EditorGroup): void {
+		this.ensureLoaded();
+
 		if (this.active === group) {
 			return;
 		}
@@ -706,6 +722,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public moveGroup(group: EditorGroup, toIndex: number): void {
+		this.ensureLoaded();
+
 		const index = this.indexOf(group);
 		if (index < 0) {
 			return;
@@ -762,6 +780,13 @@ export class EditorStacksModel implements IEditorStacksModel {
 		};
 
 		this.storageService.store(EditorStacksModel.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE);
+	}
+
+	private ensureLoaded(): void {
+		if (!this.loaded) {
+			this.loaded = true;
+			this.load();
+		}
 	}
 
 	private load(): void {
