@@ -499,11 +499,33 @@ export class EditorPart extends Part implements IEditorPart {
 		// Reset counter
 		this.editorSetInputErrorCounter[position] = 0;
 
+		// Update model
+		const group = this.stacksModel.groups[position];
+		group.closeEditor(group.activeEditor); // TODO@stacks allow to close any non active editor
+
+		// Close group is this is the last editor in group
+		if (group.count === 0) {
+			return this.doCloseGroup(group, editor, position);
+		}
+
+		// Otherwise open next active
+		return this.openEditor(group.activeEditor, null, editor.position).then(null, (error) => {
+
+			// in case of an error, continue closing
+			this.doCloseEditor(editor, position);
+		});
+	}
+
+	private doCloseGroup(group: EditorGroup, editor: BaseEditor, position: Position): TPromise<void> {
+
 		// Emit Input-Changing Event
 		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
 
 		// Hide Editor
 		return this.doHideEditor(editor, position, true).then(() => {
+
+			// Update model
+			this.stacksModel.closeGroup(group);
 
 			// Emit Input-Changed Event
 			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
