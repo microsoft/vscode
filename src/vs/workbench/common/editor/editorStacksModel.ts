@@ -816,11 +816,13 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}
 
 		this.groups.forEach(g => {
+			let label = `Group: ${g.label}`;
+
 			if (this._activeGroup === g) {
-				lines.push(`Group: ${g.label}`);
-			} else {
-				lines.push(`Group: ${g.label} [active]`);
+				label = `${label} [active]`;
 			}
+
+			lines.push(label);
 
 			g.getEditors().forEach(e => {
 				let label = `\t${e.getName()}`;
