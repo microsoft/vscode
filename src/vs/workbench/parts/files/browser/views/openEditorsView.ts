@@ -139,7 +139,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			if (treeInput !== this.tree.getInput()) {
 				this.tree.setInput(treeInput).done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
 			} else {
-				this.tree.refresh().done(null, errors.onUnexpectedError);
+				this.tree.refresh().done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
 			}
 
 			// Make sure to keep active editor input highlighted
