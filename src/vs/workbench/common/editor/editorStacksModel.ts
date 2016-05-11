@@ -514,6 +514,7 @@ export class EditorGroup implements IEditorGroup {
 		// from mru, active and preview if any.
 		let serializableEditors: EditorInput[] = [];
 		let serializedEditors: ISerializedEditorInput[] = [];
+		let serializablePreviewIndex: number;
 		this.editors.forEach(e => {
 			let factory = registry.getEditorInputFactory(e.getId());
 			if (factory) {
@@ -521,17 +522,21 @@ export class EditorGroup implements IEditorGroup {
 				if (typeof value === 'string') {
 					serializedEditors.push({ id: e.getId(), value });
 					serializableEditors.push(e);
+
+					if (this.preview === e) {
+						serializablePreviewIndex = serializableEditors.length - 1;
+					}
 				}
 			}
 		});
 
-		const serializableMru = this.mru.filter(e => serializableEditors.indexOf(e) >= 0).map(e => serializableEditors.indexOf(e));
+		const serializableMru = this.mru.map(e => serializableEditors.indexOf(e)).filter(i => i >= 0);
 
 		return {
 			label: this.label,
 			editors: serializedEditors,
 			mru: serializableMru,
-			preview: serializableEditors.indexOf(this.preview),
+			preview: serializablePreviewIndex,
 		};
 	}
 
@@ -679,9 +684,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.ensureLoaded();
 
 		if (group.label !== label) {
-		group.label = label;
-		this.fireEvent(this._onGroupRenamed, group);
-	}
+			group.label = label;
+			this.fireEvent(this._onGroupRenamed, group);
+		}
 	}
 
 	public closeGroup(group: EditorGroup): void {
@@ -774,7 +779,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		let activeIsEmptyGroup = false;
 
 		let serializedGroups = this._groups.map(g => g.serialize());
-		let serializableActiveIndex = activeIndex;
 
 		// Exclude now empty groups (can happen if an editor cannot be serialized)
 		let serializedNonEmptyGroups: ISerializedEditorGroup[] = [];
@@ -794,11 +798,12 @@ export class EditorStacksModel implements IEditorStacksModel {
 		serializedGroups = serializedNonEmptyGroups;
 
 		// Determine serializable active index
+		let serializableActiveIndex;
 		if (activeIsEmptyGroup && serializedGroups.length > 0) {
 			serializableActiveIndex = 0; // just make first group active if active is empty and we have other groups to pick from
 		} else if (activeIsEmptyGroup) {
 			serializableActiveIndex = void 0; // there are no groups to make active
-		} else {
+		} else if (activeIndex >= 0) {
 			serializableActiveIndex = activeIndex; // active group is not empty and can be serialized
 		}
 
@@ -827,10 +832,49 @@ export class EditorStacksModel implements IEditorStacksModel {
 		if (modelRaw) {
 			const serialized: ISerializedEditorStacksModel = JSON.parse(modelRaw);
 
+			// TODO@stacks remove this once stacks are stable; prevent bad stored state
+			const invalidId = this.validate(serialized);
+			if (invalidId) {
+				console.warn('Ignoring invalid stacks model', serialized, invalidId);
+				return;
+			}
+
 			this._groups = serialized.groups.map(s => this.doCreateGroup(s));
 			this._activeGroup = this._groups[serialized.active];
 			this._groups.forEach(g => this.groupToIdentifier[g.id] = g);
 		}
+	}
+
+	private validate(serialized: ISerializedEditorStacksModel): number {
+		if (!serialized.groups.length && typeof serialized.active === 'number') {
+			return 1; // Invalid active (we have no groups, but an active one)
+		}
+
+		if (serialized.groups.length && !serialized.groups[serialized.active]) {
+			return 2; // Invalid active (we cannot find the active one in group)
+		}
+
+		if (serialized.groups.length > 3) {
+			return 3; // Too many groups
+		}
+
+		if (serialized.groups.some(g => !g.editors.length)) {
+			return 4; // Some empty groups
+		}
+
+		if (serialized.groups.some(g => g.editors.length !== g.mru.length)) {
+			return 5; // MRU out of sync with editors
+		}
+
+		if (serialized.groups.some(g => typeof g.preview === 'number' && !g.editors[g.preview])) {
+			return 6; // Invalid preview editor
+		}
+
+		if (serialized.groups.some(g => !g.label)) {
+			return 7; // Group without label
+		}
+
+		return 0;
 	}
 
 	private doCreateGroup(arg1: string | ISerializedEditorGroup): EditorGroup {
