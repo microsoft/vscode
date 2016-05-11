@@ -5,7 +5,6 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {AIAdapter} from 'vs/base/parts/ai/node/aiAdapter';
 
 interface IAppInsightsEvent {
