@@ -505,7 +505,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.editorSetInputErrorCounter[position] = 0;
 
 		// Update stacks model
-		const group = this.getGroup(position);
+		const group = this.groupAt(position);
 		group.closeEditor(group.activeEditor); // TODO@stacks allow to close any non active editor
 
 		// Close group is this is the last editor in group
@@ -530,8 +530,7 @@ export class EditorPart extends Part implements IEditorPart {
 		return this.doHideEditor(editor, position, true).then(() => {
 
 			// Update stacks model
-			this.stacksModel.closeGroup(group);
-			this.updateGroupLabels();
+			this.modifyGroups(() => this.stacksModel.closeGroup(group));
 
 			// Emit Input-Changed Event
 			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
@@ -637,6 +636,9 @@ export class EditorPart extends Part implements IEditorPart {
 		if (!this.visibleEditors[from] || !this.visibleEditors[to] || from === to) {
 			return; // Ignore if we cannot move
 		}
+
+		// Update stacks model
+		this.modifyGroups(() => this.stacksModel.moveGroup(this.groupAt(from), to));
 
 		// Move widgets
 		this.sideBySideControl.move(from, to);
@@ -779,7 +781,7 @@ export class EditorPart extends Part implements IEditorPart {
 		if (editor) {
 
 			// Update stacks model
-			this.stacksModel.setActive(this.getGroup(position));
+			this.stacksModel.setActive(this.groupAt(position));
 
 			// Update UI
 			this.sideBySideControl.setActive(editor);
@@ -791,7 +793,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Update stacks model
 		let activePosition = this.sideBySideControl.getActivePosition();
 		if (typeof activePosition === 'number') {
-			this.stacksModel.setActive(this.getGroup(activePosition));
+			this.stacksModel.setActive(this.groupAt(activePosition));
 		}
 
 		// Emit as editor input change event so that clients get aware of new active editor
@@ -915,10 +917,6 @@ export class EditorPart extends Part implements IEditorPart {
 		// Pass to super
 		super.dispose();
 	}
-
-	//
-	// --- Helpers
-	//
 
 	private validatePosition(sideBySide?: boolean, widthRatios?: number[]): Position;
 	private validatePosition(desiredPosition?: Position, widthRatios?: number[]): Position;
@@ -1071,21 +1069,22 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private ensureGroup(position: Position, activate = true): EditorGroup {
-		let group = this.getGroup(position);
+		let group = this.groupAt(position);
 		if (!group) {
 
 			// Race condition: it could be that someone quickly opens editors one after
 			// the other and we are asked to open an editor in position 2 before position
 			// 1 was opened. Therefor we must ensure that all groups are created up to
 			// the point where we are asked for.
-			for (let i = 0; i < position; i++) {
-				if (!this.hasGroup(i)) {
-					this.stacksModel.openGroup('', false, i);
+			this.modifyGroups(() => {
+				for (let i = 0; i < position; i++) {
+					if (!this.hasGroup(i)) {
+						this.stacksModel.openGroup('', false, i);
+					}
 				}
-			}
 
-			group = this.stacksModel.openGroup('', activate, position);
-			this.updateGroupLabels();
+				group = this.stacksModel.openGroup('', activate, position);
+			});
 		}
 
 		if (activate) {
@@ -1095,36 +1094,40 @@ export class EditorPart extends Part implements IEditorPart {
 		return group;
 	}
 
-	private updateGroupLabels(): void {
+	private modifyGroups(modification: () => void) {
+
+		// Run the modification
+		modification();
+
+		// Adjust group labels as needed
 		const groups = this.stacksModel.groups;
-		if (!groups.length) {
-			return;
-		}
+		if (groups.length > 0) {
 
-		// LEFT | CENTER | RIGHT
-		if (groups.length > 2) {
-			this.stacksModel.renameGroup(this.getGroup(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
-			this.stacksModel.renameGroup(this.getGroup(Position.CENTER), EditorPart.GROUP_CENTER_LABEL);
-			this.stacksModel.renameGroup(this.getGroup(Position.RIGHT), EditorPart.GROUP_RIGHT_LABEL);
-		}
+			// LEFT | CENTER | RIGHT
+			if (groups.length > 2) {
+				this.stacksModel.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+				this.stacksModel.renameGroup(this.groupAt(Position.CENTER), EditorPart.GROUP_CENTER_LABEL);
+				this.stacksModel.renameGroup(this.groupAt(Position.RIGHT), EditorPart.GROUP_RIGHT_LABEL);
+			}
 
-		// LEFT | RIGHT
-		else if (groups.length > 1) {
-			this.stacksModel.renameGroup(this.getGroup(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
-			this.stacksModel.renameGroup(this.getGroup(Position.CENTER), EditorPart.GROUP_RIGHT_LABEL);
-		}
+			// LEFT | RIGHT
+			else if (groups.length > 1) {
+				this.stacksModel.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+				this.stacksModel.renameGroup(this.groupAt(Position.CENTER), EditorPart.GROUP_RIGHT_LABEL);
+			}
 
-		// LEFT
-		else {
-			this.stacksModel.renameGroup(this.getGroup(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+			// LEFT
+			else {
+				this.stacksModel.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+			}
 		}
 	}
 
-	private getGroup(position: Position): EditorGroup {
+	private groupAt(position: Position): EditorGroup {
 		return this.stacksModel.groups[position];
 	}
 
 	private hasGroup(position: Position): boolean {
-		return !!this.getGroup(position);
+		return !!this.groupAt(position);
 	}
 }
