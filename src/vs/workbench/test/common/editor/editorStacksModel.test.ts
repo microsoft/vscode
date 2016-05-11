@@ -240,6 +240,18 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups[2], group1);
 	});
 
+	test('Groups - Open group but do not set active', function () {
+		const model = create();
+		const events = modelListener(model);
+
+		const group1 = model.openGroup('first');
+		model.openGroup('second', false);
+
+		assert.equal(model.activeGroup, group1);
+		assert.equal(events.activated.length, 1);
+		assert.equal(events.activated[0], group1);
+	});
+
 	test('Groups - Group Identifiers', function () {
 		const model = create();
 

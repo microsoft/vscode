@@ -62,7 +62,7 @@ export interface IEditorStacksModel {
 
 	// --- Modifying:
 
-	// openGroup(label: string): IEditorGroup;
+	// openGroup(label: string, activate: boolean): IEditorGroup;
 
 	// renameGroup(group: IEditorGroup, newLabel: string): void
 
@@ -614,7 +614,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this.groupToIdentifier[id];
 	}
 
-	public openGroup(label: string): EditorGroup {
+	public openGroup(label: string, activate = true): EditorGroup {
 		const group = this.instantiationService.createInstance(EditorGroup, label);
 
 		// First group
@@ -632,8 +632,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Event
 		this._onGroupOpened.fire(group);
 
-		// Make active
-		this.setActive(group);
+		// Activate if we are first or set to activate groups
+		if (!this.active || activate) {
+			this.setActive(group);
+		}
 
 		return group;
 	}
