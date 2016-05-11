@@ -57,7 +57,7 @@ interface IEditorActions {
 
 export interface ISideBySideEditorControl {
 
-	onEditorFocusChange: Event<void>;
+	onGroupFocusChanged: Event<void>;
 
 	show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void;
 	hide(editor: BaseEditor, container: Builder, position: Position, layoutAndRochade: boolean): Rochade;
@@ -132,7 +132,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
 	private editorInputStateChangeListener: () => void;
 
-	private _onEditorFocusChange: Emitter<void>;
+	private _onGroupFocusChanged: Emitter<void>;
 
 	constructor(
 		parent: Builder,
@@ -163,7 +163,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.mapActionsToEditors = arrays.fill(POSITIONS.length, () => Object.create(null));
 
-		this._onEditorFocusChange = new Emitter<void>();
+		this._onGroupFocusChanged = new Emitter<void>();
 
 		this.closeEditorAction = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CLOSE_EDITOR_ACTION_ID, CLOSE_EDITOR_ACTION_LABEL));
 		POSITIONS.map((position) => this.closeEditorAction[position].setPosition(position) || (this.closeEditorAction[position].class = 'close-editor-action'));
@@ -204,8 +204,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		);
 	}
 
-	public get onEditorFocusChange(): Event<void> {
-		return this._onEditorFocusChange.event;
+	public get onGroupFocusChanged(): Event<void> {
+		return this._onGroupFocusChanged.event;
 	}
 
 	public show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void {
@@ -366,7 +366,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// Re-emit to outside
-			this._onEditorFocusChange.fire();
+			this._onGroupFocusChanged.fire();
 		}
 	}
 
@@ -1653,6 +1653,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.visibleEditors = null;
 		this.visibleEditorContainers = null;
 
-		this._onEditorFocusChange.dispose();
+		this._onGroupFocusChanged.dispose();
 	}
 }

@@ -542,7 +542,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 					// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
 					// the user is actively changing focus with the mouse from left to right.
-					this.onEditorFocusChanged();
+					this.onGroupFocusChanged();
 				});
 			}
 		});
@@ -675,7 +675,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Side by Side Control
 		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea);
-		const unbind = this.sideBySideControl.onEditorFocusChange(() => this.onEditorFocusChanged());
+		const unbind = this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged());
 		this.toUnbind.push(() => unbind.dispose());
 
 		// get settings
@@ -788,7 +788,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	private onEditorFocusChanged(): void {
+	private onGroupFocusChanged(): void {
 
 		// Update stacks model
 		let activePosition = this.sideBySideControl.getActivePosition();
