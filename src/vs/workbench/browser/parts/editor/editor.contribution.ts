@@ -183,7 +183,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: '_workbench.printStacksModel',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor) {
-		console.log(`\n${accessor.get(IWorkbenchEditorService).getStacksModel().toString()}\n`);
+		console.log(`${accessor.get(IWorkbenchEditorService).getStacksModel().toString()}\n\n`);
 	},
 	when: undefined,
 	primary: undefined

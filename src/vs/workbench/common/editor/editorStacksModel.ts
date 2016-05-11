@@ -811,6 +811,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 	public toString(): string {
 		const lines: string[] = [];
 
+		if (!this.groups.length) {
+			return '<No Groups>';
+		}
+
 		this.groups.forEach(g => {
 			if (this._activeGroup === g) {
 				lines.push(`Group: ${g.label}`);
