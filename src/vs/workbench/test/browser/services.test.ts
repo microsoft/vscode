@@ -104,7 +104,7 @@ class TestEditorPart implements IEditorPart {
 		return [activeEditor];
 	}
 
-	public moveEditor(from: Position, to: Position) {
+	public moveGroup(from: Position, to: Position) {
 		// Unsupported
 	}
 

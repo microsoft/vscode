@@ -90,9 +90,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	activateGroup(position: Position): void;
 
 	/**
-	 * Allows to move the editor at position 1 to position 2.
+	 * Allows to move the editor group from one position to another.
 	 */
-	moveEditor(from: Position, to: Position): void;
+	moveGroup(from: Position, to: Position): void;
 
 	/**
 	 * Allows to arrange editor groups according to the GroupArrangement enumeration.

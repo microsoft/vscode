@@ -476,9 +476,9 @@ export class CloseOtherEditorsAction extends Action {
 	}
 }
 
-let MOVE_EDITOR_LEFT_ACTION_ID = 'workbench.action.moveActiveEditorLeft';
-let MOVE_EDITOR_LEFT_ACTION_LABEL = nls.localize('moveActiveEditorLeft', "Move Active Editor Left");
-export class MoveEditorLeftAction extends Action {
+let MOVE_GROUP_LEFT_ACTION_ID = 'workbench.action.moveActiveEditorLeft';
+let MOVE_GROUP_LEFT_ACTION_LABEL = nls.localize('moveActiveGroupLeft', "Move Active Editor Group Left");
+export class MoveGroupLeftAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -489,16 +489,16 @@ export class MoveEditorLeftAction extends Action {
 		if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
 			let newPosition = (activeEditor.position === Position.CENTER) ? Position.LEFT : Position.CENTER;
 
-			// Move editor
-			this.editorService.moveEditor(activeEditor.position, newPosition);
+			// Move group
+			this.editorService.moveGroup(activeEditor.position, newPosition);
 		}
 
 		return TPromise.as(false);
 	}
 }
 
-let MOVE_EDITOR_RIGHT_ACTION_ID = 'workbench.action.moveActiveEditorRight';
-let MOVE_EDITOR_RIGHT_ACTION_LABEL = nls.localize('moveActiveEditorRight', "Move Active Editor Right");
+let MOVE_GROUP_RIGHT_ACTION_ID = 'workbench.action.moveActiveEditorRight';
+let MOVE_GROUP_RIGHT_ACTION_LABEL = nls.localize('moveActiveGroupRight', "Move Active Editor Group Right");
 export class MoveEditorRightAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -511,8 +511,8 @@ export class MoveEditorRightAction extends Action {
 		if ((editors.length === 2 && activeEditor.position === Position.LEFT) || (editors.length === 3 && activeEditor.position !== Position.RIGHT)) {
 			let newPosition = (activeEditor.position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
 
-			// Move editor
-			this.editorService.moveEditor(activeEditor.position, newPosition);
+			// Move group
+			this.editorService.moveGroup(activeEditor.position, newPosition);
 		}
 
 		return TPromise.as(false);
@@ -592,8 +592,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdEditorAction
 registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EVEN_GROUP_WIDTHS_ACTION_ID, EVEN_GROUP_WIDTHS_ACTION_LABEL), 'View: Even Editor Group Widths', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MAXIMIZE_GROUP_ACTION_ID, MAXIMIZE_GROUP_ACTION_LABEL), 'View: Maximize Active Editor Group and Hide Sidebar', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MINIMIZE_GROUPS_ACTION_ID, MINIMIZE_GROUPS_ACTION_LABEL), 'View: Minimize Other Editor Groups', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorLeftAction, MOVE_EDITOR_LEFT_ACTION_ID, MOVE_EDITOR_LEFT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Active Editor Left', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorRightAction, MOVE_EDITOR_RIGHT_ACTION_ID, MOVE_EDITOR_RIGHT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Active Editor Right', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupLeftAction, MOVE_GROUP_LEFT_ACTION_ID, MOVE_GROUP_LEFT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Active Editor Left', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorRightAction, MOVE_GROUP_RIGHT_ACTION_ID, MOVE_GROUP_RIGHT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Active Editor Right', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToLeftEditorAction, NAVIGATE_LEFT_EDITOR_ACTION_ID, NAVIGATE_LEFT_EDITOR_ACTION_LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow }

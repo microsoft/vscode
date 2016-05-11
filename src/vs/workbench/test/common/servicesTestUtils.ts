@@ -321,8 +321,8 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.callback('activateGroup');
 	}
 
-	public moveEditor(from: Position, to: Position): void {
-		this.callback('moveEditor');
+	public moveGroup(from: Position, to: Position): void {
+		this.callback('moveGroup');
 	}
 
 	public arrangeGroups(arrangement: WorkbenchEditorService.GroupArrangement): void {

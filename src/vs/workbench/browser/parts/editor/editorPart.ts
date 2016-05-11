@@ -627,7 +627,7 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	public moveEditor(from: Position, to: Position): void {
+	public moveGroup(from: Position, to: Position): void {
 		if (!this.visibleEditors[from] || !this.visibleEditors[to] || from === to) {
 			return; // Ignore if we cannot move
 		}

@@ -33,7 +33,7 @@ export interface IEditorPart {
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
-	moveEditor(from: Position, to: Position): void;
+	moveGroup(from: Position, to: Position): void;
 	activateGroup(position: Position): void;
 	arrangeGroups(arrangement: GroupArrangement): void;
 	getStacksModel(): IEditorStacksModel;
@@ -91,8 +91,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
-	public moveEditor(from: Position, to: Position): void {
-		this.editorPart.moveEditor(from, to);
+	public moveGroup(from: Position, to: Position): void {
+		this.editorPart.moveGroup(from, to);
 	}
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
@@ -362,8 +362,8 @@ class EditorPartDelegate implements IEditorPart {
 		return this.editorService.getVisibleEditors();
 	}
 
-	public moveEditor(from: Position, to: Position): void {
-		this.editorService.moveEditor(from, to);
+	public moveGroup(from: Position, to: Position): void {
+		this.editorService.moveGroup(from, to);
 	}
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
