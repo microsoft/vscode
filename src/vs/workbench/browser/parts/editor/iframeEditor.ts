@@ -120,7 +120,7 @@ export class IFrameEditor extends BaseEditor {
 			if (!this.focusTracker) {
 				this.focusTracker = DOM.trackFocus((<HTMLIFrameElement>this.iframeBuilder.getHTMLElement()).contentWindow);
 				this.focusTracker.addFocusListener(() => {
-					this.editorService.activateEditor(this.position);
+					this.editorService.activateGroup(this.position);
 				});
 			}
 		});

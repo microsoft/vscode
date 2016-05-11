@@ -84,7 +84,7 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(activeEditor);
 	}
 
-	public activateEditor(editor: IEditor): void {
+	public activateGroup(position: Position): void {
 		// Unsupported
 	}
 

@@ -85,10 +85,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	focusEditor(position?: Position): TPromise<IEditor>;
 
 	/**
-	 * Activate the editor at the provided position without moving focus.
+	 * Activate the editor group at the provided position without moving focus.
 	 */
-	activateEditor(editor: IEditor): void;
-	activateEditor(position: Position): void;
+	activateGroup(position: Position): void;
 
 	/**
 	 * Allows to move the editor at position 1 to position 2.

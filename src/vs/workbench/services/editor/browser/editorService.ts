@@ -29,12 +29,12 @@ export interface IEditorPart {
 	setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]>;
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
-	activateEditor(editor: IEditor): void;
 	closeEditors(othersOnly?: boolean): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
 	moveEditor(from: Position, to: Position): void;
+	activateGroup(position: Position): void;
 	arrangeGroups(arrangement: GroupArrangement): void;
 	getStacksModel(): IEditorStacksModel;
 }
@@ -185,13 +185,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
-	public activateEditor(editor: IEditor): void;
-	public activateEditor(position: Position): void;
-	public activateEditor(arg: any): void {
-		let targetEditor = this.findEditor(arg);
-		if (targetEditor) {
-			this.editorPart.activateEditor(targetEditor);
-		}
+	public activateGroup(position: Position): void {
+		this.editorPart.activateGroup(position);
 	}
 
 	private findEditor(editor?: IEditor): BaseEditor;
@@ -355,8 +350,8 @@ class EditorPartDelegate implements IEditorPart {
 	}
 
 
-	public activateEditor(editor: IEditor): void {
-		this.editorService.activateEditor(editor);
+	public activateGroup(position: Position): void {
+		this.editorService.activateGroup(position);
 	}
 
 	public getActiveEditorInput(): EditorInput {

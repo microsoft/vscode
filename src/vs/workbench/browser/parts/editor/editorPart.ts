@@ -500,7 +500,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.editorSetInputErrorCounter[position] = 0;
 
 		// Update stacks model
-		const group = this.stacksModel.groups[position];
+		const group = this.stacksModel.getGroup(position);
 		group.closeEditor(group.activeEditor); // TODO@stacks allow to close any non active editor
 
 		// Close group is this is the last editor in group
@@ -768,8 +768,14 @@ export class EditorPart extends Part implements IEditorPart {
 		return TPromise.as([]);
 	}
 
-	public activateEditor(editor: BaseEditor): void {
+	public activateGroup(position: Position): void {
+		const editor = this.visibleEditors[position];
 		if (editor) {
+
+			// Model
+			this.stacksModel.setActive(this.getGroup(position));
+
+			// UI
 			this.sideBySideControl.setActive(editor);
 		}
 	}
@@ -779,7 +785,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Update stacks model
 		let activePosition = this.sideBySideControl.getActivePosition();
 		if (typeof activePosition === 'number') {
-			this.stacksModel.setActive(this.stacksModel.groups[activePosition]);
+			this.stacksModel.setActive(this.getGroup(activePosition));
 		}
 
 		// Emit as editor input change event so that clients get aware of new active editor
@@ -1060,7 +1066,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private ensureGroup(position: Position, activate = true): EditorGroup {
-		let group = this.stacksModel.groups[position];
+		let group = this.getGroup(position);
 		if (!group) {
 			group = this.stacksModel.openGroup(position === Position.LEFT ? nls.localize('leftGroup', "Left") : position === Position.CENTER ? nls.localize('centerGroup', "Center") : nls.localize('rightGroup', "Right"), activate);
 		}
@@ -1070,5 +1076,9 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		return group;
+	}
+
+	private getGroup(position: Position): EditorGroup {
+		return this.stacksModel.groups[position];
 	}
 }

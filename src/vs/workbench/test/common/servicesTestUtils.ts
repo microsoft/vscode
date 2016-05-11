@@ -317,10 +317,8 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return [];
 	}
 
-	public activateEditor(position: Position): void;
-	public activateEditor(editor: IEditor): void;
-	public activateEditor(arg: any): void {
-		this.callback('activateEditor');
+	public activateGroup(position: Position): void {
+		this.callback('activateGroup');
 	}
 
 	public moveEditor(from: Position, to: Position): void {
