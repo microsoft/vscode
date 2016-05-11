@@ -38,6 +38,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
 	private lastDirtyCount: number;
+	// Use a scheduler to update the tree as many update events come at some time so to prevent over-reacting.
 	private updateTreeScheduler: RunOnceScheduler;
 
 	constructor(actionRunner: IActionRunner, settings: any,
@@ -159,16 +160,14 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	// }
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
-		// TODO@isidor change configuration name
-		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.workingFiles && configuration.explorer.workingFiles.maxVisible;
+		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.maxVisible;
 		if (typeof visibleOpenEditors === 'number') {
 			this.maxVisibleOpenEditors = visibleOpenEditors;
 		} else {
 			this.maxVisibleOpenEditors = OpenEditorsView.DEFAULT_MAX_VISIBLE_OPEN_EDITORS;
 		}
 
-		// TODO@isidor change configuration name
-		let dynamicHeight = configuration && configuration.explorer && configuration.explorer.workingFiles && configuration.explorer.workingFiles.dynamicHeight;
+		let dynamicHeight = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.dynamicHeight;
 		if (typeof dynamicHeight === 'boolean') {
 			this.dynamicHeight = dynamicHeight;
 		} else {

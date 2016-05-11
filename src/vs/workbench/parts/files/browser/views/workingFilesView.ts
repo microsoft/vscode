@@ -103,19 +103,19 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
-		let visibleWorkingFiles = configuration && configuration.explorer && configuration.explorer.workingFiles && configuration.explorer.workingFiles.maxVisible;
-		if (typeof visibleWorkingFiles === 'number') {
-			this.maxVisibleWorkingFiles = visibleWorkingFiles;
-		} else {
-			this.maxVisibleWorkingFiles = WorkingFilesView.DEFAULT_MAX_VISIBLE_FILES;
-		}
+		// let visibleWorkingFiles = configuration && configuration.explorer && configuration.explorer.workingFiles && configuration.explorer.workingFiles.maxVisible;
+		// if (typeof visibleWorkingFiles === 'number') {
+		// 	this.maxVisibleWorkingFiles = visibleWorkingFiles;
+		// } else {
+		// 	this.maxVisibleWorkingFiles = WorkingFilesView.DEFAULT_MAX_VISIBLE_FILES;
+		// }
 
-		let dynamicHeight = configuration && configuration.explorer && configuration.explorer.workingFiles && configuration.explorer.workingFiles.dynamicHeight;
-		if (typeof dynamicHeight === 'boolean') {
-			this.dynamicHeight = dynamicHeight;
-		} else {
-			this.dynamicHeight = WorkingFilesView.DEFAULT_DYNAMIC_HEIGHT;
-		}
+		// let dynamicHeight = configuration && configuration.explorer && configuration.explorer.workingFiles && configuration.explorer.workingFiles.dynamicHeight;
+		// if (typeof dynamicHeight === 'boolean') {
+		// 	this.dynamicHeight = dynamicHeight;
+		// } else {
+		// 	this.dynamicHeight = WorkingFilesView.DEFAULT_DYNAMIC_HEIGHT;
+		// }
 
 		// Adjust expanded body size
 		this.expandedBodySize = this.getExpandedBodySize(this.model);

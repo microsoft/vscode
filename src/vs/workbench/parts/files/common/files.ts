@@ -63,7 +63,7 @@ export abstract class FileEditorInput extends EditorInput implements IFileEditor
 
 export interface IFilesConfiguration extends IFilesConfiguration {
 	explorer: {
-		workingFiles: {
+		openEditors: {
 			maxVisible: number;
 			dynamicHeight: boolean;
 		};
