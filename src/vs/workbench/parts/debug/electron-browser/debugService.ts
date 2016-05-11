@@ -735,7 +735,7 @@ export class DebugService implements debug.IDebugService {
 				if (control) {
 					control.revealLineInCenterIfOutsideViewport(lineNumber);
 					control.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-					return this.editorService.openEditor(visibleEditors[i].input, wbeditorcommon.TextEditorOptions.create({ preserveFocus: preserveFocus, forceActive: true }), visibleEditors[i].position);
+					this.editorService.activateEditor(visibleEditors[i]);
 				}
 
 				return TPromise.as(null);

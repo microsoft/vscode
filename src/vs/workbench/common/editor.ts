@@ -266,15 +266,12 @@ export class EditorOptions implements IEditorOptions {
 	public static create(settings: {
 		preserveFocus?: boolean;
 		forceOpen?: boolean;
-		forceActive?: boolean,
 		pinned?: boolean,
-		active?: boolean,
 		index?: number
 	}): EditorOptions {
 		let options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
-		options.forceActive = settings.forceActive;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 
@@ -287,7 +284,6 @@ export class EditorOptions implements IEditorOptions {
 	public mixin(other: EditorOptions): void {
 		this.preserveFocus = other.preserveFocus;
 		this.forceOpen = other.forceOpen;
-		this.forceActive = other.forceActive;
 		this.pinned = other.pinned;
 		this.index = other.index;
 	}
@@ -304,14 +300,6 @@ export class EditorOptions implements IEditorOptions {
 	 * one showing.
 	 */
 	public forceOpen: boolean;
-
-	/**
-	 * Ensures that the editor is being activated even if the input is already showing. This only applies
-	 * if there is more than one editor open already and preserveFocus is set to false.
-	 *
-	 * TODO@stacks does this still apply?
-	 */
-	public forceActive: boolean;
 
 	/**
 	 * TODO@stacks clean up
@@ -356,6 +344,14 @@ export class TextEditorOptions extends EditorOptions {
 			if (input.options.preserveFocus) {
 				options.preserveFocus = true;
 			}
+
+			if (input.options.pinned) {
+				options.pinned = true;
+			}
+
+			if (typeof input.options.index === 'number') {
+				options.index = input.options.index;
+			}
 		}
 
 		return options;
@@ -364,11 +360,18 @@ export class TextEditorOptions extends EditorOptions {
 	/**
 	 * Helper to create TextEditorOptions inline.
 	 */
-	public static create(settings: { preserveFocus?: boolean; forceOpen?: boolean; forceActive?: boolean; selection?: IRange }): TextEditorOptions {
+	public static create(settings: {
+		preserveFocus?: boolean;
+		forceOpen?: boolean;
+		pinned?: boolean;
+		index?: number;
+		selection?: IRange
+	}): TextEditorOptions {
 		let options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
-		options.forceActive = settings.forceActive;
 		options.forceOpen = settings.forceOpen;
+		options.pinned = settings.pinned;
+		options.index = settings.index;
 
 		if (settings.selection) {
 			options.startLineNumber = settings.selection.startLineNumber;

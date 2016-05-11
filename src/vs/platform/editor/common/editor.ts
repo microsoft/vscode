@@ -70,10 +70,10 @@ export interface IResourceInput {
 		preserveFocus?: boolean;
 
 		/**
-		 * Ensures that the editor is being activated even if the input is already showing. This only applies
-		 * if there is more than one editor open already and preserveFocus is set to false.
+		 * TODO@stacks clean up
 		 */
-		forceActive?: boolean;
+		pinned?: boolean;
+		index?: number;
 	};
 }
 
