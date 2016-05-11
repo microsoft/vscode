@@ -15,7 +15,7 @@ suite('Telemetry - common properties', function () {
 
 		return resolveCommonProperties(new TestStorageService(), new TestContextService()).then(props => {
 
-			assert.equal(Object.keys(props).length, 15);
+			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 17 : 15);
 
 			assert.ok('commitHash' in props);
 			assert.ok('sessionID' in props);
