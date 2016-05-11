@@ -8,16 +8,20 @@
 	height: 100%;
 }
 
-.explorer-viewlet .explorer-item, .explorer-viewlet .working-files-item {
+.explorer-viewlet .explorer-item,
+.explorer-viewlet .open-editor,
+.explorer-viewlet .editor-group {
 	line-height: 22px;
 }
 
-.explorer-viewlet .explorer-item-label, .explorer-viewlet .working-files-item-label {
+.explorer-viewlet .explorer-item-label,
+.explorer-viewlet .open-editor-label,
+.explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
 	position: absolute;
 	left: 0;
 	right: auto;
@@ -25,12 +29,12 @@
 	padding: 0 0 0 0.4em;
 }
 
-.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions.working-file-dirty > .primary-action-bar {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.actions.open-editor-dirty > .primary-action-bar {
 	display: block;
 	width: initial;
 }
 
-.explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions > .sub-content {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.actions > .sub-content {
 	margin-left: 24px;
 }
 
@@ -65,12 +69,27 @@
 	background-color: #007ACC;
 }
 
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .editor-group {
+	font-size: 11px;
+	font-weight: bold;
+	text-transform: uppercase;
+	cursor: default;
+}
+
+/* Disable tree twistie */
+.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
+.explorer-viewlet .explorer-open-editors > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:before {
+	border: none;
+}
+
 /* Theming */
 .vs-dark .monaco-workbench .explorer-viewlet .collapsible.header .action-close-all-files {
 	background: url("closeall_inverse.svg") center center no-repeat;
 }
 
 /* High Contrast Theming */
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item, .hc-black .monaco-workbench .explorer-viewlet .working-files-item {
+.hc-black .monaco-workbench .explorer-viewlet .explorer-item,
+.hc-black .monaco-workbench .explorer-viewlet .open-editor,
+.hc-black .monaco-workbench .explorer-viewlet .editor-group {
 	line-height: 20px;
 }

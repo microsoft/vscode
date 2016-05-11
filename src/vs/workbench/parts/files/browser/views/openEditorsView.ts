@@ -80,7 +80,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			controller
 		}, {
 			indentPixels: 0,
-			twistiePixels: 8,
+			twistiePixels: 20,
 			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
 		});
 
