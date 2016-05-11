@@ -82,6 +82,12 @@
 	border: none;
 }
 
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor > .description {
+	opacity: .7;
+	margin-left: .5em;
+	font-size: .9em;
+}
+
 /* Theming */
 .vs-dark .monaco-workbench .explorer-viewlet .collapsible.header .action-close-all-files {
 	background: url("closeall_inverse.svg") center center no-repeat;

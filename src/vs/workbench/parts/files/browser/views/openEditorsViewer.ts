@@ -46,6 +46,8 @@ export class DataSource implements tree.IDataSource {
 
 interface IEditorTemplateData {
 	root: HTMLElement;
+	name: HTMLSpanElement;
+	description: HTMLSpanElement;
 }
 
 interface IEditorGroupTemplateData {
@@ -80,6 +82,8 @@ export class Renderer implements tree.IRenderer {
 
 		const editorTemplate: IEditorTemplateData = Object.create(null);
 		editorTemplate.root = dom.append(container, $('.open-editor'));
+		editorTemplate.name = dom.append(editorTemplate.root, $('span.name'));
+		editorTemplate.description = dom.append(editorTemplate.root, $('span.description'));
 
 		return editorTemplate;
 	}
@@ -97,7 +101,8 @@ export class Renderer implements tree.IRenderer {
 	}
 
 	private renderOpenEditor(tree: tree.ITree, editor: EditorInput, templateData: IEditorTemplateData): void {
-		templateData.root.textContent = editor.getName();
+		templateData.name.textContent = editor.getName();
+		templateData.description.textContent = editor.getDescription();
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
