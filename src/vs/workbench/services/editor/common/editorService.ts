@@ -79,10 +79,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeEditors(othersOnly?: boolean): TPromise<void>;
 
 	/**
-	 * Focus the editor at the provided position. If position is not provided, the current active editor is focused.
+	 * Keyboard focus the editor group at the provided position. If position is not provided, the current active group is focused.
 	 */
-	focusEditor(editor?: IEditor): TPromise<IEditor>;
-	focusEditor(position?: Position): TPromise<IEditor>;
+	focusGroup(position?: Position): TPromise<IEditor>;
 
 	/**
 	 * Activate the editor group at the provided position without moving focus.

@@ -99,7 +99,7 @@ export class GlobalCopyPathAction extends Action {
 		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
-			this.editorService.focusEditor(); // focus back to editor
+			this.editorService.focusGroup(); // focus back to active editor group
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
 		}

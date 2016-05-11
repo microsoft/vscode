@@ -174,10 +174,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeEditors(othersOnly);
 	}
 
-	public focusEditor(editor?: IEditor): TPromise<IEditor>;
-	public focusEditor(position?: Position): TPromise<IEditor>;
-	public focusEditor(arg?: any): TPromise<IEditor> {
-		let targetEditor = this.findEditor(arg);
+	public focusGroup(position?: Position): TPromise<IEditor> {
+		let targetEditor = this.findEditor(position);
 		if (targetEditor) {
 			return this.editorPart.openEditor(targetEditor.input, null, targetEditor.position);
 		}

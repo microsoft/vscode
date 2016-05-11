@@ -356,10 +356,8 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return TPromise.as(null);
 	}
 
-	public focusEditor(editor?: IEditor): TPromise<IEditor>;
-	public focusEditor(position?: Position): TPromise<IEditor>;
-	public focusEditor(arg?: any): TPromise<IEditor> {
-		this.callback('focusEditor');
+	public focusGroup(position?: Position): TPromise<IEditor> {
+		this.callback('focusGroup');
 
 		return TPromise.as(null);
 	}

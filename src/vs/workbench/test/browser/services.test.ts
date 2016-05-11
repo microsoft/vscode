@@ -335,8 +335,8 @@ suite('Workbench UI Services', () => {
 			assert(model instanceof TextFileEditorModel);
 		});
 
-		// Focus editor
-		service.focusEditor().then((editor) => {
+		// Focus editor group
+		service.focusGroup().then((editor) => {
 			assert.strictEqual(editor, activeEditor);
 		});
 

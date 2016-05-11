@@ -389,7 +389,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Focus editor if a candidate has been found
 			if (!types.isUndefinedOrNull(candidate)) {
-				this.editorService.focusEditor(this.visibleEditors[candidate]).done(null, errors.onUnexpectedError);
+				this.editorService.focusGroup(candidate).done(null, errors.onUnexpectedError);
 			}
 		}
 	}
@@ -1065,9 +1065,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					ignoreClick = true;
 				}
 
-				// Otherwise if not dragging, make editor active unless already active
+				// Otherwise if not dragging, make editor group active unless already active
 				else if (position !== this.getActivePosition()) {
-					this.editorService.focusEditor(this.visibleEditors[position]).done(null, errors.onUnexpectedError);
+					this.editorService.focusGroup(position).done(null, errors.onUnexpectedError);
 				}
 
 				$window.off('mousemove');
@@ -1083,9 +1083,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				this.editorService.closeEditor(position).done(null, errors.onUnexpectedError);
 			}
 
-			// Focus editor unless click on toolbar
+			// Focus editor group unless click on toolbar
 			else if (this.getVisibleEditorCount() === 1 && !DOM.isAncestor(<any>e.target || e.srcElement, this.editorActionsToolbar[position].getContainer().getHTMLElement())) {
-				this.editorService.focusEditor(this.visibleEditors[position]).done(null, errors.onUnexpectedError);
+				this.editorService.focusGroup(position).done(null, errors.onUnexpectedError);
 			}
 		});
 

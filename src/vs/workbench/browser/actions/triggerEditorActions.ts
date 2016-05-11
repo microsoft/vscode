@@ -73,7 +73,7 @@ export class SplitEditorAction extends Action {
 
 					return this.editorService.openEditor(activeEditor.input, options, Position.CENTER).then(() => {
 						return this.editorService.openEditor(centerInput, options, Position.RIGHT).then(() => {
-							return this.editorService.focusEditor(Position.CENTER);
+							return this.editorService.focusGroup(Position.CENTER);
 						});
 					});
 				}
@@ -89,7 +89,7 @@ export class SplitEditorAction extends Action {
 }
 
 let CYCLE_EDITOR_ACTION_ID = 'workbench.action.cycleEditor';
-let CYCLE_EDITOR_ACTION_LABEL = nls.localize('cycleEditor', "Cycle Between Opened Editors");
+let CYCLE_EDITOR_ACTION_LABEL = nls.localize('cycleEditor', "Cycle Between Opened Editor Groups");
 export class CycleEditorAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -109,12 +109,12 @@ export class CycleEditorAction extends Action {
 		let editorCount = visibleEditors.length;
 		let newIndex = (activeEditor.position + 1) % editorCount;
 
-		return this.editorService.focusEditor(<Position>newIndex);
+		return this.editorService.focusGroup(<Position>newIndex);
 	}
 }
 
 let FOCUS_FIRST_EDITOR_ACTION_ID = 'workbench.action.focusFirstEditor';
-let FOCUS_FIRST_EDITOR_ACTION_LABEL = nls.localize('focusFirstEditor', "Focus into Left Hand Editor");
+let FOCUS_FIRST_EDITOR_ACTION_LABEL = nls.localize('focusFirstEditor', "Focus into Left Hand Editor Group");
 export class FocusFirstEditorAction extends Action {
 
 	constructor(
@@ -132,7 +132,7 @@ export class FocusFirstEditorAction extends Action {
 		let editors = this.editorService.getVisibleEditors();
 		for (var editor of editors) {
 			if (editor.position === Position.LEFT) {
-				return this.editorService.focusEditor(editor);
+				return this.editorService.focusGroup(Position.LEFT);
 			}
 		}
 
@@ -181,7 +181,7 @@ export abstract class BaseFocusSideEditorAction extends Action {
 
 			// Target editor exists so focus it
 			if (editor.position === this.getTargetEditorSide()) {
-				return this.editorService.focusEditor(editor);
+				return this.editorService.focusGroup(editor.position);
 			}
 
 			// Remember reference editor
@@ -218,7 +218,7 @@ export abstract class BaseFocusSideEditorAction extends Action {
 }
 
 let FOCUS_SECOND_EDITOR_ACTION_ID = 'workbench.action.focusSecondEditor';
-let FOCUS_SECOND_EDITOR_ACTION_LABEL = nls.localize('focusSecondEditor', "Focus into Side Editor");
+let FOCUS_SECOND_EDITOR_ACTION_LABEL = nls.localize('focusSecondEditor', "Focus into Side Editor Group");
 export class FocusSecondEditorAction extends BaseFocusSideEditorAction {
 
 	constructor(
@@ -240,7 +240,7 @@ export class FocusSecondEditorAction extends BaseFocusSideEditorAction {
 }
 
 let FOCUS_THIRD_EDITOR_ACTION_ID = 'workbench.action.focusThirdEditor';
-let FOCUS_THIRD_EDITOR_ACTION_LABEL = nls.localize('focusThirdEditor', "Focus into Right Hand Editor");
+let FOCUS_THIRD_EDITOR_ACTION_LABEL = nls.localize('focusThirdEditor', "Focus into Right Hand Editor Group");
 export class FocusThirdEditorAction extends BaseFocusSideEditorAction {
 
 	constructor(
@@ -262,7 +262,7 @@ export class FocusThirdEditorAction extends BaseFocusSideEditorAction {
 }
 
 let NAVIGATE_LEFT_EDITOR_ACTION_ID = 'workbench.action.focusLeftEditor';
-let NAVIGATE_LEFT_EDITOR_ACTION_LABEL = nls.localize('focusLeftEditor', "Focus into Next Editor on the Left");
+let NAVIGATE_LEFT_EDITOR_ACTION_LABEL = nls.localize('focusLeftEditor', "Focus into Next Editor Group on the Left");
 export class NavigateToLeftEditorAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -285,13 +285,12 @@ export class NavigateToLeftEditorAction extends Action {
 		}
 
 		// Focus next position if provided
-		let visibleEditors = this.editorService.getVisibleEditors();
-		return this.editorService.focusEditor(visibleEditors[nextPosition]);
+		return this.editorService.focusGroup(nextPosition);
 	}
 }
 
 let NAVIGATE_RIGHT_EDITOR_ACTION_ID = 'workbench.action.focusRightEditor';
-let NAVIGATE_RIGHT_EDITOR_ACTION_LABEL = nls.localize('focusRigthEditor', "Focus into Next Editor on the Right");
+let NAVIGATE_RIGHT_EDITOR_ACTION_LABEL = nls.localize('focusRigthEditor', "Focus into Next Editor Group on the Right");
 export class NavigateToRightEditorAction extends Action {
 	private navigateActions: Action[];
 

@@ -62,7 +62,7 @@ export class BaseTwoEditorsAction extends Action {
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.inputToType({ resource: editableResource }).then((typedRightHandEditableInput) => {
 				return this.editorService.setEditors([leftHandDefaultInput, typedRightHandEditableInput]).then(() => {
-					return this.editorService.focusEditor(Position.CENTER);
+					return this.editorService.focusGroup(Position.CENTER);
 				});
 			});
 		});
