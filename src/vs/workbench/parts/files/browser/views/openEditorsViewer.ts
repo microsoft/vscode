@@ -14,6 +14,25 @@ import {EditorInput} from 'vs/workbench/common/editor';
 
 const $ = dom.emmet;
 
+class OpenEditor {
+
+	constructor(private editor: EditorInput, private group: IEditorGroup) {
+		// noop
+	}
+
+	public getId(): string {
+		return `openeditor:${this.group.id}:${this.editor.getName()}:${this.editor.getDescription()}`;
+	}
+
+	public getName(): string {
+		return this.editor.getName();
+	}
+
+	public getDescription(): string {
+		return this.editor.getDescription();
+	}
+}
+
 export class DataSource implements tree.IDataSource {
 
 	public getId(tree: tree.ITree, element: any): string {
@@ -24,7 +43,7 @@ export class DataSource implements tree.IDataSource {
 			return (<IEditorGroup>element).id.toString();
 		}
 
-		return (<EditorInput>element).getId();
+		return (<OpenEditor>element).getId();
 	}
 
 	public hasChildren(tree: tree.ITree, element: any): boolean {
@@ -36,7 +55,8 @@ export class DataSource implements tree.IDataSource {
 			return TPromise.as((<IEditorStacksModel>element).groups);
 		}
 
-		return TPromise.as((<IEditorGroup>element).getEditors());
+		const editorGroup = <IEditorGroup>element;
+		return TPromise.as(editorGroup.getEditors().map(ei => new OpenEditor(ei, editorGroup)));
 	}
 
 	public getParent(tree: tree.ITree, element: any): TPromise<any> {
@@ -44,7 +64,7 @@ export class DataSource implements tree.IDataSource {
 	}
 }
 
-interface IEditorTemplateData {
+interface IOpenEditorTemplateData {
 	root: HTMLElement;
 	name: HTMLSpanElement;
 	description: HTMLSpanElement;
@@ -80,7 +100,7 @@ export class Renderer implements tree.IRenderer {
 			return editorGroupTemplate;
 		}
 
-		const editorTemplate: IEditorTemplateData = Object.create(null);
+		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
 		editorTemplate.root = dom.append(container, $('.open-editor'));
 		editorTemplate.name = dom.append(editorTemplate.root, $('span.name'));
 		editorTemplate.description = dom.append(editorTemplate.root, $('span.description'));
@@ -96,11 +116,11 @@ export class Renderer implements tree.IRenderer {
 		}
 	}
 
-	private renderEditorGroup(tree: tree.ITree, editorGroup: IEditorGroup, templateData: IEditorTemplateData): void {
+	private renderEditorGroup(tree: tree.ITree, editorGroup: IEditorGroup, templateData: IOpenEditorTemplateData): void {
 		templateData.root.textContent = editorGroup.label;
 	}
 
-	private renderOpenEditor(tree: tree.ITree, editor: EditorInput, templateData: IEditorTemplateData): void {
+	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		templateData.name.textContent = editor.getName();
 		templateData.description.textContent = editor.getDescription();
 	}
