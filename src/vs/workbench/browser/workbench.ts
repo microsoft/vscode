@@ -237,7 +237,7 @@ export class Workbench implements IPartService {
 
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
 			let editorTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Restoring Editor(s)'));
-			let resolveEditorInputsPromise: TPromise<EditorInput[]> = TPromise.as(null);
+			let inputsToOpenPromise: TPromise<EditorInput[]> = TPromise.as([]);
 			let options: EditorOptions[] = [];
 
 			// Files to open, diff or create
@@ -249,7 +249,7 @@ export class Workbench implements IPartService {
 
 				// Files to diff is exclusive
 				if (filesToDiff && filesToDiff.length) {
-					resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToDiff.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToDiff) => {
+					inputsToOpenPromise = TPromise.join<EditorInput>(filesToDiff.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToDiff) => {
 						return [new DiffEditorInput(toDiffLabel(filesToDiff[0].resource, filesToDiff[1].resource, this.contextService), null, inputsToDiff[0], inputsToDiff[1])];
 					});
 				}
@@ -263,7 +263,7 @@ export class Workbench implements IPartService {
 					options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
 					// Files to open
-					resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
+					inputsToOpenPromise = TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
 						inputs.push(...inputsToOpen);
 						options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
 
@@ -274,12 +274,14 @@ export class Workbench implements IPartService {
 
 			// Empty workbench
 			else if (!this.workbenchParams.workspace) {
-				resolveEditorInputsPromise = TPromise.as([this.untitledEditorService.createOrGet()]);
+				inputsToOpenPromise = TPromise.as([this.untitledEditorService.createOrGet()]);
 			}
 
-			// Restore editor state (either from last session or with given inputs)
-			compositeAndEditorPromises.push(resolveEditorInputsPromise.then((inputs) => {
-				return this.editorPart.restoreEditorState(inputs, options).then(() => {
+			// Open editors (either open from last session or with given inputs)
+			compositeAndEditorPromises.push(inputsToOpenPromise.then((inputs) => {
+				let editorOpenPromise = inputs.length ? this.editorPart.setEditors(inputs, options) : this.editorPart.restoreEditors();
+
+				return editorOpenPromise.then(() => {
 					this.onEditorOpenedOrClosed(); // make sure we show the proper background in the editor area
 					editorTimerEvent.stop();
 				});

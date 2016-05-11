@@ -40,19 +40,6 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 
-const EDITOR_STATE_STORAGE_KEY = 'editorpart.editorState';
-
-interface IEditorStateEntry {
-	inputId: string;
-	inputValue: string;
-	hasFocus: boolean;
-}
-
-interface IEditorState {
-	editors: IEditorStateEntry[];
-	widthRatio: number[];
-}
-
 class ProgressMonitor {
 
 	constructor(private _token: number, private progressPromise: TPromise<void>) { }
@@ -64,6 +51,10 @@ class ProgressMonitor {
 	public cancel(): void {
 		this.progressPromise.cancel();
 	}
+}
+
+interface IEditorPartUIState {
+	widthRatio: number[];
 }
 
 /**
@@ -83,6 +74,8 @@ export class EditorPart extends Part implements IEditorPart {
 	private static GROUP_LEFT_LABEL = nls.localize('leftGroup', "Left");
 	private static GROUP_CENTER_LABEL = nls.localize('centerGroup', "Center");
 	private static GROUP_RIGHT_LABEL = nls.localize('rightGroup', "Right");
+
+	private static EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
 
 	private dimension: Dimension;
 	private sideBySideControl: ISideBySideEditorControl;
@@ -626,12 +619,6 @@ export class EditorPart extends Part implements IEditorPart {
 		return this.visibleEditors ? this.visibleEditors.filter((editor) => !!editor) : [];
 	}
 
-	public setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]> {
-		return this.closeEditors().then(() => {
-			return this.restoreEditorState(inputs, options);
-		});
-	}
-
 	public moveGroup(from: Position, to: Position): void {
 		if (!this.visibleEditors[from] || !this.visibleEditors[to] || from === to) {
 			return; // Ignore if we cannot move
@@ -684,96 +671,74 @@ export class EditorPart extends Part implements IEditorPart {
 		return contentArea;
 	}
 
-	public restoreEditorState(inputsToOpen?: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]> {
-		let activeInput: EditorInput;
-		let inputsToRestore: EditorInput[];
-		let widthRatios: number[];
-
-		// Inputs are given, so just use them
-		if (inputsToOpen && inputsToOpen.length) {
-			if (inputsToOpen.length > 3) {
-				inputsToOpen = inputsToOpen.slice(inputsToOpen.length - 3); // make sure to reduce the array to the last 3 elements if n > 3
-			}
-
-			inputsToRestore = inputsToOpen;
-			widthRatios = (inputsToRestore.length === 3) ? [0.33, 0.33, 0.34] : (inputsToRestore.length === 2) ? [0.5, 0.5] : [1];
+	public setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]> {
+		if (!inputs.length) {
+			return TPromise.as<BaseEditor[]>([]);
 		}
 
-		// Otherwise try to load from last session
-		else if (this.memento[EDITOR_STATE_STORAGE_KEY]) {
-			let editorState: IEditorState = this.memento[EDITOR_STATE_STORAGE_KEY];
-			if (editorState && editorState.editors) {
+		return this.closeEditors().then(() => this.doSetEditors(inputs, options));
+	}
 
-				// Find inputs to restore
-				let registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
-				let inputs: EditorInput[] = [];
-
-				widthRatios = editorState.widthRatio;
-
-				for (let i = 0; i < editorState.editors.length; i++) {
-					let state = editorState.editors[i];
-					let factory = registry.getEditorInputFactory(state.inputId);
-					if (factory && types.isString(state.inputValue)) {
-						let input = factory.deserialize(this.instantiationService, state.inputValue);
-						if (input) {
-							if (state.hasFocus) {
-								activeInput = input;
-							}
-							inputs.push(input);
-						}
-					}
-				}
-
-				if (inputs.length) {
-					inputsToRestore = inputs;
-				}
-			}
+	public restoreEditors(): TPromise<BaseEditor[]> {
+		const inputs = this.stacksModel.groups.map(g => g.activeEditor);
+		if (!inputs.length) {
+			return TPromise.as<BaseEditor[]>([]);
 		}
 
-		// Do the restore
-		if (inputsToRestore && inputsToRestore.length) {
+		let editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+		let widthRatios = editorState.widthRatio;
+		let activeInput = this.stacksModel.activeGroup.activeEditor;
 
-			// Pick first input if we didnt find any active input from memento
-			if (!activeInput && inputsToRestore.length) {
-				activeInput = inputsToRestore[0];
-			}
+		return this.doSetEditors(inputs, null, activeInput, widthRatios);
+	}
 
-			// Reset width ratios if they dont match with the number of editors to restore
-			if (widthRatios && widthRatios.length !== inputsToRestore.length) {
-				widthRatios = inputsToRestore.length === 2 ? [0.5, 0.5] : null;
-			}
+	private doSetEditors(inputs: EditorInput[], options?: EditorOptions[], activeInput?: EditorInput, widthRatios?: number[]): TPromise<BaseEditor[]> {
 
-			// Open editor inputs in parallel if any
-			let promises: TPromise<BaseEditor>[] = [];
-			inputsToRestore.forEach((input, index) => {
-				let preserveFocus = (input !== activeInput);
-				let option: EditorOptions;
-				if (options && options[index]) {
-					option = options[index];
-					option.preserveFocus = preserveFocus;
-				} else {
-					option = EditorOptions.create({ preserveFocus: preserveFocus });
-				}
-
-				promises.push(this.openEditor(input, option, index, widthRatios));
-			});
-
-			return TPromise.join(promises).then(editors => {
-
-				// Workaround for bad layout issue: If any of the editors fails to load, reset side by side by closing
-				// all editors. This fixes an issue where a side editor might show, but no editor to the left hand side.
-				if (this.getVisibleEditors().length !== inputsToRestore.length) {
-					this.closeEditors().done(null, errors.onUnexpectedError);
-				}
-
-				// Full layout side by side
-				this.sideBySideControl.layout(this.dimension);
-
-				return editors;
-			});
+		// Validate inputs
+		if (inputs.length > POSITIONS.length) {
+			inputs = inputs.slice(inputs.length - POSITIONS.length); // make sure to reduce the array to the last N elements if n > available positions
 		}
 
-		return TPromise.as([]);
+		// Validate active input
+		if (!activeInput || inputs.indexOf(activeInput) === -1) {
+			activeInput = inputs[0];
+		}
+
+		// Validate width ratios
+		if (!widthRatios || widthRatios.length !== inputs.length) {
+			widthRatios = (inputs.length === 3) ? [0.33, 0.33, 0.34] : (inputs.length === 2) ? [0.5, 0.5] : [1];
+		}
+
+		// Open each input respecting the options
+		let promises: TPromise<BaseEditor>[] = [];
+		inputs.forEach((input, index) => {
+
+			// Handle active input via options
+			let preserveFocus = (input !== activeInput);
+			let option: EditorOptions;
+			if (options && options[index]) {
+				option = options[index];
+				option.preserveFocus = preserveFocus;
+			} else {
+				option = EditorOptions.create({ preserveFocus: preserveFocus });
+			}
+
+			promises.push(this.openEditor(input, option, index, widthRatios));
+		});
+
+		return TPromise.join(promises).then(editors => {
+
+			// Workaround for bad layout issue: If any of the editors fails to load, reset side by side by closing
+			// all editors. This fixes an issue where a side editor might show, but no editor to the left hand side.
+			if (this.getVisibleEditors().length !== inputs.length) {
+				this.closeEditors().done(null, errors.onUnexpectedError);
+			}
+
+			// Full layout side by side
+			this.sideBySideControl.layout(this.dimension);
+
+			return editors;
+		});
 	}
 
 	public activateGroup(position: Position): void {
@@ -821,8 +786,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 	public shutdown(): void {
 
-		// Persist Editor State
-		this.saveEditorState();
+		// Persist UI State
+		let editorState: IEditorPartUIState = { widthRatio: this.sideBySideControl.getWidthRatios() };
+		this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = editorState;
 
 		// Unload all Instantiated Editors
 		for (let i = 0; i < this.instantiatedEditors.length; i++) {
@@ -833,35 +799,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Pass to super
 		super.shutdown();
-	}
-
-	private saveEditorState(): void {
-		let registry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
-		let editors = this.getVisibleEditors();
-		let activeEditor = this.getActiveEditor();
-
-		let widthRatios = this.sideBySideControl.getWidthRatios();
-		let editorState: IEditorState = { editors: [], widthRatio: widthRatios };
-		this.memento[EDITOR_STATE_STORAGE_KEY] = editorState;
-
-		// For each visible editor
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-			let input = editor.input;
-
-			// Serialize through factory
-			if (input) {
-				let factory = registry.getEditorInputFactory(input.getId());
-				if (factory) {
-					let serialized = factory.serialize(input);
-					editorState.editors.push({
-						inputId: input.getId(),
-						inputValue: serialized,
-						hasFocus: activeEditor === editor
-					});
-				}
-			}
-		}
 	}
 
 	public dispose(): void {
