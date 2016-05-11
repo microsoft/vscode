@@ -173,8 +173,13 @@ export class EditorPart extends Part implements IEditorPart {
 			return this.doOpenEditor(input, options, position, widthRatios);
 		}
 
-		// Close: input is null
-		return this.doCloseEditor(input, position);
+		// Close: input is null and editor visible
+		if (this.visibleEditors[position]) {
+			return this.doCloseEditor(this.visibleEditors[position], position).then(() => null);
+		}
+
+		// Nothing to do
+		return TPromise.as(null);
 	}
 
 	private doOpenEditor(input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[]): TPromise<BaseEditor> {
@@ -465,7 +470,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		this.sideBySideControl.updateProgress(position, ProgressState.DONE);
-		
+
 		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
 
 		// Recover from this error by closing the editor if the attempt of setInput failed and we are not having any previous input
@@ -486,39 +491,31 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	private doCloseEditor(input: EditorInput, position: Position): TPromise<BaseEditor> {
-		if (this.visibleEditors[position]) {
+	private doCloseEditor(editor: BaseEditor, position: Position): TPromise<void> {
 
-			// Reset counter
-			this.editorSetInputErrorCounter[position] = 0;
+		// Reset counter
+		this.editorSetInputErrorCounter[position] = 0;
 
-			// Emit Input-Changing Event
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
+		// Emit Input-Changing Event
+		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
 
-			// Hide Editor
-			return this.doHideEditor(this.visibleEditors[position], position, true).then(() => {
+		// Hide Editor
+		return this.doHideEditor(editor, position, true).then(() => {
 
-				// Emit Input-Changed Event
-				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
+			// Emit Input-Changed Event
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
 
-				// Focus next editor if there is still an active one left
-				let currentActiveEditor = this.sideBySideControl.getActiveEditor();
-				if (currentActiveEditor) {
-					return this.openEditor(currentActiveEditor.input, null, currentActiveEditor.position).then(() => {
+			// Focus next editor if there is still an active one left
+			let currentActiveEditor = this.sideBySideControl.getActiveEditor();
+			if (currentActiveEditor) {
+				return this.openEditor(currentActiveEditor.input, null, currentActiveEditor.position).then(() => {
 
-						// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
-						// the user is actively changing focus with the mouse from left to right.
-						this.onEditorFocusChanged();
-
-						return currentActiveEditor;
-					});
-				}
-
-				return TPromise.as<BaseEditor>(null);
-			});
-		}
-
-		return TPromise.as<BaseEditor>(null);
+					// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
+					// the user is actively changing focus with the mouse from left to right.
+					this.onEditorFocusChanged();
+				});
+			}
+		});
 	}
 
 	private doHideEditor(editor: BaseEditor, position: Position, layoutAndRochade: boolean): TPromise<BaseEditor> {
@@ -875,11 +872,6 @@ export class EditorPart extends Part implements IEditorPart {
 		// Pass to super
 		super.dispose();
 	}
-
-
-
-
-
 
 	//
 	// --- Helpers
