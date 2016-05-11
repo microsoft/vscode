@@ -91,7 +91,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private visibleEditorListeners: Function[][];
 	private instantiatedEditors: BaseEditor[][];
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
-	private mapEditorLoadingPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
+	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private mapEditorCreationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private editorSetInputErrorCounter: number[];
@@ -120,7 +120,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.instantiatedEditors = arrays.fill(POSITIONS.length, () => []);
 
 		this.mapEditorToEditorContainers = arrays.fill(POSITIONS.length, () => Object.create(null));
-		this.mapEditorLoadingPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
+		this.mapEditorInstantiationPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
 		this.mapEditorCreationPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
 
 		this.pendingEditorInputsToClose = [];
@@ -143,7 +143,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Some conditions under which we prevent the request
 		if (
 			position === null ||															// invalid position
-			Object.keys(this.mapEditorLoadingPromiseToEditor[position]).length > 0 ||		// pending editor load
+			Object.keys(this.mapEditorInstantiationPromiseToEditor[position]).length > 0 ||	// pending editor load
 			Object.keys(this.mapEditorCreationPromiseToEditor[position]).length > 0 ||		// pending editor create
 			this.sideBySideControl.isDragging()												// pending editor DND
 		) {
@@ -341,44 +341,42 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private doInstantiateEditor(descriptor: EditorDescriptor, position: Position): TPromise<BaseEditor> {
+
+		// Return early if already instantiated
 		let instantiatedEditor = this.instantiatedEditors[position].filter(e => descriptor.describes(e))[0];
-		let loadEditorPromise: TPromise<BaseEditor>;
-		if (!instantiatedEditor) {
-
-			// Check if loading is pending from another openEditor call
-			let pendingEditorLoad = this.mapEditorLoadingPromiseToEditor[position][descriptor.getId()];
-			if (pendingEditorLoad) {
-				loadEditorPromise = pendingEditorLoad;
-			}
-
-			// Otherwise load
-			else {
-				let loaded = false;
-				let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
-				let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
-
-				loadEditorPromise = editorInstantiationService.createInstance(descriptor).then((editor: BaseEditor) => {
-					loaded = true;
-					this.instantiatedEditors[position].push(editor);
-					delete this.mapEditorLoadingPromiseToEditor[position][descriptor.getId()];
-
-					return editor;
-				}, (error) => {
-					loaded = true;
-					delete this.mapEditorLoadingPromiseToEditor[position][descriptor.getId()];
-
-					return TPromise.wrapError(error);
-				});
-
-				if (!loaded) {
-					this.mapEditorLoadingPromiseToEditor[position][descriptor.getId()] = loadEditorPromise;
-				}
-			}
-		} else {
-			loadEditorPromise = TPromise.as(instantiatedEditor);
+		if (instantiatedEditor) {
+			return TPromise.as(instantiatedEditor);
 		}
 
-		return loadEditorPromise;
+		// Return early if editor is being instantiated at the same time from a previous call
+		let pendingEditorInstantiate = this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
+		if (pendingEditorInstantiate) {
+			return pendingEditorInstantiate;
+		}
+
+		// Otherwise instantiate
+		let progressService = new WorkbenchProgressService(this.eventService, this.sideBySideControl.getProgressBar(position), descriptor.getId(), true);
+		let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
+		let loaded = false;
+
+		let instantiateEditorPromise = editorInstantiationService.createInstance(descriptor).then((editor: BaseEditor) => {
+			loaded = true;
+			this.instantiatedEditors[position].push(editor);
+			delete this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
+
+			return editor;
+		}, (error) => {
+			loaded = true;
+			delete this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
+
+			return TPromise.wrapError(error);
+		});
+
+		if (!loaded) {
+			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
+		}
+
+		return instantiateEditorPromise;
 	}
 
 	private doSetInput(editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): TPromise<BaseEditor> {
@@ -627,7 +625,7 @@ export class EditorPart extends Part implements IEditorPart {
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorListeners, from, to);
 		arrays.move(this.editorOpenToken, from, to);
-		arrays.move(this.mapEditorLoadingPromiseToEditor, from, to);
+		arrays.move(this.mapEditorInstantiationPromiseToEditor, from, to);
 		arrays.move(this.mapEditorCreationPromiseToEditor, from, to);
 		arrays.move(this.instantiatedEditors, from, to);
 		arrays.move(this.mapEditorToEditorContainers, from, to);
@@ -1031,7 +1029,7 @@ export class EditorPart extends Part implements IEditorPart {
 			this.doRochade(this.visibleInputListeners, from, to, null);
 			this.doRochade(this.visibleEditors, from, to, null);
 			this.doRochade(this.editorOpenToken, from, to, null);
-			this.doRochade(this.mapEditorLoadingPromiseToEditor, from, to, Object.create(null));
+			this.doRochade(this.mapEditorInstantiationPromiseToEditor, from, to, Object.create(null));
 			this.doRochade(this.mapEditorCreationPromiseToEditor, from, to, Object.create(null));
 			this.doRochade(this.visibleEditorListeners, from, to, []);
 			this.doRochade(this.instantiatedEditors, from, to, []);
