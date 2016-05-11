@@ -27,7 +27,7 @@ import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/co
 import DOM = require('vs/base/browser/dom');
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
-import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
@@ -82,7 +82,7 @@ export interface ISideBySideEditorControl {
 	updateEditorTitleArea(): void;
 	clearTitle(position: Position): void;
 
-	arrangeEditors(arrangement: EditorArrangement): void;
+	arrangeGroups(arrangement: GroupArrangement): void;
 
 	getWidthRatios(): number[];
 	dispose(): void;
@@ -670,7 +670,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.layoutContainers();
 	}
 
-	public arrangeEditors(arrangement: EditorArrangement): void {
+	public arrangeGroups(arrangement: GroupArrangement): void {
 		if (!this.dimension) {
 			return; // too early
 		}
@@ -683,7 +683,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Minimize Others
-		if (arrangement === EditorArrangement.MINIMIZE_OTHERS) {
+		if (arrangement === GroupArrangement.MINIMIZE_OTHERS) {
 			POSITIONS.forEach((position) => {
 				if (this.visibleEditors[position]) {
 					if (position !== this.lastActivePosition) {
@@ -697,7 +697,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Even Widths
-		else if (arrangement === EditorArrangement.EVEN_WIDTH) {
+		else if (arrangement === GroupArrangement.EVEN_WIDTH) {
 			POSITIONS.forEach((position) => {
 				if (this.visibleEditors[position]) {
 					this.containerWidth[position] = availableWidth / visibleEditors;

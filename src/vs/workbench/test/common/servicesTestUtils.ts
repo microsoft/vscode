@@ -327,8 +327,8 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.callback('moveEditor');
 	}
 
-	public arrangeEditors(arrangement: WorkbenchEditorService.EditorArrangement): void {
-		this.callback('arrangeEditors');
+	public arrangeGroups(arrangement: WorkbenchEditorService.GroupArrangement): void {
+		this.callback('arrangeGroups');
 	}
 
 	public openEditor(input: any, options?: any, position?: any): Promise {

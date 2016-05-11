@@ -35,7 +35,7 @@ import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
-import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
@@ -108,7 +108,7 @@ class TestEditorPart implements IEditorPart {
 		// Unsupported
 	}
 
-	public arrangeEditors(arrangement: EditorArrangement): void {
+	public arrangeGroups(arrangement: GroupArrangement): void {
 		// Unsuported
 	}
 

@@ -9,7 +9,7 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
-export enum EditorArrangement {
+export enum GroupArrangement {
 	MINIMIZE_OTHERS,
 	EVEN_WIDTH
 }
@@ -96,9 +96,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	moveEditor(from: Position, to: Position): void;
 
 	/**
-	 * Allows to arrange editors according to the EditorArrangement enumeration.
+	 * Allows to arrange editor groups according to the GroupArrangement enumeration.
 	 */
-	arrangeEditors(arrangement: EditorArrangement): void;
+	arrangeGroups(arrangement: GroupArrangement): void;
 
 	/**
 	 * Resolves an input to its model representation. The optional parameter refresh allows to specify

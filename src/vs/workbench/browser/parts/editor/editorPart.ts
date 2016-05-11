@@ -27,7 +27,7 @@ import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
-import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
@@ -499,7 +499,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Reset counter
 		this.editorSetInputErrorCounter[position] = 0;
 
-		// Update model
+		// Update stacks model
 		const group = this.stacksModel.groups[position];
 		group.closeEditor(group.activeEditor); // TODO@stacks allow to close any non active editor
 
@@ -524,7 +524,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Hide Editor
 		return this.doHideEditor(editor, position, true).then(() => {
 
-			// Update model
+			// Update stacks model
 			this.stacksModel.closeGroup(group);
 
 			// Emit Input-Changed Event
@@ -654,8 +654,8 @@ export class EditorPart extends Part implements IEditorPart {
 		this.openEditor(activeEditor.input, null, activeEditor.position).done(null, errors.onUnexpectedError);
 	}
 
-	public arrangeEditors(arrangement: EditorArrangement): void {
-		this.sideBySideControl.arrangeEditors(arrangement);
+	public arrangeGroups(arrangement: GroupArrangement): void {
+		this.sideBySideControl.arrangeGroups(arrangement);
 	}
 
 	public createContentArea(parent: Builder): Builder {
@@ -775,6 +775,12 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private onEditorFocusChanged(): void {
+
+		// Update stacks model
+		let activePosition = this.sideBySideControl.getActivePosition();
+		if (typeof activePosition === 'number') {
+			this.stacksModel.setActive(this.stacksModel.groups[activePosition]);
+		}
 
 		// Emit as editor input change event so that clients get aware of new active editor
 		let activeEditor = this.sideBySideControl.getActiveEditor();

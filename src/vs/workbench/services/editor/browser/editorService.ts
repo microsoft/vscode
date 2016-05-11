@@ -19,7 +19,7 @@ import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInpu
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
@@ -35,7 +35,7 @@ export interface IEditorPart {
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
 	moveEditor(from: Position, to: Position): void;
-	arrangeEditors(arrangement: EditorArrangement): void;
+	arrangeGroups(arrangement: GroupArrangement): void;
 	getStacksModel(): IEditorStacksModel;
 }
 
@@ -95,8 +95,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		this.editorPart.moveEditor(from, to);
 	}
 
-	public arrangeEditors(arrangement: EditorArrangement): void {
-		this.editorPart.arrangeEditors(arrangement);
+	public arrangeGroups(arrangement: GroupArrangement): void {
+		this.editorPart.arrangeGroups(arrangement);
 	}
 
 	public setEditors(inputs: IEditorInput[], options?: IEditorOptions[]): TPromise<IEditor[]>;
@@ -371,8 +371,8 @@ class EditorPartDelegate implements IEditorPart {
 		this.editorService.moveEditor(from, to);
 	}
 
-	public arrangeEditors(arrangement: EditorArrangement): void {
-		this.editorService.arrangeEditors(arrangement);
+	public arrangeGroups(arrangement: GroupArrangement): void {
+		this.editorService.arrangeGroups(arrangement);
 	}
 
 	public closeEditors(othersOnly?: boolean): TPromise<void> {

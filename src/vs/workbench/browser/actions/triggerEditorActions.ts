@@ -16,7 +16,7 @@ import {EditorInput, getUntitledOrFileResource, TextEditorOptions} from 'vs/work
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
-import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor} from 'vs/platform/editor/common/editor';
@@ -519,39 +519,39 @@ export class MoveEditorRightAction extends Action {
 	}
 }
 
-let MINIMIZE_EDITORS_ACTION_ID = 'workbench.action.minimizeOtherEditors';
-let MINIMIZE_EDITORS_ACTION_LABEL = nls.localize('minimizeOtherEditors', "Minimize Other Editors");
-export class MinimizeOtherEditorsAction extends Action {
+let MINIMIZE_GROUPS_ACTION_ID = 'workbench.action.minimizeOtherEditors';
+let MINIMIZE_GROUPS_ACTION_LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
+export class MinimizeOtherGroupsAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorService.arrangeEditors(EditorArrangement.MINIMIZE_OTHERS);
+		this.editorService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
 
 		return TPromise.as(false);
 	}
 }
 
-let EVEN_EDITOR_WIDTHS_ACTION_ID = 'workbench.action.evenEditorWidths';
-let EVEN_EDITOR_WIDTHS_ACTION_LABEL = nls.localize('evenEditorWidths', "Even Editor Widths");
-export class EvenEditorWidthsAction extends Action {
+let EVEN_GROUP_WIDTHS_ACTION_ID = 'workbench.action.evenEditorWidths';
+let EVEN_GROUP_WIDTHS_ACTION_LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
+export class EvenGroupWidthsAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorService.arrangeEditors(EditorArrangement.EVEN_WIDTH);
+		this.editorService.arrangeGroups(GroupArrangement.EVEN_WIDTH);
 
 		return TPromise.as(false);
 	}
 }
 
-let MAXIMIZE_EDITOR_ACTION_ID = 'workbench.action.maximizeEditor';
-let MAXIMIZE_EDITOR_ACTION_LABEL = nls.localize('maximizeEditor', "Maximize Active Editor and Hide Sidebar");
-export class MaximizeEditorAction extends Action {
+let MAXIMIZE_GROUP_ACTION_ID = 'workbench.action.maximizeEditor';
+let MAXIMIZE_GROUP_ACTION_LABEL = nls.localize('maximizeEditor', "Maximize Active Editor Group and Hide Sidebar");
+export class MaximizeGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -564,7 +564,7 @@ export class MaximizeEditorAction extends Action {
 
 	public run(): TPromise<any> {
 		if (this.editorService.getActiveEditor()) {
-			this.editorService.arrangeEditors(EditorArrangement.MINIMIZE_OTHERS);
+			this.editorService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
 			this.partService.setSideBarHidden(true);
 		}
 
@@ -589,9 +589,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CycleEditorAction, CYC
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstEditorAction, FOCUS_FIRST_EDITOR_ACTION_ID, FOCUS_FIRST_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus into Left Hand Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondEditorAction, FOCUS_SECOND_EDITOR_ACTION_ID, FOCUS_SECOND_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus into Side Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdEditorAction, FOCUS_THIRD_EDITOR_ACTION_ID, FOCUS_THIRD_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), 'View: Focus into Right Hand Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(EvenEditorWidthsAction, EVEN_EDITOR_WIDTHS_ACTION_ID, EVEN_EDITOR_WIDTHS_ACTION_LABEL), 'View: Even Editor Widths', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeEditorAction, MAXIMIZE_EDITOR_ACTION_ID, MAXIMIZE_EDITOR_ACTION_LABEL), 'View: Maximize Active Editor and Hide Sidebar', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherEditorsAction, MINIMIZE_EDITORS_ACTION_ID, MINIMIZE_EDITORS_ACTION_LABEL), 'View: Minimize Other Editors', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EVEN_GROUP_WIDTHS_ACTION_ID, EVEN_GROUP_WIDTHS_ACTION_LABEL), 'View: Even Editor Group Widths', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MAXIMIZE_GROUP_ACTION_ID, MAXIMIZE_GROUP_ACTION_LABEL), 'View: Maximize Active Editor Group and Hide Sidebar', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MINIMIZE_GROUPS_ACTION_ID, MINIMIZE_GROUPS_ACTION_LABEL), 'View: Minimize Other Editor Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorLeftAction, MOVE_EDITOR_LEFT_ACTION_ID, MOVE_EDITOR_LEFT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Active Editor Left', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorRightAction, MOVE_EDITOR_RIGHT_ACTION_ID, MOVE_EDITOR_RIGHT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Active Editor Right', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToLeftEditorAction, NAVIGATE_LEFT_EDITOR_ACTION_ID, NAVIGATE_LEFT_EDITOR_ACTION_LABEL, {
