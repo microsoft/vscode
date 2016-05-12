@@ -16,6 +16,7 @@ import {asFileEditorInput, EditorInput} from 'vs/workbench/common/editor';
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
+import {Position} from 'vs/platform/editor/common/editor';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -144,8 +145,13 @@ export class FileTracker implements IWorkbenchContribution {
 					return this.editorService.openEditor(resources[0]);
 				}
 
-				// Otherwise replace all
-				return this.editorService.setEditors(resources);
+				// Otherwise open all
+				return this.editorService.openEditors(resources.map((r, index) => {
+					return {
+						input: r,
+						position: Math.min(index, Position.RIGHT) // put any resource > RIGHT to right position
+					};
+				}));
 			});
 		});
 	}

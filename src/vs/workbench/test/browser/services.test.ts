@@ -66,7 +66,7 @@ class TestEditorPart implements IEditorPart {
 		return null;
 	}
 
-	public setEditors(inputs: EditorInput[]): Promise {
+	public openEditors(args: any[]): Promise {
 		return TPromise.as([]);
 	}
 

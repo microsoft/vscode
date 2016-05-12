@@ -61,7 +61,12 @@ export class BaseTwoEditorsAction extends Action {
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
 			return this.editorService.inputToType({ resource: editableResource }).then((typedRightHandEditableInput) => {
-				return this.editorService.setEditors([leftHandDefaultInput, typedRightHandEditableInput]).then(() => {
+				const editors = [
+					{ input: leftHandDefaultInput, position: Position.LEFT },
+					{ input: typedRightHandEditableInput, position: Position.CENTER }
+				];
+
+				return this.editorService.openEditors(editors).then(() => {
 					return this.editorService.focusGroup(Position.CENTER);
 				});
 			});

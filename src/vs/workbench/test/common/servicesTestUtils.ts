@@ -287,7 +287,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.callback = callback || ((s: string) => { });
 	}
 
-	public setEditors(inputs): Promise {
+	public openEditors(inputs): Promise {
 		return TPromise.as([]);
 	}
 

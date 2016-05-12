@@ -61,11 +61,10 @@ export interface IWorkbenchEditorService extends IEditorService {
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
 
 	/**
-	 * Opens the set of inputs replacing any other editor that is currently open. Use #openEditor() instead to open
-	 * a single editor.
+	 * Similar to #openEditor() but allows to open multiple editors for different positions at the same time.
 	 */
-	setEditors(inputs: IEditorInput[]): TPromise<IEditor[]>;
-	setEditors(inputs: IResourceInput[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IResourceInput, position: Position }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 
 	/**
 	 * Closes the editor at the provided position. If position is not provided, the current active editor is closed.

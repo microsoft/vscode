@@ -10,6 +10,7 @@ import {EditorInput} from 'vs/workbench/common/editor';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
@@ -581,6 +582,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.toDispose = [];
@@ -827,6 +829,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private load(): void {
+		const options = this.contextService.getOptions();
+		if ((options.filesToCreate && options.filesToCreate.length) || (options.filesToOpen && options.filesToOpen.length) || (options.filesToDiff && options.filesToDiff.length)) {
+			return; // do not load from last session if the user explicitly asks to open a set of files
+		}
+
 		const modelRaw = this.storageService.get(EditorStacksModel.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (modelRaw) {
 			const serialized: ISerializedEditorStacksModel = JSON.parse(modelRaw);

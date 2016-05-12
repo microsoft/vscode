@@ -663,17 +663,23 @@ export class EditorPart extends Part implements IEditorPart {
 		return contentArea;
 	}
 
-	public setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]> {
-		if (!inputs.length) {
+	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]> {
+		if (!editors.length) {
 			return TPromise.as<BaseEditor[]>([]);
 		}
 
-		return this.closeEditors().then(() => this.doSetEditors(inputs, options));
+		return this.doOpenEditors(editors);
 	}
 
 	public restoreEditors(): TPromise<BaseEditor[]> {
-		const inputs = this.stacksModel.groups.map(g => g.activeEditor);
-		if (!inputs.length) {
+		const editors = this.stacksModel.groups.map((group, index) => {
+			return {
+				input: group.activeEditor,
+				position: index
+			};
+		});
+
+		if (!editors.length) {
 			return TPromise.as<BaseEditor[]>([]);
 		}
 
@@ -681,49 +687,69 @@ export class EditorPart extends Part implements IEditorPart {
 		let widthRatios = editorState.widthRatio;
 		let activeInput = this.stacksModel.activeGroup.activeEditor;
 
-		return this.doSetEditors(inputs, null, activeInput, widthRatios);
+		return this.doOpenEditors(editors, activeInput, widthRatios);
 	}
 
-	private doSetEditors(inputs: EditorInput[], options?: EditorOptions[], activeInput?: EditorInput, widthRatios?: number[]): TPromise<BaseEditor[]> {
+	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activeInput?: EditorInput, widthRatios?: number[]): TPromise<BaseEditor[]> {
+		const leftEditors = editors.filter(e => e.position === Position.LEFT);
+		const centerEditors = editors.filter(e => e.position === Position.CENTER);
+		const rightEditors = editors.filter(e => e.position === Position.RIGHT);
 
-		// Validate inputs
-		if (inputs.length > POSITIONS.length) {
-			inputs = inputs.slice(inputs.length - POSITIONS.length); // make sure to reduce the array to the last N elements if n > available positions
+		// Validate we do not produce empty groups
+		if ((!leftEditors.length && (centerEditors.length || rightEditors.length) || (!centerEditors.length && rightEditors.length))) {
+			leftEditors.push(...centerEditors);
+			leftEditors.push(...rightEditors);
+			centerEditors.splice(0, centerEditors.length);
+			rightEditors.splice(0, rightEditors.length);
 		}
 
 		// Validate active input
-		if (!activeInput || inputs.indexOf(activeInput) === -1) {
-			activeInput = inputs[0];
+		if (!activeInput || ![...leftEditors, ...centerEditors, ...rightEditors].some(e => e.input === activeInput)) {
+			activeInput = leftEditors[0].input;
 		}
 
 		// Validate width ratios
-		if (!widthRatios || widthRatios.length !== inputs.length) {
-			widthRatios = (inputs.length === 3) ? [0.33, 0.33, 0.34] : (inputs.length === 2) ? [0.5, 0.5] : [1];
+		const positions = rightEditors.length ? 3 : centerEditors.length ? 2 : 1;
+		if (!widthRatios || widthRatios.length !== positions) {
+			widthRatios = (positions === 3) ? [0.33, 0.33, 0.34] : (positions === 2) ? [0.5, 0.5] : [1];
 		}
 
-		// Open each input respecting the options
+		// Open each input respecting the options. Since there can only be one active editor in each
+		// position, we have to pick the first input from each position and add the others as inactive
 		let promises: TPromise<BaseEditor>[] = [];
-		inputs.forEach((input, index) => {
-
-			// Handle active input via options
-			let preserveFocus = (input !== activeInput);
-			let option: EditorOptions;
-			if (options && options[index]) {
-				option = options[index];
-				option.preserveFocus = preserveFocus;
-			} else {
-				option = EditorOptions.create({ preserveFocus: preserveFocus });
+		[leftEditors.shift(), centerEditors.shift(), rightEditors.shift()].forEach((editor, index) => {
+			if (!editor) {
+				return; // unused position
 			}
 
-			promises.push(this.openEditor(input, option, index, widthRatios));
+			const input = editor.input;
+
+			// Resolve editor options
+			const preserveFocus = (input !== activeInput);
+			let options: EditorOptions;
+			if (editor.options) {
+				options = editor.options;
+				options.preserveFocus = preserveFocus;
+			} else {
+				options = EditorOptions.create({ preserveFocus: preserveFocus });
+			}
+
+			promises.push(this.openEditor(input, options, index, widthRatios));
 		});
 
 		return TPromise.join(promises).then(editors => {
 
 			// Workaround for bad layout issue: If any of the editors fails to load, reset side by side by closing
 			// all editors. This fixes an issue where a side editor might show, but no editor to the left hand side.
-			if (this.getVisibleEditors().length !== inputs.length) {
+			if (this.getVisibleEditors().length !== positions) {
 				this.closeEditors().done(null, errors.onUnexpectedError);
+			}
+
+			// Update stacks model for remaining inactive editors if the open was successful
+			else {
+				[leftEditors, centerEditors, rightEditors].forEach((editors, index) => {
+					editors.forEach(editor => this.groupAt(index).openEditor(editor.input, { pinned: true }));
+				});
 			}
 
 			// Full layout side by side

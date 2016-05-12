@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
 import {guessMimeTypes} from 'vs/base/common/mime';
@@ -26,9 +26,9 @@ import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 export interface IEditorPart {
-	setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]>;
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
+	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
 	closeEditors(othersOnly?: boolean): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
@@ -99,20 +99,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		this.editorPart.arrangeGroups(arrangement);
 	}
 
-	public setEditors(inputs: IEditorInput[], options?: IEditorOptions[]): TPromise<IEditor[]>;
-	public setEditors(inputs: IResourceInput[]): TPromise<IEditor[]>;
-	public setEditors(inputs: any[], options?: any[]): TPromise<IEditor[]> {
-		return Promise.join(inputs.map((input) => this.inputToType(input))).then((typedInputs) => {
-			return this.editorPart.setEditors(typedInputs, options || inputs.map(input => {
-				if (input instanceof EditorInput) {
-					return null; // no options for editor inputs
-				}
-
-				return TextEditorOptions.from(input); // ITextInputs can carry settings, so support that!
-			}));
-		});
-	}
-
 	public openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: IEditorInput, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	public openEditor(input: IResourceInput, position?: Position): TPromise<IEditor>;
@@ -157,6 +143,22 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
 		return this.editorPart.openEditor(input, options, arg3);
+	}
+
+	public openEditors(editors: { input: IResourceInput, position: Position }[]): TPromise<IEditor[]>;
+	public openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
+	public openEditors(editors: any[]): TPromise<IEditor[]> {
+		return TPromise.join(editors.map(editor => this.inputToType(editor.input))).then(inputs => {
+			const typedInputs:  { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
+				return {
+					input,
+					options: editors[index] instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input),
+					position: editors[index].position
+				};
+			});
+
+			return this.editorPart.openEditors(typedInputs);
+		});
 	}
 
 	public closeEditor(editor?: IEditor): TPromise<IEditor>;
@@ -232,8 +234,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
-	public inputToType(input: EditorInput): TPromise<IEditorInput>;
-	public inputToType(input: IResourceInput): TPromise<IEditorInput>;
+	public inputToType(input: EditorInput): TPromise<EditorInput>;
+	public inputToType(input: IResourceInput): TPromise<EditorInput>;
 	public inputToType(input: any): TPromise<IEditorInput> {
 
 		// Workbench Input Support
@@ -333,20 +335,19 @@ class EditorPartDelegate implements IEditorPart {
 		this.editorService = service;
 	}
 
-	public setEditors(inputs: EditorInput[]): TPromise<BaseEditor[]> {
-		return this.editorService.setEditors(inputs);
-	}
-
 	public openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
 	public openEditor(input?: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
 		return this.editorService.openEditor(input, options, arg3);
 	}
 
+	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<IEditor[]> {
+		return this.editorService.openEditors(editors);
+	}
+
 	public getActiveEditor(): BaseEditor {
 		return <BaseEditor>this.editorService.getActiveEditor();
 	}
-
 
 	public activateGroup(position: Position): void {
 		this.editorService.activateGroup(position);

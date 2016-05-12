@@ -8,11 +8,12 @@
 import * as assert from 'assert';
 import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setOpenEditorDirection, Direction} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
-import {TestStorageService, TestLifecycleService} from 'vs/workbench/test/common/servicesTestUtils';
+import {TestStorageService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -21,6 +22,7 @@ function create(): EditorStacksModel {
 	let services = new ServiceCollection();
 	services.set(IStorageService, new TestStorageService());
 	services.set(ILifecycleService, new TestLifecycleService());
+	services.set(IWorkspaceContextService, new TestContextService());
 
 	let inst = new InstantiationService(services);
 
@@ -1019,6 +1021,7 @@ suite('Editor Stacks Model', () => {
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
+		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 
@@ -1059,6 +1062,7 @@ suite('Editor Stacks Model', () => {
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
+		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 
@@ -1137,6 +1141,7 @@ suite('Editor Stacks Model', () => {
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
+		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 
@@ -1183,6 +1188,7 @@ suite('Editor Stacks Model', () => {
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
+		services.set(IWorkspaceContextService, new TestContextService());
 		const lifecycle = new TestLifecycleService();
 		services.set(ILifecycleService, lifecycle);
 
@@ -1215,5 +1221,39 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group1.count, 2);
 		assert.equal(group1.getEditors()[0].matches(serializableInput1), true);
 		assert.equal(group1.getEditors()[1].matches(serializableInput2), true);
+	});
+
+	test('Stack - Multiple groups, multiple editors - persist (ignore persisted when editors to open on startup)', function () {
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		services.set(IWorkspaceContextService, new TestContextService(TestWorkspace, TestConfiguration, { filesToCreate: [true] }));
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+
+		let group1 = model.openGroup('group1');
+		let group2 = model.openGroup('group1');
+
+		const serializableInput1 = input();
+		const serializableInput2 = input();
+		const nonSerializableInput = input('2', true);
+
+		group1.openEditor(serializableInput1, { pinned: true });
+		group1.openEditor(serializableInput2);
+
+		group2.openEditor(nonSerializableInput);
+
+		lifecycle.fireShutdown();
+
+		// Create model again - should NOT load from storage
+		model = inst.createInstance(EditorStacksModel);
+
+		assert.equal(model.groups.length, 0);
 	});
 });
