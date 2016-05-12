@@ -13,15 +13,16 @@ import * as platform from 'vs/base/common/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
+import {dispose, IDisposable, Disposables} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ElectronTelemetryService} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
-import {AppInsightsAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
+import {TelemetryService} from  'vs/platform/telemetry/browser/telemetryService';
+import {createAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
+import {resolveCommonProperties} from 'vs/platform/telemetry/node/commonProperties';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
 import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
@@ -197,6 +198,7 @@ export class WorkbenchShell {
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
 		let serviceCollection = new ServiceCollection();
 		let instantiationService = new InstantiationService(serviceCollection, true);
+		let disposables = new Disposables();
 
 		this.windowService = new WindowService();
 
@@ -204,41 +206,41 @@ export class WorkbenchShell {
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
-			this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
-				appRoot: this.configuration.env.appRoot,
-				extensionsRoot: this.configuration.env.userExtensionsHome,
-				version: this.configuration.env.version,
-				commitHash: this.configuration.env.commitHash,
-				appender: [new AppInsightsAppender(this.storageService, this.configuration.env.aiConfig)]
-			});
+			const config = {
+				appender: createAppender(this.configuration.env),
+				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
+				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
+			};
+			let telemetryService = new TelemetryService(config, this.configurationService);
+			this.telemetryService = telemetryService;
+			disposables.add(telemetryService, ...config.appender);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService);
 
-		let fileService = new FileService(
+		let fileService = disposables.add(new FileService(
 			this.configurationService,
 			this.eventService,
 			this.contextService,
 			this.messageService
-		);
+		));
+
 
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
-		this.toUnbind.push(lifecycleService.onShutdown(() => fileService.dispose()));
-
+		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
 
 		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService);
 
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
-		let requestService = new RequestService(
+		let requestService = disposables.add(new RequestService(
 			this.contextService,
 			this.configurationService,
 			this.telemetryService
-		);
-		this.toUnbind.push(lifecycleService.onShutdown(() => requestService.dispose()));
+		));
 
 		let markerService = new MainProcessMarkerService(this.threadService);
 
@@ -248,6 +250,7 @@ export class WorkbenchShell {
 
 		let untitledEditorService = instantiationService.createInstance(UntitledEditorService);
 		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService);
+
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		serviceCollection.set(IEventService, this.eventService);

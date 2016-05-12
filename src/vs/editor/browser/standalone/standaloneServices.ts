@@ -27,7 +27,6 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -163,11 +162,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let telemetryService = services.telemetryService;
 
 	if (!telemetryService) {
-		let config = contextService.getConfiguration();
-		let enableTelemetry = config && config.env ? !!config.env.enableTelemetry: false;
-		telemetryService = enableTelemetry
-			? new TelemetryService()
-			: NullTelemetryService;
+		telemetryService = NullTelemetryService;
 	}
 
 	let eventService = services.eventService || new EventService();

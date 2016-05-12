@@ -150,6 +150,9 @@ export class Thread implements debug.IThread {
 
 				return new StackFrame(this.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
 			});
+		}, (err: Error) => {
+			this.stoppedDetails.framesErrorMessage = err.message;
+			return [];
 		});
 	}
 }

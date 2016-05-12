@@ -5,7 +5,7 @@
 'use strict';
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {AbstractGettingStarted} from 'vs/workbench/parts/gettingStarted/common/abstractGettingStarted';
+import {AbstractGettingStarted} from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
 import * as platform from 'vs/base/common/platform';
 
 import { shell } from 'electron';

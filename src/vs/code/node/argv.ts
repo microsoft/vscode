@@ -99,5 +99,5 @@ ${ indent }-w, --wait            Wait for the window to be closed before returni
 ${ indent }--list-extensions     List the installed extensions.
 ${ indent }--install-extension <extension>
 ${ indent }                      Installs an extension.
-${ indent }--list-extensions <extension>
+${ indent }--uninstall-extension <extension>
 ${ indent }                      Uninstalls an extension.`;

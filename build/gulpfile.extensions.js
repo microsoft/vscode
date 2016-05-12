@@ -31,13 +31,12 @@ var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 
 var tasks = compilations.map(function(tsconfigFile) {
 	var absolutePath = path.join(extensionsPath, tsconfigFile);
-	var absoluteDirname = path.dirname(absolutePath);
 	var relativeDirname = path.dirname(tsconfigFile);
 
 	var tsOptions = require(absolutePath).compilerOptions;
 	tsOptions.verbose = !quiet;
 	tsOptions.sourceMap = true;
-	tsOptions.sourceRoot = util.toFileUri(path.join(absoluteDirname, 'src'));
+	tsOptions.sourceRoot = '../src';
 
 	var name = relativeDirname.replace(/\//g, '-');
 

@@ -4,16 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as appInsights from 'applicationinsights';
 import {isObject} from 'vs/base/common/types';
 import {safeStringify, mixin} from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as appInsights from 'applicationinsights';
-
-export interface IAIAdapter {
-	log(eventName: string, data?: any): void;
-	logException(exception: any): void;
-	dispose(): void;
-}
 
 namespace AI {
 
@@ -54,22 +48,23 @@ interface Measurements {
 	[key: string]: number;
 }
 
-export class AIAdapter implements IAIAdapter {
+export class AIAdapter {
 
 	private _aiClient: typeof appInsights.client;
 
 	constructor(
 		private _eventPrefix: string,
-		private _additionalDataToLog: () => TPromise<{ [key: string]: any }>,
-		clientFactoryOrAiKey: (() => typeof appInsights.client) | string // allow factory function for testing
+		private _defaultData: { [key: string]: any },
+		aiKeyOrClientFactory: string | (() => typeof appInsights.client) // allow factory function for testing
 	) {
-		if (!this._additionalDataToLog) {
-			this._additionalDataToLog = () => TPromise.as(undefined);
+		if (!this._defaultData) {
+			this._defaultData = Object.create(null);
 		}
-		if (typeof clientFactoryOrAiKey === 'string') {
-			this._aiClient = AI.getClient(clientFactoryOrAiKey);
-		} else if (typeof clientFactoryOrAiKey === 'function') {
-			this._aiClient = clientFactoryOrAiKey();
+
+		if (typeof aiKeyOrClientFactory === 'string') {
+			this._aiClient = AI.getClient(aiKeyOrClientFactory);
+		} else if (typeof aiKeyOrClientFactory === 'function') {
+			this._aiClient = aiKeyOrClientFactory();
 		}
 	}
 
@@ -139,26 +134,20 @@ export class AIAdapter implements IAIAdapter {
 		if (!this._aiClient) {
 			return;
 		}
-		this._additionalDataToLog().then(additionalData => {
-			return mixin(data, additionalData);
-		}, err => {
-			console.error(err); // ignore?
-			return data;
-		}).done(data => {
-			let {properties, measurements} = AIAdapter._getData(data);
-			this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
-		});
+		data = mixin(data, this._defaultData);
+		let {properties, measurements} = AIAdapter._getData(data);
+		this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
 	}
 
-	public logException(exception: any): void {
+	public dispose(): TPromise<any> {
 		if (this._aiClient) {
-			this._aiClient.trackException(exception);
+			return new TPromise(resolve => {
+				this._aiClient.sendPendingData(() => {
+					// all data flushed
+					this._aiClient = undefined;
+					resolve(void 0);
+				});
+			});
 		}
-	}
-
-	public dispose(): void {
-		this._aiClient.sendPendingData(() => {
-			// all data flushed
-		});
 	}
 }

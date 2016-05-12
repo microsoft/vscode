@@ -157,7 +157,8 @@ export class ElectronGitService extends GitService {
 			const encoding = (conf.files && conf.files.encoding) || 'utf8';
 			const workspaceRoot = workspace.resource.fsPath;
 
-			const promise = findGit(gitPath)
+			const promise = TPromise.timeout(0) // free event loop cos finding git costs
+				.then(() => findGit(gitPath))
 				.then(({ path, version }) => {
 					const client = new Client(
 						URI.parse(require.toUrl('bootstrap')).fsPath,

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {AbstractGettingStarted} from 'vs/workbench/parts/gettingStarted/common/abstractGettingStarted';
+import {AbstractGettingStarted} from 'vs/workbench/parts/welcome/common/abstractGettingStarted';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

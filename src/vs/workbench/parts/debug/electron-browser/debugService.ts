@@ -16,7 +16,7 @@ import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import aria = require('vs/base/browser/ui/aria/aria');
-import { AIAdapter } from 'vs/base/node/aiAdapter';
+import { IAIAdapter, createAIAdapter } from 'vs/base/parts/ai/node/ai';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -67,7 +67,7 @@ export class DebugService implements debug.IDebugService {
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
 	private debugStringEditorInputs: DebugStringEditorInput[];
-	private telemetryAdapter: AIAdapter;
+	private telemetryAdapter: IAIAdapter;
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: lifecycle.IDisposable[];
@@ -486,69 +486,74 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
+	public createSession(noDebug: boolean, configuration?: debug.IConfig, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
 		this.removeReplExpressions();
 
-		return this.textFileService.saveAll()						// make sure all dirty files are saved
+		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
-				.then(() => this.extensionService.onReady()
-					.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
-						.then(() => {
-							const configuration = this.configurationManager.configuration;
-							if (!configuration) {
-								return this.configurationManager.openConfigFile(false).then(openend => {
-									if (openend) {
-										this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
-									}
-								});
-							}
+			.then(() => this.extensionService.onReady()
+			.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
+			.then(() => {
+				this.configurationManager.resloveConfiguration(configuration);
+				configuration = configuration || this.configurationManager.configuration;
+				if (!configuration) {
+					return this.configurationManager.openConfigFile(false).then(openend => {
+						if (openend) {
+							this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
+						}
+					});
+				}
 
-							configuration.noDebug = noDebug;
-							if (!this.configurationManager.adapter) {
-								return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
-									: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the selected configuration in launch.json."),
-										{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
-							}
+				configuration.noDebug = noDebug;
+				if (!this.configurationManager.adapter) {
+					return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
+						: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the selected configuration in launch.json."),
+							{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+				}
 
-							return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
-								const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-								const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-								if (errorCount === 0 && !failureExitCode) {
-									return this.doCreateSession(configuration, changeViewState);
-								}
+				return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
+					const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+					const successExitCode = taskSummary && taskSummary.exitCode === 0;
+					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
+						return this.doCreateSession(configuration, changeViewState);
+					}
 
-								this.messageService.show(severity.Error, {
-									message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-										errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-											nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-									actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-										this.messageService.hideAll();
-										return this.doCreateSession(configuration, changeViewState);
-									})]
-								});
-							}, (err: TaskError) => {
-								if (err.code !== TaskErrors.NotConfigured) {
-									throw err;
-								}
+					this.messageService.show(severity.Error, {
+						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+						actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+							this.messageService.hideAll();
+							return this.doCreateSession(configuration, changeViewState);
+						})]
+					});
+				}, (err: TaskError) => {
+					if (err.code !== TaskErrors.NotConfigured) {
+						throw err;
+					}
 
-								this.messageService.show(err.severity, {
-									message: err.message,
-									actions: [CloseAction, this.taskService.configureAction()]
-								});
-							});
-						}))));
+					this.messageService.show(err.severity, {
+						message: err.message,
+						actions: [CloseAction, this.taskService.configureAction()]
+					});
+				});
+			}))));
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
 		this.setStateAndEmit(debug.State.Initializing);
-		this.telemetryAdapter = new AIAdapter(this.configurationManager.adapter.type, () => {
-			return this.telemetryService.getTelemetryInfo().then(info => {
-				const telemetryInfo: { [key: string]: string } = Object.create(null);
-				telemetryInfo['common.vscodemachineid'] = info.machineId;
-				telemetryInfo['common.vscodesessionid'] = info.sessionId;
-				return telemetryInfo;
-			});
-		}, this.configurationManager.adapter.aiKey);
+
+		this.telemetryService.getTelemetryInfo().then(info => {
+			const telemetryInfo: { [key: string]: string } = Object.create(null);
+			telemetryInfo['common.vscodemachineid'] = info.machineId;
+			telemetryInfo['common.vscodesessionid'] = info.sessionId;
+			return telemetryInfo;
+		}).then(data => {
+			let {aiKey, type} = this.configurationManager.adapter;
+			this.telemetryAdapter = createAIAdapter(aiKey, type, data);
+		});
+
 		this.session = this.instantiationService.createInstance(session.RawDebugSession, configuration.debugServer, this.configurationManager.adapter, this.telemetryAdapter);
 		this.registerSessionListeners();
 
@@ -675,10 +680,10 @@ export class DebugService implements debug.IDebugService {
 		return this.session ? this.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createSession(false, false).then(() => c(null), err => e(err));
+					this.createSession(false, null, false).then(() => c(null), err => e(err));
 				}, 300);
 			})
-		) : this.createSession(false, false);
+		) : this.createSession(false, null, false);
 	}
 
 	public getActiveSession(): debug.IRawDebugSession {

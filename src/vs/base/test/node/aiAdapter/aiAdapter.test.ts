@@ -5,8 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {AIAdapter} from 'vs/base/node/aiAdapter';
+import {AIAdapter} from 'vs/base/parts/ai/node/aiAdapter';
 
 interface IAppInsightsEvent {
 	eventName: string;
@@ -62,7 +61,7 @@ suite('AIAdapter', () => {
 	});
 
 	test('addional data', () => {
-		adapter = new AIAdapter(prefix, () => TPromise.as({ first: '1st', second: 2, third: true }), () => appInsightsMock);
+		adapter = new AIAdapter(prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
 		adapter.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 1);
@@ -71,13 +70,6 @@ suite('AIAdapter', () => {
 		assert.equal(first.properties['first'], '1st');
 		assert.equal(first.measurements['second'], '2');
 		assert.equal(first.measurements['third'], 1);
-	});
-
-	test('Track UnhandledError as exception and events', () => {
-		var sampleError = new Error('test');
-
-		adapter.logException(sampleError);
-		assert.equal(appInsightsMock.exceptions.length, 1);
 	});
 
 	test('property limits', () => {

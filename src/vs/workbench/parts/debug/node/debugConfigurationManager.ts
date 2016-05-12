@@ -241,14 +241,18 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
 			this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
 			if (this.configuration) {
-				if (this.systemVariables) {
-					Object.keys(this.configuration).forEach(key => {
-						this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
-					});
-				}
+				this.resloveConfiguration(this.configuration);
 				this.configuration.debugServer = config.debugServer;
 			}
 		}).then(() => this._onDidConfigurationChange.fire(this.configurationName));
+	}
+
+	public resloveConfiguration(configuration: debug.IConfig) {
+		if (this.systemVariables && configuration) {
+			Object.keys(configuration).forEach(key => {
+				configuration[key] = this.systemVariables.resolveAny(configuration[key]);
+			});
+		}
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {

@@ -27,15 +27,16 @@ import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {
 
-	protected debugService: IDebugService;
-	private keybindingService: IKeybindingService;
 	protected toDispose: lifecycle.IDisposable[];
 	private keybinding: string;
 
-	constructor(id: string, label: string, cssClass: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(
+		id: string, label: string, cssClass: string,
+		@IDebugService protected debugService: IDebugService,
+		@IKeybindingService protected keybindingService: IKeybindingService
+	) {
 		super(id, label, cssClass, false);
 		this.debugService = debugService;
-		this.keybindingService = keybindingService;
 		this.toDispose = [];
 		this.toDispose.push(this.debugService.onDidChangeState((state) => this.updateEnablement(state)));
 
@@ -119,7 +120,7 @@ export class StartDebugAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.createSession(false);
+		return this.keybindingService.executeCommand('_workbench.startDebug');
 	}
 
 	protected isEnabled(state: debug.State): boolean {

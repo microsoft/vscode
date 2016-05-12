@@ -166,14 +166,6 @@ export class HTMLWorker {
 		});
 	}
 
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().logicalSelectionSupport) {
-				return model.getMode().logicalSelectionSupport.getRangesToPosition(model.getAssociatedResource(), position);
-			}
-		});
-	}
-
 	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().declarationSupport) {
@@ -233,7 +225,8 @@ export class HTMLWorker {
 
 	private collectTagSuggestions(scanner: IHTMLScanner, position: EditorCommon.IPosition, suggestions: Modes.ISuggestResult): void {
 		let model = scanner.getModel();
-		let contentAfter = model.getLineContent(position.lineNumber).substr(position.column - 1);
+		let currentLine = model.getLineContent(position.lineNumber);
+		let contentAfter = currentLine.substr(position.column - 1);
 		let closeTag = isWhiteSpace(contentAfter) || strings.startsWith(contentAfter, '<') ? '>' : '';
 
 		let collectClosingTagSuggestion = (overwriteBefore: number) => {
@@ -256,6 +249,7 @@ export class HTMLWorker {
 					if (isWhiteSpace(startIndent) && isWhiteSpace(endIndent)) {
 						suggestion.overwriteBefore = position.column - 1; // replace from start of line
 						suggestion.codeSnippet = startIndent + '</' + matchingTag + closeTag;
+						suggestion.filterText = currentLine.substring(0, position.column - 1);
 					}
 				}
 				return true;

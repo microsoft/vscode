@@ -111,7 +111,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.builder = $().div((div: Builder) => {
 
 			// Eventing
-			div.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			div.on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 				let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
@@ -141,6 +141,7 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputElement.setAttribute('aria-haspopup', 'false');
 				this.inputElement.setAttribute('aria-autocomplete', 'list');
 
+				// Listen to some keys on key-down for faster type feedback
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
@@ -156,19 +157,23 @@ export class QuickOpenWidget implements IModelProvider {
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
 					}
 
+					// Bug in IE 9: onInput is not fired for Backspace or Delete keys
+					else if (browser.isIE9 && (keyboardEvent.keyCode === KeyCode.Backspace || keyboardEvent.keyCode === KeyCode.Delete)) {
+						this.onType();
+					}
+				});
+
+				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+
 					// Select element on Enter
-					else if (keyboardEvent.keyCode === KeyCode.Enter) {
+					if (keyboardEvent.keyCode === KeyCode.Enter) {
 						DOM.EventHelper.stop(e, true);
 
 						let focus = this.tree.getFocus();
 						if (focus) {
 							this.elementSelected(focus, e);
 						}
-					}
-
-					// Bug in IE 9: onInput is not fired for Backspace or Delete keys
-					else if (browser.isIE9 && (keyboardEvent.keyCode === KeyCode.Backspace || keyboardEvent.keyCode === KeyCode.Delete)) {
-						this.onType();
 					}
 				});
 

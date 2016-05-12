@@ -24,7 +24,7 @@ export interface ITelemetryService {
 	 * Sends a telemetry event that has been privacy approved.
 	 * Do not call this unless you have been given approval.
 	 */
-	publicLog(eventName: string, data?: any): void;
+	publicLog(eventName: string, data?: any): any;
 
 	/**
 	 * Starts a telemetry timer. Call stop() to send the event.

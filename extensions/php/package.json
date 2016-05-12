@@ -11,10 +11,15 @@
 	"contributes": {
 		"languages": [{
 			"id": "php",
-			"extensions": [ ".php", ".phtml", ".ctp" ],
+			"extensions": [ ".php", ".php4", ".php5", ".phtml", ".ctp" ],
 			"aliases": [ "PHP", "php" ],
 			"mimetypes": ["application/x-php"],
 			"configuration": "./php.configuration.json"
+		}],
+		"grammars": [{
+			"language": "php",
+			"scopeName": "text.html.php",
+			"path": "./syntaxes/php.json"
 		}],
 		"snippets": [{
 			"language": "php",

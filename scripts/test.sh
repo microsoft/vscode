@@ -8,6 +8,8 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
+cd $ROOT
+
 # Node modules
 test -d node_modules || ./scripts/npm.sh install
 
