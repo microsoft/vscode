@@ -450,12 +450,7 @@ export class FileController extends DefaultController {
 			if (!stat.isDirectory) {
 				tree.setSelection([stat], payload);
 
-				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey));
-
-				// Doubleclick: add to working files set
-				if (isDoubleClick) {
-					this.textFileService.getWorkingFilesModel().addEntry(stat);
-				}
+				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
 			}
 		}
 
@@ -580,13 +575,10 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean): void {
+	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean, pinned = false): void {
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-			let editorOptions = new EditorOptions();
-			if (preserveFocus) {
-				editorOptions.preserveFocus = true;
-			}
+			let editorOptions = EditorOptions.create({ preserveFocus, pinned });
 
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 

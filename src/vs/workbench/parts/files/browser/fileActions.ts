@@ -2281,10 +2281,10 @@ export class AddToWorkingFiles extends Action {
 	}
 }
 
-export class FocusOpenEditors extends Action {
+export class FocusOpenEditorsView extends Action {
 
-	public static ID = 'workbench.files.action.focusOpenEditors';
-	public static LABEL = nls.localize('focusOpenEditors', "Focus on Open Editors");
+	public static ID = 'workbench.files.action.focusOpenEditorsView';
+	public static LABEL = nls.localize('focusOpenEditors', "Focus on Open Editors View");
 
 	constructor(
 		id: string,
