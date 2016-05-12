@@ -511,6 +511,26 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 0);
 	});
 
+	test('Stack - Multiple Editors - Preview editor moves to the side of the active one', function () {
+		const model = create();
+		const group = model.openGroup('group');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group.openEditor(input1, { pinned: false, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: true, active: true });
+
+		assert.equal(input3, group.getEditors()[2]);
+
+		const input4 = input();
+		group.openEditor(input4, { pinned: false, active: true}); // this should cause the preview editor to move after input3
+
+		assert.equal(input4, group.getEditors()[2]);
+	});
+
 	test('Stack - Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
 		setOpenEditorDirection(Direction.LEFT);
 
@@ -952,14 +972,14 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.getEditors()[1], testJs);
 		assert.equal(group.count, 2);
 
-		// [/style.css/, test.js] -> [/indexHtml/, test.js]
+		// [/style.css/, test.js] -> [test.js, /index.html/]
 		group.openEditor(indexHtml, { active: true });
 		assert.equal(group.activeEditor, indexHtml);
 		assert.equal(group.previewEditor, indexHtml);
 		assert.equal(group.isPreview(indexHtml), true);
 		assert.equal(group.isPinned(testJs), true);
-		assert.equal(group.getEditors()[0], indexHtml);
-		assert.equal(group.getEditors()[1], testJs);
+		assert.equal(group.getEditors()[0], testJs);
+		assert.equal(group.getEditors()[1], indexHtml);
 		assert.equal(group.count, 2);
 
 		// make test.js active
@@ -968,13 +988,13 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.isActive(testJs), true);
 		assert.equal(group.count, 2);
 
-		// [/indexHtml/, test.js] -> [indexHtml, test.js]
+		// [test.js, /indexHtml/] -> [test.js, index.html]
 		group.pin(indexHtml);
 		assert.equal(group.isPinned(indexHtml), true);
 		assert.equal(group.isPreview(indexHtml), false);
 		assert.equal(group.activeEditor, testJs);
 
-		// [indexHtml, test.js] -> [indexHtml, test.js, file.ts]
+		// [test.js, index.html] -> [test.js, file.ts, index.html]
 		const fileTs = input('file.ts');
 		group.openEditor(fileTs, { active: true, pinned: true });
 		assert.equal(group.isPinned(fileTs), true);
@@ -982,27 +1002,27 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 3);
 		assert.equal(group.activeEditor, fileTs);
 
-		// [indexHtml, test.js, file.ts] -> [indexHtml, test.js, /file.ts/]
+		// [test.js, index.html, file.ts] -> [test.js, /file.ts/, index.html]
 		group.unpin(fileTs);
 		assert.equal(group.count, 3);
 		assert.equal(group.isPinned(fileTs), false);
 		assert.equal(group.isPreview(fileTs), true);
 		assert.equal(group.activeEditor, fileTs);
 
-		// [indexHtml, test.js, /file.ts/] -> [indexHtml, test.js, /other.ts/]
+		// [test.js, /file.ts/, index.html] -> [test.js, /other.ts/, index.html]
 		const otherTs = input('other.ts');
 		group.openEditor(otherTs, { active: true });
 		assert.equal(group.count, 3);
 		assert.equal(group.activeEditor, otherTs);
-		assert.equal(group.getEditors()[0], indexHtml);
-		assert.equal(group.getEditors()[1], testJs);
-		assert.equal(group.getEditors()[2], otherTs);
+		assert.equal(group.getEditors()[0], testJs);
+		assert.equal(group.getEditors()[1], otherTs);
+		assert.equal(group.getEditors()[2], indexHtml);
 
 		// make index.html active
 		group.setActive(indexHtml);
 		assert.equal(group.activeEditor, indexHtml);
 
-		// [indexHtml, test.js, /file.ts/] -> [test.js, /other.ts/]
+		// [test.js, /other.ts/, index.html] -> [test.js, /other.ts/]
 		group.closeEditor(indexHtml);
 		assert.equal(group.count, 2);
 		assert.equal(group.activeEditor, otherTs);

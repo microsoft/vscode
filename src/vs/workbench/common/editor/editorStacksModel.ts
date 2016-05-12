@@ -204,29 +204,31 @@ export class EditorGroup implements IEditorGroup {
 
 		// New editor
 		if (index === -1) {
+			let targetIndex: number;
+			const indexOfActive = this.indexOf(this.active);
+
+			// Insert into specific position
+			if (options && typeof options.index === 'number') {
+				targetIndex = options.index;
+			}
+
+			// Insert to the RIGHT of active editor
+			else if (CONFIG_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
+				targetIndex = indexOfActive + 1;
+			}
+
+			// Insert to the LEFT of active editor
+			else {
+				if (indexOfActive === 0 || !this.editors.length) {
+					targetIndex = 0; // to the left becoming first editor in list
+				} else {
+					targetIndex = indexOfActive - 1; // to the left of active editor
+				}
+			}
 
 			// Insert into our list of editors if pinned or we have no preview editor
 			if (makePinned || !this.preview) {
-				const indexOfActive = this.indexOf(this.active);
-
-				// Insert into specific position
-				if (options && typeof options.index === 'number') {
-					this.splice(options.index, false, editor);
-				}
-
-				// Insert to the RIGHT of active editor
-				else if (CONFIG_OPEN_EDITOR_DIRECTION === Direction.RIGHT) {
-					this.splice(indexOfActive + 1, false, editor);
-				}
-
-				// Insert to the LEFT of active editor
-				else {
-					if (indexOfActive === 0 || !this.editors.length) {
-						this.splice(0, false, editor); // to the left becoming first editor in list
-					} else {
-						this.splice(indexOfActive - 1, false, editor); // to the left of active editor
-					}
-				}
+				this.splice(targetIndex, false, editor);
 			}
 
 			// Handle preview
@@ -235,8 +237,12 @@ export class EditorGroup implements IEditorGroup {
 				// Replace existing preview with this editor if we have a preview
 				if (this.preview) {
 					const indexOfPreview = this.indexOf(this.preview);
+					if (targetIndex >= indexOfPreview) {
+						targetIndex--;
+					}
+
 					this.closeEditor(this.preview, !makeActive); // optimization to prevent multiple setActive() in one call
-					this.splice(indexOfPreview, false, editor);
+					this.splice(targetIndex, false, editor);
 				}
 
 				this.preview = editor;
