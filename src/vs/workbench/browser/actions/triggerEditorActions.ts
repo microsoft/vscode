@@ -584,6 +584,52 @@ export class MaximizeGroupAction extends Action {
 	}
 }
 
+export class PinActiveEditor extends Action {
+
+	public static ID = 'workbench.action.pinActiveEditor';
+	public static LABEL = nls.localize('pinActiveEditor', "Pin Active Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let editor = this.editorService.getActiveEditor();
+		if (editor) {
+			this.editorService.pinEditor(editor.position, editor.input);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class UnpinActiveEditor extends Action {
+
+	public static ID = 'workbench.action.unpinActiveEditor';
+	public static LABEL = nls.localize('unpinActiveEditor', "Unpin Active Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let editor = this.editorService.getActiveEditor();
+		if (editor) {
+			this.editorService.unpinEditor(editor.position, editor.input);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
 // Contribute to Quick Open
 let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
@@ -591,6 +637,8 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionCont
 // Contribute to Workbench Actions
 const category = nls.localize('view', "View");
 let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(PinActiveEditor, PinActiveEditor.ID, PinActiveEditor.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter) }), 'View: Pin Active Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(UnpinActiveEditor, UnpinActiveEditor.ID, UnpinActiveEditor.LABEL), 'View: Unpin Active Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorsAction, CLOSE_ALL_EDITORS_ACTION_ID, CLOSE_ALL_EDITORS_ACTION_LABEL), 'View: Close All Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherEditorsAction, CLOSE_OTHER_EDITORS_ACTION_ID, CLOSE_OTHER_EDITORS_ACTION_LABEL), 'View: Close Other Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SPLIT_EDITOR_ACTION_ID, SPLIT_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);

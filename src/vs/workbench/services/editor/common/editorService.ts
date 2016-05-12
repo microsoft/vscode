@@ -84,6 +84,16 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeAllEditors(): TPromise<void>;
 
 	/**
+	 * Adds the pinned state to an editor, removing it from being a preview editor.
+	 */
+	pinEditor(position: Position, input: IEditorInput): void;
+
+	/**
+	 * Removes the pinned state of an editor making it a preview editor.
+	 */
+	unpinEditor(position: Position, input: IEditorInput): void;
+
+	/**
 	 * Keyboard focus the editor group at the provided position. If position is not provided, the current active group is focused.
 	 */
 	focusGroup(position?: Position): TPromise<IEditor>;

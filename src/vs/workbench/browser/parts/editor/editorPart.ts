@@ -185,7 +185,7 @@ export class EditorPart extends Part implements IEditorPart {
 			// right after each other and this helps avoid layout issues with the delayed
 			// timeout based closing below
 			if (input === this.visibleInputs[position]) {
-				this.pendingEditorInputsToClose.push({ input, position});
+				this.pendingEditorInputsToClose.push({ input, position });
 				this.startDelayedCloseEditorsFromInputDispose();
 			}
 		});
@@ -483,7 +483,7 @@ export class EditorPart extends Part implements IEditorPart {
 		const group = this.groupAt(position);
 
 		// Closing the active editor of the group is a bit more work
-		if (group.activeEditor === input) {
+		if (group.activeEditor && group.activeEditor.matches(input)) {
 			return this.doCloseActiveEditor(position);
 		}
 
@@ -606,7 +606,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Close all editors in group except active one
-		if (except === group.activeEditor) {
+		if (except.matches(group.activeEditor)) {
 
 			// Update stacks model: close non active editors supporting the direction
 			group.closeEditors(group.activeEditor, direction);
@@ -811,6 +811,33 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Update UI
 			this.sideBySideControl.setActive(editor);
+		}
+	}
+
+	public pinEditor(position: Position, input: EditorInput): void {
+		const group = this.groupAt(position);
+		if (group) {
+			group.pin(input);
+		}
+	}
+
+	public unpinEditor(position: Position, input: EditorInput): void {
+		const group = this.groupAt(position);
+		if (group) {
+
+			// The active editor is the preview editor and we are asked to make
+			// another editor the preview editor. So we need to take care of closing
+			// the active editor first
+			if (group.isPreview(group.activeEditor) && !group.activeEditor.matches(input)) {
+				this.doCloseActiveEditor(position).then(() => {
+					group.unpin(input);
+				}).done(null, errors.onUnexpectedError);
+			}
+
+			// Update stacks model (no UI update needed)
+			else {
+				group.unpin(input);
+			}
 		}
 	}
 
@@ -1025,7 +1052,7 @@ export class EditorPart extends Part implements IEditorPart {
 				TPromise.join(this.pendingEditorInputsToClose
 					.sort((c1, c2) => c2.position - c1.position) 		// reduce layout work by starting right first
 					.map(c => this.closeEditor(c.position, c.input)))	// close input at position
-				.done(null, errors.onUnexpectedError);
+					.done(null, errors.onUnexpectedError);
 
 				// Reset
 				this.pendingEditorInputCloseTimeout = null;

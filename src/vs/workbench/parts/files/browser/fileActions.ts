@@ -2197,33 +2197,6 @@ export class OpenPreviousWorkingFile extends Action {
 	}
 }
 
-export class AddToWorkingFiles extends Action {
-
-	public static ID = 'workbench.files.action.addToWorkingFiles';
-	public static LABEL = nls.localize('addToWorkingFiles', "Add Active File to Working Files");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IMessageService private messageService: IMessageService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
-		if (fileInput) {
-			this.textFileService.getWorkingFilesModel().addEntry(fileInput.getResource());
-		} else {
-			this.messageService.show(Severity.Info, nls.localize('openFileToAdd', "Open a file first to add it to working files"));
-		}
-
-		return TPromise.as(true);
-	}
-}
-
 export class FocusOpenEditorsView extends Action {
 
 	public static ID = 'workbench.files.action.focusOpenEditorsView';

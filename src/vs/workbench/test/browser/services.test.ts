@@ -96,6 +96,14 @@ class TestEditorPart implements IEditorPart {
 		// Unsupported
 	}
 
+	public pinEditor(position: Position, input: EditorInput): void {
+		// Unsupported
+	}
+
+	public unpinEditor(position: Position, input: EditorInput): void {
+		// Unsupported
+	}
+
 	public getActiveEditor(): BaseEditor {
 		return activeEditor;
 	}

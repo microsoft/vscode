@@ -37,6 +37,8 @@ export interface IEditorPart {
 	getActiveEditorInput(): EditorInput;
 	moveGroup(from: Position, to: Position): void;
 	activateGroup(position: Position): void;
+	pinEditor(position: Position, input: EditorInput): void;
+	unpinEditor(position: Position, input: EditorInput): void;
 	arrangeGroups(arrangement: GroupArrangement): void;
 	getStacksModel(): IEditorStacksModel;
 }
@@ -184,6 +186,14 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public activateGroup(position: Position): void {
 		this.editorPart.activateGroup(position);
+	}
+
+	public pinEditor(position: Position, input: EditorInput): void {
+		this.editorPart.pinEditor(position, input);
+	}
+
+	public unpinEditor(position: Position, input: EditorInput): void {
+		this.editorPart.unpinEditor(position, input);
 	}
 
 	private findEditor(editor?: IEditor): BaseEditor;
@@ -348,6 +358,14 @@ class EditorPartDelegate implements IEditorPart {
 
 	public activateGroup(position: Position): void {
 		this.editorService.activateGroup(position);
+	}
+
+	public pinEditor(position: Position, input: IEditorInput): void {
+		this.editorService.pinEditor(position, input);
+	}
+
+	public unpinEditor(position: Position, input: IEditorInput): void {
+		this.editorService.unpinEditor(position, input);
 	}
 
 	public getActiveEditorInput(): EditorInput {
