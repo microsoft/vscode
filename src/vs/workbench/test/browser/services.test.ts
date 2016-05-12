@@ -74,7 +74,7 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(null);
 	}
 
-	public closeEditor(position: Position): TPromise<void> {
+	public closeEditor(position: Position, input: EditorInput): TPromise<void> {
 		return TPromise.as(null);
 	}
 

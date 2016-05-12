@@ -436,13 +436,19 @@ export class CloseEditorAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		if (types.isUndefinedOrNull(this.position)) {
+
+		// Close Active Editor
+		if (typeof this.position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
-				return this.editorService.closeEditor(activeEditor);
+				return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
 			}
-		} else {
-			return this.editorService.closeEditor(this.position);
+		}
+
+		// Close Editor at Position
+		let visibleEditors = this.editorService.getVisibleEditors();
+		if (visibleEditors[this.position]) {
+			return this.editorService.closeEditor(this.position, visibleEditors[this.position].input);
 		}
 
 		return TPromise.as(false);

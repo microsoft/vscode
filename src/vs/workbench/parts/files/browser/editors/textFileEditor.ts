@@ -230,7 +230,7 @@ export class TextFileEditor extends BaseTextEditor {
 		if (previousInput) {
 			handleEditorPromise = this.editorService.openEditor(previousInput, null, this.position);
 		} else {
-			handleEditorPromise = this.editorService.closeEditor(this);
+			handleEditorPromise = this.editorService.closeEditor(this.position, this.input);
 		}
 
 		handleEditorPromise.done(() => {

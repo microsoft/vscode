@@ -29,7 +29,7 @@ export interface IEditorPart {
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
-	closeEditor(position: Position): TPromise<void>;
+	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(othersOnly?: boolean): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
@@ -160,15 +160,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
-	public closeEditor(editor?: IEditor): TPromise<void>;
-	public closeEditor(position?: Position): TPromise<void>;
-	public closeEditor(arg?: any): TPromise<void> {
-		let targetEditor = this.findEditor(arg);
-		if (targetEditor) {
-			return this.editorPart.closeEditor(targetEditor.position);
-		}
-
-		return TPromise.as(null);
+	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
+		return this.editorPart.closeEditor(position, input);
 	}
 
 	public closeEditors(othersOnly?: boolean): TPromise<void> {
@@ -368,8 +361,8 @@ class EditorPartDelegate implements IEditorPart {
 		this.editorService.arrangeGroups(arrangement);
 	}
 
-	public closeEditor(position: Position): TPromise<void> {
-		return this.editorService.closeEditor(position);
+	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
+		return this.editorService.closeEditor(position, input);
 	}
 
 	public closeEditors(othersOnly?: boolean): TPromise<void> {

@@ -67,10 +67,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 
 	/**
-	 * Closes the editor at the provided position. If position is not provided, the current active editor is closed.
+	 * Closes the editor at the provided position.
 	 */
-	closeEditor(editor?: IEditor): TPromise<void>;
-	closeEditor(position?: Position): TPromise<void>;
+	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 
 	/**
 	 * Closes all editors or only others that are not active.

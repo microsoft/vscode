@@ -1961,7 +1961,7 @@ function disposeNonDirtyFileInputs(editorService: IWorkbenchEditorService, quick
 function closeNonFileEditors(editorService: IWorkbenchEditorService): TPromise<boolean> {
 	let nonFileEditors = editorService.getVisibleEditors().filter(e => !getUntitledOrFileResource(e.input, true));
 
-	return TPromise.join(nonFileEditors.map(e => editorService.closeEditor(e))).then(() => true, errors.onUnexpectedError);
+	return TPromise.join(nonFileEditors.map(e => editorService.closeEditor(e.position, e.input))).then(() => true, errors.onUnexpectedError);
 }
 
 function fileEditorInputsForResource(resource: URI, editorService: IWorkbenchEditorService, quickopenService: IQuickOpenService): FileEditorInput[] {
@@ -2047,7 +2047,7 @@ export class CloseFileAction extends Action {
 
 		// Any other editor just closes
 		else if (editor) {
-			this.editorService.closeEditor(editor).done(null, errors.onUnexpectedError);;
+			this.editorService.closeEditor(editor.position, editor.input).done(null, errors.onUnexpectedError);;
 		}
 
 		// Otherwise tell the user

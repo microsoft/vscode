@@ -41,7 +41,7 @@ export class CloseEditorAction extends Action {
 	public run(): TPromise<any> {
 		let activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			return this.editorService.closeEditor(activeEditor);
+			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
 		}
 
 		this.windowService.getWindow().close();

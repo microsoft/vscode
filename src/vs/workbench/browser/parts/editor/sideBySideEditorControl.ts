@@ -1080,7 +1080,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Close editor on middle mouse click
 			if (e.button === 1 /* Middle Button */) {
-				this.editorService.closeEditor(position).done(null, errors.onUnexpectedError);
+				this.editorService.closeEditor(position, this.visibleEditors[position].input).done(null, errors.onUnexpectedError);
 			}
 
 			// Focus editor group unless click on toolbar

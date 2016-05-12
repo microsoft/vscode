@@ -220,7 +220,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// If we have an active editor, hide it first
-		return (editorAtPosition ? this.doHideEditor(editorAtPosition, position, false) : TPromise.as(null)).then(() => {
+		return (editorAtPosition ? this.doHideEditor(position, false) : TPromise.as(null)).then(() => {
 
 			// Create Editor
 			let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Creating Editor: {0}', descriptor.getName()));
@@ -456,14 +456,14 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Recover from this error by closing the editor if the attempt of setInput failed and we are not having any previous input
 		if (!oldInput && this.visibleInputs[position] === input && input) {
-			this.closeEditor(position).done(null, errors.onUnexpectedError);
+			this.doCloseActiveEditor(position).done(null, errors.onUnexpectedError);
 		}
 
 		// We need to check our error counter here to prevent reentrant setInput() calls. If the workbench is in error state
 		// to the disk, opening a file would fail and we would try to open the previous file which would fail too. So we
 		// stop trying to open a previous file if we detect that we failed more than once already
 		else if (this.editorSetInputErrorCounter[position] > 1) {
-			this.closeEditor(position).done(null, errors.onUnexpectedError);
+			this.doCloseActiveEditor(position).done(null, errors.onUnexpectedError);
 		}
 
 		// Otherwise if we had oldInput, properly restore it so that the active input points to the previous one
@@ -472,11 +472,26 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	public closeEditor(position: Position): TPromise<void> {
+	public closeEditor(position: Position, input: EditorInput): TPromise<void> {
+
+		// Verify we actually have something to close at the given position
 		const editor = this.visibleEditors[position];
 		if (!editor) {
 			return TPromise.as<void>(null);
 		}
+
+		const group = this.groupAt(position);
+
+		// Closing the active editor of the group is a bit more work
+		if (group.activeEditor === input) {
+			return this.doCloseActiveEditor(position);
+		}
+
+		// Closing inactive editor is just a model update
+		group.closeEditor(input, false);
+	}
+
+	private doCloseActiveEditor(position: Position): TPromise<void> {
 
 		// Update visible inputs for position
 		this.visibleInputs[position] = null;
@@ -496,26 +511,27 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Close group is this is the last editor in group
 		if (group.count === 0) {
-			return this.doCloseGroup(group, editor, position);
+			return this.doCloseGroup(position);
 		}
 
 		// Otherwise open next active
-		return this.openEditor(group.activeEditor, null, editor.position).then(null, (error) => {
+		return this.openEditor(group.activeEditor, null, position).then(null, (error) => {
 
 			// in case of an error, continue closing
-			return this.closeEditor(position);
+			return this.doCloseActiveEditor(position);
 		});
 	}
 
-	private doCloseGroup(group: EditorGroup, editor: BaseEditor, position: Position): TPromise<void> {
+	private doCloseGroup(position: Position): TPromise<void> {
 
 		// Emit Input-Changing Event
 		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
 
 		// Hide Editor
-		return this.doHideEditor(editor, position, true).then(() => {
+		return this.doHideEditor(position, true).then(() => {
 
 			// Update stacks model
+			const group = this.groupAt(position);
 			this.modifyGroups(() => this.stacksModel.closeGroup(group));
 
 			// Emit Input-Changed Event
@@ -534,7 +550,8 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	private doHideEditor(editor: BaseEditor, position: Position, layoutAndRochade: boolean): TPromise<BaseEditor> {
+	private doHideEditor(position: Position, layoutAndRochade: boolean): TPromise<BaseEditor> {
+		let editor = this.visibleEditors[position];
 		let editorContainer = this.mapEditorToEditorContainers[position][editor.getId()];
 
 		// Hide in side by side control
@@ -579,7 +596,7 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			if (!inputs || inputs.some(inp => inp === editor.input)) {
-				promises.push(this.closeEditor(editor.position));
+				promises.push(this.closeEditor(editor.position, editor.input));
 			}
 		}
 
