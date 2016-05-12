@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import {Keybinding} from 'vs/base/common/keyCodes';
 import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
@@ -20,6 +21,7 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {keybindingForAction} from 'vs/workbench/parts/files/browser/fileActions';
 
 const $ = dom.emmet;
 
@@ -222,6 +224,35 @@ export class Controller extends treedefaults.DefaultController {
 		this.openEditor(element, false);
 
 		return super.onEnter(tree, event);
+	}
+
+	public onContextMenu(tree: tree.ITree, element: any, event: tree.ContextMenuEvent): boolean {
+		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
+			return false;
+		}
+		if (!(element instanceof OpenEditor)) {
+			return false;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		tree.setFocus(element);
+
+		let anchor = { x: event.posx + 1, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
+			getKeyBinding: (a): Keybinding => keybindingForAction(a.id),
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					tree.DOMFocus();
+				}
+			},
+			getActionsContext: () => element
+		});
+
+		return true;
 	}
 
 	private openEditor(element: OpenEditor, preserveFocus: boolean): void {
