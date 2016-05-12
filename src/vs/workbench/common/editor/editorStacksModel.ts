@@ -14,6 +14,7 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
+import {Position} from 'vs/platform/editor/common/editor';
 
 export interface IEditorGroup {
 
@@ -62,6 +63,8 @@ export interface IEditorStacksModel {
 	activeGroup: IEditorGroup;
 
 	getGroup(id: GroupIdentifier): IEditorGroup;
+
+	positionOfGroup(group: IEditorGroup): Position;
 
 	toString(): string;
 
@@ -773,6 +776,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	private indexOf(group: EditorGroup): number {
 		return this._groups.indexOf(group);
+	}
+
+	public positionOfGroup(group: EditorGroup): Position {
+		return this.indexOf(group);
 	}
 
 	private save(): void {

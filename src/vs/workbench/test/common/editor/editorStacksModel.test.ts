@@ -16,6 +16,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
+import {Position} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 function create(): EditorStacksModel {
@@ -215,6 +216,18 @@ suite('Editor Stacks Model', () => {
 
 		assert.equal(group2.label, 'renamed');
 		assert.equal(group2, events.renamed[0]);
+	});
+
+	test('Groups - Position of Group', function () {
+		const model = create();
+
+		const group1 = model.openGroup('first');
+		const group2 = model.openGroup('second');
+		const group3 = model.openGroup('third');
+
+		assert.equal(Position.LEFT, model.positionOfGroup(group1));
+		assert.equal(Position.CENTER, model.positionOfGroup(group2));
+		assert.equal(Position.RIGHT, model.positionOfGroup(group3));
 	});
 
 	test('Groups - Rename Group', function () {
