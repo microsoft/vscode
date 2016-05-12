@@ -39,7 +39,7 @@ import {GroupArrangement} from 'vs/workbench/services/editor/common/editorServic
 import {DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
-import {Position, IEditor} from 'vs/platform/editor/common/editor';
+import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
@@ -70,7 +70,11 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as([]);
 	}
 
-	public closeEditors(othersOnly?: boolean): Promise {
+	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public closeAllEditors(): TPromise<void> {
 		return TPromise.as(null);
 	}
 

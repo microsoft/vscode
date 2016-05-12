@@ -30,7 +30,7 @@ import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/p
 import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
+import {Position, POSITIONS, Direction} from 'vs/platform/editor/common/editor';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -85,7 +85,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorCreationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private editorSetInputErrorCounter: number[];
-	private pendingEditorInputsToClose: EditorInput[];
+	private pendingEditorInputsToClose: { input: EditorInput; position: Position }[];
 	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
@@ -185,7 +185,7 @@ export class EditorPart extends Part implements IEditorPart {
 			// right after each other and this helps avoid layout issues with the delayed
 			// timeout based closing below
 			if (input === this.visibleInputs[position]) {
-				this.pendingEditorInputsToClose.push(input);
+				this.pendingEditorInputsToClose.push({ input, position});
 				this.startDelayedCloseEditorsFromInputDispose();
 			}
 		});
@@ -585,22 +585,47 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	public closeEditors(othersOnly?: boolean, inputs?: EditorInput[]): TPromise<void> {
-		let promises: TPromise<void>[] = [];
+	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
 
-		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
-		for (var i = 0; i < editors.length; i++) {
-			var editor = editors[i];
-			if (othersOnly && this.getActiveEditor() === editor) {
-				continue;
-			}
-
-			if (!inputs || inputs.some(inp => inp === editor.input)) {
-				promises.push(this.closeEditor(editor.position, editor.input));
-			}
+		// Verify we actually have something to close at the given position
+		const editor = this.visibleEditors[position];
+		if (!editor) {
+			return TPromise.as<void>(null);
 		}
 
-		return TPromise.join(promises).then(() => void 0);
+		const group = this.groupAt(position);
+
+		// Close all editors in group
+		if (!except) {
+
+			// Update stacks model: remove all non active editors first to prevent opening the next editor in group
+			group.closeEditors(group.activeEditor);
+
+			// Now close active editor in group which will close the group
+			return this.doCloseActiveEditor(position);
+		}
+
+		// Close all editors in group except active one
+		if (except === group.activeEditor) {
+
+			// Update stacks model: close non active editors supporting the direction
+			group.closeEditors(group.activeEditor, direction);
+
+			// No UI update needed
+			return TPromise.as(null);
+		}
+
+		// Finally: we are asked to close editors around a non-active editor
+		// Thus we make the non-active one active and then close the others
+		return this.openEditor(except, null, position).then(() => {
+			return this.closeEditors(position, except, direction);
+		});
+	}
+
+	public closeAllEditors(): TPromise<void> {
+		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
+
+		return TPromise.join(editors.map(e => this.closeEditors(e.position))).then(() => void 0);
 	}
 
 	public getStacksModel(): EditorStacksModel {
@@ -760,7 +785,7 @@ export class EditorPart extends Part implements IEditorPart {
 			// Workaround for bad layout issue: If any of the editors fails to load, reset side by side by closing
 			// all editors. This fixes an issue where a side editor might show, but no editor to the left hand side.
 			if (this.getVisibleEditors().length !== positions) {
-				this.closeEditors().done(null, errors.onUnexpectedError);
+				this.closeAllEditors().done(null, errors.onUnexpectedError);
 			}
 
 			// Update stacks model for remaining inactive editors if the open was successful
@@ -995,7 +1020,12 @@ export class EditorPart extends Part implements IEditorPart {
 		// right after.
 		if (this.pendingEditorInputCloseTimeout === null) {
 			this.pendingEditorInputCloseTimeout = setTimeout(() => {
-				this.closeEditors(false, this.pendingEditorInputsToClose).done(null, errors.onUnexpectedError);
+
+				// Close all
+				TPromise.join(this.pendingEditorInputsToClose
+					.sort((c1, c2) => c2.position - c1.position) 		// reduce layout work by starting right first
+					.map(c => this.closeEditor(c.position, c.input)))	// close input at position
+				.done(null, errors.onUnexpectedError);
 
 				// Reset
 				this.pendingEditorInputCloseTimeout = null;

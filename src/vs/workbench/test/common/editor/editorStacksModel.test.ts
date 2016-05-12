@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setOpenEditorDirection, Direction} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {TestStorageService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -16,7 +16,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 function create(): EditorStacksModel {

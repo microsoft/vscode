@@ -20,7 +20,7 @@ import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInpu
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
@@ -30,7 +30,8 @@ export interface IEditorPart {
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
-	closeEditors(othersOnly?: boolean): TPromise<void>;
+	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
+	closeAllEditors(): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
@@ -164,8 +165,12 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeEditor(position, input);
 	}
 
-	public closeEditors(othersOnly?: boolean): TPromise<void> {
-		return this.editorPart.closeEditors(othersOnly);
+	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {
+		return this.editorPart.closeEditors(position, except, direction);
+	}
+
+	public closeAllEditors(): TPromise<void> {
+		return this.editorPart.closeAllEditors();
 	}
 
 	public focusGroup(position?: Position): TPromise<IEditor> {
@@ -365,8 +370,12 @@ class EditorPartDelegate implements IEditorPart {
 		return this.editorService.closeEditor(position, input);
 	}
 
-	public closeEditors(othersOnly?: boolean): TPromise<void> {
-		return this.editorService.closeEditors(othersOnly);
+	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {
+		return this.editorService.closeEditors(position, except, direction);
+	}
+
+	public closeAllEditors(): TPromise<void> {
+		return this.editorService.closeAllEditors();
 	}
 
 	public getStacksModel(): IEditorStacksModel {

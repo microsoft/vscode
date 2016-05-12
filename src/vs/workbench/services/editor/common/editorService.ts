@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 export enum GroupArrangement {
@@ -72,9 +72,16 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 
 	/**
-	 * Closes all editors or only others that are not active.
+	 * Closes editors of a specific group at the provided position. If the optional editor is provided to exclude, it
+	 * will not be closed. The direction can be used in that case to control if all other editors should get closed,
+	 * or towards a specific direction.
 	 */
-	closeEditors(othersOnly?: boolean): TPromise<void>;
+	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
+
+	/**
+	 * Closes all editors across all groups.
+	 */
+	closeAllEditors(): TPromise<void>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position. If position is not provided, the current active group is focused.

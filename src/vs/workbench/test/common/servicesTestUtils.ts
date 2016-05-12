@@ -22,7 +22,7 @@ import WorkbenchEditorService = require('vs/workbench/services/editor/common/edi
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
 import PartService = require('vs/workbench/services/part/common/partService');
 import WorkspaceContextService = require('vs/workbench/services/workspace/common/contextService');
-import {IEditorInput, IEditorModel, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
@@ -291,7 +291,11 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return TPromise.as([]);
 	}
 
-	public closeEditors(othersOnly?: boolean): Promise {
+	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public closeAllEditors(): TPromise<void> {
 		return TPromise.as(null);
 	}
 

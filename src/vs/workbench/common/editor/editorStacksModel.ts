@@ -14,7 +14,7 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, Direction} from 'vs/platform/editor/common/editor';
 
 export interface IEditorGroup {
 
@@ -36,18 +36,6 @@ export interface IEditorGroup {
 	isActive(editor: EditorInput): boolean;
 	isPreview(editor: EditorInput): boolean;
 	isPinned(editor: EditorInput): boolean;
-
-	// --- Modifying:
-
-	// openEditor(editor: EditorInput, options?: IEditorOpenOptions): void;
-	// moveEditor(editor: EditorInput, toIndex: number): void;
-	// closeEditor(editor: EditorInput): void;
-	// closeEditors(except: EditorInput, direction?: Direction): void;
-	// closeAllEditors(): void;
-	// setActive(editor: EditorInput): void;
-
-	// pin(editor: EditorInput): void;
-	// unpin(editor: EditorInput): void;
 }
 
 export interface IEditorStacksModel {
@@ -67,19 +55,6 @@ export interface IEditorStacksModel {
 	positionOfGroup(group: IEditorGroup): Position;
 
 	toString(): string;
-
-	// --- Modifying:
-
-	// openGroup(label: string, activate: boolean): IEditorGroup;
-
-	// renameGroup(group: IEditorGroup, newLabel: string): void
-
-	// closeGroup(group: IEditorGroup): void;
-	// closeGroups(except?: IEditorGroup): void;
-
-	// moveGroup(group: IEditorGroup, toIndex: number): void;
-
-	// setActive(group: IEditorGroup): void;
 }
 
 export type GroupIdentifier = number;
@@ -88,11 +63,6 @@ export interface IEditorOpenOptions {
 	pinned?: boolean;
 	active?: boolean;
 	index?: number;
-}
-
-export enum Direction {
-	LEFT,
-	RIGHT
 }
 
 let CONFIG_OPEN_EDITOR_DIRECTION = Direction.RIGHT; // open new editors to the right of existing ones

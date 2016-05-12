@@ -100,6 +100,11 @@ export enum Position {
 
 export const POSITIONS = [Position.LEFT, Position.CENTER, Position.RIGHT];
 
+export enum Direction {
+	LEFT,
+	RIGHT
+}
+
 export interface IEditorInput extends IEventEmitter {
 
 	/**

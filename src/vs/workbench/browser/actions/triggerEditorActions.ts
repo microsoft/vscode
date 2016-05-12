@@ -19,7 +19,7 @@ import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry} 
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {Position, IEditor} from 'vs/platform/editor/common/editor';
+import {Position, POSITIONS, IEditor} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
@@ -456,7 +456,7 @@ export class CloseEditorAction extends Action {
 }
 
 let CLOSE_ALL_EDITORS_ACTION_ID = 'workbench.action.closeAllEditors';
-let CLOSE_ALL_EDITORS_ACTION_LABEL = nls.localize('closeAllEditors', "Close All Editors");
+let CLOSE_ALL_EDITORS_ACTION_LABEL = nls.localize('closeAllEditors', "Close Editors in All Groups");
 export class CloseAllEditorsAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -464,12 +464,12 @@ export class CloseAllEditorsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.editorService.closeEditors();
+		return this.editorService.closeAllEditors();
 	}
 }
 
 let CLOSE_OTHER_EDITORS_ACTION_ID = 'workbench.action.closeOtherEditors';
-let CLOSE_OTHER_EDITORS_ACTION_LABEL = nls.localize('closeOtherEditors', "Close Other Editors");
+let CLOSE_OTHER_EDITORS_ACTION_LABEL = nls.localize('closeOtherEditors', "Close Editors in Other Groups");
 export class CloseOtherEditorsAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -477,7 +477,14 @@ export class CloseOtherEditorsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.editorService.closeEditors(true);
+		const active = this.editorService.getActiveEditor();
+		if (active) {
+			const positionsToClose = POSITIONS.filter(p => p !== active.position);
+
+			return this.editorService.closeEditors(positionsToClose.pop()).then(() => this.editorService.closeEditors(positionsToClose.pop()));
+		}
+
+		return TPromise.as(false);
 	}
 }
 
