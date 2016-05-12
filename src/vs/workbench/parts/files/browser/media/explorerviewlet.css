@@ -15,7 +15,7 @@
 }
 
 .explorer-viewlet .explorer-item-label,
-.explorer-viewlet .open-editor-label,
+.explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
