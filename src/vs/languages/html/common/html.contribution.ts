@@ -11,7 +11,7 @@ import ConfigurationRegistry = require('vs/platform/configuration/common/configu
 
 ModesRegistry.registerCompatMode({
 	id: 'html',
-	extensions: ['.html', '.htm', '.shtml', '.mdoc', '.jsp', '.asp', '.aspx', '.jshtm'],
+	extensions: ['.html', '.htm', '.shtml', '.mdoc', '.jsp', '.asp', '.aspx', '.jshtm', '.vue'],
 	aliases: ['HTML', 'htm', 'html', 'xhtml'],
 	mimetypes: ['text/html', 'text/x-jshtm', 'text/template', 'text/ng-template'],
 	moduleId: 'vs/languages/html/common/html',
