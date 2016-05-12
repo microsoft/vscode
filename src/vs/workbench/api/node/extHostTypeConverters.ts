@@ -376,12 +376,12 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.File: return 'file';
 			case types.CompletionItemKind.Reference: return 'reference';
 		}
-		return 'text';
+		return 'property';
 	},
 
 	to(type: modes.SuggestionType): types.CompletionItemKind {
 		if (!type) {
-			return types.CompletionItemKind.Text;
+			return types.CompletionItemKind.Property;
 		} else {
 			return types.CompletionItemKind[type.charAt(0).toUpperCase() + type.substr(1)];
 		}
