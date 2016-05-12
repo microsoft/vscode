@@ -89,9 +89,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
 		});
 
-		// Show groups only if there is more than 1
-		const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
-		this.tree.setInput(treeInput).done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
+		this.updateTree();
 	}
 
 	public create(): TPromise<void> {
@@ -134,13 +132,11 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.expandedBodySize = this.getExpandedBodySize(this.model);
 
 		if (this.tree) {
-			// Show in tree
+			// Show groups only if there is more than 1 group
 			const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
-			if (treeInput !== this.tree.getInput()) {
-				this.tree.setInput(treeInput).done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
-			} else {
-				this.tree.refresh().done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
-			}
+			(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh())
+			// Always expand all the groups as they are unclickable
+				.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
 
 			// Make sure to keep active editor input highlighted
 			if (this.model.activeGroup) {
