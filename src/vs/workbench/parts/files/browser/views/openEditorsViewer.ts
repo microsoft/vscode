@@ -19,7 +19,7 @@ import {EditorInput} from 'vs/workbench/common/editor';
 
 const $ = dom.emmet;
 
-class OpenEditor {
+export class OpenEditor {
 
 	constructor(private editor: EditorInput, private group: IEditorGroup) {
 		// noop

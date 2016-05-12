@@ -21,7 +21,7 @@ import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {Renderer, DataSource, Controller, AccessibilityProvider} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import {Renderer, DataSource, Controller, AccessibilityProvider, OpenEditor} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 
 const $ = dom.emmet;
 
@@ -138,23 +138,23 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			// Always expand all the groups as they are unclickable
 				.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
 
-			// Make sure to keep active editor input highlighted
+			// Make sure to keep active open editor highlighted
 			if (this.model.activeGroup) {
-				// this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
+				this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
 			}
 		}
 	}
 
-	// private highlightEntry(entry: OpenEditor): void {
-	// 	this.tree.clearFocus();
-	// 	this.tree.clearSelection();
+	private highlightEntry(entry: OpenEditor): void {
+		this.tree.clearFocus();
+		this.tree.clearSelection();
 
-	// 	if (entry) {
-	// 		this.tree.setFocus(entry);
-	// 		this.tree.setSelection([entry]);
-	// 		this.tree.reveal(entry).done(null, errors.onUnexpectedError);
-	// 	}
-	// }
+		if (entry) {
+			this.tree.setFocus(entry);
+			this.tree.setSelection([entry]);
+			this.tree.reveal(entry).done(null, errors.onUnexpectedError);
+		}
+	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
 		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.maxVisible;
