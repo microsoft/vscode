@@ -27,6 +27,10 @@
 	top: 0;
 }
 
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor.dirty ~ .monaco-action-bar {
+	display: block;
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar {
 	display: block;

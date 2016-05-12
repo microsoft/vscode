@@ -18,10 +18,12 @@ import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {ITextFileService, FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, UntitledEditorInput} from 'vs/workbench/common/editor';
 import {keybindingForAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 const $ = dom.emmet;
 
@@ -53,6 +55,14 @@ export class OpenEditor {
 
 	public isPreview(): boolean {
 		return this.group.isPreview(this.editor);
+	}
+
+	public isDirty(textFileService: ITextFileService, untitledEditorService: IUntitledEditorService): boolean {
+		if (this.editor instanceof FileEditorInput) {
+			return textFileService.isDirty((<FileEditorInput>this.editor).getResource());
+		}
+
+		return untitledEditorService.isDirty((<UntitledEditorInput>this.editor).getResource());
 	}
 }
 
@@ -104,7 +114,10 @@ export class Renderer implements tree.IRenderer {
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
-	constructor(private actionProvider: ActionProvider) {
+	constructor(private actionProvider: ActionProvider,
+		@ITextFileService private textFileService: ITextFileService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+	) {
 		// noop
 	}
 
@@ -153,6 +166,7 @@ export class Renderer implements tree.IRenderer {
 
 	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
+		editor.isDirty(this.textFileService, this.untitledEditorService) ? dom.addClass(templateData.root, 'dirty') : dom.removeClass(templateData.root, 'dirty');
 		templateData.name.textContent = editor.getName();
 		templateData.description.textContent = editor.getDescription();
 		templateData.actionBar.context = editor;

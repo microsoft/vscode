@@ -99,26 +99,28 @@
 	background: url("add-focus.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .action-close-dirty-file:hover,
 .explorer-viewlet .explorer-open-editors .action-close-file {
 	background: url("action-close.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-close-dirty-file:hover,
 .explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-close-file {
 	background: url("action-close-focus.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .action-close-dirty-file {
+.explorer-viewlet .explorer-open-editors .monaco-action-bar {
+	background-color: transparent !important;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:not(:hover) > .content > .open-editor.dirty ~ .monaco-action-bar .action-close-file {
 	background: url("action-close-dirty.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-close-dirty-file {
-	background: url("action-close-dirty-focus.svg") center center no-repeat;
+.vs-dark .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:not(:hover) > .content > .open-editor.dirty ~ .monaco-action-bar .action-close-file {
+	background: url("action-close-dirty-dark.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-action-bar {
-	background-color: transparent !important;
+.explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.selected:not(:hover) > .content > .open-editor.dirty ~ .monaco-action-bar .action-close-file {
+	background: url("action-close-dirty-focus.svg") center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .explorer-viewlet .explorer-folders-view .action-add-to-workingfiles {
@@ -129,13 +131,8 @@
 	background: url("add-focus.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-dirty-file:hover,
 .vs-dark .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-file {
 	background: url("action-close-dark.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-dirty-file {
-	background: url("action-close-dirty-dark.svg") center center no-repeat;
 }
 
 /* High Contrast Theming */
