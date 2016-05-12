@@ -867,11 +867,11 @@ export class DebugService implements debug.IDebugService {
 			toDispose.dispose();
 			if (!cancelTransitionToRunningState) {
 				aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-				// TODO@Isidor temporary workaround for #5835
-				if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'go')) {
-					this.model.clearThreads(false);
-				} else {
+				// TODO@Isidor temporary workaround for #1703
+				if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'php')) {
 					this.model.clearThreads(false, threadId);
+				} else {
+					this.model.clearThreads(false);
 				}
 
 				// Get a top stack frame of a stopped thread if there is any.
