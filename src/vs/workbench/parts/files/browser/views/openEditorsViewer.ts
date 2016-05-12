@@ -170,8 +170,6 @@ export class Controller extends treedefaults.DefaultController {
 		if (!(element instanceof OpenEditor)) {
 			event.preventDefault();
 			event.stopPropagation();
-			tree.clearFocus(payload);
-			tree.clearSelection(payload);
 
 			return true;
 		}
