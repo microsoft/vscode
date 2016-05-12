@@ -88,6 +88,10 @@
 	font-size: .9em;
 }
 
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row .open-editor.preview {
+	font-style: italic;
+}
+
 /* Theming */
 .vs-dark .monaco-workbench .explorer-viewlet .collapsible.header .action-close-all-files {
 	background: url("closeall_inverse.svg") center center no-repeat;

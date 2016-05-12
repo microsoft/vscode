@@ -36,6 +36,10 @@ export class OpenEditor {
 	public getDescription(): string {
 		return this.editor.getDescription();
 	}
+
+	public isPreview(): boolean {
+		return this.group.isPreview(this.editor);
+	}
 }
 
 export class DataSource implements tree.IDataSource {
@@ -126,6 +130,7 @@ export class Renderer implements tree.IRenderer {
 	}
 
 	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
+		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
 		templateData.name.textContent = editor.getName();
 		templateData.description.textContent = editor.getDescription();
 	}
