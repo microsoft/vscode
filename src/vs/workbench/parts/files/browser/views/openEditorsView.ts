@@ -217,7 +217,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
 			dom.removeClass(this.dirtyCountElement, 'hidden');
 		}
-		this.updateTree();
+		this.updateTreeScheduler.schedule();
 	}
 
 	private getExpandedBodySize(model: IEditorStacksModel): number {
