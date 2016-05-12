@@ -211,10 +211,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		let dirty = this.textFileService.getDirty().length;
 		this.lastDirtyCount = dirty;
 		if (dirty === 0) {
-			this.dirtyCountElement.hidden = true;
+			dom.addClass(this.dirtyCountElement, 'hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
-			this.dirtyCountElement.hidden = false;
+			dom.removeClass(this.dirtyCountElement, 'hidden');
 		}
 	}
 
