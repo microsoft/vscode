@@ -950,7 +950,7 @@ suite('Editor Stacks Model', () => {
 		const group = model.openGroup('group');
 
 		// [] -> /index.html/
-		const indexHtml = input('index.html');
+		let indexHtml = input('index.html');
 		group.openEditor(indexHtml);
 		assert.equal(group.activeEditor, indexHtml);
 		assert.equal(group.previewEditor, indexHtml);
@@ -958,7 +958,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 1);
 
 		// /index.html/ -> /style.css/
-		const styleCss = input('style.css');
+		let styleCss = input('style.css');
 		group.openEditor(styleCss);
 		assert.equal(group.activeEditor, styleCss);
 		assert.equal(group.previewEditor, styleCss);
@@ -966,7 +966,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 1);
 
 		// /style.css/ -> [/style.css/, test.js]
-		const testJs = input('test.js');
+		let testJs = input('test.js');
 		group.openEditor(testJs, { active: true, pinned: true });
 		assert.equal(group.previewEditor, styleCss);
 		assert.equal(group.activeEditor, testJs);
@@ -977,6 +977,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 2);
 
 		// [/style.css/, test.js] -> [test.js, /index.html/]
+		indexHtml = input('index.html');
 		group.openEditor(indexHtml, { active: true });
 		assert.equal(group.activeEditor, indexHtml);
 		assert.equal(group.previewEditor, indexHtml);
@@ -987,12 +988,14 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 2);
 
 		// make test.js active
+		testJs = input('test.js');
 		group.setActive(testJs);
 		assert.equal(group.activeEditor, testJs);
 		assert.equal(group.isActive(testJs), true);
 		assert.equal(group.count, 2);
 
 		// [test.js, /indexHtml/] -> [test.js, index.html]
+		indexHtml = input('index.html');
 		group.pin(indexHtml);
 		assert.equal(group.isPinned(indexHtml), true);
 		assert.equal(group.isPreview(indexHtml), false);
@@ -1018,11 +1021,12 @@ suite('Editor Stacks Model', () => {
 		group.openEditor(otherTs, { active: true });
 		assert.equal(group.count, 3);
 		assert.equal(group.activeEditor, otherTs);
-		assert.equal(group.getEditors()[0], testJs);
+		assert.ok(group.getEditors()[0].matches(testJs));
 		assert.equal(group.getEditors()[1], otherTs);
-		assert.equal(group.getEditors()[2], indexHtml);
+		assert.ok(group.getEditors()[2].matches(indexHtml));
 
 		// make index.html active
+		indexHtml = input('index.html');
 		group.setActive(indexHtml);
 		assert.equal(group.activeEditor, indexHtml);
 
@@ -1030,20 +1034,20 @@ suite('Editor Stacks Model', () => {
 		group.closeEditor(indexHtml);
 		assert.equal(group.count, 2);
 		assert.equal(group.activeEditor, otherTs);
-		assert.equal(group.getEditors()[0], testJs);
+		assert.ok(group.getEditors()[0].matches(testJs));
 		assert.equal(group.getEditors()[1], otherTs);
 
 		// [test.js, /other.ts/] -> [test.js]
 		group.closeEditor(otherTs);
 		assert.equal(group.count, 1);
 		assert.equal(group.activeEditor, testJs);
-		assert.equal(group.getEditors()[0], testJs);
+		assert.ok(group.getEditors()[0].matches(testJs));
 
 		// [test.js] -> /test.js/
 		group.unpin(testJs);
 		assert.equal(group.count, 1);
 		assert.equal(group.activeEditor, testJs);
-		assert.equal(group.getEditors()[0], testJs);
+		assert.ok(group.getEditors()[0].matches(testJs));
 		assert.equal(group.isPinned(testJs), false);
 		assert.equal(group.isPreview(testJs), true);
 
