@@ -110,6 +110,7 @@ export default class Webview {
 	}
 
 	focus(): void {
+		this._webview.focus();
 		this._send('focus');
 	}
 
