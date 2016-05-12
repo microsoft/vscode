@@ -47,34 +47,7 @@ export interface IResourceInput {
 	/**
 	 * Optional options to use when opening the text input.
 	 */
-	options?: {
-
-		/**
-		 * Text editor selection.
-		 */
-		selection?: {
-			startLineNumber: number;
-			startColumn: number;
-			endLineNumber?: number;
-			endColumn?: number;
-		};
-
-		/**
-		 * Will force the editor to open even if the input is already showing.
-		 */
-		forceOpen?: boolean;
-
-		/**
-		 * Will open the editor but not move keyboard focus into the editor.
-		 */
-		preserveFocus?: boolean;
-
-		/**
-		 * TODO@stacks clean up
-		 */
-		pinned?: boolean;
-		index?: number;
-	};
+	options?: ITextEditorOptions;
 }
 
 export interface IEditor {
@@ -145,7 +118,42 @@ export interface IEditorInput extends IEventEmitter {
 	matches(other: any): boolean;
 }
 
-export interface IEditorOptions {
+export interface IEditorOptionsBag {
+
+	/**
+	 * Tells the editor to not receive keyboard focus when the editor is being opened. By default,
+	 * the editor will receive keyboard focus on open.
+	 */
+	preserveFocus?: boolean;
+
+	/**
+	 * Tells the editor to replace the editor input in the editor even if it is identical to the one
+	 * already showing. By default, the editor will not replace the input if it is identical to the
+	 * one showing.
+	 */
+	forceOpen?: boolean;
+
+	/**
+	 * TODO@stacks clean up
+	 */
+	pinned?: boolean;
+	index?: number;
+}
+
+export interface ITextEditorOptions extends IEditorOptionsBag {
+
+	/**
+	 * Text editor selection.
+	 */
+	selection?: {
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber?: number;
+		endColumn?: number;
+	};
+}
+
+export interface IEditorOptions extends IEditorOptionsBag {
 
 	/**
 	 * Returns if the other object matches this options.
