@@ -28,7 +28,7 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -43,7 +43,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IResourceInput, Position, IEditor} from 'vs/platform/editor/common/editor';
+import {Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
@@ -1709,63 +1709,6 @@ export class RevertFileAction extends Action {
 		}
 
 		return TPromise.as(true);
-	}
-}
-
-export class OpenResourcesAction extends Action {
-	private resources: IResourceInput[];
-	private diffMode: boolean;
-
-	constructor(
-		resources: IResourceInput[],
-		diffMode: boolean,
-		@IPartService private partService: IPartService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IViewletService private viewletService: IViewletService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super('workbench.files.action.openResourcesAction');
-
-		this.resources = resources;
-		this.diffMode = diffMode;
-	}
-
-	public run(): TPromise<any> {
-		return this.partService.joinCreation().then(() => {
-			let viewletPromise = TPromise.as(null);
-			if (!this.partService.isSideBarHidden()) {
-				viewletPromise = this.viewletService.openViewlet(Files.VIEWLET_ID, false);
-			}
-
-			return viewletPromise.then(() => {
-
-				// Out of workspace files get added right away to working files model
-				this.resources.forEach((fileToOpen) => {
-					let resource = fileToOpen.resource;
-					let workspace = this.contextService.getWorkspace();
-
-					if (!workspace || !paths.isEqualOrParent(resource.fsPath, workspace.resource.fsPath)) {
-						this.textFileService.getWorkingFilesModel().addEntry(resource);
-					}
-				});
-
-				// In diffMode we open 2 resources as diff
-				if (this.diffMode) {
-					return TPromise.join(this.resources.map(f => this.editorService.inputToType(f))).then((inputs: EditorInput[]) => {
-						return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(this.resources[0].resource, this.resources[1].resource, this.contextService), null, inputs[0], inputs[1]));
-					});
-				}
-
-				// For one file, just put it into the current active editor
-				if (this.resources.length === 1) {
-					return this.editorService.openEditor(this.resources[0]);
-				}
-
-				// Otherwise replace all
-				return this.editorService.setEditors(this.resources);
-			});
-		});
 	}
 }
 

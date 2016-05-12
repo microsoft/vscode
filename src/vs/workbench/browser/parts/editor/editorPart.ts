@@ -58,14 +58,6 @@ interface IEditorPartUIState {
 }
 
 /**
- * TODO@stacks
- * - need to listen to any input dispose that is opened in a stack not just the visible one to close a non active editor
- * 		-> maybe just hook up a listener to the model.close event and let the model listen on dispose? this would also nicely
- * 		-> cover the unpin() case
- * - need API to close an editor with specific input, passing in null does not really work...
- */
-
-/**
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
  */

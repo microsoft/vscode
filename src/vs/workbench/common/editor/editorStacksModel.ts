@@ -565,7 +565,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private static STORAGE_KEY = 'editorStacks.model';
 
 	private toDispose: IDisposable[];
-
 	private loaded: boolean;
 
 	private _groups: EditorGroup[];
@@ -899,6 +898,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public toString(): string {
+		this.ensureLoaded();
+
 		const lines: string[] = [];
 
 		if (!this.groups.length) {
