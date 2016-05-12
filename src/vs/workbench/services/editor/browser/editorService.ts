@@ -29,6 +29,7 @@ export interface IEditorPart {
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
+	closeEditor(position: Position): TPromise<void>;
 	closeEditors(othersOnly?: boolean): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
@@ -104,10 +105,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditor(input: IResourceInput, position?: Position): TPromise<IEditor>;
 	public openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: any, arg2?: any, arg3?: any): TPromise<IEditor> {
-
-		// Support for closing an opened editor at a position by passing null as input
-		if (input === null) {
-			return this.doOpenEditor(input, null, (types.isNumber(arg2) || types.isBoolean(arg2)) ? arg2 : arg3);
+		if (!input) {
+			return TPromise.as<IEditor>(null);
 		}
 
 		// Workbench Input Support
@@ -149,7 +148,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 	public openEditors(editors: any[]): TPromise<IEditor[]> {
 		return TPromise.join(editors.map(editor => this.inputToType(editor.input))).then(inputs => {
-			const typedInputs:  { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
+			const typedInputs: { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
 				return {
 					input,
 					options: editors[index] instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input),
@@ -161,12 +160,12 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
-	public closeEditor(editor?: IEditor): TPromise<IEditor>;
-	public closeEditor(position?: Position): TPromise<IEditor>;
-	public closeEditor(arg?: any): TPromise<IEditor> {
+	public closeEditor(editor?: IEditor): TPromise<void>;
+	public closeEditor(position?: Position): TPromise<void>;
+	public closeEditor(arg?: any): TPromise<void> {
 		let targetEditor = this.findEditor(arg);
 		if (targetEditor) {
-			return this.editorPart.openEditor(null, null, targetEditor.position);
+			return this.editorPart.closeEditor(targetEditor.position);
 		}
 
 		return TPromise.as(null);
@@ -367,6 +366,10 @@ class EditorPartDelegate implements IEditorPart {
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
 		this.editorService.arrangeGroups(arrangement);
+	}
+
+	public closeEditor(position: Position): TPromise<void> {
+		return this.editorService.closeEditor(position);
 	}
 
 	public closeEditors(othersOnly?: boolean): TPromise<void> {

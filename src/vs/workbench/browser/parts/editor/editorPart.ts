@@ -119,12 +119,11 @@ export class EditorPart extends Part implements IEditorPart {
 		this.stacksModel = this.instantiationService.createInstance(EditorStacksModel);
 	}
 
-	public openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	public openEditor(input?: EditorInput, options?: EditorOptions, position?: Position, widthRatios?: number[]): TPromise<BaseEditor>;
-	public openEditor(input?: EditorInput, options?: EditorOptions, arg3?: any, widthRatios?: number[]): TPromise<BaseEditor> {
+	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
+	public openEditor(input: EditorInput, options?: EditorOptions, position?: Position, widthRatios?: number[]): TPromise<BaseEditor>;
+	public openEditor(input: EditorInput, options?: EditorOptions, arg3?: any, widthRatios?: number[]): TPromise<BaseEditor> {
 
 		// Normalize some values
-		if (!input) { input = null; }
 		if (!options) { options = null; }
 
 		// Determine position to open editor in (left, center, right)
@@ -132,6 +131,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Some conditions under which we prevent the request
 		if (
+			!input ||																		// no input
 			position === null ||															// invalid position
 			Object.keys(this.mapEditorInstantiationPromiseToEditor[position]).length > 0 ||	// pending editor load
 			Object.keys(this.mapEditorCreationPromiseToEditor[position]).length > 0 ||		// pending editor create
@@ -141,12 +141,10 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Emit early open event to allow for veto
-		if (input) {
-			let event = new EditorEvent(null, null, input, options, position);
-			this.emit(WorkbenchEventType.EDITOR_INPUT_OPENING, event);
-			if (event.isPrevented()) {
-				return TPromise.as<BaseEditor>(null);
-			}
+		let event = new EditorEvent(null, null, input, options, position);
+		this.emit(WorkbenchEventType.EDITOR_INPUT_OPENING, event);
+		if (event.isPrevented()) {
+			return TPromise.as<BaseEditor>(null);
 		}
 
 		// Remember as visible input for this position
@@ -159,17 +157,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Open: input is provided
-		if (input) {
-			return this.doOpenEditor(input, options, position, widthRatios);
-		}
-
-		// Close: input is null and editor visible
-		if (this.visibleEditors[position]) {
-			return this.doCloseEditor(this.visibleEditors[position], position).then(() => null);
-		}
-
-		// Nothing to do
-		return TPromise.as(null);
+		return this.doOpenEditor(input, options, position, widthRatios);
 	}
 
 	private doOpenEditor(input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[]): TPromise<BaseEditor> {
@@ -468,14 +456,14 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Recover from this error by closing the editor if the attempt of setInput failed and we are not having any previous input
 		if (!oldInput && this.visibleInputs[position] === input && input) {
-			this.openEditor(null, null, position).done(null, errors.onUnexpectedError);
+			this.closeEditor(position).done(null, errors.onUnexpectedError);
 		}
 
 		// We need to check our error counter here to prevent reentrant setInput() calls. If the workbench is in error state
 		// to the disk, opening a file would fail and we would try to open the previous file which would fail too. So we
 		// stop trying to open a previous file if we detect that we failed more than once already
 		else if (this.editorSetInputErrorCounter[position] > 1) {
-			this.openEditor(null, null, position).done(null, errors.onUnexpectedError);
+			this.closeEditor(position).done(null, errors.onUnexpectedError);
 		}
 
 		// Otherwise if we had oldInput, properly restore it so that the active input points to the previous one
@@ -484,7 +472,20 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	private doCloseEditor(editor: BaseEditor, position: Position): TPromise<void> {
+	public closeEditor(position: Position): TPromise<void> {
+		const editor = this.visibleEditors[position];
+		if (!editor) {
+			return TPromise.as<void>(null);
+		}
+
+		// Update visible inputs for position
+		this.visibleInputs[position] = null;
+
+		// Dispose previous input listener if any
+		if (this.visibleInputListeners[position]) {
+			this.visibleInputListeners[position]();
+			this.visibleInputListeners[position] = null;
+		}
 
 		// Reset counter
 		this.editorSetInputErrorCounter[position] = 0;
@@ -502,7 +503,7 @@ export class EditorPart extends Part implements IEditorPart {
 		return this.openEditor(group.activeEditor, null, editor.position).then(null, (error) => {
 
 			// in case of an error, continue closing
-			this.doCloseEditor(editor, position);
+			return this.closeEditor(position);
 		});
 	}
 
@@ -568,7 +569,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public closeEditors(othersOnly?: boolean, inputs?: EditorInput[]): TPromise<void> {
-		let promises: TPromise<BaseEditor>[] = [];
+		let promises: TPromise<void>[] = [];
 
 		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
 		for (var i = 0; i < editors.length; i++) {
@@ -578,7 +579,7 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			if (!inputs || inputs.some(inp => inp === editor.input)) {
-				promises.push(this.openEditor(null, null, editor.position));
+				promises.push(this.closeEditor(editor.position));
 			}
 		}
 

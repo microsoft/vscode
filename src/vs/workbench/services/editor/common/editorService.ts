@@ -47,9 +47,8 @@ export interface IWorkbenchEditorService extends IEditorService {
 	isVisible(input: IEditorInput, includeDiff: boolean): boolean;
 
 	/**
-	 * Opens an Editor on the given input with the provided options at the given position. If the input parameter
-	 * is null, will cause the currently opened editor at the position to close. If sideBySide parameter is provided,
-	 * causes the editor service to decide in what position to open the input.
+	 * Opens an Editor on the given input with the provided options at the given position. If sideBySide parameter
+	 * is provided, causes the editor service to decide in what position to open the input.
 	 */
 	openEditor(input: IEditorInput, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
@@ -61,7 +60,8 @@ export interface IWorkbenchEditorService extends IEditorService {
 	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
 
 	/**
-	 * Similar to #openEditor() but allows to open multiple editors for different positions at the same time.
+	 * Similar to #openEditor() but allows to open multiple editors for different positions at the same time. If there are
+	 * more than one editor per position, only the first one will be active and the others stacked behind inactive.
 	 */
 	openEditors(editors: { input: IResourceInput, position: Position }[]): TPromise<IEditor[]>;
 	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
@@ -69,8 +69,8 @@ export interface IWorkbenchEditorService extends IEditorService {
 	/**
 	 * Closes the editor at the provided position. If position is not provided, the current active editor is closed.
 	 */
-	closeEditor(editor?: IEditor): TPromise<IEditor>;
-	closeEditor(position?: Position): TPromise<IEditor>;
+	closeEditor(editor?: IEditor): TPromise<void>;
+	closeEditor(position?: Position): TPromise<void>;
 
 	/**
 	 * Closes all editors or only others that are not active.

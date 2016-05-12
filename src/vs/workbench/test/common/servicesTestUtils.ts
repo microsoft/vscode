@@ -348,9 +348,9 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	}
 
 
-	public closeEditor(editor?: IEditor): TPromise<IEditor>;
-	public closeEditor(position?: Position): TPromise<IEditor>;
-	public closeEditor(arg?: any): TPromise<IEditor> {
+	public closeEditor(editor?: IEditor): TPromise<void>;
+	public closeEditor(position?: Position): TPromise<void>;
+	public closeEditor(arg?: any): TPromise<void> {
 		this.callback('closeEditor');
 
 		return TPromise.as(null);

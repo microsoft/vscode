@@ -74,6 +74,10 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(null);
 	}
 
+	public closeEditor(position: Position): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	public openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 	public openEditor(input?: EditorInput, options?: EditorOptions, arg?: any): TPromise<BaseEditor> {
@@ -339,15 +343,6 @@ suite('Workbench UI Services', () => {
 		service.focusGroup().then((editor) => {
 			assert.strictEqual(editor, activeEditor);
 		});
-
-		// Close editor
-		service.closeEditor().then((editor) => {
-			assert.strictEqual(editor, activeEditor);
-		});
-
-		service.openEditor(null, null).then((editor) => {
-			assert.strictEqual(editor, activeEditor);
-		});
 	});
 
 	test('DelegatingWorkbenchEditorService', function () {
@@ -356,8 +351,6 @@ suite('Workbench UI Services', () => {
 		let eventService = new TestEventService();
 		let requestService = new TestRequestService();
 		let telemetryService = NullTelemetryService;
-
-
 
 		let services = new ServiceCollection();
 		let inst = new InstantiationService(services);
