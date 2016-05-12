@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
@@ -14,8 +15,11 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {EditorInput} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 
 const $ = dom.emmet;
 
@@ -23,6 +27,14 @@ export class OpenEditor {
 
 	constructor(private editor: EditorInput, private group: IEditorGroup) {
 		// noop
+	}
+
+	public get editorInput() {
+		return this.editor;
+	}
+
+	public get editorGroup() {
+		return this.group;
 	}
 
 	public getId(): string {
@@ -142,16 +154,60 @@ export class Renderer implements tree.IRenderer {
 
 export class Controller extends treedefaults.DefaultController {
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
+	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
+	}
+
+	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
+		const payload = { origin: origin };
+		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 		// Status group should never get selected nor expanded/collapsed
-		if (element instanceof EditorGroup) {
+		if (!(element instanceof OpenEditor)) {
 			event.preventDefault();
 			event.stopPropagation();
+			tree.clearFocus(payload);
+			tree.clearSelection(payload);
 
 			return true;
 		}
 
-		return super.onLeftClick(tree, element, event);
+		// Cancel Event
+		const isMouseDown = event && event.browserEvent && event.browserEvent.type === 'mousedown';
+		if (!isMouseDown) {
+			event.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
+		}
+		event.stopPropagation();
+
+		// Set DOM focus
+		tree.DOMFocus();
+
+		// Allow to unselect
+		if (event.shiftKey) {
+			const selection = tree.getSelection();
+			if (selection && selection.length > 0 && selection[0] === element) {
+				tree.clearSelection(payload);
+			}
+		}
+
+		// Select, Focus and open files
+		else {
+			const preserveFocus = !isDoubleClick;
+			tree.setFocus(element, payload);
+
+			if (isDoubleClick) {
+				event.preventDefault(); // focus moves to editor, we need to prevent default
+			}
+
+			tree.setSelection([element], payload);
+			this.openEditor(element, preserveFocus);
+		}
+
+		return true;
 	}
 
 	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
@@ -166,6 +222,15 @@ export class Controller extends treedefaults.DefaultController {
 		}
 
 		return super.onEnter(tree, event);
+	}
+
+	private openEditor(element: OpenEditor, preserveFocus: boolean): void {
+		if (element) {
+			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
+			const position = this.model.positionOfGroup(element.editorGroup);
+			this.editorService.activateGroup(position);
+			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus }), position).done(null, errors.onUnexpectedError);
+		}
 	}
 }
 
