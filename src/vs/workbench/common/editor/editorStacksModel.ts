@@ -759,6 +759,12 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private save(): void {
+		const serialized = this.serialize();
+
+		this.storageService.store(EditorStacksModel.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE);
+	}
+
+	private serialize(): ISerializedEditorStacksModel {
 		let activeIndex = this.indexOf(this._activeGroup);
 		let activeIsEmptyGroup = false;
 
@@ -791,12 +797,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 			serializableActiveIndex = activeIndex; // active group is not empty and can be serialized
 		}
 
-		const serialized: ISerializedEditorStacksModel = {
+		return {
 			groups: serializedGroups,
 			active: serializableActiveIndex
 		};
-
-		this.storageService.store(EditorStacksModel.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE);
 	}
 
 	private fireEvent(emitter: Emitter<EditorGroup>, group: EditorGroup): void {
@@ -822,7 +826,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 			const serialized: ISerializedEditorStacksModel = JSON.parse(modelRaw);
 
 			// TODO@stacks remove this once stacks are stable; prevent bad stored state
-			const invalidId = this.validate(serialized);
+			const invalidId = this.doValidate(serialized);
 			if (invalidId) {
 				console.warn(`Ignoring invalid stacks model (Error code: ${invalidId}): ${JSON.stringify(serialized)}`);
 				console.warn(serialized);
@@ -835,7 +839,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}
 	}
 
-	private validate(serialized: ISerializedEditorStacksModel): number {
+	private doValidate(serialized: ISerializedEditorStacksModel): number {
 		if (!serialized.groups.length && typeof serialized.active === 'number') {
 			return 1; // Invalid active (we have no groups, but an active one)
 		}
@@ -885,6 +889,17 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.save();
 
 		dispose(this.toDispose);
+	}
+
+	public validate(): void {
+		const serialized = this.serialize();
+		const invalidId = this.doValidate(serialized);
+		if (invalidId) {
+			console.warn(`Ignoring invalid stacks model (Error code: ${invalidId}): ${JSON.stringify(serialized)}`);
+			console.warn(serialized);
+		} else {
+			console.log('Stacks Model OK!');
+		}
 	}
 
 	public toString(): string {

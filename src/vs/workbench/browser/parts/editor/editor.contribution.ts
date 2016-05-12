@@ -29,6 +29,7 @@ import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/w
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 // Register String Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
@@ -184,6 +185,16 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor) {
 		console.log(`${accessor.get(IWorkbenchEditorService).getStacksModel().toString()}\n\n`);
+	},
+	when: undefined,
+	primary: undefined
+});
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_workbench.validateStacksModel',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor) {
+		(<EditorStacksModel>accessor.get(IWorkbenchEditorService).getStacksModel()).validate();
 	},
 	when: undefined,
 	primary: undefined
