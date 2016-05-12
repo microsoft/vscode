@@ -7,11 +7,11 @@ import nls = require('vs/nls');
 import {Keybinding} from 'vs/base/common/keyCodes';
 import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IAction} from 'vs/base/common/actions';
+import {IAction, Action} from 'vs/base/common/actions';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import tree = require('vs/base/parts/tree/browser/tree');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {IActionItem, ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -91,6 +91,7 @@ interface IOpenEditorTemplateData {
 	root: HTMLElement;
 	name: HTMLSpanElement;
 	description: HTMLSpanElement;
+	actionBar: ActionBar;
 }
 
 interface IEditorGroupTemplateData {
@@ -102,6 +103,10 @@ export class Renderer implements tree.IRenderer {
 	public static ITEM_HEIGHT = 22;
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
+
+	constructor(private actionProvider: ActionProvider) {
+		// noop
+	}
 
 	public getHeight(tree: tree.ITree, element: any): number {
 		return Renderer.ITEM_HEIGHT;
@@ -128,6 +133,9 @@ export class Renderer implements tree.IRenderer {
 		editorTemplate.name = dom.append(editorTemplate.root, $('span.name'));
 		editorTemplate.description = dom.append(editorTemplate.root, $('span.description'));
 
+		editorTemplate.actionBar = new ActionBar(container);
+		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false});
+
 		return editorTemplate;
 	}
 
@@ -147,10 +155,13 @@ export class Renderer implements tree.IRenderer {
 		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
 		templateData.name.textContent = editor.getName();
 		templateData.description.textContent = editor.getDescription();
+		templateData.actionBar.context = editor;
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
-		// noop
+		if (templateId === Renderer.OPEN_EDITOR_TEMPLATE_ID) {
+			(<IOpenEditorTemplateData>templateData).actionBar.dispose();
+		}
 	}
 }
 
@@ -278,7 +289,7 @@ export class AccessibilityProvider implements tree.IAccessibilityProvider {
 
 export class ActionProvider implements IActionProvider {
 
-	constructor(private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		// noop
 	}
 
@@ -287,7 +298,15 @@ export class ActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
+		if (element instanceof OpenEditor) {
+			return TPromise.as(this.getOpenEditorActions());
+		}
+
 		return TPromise.as([]);
+	}
+
+	public getOpenEditorActions(): IAction[] {
+		return [this.instantiationService.createInstance(CloseOpenEditorAction)];
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -300,5 +319,19 @@ export class ActionProvider implements IActionProvider {
 
 	public getActionItem(tree: tree.ITree, element: any, action: IAction): IActionItem {
 		return null;
+	}
+}
+
+class CloseOpenEditorAction extends Action {
+
+	public static ID = 'workbench.files.action.closeOpenEditor';
+
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(CloseOpenEditorAction.ID, nls.localize('closeEditor', "Close Editor"), 'action-close-file');
+	}
+
+	public run(openEditor: OpenEditor): TPromise<any> {
+		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
+		return this.editorService.closeEditor(position, openEditor.editorInput);
 	}
 }

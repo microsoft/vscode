@@ -21,21 +21,24 @@
 	overflow: hidden;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .monaco-action-bar {
+	display: none;
 	position: absolute;
-	left: 0;
-	right: auto;
 	top: 0;
-	padding: 0 0 0 0.4em;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.actions.open-editor-dirty > .primary-action-bar {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
+.explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar {
 	display: block;
-	width: initial;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.actions > .sub-content {
-	margin-left: 24px;
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-label {
+	width: 9px;
+	height: 22px;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor {
+	margin-left: 14px;
 }
 
 .explorer-viewlet .monaco-count-badge {

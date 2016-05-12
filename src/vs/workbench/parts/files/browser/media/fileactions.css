@@ -95,29 +95,29 @@
 	background: url("add.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-folders-view .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-add-to-workingfiles {
+.explorer-viewlet .explorer-folders-view .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-add-to-workingfiles {
 	background: url("add-focus.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-working-files .action-close-dirty-file:hover,
-.explorer-viewlet .explorer-working-files .action-close-file {
+.explorer-viewlet .explorer-open-editors .action-close-dirty-file:hover,
+.explorer-viewlet .explorer-open-editors .action-close-file {
 	background: url("action-close.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-working-files .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-close-dirty-file:hover,
-.explorer-viewlet .explorer-working-files .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-close-file {
+.explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-close-dirty-file:hover,
+.explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-close-file {
 	background: url("action-close-focus.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-working-files .action-close-dirty-file {
+.explorer-viewlet .explorer-open-editors .action-close-dirty-file {
 	background: url("action-close-dirty.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-working-files .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-close-dirty-file {
+.explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-close-dirty-file {
 	background: url("action-close-dirty-focus.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-working-files .primary-action-bar {
+.explorer-viewlet .explorer-open-editors .monaco-action-bar {
 	background-color: transparent !important;
 }
 
@@ -125,16 +125,16 @@
 	background: url("add-inverse.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-folders-view .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-add-to-workingfiles {
+.vs-dark .monaco-workbench .explorer-viewlet .explorer-folders-view .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-add-to-workingfiles {
 	background: url("add-focus.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-working-files .action-close-dirty-file:hover,
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-working-files .action-close-file {
+.vs-dark .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-dirty-file:hover,
+.vs-dark .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-file {
 	background: url("action-close-dark.svg") center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-working-files .action-close-dirty-file {
+.vs-dark .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-dirty-file {
 	background: url("action-close-dirty-dark.svg") center center no-repeat;
 }
 
@@ -196,7 +196,7 @@
 	content: url('Preview_inverse.svg');
 }
 
-.hc-black .monaco-workbench .explorer-viewlet .explorer-working-files .action-close-file:before {
+.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-file:before {
 	content: url('action-close-dark.svg');
 	position: absolute;
 	top: 3px;
@@ -205,7 +205,7 @@
 	width: 16px;
 }
 
-.hc-black .monaco-workbench .explorer-viewlet .explorer-working-files .action-close-file,
-.hc-black .monaco-workbench .explorer-viewlet .explorer-working-files .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar .action-close-file {
+.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-file,
+.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content > .monaco-action-bar .action-close-file {
 	background: none !important;
 }
