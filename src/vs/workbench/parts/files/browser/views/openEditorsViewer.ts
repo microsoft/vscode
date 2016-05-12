@@ -221,6 +221,8 @@ export class Controller extends treedefaults.DefaultController {
 			return true;
 		}
 
+		this.openEditor(element, false);
+
 		return super.onEnter(tree, event);
 	}
 
@@ -228,8 +230,8 @@ export class Controller extends treedefaults.DefaultController {
 		if (element) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			const position = this.model.positionOfGroup(element.editorGroup);
-			this.editorService.activateGroup(position);
-			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus }), position).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus }), position)
+				.done(() => this.editorService.activateGroup(position), errors.onUnexpectedError);
 		}
 	}
 }
