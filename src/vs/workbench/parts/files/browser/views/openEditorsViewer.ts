@@ -5,11 +5,15 @@
 
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IAction} from 'vs/base/common/actions';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import tree = require('vs/base/parts/tree/browser/tree');
+import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
+import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
 
@@ -168,5 +172,32 @@ export class AccessibilityProvider implements tree.IAccessibilityProvider {
 		}
 
 		return nls.localize('openEditorAriaLabel', "{0}, Open Editor", (<OpenEditor>element).getName());
+	}
+}
+
+export class ActionProvider implements IActionProvider {
+
+	constructor(private instantiationService: IInstantiationService) {
+		// noop
+	}
+
+	public hasActions(tree: tree.ITree, element: any): boolean {
+		return element instanceof OpenEditor;
+	}
+
+	public getActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
+		return TPromise.as([]);
+	}
+
+	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
+		return element instanceof OpenEditor;
+	}
+
+	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
+		return TPromise.as([]);
+	}
+
+	public getActionItem(tree: tree.ITree, element: any, action: IAction): IActionItem {
+		return null;
 	}
 }
