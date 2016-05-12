@@ -94,7 +94,7 @@ class TestEditorInput extends EditorInput {
 	public resolve() { return null; }
 
 	public matches(other: TestEditorInput): boolean {
-		return this.id === other.id;
+		return this.id === other.id && other instanceof TestEditorInput;
 	}
 }
 
@@ -104,6 +104,10 @@ class NonSerializableTestEditorInput extends EditorInput {
 	}
 	public getId() { return 'testEditorInput-nonSerializable'; }
 	public resolve() { return null; }
+
+	public matches(other: TestEditorInput): boolean {
+		return this.id === other.id && other instanceof NonSerializableTestEditorInput;
+	}
 }
 
 function input(id = String(index++), nonSerializable?: boolean): EditorInput {
@@ -1187,7 +1191,7 @@ suite('Editor Stacks Model', () => {
 		let group = model.openGroup('group1');
 
 		const serializableInput1 = input();
-		const nonSerializableInput2 = input('2', true);
+		const nonSerializableInput2 = input('3', true);
 		const serializableInput2 = input();
 
 		group.openEditor(serializableInput1, { active: true, pinned: true });

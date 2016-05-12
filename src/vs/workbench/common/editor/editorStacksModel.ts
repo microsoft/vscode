@@ -331,14 +331,14 @@ export class EditorGroup implements IEditorGroup {
 
 		// Both directions
 		else {
-			this.mru.filter(e => e !== except).forEach(e => this.closeEditor(e));
+			this.mru.filter(e => !this.matches(e, except)).forEach(e => this.closeEditor(e));
 		}
 	}
 
 	public closeAllEditors(): void {
 
 		// Optimize: close all non active editors first to produce less upstream work
-		this.mru.filter(e => e !== this.active).forEach(e => this.closeEditor(e));
+		this.mru.filter(e => !this.matches(e, this.active)).forEach(e => this.closeEditor(e));
 		this.closeEditor(this.active);
 	}
 
@@ -510,7 +510,7 @@ export class EditorGroup implements IEditorGroup {
 			}
 		});
 
-		const serializableMru = this.mru.map(e => serializableEditors.indexOf(e)).filter(i => i >= 0);
+		const serializableMru = this.mru.map(e => this.indexOf(e, serializableEditors)).filter(i => i >= 0);
 
 		return {
 			label: this.label,
