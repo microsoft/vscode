@@ -423,13 +423,16 @@ export class EditorPart extends Part implements IEditorPart {
 			// Progress Done
 			this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
+			// Emit Input-Changed Event (if input changed)
 			if (inputChanged) {
-
-				// Update Title Area if input changed
-				this.doUpdateEditorTitleArea();
-
-				// Emit Input-Changed Event (if input changed)
 				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), input, options, position));
+			}
+
+			// Update Title Area
+			if (inputChanged) {
+				this.doUpdateEditorTitleArea(); // full title update
+			} else {
+				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor }); // little update for position
 			}
 
 			timerEvent.stop();
