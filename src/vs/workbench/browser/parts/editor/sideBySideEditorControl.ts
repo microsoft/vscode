@@ -20,8 +20,9 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput} from 'vs/workbench/common/editor';
+import {EditorInput, isInputRelated} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
+import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import DOM = require('vs/base/browser/dom');
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
@@ -134,6 +135,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private lastActivePosition: Position;
 
 	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
+	private editorInputStateChangeListener: () => void;
 
 	private _onGroupFocusChanged: Emitter<void>;
 
@@ -174,8 +176,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.splitEditorAction.class = 'split-editor-action';
 
 		this.initStyles();
-
 		this.create(this.parent);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Update editor input state indicators on state changes
+		this.editorInputStateChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputStateChanged(event));
 	}
 
 	private initStyles(): void {
@@ -1194,13 +1203,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Editor Title (Status + Label + Description)
-		let name = input.getName() || '';
-
-		let status = input.getStatus();
-		if (status && status.decoration) {
-			name = nls.localize({ key: 'inputDecoration', comment: ['editor status indicator (e.g. dirty indicator)', 'editor input title'] }, "{0} {1}", status.decoration, name);
-		}
-
+		let name = this.getNameForInput(input);
 		let description = isActive ? (input.getDescription() || '') : '';
 		let verboseDescription = isActive ? (input.getDescription(true) || '') : '';
 		if (description === verboseDescription) {
@@ -1223,6 +1226,28 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Add a close action
 		this.editorActionsToolbar[position].addPrimaryAction(this.closeEditorAction[position])();
+	}
+
+	private getNameForInput(input: EditorInput): string {
+		const status = input.getStatus();
+
+		let label = (input && input.getName()) || '';
+		if (status && status.decoration) {
+			label = nls.localize({ key: 'inputDecoration', comment: ['editor status indicator (e.g. dirty indicator)', 'editor input title'] }, "{0} {1}", status.decoration, label);
+		}
+
+		return label;
+	}
+
+	private onEditorInputStateChanged(event: EditorInputEvent): void {
+		const input = event.editorInput;
+
+		// Update the input label in each position according to the new status
+		POSITIONS.forEach((position) => {
+			if (this.visibleEditors[position] && isInputRelated(this.visibleEditors[position].input, input)) {
+				this.titleLabel[position].safeInnerHtml(this.getNameForInput(input));
+			}
+		});
 	}
 
 	public setLoading(position: Position, input: EditorInput): void {
@@ -1606,6 +1631,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.containers.forEach((container) => {
 			container.destroy();
 		});
+
+		if (this.editorInputStateChangeListener) {
+			this.editorInputStateChangeListener();
+		}
 
 		this.lastActiveEditor = null;
 		this.lastActivePosition = null;

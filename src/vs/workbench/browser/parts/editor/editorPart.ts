@@ -21,7 +21,7 @@ import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorEvent, EditorInputEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -117,18 +117,6 @@ export class EditorPart extends Part implements IEditorPart {
 		this.pendingEditorInputCloseTimeout = null;
 
 		this.stacksModel = this.instantiationService.createInstance(EditorStacksModel);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputStateChanged(event)));
-	}
-
-	private onEditorInputStateChanged(event: EditorInputEvent): void {
-		if (this.sideBySideControl) {
-			this.doUpdateEditorTitleArea();
-		}
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;

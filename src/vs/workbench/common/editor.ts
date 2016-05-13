@@ -538,3 +538,22 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 
 	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
 }
+
+export function isInputRelated(sourceInput: EditorInput, targetInput: EditorInput): boolean {
+	if (!sourceInput || !targetInput) {
+		return false;
+	}
+
+	if (sourceInput.matches(targetInput)) {
+		return true;
+	}
+
+	if (sourceInput instanceof BaseDiffEditorInput) {
+		let modifiedInput = (<BaseDiffEditorInput>sourceInput).getModifiedInput();
+		if (modifiedInput && modifiedInput.matches(targetInput)) {
+			return true;
+		}
+	}
+
+	return false;
+}
