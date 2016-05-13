@@ -22,7 +22,9 @@ import {EditorOptions} from 'vs/workbench/common/editor';
 import {ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
+import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {OpenEditor, CloseAllEditorsAction, CloseAllEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseOpenEditorAction, CloseOtherEditorsInGroupAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
 
@@ -317,6 +319,13 @@ export class ActionProvider implements IActionProvider {
 			if (resource) {
 				// Open to side
 				result.push(this.instantiationService.createInstance(OpenToSideAction, tree, resource, false));
+				result.push(new Separator());
+
+				result.push(this.instantiationService.createInstance(RevealInOSAction, resource));
+				const openConsoleAction = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.Label);
+				openConsoleAction.setResource(resource);
+				result.push(openConsoleAction);
+				result.push(this.instantiationService.createInstance(CopyPathAction, resource));
 
 				// Files: Save / Revert
 				if (!autoSaveEnabled && openEditor.isDirty(this.textFileService, this.untitledEditorService)) {
@@ -347,6 +356,9 @@ export class ActionProvider implements IActionProvider {
 					saveAsAction.setResource(resource);
 					result.push(saveAsAction);
 				}
+
+				result.push(new Separator());
+				result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, tree));
 
 				result.push(new Separator());
 			}
