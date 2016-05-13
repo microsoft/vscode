@@ -488,7 +488,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Closing inactive editor is just a model update
-		group.closeEditor(input, false);
+		group.closeEditor(input);
 	}
 
 	private doCloseActiveEditor(position: Position): TPromise<void> {
@@ -507,7 +507,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Update stacks model
 		const group = this.groupAt(position);
-		group.closeEditor(group.activeEditor); // TODO@stacks allow to close any non active editor
+		group.closeEditor(group.activeEditor);
 
 		// Close group is this is the last editor in group
 		if (group.count === 0) {
@@ -747,7 +747,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Validate active input
-		if (!activeInput || ![...leftEditors, ...centerEditors, ...rightEditors].some(e => e.input === activeInput)) {
+		if (!activeInput || ![...leftEditors, ...centerEditors, ...rightEditors].some(e => e.input.matches(activeInput))) {
 			activeInput = leftEditors[0].input;
 		}
 
@@ -768,7 +768,7 @@ export class EditorPart extends Part implements IEditorPart {
 			const input = editor.input;
 
 			// Resolve editor options
-			const preserveFocus = (input !== activeInput);
+			const preserveFocus = !input.matches(activeInput);
 			let options: EditorOptions;
 			if (editor.options) {
 				options = editor.options;
