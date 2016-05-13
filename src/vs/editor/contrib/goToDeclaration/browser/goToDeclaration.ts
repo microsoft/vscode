@@ -32,7 +32,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
 
-export class DefitiontionActionConfig {
+export class DefinitionActionConfig {
 
 	constructor(
 		public condition = Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange,
@@ -51,7 +51,7 @@ export class DefinitionAction extends EditorAction {
 		editor: editorCommon.ICommonCodeEditor,
 		private _messageService: IMessageService,
 		private _editorService: IEditorService,
-		private _configuration: DefitiontionActionConfig
+		private _configuration: DefinitionActionConfig
 	) {
 		super(descriptor, editor, _configuration.condition);
 	}
@@ -167,7 +167,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(descriptor, editor, messageService, editorService, new DefitiontionActionConfig());
+		super(descriptor, editor, messageService, editorService, new DefinitionActionConfig());
 	}
 
 }
@@ -182,7 +182,7 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(descriptor, editor, messageService, editorService, new DefitiontionActionConfig(Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange, true));
+		super(descriptor, editor, messageService, editorService, new DefinitionActionConfig(Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange, true));
 	}
 }
 
@@ -196,7 +196,7 @@ export class PeekDefinitionAction extends DefinitionAction {
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(descriptor, editor, messageService, editorService, new DefitiontionActionConfig(void 0, void 0, true, false));
+		super(descriptor, editor, messageService, editorService, new DefinitionActionConfig(void 0, void 0, true, false));
 	}
 }
 
