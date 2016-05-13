@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import termJs = require('term.js');
+import lifecycle = require('vs/base/common/lifecycle');
 import fs = require('fs');
+import DOM = require('vs/base/browser/dom');
 import {fork, Terminal} from 'pty.js';
 import platform = require('vs/base/common/platform');
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -22,6 +24,7 @@ const TERMINAL_CHAR_HEIGHT = 18;
 
 export class TerminalPanel extends Panel {
 
+	private toDispose: lifecycle.IDisposable[];
 	private ptyProcess: Terminal;
 	private parentDomElement: HTMLElement;
 	private terminal;
@@ -33,6 +36,7 @@ export class TerminalPanel extends Panel {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
+		this.toDispose = [];
 	}
 
 	public layout(dimension: Dimension): void {
@@ -59,11 +63,12 @@ export class TerminalPanel extends Panel {
 			});
 			this.terminalDomElement = document.createElement('div');
 			this.parentDomElement.classList.add('integrated-terminal');
-			let terminalScrollable = new DomScrollableElement(this.terminalDomElement, {
+			let terminalScrollbar = new DomScrollableElement(this.terminalDomElement, {
 				canUseTranslate3d: false,
 				horizontal: ScrollbarVisibility.Hidden,
 				vertical: ScrollbarVisibility.Auto
 			});
+			this.toDispose.push(terminalScrollbar);
 			this.terminal = termJs({
 				cursorBlink: false // term.js' blinking cursor breaks selection
 			});
@@ -82,21 +87,21 @@ export class TerminalPanel extends Panel {
 				// repaint correctly.
 				this.createTerminal();
 			});
-			this.parentDomElement.addEventListener('mousedown', (event) => {
+			this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mousedown', (event) => {
 				// Drop selection and focus terminal on Linux to enable middle button paste when click
 				// occurs on the selection itself.
 				if (event.which === 2 && platform.isLinux) {
 					this.focusTerminal(true);
 				}
-			});
-			this.parentDomElement.addEventListener('mouseup', (event) => {
+			}));
+			this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mouseup', (event) => {
 				if (event.which !== 3) {
 					this.focusTerminal();
 				}
-			});
+			}));
 
 			this.terminal.open(this.terminalDomElement);
-			this.parentDomElement.appendChild(terminalScrollable.getDomNode());
+			this.parentDomElement.appendChild(terminalScrollbar.getDomNode());
 
 			let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 			this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
@@ -144,5 +149,10 @@ export class TerminalPanel extends Panel {
 			config.brightWhite
 		];
 		return colors;
+	}
+
+	public dispose(): void {
+		this.toDispose = lifecycle.dispose(this.toDispose);
+		super.dispose();
 	}
 }
