@@ -60,6 +60,7 @@ export class DataSource implements tree.IDataSource {
 }
 
 interface IOpenEditorTemplateData {
+	container: HTMLElement;
 	root: HTMLElement;
 	name: HTMLSpanElement;
 	description: HTMLSpanElement;
@@ -104,6 +105,7 @@ export class Renderer implements tree.IRenderer {
 		}
 
 		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
+		editorTemplate.container = container;
 		editorTemplate.root = dom.append(container, $('.open-editor'));
 		editorTemplate.name = dom.append(editorTemplate.root, $('span.name'));
 		editorTemplate.description = dom.append(editorTemplate.root, $('span.description'));
@@ -128,7 +130,7 @@ export class Renderer implements tree.IRenderer {
 
 	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
-		editor.isDirty(this.textFileService, this.untitledEditorService) ? dom.addClass(templateData.root, 'dirty') : dom.removeClass(templateData.root, 'dirty');
+		editor.isDirty(this.textFileService, this.untitledEditorService) ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.title = editor.getFsPath();
 		templateData.name.textContent = editor.editorInput.getName();
 		templateData.description.textContent = editor.editorInput.getDescription();

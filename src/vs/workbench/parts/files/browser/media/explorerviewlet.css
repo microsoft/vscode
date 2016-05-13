@@ -27,7 +27,7 @@
 	top: 0;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .open-editor.dirty ~ .monaco-action-bar {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
 	display: block;
 }
 
