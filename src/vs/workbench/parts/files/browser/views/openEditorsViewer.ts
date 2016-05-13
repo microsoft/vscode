@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import {Keybinding} from 'vs/base/common/keyCodes';
 import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IAction, Action} from 'vs/base/common/actions';
+import {IAction} from 'vs/base/common/actions';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import tree = require('vs/base/parts/tree/browser/tree');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -18,53 +18,15 @@ import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {ITextFileService, FileEditorInput} from 'vs/workbench/parts/files/common/files';
+import {EditorOptions} from 'vs/workbench/common/editor';
+import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {EditorInput, EditorOptions, UntitledEditorInput} from 'vs/workbench/common/editor';
 import {keybindingForAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {OpenEditor, CloseAllEditorsAction, CloseAllEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseOpenEditorAction, CloseOtherEditorsInGroupAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
 
 const $ = dom.emmet;
-
-export class OpenEditor {
-
-	constructor(private editor: EditorInput, private group: IEditorGroup) {
-		// noop
-	}
-
-	public get editorInput() {
-		return this.editor;
-	}
-
-	public get editorGroup() {
-		return this.group;
-	}
-
-	public getId(): string {
-		return `openeditor:${this.group.id}:${this.editor.getName()}:${this.editor.getDescription()}`;
-	}
-
-	public getName(): string {
-		return this.editor.getName();
-	}
-
-	public getDescription(): string {
-		return this.editor.getDescription();
-	}
-
-	public isPreview(): boolean {
-		return this.group.isPreview(this.editor);
-	}
-
-	public isDirty(textFileService: ITextFileService, untitledEditorService: IUntitledEditorService): boolean {
-		if (this.editor instanceof FileEditorInput) {
-			return textFileService.isDirty((<FileEditorInput>this.editor).getResource());
-		}
-
-		return untitledEditorService.isDirty((<UntitledEditorInput>this.editor).getResource());
-	}
-}
 
 export class DataSource implements tree.IDataSource {
 
@@ -351,74 +313,5 @@ export class ActionProvider implements IActionProvider {
 
 	public getActionItem(tree: tree.ITree, element: any, action: IAction): IActionItem {
 		return null;
-	}
-}
-
-class CloseOpenEditorAction extends Action {
-
-	public static ID = 'workbench.files.action.closeOpenEditor';
-
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(CloseOpenEditorAction.ID, nls.localize('closeEditor', "Close Editor"), 'action-close-file');
-	}
-
-	public run(openEditor: OpenEditor): TPromise<any> {
-		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
-		return this.editorService.closeEditor(position, openEditor.editorInput);
-	}
-}
-
-class CloseOtherEditorsInGroupAction extends Action {
-
-	public static ID = 'workbench.files.action.closeOtherEditorsInGroup';
-
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(CloseOtherEditorsInGroupAction.ID, nls.localize('closeOtherEditorsInGroup', "Close Other Editors in Group"));
-	}
-
-	public run(openEditor: OpenEditor): TPromise<any> {
-		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
-		return this.editorService.closeEditors(position, openEditor.editorInput);
-	}
-}
-
-class CloseAllEditorsInGroupAction extends Action {
-
-	public static ID = 'workbench.files.action.closeAllEditorsInGroup';
-
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(CloseAllEditorsInGroupAction.ID, nls.localize('closeAllEditorsInGroup', "Close All Editors in Group"));
-	}
-
-	public run(openEditor: OpenEditor): TPromise<any> {
-		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
-		return this.editorService.closeEditors(position);
-	}
-}
-
-class CloseEditorsInOtherGroupsAction extends Action {
-
-	public static ID = 'workbench.files.action.closeEditorsInOtherGroups';
-
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(CloseEditorsInOtherGroupsAction.ID, nls.localize('closeEditorsInOtherGroups', "Close Editors in Other Groups"));
-	}
-
-	public run(openEditor: OpenEditor): TPromise<any> {
-		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
-		return this.editorService.closeAllEditors(position);
-	}
-}
-
-export class CloseAllEditorsAction extends Action {
-
-	public static ID = 'workbench.files.action.closeAllEditors';
-
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(CloseAllEditorsAction.ID, nls.localize('closeAllEditors', "Close All Editors"), 'action-close-all-files');
-	}
-
-	public run(): TPromise<any> {
-		return this.editorService.closeAllEditors();
 	}
 }

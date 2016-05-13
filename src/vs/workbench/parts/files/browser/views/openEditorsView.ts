@@ -22,7 +22,8 @@ import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {Renderer, DataSource, Controller, AccessibilityProvider, OpenEditor, ActionProvider, CloseAllEditorsAction} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import {OpenEditor, CloseAllEditorsAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
 
 const $ = dom.emmet;
 
