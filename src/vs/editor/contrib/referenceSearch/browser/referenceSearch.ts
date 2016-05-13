@@ -35,9 +35,21 @@ import {ReferencesModel, OneReference} from './referenceSearchModel';
 import {ReferenceWidget, LayoutData} from './referenceSearchWidget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
-export class FindReferencesController implements editorCommon.IEditorContribution {
+export interface RequestOptions {
+	getMetaTitle(references: IReference[]): string;
+	onGoto(reference: IReference): TPromise<any>;
+}
 
-	public static ID = 'editor.contrib.findReferencesController';
+const defaultReferenceSearchOptions: RequestOptions = {
+	getMetaTitle(references: IReference[]) {
+		return references.length > 1 && nls.localize('meta.titleReference', " – {0} references", references.length);
+	},
+	onGoto: undefined
+};
+
+export class ReferencesController implements editorCommon.IEditorContribution {
+
+	public static ID = 'editor.contrib.referencesController';
 
 	private _editor: ICodeEditor;
 	private _widget: ReferenceWidget;
@@ -49,8 +61,8 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 	private _startTime: number = -1;
 	private _referenceSearchVisible: IKeybindingContextKey<boolean>;
 
-	static getController(editor:editorCommon.ICommonCodeEditor): FindReferencesController {
-		return <FindReferencesController> editor.getContribution(FindReferencesController.ID);
+	static getController(editor:editorCommon.ICommonCodeEditor): ReferencesController {
+		return <ReferencesController> editor.getContribution(ReferencesController.ID);
 	}
 
 	public constructor(
@@ -69,7 +81,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 	}
 
 	public getId(): string {
-		return FindReferencesController.ID;
+		return ReferencesController.ID;
 	}
 
 	public dispose(): void {
@@ -88,7 +100,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		this.clear();
 	}
 
-	public processRequest(range: editorCommon.IEditorRange, referencesPromise: TPromise<IReference[]>, metaTitleFn:(references:IReference[])=>string) : ReferenceWidget {
+	public processRequest(range: editorCommon.IEditorRange, referencesPromise: TPromise<IReference[]>, options: RequestOptions) : void {
 		var widgetPosition = !this._widget ? null : this._widget.position;
 
 		// clean up from previous invocation
@@ -129,7 +141,11 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 					this._openReference(element, kind === 'side');
 					break;
 				case 'goto':
-					this._gotoReference(element);
+					if (options.onGoto) {
+						options.onGoto(element);
+					} else {
+						this._gotoReference(element);
+					}
 					break;
 			}
 		}).dispose);
@@ -162,7 +178,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			// show widget
 			this._startTime = Date.now();
 			if (this._widget) {
-				this._widget.setMetaTitle(metaTitleFn(references));
+				this._widget.setMetaTitle(options.getMetaTitle(references));
 				this._widget.setModel(this._model);
 			}
 			timer.stop();
@@ -171,8 +187,6 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			this._messageService.show(Severity.Error, error);
 			timer.stop();
 		});
-
-		return this._widget;
 	}
 
 	private clear(): boolean {
@@ -299,14 +313,8 @@ export class ReferenceAction extends EditorAction {
 		let range = this.editor.getSelection();
 		let model = this.editor.getModel();
 		let request = findReferences(model, range.getStartPosition());
-		let controller = FindReferencesController.getController(this.editor);
-		return TPromise.as(controller.processRequest(range, request, metaTitle)).then(() => true);
-	}
-}
-
-function metaTitle(references: IReference[]): string {
-	if (references.length > 1) {
-		return nls.localize('meta.titleReference', " – {0} references", references.length);
+		let controller = ReferencesController.getController(this.editor);
+		return TPromise.as(controller.processRequest(range, request, defaultReferenceSearchOptions)).then(() => true);
 	}
 }
 
@@ -327,9 +335,9 @@ let findReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 		}
 
 		let request = findReferences(control.getModel(), position);
-		let controller = FindReferencesController.getController(control);
+		let controller = ReferencesController.getController(control);
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		return TPromise.as(controller.processRequest(range, request, metaTitle));
+		return TPromise.as(controller.processRequest(range, request, defaultReferenceSearchOptions));
 	});
 };
 
@@ -345,16 +353,16 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 			return;
 		}
 
-		let controller = FindReferencesController.getController(control);
+		let controller = ReferencesController.getController(control);
 		let range = Position.asEmptyRange(position);
-		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(references), metaTitle)).then(() => true);
+		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(references), defaultReferenceSearchOptions)).then(() => true);
 	});
 };
 
 var CONTEXT_REFERENCE_SEARCH_VISIBLE = 'referenceSearchVisible';
 
 // register action
-EditorBrowserRegistry.registerEditorContribution(FindReferencesController);
+EditorBrowserRegistry.registerEditorContribution(ReferencesController);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ReferenceAction, ReferenceAction.ID, nls.localize('references.action.name', "Show References"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyCode.F12
@@ -385,7 +393,7 @@ KeybindingsRegistry.registerCommandDesc({
 function closeActiveReferenceSearch(accessor, args) {
 	var outerEditor = getOuterEditor(accessor, args);
 	if (outerEditor) {
-		var controller = FindReferencesController.getController(outerEditor);
+		var controller = ReferencesController.getController(outerEditor);
 		controller.closeReferenceSearch();
 	}
 }

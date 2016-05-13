@@ -609,14 +609,14 @@ export class ReferenceWidget extends PeekViewWidget {
 		// listen on selection and focus
 		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.FOCUSED, (element) => {
 			if (element instanceof OneReference) {
-				this._onDidSelectReference.fire({ element, kind: 'show' });
 				this._revealReference(element);
+				this._onDidSelectReference.fire({ element, kind: 'show' });
 			}
 		}));
 		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
-				this._onDidSelectReference.fire({ element, kind: 'goto' });
 				this._revealReference(element);
+				this._onDidSelectReference.fire({ element, kind: 'goto' });
 			}
 		}));
 		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.OPEN_TO_SIDE, (element: any) => {
@@ -669,9 +669,17 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
-		// show in editor
-		this._editorService.resolveEditorModel({ resource: reference.resource }).done((model) => {
+		TPromise.join([
+			this._editorService.resolveEditorModel({ resource: reference.resource }),
+			this._tree.reveal(reference)
+		]).done(values => {
+			if (!this._model) {
+				// disposed
+				return;
+			}
 
+			// show in editor
+			let [model] = values;
 			if (model) {
 				this._preview.setModel(model.textEditorModel);
 				var sel = Range.lift(reference.range).collapseToStart();
@@ -681,12 +689,10 @@ export class ReferenceWidget extends PeekViewWidget {
 				this._preview.setModel(this._previewNotAvailableMessage);
 			}
 
-		}, onUnexpectedError);
-
-		// show in tree
-		this._tree.reveal(reference).then(() => {
+			// show in tree
 			this._tree.setSelection([reference]);
 			this._tree.setFocus(reference);
-		});
+
+		}, onUnexpectedError);
 	}
 }
