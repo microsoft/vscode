@@ -224,7 +224,7 @@ export class Range implements IEditorRange {
 	 * A function that compares ranges, useful for sorting ranges
 	 * It will first compare ranges on the startPosition and then on the endPosition
 	 */
-	public static compareRangesUsingStarts(a:IEditorRange, b:IEditorRange): number {
+	public static compareRangesUsingStarts(a:IRange, b:IRange): number {
 		let aStartLineNumber = a.startLineNumber|0;
 		let bStartLineNumber = b.startLineNumber|0;
 		let aStartColumn = a.startColumn|0;

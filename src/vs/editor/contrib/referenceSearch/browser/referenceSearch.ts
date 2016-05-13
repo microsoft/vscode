@@ -23,13 +23,13 @@ import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/bro
 import {findReferences} from '../common/referenceSearch';
 import {ReferenceWidget} from './referencesWidget';
 import {ReferencesController, RequestOptions, ctxReferenceSearchVisible} from './referencesController';
+import {ReferencesModel} from './referencesModel';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 const defaultReferenceSearchOptions: RequestOptions = {
-	getMetaTitle(references: IReference[]) {
-		return references.length > 1 && nls.localize('meta.titleReference', " – {0} references", references.length);
-	},
-	onGoto: undefined
+	getMetaTitle(model) {
+		return model.references.length > 1 && nls.localize('meta.titleReference', " – {0} references", model.references.length);
+	}
 };
 
 export class ReferenceAction extends EditorAction {
@@ -82,9 +82,9 @@ export class ReferenceAction extends EditorAction {
 	public run():TPromise<boolean> {
 		let range = this.editor.getSelection();
 		let model = this.editor.getModel();
-		let request = findReferences(model, range.getStartPosition());
+		let references = findReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
 		let controller = ReferencesController.getController(this.editor);
-		return TPromise.as(controller.processRequest(range, request, defaultReferenceSearchOptions)).then(() => true);
+		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions)).then(() => true);
 	}
 }
 
@@ -104,10 +104,10 @@ let findReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 			return;
 		}
 
-		let request = findReferences(control.getModel(), position);
+		let references = findReferences(control.getModel(), position).then(references => new ReferencesModel(references));
 		let controller = ReferencesController.getController(control);
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		return TPromise.as(controller.processRequest(range, request, defaultReferenceSearchOptions));
+		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
 };
 
@@ -124,8 +124,11 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 		}
 
 		let controller = ReferencesController.getController(control);
-		let range = Position.asEmptyRange(position);
-		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(references), defaultReferenceSearchOptions)).then(() => true);
+
+		return TPromise.as(controller.toggleWidget(
+			Range.lift(Position.asEmptyRange(position)),
+			TPromise.as(new ReferencesModel(references)),
+			defaultReferenceSearchOptions)).then(() => true);
 	});
 };
 
@@ -164,7 +167,7 @@ function closeActiveReferenceSearch(accessor, args) {
 	var outerEditor = getOuterEditor(accessor, args);
 	if (outerEditor) {
 		var controller = ReferencesController.getController(outerEditor);
-		controller.closeReferenceSearch();
+		controller.closeWidget();
 	}
 }
 

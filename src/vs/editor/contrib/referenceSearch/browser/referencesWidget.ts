@@ -71,9 +71,9 @@ class DecorationsManager implements IDisposable {
 			return;
 		}
 
-		for(var i = 0, len = this.model.children.length; i < len; i++) {
-			if(this.model.children[i].resource.toString() === model.getAssociatedResource().toString()) {
-				this._addDecorations(this.model.children[i]);
+		for(var i = 0, len = this.model.groups.length; i < len; i++) {
+			if(this.model.groups[i].resource.toString() === model.getAssociatedResource().toString()) {
+				this._addDecorations(this.model.groups[i]);
 				return;
 			}
 		}
@@ -185,7 +185,7 @@ class DataSource implements tree.IDataSource {
 
 	public getChildren(tree:tree.ITree, element:any):TPromise<any[]> {
 		if(element instanceof ReferencesModel) {
-			return TPromise.as((<ReferencesModel> element).children);
+			return TPromise.as((<ReferencesModel> element).groups);
 		} else if(element instanceof FileReferences) {
 			return (<FileReferences> element).resolve(this._editorService).then(val => val.children);
 		} else {
@@ -588,24 +588,28 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._preview.layout();
 	}
 
-	public showMessage(message: string): void {
-		this.setTitle('');
-		this._messageContainer.innerHtml(message).show();
+	public setSelection(selection: OneReference): TPromise<any> {
+		return this._revealReference(selection);
 	}
 
-	public setModel(newModel: ReferencesModel): void {
+	public setModel(newModel: ReferencesModel): TPromise<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
 		if (this._model) {
-			this._onNewModel();
+			return this._onNewModel();
 		}
 	}
 
-	private _onNewModel(): void {
+	private _onNewModel(): TPromise<any> {
+
+		if (this._model.empty) {
+			this.setTitle('');
+			this._messageContainer.innerHtml(nls.localize('noResults', "No results")).show();
+			return;
+		}
 
 		this._messageContainer.hide();
-
 		this._decorationsManager = new DecorationsManager(this._preview, this._model);
 		this._disposeOnNewModel.push(this._decorationsManager);
 
@@ -650,9 +654,8 @@ export class ReferenceWidget extends PeekViewWidget {
 		this.focus();
 
 		// pick input and a reference to begin with
-		const input = this._model.children.length === 1 ? this._model.children[0] : this._model;
-		const selection = this._model.children[0].children[0];
-		this._tree.setInput(input).then(() => this._revealReference(selection));
+		const input = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
+		return this._tree.setInput(input);
 	}
 
 	private _getFocusedReference(): OneReference {
@@ -666,7 +669,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		}
 	}
 
-	private _revealReference(reference: OneReference): void {
+	private _revealReference(reference: OneReference) {
 
 		// Update widget header
 		if (reference.resource.scheme !== Schemas.inMemory) {
@@ -675,10 +678,10 @@ export class ReferenceWidget extends PeekViewWidget {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
-		TPromise.join([
+		return TPromise.join([
 			this._editorService.resolveEditorModel({ resource: reference.resource }),
 			this._tree.reveal(reference)
-		]).done(values => {
+		]).then(values => {
 			if (!this._model) {
 				// disposed
 				return;

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as collections from 'vs/base/common/collections';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import Event, {fromEventEmitter} from 'vs/base/common/event';
 import {basename, dirname} from 'vs/base/common/paths';
@@ -143,89 +142,98 @@ export class FileReferences {
 	}
 }
 
-export class ReferencesModel  {
+export class ReferencesModel {
 
-	private _references: FileReferences[];
+	private _groups: FileReferences[] = [];
+	private _references: OneReference[] = [];
 	private _eventBus = new EventEmitter();
 
 	onDidChangeReferenceRange: Event<OneReference> = fromEventEmitter<OneReference>(this._eventBus, 'ref/changed');
 
 	constructor(references: IReference[]) {
 
-		let referencesByFile: { [n: string]: FileReferences } = Object.create(null);
-		let seen: { [n: string]: boolean } = Object.create(null);
+		// grouping and sorting
+		references.sort(ReferencesModel._compareReferences);
 
-		references.forEach(reference => {
-
-			let hash = ReferencesModel._hash(reference);
-			if (!seen[hash]) {
-				seen[hash] = true;
-
-				let resource = reference.resource;
-				let fileReferences = new FileReferences(this, resource);
-
-				fileReferences = collections.lookupOrInsert(referencesByFile, fileReferences.id, fileReferences);
-				fileReferences.children.push(new OneReference(fileReferences, reference.range, this._eventBus));
+		let current: FileReferences;
+		for (let ref of references) {
+			if (!current || current.resource.toString() !== ref.resource.toString()) {
+				// new group
+				current = new FileReferences(this, ref.resource);
+				this.groups.push(current);
 			}
-		});
 
-		this._references = collections.values(referencesByFile);
-		this._references.sort(ReferencesModel._compare);
+			// append, check for equality first!
+			if (current.children.length === 0
+				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
+
+				let oneRef = new OneReference(current, ref.range, this._eventBus);
+				this._references.push(oneRef);
+				current.children.push(oneRef);
+			}
+		}
 	}
 
-	public get children(): FileReferences[] {
+	public get empty(): boolean {
+		return this._groups.length === 0;
+	}
+
+	public get references(): OneReference[]{
 		return this._references;
+	}
+
+	public get groups(): FileReferences[] {
+		return this._groups;
 	}
 
 	public nextReference(reference: OneReference): OneReference {
 
 		var idx = reference.parent.children.indexOf(reference),
 			len = reference.parent.children.length,
-			totalLength = reference.parent.parent.children.length;
+			totalLength = reference.parent.parent.groups.length;
 
 		if (idx + 1 < len || totalLength === 1) {
 			return reference.parent.children[(idx + 1) % len];
 		}
 
-		idx = reference.parent.parent.children.indexOf(reference.parent);
+		idx = reference.parent.parent.groups.indexOf(reference.parent);
 		idx = (idx + 1) % totalLength;
 
-		return reference.parent.parent.children[idx].children[0];
+		return reference.parent.parent.groups[idx].children[0];
 	}
 
-	public findReference(resource: URI, position: IPosition): OneReference {
-		for (var i = 0, len = this._references.length; i < len; i++) {
-			var reference = this._references[i];
-			if (reference.resource.toString() !== resource.toString()) {
+	public nearestReference(resource: URI, position: IPosition): OneReference {
+		let candidate: OneReference;
+		let candiateDist: number;
+		for (let ref of this._references) {
+			if (ref.resource.toString() !== resource.toString()) {
 				continue;
 			}
 
-			var result: OneReference;
-			reference.children.some((element) => {
-				if (Range.containsPosition(element.range, position)) {
-					result = element;
-					return true;
-				}
-				return false;
-			});
+			if (Range.containsPosition(ref.range, position)) {
+				// best match (!)
+				return ref;
+			}
 
-			if (result) {
-				return result;
+			let dist =
+				(Math.abs(ref.range.startLineNumber - position.lineNumber) * 100)
+				+ Math.abs(ref.range.startColumn - position.column);
+
+			if (!candidate || dist <= candiateDist) {
+				candidate = ref;
+				candiateDist = dist;
 			}
 		}
-		if (this._references.length > 0) {
-			return this._references[0].children[0];
+		return candidate || this._references[0];
+	}
+
+	private static _compareReferences(a: IReference, b: IReference): number {
+		if (a.resource.toString() < b.resource.toString()) {
+			return -1;
+		} else if (a.resource.toString() > b.resource.toString()) {
+			return 1;
+		} else {
+			return Range.compareRangesUsingStarts(a.range, b.range);
 		}
-		return null;
-	}
-
-	private static _hash(reference: IReference): string {
-		let {startLineNumber, startColumn, endLineNumber, endColumn} = reference.range;
-		return [reference.resource.toString(),
-			startLineNumber, startColumn, endLineNumber, endColumn].join(',');
-	}
-
-	private static _compare(a: FileReferences, b: FileReferences): number {
-		return strings.localeCompare(a.directory, b.directory) || strings.localeCompare(a.name, b.name);
 	}
 }

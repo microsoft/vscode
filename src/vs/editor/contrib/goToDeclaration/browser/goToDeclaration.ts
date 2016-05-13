@@ -31,6 +31,7 @@ import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/ed
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referencesController';
+import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 
 export class DefinitionActionConfig {
 
@@ -145,12 +146,12 @@ export class DefinitionAction extends EditorAction {
 
 	private _openInPeek(target: editorCommon.ICommonCodeEditor, references: IReference[]) {
 		let controller = ReferencesController.getController(target);
-		controller.processRequest(target.getSelection(), TPromise.as(references), {
-			getMetaTitle: (references) => {
-				return references.length > 1 && nls.localize('meta.title', " – {0} definitions", references.length);
+		controller.toggleWidget(target.getSelection(), TPromise.as(new ReferencesModel(references)), {
+			getMetaTitle: (model) => {
+				return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
 			},
 			onGoto: (reference) => {
-				controller.closeReferenceSearch();
+				controller.closeWidget();
 				return this._openReference(reference, false);
 			}
 		});

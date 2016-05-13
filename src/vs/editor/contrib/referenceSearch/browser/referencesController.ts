@@ -5,9 +5,8 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {cAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
@@ -18,18 +17,17 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IReference} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {ReferencesModel, OneReference} from './referencesModel';
 import {ReferenceWidget, LayoutData} from './referencesWidget';
 
-export var ctxReferenceSearchVisible = 'referenceSearchVisible';
+export const ctxReferenceSearchVisible = 'referenceSearchVisible';
 
 export interface RequestOptions {
-	getMetaTitle(references: IReference[]): string;
-	onGoto(reference: IReference): TPromise<any>;
+	getMetaTitle(model: ReferencesModel): string;
+	onGoto?: (reference: OneReference) => TPromise<any>;
 }
 
 export class ReferencesController implements editorCommon.IEditorContribution {
@@ -40,10 +38,9 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	private _widget: ReferenceWidget;
 	private _model: ReferencesModel;
 	private _requestIdPool = 0;
-	private _callOnClear: Function[] = [];
+	private _disposables: IDisposable[] = [];
 	private _ignoreModelChangeEvent = false;
 
-	private _startTime: number = -1;
 	private _referenceSearchVisible: IKeybindingContextKey<boolean>;
 
 	static getController(editor:editorCommon.ICommonCodeEditor): ReferencesController {
@@ -77,32 +74,25 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._editor = null;
 	}
 
-	public isInPeekView() : boolean {
-		return this._peekViewService && this._peekViewService.isActive;
-	}
+	public toggleWidget(range: editorCommon.IEditorRange, modelPromise: TPromise<ReferencesModel>, options: RequestOptions) : void {
 
-	public closeReferenceSearch(): void {
-		this.clear();
-	}
-
-	public processRequest(range: editorCommon.IEditorRange, referencesPromise: TPromise<IReference[]>, options: RequestOptions) : void {
-		var widgetPosition = !this._widget ? null : this._widget.position;
-
-		// clean up from previous invocation
-		var widgetClosed = this.clear();
-
-		// Close if the position is still the same
-		if(widgetClosed && !!widgetPosition && range.containsPosition(widgetPosition)) {
+		// close current widget and return early is position didn't change
+		let widgetPosition: editorCommon.IPosition;
+		if (this._widget) {
+			widgetPosition = this._widget.position;
+		}
+		this.closeWidget();
+		if(!!widgetPosition && range.containsPosition(widgetPosition)) {
 			return null;
 		}
 
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._callOnClear.push(this._editor.addListener(editorCommon.EventType.ModelModeChanged, () => { this.clear(); }));
-		this._callOnClear.push(this._editor.addListener(editorCommon.EventType.ModelChanged, () => {
+		this._disposables.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => { this.closeWidget(); }));
+		this._disposables.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => {
 			if(!this._ignoreModelChangeEvent) {
-				this.clear();
+				this.closeWidget();
 			}
 		}));
 		const storageKey = 'peekViewLayout';
@@ -110,15 +100,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._widget = new ReferenceWidget(this._editor, data, this._editorService, this._contextService, this._instantiationService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
-		this._callOnClear.push(this._widget.onDidClose(() => {
-			referencesPromise.cancel();
+		this._disposables.push(this._widget.onDidClose(() => {
+			modelPromise.cancel();
 
 			this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData));
 			this._widget = null;
-			this.clear();
-		}).dispose);
+			this.closeWidget();
+		}));
 
-		this._callOnClear.push(this._widget.onDidSelectReference(event => {
+		this._disposables.push(this._widget.onDidSelectReference(event => {
 			let {element, kind} = event;
 			switch (kind) {
 				case 'side':
@@ -133,73 +123,63 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 					}
 					break;
 			}
-		}).dispose);
+		}));
 
-		var requestId = ++this._requestIdPool,
-			editorModel = this._editor.getModel();
-
-		var timer = this._telemetryService.timedPublicLog('findReferences', {
-			mode: editorModel.getMode().getId()
+		const requestId = ++this._requestIdPool;
+		const timer = this._telemetryService.timedPublicLog('findReferences', {
+			mode: this._editor.getModel().getMode().getId()
 		});
 
-		referencesPromise.then(references => {
+		modelPromise.then(model => {
 
 			// still current request? widget still open?
-			if(requestId !== this._requestIdPool || !this._widget) {
-				timer.stop();
+			if (requestId !== this._requestIdPool || !this._widget) {
 				return;
 			}
+			this._model = model;
 
-			// has a result
-			if (isFalsyOrEmpty(references)) {
-				this._widget.showMessage(nls.localize('noResults', "No results"));
-				timer.stop();
-				return;
-			}
-
-			// create result model
-			this._model = new ReferencesModel(references);
+			// measure time it stays open
+			const startTime = Date.now();
+			this._disposables.push({
+				dispose: () => {
+					this._telemetryService.publicLog('zoneWidgetShown', {
+						mode: 'reference search',
+						elapsedTime: Date.now() - startTime
+					});
+				}
+			});
 
 			// show widget
-			this._startTime = Date.now();
-			if (this._widget) {
-				this._widget.setMetaTitle(options.getMetaTitle(references));
-				this._widget.setModel(this._model);
-			}
-			timer.stop();
+			return this._widget.setModel(this._model).then(() => {
 
-		}, (error:any) => {
+				// set title
+				this._widget.setMetaTitle(options.getMetaTitle(model));
+
+				// set 'best' selection
+				let uri = this._editor.getModel().getAssociatedResource();
+				let pos = { lineNumber: range.startLineNumber, column: range.startColumn };
+				let selection = this._model.nearestReference(uri, pos);
+				return this._widget.setSelection(selection);
+			});
+
+		}, error => {
 			this._messageService.show(Severity.Error, error);
+
+		}).done(() => {
 			timer.stop();
 		});
 	}
 
-	private clear(): boolean {
-
-		if (this._startTime !== -1) {
-			this._telemetryService.publicLog('zoneWidgetShown', {
-				mode: 'reference search',
-				elapsedTime: Date.now() - this._startTime
-			});
-			this._startTime = -1;
-		}
-
-		var result = false;
+	public closeWidget(): void {
 		if (this._widget) {
 			this._widget.dispose();
 			this._widget = null;
-			result = true;
 		}
-
 		this._referenceSearchVisible.reset();
-
-		cAll(this._callOnClear);
-
+		this._disposables = dispose(this._disposables);
 		this._model = null;
-
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests
-		return result;
 	}
 
 	private _gotoReference(ref: OneReference): void {
@@ -220,7 +200,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				// and cannot hold onto the widget (which likely doesn't
 				// exist). Instead of bailing out we should find the
 				// 'sister' action and pass our current model on to it.
-				this.clear();
+				this.closeWidget();
 				return;
 			}
 
@@ -242,7 +222,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		// clear stage
 		if (!sideBySide) {
-			this.clear();
+			this.closeWidget();
 		}
 	}
 }
