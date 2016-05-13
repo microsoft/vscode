@@ -129,8 +129,9 @@ export class Renderer implements tree.IRenderer {
 	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
 		editor.isDirty(this.textFileService, this.untitledEditorService) ? dom.addClass(templateData.root, 'dirty') : dom.removeClass(templateData.root, 'dirty');
-		templateData.name.textContent = editor.getName();
-		templateData.description.textContent = editor.getDescription();
+		templateData.root.title = editor.getFsPath();
+		templateData.name.textContent = editor.editorInput.getName();
+		templateData.description.textContent = editor.editorInput.getDescription();
 		templateData.actionBar.context = editor;
 	}
 
@@ -262,7 +263,7 @@ export class AccessibilityProvider implements tree.IAccessibilityProvider {
 			return nls.localize('editorGroupAriaLabel', "{0}, Editor Group", (<EditorGroup>element).label);
 		}
 
-		return nls.localize('openEditorAriaLabel', "{0}, Open Editor", (<OpenEditor>element).getName());
+		return nls.localize('openEditorAriaLabel', "{0}, Open Editor", (<OpenEditor>element).editorInput.getName());
 	}
 }
 

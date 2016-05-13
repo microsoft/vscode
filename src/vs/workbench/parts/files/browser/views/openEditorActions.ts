@@ -30,14 +30,6 @@ export class OpenEditor {
 		return `openeditor:${this.group.id}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
-	public getName(): string {
-		return this.editor.getName();
-	}
-
-	public getDescription(): string {
-		return this.editor.getDescription();
-	}
-
 	public isPreview(): boolean {
 		return this.group.isPreview(this.editor);
 	}
@@ -45,9 +37,21 @@ export class OpenEditor {
 	public isDirty(textFileService: ITextFileService, untitledEditorService: IUntitledEditorService): boolean {
 		if (this.editor instanceof FileEditorInput) {
 			return textFileService.isDirty((<FileEditorInput>this.editor).getResource());
+		} else if (this.editor instanceof UntitledEditorInput) {
+			return untitledEditorService.isDirty((<UntitledEditorInput>this.editor).getResource());
 		}
 
-		return untitledEditorService.isDirty((<UntitledEditorInput>this.editor).getResource());
+		return false;
+	}
+
+	public getFsPath(): string {
+		if (this.editor instanceof FileEditorInput) {
+			return (<FileEditorInput>this.editor).getResource().fsPath;
+		} else if (this.editor instanceof UntitledEditorInput) {
+			return (<UntitledEditorInput>this.editor).getResource().fsPath;
+		}
+
+		return '';
 	}
 }
 
