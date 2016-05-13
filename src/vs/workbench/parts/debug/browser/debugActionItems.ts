@@ -8,6 +8,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import dom = require('vs/base/browser/dom');
+import { isWindows } from 'vs/base/common/platform';
 import { IAction } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
@@ -26,7 +27,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 		super(null, action);
 
 		this.select = document.createElement('select');
-		this.select.className = 'debug-select action-bar-select';
+		this.select.className = `debug-select action-bar-select ${isWindows ? 'windows' : ''}`;
 
 		this.toDispose = [];
 		this.registerListeners(configurationService);

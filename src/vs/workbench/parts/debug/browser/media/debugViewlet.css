@@ -92,6 +92,10 @@
 	opacity: 0.35;
 }
 
+.monaco-workbench .debug-select.windows {
+	margin-top: 7px; /* Center the select box */
+}
+
 .vs-dark .monaco-workbench .debug-select {
 	background-color: #3C3C3C;
 	border-color: #3C3C3C;
