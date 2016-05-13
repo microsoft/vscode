@@ -748,12 +748,16 @@ export class EditorPart extends Part implements IEditorPart {
 
 		let editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 		let widthRatios = editorState.widthRatio;
-		let activeInput = this.stacksModel.activeGroup.activeEditor;
 
-		return this.doOpenEditors(editors, activeInput, widthRatios);
+		let activePosition:Position;
+		if (this.stacksModel.groups.length) {
+			activePosition = this.stacksModel.positionOfGroup(this.stacksModel.activeGroup);
+		}
+
+		return this.doOpenEditors(editors, activePosition, widthRatios);
 	}
 
-	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activeInput?: EditorInput, widthRatios?: number[]): TPromise<BaseEditor[]> {
+	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, widthRatios?: number[]): TPromise<BaseEditor[]> {
 		const leftEditors = editors.filter(e => e.position === Position.LEFT);
 		const centerEditors = editors.filter(e => e.position === Position.CENTER);
 		const rightEditors = editors.filter(e => e.position === Position.RIGHT);
@@ -767,8 +771,8 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Validate active input
-		if (!activeInput || ![...leftEditors, ...centerEditors, ...rightEditors].some(e => e.input.matches(activeInput))) {
-			activeInput = leftEditors[0].input;
+		if (typeof activePosition !== 'number') {
+			activePosition = Position.LEFT;
 		}
 
 		// Validate width ratios
@@ -788,7 +792,7 @@ export class EditorPart extends Part implements IEditorPart {
 			const input = editor.input;
 
 			// Resolve editor options
-			const preserveFocus = !input.matches(activeInput);
+			const preserveFocus = activePosition !== index;
 			let options: EditorOptions;
 			if (editor.options) {
 				options = editor.options;
