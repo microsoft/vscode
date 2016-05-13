@@ -53,11 +53,11 @@
 }
 
 .monaco-workbench .editor > .content > .one-editor-container.draggedunder {
-	transition:			left 200ms ease-out;
+	transition: left 200ms ease-out;
 }
 
 .monaco-workbench .editor > .content > .editor-right.draggedunder {
-	transition-property: 			right;
+	transition-property: right;
 }
 
 .vs .monaco-workbench .editor > .content > .editor-center {

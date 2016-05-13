@@ -21,11 +21,14 @@
 
 .monaco-workbench > .part > .title > .title-label,
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
-	padding-left: 12px;
 	line-height: 35px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.monaco-workbench > .part > .title > .title-label {
+	padding-left: 12px;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
