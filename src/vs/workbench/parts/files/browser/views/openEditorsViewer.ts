@@ -24,7 +24,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {OpenEditor, CloseAllEditorsAction, CloseAllEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseOpenEditorAction, CloseOtherEditorsInGroupAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
+import {OpenEditor, CloseAllEditorsAction, CloseAllEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseOpenEditorAction, CloseOtherEditorsInGroupAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
 
 const $ = dom.emmet;
 
@@ -305,6 +305,11 @@ export class ActionProvider implements IActionProvider {
 		const autoSaveEnabled = this.textFileService.getAutoSaveMode() !== AutoSaveMode.OFF;
 
 		if (element instanceof EditorGroup) {
+			if (!autoSaveEnabled) {
+				result.push(this.instantiationService.createInstance(SaveAllInGroupAction));
+				result.push(new Separator());
+			}
+
 			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
 		} else {
 			const openEditor = <OpenEditor>element;
@@ -350,9 +355,9 @@ export class ActionProvider implements IActionProvider {
 			result.push(new Separator());
 			result.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction));
 			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
+			result.push(new Separator());
 		}
 
-		result.push(new Separator());
 		result.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction));
 		result.push(new Separator());
 		result.push(this.instantiationService.createInstance(CloseAllEditorsAction));

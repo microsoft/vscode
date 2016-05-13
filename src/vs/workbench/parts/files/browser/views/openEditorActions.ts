@@ -128,3 +128,23 @@ export class CloseAllEditorsAction extends Action {
 		return this.editorService.closeAllEditors();
 	}
 }
+
+export class SaveAllInGroupAction extends Action {
+
+	public static ID = 'workbench.files.action.saveAllInGroup';
+
+	constructor(@ITextFileService private textFileService: ITextFileService) {
+		super(CloseAllEditorsAction.ID, nls.localize('saveAllInGroup', "Save All in Group"), 'action-save-all-in-group');
+	}
+
+	public run(editorGroup: IEditorGroup): TPromise<any> {
+		const resourcesToSave = [];
+		editorGroup.getEditors().forEach(editor => {
+			if (editor instanceof FileEditorInput || editor instanceof UntitledEditorInput) {
+				resourcesToSave.push(editor.getResource());
+			}
+		});
+
+		return this.textFileService.saveAll(resourcesToSave);
+	}
+}
