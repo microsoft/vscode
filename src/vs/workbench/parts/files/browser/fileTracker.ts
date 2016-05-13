@@ -20,6 +20,7 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {State, TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
+import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -87,6 +88,8 @@ export class FileTracker implements IWorkbenchContribution {
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
+
+		this.updateActiveEditor(e.resource);
 	}
 
 	private onTextFileSaving(e: TextFileChangeEvent): void {
@@ -121,6 +124,7 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		this.updateActivityBadge();
+		this.updateActiveEditor(e.resource);
 	}
 
 	private onUntitledEditorDeleted(e: UntitledEditorEvent): void {
@@ -131,6 +135,22 @@ export class FileTracker implements IWorkbenchContribution {
 
 		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
+		}
+	}
+
+	private updateActiveEditor(resource: URI): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			const input = activeEditor.input;
+			let inputResource: URI;
+			if (input instanceof UntitledEditorInput || input instanceof FileEditorInput) {
+				inputResource = input.getResource();
+			}
+
+			// Pin the active editor because the user has made changes to the file within
+			if (inputResource && inputResource.toString() === resource.toString()) {
+				this.editorService.pinEditor(activeEditor.position, activeEditor.input);
+			}
 		}
 	}
 
@@ -478,10 +498,10 @@ export class FileTracker implements IWorkbenchContribution {
 		// Get all cached file models
 		CACHE.getAll()
 
-		// Only take text file models and remove those that are under working files or opened
+			// Only take text file models and remove those that are under working files or opened
 			.filter((model) => !this.workingFiles.hasEntry(model.getResource()) && this.canDispose(model))
 
-		// Dispose
+			// Dispose
 			.forEach((model) => CACHE.dispose(model.getResource()));
 	}
 
