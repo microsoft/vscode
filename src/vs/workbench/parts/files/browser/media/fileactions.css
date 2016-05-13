@@ -193,16 +193,10 @@
 	content: url('Preview_inverse.svg');
 }
 
-.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-file:before {
-	content: url('action-close-dark.svg');
-	position: absolute;
-	top: 3px;
-	left: 0;
-	height: 16px;
-	width: 16px;
+.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-file {
+	background: url("action-close-dark.svg") center center no-repeat;
 }
 
-.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .action-close-file,
-.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content > .monaco-action-bar .action-close-file {
-	background: none !important;
+.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:not(:hover) > .content.dirty > .monaco-action-bar .action-close-file {
+	background: url("action-close-dirty-dark.svg") center center no-repeat;
 }
