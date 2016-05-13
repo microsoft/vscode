@@ -849,6 +849,9 @@ export class EditorPart extends Part implements IEditorPart {
 	public pinEditor(position: Position, input: EditorInput): void {
 		const group = this.groupAt(position);
 		if (group) {
+			if (group.isPinned(input)) {
+				return;
+			}
 
 			// Update stacks model
 			group.pin(input);
@@ -861,6 +864,10 @@ export class EditorPart extends Part implements IEditorPart {
 	public unpinEditor(position: Position, input: EditorInput): void {
 		const group = this.groupAt(position);
 		if (group) {
+			if (group.isPreview(input)) {
+				return;
+			}
+
 			let closeActivePromise: TPromise<void> = TPromise.as(null);
 
 			// The active editor is the preview editor and we are asked to make
