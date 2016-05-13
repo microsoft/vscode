@@ -332,10 +332,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			diag('onModelContentChanged() - model content changed back to last saved version', this.resource, new Date());
 
 			// Clear flags
+			const wasDirty = this.dirty;
 			this.setDirty(false);
 
 			// Emit event
-			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel, this.versionOnDiskStat));
+			if (wasDirty) {
+				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel, this.versionOnDiskStat));
+			}
 
 			return;
 		}
