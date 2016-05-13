@@ -634,8 +634,13 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	public closeAllEditors(): TPromise<void> {
+	public closeAllEditors(except?: Position): TPromise<void> {
 		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
+
+		// Remove position to exclude if we have any
+		if (typeof except === 'number') {
+			editors = editors.filter(e => e.position !== except);
+		}
 
 		return TPromise.join(editors.map(e => this.closeEditors(e.position))).then(() => void 0);
 	}

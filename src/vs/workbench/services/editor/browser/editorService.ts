@@ -31,7 +31,7 @@ export interface IEditorPart {
 	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
-	closeAllEditors(): TPromise<void>;
+	closeAllEditors(except?: Position): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
@@ -172,8 +172,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeEditors(position, except, direction);
 	}
 
-	public closeAllEditors(): TPromise<void> {
-		return this.editorPart.closeAllEditors();
+	public closeAllEditors(except?: Position): TPromise<void> {
+		return this.editorPart.closeAllEditors(except);
 	}
 
 	public focusGroup(position: Position): void {
@@ -392,8 +392,8 @@ class EditorPartDelegate implements IEditorPart {
 		return this.editorService.closeEditors(position, except, direction);
 	}
 
-	public closeAllEditors(): TPromise<void> {
-		return this.editorService.closeAllEditors();
+	public closeAllEditors(except?: Position): TPromise<void> {
+		return this.editorService.closeAllEditors(except);
 	}
 
 	public getStacksModel(): IEditorStacksModel {

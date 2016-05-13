@@ -295,7 +295,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return TPromise.as(null);
 	}
 
-	public closeAllEditors(): TPromise<void> {
+	public closeAllEditors(except?: Position): TPromise<void> {
 		return TPromise.as(null);
 	}
 

@@ -79,9 +79,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 
 	/**
-	 * Closes all editors across all groups.
+	 * Closes all editors across all groups. The optional position allows to keep one group alive.
 	 */
-	closeAllEditors(): TPromise<void>;
+	closeAllEditors(except?: Position): TPromise<void>;
 
 	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.

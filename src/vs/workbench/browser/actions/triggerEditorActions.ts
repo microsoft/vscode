@@ -19,7 +19,7 @@ import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry} 
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {Position, POSITIONS, IEditor} from 'vs/platform/editor/common/editor';
+import {Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
@@ -487,9 +487,7 @@ export class CloseOtherEditorsAction extends Action {
 	public run(): TPromise<any> {
 		const active = this.editorService.getActiveEditor();
 		if (active) {
-			const positionsToClose = POSITIONS.filter(p => p !== active.position);
-
-			return this.editorService.closeEditors(positionsToClose.pop()).then(() => this.editorService.closeEditors(positionsToClose.pop()));
+			return this.editorService.closeAllEditors(active.position);
 		}
 
 		return TPromise.as(false);
