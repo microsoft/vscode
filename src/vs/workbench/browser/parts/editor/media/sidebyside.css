@@ -82,6 +82,14 @@
 
 /* Editor Title Styles */
 
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
+	width: 12px; /* move the actions close to the label */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+	padding-left: 0; /* remove padding because we have the title label actions to the left */
+}
+
 .monaco-workbench > .part.editor > .content .inactive .title {
 	cursor: pointer;
 }
@@ -163,6 +171,14 @@
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
+.monaco-workbench .close-editor-decorated-action {
+	background: url('close-decorated.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .close-editor-decorated-action {
+	background: url('close-decorated-inverse.svg') center center no-repeat;
+}
+
 .monaco-workbench .split-editor-action {
 	background: url('SplitEditor.svg') center center no-repeat;
 }
@@ -174,8 +190,18 @@
 /* High Contrast Theming */
 
 .hc-black .monaco-workbench .close-editor-action,
+.hc-black .monaco-workbench .close-editor-decorated-action,
 .hc-black .monaco-workbench .split-editor-action {
 	background: none;
+}
+
+.hc-black .monaco-workbench .close-editor-decorated-action:before {
+	content: url('close-decorated-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
 }
 
 .hc-black .monaco-workbench .close-editor-action:before {

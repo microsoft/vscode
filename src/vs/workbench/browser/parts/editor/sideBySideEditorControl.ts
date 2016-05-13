@@ -115,6 +115,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private titleDescription: Builder[];
 	private editorInputStateDescription: Builder[];
 	private progressBar: ProgressBar[];
+
+	private editorTitleToolbar: ToolBar[];
 	private editorActionsToolbar: ToolBar[];
 
 	private mapActionsToEditors: { [editorId: string]: IEditorActions; }[];
@@ -158,6 +160,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.titleLabel = [];
 		this.titleDescription = [];
 		this.editorInputStateDescription = [];
+		this.editorTitleToolbar = [];
 		this.editorActionsToolbar = [];
 		this.progressBar = [];
 
@@ -778,7 +781,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			wasDragged = false;
 
 			// Return early if there is only one editor active or the user clicked into the toolbar
-			if (this.getVisibleEditorCount() <= 1 || DOM.isAncestor(<any>e.target || e.srcElement, this.editorActionsToolbar[position].getContainer().getHTMLElement())) {
+			if (this.getVisibleEditorCount() <= 1 || this.targetInToolbar(<any>e.target || e.srcElement, position)) {
 				return;
 			}
 
@@ -973,9 +976,18 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			}
 
 			// Focus editor group unless click on toolbar
-			else if (this.getVisibleEditorCount() === 1 && !DOM.isAncestor(<any>e.target || e.srcElement, this.editorActionsToolbar[position].getContainer().getHTMLElement())) {
+			else if (this.getVisibleEditorCount() === 1 && !this.targetInToolbar(<any>e.target || e.srcElement, position)) {
 				this.editorService.focusGroup(position);
 			}
+		});
+
+		// Left Title Label Actions
+		parent.div({
+			'class': 'title-label-actions'
+		}, (div) => {
+			const toolbar = this.doCreateToolbar(div, position);
+			this.editorTitleToolbar[position] = toolbar;
+			this.editorTitleToolbar[position].setActions([this.closeEditorAction[position]])();
 		});
 
 		// Left Title Label (click opens quick open unless we are configured to ignore click or we are not the active title)
@@ -1003,28 +1015,37 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		parent.div({
 			'class': 'title-actions'
 		}, (div) => {
-
-			// Toolbar
-			this.editorActionsToolbar[position] = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
-				actionItemProvider: (action: Action) => this.actionItemProvider(action, position),
-				orientation: ActionsOrientation.HORIZONTAL,
-				ariaLabel: nls.localize('araLabelEditorActions', "Editor actions")
-			});
-
-			// Action Run Handling
-			this.editorActionsToolbar[position].actionRunner.addListener(BaseEventType.RUN, (e: any) => {
-
-				// Check for Error
-				if (e.error && !errors.isPromiseCanceledError(e.error)) {
-					this.messageService.show(Severity.Error, e.error);
-				}
-
-				// Log in telemetry
-				if (this.telemetryService) {
-					this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
-				}
-			});
+			const toolbar = this.doCreateToolbar(div, position);
+			this.editorActionsToolbar[position] = toolbar;
 		});
+	}
+
+	private targetInToolbar(target: HTMLElement, position: Position): boolean {
+		return DOM.isAncestor(target, this.editorActionsToolbar[position].getContainer().getHTMLElement()) || DOM.isAncestor(target, this.editorTitleToolbar[position].getContainer().getHTMLElement());
+	}
+
+	private doCreateToolbar(container: Builder, position: Position): ToolBar {
+		const toolbar = new ToolBar(container.getHTMLElement(), this.contextMenuService, {
+			actionItemProvider: (action: Action) => this.actionItemProvider(action, position),
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions")
+		});
+
+		// Action Run Handling
+		toolbar.actionRunner.addListener(BaseEventType.RUN, (e: any) => {
+
+			// Check for Error
+			if (e.error && !errors.isPromiseCanceledError(e.error)) {
+				this.messageService.show(Severity.Error, e.error);
+			}
+
+			// Log in telemetry
+			if (this.telemetryService) {
+				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
+			}
+		});
+
+		return toolbar;
 	}
 
 	private findMoveTarget(position: Position, diffX: number): Position {
@@ -1117,19 +1138,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Update all title areas that relate to given input if provided
 		if (arg1 instanceof EditorInput) {
-			const input = arg1;
+			const input:EditorInput = arg1;
 
-			// Update the input label in each position according to the new status
+			// Update the input title actions in each position according to the new status
 			POSITIONS.forEach((position) => {
 				if (this.visibleEditors[position] && isInputRelated(this.visibleEditors[position].input, input)) {
-					this.titleLabel[position].safeInnerHtml(this.getNameForInput(input));
+					this.closeEditorAction[position].class = !!input.getStatus().decoration ? 'close-editor-decorated-action' : 'close-editor-action';
 				}
 			});
 		}
 
 		// Otherwise update specific title position
 		else {
-			const state:ITitleAreaState = arg1;
+			const state: ITitleAreaState = arg1;
 
 			let editor = this.visibleEditors[state.position];
 			let input = editor ? editor.input : null;
@@ -1228,7 +1249,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Editor Title (Status + Label + Description)
-		let name = this.getNameForInput(input);
+		let name = input.getName() || '';
 		let description = isActive ? (input.getDescription() || '') : '';
 		let verboseDescription = isActive ? (input.getDescription(true) || '') : '';
 		if (description === verboseDescription) {
@@ -1248,20 +1269,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Set Primary/Secondary Actions
 		this.editorActionsToolbar[position].setActions(primaryActions, secondaryActions)();
-
-		// Add a close action
-		this.editorActionsToolbar[position].addPrimaryAction(this.closeEditorAction[position])();
-	}
-
-	private getNameForInput(input: EditorInput): string {
-		const status = input.getStatus();
-
-		let label = (input && input.getName()) || '';
-		if (status && status.decoration) {
-			label = nls.localize({ key: 'inputDecoration', comment: ['editor status indicator (e.g. dirty indicator)', 'editor input title'] }, "{0} {1}", status.decoration, label);
-		}
-
-		return label;
 	}
 
 	public setLoading(position: Position, input: EditorInput): void {
@@ -1272,9 +1279,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Clear Primary/Secondary Actions
 		this.editorActionsToolbar[position].setActions([], [])();
-
-		// Add a close action
-		this.editorActionsToolbar[position].addPrimaryAction(this.closeEditorAction[position])();
 	}
 
 	public clearTitle(position: Position): void {
@@ -1623,6 +1627,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 
 		// Toolbars
+		this.editorTitleToolbar.forEach((toolbar) => {
+			toolbar.dispose();
+		});
 		this.editorActionsToolbar.forEach((toolbar) => {
 			toolbar.dispose();
 		});
