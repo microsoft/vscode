@@ -28,9 +28,9 @@ if [ "@@NAME@@" = "code" ]; then
 	rm -f /usr/local/bin/code
 fi
 
-# Symlink bin command to /usr/bin2
+# Symlink bin command to /usr/bin
 rm -f /usr/bin/@@NAME@@
-ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
+sudo ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
 
 # Register yum repository
 # TODO: #229: Enable once the yum repository is signed
