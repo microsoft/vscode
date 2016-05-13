@@ -13,7 +13,6 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, cAll, dispose, Disposables} from 'vs/base/common/lifecycle';
 import {Schemas} from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {$, Builder} from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
@@ -37,7 +36,7 @@ import {Model} from 'vs/editor/common/model/model';
 import {ICodeEditor, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import {PeekViewWidget, IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {EventType, FileReferences, OneReference, ReferencesModel} from './referenceSearchModel';
+import {FileReferences, OneReference, ReferencesModel} from './referenceSearchModel';
 
 class DecorationsManager implements IDisposable {
 
@@ -433,6 +432,11 @@ export interface LayoutData {
 	heightInLines: number;
 }
 
+export interface SelectionEvent {
+	kind: 'goto' | 'show' | 'side' | 'open';
+	element: OneReference;
+}
+
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -440,10 +444,11 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public static INNER_EDITOR_CONTEXT_KEY = 'inReferenceSearchEditor';
 
-	private _decorationsManager: DecorationsManager;
 	private _model: ReferencesModel;
-	private _callOnModel: IDisposable[] = [];
-	private _onDidDoubleClick = new Emitter<{ reference: URI, range: Range, originalEvent: MouseEvent }>();
+	private _decorationsManager: DecorationsManager;
+
+	private _disposeOnNewModel: IDisposable[] = [];
+	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree: Tree;
 	private _treeContainer: Builder;
@@ -472,23 +477,26 @@ export class ReferenceWidget extends PeekViewWidget {
 		super.dispose();
 	}
 
-	get onDidDoubleClick():Event<{ reference: URI, range: Range, originalEvent: MouseEvent }> {
-		return this._onDidDoubleClick.event;
+	get onDidSelectReference(): Event<SelectionEvent> {
+		return this._onDidSelectReference.event;
 	}
 
 	show(where: editorCommon.IRange) {
+		this.editor.revealRangeInCenterIfOutsideViewport(where);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
 
-	protected _onTitleClick(e: MouseEvent): void {
-		if (!this._preview || !this._preview.getModel()) {
-			return;
-		}
-		var model = this._preview.getModel(),
-			lineNumber = this._preview.getPosition().lineNumber,
-			titleRange = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+	focus(): void {
+		this._tree.DOMFocus();
+	}
 
-		this._onDidDoubleClick.fire({ reference: this._getFocusedReference(), range: titleRange, originalEvent: e });
+	protected _onTitleClick(e: MouseEvent): void {
+		if (this._preview && this._preview.getModel()) {
+			this._onDidSelectReference.fire({
+				element: this._getFocusedReference(),
+				kind: e.ctrlKey || e.metaKey ? 'side' : 'open'
+			});
+		}
 	}
 
 	protected _fillBody(containerElement: HTMLElement): void {
@@ -574,18 +582,18 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._preview.layout();
 	}
 
+	public showMessage(message: string): void {
+		this.setTitle('');
+		this._messageContainer.innerHtml(message).show();
+	}
+
 	public setModel(newModel: ReferencesModel): void {
 		// clean up
-		this._callOnModel = dispose(this._callOnModel);
+		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
 		if (this._model) {
 			this._onNewModel();
 		}
-	}
-
-	public showMessage(message: string): void {
-		this.setTitle('');
-		this._messageContainer.innerHtml(message).show();
 	}
 
 	private _onNewModel(): void {
@@ -593,46 +601,37 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._messageContainer.hide();
 
 		this._decorationsManager = new DecorationsManager(this._preview, this._model);
-		this._callOnModel.push(this._decorationsManager);
+		this._disposeOnNewModel.push(this._decorationsManager);
 
 		// listen on model changes
-		this._callOnModel.push(this._model.addListener2(EventType.OnReferenceRangeChanged, (reference: OneReference) => {
-			this._tree.refresh(reference);
-		}));
+		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
 
 		// listen on selection and focus
-		this._callOnModel.push(this._tree.addListener2(Controller.Events.FOCUSED, (element) => {
+		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.FOCUSED, (element) => {
 			if (element instanceof OneReference) {
-				this._showReferencePreview(element);
+				this._onDidSelectReference.fire({ element, kind: 'show' });
+				this._revealReference(element);
 			}
 		}));
-		this._callOnModel.push(this._tree.addListener2(Controller.Events.SELECTED, (element: any) => {
+		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
-				this._showReferencePreview(element);
-				this._model.currentReference = element;
+				this._onDidSelectReference.fire({ element, kind: 'goto' });
+				this._revealReference(element);
 			}
 		}));
-		this._callOnModel.push(this._tree.addListener2(Controller.Events.OPEN_TO_SIDE, (element: any) => {
+		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.OPEN_TO_SIDE, (element: any) => {
 			if (element instanceof OneReference) {
-				this._editorService.openEditor({
-					resource: (<OneReference>element).resource,
-					options: {
-						selection: element.range
-					}
-				}, true);
+				this._onDidSelectReference.fire({ element, kind: 'side' });
 			}
 		}));
-
-		var input = this._model.children.length === 1 ? <any>this._model.children[0] : <any>this._model;
-
-		this._tree.setInput(input).then(() => {
-			this._tree.setSelection([this._model.currentReference]);
-		}).done(null, onUnexpectedError);
 
 		// listen on editor
-		this._callOnModel.push(this._preview.addListener2(editorCommon.EventType.MouseDown, (e: { event: MouseEvent; target: IMouseTarget; }) => {
+		this._disposeOnNewModel.push(this._preview.addListener2(editorCommon.EventType.MouseDown, (e: { event: MouseEvent; target: IMouseTarget; }) => {
 			if (e.event.detail === 2) {
-				this._onDidDoubleClick.fire({ reference: this._getFocusedReference(), range: e.target.range, originalEvent: e.event });
+				this._onDidSelectReference.fire({
+					element: this._getFocusedReference(),
+					kind: (e.event.ctrlKey || e.event.metaKey) ? 'side' : 'open'
+				});
 			}
 		}));
 
@@ -644,28 +643,31 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._tree.layout();
 		this.focus();
 
-		// preview the current reference
-		this._showReferencePreview(this._model.nextReference(this._model.currentReference));
+		// pick input and a reference to begin with
+		const input = this._model.children.length === 1 ? this._model.children[0] : this._model;
+		const selection = this._model.children[0].children[0];
+		this._tree.setInput(input).then(() => this._revealReference(selection));
 	}
 
-	private _getFocusedReference(): URI {
-		var element = this._tree.getFocus();
+	private _getFocusedReference(): OneReference {
+		const element = this._tree.getFocus();
 		if (element instanceof OneReference) {
-			return (<OneReference>element).resource;
+			return element;
 		} else if (element instanceof FileReferences) {
-			var referenceFile = (<FileReferences>element);
-			if (referenceFile.children.length > 0) {
-				return referenceFile.children[0].resource;
+			if (element.children.length > 0) {
+				return element.children[0];
 			}
 		}
-		return null;
 	}
 
-	public focus(): void {
-		this._tree.DOMFocus();
-	}
+	private _revealReference(reference: OneReference): void {
 
-	private _showReferencePreview(reference: OneReference): void {
+		// Update widget header
+		if (reference.resource.scheme !== Schemas.inMemory) {
+			this.setTitle(reference.name, getPathLabel(reference.directory, this._contextService));
+		} else {
+			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
+		}
 
 		// show in editor
 		this._editorService.resolveEditorModel({ resource: reference.resource }).done((model) => {
@@ -679,22 +681,12 @@ export class ReferenceWidget extends PeekViewWidget {
 				this._preview.setModel(this._previewNotAvailableMessage);
 			}
 
-			// Update widget header
-			if (reference.resource.scheme !== Schemas.inMemory) {
-				this.setTitle(reference.name, getPathLabel(reference.directory, this._contextService));
-			} else {
-				this.setTitle(nls.localize('peekView.alternateTitle', "References"));
-			}
-
 		}, onUnexpectedError);
 
 		// show in tree
-		this._tree.reveal(reference)
-			.then(() => {
-				this._tree.setSelection([reference]);
-				this._tree.setFocus(reference);
-			})
-			.done(null, onUnexpectedError);
+		this._tree.reveal(reference).then(() => {
+			this._tree.setSelection([reference]);
+			this._tree.setFocus(reference);
+		});
 	}
-
 }

@@ -6,6 +6,7 @@
 
 import * as collections from 'vs/base/common/collections';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
+import Event, {fromEventEmitter} from 'vs/base/common/event';
 import {basename, dirname} from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -16,19 +17,16 @@ import {Range} from 'vs/editor/common/core/range';
 import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {IReference} from 'vs/editor/common/modes';
 
-export namespace EventType {
-	export var OnReferenceRangeChanged = 'refrence.rangeChanged';
-	export var CurrentReferenceChanged = 'reference.currentChanged';
-}
-
 export class OneReference {
 
 	private _id: string;
-	private _range: IRange;
 
-	constructor(private _parent: FileReferences, reference: IReference) {
+	constructor(
+		private _parent: FileReferences,
+		private _range: IRange,
+		private _eventBus: EventEmitter
+	) {
 		this._id = generateUuid();
-		this._range = reference.range;
 	}
 
 	public get id(): string {
@@ -61,7 +59,7 @@ export class OneReference {
 
 	public set range(value: IRange) {
 		this._range = value;
-		this.parent.parent.emit(EventType.OnReferenceRangeChanged, this);
+		this._eventBus.emit('ref/changed', this);
 	}
 }
 
@@ -145,16 +143,14 @@ export class FileReferences {
 	}
 }
 
-export class ReferencesModel extends EventEmitter {
+export class ReferencesModel  {
 
 	private _references: FileReferences[];
-	private _currentReference: OneReference;
+	private _eventBus = new EventEmitter();
+
+	onDidChangeReferenceRange: Event<OneReference> = fromEventEmitter<OneReference>(this._eventBus, 'ref/changed');
 
 	constructor(references: IReference[], editorService: IEditorService) {
-		super([
-			EventType.CurrentReferenceChanged,
-			EventType.OnReferenceRangeChanged
-		]);
 
 		let referencesByFile: { [n: string]: FileReferences } = Object.create(null);
 		let seen: { [n: string]: boolean } = Object.create(null);
@@ -169,7 +165,7 @@ export class ReferencesModel extends EventEmitter {
 				let fileReferences = new FileReferences(this, resource, editorService);
 
 				fileReferences = collections.lookupOrInsert(referencesByFile, fileReferences.id, fileReferences);
-				fileReferences.children.push(new OneReference(fileReferences, reference));
+				fileReferences.children.push(new OneReference(fileReferences, reference.range, this._eventBus));
 			}
 		});
 
@@ -179,15 +175,6 @@ export class ReferencesModel extends EventEmitter {
 
 	public get children(): FileReferences[] {
 		return this._references;
-	}
-
-	public get currentReference(): OneReference {
-		return this._currentReference;
-	}
-
-	public set currentReference(reference: OneReference) {
-		this._currentReference = reference;
-		this.emit(EventType.CurrentReferenceChanged, this);
 	}
 
 	public nextReference(reference: OneReference): OneReference {

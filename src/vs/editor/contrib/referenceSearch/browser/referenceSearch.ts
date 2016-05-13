@@ -31,7 +31,7 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {findReferences} from '../common/referenceSearch';
-import {EventType, ReferencesModel} from './referenceSearchModel';
+import {ReferencesModel, OneReference} from './referenceSearchModel';
 import {ReferenceWidget, LayoutData} from './referenceSearchWidget';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
@@ -39,19 +39,12 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 
 	public static ID = 'editor.contrib.findReferencesController';
 
-	private _editor:ICodeEditor;
-	private _widget:ReferenceWidget;
-	private _requestIdPool: number;
-	private _callOnClear:Function[];
-	private _model:ReferencesModel;
-	private _modelRevealing:boolean;
-
-	private editorService: IEditorService;
-	private telemetryService: ITelemetryService;
-	private messageService: IMessageService;
-	private instantiationService: IInstantiationService;
-	private contextService: IWorkspaceContextService;
-	private peekViewService: IPeekViewService;
+	private _editor: ICodeEditor;
+	private _widget: ReferenceWidget;
+	private _model: ReferencesModel;
+	private _requestIdPool = 0;
+	private _callOnClear: Function[] = [];
+	private _ignoreModelChangeEvent = false;
 
 	private _startTime: number = -1;
 	private _referenceSearchVisible: IKeybindingContextKey<boolean>;
@@ -62,24 +55,15 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 
 	public constructor(
 		editor: ICodeEditor,
-		@IEditorService editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEditorService private _editorService: IEditorService,
+		@ITelemetryService private _telemetryService: ITelemetryService,
+		@IMessageService private _messageService: IMessageService,
+		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IStorageService private _storageService: IStorageService,
-		@optional(IPeekViewService) peekViewService: IPeekViewService
+		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
-		this._requestIdPool = 0;
-		this._callOnClear = [];
-		this.editorService = editorService;
-		this.telemetryService = telemetryService;
-		this.messageService = messageService;
-		this.instantiationService = instantiationService;
-		this.peekViewService = peekViewService;
-		this.contextService = contextService;
-		this._modelRevealing = false;
 		this._editor = editor;
 		this._referenceSearchVisible = keybindingService.createKey(CONTEXT_REFERENCE_SEARCH_VISIBLE, false);
 	}
@@ -97,7 +81,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 	}
 
 	public isInPeekView() : boolean {
-		return this.peekViewService && this.peekViewService.isActive;
+		return this._peekViewService && this._peekViewService.isActive;
 	}
 
 	public closeReferenceSearch(): void {
@@ -120,13 +104,13 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		// close the widget on model/mode changes
 		this._callOnClear.push(this._editor.addListener(editorCommon.EventType.ModelModeChanged, () => { this.clear(); }));
 		this._callOnClear.push(this._editor.addListener(editorCommon.EventType.ModelChanged, () => {
-			if(!this._modelRevealing) {
+			if(!this._ignoreModelChangeEvent) {
 				this.clear();
 			}
 		}));
 		const storageKey = 'peekViewLayout';
 		const data = <LayoutData> JSON.parse(this._storageService.get(storageKey, undefined, '{}'));
-		this._widget = new ReferenceWidget(this._editor, data, this.editorService, this.contextService, this.instantiationService);
+		this._widget = new ReferenceWidget(this._editor, data, this._editorService, this._contextService, this._instantiationService);
 		this._widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this._widget.show(range);
 		this._callOnClear.push(this._widget.onDidClose(() => {
@@ -137,31 +121,27 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			this.clear();
 		}).dispose);
 
-		this._callOnClear.push(this._widget.onDidDoubleClick(event => {
-
-			if(!event.reference) {
-				return;
-			}
-
-			// open editor
-			this.editorService.openEditor({
-				resource: event.reference,
-				options: { selection: event.range }
-			}, event.originalEvent.ctrlKey || event.originalEvent.metaKey).done(null, onUnexpectedError);
-
-			// close zone
-			if (!(event.originalEvent.ctrlKey || event.originalEvent.metaKey)) {
-				this.clear();
+		this._callOnClear.push(this._widget.onDidSelectReference(event => {
+			let {element, kind} = event;
+			switch (kind) {
+				case 'side':
+				case 'open':
+					this._openReference(element, kind === 'side');
+					break;
+				case 'goto':
+					this._gotoReference(element);
+					break;
 			}
 		}).dispose);
+
 		var requestId = ++this._requestIdPool,
 			editorModel = this._editor.getModel();
 
-		var timer = this.telemetryService.timedPublicLog('findReferences', {
+		var timer = this._telemetryService.timedPublicLog('findReferences', {
 			mode: editorModel.getMode().getId()
 		});
 
-		referencesPromise.then((references:IReference[]) => {
+		referencesPromise.then(references => {
 
 			// still current request? widget still open?
 			if(requestId !== this._requestIdPool || !this._widget) {
@@ -177,38 +157,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			}
 
 			// create result model
-			this._model = new ReferencesModel(references, this.editorService);
-			this._model.currentReference = this._model.findReference(editorModel.getAssociatedResource(), range.getStartPosition());
-
-			var unbind = this._model.addListener(EventType.CurrentReferenceChanged, () => {
-
-				this._modelRevealing = true;
-
-				this.editorService.openEditor({
-					resource: this._model.currentReference.resource,
-					options: { selection: this._model.currentReference.range }
-				}).done((openedEditor) => {
-					if(!openedEditor || openedEditor.getControl() !== this._editor) {
-						// TODO@Alex TODO@Joh
-						// when opening the current reference we might end up
-						// in a different editor instance. that means we also have
-						// a different instance of this reference search controller
-						// and cannot hold onto the widget (which likely doesn't
-						// exist). Instead of bailing out we should find the
-						// 'sister' action and pass our current model on to it.
-						this.clear();
-						return;
-					}
-					this._modelRevealing = false;
-					this._widget.show(this._model.currentReference.range);
-					this._widget.focus();
-				}, (err) => {
-					this._modelRevealing = false;
-					onUnexpectedError(err);
-				});
-			});
-
-			this._callOnClear.push(unbind);
+			this._model = new ReferencesModel(references, this._editorService);
 
 			// show widget
 			this._startTime = Date.now();
@@ -219,17 +168,17 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			timer.stop();
 
 		}, (error:any) => {
-			this.messageService.show(Severity.Error, error);
+			this._messageService.show(Severity.Error, error);
 			timer.stop();
 		});
 
 		return this._widget;
 	}
 
-	private clear():boolean {
+	private clear(): boolean {
 
 		if (this._startTime !== -1) {
-			this.telemetryService.publicLog('zoneWidgetShown', {
+			this._telemetryService.publicLog('zoneWidgetShown', {
 				mode: 'reference search',
 				elapsedTime: Date.now() - this._startTime
 			});
@@ -237,7 +186,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		}
 
 		var result = false;
-		if(this._widget) {
+		if (this._widget) {
 			this._widget.dispose();
 			this._widget = null;
 			result = true;
@@ -254,8 +203,50 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		return result;
 	}
 
-}
+	private _gotoReference(ref: OneReference): void {
+		this._ignoreModelChangeEvent = true;
+		const {resource, range} = ref;
 
+		this._editorService.openEditor({
+			resource,
+			options: { selection: range }
+		}).done(openedEditor => {
+			this._ignoreModelChangeEvent = false;
+
+			if (!openedEditor || openedEditor.getControl() !== this._editor) {
+				// TODO@Alex TODO@Joh
+				// when opening the current reference we might end up
+				// in a different editor instance. that means we also have
+				// a different instance of this reference search controller
+				// and cannot hold onto the widget (which likely doesn't
+				// exist). Instead of bailing out we should find the
+				// 'sister' action and pass our current model on to it.
+				this.clear();
+				return;
+			}
+
+			this._widget.show(range);
+			this._widget.focus();
+
+		}, (err) => {
+			this._ignoreModelChangeEvent = false;
+			onUnexpectedError(err);
+		});
+	}
+
+	private _openReference(ref: OneReference, sideBySide: boolean): void {
+		const {resource, range} = ref;
+		this._editorService.openEditor({
+			resource,
+			options: { selection: range }
+		}, sideBySide);
+
+		// clear stage
+		if (!sideBySide) {
+			this.clear();
+		}
+	}
+}
 
 export class ReferenceAction extends EditorAction {
 
