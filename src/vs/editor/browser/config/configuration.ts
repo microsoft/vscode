@@ -8,54 +8,77 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
-import {IDimension, IEditorStyling} from 'vs/editor/common/editorCommon';
+import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
+import {IDimension, FontInfo, BareFontInfo} from 'vs/editor/common/editorCommon';
 import {ElementSizeObserver} from 'vs/editor/browser/config/elementSizeObserver';
+import {FastDomNode} from 'vs/base/browser/styleMutator';
 
 class CSSBasedConfigurationCache {
 
-	private _keys: { [key: string]: IEditorStyling; };
-	private _values: { [key: string]: ICSSConfig; };
+	private _keys: { [key: string]: BareFontInfo; };
+	private _values: { [key: string]: FontInfo; };
 
 	constructor() {
-		this._keys = {};
-		this._values = {};
+		this._keys = Object.create(null);
+		this._values = Object.create(null);
 	}
 
-	public has(item: IEditorStyling): boolean {
-		return this._values.hasOwnProperty(CSSBasedConfigurationCache._key(item));
+	public has(item: BareFontInfo): boolean {
+		return !!this._values[item.getId()];
 	}
 
-	public get(item: IEditorStyling): ICSSConfig {
-		return this._values[CSSBasedConfigurationCache._key(item)];
+	public get(item: BareFontInfo): FontInfo {
+		return this._values[item.getId()];
 	}
 
-	public put(item: IEditorStyling, value: ICSSConfig): void {
-		this._values[CSSBasedConfigurationCache._key(item)] = value;
+	public put(item: BareFontInfo, value: FontInfo): void {
+		this._keys[item.getId()] = item;
+		this._values[item.getId()] = value;
 	}
 
-	public getKeys(): IEditorStyling[] {
-		let r: IEditorStyling[] = [];
-		for (let key in this._keys) {
-			r.push(this._keys[key]);
+	public getKeys(): BareFontInfo[] {
+		return Object.keys(this._keys).map(id => this._keys[id]);
+	}
+}
+
+class CharWidthReader {
+
+	private _chr: string;
+	private _width: number;
+
+	public get width(): number { return this._width; }
+
+	constructor(chr:string) {
+		this._chr = chr;
+		this._width = 0;
+	}
+
+	public render(out:HTMLSpanElement): void {
+		if (this._chr === ' ') {
+			let htmlString = '&nbsp;';
+			// Repeat character 256 (2^8) times
+			for (let i = 0; i < 8; i++) {
+				htmlString += htmlString;
+			}
+			out.innerHTML = htmlString;
+		} else {
+			let testString = this._chr;
+			// Repeat character 256 (2^8) times
+			for (let i = 0; i < 8; i++) {
+				testString += testString;
+			}
+			out.textContent = testString;
 		}
-		return r;
 	}
 
-	private static _key(item: IEditorStyling): string {
-		return item.editorClassName + '-' + item.fontFamily + '-' + item.fontSize + '-' + item.lineHeight;
+	public read(out:HTMLSpanElement): void {
+		this._width = out.offsetWidth / 256;
 	}
 }
 
 class CSSBasedConfiguration extends Disposable {
 
 	public static INSTANCE = new CSSBasedConfiguration();
-
-	private static _HALF_WIDTH_TYPICAL = 'n';
-	private static _FULL_WIDTH_TYPICAL = '\uff4d';
-	private static _SPACE = ' ';
-	private static _USUAL_CHARS = '0123456789' + CSSBasedConfiguration._HALF_WIDTH_TYPICAL + CSSBasedConfiguration._FULL_WIDTH_TYPICAL + CSSBasedConfiguration._SPACE;
 
 	private _cache: CSSBasedConfigurationCache;
 	private _changeMonitorTimeout: number = -1;
@@ -77,19 +100,12 @@ class CSSBasedConfiguration extends Disposable {
 		super.dispose();
 	}
 
-	public readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig {
-		let styling: IEditorStyling = {
-			editorClassName: editorClassName,
-			fontFamily: fontFamily,
-			fontSize: fontSize,
-			lineHeight: lineHeight
-		};
-		if (!this._cache.has(styling)) {
-			let readConfig = CSSBasedConfiguration._actualReadConfiguration(styling);
+	public readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
+		if (!this._cache.has(bareFontInfo)) {
+			let readConfig = CSSBasedConfiguration._actualReadConfiguration(bareFontInfo);
 
-			if (readConfig.lineHeight <= 2 || readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.spaceWidth <= 2 || readConfig.maxDigitWidth <= 2) {
+			if (readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.spaceWidth <= 2 || readConfig.maxDigitWidth <= 2) {
 				// Hey, it's Bug 14341 ... we couldn't read
-				readConfig.lineHeight = Math.max(readConfig.lineHeight, 5);
 				readConfig.typicalHalfwidthCharacterWidth = Math.max(readConfig.typicalHalfwidthCharacterWidth, 5);
 				readConfig.typicalFullwidthCharacterWidth = Math.max(readConfig.typicalFullwidthCharacterWidth, 5);
 				readConfig.spaceWidth = Math.max(readConfig.spaceWidth, 5);
@@ -97,9 +113,9 @@ class CSSBasedConfiguration extends Disposable {
 				this._installChangeMonitor();
 			}
 
-			this._cache.put(styling, readConfig);
+			this._cache.put(bareFontInfo, readConfig);
 		}
-		return this._cache.get(styling);
+		return this._cache.get(bareFontInfo);
 	}
 
 	private _installChangeMonitor(): void {
@@ -119,7 +135,7 @@ class CSSBasedConfiguration extends Disposable {
 
 			let newValue = CSSBasedConfiguration._actualReadConfiguration(styling);
 
-			if (newValue.lineHeight <= 2 || newValue.typicalHalfwidthCharacterWidth <= 2 || newValue.typicalFullwidthCharacterWidth <= 2 || newValue.maxDigitWidth <= 2) {
+			if (newValue.typicalHalfwidthCharacterWidth <= 2 || newValue.typicalFullwidthCharacterWidth <= 2 || newValue.maxDigitWidth <= 2) {
 				// We still couldn't read the CSS config
 				shouldInstallChangeMonitor = true;
 			} else {
@@ -136,151 +152,85 @@ class CSSBasedConfiguration extends Disposable {
 		return 'editorSizeProvider' + index;
 	}
 
-	private static _createTestElement(index:number, character:string): HTMLSpanElement {
-		let r = document.createElement('span');
-		r.id = this._testElementId(index);
-
-		if (character === ' ') {
-			let htmlString = '&nbsp;';
-			// Repeat character 256 (2^8) times
-			for (let i = 0; i < 8; i++) {
-				htmlString += htmlString;
-			}
-			r.innerHTML = htmlString;
-		} else {
-			let testString = character;
-			// Repeat character 256 (2^8) times
-			for (let i = 0; i < 8; i++) {
-				testString += testString;
-			}
-			r.textContent = testString;
-		}
-
-		return r;
-	}
-
-	private static _createTestElements(styling: IEditorStyling): HTMLElement {
+	private static _createTestElements(bareFontInfo: BareFontInfo, readers:CharWidthReader[]): HTMLElement {
 		let container = document.createElement('div');
-		Configuration.applyEditorStyling(container, styling);
+		Configuration.applyFontInfoSlow(container, bareFontInfo);
 		container.style.position = 'absolute';
 		container.style.top = '-50000px';
 		container.style.width = '50000px';
 
-		for (let i = 0, len = CSSBasedConfiguration._USUAL_CHARS.length; i < len; i++) {
+		for (let i = 0, len = readers.length; i < len; i++) {
 			container.appendChild(document.createElement('br'));
-			container.appendChild(this._createTestElement(i, CSSBasedConfiguration._USUAL_CHARS[i]));
+
+			let testElement = document.createElement('span');
+			testElement.id = this._testElementId(i);
+			readers[i].render(testElement);
+
+			container.appendChild(testElement);
 		}
 
-		let heightTestElementId = this._testElementId(CSSBasedConfiguration._USUAL_CHARS.length);
-		let heightTestElement = document.createElement('div');
-		heightTestElement.id = heightTestElementId;
-		heightTestElement.appendChild(document.createTextNode('heightTestContent'));
-
 		container.appendChild(document.createElement('br'));
-		container.appendChild(heightTestElement);
 
 		return container;
 	}
 
-	private static _readFromTestElements(): number[] {
-		let r:number[] = [];
-
-		for (let i = 0, len = CSSBasedConfiguration._USUAL_CHARS.length; i < len; i++) {
-			r.push(document.getElementById(this._testElementId(i)).offsetWidth / 256);
+	private static _readFromTestElements(readers:CharWidthReader[]): void {
+		for (let i = 0, len = readers.length; i < len; i++) {
+			readers[i].read(document.getElementById(this._testElementId(i)));
 		}
-
-		return r;
 	}
 
-	private static _actualReadConfiguration(styling: IEditorStyling): ICSSConfig {
+	private static _runReaders(bareFontInfo: BareFontInfo, readers:CharWidthReader[]): void {
 		// Create a test container with all these test elements
-		let testContainer = this._createTestElements(styling);
+		let testContainer = this._createTestElements(bareFontInfo, readers);
 
 		// Add the container to the DOM
 		document.body.appendChild(testContainer);
 
 		// Read various properties
-		let usualCharsWidths = this._readFromTestElements();
-		let firstTestElement = document.getElementById(this._testElementId(0));
-		let computedStyle = dom.getComputedStyle(firstTestElement);
-		let result_font = this._getFontFromComputedStyle(computedStyle);
-		let result_fontSize = computedStyle ? parseInt(computedStyle.fontSize, 10) : 0;
-
-		let heightTestElement = document.getElementById(this._testElementId(CSSBasedConfiguration._USUAL_CHARS.length));
-		let result_lineHeight = heightTestElement.clientHeight;
-
+		this._readFromTestElements(readers);
 
 		// Remove the container from the DOM
 		document.body.removeChild(testContainer);
-
-		// Find maximum digit width and thinnest character width
-		let maxDigitWidth = 0;
-		let typicalHalfwidthCharacterWidth = 0;
-		let typicalFullwidthCharacterWidth = 0;
-		let spaceWidth = 0;
-
-		for (let i = 0, len = CSSBasedConfiguration._USUAL_CHARS.length; i < len; i++) {
-			let character = CSSBasedConfiguration._USUAL_CHARS.charAt(i);
-
-			if (character >= '0' && character <= '9') {
-				maxDigitWidth = Math.max(maxDigitWidth, usualCharsWidths[i]);
-				// this is a digit
-			} else if (character === CSSBasedConfiguration._HALF_WIDTH_TYPICAL) {
-				typicalHalfwidthCharacterWidth = usualCharsWidths[i];
-			} else if (character === CSSBasedConfiguration._FULL_WIDTH_TYPICAL) {
-				typicalFullwidthCharacterWidth = usualCharsWidths[i];
-			} else if (character === CSSBasedConfiguration._SPACE) {
-				spaceWidth = usualCharsWidths[i];
-			}
-		}
-
-		return {
-			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacterWidth,
-			typicalFullwidthCharacterWidth: typicalFullwidthCharacterWidth,
-			spaceWidth: spaceWidth,
-			maxDigitWidth: maxDigitWidth,
-			lineHeight: result_lineHeight,
-			font: result_font,
-			fontSize: result_fontSize
-		};
 	}
 
-	private static _getFontFromComputedStyle(computedStyle:CSSStyleDeclaration): string {
-		if (!computedStyle) {
-			return 'unknown';
+	private static _actualReadConfiguration(bareFontInfo: BareFontInfo): FontInfo {
+		let typicalHalfwidthCharacter = new CharWidthReader('n');
+		let typicalFullwidthCharacter = new CharWidthReader('\uff4d');
+		let space = new CharWidthReader(' ');
+		let digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(chr => new CharWidthReader(chr));
+
+		this._runReaders(bareFontInfo, digits.concat([typicalHalfwidthCharacter, typicalFullwidthCharacter, space]));
+
+		let maxDigitWidth = 0;
+		for (let i = 0, len = digits.length; i < len; i++) {
+			maxDigitWidth = Math.max(maxDigitWidth, digits[i].width);
 		}
-		if (computedStyle.font) {
-			return computedStyle.font;
-		}
-		return (computedStyle.fontFamily + ' ' +
-			computedStyle.fontSize + ' ' +
-			computedStyle.fontSizeAdjust + ' ' +
-			computedStyle.fontStretch + ' ' +
-			computedStyle.fontStyle + ' ' +
-			computedStyle.fontVariant + ' ' +
-			computedStyle.fontWeight + ' ');
+
+		return new FontInfo({
+			fontFamily: bareFontInfo.fontFamily,
+			fontSize: bareFontInfo.fontSize,
+			lineHeight: bareFontInfo.lineHeight,
+			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
+			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
+			spaceWidth: space.width,
+			maxDigitWidth: maxDigitWidth
+		});
 	}
 }
 
 export class Configuration extends CommonEditorConfiguration {
 
-	public static applyEditorStyling(domNode: HTMLElement, styling: IEditorStyling): void {
-		domNode.className = styling.editorClassName;
-		if (styling.fontFamily && styling.fontFamily.length > 0) {
-			domNode.style.fontFamily = styling.fontFamily;
-		} else {
-			domNode.style.fontFamily = '';
-		}
-		if (styling.fontSize > 0) {
-			domNode.style.fontSize = styling.fontSize + 'px';
-		} else {
-			domNode.style.fontSize = '';
-		}
-		if (styling.lineHeight > 0) {
-			domNode.style.lineHeight = styling.lineHeight + 'px';
-		} else {
-			domNode.style.lineHeight = '';
-		}
+	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
+		domNode.style.fontFamily = fontInfo.fontFamily;
+		domNode.style.fontSize = fontInfo.fontSize + 'px';
+		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
+	}
+
+	public static applyFontInfo(domNode: FastDomNode, fontInfo: BareFontInfo): void {
+		domNode.setFontFamily(fontInfo.fontFamily);
+		domNode.setFontSize(fontInfo.fontSize);
+		domNode.setLineHeight(fontInfo.lineHeight);
 	}
 
 	constructor(options:any, referenceDomElement:HTMLElement = null) {
@@ -291,6 +241,8 @@ export class Configuration extends CommonEditorConfiguration {
 		if (this._configWithDefaults.getEditorOptions().automaticLayout) {
 			this._elementSizeObserver.startObserving();
 		}
+
+		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 	}
 
 	private _onReferenceDomElementSizeChanged(): void {
@@ -337,7 +289,11 @@ export class Configuration extends CommonEditorConfiguration {
 		return this._elementSizeObserver.getHeight();
 	}
 
-	protected readConfiguration(editorClassName: string, fontFamily: string, fontSize: number, lineHeight: number): ICSSConfig {
-		return CSSBasedConfiguration.INSTANCE.readConfiguration(editorClassName, fontFamily, fontSize, lineHeight);
+	protected _getCanUseTranslate3d(): boolean {
+		return browser.canUseTranslate3d && browser.getZoomLevel() === 0;
+	}
+
+	protected readConfiguration(bareFontInfo:BareFontInfo): FontInfo {
+		return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
 	}
 }

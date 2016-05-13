@@ -198,7 +198,7 @@ export class List<T> implements IDisposable {
 	}
 
 	get contentHeight(): number {
-		return this.view.getScrollHeight();
+		return this.view.getContentHeight();
 	}
 
 	layout(height?: number): void {

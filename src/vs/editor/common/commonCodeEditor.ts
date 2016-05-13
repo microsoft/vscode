@@ -30,7 +30,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
-import {ViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
 
 var EDITOR_ID = 0;
 
@@ -46,8 +46,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	_telemetryService:ITelemetryService;
 
 	protected contributions:{ [key:string]:editorCommon.IEditorContribution; };
-
-	protected forcedWidgetFocusCount:number;
 
 	// --- Members logically associated to a model
 	protected model:editorCommon.IModel;
@@ -111,8 +109,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			this._editorTabMovesFocusKey.set(true);
 		}
 		this._lifetimeDispose.push(this._configuration.onDidChange((e) => this.emit(editorCommon.EventType.ConfigurationChanged, e)));
-
-		this.forcedWidgetFocusCount = 0;
 
 		this._telemetryService = telemetryService;
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IKeybindingService, this._keybindingService]));
@@ -185,7 +181,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		}
 	}
 
-	public getConfiguration(): editorCommon.IInternalEditorOptions {
+	public getConfiguration(): editorCommon.InternalEditorOptions {
 		return this._configuration.editorClone;
 	}
 
@@ -477,20 +473,17 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this.cursor.setSelections('api', ranges);
 	}
 
-	public abstract setScrollTop(newScrollTop:number): void;
+	public abstract getScrollWidth(): number;
+	public abstract getScrollLeft(): number;
 
+	public abstract getScrollHeight(): number;
 	public abstract getScrollTop(): number;
 
 	public abstract setScrollLeft(newScrollLeft:number): void;
-
-	public abstract getScrollLeft(): number;
-
-	public abstract getScrollWidth(): number;
-
-	public abstract getScrollHeight(): number;
+	public abstract setScrollTop(newScrollTop:number): void;
+	public abstract setScrollPosition(position: editorCommon.INewScrollPosition): void;
 
 	public abstract saveViewState(): editorCommon.ICodeEditorViewState;
-
 	public abstract restoreViewState(state:editorCommon.IEditorViewState): void;
 
 	public onVisible(): void {
@@ -502,16 +495,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	public abstract layout(dimension?:editorCommon.IDimension): void;
 
 	public abstract focus(): void;
-
-	public beginForcedWidgetFocus(): void {
-		this.forcedWidgetFocusCount++;
-	}
-
-	public endForcedWidgetFocus(): void {
-		this.forcedWidgetFocusCount--;
-	}
-
+	public abstract beginForcedWidgetFocus(): void;
+	public abstract endForcedWidgetFocus(): void;
 	public abstract isFocused(): boolean;
+	public abstract hasWidgetFocus(): boolean;
 
 	public getContribution(id: string): editorCommon.IEditorContribution {
 		return this.contributions[id] || null;
@@ -557,6 +544,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	}
 
 	public trigger(source:string, handlerId:string, payload:any): void {
+		payload = payload || {};
 		var candidate = this.getAction(handlerId);
 		if(candidate !== null) {
 			if (candidate.enabled) {
@@ -564,18 +552,18 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				TPromise.as(candidate.run()).done(null, onUnexpectedError);
 			}
 		} else {
-			// forward to handler dispatcher
-			var r = this._configuration.handlerDispatcher.trigger(source, handlerId, payload);
-
-			if (!r) {
-//				console.warn('Returning false from ' + handlerId + ' wont do anything special...');
+			if (!this.cursor) {
+				return;
 			}
+			this.cursor.trigger(source, handlerId, payload);
 		}
 	}
 
-	public executeCommand(source: string, command: editorCommon.ICommand): boolean {
-		// forward to handler dispatcher
-		return this._configuration.handlerDispatcher.trigger(source, editorCommon.Handler.ExecuteCommand, command);
+	public executeCommand(source: string, command: editorCommon.ICommand): void {
+		if (!this.cursor) {
+			return;
+		}
+		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommand, command);
 	}
 
 	public executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[]): boolean {
@@ -593,9 +581,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		return true;
 	}
 
-	public executeCommands(source: string, commands: editorCommon.ICommand[]): boolean {
-		// forward to handler dispatcher
-		return this._configuration.handlerDispatcher.trigger(source, editorCommon.Handler.ExecuteCommands, commands);
+	public executeCommands(source: string, commands: editorCommon.ICommand[]): void {
+		if (!this.cursor) {
+			return;
+		}
+		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommands, commands);
 	}
 
 	public changeDecorations(callback:(changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>any): any {
@@ -666,7 +656,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		};
 	}
 
-	public getLayoutInfo(): editorCommon.IEditorLayoutInfo {
+	public getLayoutInfo(): editorCommon.EditorLayoutInfo {
 		return this._configuration.editor.layoutInfo;
 	}
 
@@ -679,15 +669,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		if (this.model) {
 			this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
 			this._langIdKey.set(this.model.getMode().getId());
-			this.model.setStopLineTokenizationAfter(this._configuration.editor.stopLineTokenizationAfter);
-			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines(this._configuration.editor.longLineBoundary));
+			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
 
 			this.model.onBeforeAttached();
 
 			var hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				this._configuration.editor.wordWrapBreakBeforeCharacters,
-				this._configuration.editor.wordWrapBreakAfterCharacters,
-				this._configuration.editor.wordWrapBreakObtrusiveCharacters
+				this._configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
+				this._configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
+				this._configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
 			);
 
 			var linesCollection = new SplitLinesCollection(
@@ -695,8 +684,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				hardWrappingLineMapperFactory,
 				this.model.getOptions().tabSize,
 				this._configuration.editor.wrappingInfo.wrappingColumn,
-				this._configuration.editor.typicalFullwidthCharacterWidth / this._configuration.editor.typicalHalfwidthCharacterWidth,
-				editorCommon.wrappingIndentFromString(this._configuration.editor.wrappingIndent)
+				this._configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
+				this._configuration.editor.wrappingInfo.wrappingIndent
 			);
 
 			this.viewModel = new ViewModel(

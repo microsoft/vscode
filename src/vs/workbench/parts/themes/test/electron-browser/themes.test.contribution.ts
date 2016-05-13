@@ -150,7 +150,7 @@ class Snapper {
 KeybindingsRegistry.registerCommandDesc({
 	id: '_workbench.captureSyntaxTokens',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, args: [URI]) {
+	handler(accessor: ServicesAccessor, resource:URI) {
 
 		let process = (resource: URI) => {
 			let filePath = resource.fsPath;
@@ -160,10 +160,8 @@ KeybindingsRegistry.registerCommandDesc({
 			return pfs.readFile(filePath).then(content => {
 				return snapper.captureSyntaxTokens(fileName, content.toString());
 			});
-		}
+		};
 
-
-		let [resource] = args;
 		if (!resource) {
 			let editorService = accessor.get(IWorkbenchEditorService);
 			let fileEditorInput = asFileEditorInput(editorService.getActiveEditorInput());
@@ -179,7 +177,7 @@ KeybindingsRegistry.registerCommandDesc({
 		}
 
 	},
-	context: undefined,
+	when: undefined,
 	primary: undefined
 });
 

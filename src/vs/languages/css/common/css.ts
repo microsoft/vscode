@@ -19,8 +19,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
-import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export enum States {
@@ -285,7 +283,6 @@ export class CSSMode extends AbstractMode {
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
-	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public outlineSupport: Modes.IOutlineSupport;
@@ -336,16 +333,15 @@ export class CSSMode extends AbstractMode {
 
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
-		this.occurrencesSupport = this;
+		//this.occurrencesSupport = this;
 		this.extraInfoSupport = this;
-		this.referenceSupport = new ReferenceSupport(this.getId(), {
-			tokens: [cssTokenTypes.TOKEN_PROPERTY + '.css', cssTokenTypes.TOKEN_VALUE + '.css', cssTokenTypes.TOKEN_SELECTOR_TAG + '.css'],
-			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
-		this.logicalSelectionSupport = this;
+		// this.referenceSupport = new ReferenceSupport(this.getId(), {
+		// 	tokens: [cssTokenTypes.TOKEN_PROPERTY + '.css', cssTokenTypes.TOKEN_VALUE + '.css', cssTokenTypes.TOKEN_SELECTOR_TAG + '.css'],
+		// 	findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.outlineSupport = this;
-		this.declarationSupport = new DeclarationSupport(this.getId(), {
-			tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
-			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
+		// this.declarationSupport = new DeclarationSupport(this.getId(), {
+		// 	tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
+		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
 		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [' ', ':'],
@@ -413,11 +409,6 @@ export class CSSMode extends AbstractMode {
 	static $findReferences = OneWorkerAttr(CSSMode, CSSMode.prototype.findReferences);
 	public findReferences(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position));
-	}
-
-	static $getRangesToPosition = OneWorkerAttr(CSSMode, CSSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(CSSMode, CSSMode.prototype.getOutline);

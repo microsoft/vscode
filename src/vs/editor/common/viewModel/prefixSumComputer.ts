@@ -5,7 +5,7 @@
 'use strict';
 
 export class PrefixSumIndexOfResult {
-	prefixSumIndexOfResultTrait: void;
+	_prefixSumIndexOfResultBrand: void;
 
 	index: number;
 	remainder: number;

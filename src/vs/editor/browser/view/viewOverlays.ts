@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as browser from 'vs/base/browser/browser';
 import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IScrollEvent, IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
+import {Configuration} from 'vs/editor/browser/config/configuration';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
 
 export class ViewOverlays extends ViewLayer {
 
 	private _dynamicOverlays:DynamicViewOverlay[];
 	private _isFocused:boolean;
-	_layoutProvider:editorBrowser.ILayoutProvider;
+	_layoutProvider:ILayoutProvider;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
 
 		this._dynamicOverlays = [];
@@ -76,7 +79,7 @@ export class ViewOverlays extends ViewLayer {
 	}
 
 
-	public prepareRender(ctx:editorBrowser.IRenderingContext): void {
+	public prepareRender(ctx:IRenderingContext): void {
 		let toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
 
 		for (let i = 0, len = toRender.length; i < len; i++) {
@@ -88,27 +91,27 @@ export class ViewOverlays extends ViewLayer {
 		return null;
 	}
 
-	public render(ctx:editorBrowser.IRestrictedRenderingContext): void {
+	public render(ctx:IRestrictedRenderingContext): void {
 		// Overwriting to bypass `shouldRender` flag
 		this._viewOverlaysRender(ctx);
 
 		this.domNode.toggleClassName('focused', this._isFocused);
 	}
 
-	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._renderLines(ctx.linesViewportData);
 	}
 }
 
 class ViewOverlayLine implements IVisibleLineData {
 
-	private _context:editorBrowser.IViewContext;
+	private _context:ViewContext;
 	private _dynamicOverlays:DynamicViewOverlay[];
 	private _domNode: FastDomNode;
 	private _renderPieces: string;
 	private _lineHeight: number;
 
-	constructor(context:editorBrowser.IViewContext, dynamicOverlays:DynamicViewOverlay[]) {
+	constructor(context:ViewContext, dynamicOverlays:DynamicViewOverlay[]) {
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._dynamicOverlays = dynamicOverlays;
@@ -193,7 +196,7 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	private _scrollWidth: number;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._scrollWidth = this._layoutProvider.getScrollWidth();
@@ -207,7 +210,7 @@ export class ContentViewOverlays extends ViewOverlays {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
 	}
 
-	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
 		this.domNode.setWidth(this._scrollWidth);
@@ -220,17 +223,21 @@ export class MarginViewOverlays extends ViewOverlays {
 	private _glyphMarginWidth:number;
 	private _scrollHeight:number;
 	private _contentLeft: number;
+	private _canUseTranslate3d: boolean;
 
-	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
+	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._glyphMarginLeft = context.configuration.editor.layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = context.configuration.editor.layoutInfo.glyphMarginWidth;
 		this._scrollHeight = layoutProvider.getScrollHeight();
 		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
+		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
 		this.domNode.setWidth(1);
+
+		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 	}
 
 	protected _extraDomNodeHTML(): string {
@@ -256,7 +263,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
-	public onLayoutChanged(layoutInfo:IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:EditorLayoutInfo): boolean {
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		this._scrollHeight = this._layoutProvider.getScrollHeight();
@@ -264,12 +271,25 @@ export class MarginViewOverlays extends ViewOverlays {
 		return super.onLayoutChanged(layoutInfo) || true;
 	}
 
-	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
+	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
+		if (e.fontInfo) {
+			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+		}
+		if (e.viewInfo.canUseTranslate3d) {
+			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
+		}
+		return super.onConfigurationChanged(e);
+	}
+
+
+	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		if (browser.canUseTranslate3d) {
+		if (this._canUseTranslate3d) {
 			var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
 			this.domNode.setTransform(transform);
+			this.domNode.setTop(0);
 		} else {
+			this.domNode.setTransform('');
 			this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
 		}
 		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);

@@ -222,7 +222,8 @@ export class MirrorModelEmbedded extends AbstractMirrorModel implements editorCo
 			tabSize: actualModelOptions.tabSize,
 			insertSpaces: actualModelOptions.insertSpaces,
 			detectIndentation: false,
-			defaultEOL: actualModelOptions.defaultEOL
+			defaultEOL: actualModelOptions.defaultEOL,
+			trimAutoWhitespace: actualModelOptions.trimAutoWhitespace
 		});
 	}
 

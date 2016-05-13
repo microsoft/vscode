@@ -27,7 +27,6 @@ import {IEditorInput, IEditorModel, Position, IEditor, IResourceInput, ITextEdit
 import {IEventService} from 'vs/platform/event/common/event';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
-import Lifecycle = require('vs/base/common/lifecycle');
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 
@@ -118,12 +117,6 @@ export class TestMessageService implements IMessageService {
 
 	public confirm(confirmation: IConfirmation): boolean {
 		return false;
-	}
-
-	public setStatusMessage(message: string, autoDisposeAfter: number = -1): Lifecycle.IDisposable {
-		return {
-			dispose: () => { /* Nothing to do here */ }
-		};
 	}
 }
 

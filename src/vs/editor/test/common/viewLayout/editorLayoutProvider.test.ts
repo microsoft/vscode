@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {IEditorLayoutInfo} from 'vs/editor/common/editorCommon';
+import {EditorLayoutInfo, OverviewRulerPosition} from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider, IEditorLayoutProviderOpts} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
-	function doTest(input:IEditorLayoutProviderOpts, expected:IEditorLayoutInfo): void {
+	function doTest(input:IEditorLayoutProviderOpts, expected:EditorLayoutInfo): void {
 		let actual = EditorLayoutProvider.compute(input);
 		assert.deepEqual(actual, expected);
 	}
@@ -30,7 +30,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:1000,
 			height:800,
 
@@ -53,13 +53,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 800,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 1.1', () => {
@@ -77,7 +77,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 12,
 			scrollbarArrowSize: 13,
 			verticalScrollbarHasArrows: true
-		}, {
+		}, new EditorLayoutInfo({
 			width:1000,
 			height:800,
 
@@ -100,13 +100,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 11,
 			horizontalScrollbarHeight: 12,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 13,
 				width: 11,
 				height: (800 - 2 * 13),
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 2', () => {
@@ -124,7 +124,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:900,
 			height:800,
 
@@ -147,13 +147,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 800,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 3', () => {
@@ -171,7 +171,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:900,
 			height:900,
 
@@ -194,13 +194,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 4', () => {
@@ -218,7 +218,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:900,
 			height:900,
 
@@ -241,13 +241,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 5', () => {
@@ -265,7 +265,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:900,
 			height:900,
 
@@ -288,13 +288,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 6', () => {
@@ -312,7 +312,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:900,
 			height:900,
 
@@ -335,13 +335,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 7', () => {
@@ -359,7 +359,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:900,
 			height:900,
 
@@ -382,13 +382,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 8', () => {
@@ -406,7 +406,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:900,
 			height:900,
 
@@ -429,13 +429,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 
 	test('EditorLayoutProvider 8 - rounds floats', () => {
@@ -453,7 +453,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalScrollbarHeight: 0,
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false
-		}, {
+		}, new EditorLayoutInfo({
 			width:900,
 			height:900,
 
@@ -476,12 +476,12 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
 
-			overviewRuler: {
+			overviewRuler: new OverviewRulerPosition({
 				top: 0,
 				width: 0,
 				height: 900,
 				right: 0
-			}
-		});
+			})
+		}));
 	});
 });

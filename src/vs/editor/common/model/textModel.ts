@@ -11,9 +11,10 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
-import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
+import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 
 var LIMIT_FIND_COUNT = 999;
+export const LONG_LINE_BOUNDARY = 1000;
 
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
 
@@ -21,7 +22,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		tabSize: DEFAULT_INDENTATION.tabSize,
 		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
 		detectIndentation: false,
-		defaultEOL: editorCommon.DefaultEndOfLine.LF
+		defaultEOL: editorCommon.DefaultEndOfLine.LF,
+		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
 	};
 
 	_lines:ModelLine[];
@@ -56,7 +58,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		let somethingChanged = false;
 		let changed:editorCommon.IModelOptionsChangedEvent = {
 			tabSize: false,
-			insertSpaces: false
+			insertSpaces: false,
+			trimAutoWhitespace: false
 		};
 
 		if (typeof newOpts.insertSpaces !== 'undefined') {
@@ -71,6 +74,13 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 				somethingChanged = true;
 				changed.tabSize = true;
 				this._options.tabSize = newOpts.tabSize;
+			}
+		}
+		if (typeof newOpts.trimAutoWhitespace !== 'undefined') {
+			if (this._options.trimAutoWhitespace !== newOpts.trimAutoWhitespace) {
+				somethingChanged = true;
+				changed.trimAutoWhitespace = true;
+				this._options.trimAutoWhitespace = newOpts.trimAutoWhitespace;
 			}
 		}
 
@@ -244,6 +254,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			rawText = TextModel.toRawText(value, {
 				tabSize: this._options.tabSize,
 				insertSpaces: this._options.insertSpaces,
+				trimAutoWhitespace: this._options.trimAutoWhitespace,
 				detectIndentation: false,
 				defaultEOL: this._options.defaultEOL
 			});
@@ -372,7 +383,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	public isDominatedByLongLines(longLineBoundary:number): boolean {
+	public isDominatedByLongLines(): boolean {
 		var smallLineCharCount = 0,
 			longLineCharCount = 0,
 			i: number,
@@ -382,7 +393,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		for (i = 0, len = this._lines.length; i < len; i++) {
 			lineLength = lines[i].text.length;
-			if (lineLength >= longLineBoundary) {
+			if (lineLength >= LONG_LINE_BOUNDARY) {
 				longLineCharCount += lineLength;
 			} else {
 				smallLineCharCount += lineLength;
@@ -491,17 +502,20 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		if (lineNumber < 1) {
 			lineNumber = 1;
-		}
-		if (lineNumber > this._lines.length) {
-			lineNumber = this._lines.length;
-		}
-
-		if (column < 1) {
 			column = 1;
 		}
-		var maxColumn = this.getLineMaxColumn(lineNumber);
-		if (column > maxColumn) {
-			column = maxColumn;
+		else if (lineNumber > this._lines.length) {
+			lineNumber = this._lines.length;
+			column = this.getLineMaxColumn(lineNumber);
+		}
+		else {
+			var maxColumn = this.getLineMaxColumn(lineNumber);
+			if (column < 1) {
+				column = 1;
+			}
+			else if (column > maxColumn) {
+				column = maxColumn;
+			}
 		}
 
 		return new Position(lineNumber, column);
@@ -624,12 +638,14 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			resolvedOpts = {
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
+				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
 			};
 		} else {
 			resolvedOpts = {
 				tabSize: opts.tabSize,
 				insertSpaces: opts.insertSpaces,
+				trimAutoWhitespace: opts.trimAutoWhitespace,
 				defaultEOL: opts.defaultEOL
 			};
 		}
@@ -832,6 +848,7 @@ export class RawText {
 		return TextModel.toRawText(rawText, {
 			tabSize: opts.tabSize,
 			insertSpaces: opts.insertSpaces,
+			trimAutoWhitespace: opts.trimAutoWhitespace,
 			detectIndentation: false,
 			defaultEOL: opts.defaultEOL
 		});

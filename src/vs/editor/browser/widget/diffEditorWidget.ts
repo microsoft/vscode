@@ -23,6 +23,8 @@ import {createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
+import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
+import {Configuration} from 'vs/editor/browser/config/configuration';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;
@@ -651,18 +653,18 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		var freeSpace = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH - 2*DiffEditorWidget.ONE_OVERVIEW_WIDTH;
 		var layoutInfo = this.modifiedEditor.getLayoutInfo();
 		if (layoutInfo) {
-			this._originalOverviewRuler.setLayout({
+			this._originalOverviewRuler.setLayout(new editorCommon.OverviewRulerPosition({
 				top: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				right: freeSpace + DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				height: this._height
-			});
-			this._modifiedOverviewRuler.setLayout({
+			}));
+			this._modifiedOverviewRuler.setLayout(new editorCommon.OverviewRulerPosition({
 				top: 0,
 				right: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				height: this._height
-			});
+			}));
 		}
 	}
 
@@ -813,8 +815,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			return;
 		}
 		this._isHandlingScrollEvent = true;
-		this.modifiedEditor.setScrollLeft(e.scrollLeft);
-		this.modifiedEditor.setScrollTop(e.scrollTop);
+		this.modifiedEditor.setScrollPosition({
+			scrollLeft: e.scrollLeft,
+			scrollTop: e.scrollTop
+		});
 		this._isHandlingScrollEvent = false;
 	}
 
@@ -823,8 +827,10 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			return;
 		}
 		this._isHandlingScrollEvent = true;
-		this.originalEditor.setScrollLeft(e.scrollLeft);
-		this.originalEditor.setScrollTop(e.scrollTop);
+		this.originalEditor.setScrollPosition({
+			scrollLeft: e.scrollLeft,
+			scrollTop: e.scrollTop
+		});
 		this._isHandlingScrollEvent = false;
 	}
 
@@ -1104,7 +1110,7 @@ class ForeignViewZonesIterator {
 	}
 }
 
-class ViewZonesComputer {
+abstract class ViewZonesComputer {
 
 	private lineChanges:editorCommon.ILineChange[];
 	private originalForeignVZ:editorCommon.IEditorWhitespace[];
@@ -1296,13 +1302,9 @@ class ViewZonesComputer {
 		return result;
 	}
 
-	_produceOriginalFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone {
-		throw new Error('NotImplemented');
-	}
+	protected abstract _produceOriginalFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone;
 
-	_produceModifiedFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone {
-		throw new Error('NotImplemented');
-	}
+	protected abstract _produceModifiedFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone;
 }
 
 class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEditorWidgetStyle, IVerticalSashLayoutProvider {
@@ -1592,7 +1594,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 		this.decorationsLeft = dataSource.getOriginalEditor().getLayoutInfo().decorationsLeft;
 
 		this.toDispose = [];
-		this.toDispose.push(dataSource.getOriginalEditor().addListener2(editorCommon.EventType.EditorLayout, (layoutInfo:editorCommon.IEditorLayoutInfo) => {
+		this.toDispose.push(dataSource.getOriginalEditor().addListener2(editorCommon.EventType.EditorLayout, (layoutInfo:editorCommon.EditorLayoutInfo) => {
 			if (this.decorationsLeft !== layoutInfo.decorationsLeft) {
 				this.decorationsLeft = layoutInfo.decorationsLeft;
 				dataSource.relayoutEditors();
@@ -1716,7 +1718,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private originalModel:editorCommon.IModel;
-	private modifiedEditorConfiguration:editorCommon.IInternalEditorOptions;
+	private modifiedEditorConfiguration:editorCommon.InternalEditorOptions;
 	private modifiedEditorTabSize:number;
 
 	constructor(lineChanges:editorCommon.ILineChange[], originalForeignVZ:editorCommon.IEditorWhitespace[], modifiedForeignVZ:editorCommon.IEditorWhitespace[], originalEditor:editorBrowser.ICodeEditor, modifiedEditor:editorBrowser.ICodeEditor) {
@@ -1761,6 +1763,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		var domNode = document.createElement('div');
 		domNode.className = 'view-lines line-delete';
 		domNode.innerHTML = html.join('');
+		Configuration.applyFontInfoSlow(domNode, this.modifiedEditorConfiguration.fontInfo);
 
 		return {
 			shouldNotShrink: true,
@@ -1770,19 +1773,19 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.IInternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
+	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.InternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
 		let lineContent = originalModel.getLineContent(lineNumber);
 
-		let lineTokens = new editorCommon.ViewLineTokens([new editorCommon.ViewLineToken(0, '')], 0, lineContent.length);
+		let lineTokens = new ViewLineTokens([new ViewLineToken(0, '')], 0, lineContent.length);
 
-		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace, config.indentGuides);
+		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.viewInfo.renderWhitespace, config.viewInfo.indentGuides);
 
 		let r = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
-			config.spaceWidth,
-			config.stopRenderingLineAfter,
-			config.renderWhitespace,
+			config.fontInfo.spaceWidth,
+			config.viewInfo.stopRenderingLineAfter,
+			config.viewInfo.renderWhitespace,
 			parts.getParts()
 		));
 

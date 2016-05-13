@@ -45,7 +45,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 
 		this._toUnhook = [];
 
-		if (editor.getConfiguration().hover) {
+		if (editor.getConfiguration().contribInfo.hover) {
 			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.MouseDown, (e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.MouseMove, (e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.MouseLeave, (e: IEditorMouseEvent) => this._hideWidgets()));
@@ -94,7 +94,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		if (this._editor.getConfiguration().hover && targetType === editorCommon.MouseTargetType.CONTENT_TEXT) {
+		if (this._editor.getConfiguration().contribInfo.hover && targetType === editorCommon.MouseTargetType.CONTENT_TEXT) {
 			this._glyphWidget.hide();
 			this._contentWidget.startShowingAt(mouseEvent.target.range, false);
 		} else if (targetType === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {

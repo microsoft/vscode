@@ -16,17 +16,11 @@
 }
 
 /* -- line-style -- */
-.monaco-editor .cursors-layer.cursor-line-style > .cursor {
-	width: 2px;
-}
-.monaco-editor .cursors-layer.cursor-line-style > .cursor.secondary {
-	width: 1px;
-}
+.monaco-editor .cursors-layer.cursor-line-style > .cursor { width: 2px; }
+.monaco-editor .cursors-layer.cursor-line-style > .cursor.secondary { width: 1px; }
 
 /* -- block-style -- */
-.monaco-editor .cursors-layer.cursor-block-style > .cursor {
-	width: 1ch;
-}
+.monaco-editor .cursors-layer.cursor-block-style > .cursor { width: 1ch; }
 
 /* -- under-line-style -- */
 .monaco-editor .cursors-layer.cursor-underline-style > .cursor {
@@ -35,4 +29,20 @@
 	border-bottom-style: solid;
 	background: transparent !important;
 	box-sizing: border-box;
+}
+
+.monaco-editor.vs .cursor {
+	background: black;
+	border-color: black;
+	color: white; /* opposite of black */
+}
+.monaco-editor.vs-dark .cursor {
+	background: #AEAFAD;
+	border-color: #AEAFAD;
+	color: #51504f; /* opposite of #AEAFAD */
+}
+.monaco-editor.hc-black .cursor {
+	background: #fff;
+	border-color: #fff;
+	color: #000; /* opposite of #fff */
 }

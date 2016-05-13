@@ -157,7 +157,7 @@ actionBarRegistry.registerActionBarContributor(Scope.EDITOR, IFrameEditorActionC
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.compareEditor.nextChange',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	context: KbExpr.has('textCompareEditorVisible'),
+	when: KbExpr.has('textCompareEditorVisible'),
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow),
 	handler: accessor => navigateInDiffEditor(accessor, true)
 });
@@ -165,7 +165,7 @@ KeybindingsRegistry.registerCommandDesc({
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.compareEditor.previousChange',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	context: KbExpr.has('textCompareEditorVisible'),
+	when: KbExpr.has('textCompareEditorVisible'),
 	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow),
 	handler: accessor => navigateInDiffEditor(accessor, false)
 });

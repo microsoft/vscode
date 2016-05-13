@@ -18,8 +18,10 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandHandler, ICommandHandlerDescription, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {IStatusbarService} from 'vs/platform/statusbar/common/statusbar';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -188,9 +190,10 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
+	private _statusService: IStatusbarService;
 	private _messageService: IMessageService;
 
-	constructor(configurationService: IConfigurationService, messageService: IMessageService) {
+	constructor(configurationService: IConfigurationService, messageService: IMessageService, statusService?: IStatusbarService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
@@ -201,6 +204,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._currentChordStatusMessage = null;
 		this._configurationContext = new ConfigurationContext(configurationService);
 		this._toDispose.push(this._configurationContext);
+		this._statusService = statusService;
 		this._messageService = messageService;
 	}
 
@@ -303,18 +307,18 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		if (resolveResult && resolveResult.enterChord) {
 			e.preventDefault();
 			this._currentChord = resolveResult.enterChord;
-			if (this._messageService) {
+			if (this._statusService) {
 				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
-				this._currentChordStatusMessage = this._messageService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
+				this._currentChordStatusMessage = this._statusService.setStatusMessage(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", firstPartLabel));
 			}
 			return;
 		}
 
-		if (this._messageService && this._currentChord) {
+		if (this._statusService && this._currentChord) {
 			if (!resolveResult || !resolveResult.commandId) {
 				let firstPartLabel = this.getLabelFor(new Keybinding(this._currentChord));
 				let chordPartLabel = this.getLabelFor(new Keybinding(e.asKeybinding()));
-				this._messageService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
+				this._statusService.setStatusMessage(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", firstPartLabel, chordPartLabel), 10 * 1000 /* 10s */);
 				e.preventDefault();
 			}
 		}
@@ -329,20 +333,20 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 				e.preventDefault();
 			}
 			let commandId = resolveResult.commandId.replace(/^\^/, '');
-			this._invokeHandler(commandId, { context: contextValue }).done(undefined, err => {
+			this._invokeHandler(commandId, [{}]).done(undefined, err => {
 				this._messageService.show(Severity.Warning, err);
 			});
 		}
 	}
 
-	protected _invokeHandler(commandId: string, args: any): TPromise<any> {
+	protected _invokeHandler(commandId: string, args: any[]): TPromise<any> {
 
 		let handler = this._getCommandHandler(commandId);
 		if (!handler) {
 			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'. An extension might be missing an activation event.`));
 		}
 		try {
-			let result = this._instantiationService.invokeFunction(handler, args);
+			let result = this._instantiationService.invokeFunction.apply(this._instantiationService, [handler].concat(args));
 			return TPromise.as(result);
 		} catch (err) {
 			return TPromise.wrapError(err);
@@ -373,29 +377,20 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		delete this._contexts[String(contextId)];
 	}
 
-	public executeCommand(commandId: string, args: any = {}): TPromise<any> {
-
-		// TODO@{Alex,Joh} we should spec what args should be. adding extra
-		// props on a string will throw errors
-		if ((Array.isArray(args) || typeof args === 'object')
-			&& !args.context) {
-
-			args.context = Object.create(null);
-			this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(args.context);
-			this._configurationContext.fillInContext(args.context);
-		}
-
-		if (commandId === SET_CONTEXT_COMMAND_ID) {
-			var contextKey = String(args[0]);
-			var contextValue = args[1];
-
-			this.setContext(contextKey, contextValue);
-			return TPromise.as(null);
-		}
-
+	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
 		return this._invokeHandler(commandId, args);
 	}
 }
+
+KeybindingsRegistry.registerCommandDesc({
+	id: SET_CONTEXT_COMMAND_ID,
+	handler: (accessor:ServicesAccessor, contextKey:any, contextValue:any) => {
+		accessor.get(IKeybindingService).createKey(String(contextKey), contextValue);
+	},
+	weight: 0,
+	primary: undefined,
+	when: null
+});
 
 class ScopedKeybindingService extends AbstractKeybindingService {
 

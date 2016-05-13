@@ -34,6 +34,7 @@ export interface IRawStoppedDetails {
 	threadId?: number;
 	text?: string;
 	totalFrames?: number;
+	framesErrorMessage?: string;
 }
 
 // model
@@ -206,6 +207,7 @@ export interface IConfig {
 	sourceMaps?: boolean;
 	outDir?: string;
 	address?: string;
+	internalConsoleOptions?: string;
 	port?: number;
 	preLaunchTask?: string;
 	externalConsole?: boolean;
@@ -238,12 +240,6 @@ export interface IRawDebugSession {
 	configuration: { type: string, isAttach: boolean, capabilities: DebugProtocol.Capabilites };
 
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
-
-	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
-	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
-	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
-	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
-	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
 
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
@@ -376,7 +372,7 @@ export interface IDebugService {
 	/**
 	 * Creates a new debug session. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createSession(noDebug: boolean): TPromise<any>;
+	createSession(noDebug: boolean, configuration?: IConfig): TPromise<any>;
 
 	/**
 	 * Restarts an active debug session or creates a new one if there is no active session.
@@ -402,6 +398,12 @@ export interface IDebugService {
 	 * Opens a new or reveals an already visible editor showing the source.
 	 */
 	openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
+
+	next(threadId: number): TPromise<void>;
+	stepIn(threadId: number): TPromise<void>;
+	stepOut(threadId: number): TPromise<void>;
+	continue(threadId: number): TPromise<void>;
+	pause(threadId: number): TPromise<any>;
 }
 
 // Editor interfaces
@@ -443,8 +445,8 @@ export var DebugViewRegistry = <IDebugViewRegistry>new DebugViewRegistryImpl();
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
-export function formatPII(value:string, excludePII: boolean, args: {[key: string]: string}): string {
-	return value.replace(_formatPIIRegexp, function(match, group) {
+export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
+	return value.replace(_formatPIIRegexp, function (match, group) {
 		if (excludePII && group.length > 0 && group[0] !== '_') {
 			return match;
 		}

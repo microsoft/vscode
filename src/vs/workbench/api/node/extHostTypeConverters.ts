@@ -376,12 +376,12 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.File: return 'file';
 			case types.CompletionItemKind.Reference: return 'reference';
 		}
-		return 'text';
+		return 'property';
 	},
 
 	to(type: modes.SuggestionType): types.CompletionItemKind {
 		if (!type) {
-			return types.CompletionItemKind.Text;
+			return types.CompletionItemKind.Property;
 		} else {
 			return types.CompletionItemKind[type.charAt(0).toUpperCase() + type.substr(1)];
 		}
@@ -499,8 +499,7 @@ export namespace Command {
 	let _idPool = 1;
 
 	export function initialize(commands: ExtHostCommands) {
-		return commands.registerCommand(_delegateId, (args: [string]) => {
-			const [id] = args;
+		return commands.registerCommand(_delegateId, (id: string) => {
 			const command = _cache[id];
 			if (!command) {
 				// handle already disposed delegations graceful

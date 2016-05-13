@@ -161,7 +161,7 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 
 	public run(): TPromise<boolean> {
 		this.editor.updateOptions({
-			renderWhitespace: !this.editor.getConfiguration().renderWhitespace
+			renderWhitespace: !this.editor.getConfiguration().viewInfo.renderWhitespace
 		});
 
 		return TPromise.as(true);

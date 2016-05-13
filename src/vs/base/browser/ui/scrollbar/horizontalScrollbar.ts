@@ -4,47 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Browser from 'vs/base/browser/browser';
-import {ARROW_IMG_SIZE, AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import {AbstractScrollbar, ScrollbarHost, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {IDomNodePosition} from 'vs/base/browser/dom';
-import {IParent, IScrollableElementOptions, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {DelegateScrollable} from 'vs/base/common/scrollable';
+import {ScrollbarVisibility, ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {Scrollable, ScrollEvent} from 'vs/base/common/scrollable';
+import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
+import {ARROW_IMG_SIZE} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
-	private _scrollable: DelegateScrollable;
+	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
+		super({
+			canUseTranslate3d: options.canUseTranslate3d,
+			lazyRender: options.lazyRender,
+			host: host,
+			scrollbarState: new ScrollbarState(
+				(options.horizontalHasArrows ? options.arrowSize : 0),
+				(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize),
+				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize)
+			),
+			visibility: options.horizontal,
+			extraScrollbarClassName: 'horizontal',
+			scrollable: scrollable
+		});
 
-	constructor(scrollable: DelegateScrollable, parent: IParent, options: IScrollableElementOptions) {
-		let s = new ScrollbarState(
-			(options.horizontalHasArrows ? options.arrowSize : 0),
-			(options.horizontal === Visibility.Hidden ? 0 : options.horizontalScrollbarSize),
-			(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize)
-		);
-		super(options.forbidTranslate3dUse, options.lazyRender, parent, s, options.horizontal, 'horizontal');
-		this._scrollable = scrollable;
-
-		this._createDomNode();
 		if (options.horizontalHasArrows) {
 			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
 			let scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
-			this._createArrow('left-arrow', scrollbarDelta, arrowDelta, null, null, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(1));
-			this._createArrow('right-arrow', scrollbarDelta, null, null, arrowDelta, options.arrowSize, options.horizontalScrollbarSize, () => this._createMouseWheelEvent(-1));
+			this._createArrow({
+				className: 'left-arrow',
+				top: scrollbarDelta,
+				left: arrowDelta,
+				bottom: void 0,
+				right: void 0,
+				bgWidth: options.arrowSize,
+				bgHeight: options.horizontalScrollbarSize,
+				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, 1, 0)),
+			});
+
+			this._createArrow({
+				className: 'right-arrow',
+				top: scrollbarDelta,
+				left: void 0,
+				bottom: void 0,
+				right: arrowDelta,
+				bgWidth: options.arrowSize,
+				bgHeight: options.horizontalScrollbarSize,
+				onActivate: () => this._host.onMouseWheel(new StandardMouseWheelEvent(null, -1, 0)),
+			});
 		}
 
 		this._createSlider(Math.floor((options.horizontalScrollbarSize - options.horizontalSliderSize) / 2), 0, null, options.horizontalSliderSize);
 	}
 
-	protected _createMouseWheelEvent(sign: number) {
-		return new StandardMouseWheelEvent(null, sign, 0);
-	}
-
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
 		this.slider.setWidth(sliderSize);
-		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
+		if (this._canUseTranslate3d) {
 			this.slider.setTransform('translate3d(' + sliderPosition + 'px, 0px, 0px)');
+			this.slider.setLeft(0);
 		} else {
+			this.slider.setTransform('');
 			this.slider.setLeft(sliderPosition);
 		}
 	}
@@ -54,6 +75,13 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		this.domNode.setHeight(smallSize);
 		this.domNode.setLeft(0);
 		this.domNode.setBottom(0);
+	}
+
+	public onDidScroll(e:ScrollEvent): boolean {
+		this._shouldRender = this._onElementScrollSize(e.scrollWidth) || this._shouldRender;
+		this._shouldRender = this._onElementScrollPosition(e.scrollLeft) || this._shouldRender;
+		this._shouldRender = this._onElementSize(e.width) || this._shouldRender;
+		return this._shouldRender;
 	}
 
 	protected _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: IDomNodePosition): number {
@@ -73,6 +101,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 	}
 
 	protected _setScrollPosition(scrollPosition: number) {
-		this._scrollable.setScrollLeft(scrollPosition);
+		this._scrollable.updateState({
+			scrollLeft: scrollPosition
+		});
 	}
 }

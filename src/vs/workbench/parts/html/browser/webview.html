@@ -34,7 +34,7 @@
 
 		// propagate focus
 		ipcRenderer.on('focus', function() {
-			target.contentDocument.body.focus();
+			target.contentWindow.focus();
 		});
 
 		// update iframe-contents

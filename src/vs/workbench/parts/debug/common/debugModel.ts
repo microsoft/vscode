@@ -15,6 +15,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 const MAX_REPL_LENGTH = 10000;
+const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpressionContainer): TPromise<Variable[]> {
 	const session = debugService.getActiveSession();
@@ -144,23 +145,27 @@ export class Thread implements debug.IThread {
 			this.stoppedDetails.totalFrames = response.body.totalFrames;
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this.threadId, 0, new Source({ name: 'unknown' }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
+					return new StackFrame(this.threadId, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
 				}
 
-				return new StackFrame(this.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: 'unknown' }, false), rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: UNKNOWN_SOURCE_LABEL }, false), rsf.name, rsf.line, rsf.column);
 			});
+		}, (err: Error) => {
+			this.stoppedDetails.framesErrorMessage = err.message;
+			return [];
 		});
 	}
 }
 
 export class OutputElement implements debug.ITreeElement {
+	private static ID_COUNTER = 0;
 
-	constructor(private id = uuid.generateUuid()) {
+	constructor(private id = OutputElement.ID_COUNTER++) {
 		// noop
 	}
 
 	public getId(): string {
-		return this.id;
+		return `outputelement:${ this.id }`;
 	}
 }
 
@@ -307,16 +312,14 @@ export class Scope implements debug.IScope {
 
 export class StackFrame implements debug.IStackFrame {
 
-	private internalId: string;
 	private scopes: TPromise<Scope[]>;
 
 	constructor(public threadId: number, public frameId: number, public source: Source, public name: string, public lineNumber: number, public column: number) {
-		this.internalId = uuid.generateUuid();
 		this.scopes = null;
 	}
 
 	public getId(): string {
-		return this.internalId;
+		return `stackframe:${ this.threadId }:${ this.frameId }`;
 	}
 
 	public getScopes(debugService: debug.IDebugService): TPromise<debug.IScope[]> {

@@ -123,4 +123,22 @@ suite('Marker Service', () => {
 
 		assert.equal(service.read({ owner: 'far' }).length, 2);
 	});
+
+	test('invalid marker data', () => {
+
+		let data = randomMarkerData();
+		let service = new markerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
+
+		data.message = undefined;
+		service.changeOne('far', URI.parse('some:uri/path'), [data]);
+		assert.equal(service.read({ owner: 'far' }).length, 0);
+
+		data.message = null;
+		service.changeOne('far', URI.parse('some:uri/path'), [data]);
+		assert.equal(service.read({ owner: 'far' }).length, 0);
+
+		data.message = 'null';
+		service.changeOne('far', URI.parse('some:uri/path'), [data]);
+		assert.equal(service.read({ owner: 'far' }).length, 1);
+	});
 });

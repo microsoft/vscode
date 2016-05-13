@@ -117,7 +117,7 @@ class WordHighlighter {
 	private _onPositionChanged(e:editorCommon.ICursorPositionChangedEvent): void {
 
 		// ignore typing & other
-		if (e.reason !== 'explicit') {
+		if (e.reason !== editorCommon.CursorChangeReason.Explicit) {
 			this._stopAll();
 			return;
 		}
@@ -238,7 +238,7 @@ class WordHighlighter {
 			var color = '#A0A0A0';
 
 			if (info.kind === 'write') {
-				className = className + 'Strong';
+				className = 'wordHighlightStrong';
 			} else if (info.kind === 'text') {
 				className = 'selectionHighlight';
 				// Keep the same color for now

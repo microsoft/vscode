@@ -21,7 +21,8 @@ suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeLength: rangeLength,
 			lines: text,
-			forceMoveMarkers: false
+			forceMoveMarkers: false,
+			isAutoWhitespaceEdit: false
 		};
 	}
 
@@ -270,7 +271,8 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeLength: rangeLength,
 			lines: text,
-			forceMoveMarkers: false
+			forceMoveMarkers: false,
+			isAutoWhitespaceEdit: false
 		};
 	}
 

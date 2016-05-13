@@ -89,7 +89,7 @@ export class SuggestController implements IEditorContribution {
 
 		if (this.editor.getConfiguration().readOnly
 			|| !this.editor.getModel()
-			|| !this.editor.getConfiguration().suggestOnTriggerCharacters) {
+			|| !this.editor.getConfiguration().contribInfo.suggestOnTriggerCharacters) {
 
 			return;
 		}
@@ -227,14 +227,14 @@ CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weigh
 });
 KeybindingsRegistry.registerCommandDesc({
 	id: 'acceptSelectedSuggestionOnEnter',
-	handler(accessor, args) {
-		withCodeEditorFromCommandHandler('acceptSelectedSuggestionOnEnter', accessor, args, (editor) => {
+	handler(accessor) {
+		withCodeEditorFromCommandHandler('acceptSelectedSuggestionOnEnter', accessor, (editor) => {
 			const controller = SuggestController.getSuggestController(editor);
 			controller.acceptSelectedSuggestion();
 		});
 	},
 	weight,
-	context: KbExpr.and(KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE), KbExpr.has('config.editor.acceptSuggestionOnEnter')),
+	when: KbExpr.and(KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE), KbExpr.has('config.editor.acceptSuggestionOnEnter')),
 	primary: KeyCode.Enter,
 });
 CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {

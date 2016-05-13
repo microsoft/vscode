@@ -323,14 +323,6 @@
 	background: none;
 }
 
-.hc-black .monaco-workbench .debug-action:before {
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
 .hc-black .monaco-workbench .debug-actions-widget {
 	background-color: #333;
 	box-shadow: 0 2px 8px #000;

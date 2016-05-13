@@ -39,15 +39,18 @@ export class SelectConfigActionItem extends BaseActionItem {
 		this.toDispose.push(this.debugService.onDidChangeState(state => {
 			this.select.disabled = state !== State.Inactive;
 		}));
-		this.toDispose.push(configurationService.onDidUpdateConfiguration(e  => {
-			this.setOptions().done(null, errors.onUnexpectedError);
+		this.toDispose.push(configurationService.onDidUpdateConfiguration(e => {
+			this.setOptions(true).done(null, errors.onUnexpectedError);
+		}));
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidConfigurationChange(name => {
+			this.setOptions(false).done(null, errors.onUnexpectedError);
 		}));
 	}
 
 	public render(container: HTMLElement): void {
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.select);
-		this.setOptions().done(null, errors.onUnexpectedError);
+		this.setOptions(true).done(null, errors.onUnexpectedError);
 	}
 
 	public focus(): void {
@@ -62,13 +65,13 @@ export class SelectConfigActionItem extends BaseActionItem {
 		}
 	}
 
-	private setOptions(): TPromise<any> {
+	private setOptions(changeDebugConfiguration: boolean): TPromise<any> {
 		let previousSelectedIndex = this.select.selectedIndex;
 		this.select.options.length = 0;
 
 		return this.debugService.getConfigurationManager().loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
-				this.select.add(this.createOption(`<${ nls.localize('none', "none") }>`));
+				this.select.add(this.createOption(nls.localize('noConfigurations', "No Configurations")));
 				this.select.disabled = true;
 				return this.actionRunner.run(this._action, null);
 			}
@@ -91,7 +94,9 @@ export class SelectConfigActionItem extends BaseActionItem {
 					previousSelectedIndex = 0;
 				}
 				this.select.selectedIndex = previousSelectedIndex;
-				return this.actionRunner.run(this._action, configurations[previousSelectedIndex].name);
+				if (changeDebugConfiguration) {
+					return this.actionRunner.run(this._action, configurations[previousSelectedIndex].name);
+				}
 			}
 		});
 	}

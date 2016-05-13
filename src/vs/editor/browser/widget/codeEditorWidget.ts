@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/default-theme';
 import 'vs/css!./media/editor';
 import 'vs/css!./media/tokens';
 import {onUnexpectedError} from 'vs/base/common/errors';
@@ -26,12 +25,13 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import {View} from 'vs/editor/browser/view/viewImpl';
-import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
+import {Disposable} from 'vs/base/common/lifecycle';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
 	protected domElement:HTMLElement;
-	private focusTracker:dom.IFocusTracker;
+	private _focusTracker: CodeEditorWidgetFocusTracker;
 
 	_configuration:Configuration;
 
@@ -50,16 +50,14 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 	) {
 		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
 
-		// track focus of the domElement and all its anchestors
-		this.focusTracker = dom.trackFocus(this.domElement);
-		this.focusTracker.addFocusListener(() => {
-			if (this.forcedWidgetFocusCount === 0) {
+		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
+		this._focusTracker.onChage(() => {
+			let hasFocus = this._focusTracker.hasFocus();
+
+			if (hasFocus) {
 				this._editorFocusContextKey.set(true);
 				this.emit(editorCommon.EventType.EditorFocus, {});
-			}
-		});
-		this.focusTracker.addBlurListener(() => {
-			if (this.forcedWidgetFocusCount === 0) {
+			} else {
 				this._editorFocusContextKey.reset();
 				this.emit(editorCommon.EventType.EditorBlur, {});
 			}
@@ -88,14 +86,14 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
-		this.focusTracker.dispose();
+		this._focusTracker.dispose();
 		super.dispose();
 	}
 
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
-		let oldTheme = this._configuration.editor.theme;
+		let oldTheme = this._configuration.editor.viewInfo.theme;
 		super.updateOptions(newOptions);
-		let newTheme = this._configuration.editor.theme;
+		let newTheme = this._configuration.editor.viewInfo.theme;
 
 		if (oldTheme !== newTheme) {
 			this.render();
@@ -108,7 +106,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		}
 		var content = model.getLineContent(lineNumber);
 		var tokens = model.getLineTokens(lineNumber, false);
-		var inflatedTokens = TokensBinaryEncoding.inflateArr(tokens.getBinaryEncodedTokensMap(), tokens.getBinaryEncodedTokens());
+		var inflatedTokens = tokens.inflate();
 		var tabSize = model.getOptions().tabSize;
 		return Colorizer.colorizeLine(content, inflatedTokens, tabSize);
 	}
@@ -130,28 +128,30 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		return this._view.getCenteredRangeInViewport();
 	}
 
-	public setScrollTop(newScrollTop:number): void {
+	public getScrollWidth(): number {
 		if (!this.hasView) {
-			return;
+			return -1;
 		}
-		if (typeof newScrollTop !== 'number') {
-			throw new Error('Invalid arguments');
+		return this._view.getCodeEditorHelper().getScrollWidth();
+	}
+	public getScrollLeft(): number {
+		if (!this.hasView) {
+			return -1;
 		}
-		this._view.getCodeEditorHelper().setScrollTop(newScrollTop);
+		return this._view.getCodeEditorHelper().getScrollLeft();
 	}
 
+	public getScrollHeight(): number {
+		if (!this.hasView) {
+			return -1;
+		}
+		return this._view.getCodeEditorHelper().getScrollHeight();
+	}
 	public getScrollTop(): number {
 		if (!this.hasView) {
 			return -1;
 		}
 		return this._view.getCodeEditorHelper().getScrollTop();
-	}
-
-	public delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void {
-		if (!this.hasView) {
-			return;
-		}
-		this._view.getCodeEditorHelper().delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
 	public setScrollLeft(newScrollLeft:number): void {
@@ -161,28 +161,33 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._view.getCodeEditorHelper().setScrollLeft(newScrollLeft);
+		this._view.getCodeEditorHelper().setScrollPosition({
+			scrollLeft: newScrollLeft
+		});
+	}
+	public setScrollTop(newScrollTop:number): void {
+		if (!this.hasView) {
+			return;
+		}
+		if (typeof newScrollTop !== 'number') {
+			throw new Error('Invalid arguments');
+		}
+		this._view.getCodeEditorHelper().setScrollPosition({
+			scrollTop: newScrollTop
+		});
+	}
+	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
+		if (!this.hasView) {
+			return;
+		}
+		this._view.getCodeEditorHelper().setScrollPosition(position);
 	}
 
-	public getScrollLeft(): number {
+	public delegateVerticalScrollbarMouseDown(browserEvent:MouseEvent): void {
 		if (!this.hasView) {
-			return -1;
+			return;
 		}
-		return this._view.getCodeEditorHelper().getScrollLeft();
-	}
-
-	public getScrollWidth(): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._view.getCodeEditorHelper().getScrollWidth();
-	}
-
-	public getScrollHeight(): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._view.getCodeEditorHelper().getScrollHeight();
+		this._view.getCodeEditorHelper().delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState {
@@ -244,8 +249,20 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this._view.focus();
 	}
 
+	public beginForcedWidgetFocus(): void {
+		this._focusTracker.beginForcedFocus();
+	}
+
+	public endForcedWidgetFocus(): void {
+		this._focusTracker.endForcedFocus();
+	}
+
 	public isFocused(): boolean {
 		return this.hasView && this._view.isFocused();
+	}
+
+	public hasWidgetFocus(): boolean {
+		return this._focusTracker.hasFocus();
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
@@ -404,6 +421,10 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		this._view.setAriaActiveDescendant(id);
 	}
 
+	public applyFontInfo(target:HTMLElement): void {
+		Configuration.applyFontInfoSlow(target, this._configuration.editor.fontInfo);
+	}
+
 	_attachModel(model:editorCommon.IModel): void {
 		this._view = null;
 
@@ -438,10 +459,15 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	protected _createView(): void {
 		this._view = new View(
-			this.id,
+			this._keybindingService,
 			this._configuration,
 			this.viewModel,
-			this._keybindingService
+			(source:string, handlerId:string, payload:any) => {
+				if (!this.cursor) {
+					return;
+				}
+				this.cursor.trigger(source, handlerId, payload);
+			}
 		);
 	}
 
@@ -465,6 +491,64 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		}
 
 		return result;
+	}
+}
+
+class CodeEditorWidgetFocusTracker extends Disposable {
+
+	private _forcedWidgetFocusCount: number;
+	private _focusTrackerHasFocus: boolean;
+	private _focusTracker: dom.IFocusTracker;
+	private _actualHasFocus: boolean;
+
+	private _onChange: Emitter<void> = this._register(new Emitter<void>());
+	public onChage: Event<void> = this._onChange.event;
+
+	constructor(domElement:HTMLElement) {
+		super();
+
+		this._focusTrackerHasFocus = false;
+		this._forcedWidgetFocusCount = 0;
+		this._actualHasFocus = false;
+		this._focusTracker = this._register(dom.trackFocus(domElement));
+
+		this._focusTracker.addFocusListener(() => {
+			this._focusTrackerHasFocus = true;
+			this._update();
+		});
+		this._focusTracker.addBlurListener(() => {
+			this._focusTrackerHasFocus = false;
+			this._update();
+		});
+	}
+
+	public hasFocus(): boolean {
+		return this._actualHasFocus;
+	}
+
+	public beginForcedFocus(): void {
+		this._forcedWidgetFocusCount++;
+		this._update();
+	}
+
+	public endForcedFocus(): void {
+		this._forcedWidgetFocusCount--;
+		this._update();
+	}
+
+	private _update(): void {
+		let newActualHasFocus = this._focusTrackerHasFocus;
+		if (this._forcedWidgetFocusCount > 0) {
+			newActualHasFocus = true;
+		}
+
+		if (this._actualHasFocus === newActualHasFocus) {
+			// no change
+			return;
+		}
+
+		this._actualHasFocus = newActualHasFocus;
+		this._onChange.fire(void 0);
 	}
 }
 

@@ -112,6 +112,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 	public static ID = 'editor.outlineMarker';
 
 	private _editor:ICodeEditor;
+	private _isEnabled: boolean;
 
 	private _globalToDispose:IDisposable[];
 
@@ -122,6 +123,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 
 	constructor(editor:ICodeEditor) {
 		this._editor = editor;
+		this._isEnabled = this._editor.getConfiguration().contribInfo.outlineMarkers;
 
 		this._globalToDispose = [];
 		this._localToDispose = [];
@@ -136,7 +138,9 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 			}
 		}));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged,(e: editorCommon.IConfigurationChangedEvent) => {
-			if (e.outlineMarkers) {
+			let oldIsEnabled = this._isEnabled;
+			this._isEnabled = this._editor.getConfiguration().contribInfo.outlineMarkers;
+			if (oldIsEnabled !== this._isEnabled) {
 				this.onChange(false);
 			}
 		}));
@@ -168,7 +172,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 
 		this.localDispose();
 
-		if (!this._editor.getConfiguration().outlineMarkers) {
+		if (!this._isEnabled) {
 			return;
 		}
 

@@ -6,8 +6,9 @@
 
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {ViewLineToken, IEditorRange, ViewLineTokens} from 'vs/editor/common/editorCommon';
+import {IEditorRange} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
+import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
 function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
@@ -217,7 +218,7 @@ function insertCustomLineDecorationsWithStateMachine(lineNumber:number, lineCont
 }
 
 export class LineParts {
-	_linePartsTrait: void;
+	_linePartsBrand: void;
 	private _parts: ViewLineToken[];
 
 	constructor(parts: ViewLineToken[]) {

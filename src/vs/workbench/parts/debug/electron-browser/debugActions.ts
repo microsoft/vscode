@@ -27,15 +27,16 @@ import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {
 
-	protected debugService: IDebugService;
-	private keybindingService: IKeybindingService;
 	protected toDispose: lifecycle.IDisposable[];
 	private keybinding: string;
 
-	constructor(id: string, label: string, cssClass: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(
+		id: string, label: string, cssClass: string,
+		@IDebugService protected debugService: IDebugService,
+		@IKeybindingService protected keybindingService: IKeybindingService
+	) {
 		super(id, label, cssClass, false);
 		this.debugService = debugService;
-		this.keybindingService = keybindingService;
 		this.toDispose = [];
 		this.toDispose.push(this.debugService.onDidChangeState((state) => this.updateEnablement(state)));
 
@@ -119,7 +120,7 @@ export class StartDebugAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.createSession(false);
+		return this.keybindingService.executeCommand('_workbench.startDebug');
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -159,8 +160,11 @@ export class StepOverDebugAction extends AbstractDebugAction {
 		super(id, label, 'debug-action step-over', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().next({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.next(threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -176,8 +180,11 @@ export class StepIntoDebugAction extends AbstractDebugAction {
 		super(id, label, 'debug-action step-into', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().stepIn({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.stepIn(threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -193,8 +200,11 @@ export class StepOutDebugAction extends AbstractDebugAction {
 		super(id, label, 'debug-action step-out', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().stepOut({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.stepOut(threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -235,8 +245,11 @@ export class ContinueAction extends AbstractDebugAction {
 		super(id, label, 'debug-action continue', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.continue(threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -252,8 +265,11 @@ export class PauseAction extends AbstractDebugAction {
 		super(id, label, 'debug-action pause', debugService, keybindingService);
 	}
 
-	public run(): TPromise<any> {
-		return this.debugService.getActiveSession().pause({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+	public run(thread: debug.IThread): TPromise<any> {
+		const threadId = thread && thread instanceof model.Thread ? thread.threadId
+			: this.debugService.getViewModel().getFocusedThreadId();
+
+		return this.debugService.pause(threadId);
 	}
 
 	protected isEnabled(state: debug.State): boolean {
@@ -543,7 +559,7 @@ export class RunToCursorAction extends EditorAction {
 		});
 
 		return this.debugService.addBreakpoints([{ uri, lineNumber }]).then(() => {
-			this.debugService.getActiveSession().continue({ threadId: this.debugService.getViewModel().getFocusedThreadId() });
+			this.debugService.continue(this.debugService.getViewModel().getFocusedThreadId());
 		});
 	}
 
@@ -746,7 +762,7 @@ export class CopyAction extends actions.Action {
 
 export class ToggleReplAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.action.toggleRepl';
-	static LABEL = nls.localize('toggleRepl', "Debug Console");
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,

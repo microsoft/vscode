@@ -9,11 +9,10 @@ import Worker = require('vs/base/common/worker/workerClient');
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import Env = require('vs/base/common/flags');
 import Platform = require('vs/base/common/platform');
-import errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
 import remote = require('vs/base/common/remote');
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity, IThreadServiceStatus} from 'vs/platform/thread/common/thread';
+import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 
@@ -39,7 +38,6 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 
 	private _workersCreatedPromise: TPromise<void>;
 	private _triggerWorkersCreatedPromise: (value: void) => void;
-	private _listeners: IThreadServiceStatusListener[];
 
 	private _workerFactory: Worker.IWorkerFactory;
 	private _workerModuleId: string;
@@ -58,7 +56,6 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 
 		this._workerPool = [];
 		this._affinityScrambler = {};
-		this._listeners = [];
 
 		this._workersCreatedPromise = new TPromise<void>((c, e, p) => {
 			this._triggerWorkersCreatedPromise = c;
@@ -87,25 +84,6 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 			let complete = this._triggerWorkersCreatedPromise;
 			this._triggerWorkersCreatedPromise = null;
 			complete(null);
-		}
-	}
-
-	addStatusListener(listener: IThreadServiceStatusListener): void {
-		for (let i = 0; i < this._listeners.length; i++) {
-			if (this._listeners[i] === listener) {
-				// listener is already in
-				return;
-			}
-		}
-		this._listeners.push(listener);
-	}
-
-	removeStatusListener(listener: IThreadServiceStatusListener): void {
-		for (let i = 0; i < this._listeners.length; i++) {
-			if (this._listeners[i] === listener) {
-				this._listeners.splice(i, 1);
-				return;
-			}
 		}
 	}
 
@@ -218,41 +196,12 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		let stopTimer = () => {
 			timerEvent.stop();
 			//			console.log(timerEvent.timeTaken(), this._workerPool.indexOf(worker), obj.getId() + ' >>> ' + methodName + ': ', params);
-			this._pingListenersIfNecessary();
 		};
 
 
 		let r = decoratePromise(worker.request('threadService', [id, methodName, params]), stopTimer, stopTimer);
 
-		this._pingListenersIfNecessary();
-
 		return r;
-	}
-
-	private _pingListenersIfNecessary(): void {
-		if (this._listeners.length > 0) {
-			let status = this._buildStatus();
-			let listeners = this._listeners.slice(0);
-			try {
-				for (let i = 0; i < listeners.length; i++) {
-					listeners[i].onThreadServiceStatus(status);
-				}
-			} catch (e) {
-				errors.onUnexpectedError(e);
-			}
-		}
-	}
-
-	private _buildStatus(): IThreadServiceStatus {
-		let queueSizes = this._workerPool.map((worker) => {
-			return {
-				queueSize: worker.getQueueSize()
-			};
-		});
-
-		return {
-			workers: queueSizes
-		};
 	}
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {

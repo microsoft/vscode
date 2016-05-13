@@ -22,6 +22,7 @@ import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWi
 import {IQuickFix2} from '../common/quickFix';
 import {QuickFixModel} from './quickFixModel';
 import {alert} from 'vs/base/browser/ui/aria/aria';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 var $ = dom.emmet;
 
@@ -253,7 +254,7 @@ export class QuickFixSelectionWidget implements IContentWidget {
 		}, {
 			twistiePixels: 0,
 			alwaysFocused: true,
-			verticalScrollMode: 'visible',
+			verticalScrollMode: ScrollbarVisibility.Visible,
 			useShadows: false,
 			ariaLabel: nls.localize('treeAriaLabel', "Quick Fix")
 		});

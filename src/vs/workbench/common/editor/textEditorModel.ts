@@ -15,7 +15,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {RawText} from 'vs/editor/common/model/textModel';
 
 /**
- * The base text editor model leverages the monaco code editor model. This class is only intended to be subclassed and not instantiated.
+ * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseTextEditorModel extends EditorModel implements ITextEditorModel {
 	private textEditorModelHandle: URI;

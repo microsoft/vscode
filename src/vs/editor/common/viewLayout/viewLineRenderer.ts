@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ViewLineToken} from 'vs/editor/common/editorCommon';
+import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 
 export class RenderLineInput {
-	public _renderLineInputTrait: void;
+	_renderLineInputBrand: void;
 
 	lineContent: string;
 	tabSize: number;
@@ -34,7 +34,7 @@ export class RenderLineInput {
 }
 
 export class RenderLineOutput {
-	_renderLineOutputTrait: void;
+	_renderLineOutputBrand: void;
 	charOffsetInPart: number[];
 	lastRenderedPartIndex: number;
 	output: string;

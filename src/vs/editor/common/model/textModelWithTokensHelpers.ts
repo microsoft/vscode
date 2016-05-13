@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ILineTokens, IPosition, IWordAtPosition, IWordRange} from 'vs/editor/common/editorCommon';
+import {IPosition, IWordAtPosition} from 'vs/editor/common/editorCommon';
 import {IMode, IModeTransition} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
@@ -15,15 +15,9 @@ export interface ITextSource {
 
 	getLineContent(lineNumber:number): string;
 
-	getLineCount(): number;
-
 	getMode(): IMode;
 
-	getModeAtPosition(lineNumber:number, column:number): IMode;
-
 	_getLineModeTransitions(lineNumber:number): ModeTransition[];
-
-	getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean): ILineTokens;
 }
 
 export interface INonWordTokenMap {
@@ -61,90 +55,6 @@ export class WordHelper {
 
 	public static massageWordDefinitionOf(mode:IMode): RegExp {
 		return WordHelper.ensureValidWordDefinition(WordHelper._safeGetWordDefinition(mode));
-	}
-
-	public static getWords(textSource:ITextSource, lineNumber:number): IWordRange[] {
-		if (!textSource._lineIsTokenized(lineNumber)) {
-			return WordHelper._getWordsInText(textSource.getLineContent(lineNumber), WordHelper.massageWordDefinitionOf(textSource.getMode()));
-		}
-
-		var r: IWordRange[] = [],
-			txt = textSource.getLineContent(lineNumber);
-
-		if (txt.length > 0) {
-
-			var modeTransitions = textSource._getLineModeTransitions(lineNumber),
-				i:number,
-				len:number,
-				k:number,
-				lenK:number,
-				currentModeStartIndex: number,
-				currentModeEndIndex: number,
-				currentWordDefinition:RegExp,
-				currentModeText: string,
-				words: RegExpMatchArray,
-				startWord: number,
-				endWord: number,
-				word: string;
-
-			// Go through all the modes
-			for (i = 0, currentModeStartIndex = 0, len = modeTransitions.length; i < len; i++) {
-				currentWordDefinition = WordHelper.massageWordDefinitionOf(modeTransitions[i].mode);
-				currentModeStartIndex = modeTransitions[i].startIndex;
-				currentModeEndIndex = (i + 1 < len ? modeTransitions[i + 1].startIndex : txt.length);
-				currentModeText = txt.substring(currentModeStartIndex, currentModeEndIndex);
-				words = currentModeText.match(currentWordDefinition);
-
-				if (!words) {
-					continue;
-				}
-
-				endWord = 0;
-				for (k = 0, lenK = words.length; k < lenK; k++) {
-					word = words[k];
-					if (word.length > 0) {
-						startWord = currentModeText.indexOf(word, endWord);
-						endWord = startWord + word.length;
-
-						r.push({
-							start: currentModeStartIndex + startWord,
-							end: currentModeStartIndex + endWord
-						});
-					}
-				}
-			}
-		}
-
-		return r;
-	}
-
-	static _getWordsInText(text:string, wordDefinition:RegExp): IWordRange[] {
-		var words = text.match(wordDefinition) || [],
-			k:number,
-			startWord:number,
-			endWord:number,
-			startColumn:number,
-			endColumn:number,
-			word:string,
-			r: IWordRange[] = [];
-
-		for (k = 0; k < words.length; k++) {
-			word = words[k].trim();
-			if (word.length > 0) {
-				startWord = text.indexOf(word, endWord);
-				endWord = startWord + word.length;
-
-				startColumn = startWord;
-				endColumn = endWord;
-
-				r.push({
-					start: startColumn,
-					end: endColumn
-				});
-			}
-		}
-
-		return r;
 	}
 
 	private static _getWordAtColumn(txt:string, column:number, modeIndex: number, modeTransitions:IModeTransition[]): IWordAtPosition {

@@ -10,80 +10,76 @@ import * as nls from 'vs/nls';
 import {Action} from 'vs/base/common/actions';
 import * as strings from 'vs/base/common/strings';
 import {$} from 'vs/base/browser/builder';
+import Event, {Emitter} from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {IOptions, ZoneWidget} from './zoneWidget';
+import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
 export interface IPeekViewService {
 	serviceId: ServiceIdentifier<any>;
-	isActive:boolean;
-	contextKey:string;
-	getActiveWidget(): PeekViewWidget;
+	isActive: boolean;
+	contextKey: string;
 }
 
-export namespace Events {
-	export var Closed = 'closed';
-}
-
-var CONTEXT_OUTER_EDITOR = 'outerEditorId';
-
-export function getOuterEditor(accessor:ServicesAccessor, args: any): ICommonCodeEditor {
-	var outerEditorId = args.context[CONTEXT_OUTER_EDITOR];
-	if (!outerEditorId) {
-		return null;
+export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCodeEditor {
+	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+	if (editor instanceof EmbeddedCodeEditorWidget) {
+		return editor.getParentEditor();
 	}
-	return accessor.get(ICodeEditorService).getCodeEditor(outerEditorId);
+	return editor;
 }
 
 export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
+
 	public serviceId = IPeekViewService;
-	public contextKey:string;
+	public contextKey: string;
 
-	private _isActive:boolean;
+	private _onDidClose = new Emitter<PeekViewWidget>();
+	private _isActive = false;
 
-	_headElement:HTMLDivElement;
-	_primaryHeading:HTMLElement;
-	_secondaryHeading:HTMLElement;
-	_metaHeading:HTMLElement;
-	_actionbarWidget:ActionBar;
-	_bodyElement:HTMLDivElement;
+	protected _headElement: HTMLDivElement;
+	protected _primaryHeading: HTMLElement;
+	protected _secondaryHeading: HTMLElement;
+	protected _metaHeading: HTMLElement;
+	protected _actionbarWidget: ActionBar;
+	protected _bodyElement: HTMLDivElement;
 
-	constructor(editor: ICodeEditor, keybindingService:IKeybindingService, contextKey:string, options: IOptions = {}) {
+	constructor(editor: ICodeEditor, contextKey: string, options: IOptions = {}) {
 		super(editor, options);
 		this.contextKey = contextKey;
-		keybindingService.createKey(CONTEXT_OUTER_EDITOR, editor.getId());
 	}
 
-	public dispose(): void{
+	public dispose(): void {
 		this._isActive = false;
 		super.dispose();
+		this._onDidClose.fire(this);
 	}
 
-	public get isActive():boolean {
+	public get onDidClose(): Event<PeekViewWidget> {
+		return this._onDidClose.event;
+	}
+
+	public get isActive(): boolean {
 		return this._isActive;
 	}
 
-	public getActiveWidget():PeekViewWidget {
-		return this;
-	}
-
-	public show(where:any, heightInLines:number):void {
+	public show(where: any, heightInLines: number): void {
 		this._isActive = true;
 		super.show(where, heightInLines);
 	}
 
-	public fillContainer(container:HTMLElement):void {
+	protected _fillContainer(container: HTMLElement): void {
 		$(container).addClass('peekview-widget');
 
-		this._headElement = <HTMLDivElement> $('.head').getHTMLElement();
-		this._bodyElement = <HTMLDivElement> $('.body').getHTMLElement();
+		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
+		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement();
 
 		this._fillHead(this._headElement);
 		this._fillBody(this._bodyElement);
@@ -92,9 +88,9 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 		container.appendChild(this._bodyElement);
 	}
 
-	_fillHead(container:HTMLElement):void {
+	protected _fillHead(container: HTMLElement): void {
 		var titleElement = $('.peekview-title').
-			on(dom.EventType.CLICK, (e) => this._onTitleClick(e)).
+			on(dom.EventType.CLICK, e => this._onTitleClick(<MouseEvent>e)).
 			appendTo(this._headElement).
 			getHTMLElement();
 
@@ -104,23 +100,22 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
 		this._actionbarWidget = new ActionBar(
 			$('.peekview-actions').
-			appendTo(this._headElement)
+				appendTo(this._headElement)
 		);
 
 		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
 			this.dispose();
-			this.emit(Events.Closed, this);
 			return null;
 		}), { label: false, icon: true });
 	}
 
-	_onTitleClick(event:Event):void {
+	protected _onTitleClick(event: MouseEvent): void {
 		// implement me
 	}
 
-	public setTitle(primaryHeading:string, secondaryHeading?:string):void {
+	public setTitle(primaryHeading: string, secondaryHeading?: string): void {
 		$(this._primaryHeading).safeInnerHtml(primaryHeading);
-		if(secondaryHeading) {
+		if (secondaryHeading) {
 			$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 		} else {
 			dom.clearNode(this._secondaryHeading);
@@ -135,32 +130,32 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 		}
 	}
 
-	_fillBody(container:HTMLElement):void {
+	protected _fillBody(container: HTMLElement): void {
 		// implement me
 	}
 
-	public doLayout(heightInPixel:number):void {
+	public _doLayout(heightInPixel: number, widthInPixel: number): void {
 
 		if (heightInPixel < 0) {
 			// Looks like the view zone got folded away!
 			this.dispose();
-			this.emit(Events.Closed, this);
+			this._onDidClose.fire(this);
 			return;
 		}
 
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2),
 			bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
 
-		this._doLayoutHead(headHeight);
-		this._doLayoutBody(bodyHeight);
+		this._doLayoutHead(headHeight, widthInPixel);
+		this._doLayoutBody(bodyHeight, widthInPixel);
 	}
 
-	_doLayoutHead(heightInPixel:number):void {
+	protected _doLayoutHead(heightInPixel: number, widthInPixel: number): void {
 		this._headElement.style.height = strings.format('{0}px', heightInPixel);
 		this._headElement.style.lineHeight = this._headElement.style.height;
 	}
 
-	_doLayoutBody(heightInPixel:number):void {
+	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		this._bodyElement.style.height = strings.format('{0}px', heightInPixel);
 	}
 }

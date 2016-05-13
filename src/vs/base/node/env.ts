@@ -37,8 +37,9 @@ export function getUnixUserEnvironment(): TPromise<IEnv> {
 
 /**
  * Parse output from `env`, attempting to retain any multiple-line variables.
+ * Exported for use in tests.
  */
-export function parseEnvOutput(output): IEnv {
+export function parseEnvOutput(output: string): IEnv {
 	let result: IEnv = Object.create(null);
 	let vars = output.split('\n');
 

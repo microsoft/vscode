@@ -14,26 +14,20 @@ import {BracketMode} from 'vs/editor/test/common/testModes';
 
 // --------- utils
 
-function isNotABracket(model, lineNumber, column) {
+function isNotABracket(model:Model, lineNumber:number, column:number) {
 	var match = model.matchBracket(new Position(lineNumber, column));
-	assert.equal(match.isAccurate, true, 'is not matching brackets at ' + lineNumber + ', ' + column);
-	assert.equal(match.brackets, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
+	assert.equal(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
 }
 
-function isBracket(model, lineNumber1, column11, column12, lineNumber2, column21, column22) {
+function isBracket(model:Model, lineNumber1:number, column11:number, column12:number, lineNumber2:number, column21:number, column22:number) {
 	var match = model.matchBracket(new Position(lineNumber1, column11));
-	assert.deepEqual(match, {
-		brackets: [
-			new Range(lineNumber1, column11, lineNumber1, column12),
-			new Range(lineNumber2, column21, lineNumber2, column22)
-		],
-		isAccurate: true
-	}, 'is matching brackets at ' + lineNumber1 + ', ' + column11);
+	assert.deepEqual(match, [
+		new Range(lineNumber1, column11, lineNumber1, column12),
+		new Range(lineNumber2, column21, lineNumber2, column22)
+	], 'is matching brackets at ' + lineNumber1 + ', ' + column11);
 }
 
-
-
-function rangeEqual(range, startLineNumber, startColumn, endLineNumber, endColumn) {
+function rangeEqual(range:Range, startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number) {
 	assert.deepEqual(range, new Range(startLineNumber, startColumn, endLineNumber, endColumn));
 }
 
@@ -504,23 +498,6 @@ suite('Editor Model - Words', () => {
 
 	teardown(() => {
 		thisModel.destroy();
-	});
-
-	test('Get all words', () => {
-		var words = [
-			{ start: 0,		end: 4 },
-			{ start: 5,		end: 9 },
-			{ start: 10,	end: 13 },
-			{ start: 14,	end: 18 },
-			{ start: 20,	end: 25 },
-			{ start: 25,	end: 26 }
-		];
-
-		var modelWords = thisModel.getWords(1);
-
-		for (var i = 0; i < modelWords.length; i++) {
-			assert.deepEqual(modelWords[i], words[i]);
-		}
 	});
 
 	test('Get word at position', () => {

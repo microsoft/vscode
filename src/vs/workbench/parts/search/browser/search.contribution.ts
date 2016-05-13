@@ -33,7 +33,7 @@ export const VIEWLET_ID = 'workbench.view.search';
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	context: KbExpr.has('searchViewletVisible'),
+	when: KbExpr.has('searchViewletVisible'),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
 		let viewletService = accessor.get(IViewletService);

@@ -8,15 +8,16 @@
 import 'vs/css!./decorations';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 
-	private _context:IViewContext;
+	private _context:ViewContext;
 	private _lineHeight: number;
 	private _renderResult: string[];
 
-	constructor(context:IViewContext) {
+	constructor(context:ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -63,7 +64,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {

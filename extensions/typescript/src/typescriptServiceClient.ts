@@ -383,7 +383,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		}
 		if (this.trace !== Trace.Off) {
-			this.output.append(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
+			this.output.append(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.\n`);
 		}
 		return false;
 	}

@@ -7,76 +7,11 @@
 
 import * as assert from 'assert';
 import {clone} from 'vs/base/common/objects';
-import {StorageEventType, StorageScope} from 'vs/platform/storage/common/storage';
+import {StorageScope} from 'vs/platform/storage/common/storage';
 import {TestContextService, TestWorkspace} from 'vs/workbench/test/browser/servicesTestUtils';
 import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
 
 suite('Workbench Storage', () => {
-	test('Store Data', () => {
-		let context = new TestContextService();
-		let s = new Storage(context, new InMemoryLocalStorage());
-
-		let counter = 0;
-		let unbind = s.addListener(StorageEventType.STORAGE, function (e) {
-			assert.strictEqual(e.key, 'Monaco.IDE.Core.Storage.Test.store');
-			assert.strictEqual(e.oldValue, null);
-			assert.strictEqual(e.newValue, 'foobar');
-
-			counter++;
-			assert(counter <= 1);
-		});
-
-		s.store('Monaco.IDE.Core.Storage.Test.store', 'foobar');
-		s.store('Monaco.IDE.Core.Storage.Test.store', 'foobar');
-		unbind();
-
-		counter = 0;
-		unbind = s.addListener(StorageEventType.STORAGE, function (e) {
-			assert.strictEqual(e.key, 'Monaco.IDE.Core.Storage.Test.store');
-			assert.strictEqual(e.oldValue, 'foobar');
-			assert.strictEqual(e.newValue, 'barfoo');
-
-			counter++;
-			assert(counter <= 1);
-		});
-
-		s.store('Monaco.IDE.Core.Storage.Test.store', 'barfoo');
-		s.store('Monaco.IDE.Core.Storage.Test.store', 'barfoo');
-		unbind();
-
-		s.dispose();
-	});
-
-	test('Swap Data', () => {
-		let context = new TestContextService();
-		let s = new Storage(context, new InMemoryLocalStorage());
-
-		let counter = 0;
-		let unbind = s.addListener(StorageEventType.STORAGE, function (e) {
-			assert.strictEqual(e.key, 'Monaco.IDE.Core.Storage.Test.swap');
-			assert.strictEqual(e.oldValue, null);
-			assert.strictEqual(e.newValue, 'foobar');
-
-			counter++;
-			assert(counter <= 1);
-		});
-
-		s.swap('Monaco.IDE.Core.Storage.Test.swap', 'foobar', 'barfoo', StorageScope.GLOBAL, 'foobar');
-		unbind();
-
-		counter = 0;
-		unbind = s.addListener(StorageEventType.STORAGE, function (e) {
-			assert.strictEqual(e.key, 'Monaco.IDE.Core.Storage.Test.swap');
-			assert.strictEqual(e.oldValue, 'foobar');
-			assert.strictEqual(e.newValue, 'barfoo');
-
-			counter++;
-			assert(counter <= 1);
-		});
-
-		s.swap('Monaco.IDE.Core.Storage.Test.swap', 'foobar', 'barfoo', StorageScope.GLOBAL, 'foobar');
-		unbind();
-	});
 
 	test('Swap Data with undefined default value', () => {
 		let context = new TestContextService();
@@ -93,32 +28,11 @@ suite('Workbench Storage', () => {
 	test('Remove Data', () => {
 		let context = new TestContextService();
 		let s = new Storage(context, new InMemoryLocalStorage());
-
-		let counter = 0;
-		let unbind = s.addListener(StorageEventType.STORAGE, function (e) {
-			assert.strictEqual(e.key, 'Monaco.IDE.Core.Storage.Test.remove');
-			assert.strictEqual(e.oldValue, null);
-			assert.strictEqual(e.newValue, 'foobar');
-
-			counter++;
-			assert(counter <= 1);
-		});
-
 		s.store('Monaco.IDE.Core.Storage.Test.remove', 'foobar');
-		unbind();
-
-		counter = 0;
-		unbind = s.addListener(StorageEventType.STORAGE, function (e) {
-			assert.strictEqual(e.key, 'Monaco.IDE.Core.Storage.Test.remove');
-			assert.strictEqual(e.oldValue, 'foobar');
-			assert.strictEqual(e.newValue, null);
-
-			counter++;
-			assert(counter <= 1);
-		});
+		assert.strictEqual('foobar', s.get('Monaco.IDE.Core.Storage.Test.remove'));
 
 		s.remove('Monaco.IDE.Core.Storage.Test.remove');
-		unbind();
+		assert.ok(!s.get('Monaco.IDE.Core.Storage.Test.remove'));
 	});
 
 	test('Get Data, Integer, Boolean', () => {

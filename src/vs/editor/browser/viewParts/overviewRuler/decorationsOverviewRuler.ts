@@ -6,9 +6,11 @@
 
 import * as themes from 'vs/platform/theme/common/themes';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {OverviewRulerZone, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {OverviewRulerZone} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -28,26 +30,27 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _zonesFromDecorations: OverviewRulerZone[];
 	private _zonesFromCursors: OverviewRulerZone[];
 
-	constructor(context:IViewContext, scrollHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(context:ViewContext, scrollHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
 		super(context);
 		this._overviewRuler = new OverviewRulerImpl(
 			1,
 			'decorationsOverviewRuler',
 			scrollHeight,
 			this._context.configuration.editor.lineHeight,
+			this._context.configuration.editor.viewInfo.canUseTranslate3d,
 			DecorationsOverviewRuler.DECORATION_HEIGHT,
 			DecorationsOverviewRuler.DECORATION_HEIGHT,
 			getVerticalOffsetForLine
 		);
-		this._overviewRuler.setLanesCount(this._context.configuration.editor.overviewRulerLanes, false);
-		let theme = this._context.configuration.editor.theme;
+		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
+		let theme = this._context.configuration.editor.viewInfo.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 
 		this._shouldUpdateDecorations = true;
 		this._zonesFromDecorations = [];
 
 		this._shouldUpdateCursorPosition = true;
-		this._hideCursor = this._context.configuration.editor.hideCursorInOverviewRuler;
+		this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 
 		this._zonesFromCursors = [];
 		this._cursorPositions = [];
@@ -69,7 +72,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 		var prevLanesCount = this._overviewRuler.getLanesCount();
-		var newLanesCount = this._context.configuration.editor.overviewRulerLanes;
+		var newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
 
 		var shouldRender = false;
 
@@ -78,19 +81,24 @@ export class DecorationsOverviewRuler extends ViewPart {
 			shouldRender = true;
 		}
 
+		if (e.viewInfo.canUseTranslate3d) {
+			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.viewInfo.canUseTranslate3d, false);
+			shouldRender = true;
+		}
+
 		if (prevLanesCount !== newLanesCount) {
 			this._overviewRuler.setLanesCount(newLanesCount, false);
 			shouldRender = true;
 		}
 
-		if (e.hideCursorInOverviewRuler) {
-			this._hideCursor = this._context.configuration.editor.hideCursorInOverviewRuler;
+		if (e.viewInfo.hideCursorInOverviewRuler) {
+			this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 			this._shouldUpdateCursorPosition = true;
 			shouldRender = true;
 		}
 
-		if (e.theme) {
-			let theme = this._context.configuration.editor.theme;
+		if (e.viewInfo.theme) {
+			let theme = this._context.configuration.editor.viewInfo.theme;
 			this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 			shouldRender = true;
 		}
@@ -98,7 +106,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return shouldRender;
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._overviewRuler.setLayout(layoutInfo.overviewRuler, false);
 		return true;
 	}

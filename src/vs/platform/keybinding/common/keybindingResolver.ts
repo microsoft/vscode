@@ -26,7 +26,7 @@ interface IChordsMap {
 }
 
 interface ICommandEntry {
-	context: KbExpr;
+	when: KbExpr;
 	keybinding: number;
 	commandId: string;
 }
@@ -68,12 +68,12 @@ export class KeybindingResolver {
 			if (k.keybinding === 0) {
 				continue;
 			}
-			if (k.context) {
-				k.context = k.context.normalize();
+			if (k.when) {
+				k.when = k.when.normalize();
 			}
 
 			let entry: ICommandEntry = {
-				context: k.context,
+				when: k.when,
 				keybinding: k.keybinding,
 				commandId: k.command
 			};
@@ -119,7 +119,7 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			if (KeybindingResolver.contextIsEntirelyIncluded(true, conflict.context, item.context)) {
+			if (KeybindingResolver.whenIsEntirelyIncluded(true, conflict.when, item.when)) {
 				// `item` completely overwrites `conflict`
 				if (this._shouldWarnOnConflict && isDefault) {
 					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress) + ' due to ' + item.command);
@@ -138,7 +138,7 @@ export class KeybindingResolver {
 	 * Returns true if `b` is a more relaxed `a`.
 	 * Return true if (`a` === true implies `b` === true).
 	 */
-	public static contextIsEntirelyIncluded(inNormalizedForm: boolean, a: KbExpr, b: KbExpr): boolean {
+	public static whenIsEntirelyIncluded(inNormalizedForm: boolean, a: KbExpr, b: KbExpr): boolean {
 		if (!inNormalizedForm) {
 			a = a ? a.normalize() : null;
 			b = b ? b.normalize() : null;
@@ -266,7 +266,7 @@ export class KeybindingResolver {
 		for (let i = matches.length - 1; i >= 0; i--) {
 			let k = matches[i];
 
-			if (!KeybindingResolver.contextMatchesRules(context, k.context)) {
+			if (!KeybindingResolver.contextMatchesRules(context, k.when)) {
 				continue;
 			}
 
@@ -330,12 +330,12 @@ export class IOSupport {
 		let quotedSerializedKeybinding = JSON.stringify(IOSupport.writeKeybinding(item.keybinding));
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
-		let serializedContext = item.context ? item.context.serialize() : '';
+		let serializedWhen = item.when ? item.when.serialize() : '';
 		let quotedSerializeCommand = JSON.stringify(item.command);
-		if (serializedContext.length > 0) {
+		if (serializedWhen.length > 0) {
 			out.write(`${quotedSerializeCommand},`);
 			out.writeLine();
-			out.write(`                                     "when": "${serializedContext}" `);
+			out.write(`                                     "when": "${serializedWhen}" `);
 		} else {
 			out.write(`${quotedSerializeCommand} `);
 		}
@@ -345,11 +345,11 @@ export class IOSupport {
 
 	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number): IKeybindingItem {
 		let key = IOSupport.readKeybinding(input.key);
-		let context = IOSupport.readKeybindingContexts(input.when);
+		let when = IOSupport.readKeybindingWhen(input.when);
 		return {
 			keybinding: key,
 			command: input.command,
-			context: context,
+			when: when,
 			weight1: 1000,
 			weight2: index
 		};
@@ -363,7 +363,7 @@ export class IOSupport {
 		return Keybinding.fromUserSettingsLabel(input, Platform);
 	}
 
-	public static readKeybindingContexts(input: string): KbExpr {
+	public static readKeybindingWhen(input: string): KbExpr {
 		return KbExpr.deserialize(input);
 	}
 }

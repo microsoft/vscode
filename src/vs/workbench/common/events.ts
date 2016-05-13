@@ -12,7 +12,7 @@ import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {Position} from 'vs/platform/editor/common/editor';
 
 /**
- * All workbench events are listed here. For DOM events, see Monaco.Base.DomUtils.EventType.
+ * All workbench events are listed here.
  */
 export class EventType {
 

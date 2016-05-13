@@ -22,14 +22,7 @@ export class ContextMenuService implements IContextMenuService {
 
 	public serviceId = IContextMenuService;
 
-	private telemetryService: ITelemetryService;
-	private messageService: IMessageService;
-	private keybindingService: IKeybindingService;
-
-	constructor(messageService: IMessageService, telemetryService: ITelemetryService, keybindingService: IKeybindingService) {
-		this.messageService = messageService;
-		this.telemetryService = telemetryService;
-		this.keybindingService = keybindingService;
+	constructor(private messageService: IMessageService, private telemetryService: ITelemetryService, private keybindingService: IKeybindingService) {
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
@@ -77,21 +70,20 @@ export class ContextMenuService implements IContextMenuService {
 					x = pos.x;
 					y = pos.y;
 				}
-				
+
 				let zoom = webFrame.getZoomFactor();
 				x *= zoom;
 				y *= zoom;
 
 				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+				if (delegate.onHide) {
+					delegate.onHide(undefined);
+				}
 			});
 		});
 	}
 
 	private runAction(actionToRun: IAction, delegate: IContextMenuDelegate): void {
-		if (delegate.onHide) {
-			delegate.onHide(false);
-		}
-
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext() : null;

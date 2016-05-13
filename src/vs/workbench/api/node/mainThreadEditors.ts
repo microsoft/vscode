@@ -272,7 +272,7 @@ export class MainThreadTextEditor {
 		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();
-			cursorStyle = codeEditorOpts.cursorStyle;
+			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
 		}
 
 		let indent = model.getOptions();

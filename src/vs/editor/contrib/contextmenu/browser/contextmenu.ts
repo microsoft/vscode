@@ -61,7 +61,7 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	private _onContextMenu(e:IEditorMouseEvent): void {
-		if (!this._editor.getConfiguration().contextmenu) {
+		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
 			this._editor.focus();
 			// Ensure the cursor is at the position of the mouse click
 			if (e.target.position && !this._editor.getSelection().containsPosition(e.target.position)) {
@@ -99,7 +99,7 @@ class ContextMenuController implements IEditorContribution {
 	}
 
 	public showContextMenu(forcedPosition?:IPosition): void {
-		if (!this._editor.getConfiguration().contextmenu) {
+		if (!this._editor.getConfiguration().contribInfo.contextmenu) {
 			return; // Context menu is turned off through configuration
 		}
 
@@ -173,7 +173,7 @@ class ContextMenuController implements IEditorContribution {
 		this._editor.beginForcedWidgetFocus();
 
 		// Disable hover
-		var oldHoverSetting = this._editor.getConfiguration().hover;
+		var oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
 		this._editor.updateOptions({
 			hover: false
 		});

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { AIAdapter } from 'vs/base/node/aiAdapter';
+import {AIAdapter} from 'vs/base/parts/ai/node/aiAdapter';
 
 interface IAppInsightsEvent {
 	eventName: string;
@@ -21,9 +21,9 @@ class AppInsightsMock {
 
 	public trackEvent(eventName: string, properties?: { string?: string; }, measurements?: { string?: number; }): void {
 		this.events.push({
-			eventName: eventName,
-			properties: properties,
-			measurements: measurements
+			eventName,
+			properties,
+			measurements
 		});
 	}
 	public trackPageView(): void {
@@ -32,6 +32,10 @@ class AppInsightsMock {
 
 	public trackException(exception: any): void {
 		this.exceptions.push(exception);
+	}
+
+	public sendPendingData(callback): void {
+		// called on dispose
 	}
 }
 
@@ -42,7 +46,7 @@ suite('AIAdapter', () => {
 
 	setup(() => {
 		appInsightsMock = new AppInsightsMock();
-		adapter = new AIAdapter(null, prefix, appInsightsMock);
+		adapter = new AIAdapter(prefix, undefined, () => appInsightsMock);
 	});
 
 	teardown(() => {
@@ -56,11 +60,16 @@ suite('AIAdapter', () => {
 		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
 	});
 
-	test('Track UnhandledError as exception and events', () => {
-		var sampleError = new Error('test');
+	test('addional data', () => {
+		adapter = new AIAdapter(prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
+		adapter.log('testEvent');
 
-		adapter.logException(sampleError);
-		assert.equal(appInsightsMock.exceptions.length, 1);
+		assert.equal(appInsightsMock.events.length, 1);
+		let [first] = appInsightsMock.events;
+		assert.equal(first.eventName, `${prefix}/testEvent`);
+		assert.equal(first.properties['first'], '1st');
+		assert.equal(first.measurements['second'], '2');
+		assert.equal(first.measurements['third'], 1);
 	});
 
 	test('property limits', () => {

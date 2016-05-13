@@ -376,9 +376,8 @@ export class GitService extends ee.EventEmitter
 	implements
 		git.IGitService {
 
-	static ID = 'Monaco.IDE.UI.Services.GitService';
-
 	public serviceId = git.IGitService;
+	
 	private eventService: IEventService;
 	private contextService: IWorkspaceContextService;
 	private messageService: IMessageService;
@@ -471,8 +470,8 @@ export class GitService extends ee.EventEmitter
 
 	private registerListeners():void {
 		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES,(e) => this.onFileChanges(e)));
-		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_SAVED, (e) => this.onLocalFileChange(e)));
-		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_REVERTED, (e) => this.onLocalFileChange(e)));
+		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_SAVED, (e) => this.onTextFileChange(e)));
+		this.toDispose.push(this.eventService.addListener2(filesCommon.EventType.FILE_REVERTED, (e) => this.onTextFileChange(e)));
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
@@ -491,8 +490,8 @@ export class GitService extends ee.EventEmitter
 		this.refreshDelayer.trigger(() => this.status()).done(null, onError);
 	}
 
-	private onLocalFileChange(e:filesCommon.LocalFileChangeEvent): void {
-		var shouldTriggerStatus = e.gotUpdated() && paths.basename(e.getAfter().resource.fsPath) === '.gitignore';
+	private onTextFileChange(e:filesCommon.TextFileChangeEvent): void {
+		var shouldTriggerStatus = e.gotUpdated() && paths.basename(e.resource.fsPath) === '.gitignore';
 
 		if (!shouldTriggerStatus) {
 			return;

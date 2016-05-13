@@ -20,7 +20,7 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
-const DEFAULT_MIN_PANEL_PART_HEIGHT = 170;
+const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
 const DEFAULT_MIN_EDITOR_PART_HEIGHT = 170;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
@@ -48,7 +48,7 @@ interface ComputedStyles {
 }
 
 /**
- * The workbench layout is responsible to lay out all parts that make the Monaco Workbench.
+ * The workbench layout is responsible to lay out all parts that make the Workbench.
  */
 export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
@@ -113,7 +113,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			baseSize: 5
 		});
 		this.sashY = new Sash(this.workbenchContainer.getHTMLElement(), this, {
-			baseSize: 5,
+			baseSize: 4,
 			orientation: Orientation.HORIZONTAL
 		});
 
@@ -495,7 +495,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getHorizontalSashTop(sash: Sash): number {
-		return this.partService.isPanelHidden() ? this.sidebarHeight : this.sidebarHeight - this.panelHeight;
+		// Horizontal sash should be a bit lower than the editor area, thus add 2px #5524
+		return 2 + (this.partService.isPanelHidden() ? this.sidebarHeight : this.sidebarHeight - this.panelHeight);
 	}
 
 	public getHorizontalSashLeft(sash: Sash): number {

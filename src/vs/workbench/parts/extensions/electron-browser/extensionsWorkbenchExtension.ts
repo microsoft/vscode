@@ -8,7 +8,7 @@ import errors = require('vs/base/common/errors');
 import platform = require('vs/platform/platform');
 import { Promise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionsService, IGalleryService, IExtensionTipsService, ExtensionsLabel } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
@@ -28,11 +28,11 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsService private extensionsService: IExtensionsService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionTipsService extenstionTips: IExtensionTipsService, // this is to eagerly start the service
-		@IGalleryService galleryService: IGalleryService
+		@IExtensionGalleryService galleryService: IExtensionGalleryService
 	) {
 		this.registerListeners();
 
@@ -102,7 +102,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 	}
 
 	private install(extensions: string[]): Promise {
-		return Promise.join(extensions.map(extPath =>	this.extensionsService.install(extPath)))
+		return Promise.join(extensions.map(extPath =>	this.extensionManagementService.install(extPath)))
 			.then(extensions => {
 				this.messageService.show(
 					Severity.Info,

@@ -38,6 +38,10 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		this._lifetimeDispose.push(parentEditor.addListener2(EventType.ConfigurationChanged, (e:IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
 	}
 
+	public getParentEditor(): ICodeEditor {
+		return this._parentEditor;
+	}
+
 	private _onParentConfigurationChanged(e:IConfigurationChangedEvent): void {
 		super.updateOptions(this._parentEditor.getRawConfiguration());
 		super.updateOptions(this._overwriteOptions);

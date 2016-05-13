@@ -20,12 +20,6 @@
 	cursor: pointer;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", sans-serif, "Droid Sans Fallback"; }
-.monaco-editor:lang(zh-Hans) .peekview-widget .head .peekview-title { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-editor:lang(zh-Hant) .peekview-widget .head .peekview-title { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
-.monaco-editor:lang(ja) .peekview-widget .head .peekview-title { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
-.monaco-editor:lang(ko) .peekview-widget .head .peekview-title { font-family: "Segoe UI", "SFUIText-Regular", "HelveticaNeue", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
-
 .monaco-editor .peekview-widget .head .peekview-title .filename {
 	color: #333333;
 }
@@ -55,6 +49,7 @@
 .monaco-editor .peekview-widget > .body {
 	border-top: 1px solid #007ACC;
 	border-bottom: 1px solid #007ACC;
+	position: relative;
 }
 
 /* Dark Theme */

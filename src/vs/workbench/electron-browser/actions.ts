@@ -19,6 +19,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import * as browser from 'vs/base/browser/browser';
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -171,12 +172,36 @@ export class ZoomInAction extends Action {
 
 	public run(): TPromise<boolean> {
 		webFrame.setZoomLevel(webFrame.getZoomLevel() + 1);
+		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
 
 		return TPromise.as(true);
 	}
 }
 
-export abstract class BaseZoomAction extends Action {
+export class ZoomOutAction extends Action {
+
+	public static ID = 'workbench.action.zoomOut';
+	public static LABEL = nls.localize('zoomOut', "Zoom out");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		webFrame.setZoomLevel(webFrame.getZoomLevel() - 1);
+		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+
+		return TPromise.as(true);
+	}
+}
+
+export class ZoomResetAction extends Action {
+
+	public static ID = 'workbench.action.zoomReset';
+	public static LABEL = nls.localize('zoomReset', "Reset Zoom");
 
 	constructor(
 		id: string,
@@ -187,64 +212,20 @@ export abstract class BaseZoomAction extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		return TPromise.as(false); // Subclass to implement
+		const level = this.getConfiguredZoomLevel();
+		webFrame.setZoomLevel(level);
+		browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+
+		return TPromise.as(true);
 	}
 
-	protected getConfiguredZoomLevel(): number {
+	private getConfiguredZoomLevel(): number {
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
 		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
 			return windowConfig.window.zoomLevel;
 		}
 
 		return 0; // default
-	}
-}
-
-export class ZoomOutAction extends BaseZoomAction {
-
-	public static ID = 'workbench.action.zoomOut';
-	public static LABEL = nls.localize('zoomOut', "Zoom out");
-
-	constructor(
-		id: string,
-		label: string,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(id, label, configurationService);
-	}
-
-	public run(): TPromise<boolean> {
-		const level = this.getConfiguredZoomLevel();
-
-		let newZoomLevelCandiate = webFrame.getZoomLevel() - 1;
-		if (newZoomLevelCandiate < 0 && newZoomLevelCandiate < level) {
-			newZoomLevelCandiate = Math.min(level, 0); // do not zoom below configured level or below 0
-		}
-
-		webFrame.setZoomLevel(newZoomLevelCandiate);
-
-		return TPromise.as(true);
-	}
-}
-
-export class ZoomResetAction extends BaseZoomAction {
-
-	public static ID = 'workbench.action.zoomReset';
-	public static LABEL = nls.localize('zoomReset', "Reset Zoom");
-
-	constructor(
-		id: string,
-		label: string,
-		@IConfigurationService configurationService: IConfigurationService
-	) {
-		super(id, label, configurationService);
-	}
-
-	public run(): TPromise<boolean> {
-		const level = this.getConfiguredZoomLevel();
-		webFrame.setZoomLevel(level);
-
-		return TPromise.as(true);
 	}
 }
 
@@ -469,16 +450,13 @@ export class CloseMessagesAction extends Action {
 KeybindingsRegistry.registerCommandDesc({
 	id: '_workbench.ipc',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-	handler(accessor: ServicesAccessor, args: [string, any[]]) {
-		const ipcMessage = args[0];
-		const ipcArgs = args[1];
-
+	handler(accessor: ServicesAccessor, ipcMessage: string, ipcArgs: any[]) {
 		if (ipcMessage && Array.isArray(ipcArgs)) {
 			ipc.send(ipcMessage, ...ipcArgs);
 		} else {
 			ipc.send(ipcMessage);
 		}
 	},
-	context: undefined,
+	when: undefined,
 	primary: undefined
 });

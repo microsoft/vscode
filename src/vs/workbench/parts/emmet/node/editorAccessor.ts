@@ -121,8 +121,11 @@ export class EditorAccessor implements emmet.Editor {
 		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat like tsx like jsx
 			return 'jsx';
 		}
-		if (syntax === 'sass') { // sass is really sccs... map it to scss
+		if (syntax === 'sass') { // sass is really scss... map it to scss
 			return'scss';
+		}
+		if (syntax === 'stylus') { // map stylus to css
+			return'css';
 		}
 		return syntax;
 	}

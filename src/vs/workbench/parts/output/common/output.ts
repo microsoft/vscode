@@ -13,7 +13,7 @@ import {IEditor} from 'vs/platform/editor/common/editor';
 /**
  * Mime type used by the output editor.
  */
-export const OUTPUT_MIME = 'text/x-monaco-output';
+export const OUTPUT_MIME = 'text/x-code-output';
 
 /**
  * Id used by the output editor.

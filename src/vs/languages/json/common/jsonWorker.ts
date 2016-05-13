@@ -339,7 +339,6 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 		var result:Modes.IComputeExtraInfoResult = {
 			value: '',
 			htmlContent: htmlContent,
-			className: 'typeInfo json',
 			range: range
 		};
 		return result;

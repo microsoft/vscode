@@ -80,3 +80,18 @@ export abstract class Disposable implements IDisposable {
 		return t;
 	}
 }
+
+export class Disposables extends Disposable {
+
+	public add<T extends IDisposable>(e: T): T;
+	public add(...elements: IDisposable[]): void;
+	public add<T extends IDisposable>(arg: T | T[]): T {
+		if (!Array.isArray(arg)) {
+			return this._register(arg);
+		} else {
+			for (let element of arg) {
+				return this._register(element);
+			}
+		}
+	}
+}

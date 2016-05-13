@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import remote = require('vs/base/common/remote');
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 
 export class WorkerThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
@@ -54,14 +54,6 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 
 	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return target.apply(obj, params);
-	}
-
-	addStatusListener(listener: IThreadServiceStatusListener): void {
-		// Nothing to do
-	}
-
-	removeStatusListener(listener: IThreadServiceStatusListener): void {
-		// Nothing to do
 	}
 
 	protected _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {

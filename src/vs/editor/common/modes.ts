@@ -197,11 +197,6 @@ export interface IMode {
 	declarationSupport?: IDeclarationSupport;
 
 	/**
-	 * Optional adapter to support revealing the type declaration of a symbol.
-	 */
-	typeDeclarationSupport?: ITypeDeclarationSupport;
-
-	/**
 	 * Optional adapter to support finding references to a symbol.
 	 */
 	referenceSupport?:IReferenceSupport;
@@ -225,11 +220,6 @@ export interface IMode {
 	 * Optional adapter to support showing an outline.
 	 */
 	outlineSupport?:IOutlineSupport;
-
-	/**
-	 * Optional adapter to support logical selection.
-	 */
-	logicalSelectionSupport?:ILogicalSelectionSupport;
 
 	/**
 	 * Optional adapter to support formatting.
@@ -383,7 +373,6 @@ export interface ISuggestSupport {
 
 	filter?: IFilter;
 	getTriggerCharacters(): string[];
-	shouldShowEmptySuggestionList(): boolean;
 	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean;
 }
 
@@ -482,11 +471,6 @@ export interface IDeclarationSupport {
 	findDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference|IReference[]>;
 }
 
-export interface ITypeDeclarationSupport {
-	canFindTypeDeclaration(context:ILineContext, offset:number):boolean;
-	findTypeDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference>;
-}
-
 /**
  * Interface used to compute an outline
  */
@@ -502,17 +486,6 @@ export interface IOutlineEntry {
 export interface IOutlineSupport {
 	getOutline(resource:URI):TPromise<IOutlineEntry[]>;
 	outlineGroupLabel?: { [name: string]: string; };
-}
-
-/**
- * Interface used to compute a hierachry of logical ranges.
- */
-export interface ILogicalSelectionEntry {
-	type:string;
-	range:editorCommon.IRange;
-}
-export interface ILogicalSelectionSupport {
-	getRangesToPosition(resource:URI, position:editorCommon.IPosition):TPromise<ILogicalSelectionEntry[]>;
 }
 
 /**

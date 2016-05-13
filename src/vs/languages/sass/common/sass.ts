@@ -283,7 +283,6 @@ export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
-	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
@@ -313,7 +312,6 @@ export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
-		this.logicalSelectionSupport = this;
 		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
@@ -367,11 +365,6 @@ export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 	static $suggest = OneWorkerAttr(SASSMode, SASSMode.prototype.suggest);
 	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this._worker((w) => w.suggest(resource, position));
-	}
-
-	static $getRangesToPosition = OneWorkerAttr(SASSMode, SASSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $computeInfo = OneWorkerAttr(SASSMode, SASSMode.prototype.computeInfo);

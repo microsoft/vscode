@@ -69,7 +69,6 @@
 	position: absolute;
 	bottom: -4px;
 	margin-left: 5px;
-	-moz-box-sizing: border-box;
 	box-sizing: border-box;
 	border-left: 4px solid rgba(185, 19, 26, 0.76);
 	border-top: 4px solid transparent;
@@ -117,17 +116,9 @@
 
 .monaco-shell .git-action.live-sync.icon.loading {
 	animation:			spin-forever 1.6s linear infinite;
-	-ms-animation:		spin-forever 1.6s linear infinite;
-	-webkit-animation:	spin-forever 1.6s linear infinite;
-	-moz-animation:		spin-forever 1.6s linear infinite;
-	-o-animation:		spin-forever 1.6s linear infinite;
 }
 
 @keyframes			spin-forever { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@-ms-keyframes		spin-forever { from { -ms-transform: rotate(0deg); } to { -ms-transform: rotate(360deg); } }
-@-o-keyframes		spin-forever { from { -o-transform: rotate(0deg); } to { -o-transform: rotate(360deg); } }
-@-webkit-keyframes	spin-forever { from { -webkit-transform: rotate(0deg); } to { -webkit-transform: rotate(360deg); } }
-@-moz-keyframes		spin-forever { from { -moz-transform: rotate(0deg); } to { -moz-transform: rotate(360deg); } }
 
 /* High Contrast Theming */
 .hc-black .monaco-workbench > .activitybar .monaco-action-bar .action-label.git:before {

@@ -182,7 +182,11 @@ export abstract class MarkerService implements IMarkerService {
 		entry.value.forEach(data => {
 
 			// before reading, we sanitize the data
-			MarkerService._sanitize(data);
+			// skip entry if not sanitizable
+			const ok = MarkerService._sanitize(data);
+			if (!ok) {
+				return;
+			}
 
 			bucket.push({
 				owner: key.owner,
@@ -279,12 +283,17 @@ export abstract class MarkerService implements IMarkerService {
 		}
 	}
 
-	private static _sanitize(data: IMarkerData): void {
+	private static _sanitize(data: IMarkerData): boolean {
+		if (!data.message) {
+			return false;
+		}
+
 		data.code = data.code || null;
 		data.startLineNumber = data.startLineNumber > 0 ? data.startLineNumber : 1;
 		data.startColumn = data.startColumn > 0 ? data.startColumn : 1;
 		data.endLineNumber = data.endLineNumber >= data.startLineNumber ? data.endLineNumber : data.startLineNumber;
 		data.endColumn = data.endColumn > 0 ? data.endColumn : data.startColumn;
+		return true;
 	}
 }
 

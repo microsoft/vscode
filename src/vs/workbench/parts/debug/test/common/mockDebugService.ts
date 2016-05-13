@@ -102,6 +102,26 @@ export class MockDebugService implements debug.IDebugService {
 	public openOrRevealSource(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		return TPromise.as(null);
 	}
+
+	public next(threadId: number): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public stepIn(threadId: number): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public stepOut(threadId: number): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public continue(threadId: number): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public pause(threadId: number): TPromise<any> {
+		return TPromise.as(null);
+	}
 }
 
 
@@ -128,26 +148,6 @@ class MockRawSession implements debug.IRawDebugSession {
 	}
 
 	public disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse> {
-		return TPromise.as(null);
-	}
-
-	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
-		return TPromise.as(null);
-	}
-
-	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
-		return TPromise.as(null);
-	}
-
-	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
-		return TPromise.as(null);
-	}
-
-	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
-		return TPromise.as(null);
-	}
-
-	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
 		return TPromise.as(null);
 	}
 

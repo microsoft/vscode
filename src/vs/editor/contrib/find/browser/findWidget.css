@@ -74,13 +74,6 @@
 	font-size: 13px;
 }
 
-.monaco-editor .find-widget .replace-input .input, .monaco-editor .find-widget .matchesCount { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback"; }
-.monaco-editor:lang(zh-Hans) .find-widget .replace-input .input, .monaco-editor:lang(zh-Hans) .find-widget .matchesCount { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.monaco-editor:lang(zh-Hant) .find-widget .replace-input .input, .monaco-editor:lang(zh-Hant) .find-widget .matchesCount { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Microsoft Jhenghei", "PingFang TC", "Source Han Sans TC", "Source Han Sans", "Source Han Sans TW", sans-serif; }
-.monaco-editor:lang(ja) .find-widget .replace-input .input, .monaco-editor:lang(ja) .find-widget .matchesCount { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Meiryo", "Hiragino Kaku Gothic Pro", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", "Sazanami Gothic", "IPA Gothic", sans-serif; }
-.monaco-editor:lang(ko) .find-widget .replace-input .input, .monaco-editor:lang(ko) .find-widget .matchesCount { font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", "Noto Sans", "Malgun Gothic", "Nanum Gothic", "Dotom", "Apple SD Gothic Neo", "AppleGothic", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
-
-
 .monaco-editor .find-widget.visible.noanimation {
 	-webkit-transition: none;
 	-o-transition: none;

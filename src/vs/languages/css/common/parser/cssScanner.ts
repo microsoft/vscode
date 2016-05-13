@@ -296,7 +296,7 @@ export class Scanner {
 		// at-keyword
 		if (this.stream.advanceIfChar(_ATS)) {
 			content = [ '@' ];
-			if (this.ident(content)) {
+			if (this._name(content)) {
 				let keywordText = content.join('');
 				if (keywordText === '@charset') {
 					return this.finishToken(offset, TokenType.Charset, keywordText);

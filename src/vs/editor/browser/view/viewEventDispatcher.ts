@@ -5,8 +5,7 @@
 'use strict';
 
 import {EmitterEvent, IEmitterEvent} from 'vs/base/common/eventEmitter';
-import {IViewEventBus} from 'vs/editor/common/editorCommon';
-import {IViewEventHandler} from 'vs/editor/browser/editorBrowser';
+import {IViewEventBus, IViewEventHandler} from 'vs/editor/common/view/viewContext';
 
 export class ViewEventDispatcher implements IViewEventBus {
 

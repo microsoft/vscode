@@ -10,7 +10,6 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 import {isObject} from 'vs/base/common/types';
 import {isChrome, isWebKit} from 'vs/base/browser/browser';
-import {getService} from 'vs/base/browser/browserService';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 
@@ -764,7 +763,10 @@ export function removeCSSRulesWithPrefix(ruleName: string, style = sharedStyle):
 }
 
 export function isHTMLElement(o: any): o is HTMLElement {
-	return getService().isHTMLElement(o);
+	if (typeof HTMLElement === 'object') {
+		return o instanceof HTMLElement;
+	}
+	return o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'string';
 }
 
 export const EventType = {

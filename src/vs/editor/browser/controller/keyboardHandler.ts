@@ -12,11 +12,21 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
-import {IClipboardEvent, IKeyboardEventWrapper, ITextAreaWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
+import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IKeyboardHandlerHelper, IViewContext, IViewController} from 'vs/editor/browser/editorBrowser';
+import {IViewController} from 'vs/editor/browser/editorBrowser';
+import {Configuration} from 'vs/editor/browser/config/configuration';
+import {ViewContext} from 'vs/editor/common/view/viewContext';
+import {VisibleRange} from 'vs/editor/common/view/renderingContext';
+
+export interface IKeyboardHandlerHelper {
+	viewDomNode:HTMLElement;
+	textArea:HTMLTextAreaElement;
+	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): VisibleRange;
+	flushAnyAccumulatedEvents(): void;
+}
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -104,11 +114,14 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	private _onKeyPress = this._register(new Emitter<IKeyboardEventWrapper>());
 	public onKeyPress: Event<IKeyboardEventWrapper> = this._onKeyPress.event;
 
-	private _onCompositionStart = this._register(new Emitter<void>());
-	public onCompositionStart: Event<void> = this._onCompositionStart.event;
+	private _onCompositionStart = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionStart: Event<ICompositionEvent> = this._onCompositionStart.event;
 
-	private _onCompositionEnd = this._register(new Emitter<void>());
-	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+	private _onCompositionUpdate = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionUpdate: Event<ICompositionEvent> = this._onCompositionUpdate.event;
+
+	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
+	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
 
 	private _onInput = this._register(new Emitter<void>());
 	public onInput: Event<void> = this._onInput.event;
@@ -129,8 +142,9 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 		this._register(dom.addStandardDisposableListener(this._textArea, 'keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
 		this._register(dom.addStandardDisposableListener(this._textArea, 'keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
 		this._register(dom.addStandardDisposableListener(this._textArea, 'keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
-		this._register(dom.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire()));
-		this._register(dom.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire()));
+		this._register(dom.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire(e)));
+		this._register(dom.addDisposableListener(this._textArea, 'compositionupdate', (e) => this._onCompositionUpdate.fire(e)));
+		this._register(dom.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire(e)));
 		this._register(dom.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
 		this._register(dom.addDisposableListener(this._textArea, 'cut', (e:ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
 		this._register(dom.addDisposableListener(this._textArea, 'copy', (e:ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
@@ -192,7 +206,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
-	private context:IViewContext;
+	private _context:ViewContext;
 	private viewController:IViewController;
 	private viewHelper:IKeyboardHandlerHelper;
 	private textArea:TextAreaWrapper;
@@ -203,19 +217,22 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	private contentWidth:number;
 	private scrollLeft:number;
 
-	constructor(context:IViewContext, viewController:IViewController, viewHelper:IKeyboardHandlerHelper) {
+	private visibleRange:VisibleRange;
+
+	constructor(context:ViewContext, viewController:IViewController, viewHelper:IKeyboardHandlerHelper) {
 		super();
 
-		this.context = context;
+		this._context = context;
 		this.viewController = viewController;
 		this.textArea = new TextAreaWrapper(viewHelper.textArea);
+		Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
 		this.viewHelper = viewHelper;
 
 		this.contentLeft = 0;
 		this.contentWidth = 0;
 		this.scrollLeft = 0;
 
-		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this.context.model, () => this.viewHelper.flushAnyAccumulatedEvents());
+		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this._context.model, () => this.viewHelper.flushAnyAccumulatedEvents());
 
 		this._toDispose = [];
 		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<IKeyboardEvent>e._actual)));
@@ -238,14 +255,14 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 				verticalType: editorCommon.VerticalRevealType.Simple,
 				revealHorizontal: true
 			};
-			this.context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this._context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
 
 			// Find range pixel position
-			let visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
+			this.visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
-			if (visibleRange) {
-				StyleMutator.setTop(this.textArea.actual, visibleRange.top);
-				StyleMutator.setLeft(this.textArea.actual, this.contentLeft + visibleRange.left - this.scrollLeft);
+			if (this.visibleRange) {
+				StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
+				StyleMutator.setLeft(this.textArea.actual, this.contentLeft + this.visibleRange.left - this.scrollLeft);
 			}
 
 			if (browser.isIE11orEarlier) {
@@ -253,26 +270,38 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			}
 
 			// Show the textarea
-			StyleMutator.setHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
+			StyleMutator.setHeight(this.textArea.actual, this._context.configuration.editor.lineHeight);
 			dom.addClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
+
+		this._toDispose.push(this.textAreaHandler.onCompositionUpdate((e) => {
+			// adjust width by its size
+			let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
+			let context = canvasElem.getContext('2d');
+			context.font = window.getComputedStyle(this.textArea.actual).font;
+			let metrics = context.measureText(e.data);
+			StyleMutator.setWidth(this.textArea.actual, metrics.width);
+		}));
+
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
 			this.textArea.actual.style.height = '';
 			this.textArea.actual.style.width = '';
 			StyleMutator.setLeft(this.textArea.actual, 0);
 			StyleMutator.setTop(this.textArea.actual, 0);
 			dom.removeClass(this.viewHelper.viewDomNode, 'ime-input');
+
+			this.visibleRange = null;
 		}));
 		this._toDispose.push(GlobalScreenReaderNVDA.onChange((value) => {
 			this.textAreaHandler.setStrategy(this._getStrategy());
 		}));
 
 
-		this.context.addEventHandler(this);
+		this._context.addEventHandler(this);
 	}
 
 	public dispose(): void {
-		this.context.removeEventHandler(this);
+		this._context.removeEventHandler(this);
 		this.textAreaHandler.dispose();
 		this.textArea.dispose();
 		this._toDispose = dispose(this._toDispose);
@@ -282,7 +311,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		if (GlobalScreenReaderNVDA.getValue()) {
 			return TextAreaStrategy.NVDA;
 		}
-		if (this.context.configuration.editor.experimentalScreenReader) {
+		if (this._context.configuration.editor.viewInfo.experimentalScreenReader) {
 			return TextAreaStrategy.NVDA;
 		}
 		return TextAreaStrategy.IENarrator;
@@ -294,9 +323,10 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
 	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		StyleMutator.setFontSize(this.textArea.actual, this.context.configuration.editor.fontSize);
-		StyleMutator.setLineHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
-		if (e.experimentalScreenReader) {
+		if (e.fontInfo) {
+			Configuration.applyFontInfoSlow(this.textArea.actual, this._context.configuration.editor.fontInfo);
+		}
+		if (e.viewInfo.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
 		}
 		return false;
@@ -304,6 +334,10 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
+		if (this.visibleRange) {
+			StyleMutator.setTop(this.textArea.actual, this.visibleRange.top);
+			StyleMutator.setLeft(this.textArea.actual, this.contentLeft + this.visibleRange.left - this.scrollLeft);
+		}
 		return false;
 	}
 
@@ -323,7 +357,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this.contentLeft = layoutInfo.contentLeft;
 		this.contentWidth = layoutInfo.contentWidth;
 		return false;

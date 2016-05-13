@@ -7,6 +7,8 @@
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {VerticalObjects} from 'vs/editor/common/viewLayout/verticalObjects';
 import {Range} from 'vs/editor/common/core/range';
+import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
@@ -18,16 +20,16 @@ import {Range} from 'vs/editor/common/core/range';
 export class LinesLayout {
 
 	private configuration: editorCommon.IConfiguration;
-	private model: editorCommon.IViewModel;
+	private model: IViewModel;
 	private verticalObjects:VerticalObjects;
 
 	private _lineHeight: number;
 	private _scrollBeyondLastLine: boolean;
 
-	constructor(configuration: editorCommon.IConfiguration, model:editorCommon.IViewModel) {
+	constructor(configuration: editorCommon.IConfiguration, model:IViewModel) {
 		this.configuration = configuration;
 		this._lineHeight = this.configuration.editor.lineHeight;
-		this._scrollBeyondLastLine = this.configuration.editor.scrollBeyondLastLine;
+		this._scrollBeyondLastLine = this.configuration.editor.viewInfo.scrollBeyondLastLine;
 
 		this.model = model;
 		this.verticalObjects = new VerticalObjects();
@@ -38,8 +40,8 @@ export class LinesLayout {
 		if (e.lineHeight) {
 			this._lineHeight = this.configuration.editor.lineHeight;
 		}
-		if (e.scrollBeyondLastLine) {
-			this._scrollBeyondLastLine = this.configuration.editor.scrollBeyondLastLine;
+		if (e.viewInfo.scrollBeyondLastLine) {
+			this._scrollBeyondLastLine = this.configuration.editor.viewInfo.scrollBeyondLastLine;
 		}
 	}
 
@@ -186,7 +188,7 @@ export class LinesLayout {
 	 * @param viewport The viewport.
 	 * @return A structure describing the lines positioned between `verticalOffset1` and `verticalOffset2`.
 	 */
-	public getLinesViewportData(visibleBox:editorCommon.Viewport): editorCommon.ViewLinesViewportData {
+	public getLinesViewportData(visibleBox:editorCommon.Viewport): ViewLinesViewportData {
 		let partialData = this.verticalObjects.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
 		let decorationsData = this.model.getDecorationsViewportData(partialData.startLineNumber, partialData.endLineNumber);
 		let visibleRange = new Range(
@@ -196,7 +198,7 @@ export class LinesLayout {
 			this.model.getLineMaxColumn(partialData.endLineNumber)
 		);
 
-		return new editorCommon.ViewLinesViewportData(partialData, visibleRange, decorationsData);
+		return new ViewLinesViewportData(partialData, visibleRange, decorationsData);
 	}
 
 	/**

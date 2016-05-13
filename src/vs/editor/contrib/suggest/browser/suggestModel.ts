@@ -9,7 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition} from 'vs/editor/common/editorCommon';
+import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition, CursorChangeReason} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ISuggestResult2, suggest} from '../common/suggest';
@@ -200,6 +200,7 @@ export class SuggestModel implements IDisposable {
 		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
 		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
 		this.toDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.cancel()));
+		this.toDispose.push(SuggestRegistry.onDidChange(this.onSuggestRegistryChange, this));
 		this.onEditorConfigurationChange();
 	}
 
@@ -250,7 +251,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (e.source !== 'keyboard' || e.reason !== '') {
+		if (e.source !== 'keyboard' || e.reason !== CursorChangeReason.NotSet) {
 			this.cancel();
 			return;
 		}
@@ -261,7 +262,7 @@ export class SuggestModel implements IDisposable {
 
 		const isInactive = this.state === State.Idle;
 
-		if (isInactive && !this.editor.getConfiguration().quickSuggestions) {
+		if (isInactive && !this.editor.getConfiguration().contribInfo.quickSuggestions) {
 			return;
 		}
 
@@ -284,6 +285,19 @@ export class SuggestModel implements IDisposable {
 		} else {
 			this.onNewContext(ctx);
 		}
+	}
+
+	private onSuggestRegistryChange(): void {
+		if (this.state === State.Idle) {
+			return;
+		}
+
+		if (!SuggestRegistry.has(this.editor.getModel())) {
+			this.cancel();
+			return;
+		}
+
+		this.trigger(this.state === State.Auto, undefined, true);
 	}
 
 	public trigger(auto: boolean, triggerCharacter?: string, retrigger: boolean = false, groups?: ISuggestSupport[][]): void {
@@ -382,7 +396,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private onEditorConfigurationChange(): void {
-		this.autoSuggestDelay = this.editor.getConfiguration().quickSuggestionsDelay;
+		this.autoSuggestDelay = this.editor.getConfiguration().contribInfo.quickSuggestionsDelay;
 
 		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay < 0) {
 			this.autoSuggestDelay = 10;

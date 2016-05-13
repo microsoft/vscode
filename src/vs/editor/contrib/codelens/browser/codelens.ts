@@ -13,7 +13,6 @@ import Severity from 'vs/base/common/severity';
 import {format} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
@@ -79,7 +78,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 				let command = this._commands[element.id];
 				if (command) {
 					editor.focus();
-					keybindingService.executeCommand(command.id, command.arguments).done(undefined, err => {
+					keybindingService.executeCommand(command.id, ...command.arguments).done(undefined, err => {
 						messageService.show(Severity.Error, err);
 					});
 				}
@@ -340,43 +339,28 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	public static ID: string = 'css.editor.codeLens';
 
-	private static INSTANCE_COUNT: number = 0;
-
-	private _instanceCount: number;
-	private _editor: editorBrowser.ICodeEditor;
-	private _modelService: IModelService;
+	private _isEnabled: boolean;
 
 	private _globalToDispose: IDisposable[];
-
 	private _localToDispose: IDisposable[];
 	private _lenses: CodeLens[];
 	private _currentFindCodeLensSymbolsPromise: TPromise<ICodeLensData[]>;
 	private _modelChangeCounter: number;
-	private _configurationService: IConfigurationService;
-	private _keybindingService: IKeybindingService;
-	private _messageService: IMessageService;
-	private _codeLenseDisabledByMode: boolean;
-
 	private _currentFindOccPromise: TPromise<any>;
 
-	constructor(editor: editorBrowser.ICodeEditor, @IModelService modelService: IModelService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IMessageService messageService: IMessageService) {
-
-		this._instanceCount = (++CodeLensContribution.INSTANCE_COUNT);
-		this._editor = editor;
-		this._modelService = modelService;
-		this._configurationService = configurationService;
-		this._keybindingService = keybindingService;
-		this._messageService = messageService;
+	constructor(
+		private _editor: editorBrowser.ICodeEditor,
+		@IModelService private _modelService: IModelService,
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IMessageService private _messageService: IMessageService
+	) {
+		this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
 
 		this._globalToDispose = [];
 		this._localToDispose = [];
 		this._lenses = [];
 		this._currentFindCodeLensSymbolsPromise = null;
 		this._modelChangeCounter = 0;
-		this._codeLenseDisabledByMode = true;
 
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChange()));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onModelChange()));
@@ -386,7 +370,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
-			if (e.referenceInfos) {
+			let prevIsEnabled = this._isEnabled;
+			this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+			if (prevIsEnabled !== this._isEnabled) {
 				this.onModelChange();
 			}
 		}));
@@ -425,7 +411,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		if (!this._editor.getConfiguration().referenceInfos) {
+		if (!this._isEnabled) {
 			return;
 		}
 

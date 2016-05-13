@@ -10,16 +10,12 @@
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
-	display: inline-block; /* this is for IE9 which will ignore the flex rules */
-	display: -ms-flexbox;
 	display: flex;
 	overflow: hidden;
 	height: 40px;
 	line-height: 40px;
 	margin-right: 0;
 	padding: 0 0 0 50px;
-	-moz-box-sizing: border-box;
-	-webkit-box-sizing: border-box;
 	box-sizing: border-box;
 	background-position: 9px center;
 	background-repeat: no-repeat;
@@ -62,7 +58,7 @@
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {
-	-ms-flex: 1 1 auto;
+	flex: 1 1 auto;
 	flex: 1 1 auto;
 	overflow: hidden;
 }
@@ -70,7 +66,7 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .keybinding {
 	overflow: hidden;
 	text-overflow: hidden;
-	-ms-flex: 2 1 auto;
+	flex: 2 1 auto;
 	flex: 2 1 auto;
 	text-align: right;
 	opacity: 0.5;

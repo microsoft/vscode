@@ -66,7 +66,7 @@ export class GitDiffEditorInput
 
 export class GitWorkingTreeDiffEditorInput extends GitDiffEditorInput {
 
-	static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.GitWorkingTreeDiffEditorInput';
+	static ID = 'vs.git.workingTreeDiffInput';
 
 	constructor(name:string, description:string, originalInput:WorkbenchEditorCommon.EditorInput, modifiedInput:WorkbenchEditorCommon.EditorInput, status:git.IFileStatus) {
 		super(name, description, originalInput, modifiedInput, status);
@@ -79,7 +79,7 @@ export class GitWorkingTreeDiffEditorInput extends GitDiffEditorInput {
 
 export class GitIndexDiffEditorInput extends GitDiffEditorInput {
 
-	static ID:string = 'Monaco.IDE.UI.Viewlets.GitViewlet.GitIndexDiffEditorInput';
+	static ID:string = 'vs.git.indexDiffInput';
 
 	constructor(name:string, description:string, originalInput:WorkbenchEditorCommon.EditorInput, modifiedInput:WorkbenchEditorCommon.EditorInput, status:git.IFileStatus) {
 		super(name, description, originalInput, modifiedInput, status);
@@ -94,7 +94,7 @@ export class NativeGitIndexStringEditorInput
 	extends stringei.StringEditorInput
 	implements IEditorInputWithStatus
 {
-	public static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.NativeGitIndexStringEditorInput';
+	public static ID = 'vs.git.stringEditorInput';
 
 	private gitService: IGitService;
 	private editorService: IWorkbenchEditorService;

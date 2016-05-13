@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./rename';
+import 'vs/css!./renameInputField';
 import {localize} from 'vs/nls';
 import {canceled} from 'vs/base/common/errors';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';

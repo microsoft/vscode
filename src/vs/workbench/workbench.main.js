@@ -76,13 +76,11 @@ define([
 
 	'vs/workbench/parts/contentprovider/common/contentprovider.contribution',
 
-	'vs/workbench/parts/telemetry/node/appInsights.telemetry.contribution',
-
 	'vs/workbench/parts/themes/electron-browser/themes.contribution',
 
 	'vs/workbench/parts/feedback/electron-browser/feedback.contribution',
 
-	'vs/workbench/parts/gettingStarted/electron-browser/electronGettingStarted.contribution',
+	'vs/workbench/parts/welcome/electron-browser/electronGettingStarted.contribution',
 
 	'vs/workbench/parts/update/electron-browser/update.contribution',
 

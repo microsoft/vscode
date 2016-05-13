@@ -27,10 +27,6 @@
 	position: absolute;
 
 	/* use border box to be able to draw a border as separator between editors */
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
 	box-sizing:	border-box;
 }
 
@@ -44,10 +40,6 @@
 }
 
 .monaco-workbench .editor > .content > .one-editor-container.dragged {
-	-webkit-box-sizing:	content-box;
-	-o-box-sizing: content-box;
-	-moz-box-sizing: content-box;
-	-ms-box-sizing: content-box;
 	box-sizing: content-box;
 }
 
@@ -62,20 +54,10 @@
 }
 
 .monaco-workbench .editor > .content > .one-editor-container.draggedunder {
-	-webkit-transition:	left 200ms ease-out;
-	-ms-transition:		left 200ms ease-out;
-	-moz-transition:	left 200ms ease-out;
-	-khtml-transition:	left 200ms ease-out;
-	-o-transition:		left 200ms ease-out;
 	transition:			left 200ms ease-out;
 }
 
 .monaco-workbench .editor > .content > .editor-right.draggedunder {
-	-webkit-transition-property: 	right;
-	-ms-transition-property: 		right;
-	-moz-transition-property: 		right;
-	-khtml-transition-property: 	right;
-	-o-transition-property: 		right;
 	transition-property: 			right;
 }
 
@@ -97,10 +79,6 @@
 
 .monaco-workbench > .editor > .content .editor-container {
 	height: calc(100% - 35px); /* Editor is below editor title */
-	height: -webkit-calc(100% - 35px);
-	height: -moz-calc(100% - 35px);
-	height: -ms-calc(100% - 35px);
-	height: -o-calc(100% - 35px);
 }
 
 /* Editor Title Styles */

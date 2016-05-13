@@ -17,7 +17,6 @@ import {WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesMod
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -44,7 +43,6 @@ export abstract class TextFileService implements ITextFileService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEventService private eventService: IEventService
 	) {
 		this.listenerToUnbind = [];
@@ -65,7 +63,7 @@ export abstract class TextFileService implements ITextFileService {
 		return this._onAutoSaveConfigurationChange.event;
 	}
 
-	private get workingFilesModel(): WorkingFilesModel {
+	protected get workingFilesModel(): WorkingFilesModel {
 		if (!this._workingFilesModel) {
 			this._workingFilesModel = this.instantiationService.createInstance(WorkingFilesModel);
 		}
@@ -73,11 +71,7 @@ export abstract class TextFileService implements ITextFileService {
 		return this._workingFilesModel;
 	}
 
-	private registerListeners(): void {
-
-		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
-		this.lifecycleService.onShutdown(this.dispose, this);
+	protected registerListeners(): void {
 
 		// Configuration changes
 		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)).dispose);
@@ -230,14 +224,6 @@ export abstract class TextFileService implements ITextFileService {
 				results: Object.keys(mapResourceToResult).map((k) => mapResourceToResult[k])
 			};
 		});
-	}
-
-	public beforeShutdown(): boolean | TPromise<boolean> {
-
-		// Propagate to working files model
-		this.workingFilesModel.shutdown();
-
-		return false; // no veto
 	}
 
 	public getWorkingFilesModel(): WorkingFilesModel {

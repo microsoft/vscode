@@ -13,13 +13,16 @@ import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import { AIAdapter } from 'vs/base/node/aiAdapter';
-import debug = require('vs/workbench/parts/debug/common/debug');
-import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
+import { IAIAdapter } from 'vs/base/parts/ai/node/ai';
 import stdfork = require('vs/base/node/stdFork');
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import debug = require('vs/workbench/parts/debug/common/debug');
+import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
+
 import { shell } from 'electron';
 
 export interface SessionExitedEvent extends DebugProtocol.ExitedEvent {
@@ -42,8 +45,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
 
-	private lastThreadId: number;
-	private flowEventsCount: number;
 	private serverProcess: cp.ChildProcess;
 	private socket: net.Socket = null;
 	private cachedInitServer: TPromise<void>;
@@ -57,21 +58,20 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
 	private _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
 	private _onDidExitAdapter: Emitter<SessionExitedEvent>;
-	private _onDidContinue: Emitter<number>;
 	private _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
 	private _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
 	private _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	constructor(
-		private messageService: IMessageService,
-		private telemetryService: ITelemetryService,
 		private debugServerPort: number,
 		private adapter: Adapter,
-		private telemtryAdapter: AIAdapter
+		private telemtryAdapter: IAIAdapter,
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IOutputService private outputService: IOutputService
 	) {
 		super();
-		this.flowEventsCount = 0;
 		this.emittedStopped = false;
 		this.readyForBreakpoints = false;
 		this.sentPromises = [];
@@ -80,7 +80,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
 		this._onDidExitAdapter = new Emitter<SessionExitedEvent>();
-		this._onDidContinue = new Emitter<number>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
 		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
@@ -101,10 +100,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public get onDidExitAdapter(): Event<SessionExitedEvent> {
 		return this._onDidExitAdapter.event;
-	}
-
-	public get onDidContinue(): Event<number> {
-		return this._onDidContinue.event;
 	}
 
 	public get onDidThread(): Event<DebugProtocol.ThreadEvent> {
@@ -153,6 +148,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
 					this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
 				}
+				if (error && error.showUser === false) {
+					return TPromise.as(null);
+				}
 
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
@@ -182,7 +180,6 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			this._onDidInitialize.fire(event);
 		} else if (event.event === 'stopped') {
 			this.emittedStopped = true;
-			this.flowEventsCount++;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
 		} else if (event.event === 'thread') {
 			this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
@@ -191,15 +188,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		} else if (event.event === 'breakpoint') {
 			this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
 		} else if (event.event === 'terminated') {
-			this.flowEventsCount++;
 			this._onDidTerminateDebugee.fire(<SessionTerminatedEvent>event);
 		} else if (event.event === 'exit') {
-			this.flowEventsCount++;
 			this._onDidExitAdapter.fire(<SessionExitedEvent>event);
-		} else if (event.event === 'continued') {
-			// TODO@Isidor continued event needs to come from the adapter
-			this.flowEventsCount++;
-			this._onDidContinue.fire(this.lastThreadId);
 		}
 
 		this._onDidEvent.fire(event);
@@ -222,45 +213,28 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
 		this.isAttach = false;
-		return this.sendAndLazyContinue('launch', args);
+		return this.send('launch', args);
 	}
 
 	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
 		this.isAttach = true;
-		return this.sendAndLazyContinue('attach', args);
+		return this.send('attach', args);
 	}
 
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
-		return this.sendAndLazyContinue('next', args);
+		return this.send('next', args);
 	}
 
 	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
-		return this.sendAndLazyContinue('stepIn', args);
+		return this.send('stepIn', args);
 	}
 
 	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
-		return this.sendAndLazyContinue('stepOut', args);
+		return this.send('stepOut', args);
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
-		return this.sendAndLazyContinue('continue', args);
-	}
-
-	// node sometimes sends "stopped" events earlier than the response for the "step" request.
-	// due to this we only emit "continued" if we did not miss a stopped event.
-	// we do not emit straight away to reduce viewlet flickering.
-	private sendAndLazyContinue(command: string, args: any): TPromise<DebugProtocol.Response> {
-		const count = this.flowEventsCount;
-		this.lastThreadId = args.threadId;
-		return this.send(command, args).then(response => {
-			setTimeout(() => {
-				if (this.flowEventsCount === count) {
-					this.onEvent({ event: 'continued', type: 'event', seq: 0 });
-				}
-			}, 500);
-
-			return response;
-		});
+		return this.send('continue', args);
 	}
 
 	public pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse> {
@@ -360,7 +334,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 			// });
 			this.serverProcess.stderr.on('data', (data: string) => {
-				console.log(sanitize(data));
+				this.outputService.getChannel(ExtensionsChannelId).append(sanitize(data));
 			});
 
 			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
