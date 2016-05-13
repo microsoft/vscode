@@ -163,12 +163,14 @@
 	opacity: 0.5;
 }
 
-.monaco-workbench .close-editor-action {
+.monaco-workbench .close-editor-action,
+.monaco-workbench .close-editor-decorated-action:hover {
 	background: url('close.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .close-editor-action {
-	background: url('close-inverse.svg') center center no-repeat;
+.vs-dark .monaco-workbench .close-editor-action,
+.vs-dark .monaco-workbench .close-editor-decorated-action:hover {
+	background: url('close-dark.svg') center center no-repeat;
 }
 
 .monaco-workbench .close-editor-decorated-action {
@@ -176,7 +178,7 @@
 }
 
 .vs-dark .monaco-workbench .close-editor-decorated-action {
-	background: url('close-decorated-inverse.svg') center center no-repeat;
+	background: url('close-decorated-dark.svg') center center no-repeat;
 }
 
 .monaco-workbench .split-editor-action {
@@ -193,6 +195,10 @@
 .hc-black .monaco-workbench .close-editor-decorated-action,
 .hc-black .monaco-workbench .split-editor-action {
 	background: none;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
+	width: 24px;
 }
 
 .hc-black .monaco-workbench .close-editor-decorated-action:before {
