@@ -46,62 +46,63 @@ export class TerminalPanel extends Panel {
 		super.create(parent);
 
 		this.parentDomElement = parent.getHTMLElement();
-		this.createTerminal();
 
-		return TPromise.as(null);
+		return this.createTerminal();
 	}
 
-	private createTerminal(): void {
-		this.parentDomElement.innerHTML = '';
-		this.ptyProcess = fork(this.getShell(), [], {
-			name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
-			cwd: this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : process.env.HOME
-		});
-		this.terminalDomElement = document.createElement('div');
-		this.parentDomElement.classList.add('integrated-terminal');
-		let terminalScrollable = new DomScrollableElement(this.terminalDomElement, {
-			canUseTranslate3d: false,
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto
-		});
-		//let terminalContainer = new ScrollableElement(this.terminalDomElement, terminalScrollable, { horizontal: 'hidden', vertical: 'auto' });
-		this.terminal = termJs({
-			cursorBlink: false // term.js' blinking cursor breaks selection
-		});
+	private createTerminal(): TPromise<void> {
+		return new TPromise<void>(resolve => {
+			this.parentDomElement.innerHTML = '';
+			this.ptyProcess = fork(this.getShell(), [], {
+				name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
+				cwd: this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : process.env.HOME
+			});
+			this.terminalDomElement = document.createElement('div');
+			this.parentDomElement.classList.add('integrated-terminal');
+			let terminalScrollable = new DomScrollableElement(this.terminalDomElement, {
+				canUseTranslate3d: false,
+				horizontal: ScrollbarVisibility.Hidden,
+				vertical: ScrollbarVisibility.Auto
+			});
+			this.terminal = termJs({
+				cursorBlink: false // term.js' blinking cursor breaks selection
+			});
 
-		this.ptyProcess.on('data', (data) => {
-			this.terminal.write(data);
-		});
-		this.terminal.on('data', (data) => {
-			this.ptyProcess.write(data);
-			return false;
-		});
-		this.ptyProcess.on('exit', (data) => {
-			this.terminal.destroy();
-			// TODO: When multiple terminals are supported this should do something smarter. There is
-			// also a weird bug here at leasy on Ubuntu 15.10 where the new terminal text does not
-			// repaint correctly.
-			this.createTerminal();
-		});
-		this.parentDomElement.addEventListener('mousedown', (event) => {
-			// Drop selection and focus terminal on Linux to enable middle button paste when click
-			// occurs on the selection itself.
-			if (event.which === 2 && platform.isLinux) {
-				this.focusTerminal(true);
-			}
-		});
-		this.parentDomElement.addEventListener('mouseup', (event) => {
-			if (event.which !== 3) {
-				this.focusTerminal();
-			}
-		});
+			this.ptyProcess.on('data', (data) => {
+				this.terminal.write(data);
+			});
+			this.terminal.on('data', (data) => {
+				this.ptyProcess.write(data);
+				return false;
+			});
+			this.ptyProcess.on('exit', (data) => {
+				this.terminal.destroy();
+				// TODO: When multiple terminals are supported this should do something smarter. There is
+				// also a weird bug here at leasy on Ubuntu 15.10 where the new terminal text does not
+				// repaint correctly.
+				this.createTerminal();
+			});
+			this.parentDomElement.addEventListener('mousedown', (event) => {
+				// Drop selection and focus terminal on Linux to enable middle button paste when click
+				// occurs on the selection itself.
+				if (event.which === 2 && platform.isLinux) {
+					this.focusTerminal(true);
+				}
+			});
+			this.parentDomElement.addEventListener('mouseup', (event) => {
+				if (event.which !== 3) {
+					this.focusTerminal();
+				}
+			});
 
-		this.terminal.open(this.terminalDomElement);
-		this.parentDomElement.appendChild(terminalScrollable.getDomNode());
+			this.terminal.open(this.terminalDomElement);
+			this.parentDomElement.appendChild(terminalScrollable.getDomNode());
 
-		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
-		this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
-		this.terminal.colors = this.getTerminalColors();
+			let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
+			this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
+			this.terminal.colors = this.getTerminalColors();
+			resolve(void 0);
+		});
 	}
 
 	private focusTerminal(force?: boolean): void {
