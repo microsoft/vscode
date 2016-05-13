@@ -29,7 +29,7 @@ if [ "@@NAME@@" = "code" ]; then
 fi
 
 # Symlink bin command to /usr/bin
-rm -f /usr/bin/@@NAME@@
+sudo rm -f /usr/bin/@@NAME@@
 sudo ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
 
 # Register yum repository
@@ -41,6 +41,9 @@ sudo ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
 #		echo -e "[@@NAME@@]\nname=@@NAME_LONG@@\nbaseurl=@@UPDATEURL@@/api/rpm/@@QUALITY@@/@@ARCHITECTURE@@/rpm" > $REPO_FILE
 #	fi
 #fi
+
+%postun
+sudo rm -f /usr/bin/@@NAME@@
 
 %files
 %defattr(-,root,root)
