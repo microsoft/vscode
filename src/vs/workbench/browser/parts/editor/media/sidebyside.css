@@ -30,7 +30,6 @@
 	box-sizing:	border-box;
 }
 
-
 .monaco-workbench .editor > .content > .editor-left {
 	left: 0;
 }
@@ -85,6 +84,14 @@
 
 .monaco-workbench > .part.editor > .content .inactive .title {
 	cursor: pointer;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+	font-style: italic;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label {
+	font-style: normal;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {

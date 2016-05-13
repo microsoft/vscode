@@ -94,9 +94,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	unpinEditor(position: Position, input: IEditorInput): void;
 
 	/**
-	 * Keyboard focus the editor group at the provided position. If position is not provided, the current active group is focused.
+	 * Keyboard focus the editor group at the provided position.
 	 */
-	focusGroup(position?: Position): TPromise<IEditor>;
+	focusGroup(position: Position): void;
 
 	/**
 	 * Activate the editor group at the provided position without moving focus.

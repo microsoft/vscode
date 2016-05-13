@@ -96,6 +96,10 @@ class TestEditorPart implements IEditorPart {
 		// Unsupported
 	}
 
+	public focusGroup(position: Position): void {
+		// Unsupported
+	}
+
 	public pinEditor(position: Position, input: EditorInput): void {
 		// Unsupported
 	}
@@ -349,11 +353,6 @@ suite('Workbench UI Services', () => {
 		// Resolve Editor Model (Untyped Input)
 		service.resolveEditorModel({ resource: toResource('/index.html'), mime: 'text/html' }, true).then((model) => {
 			assert(model instanceof TextFileEditorModel);
-		});
-
-		// Focus editor group
-		service.focusGroup().then((editor) => {
-			assert.strictEqual(editor, activeEditor);
 		});
 	});
 

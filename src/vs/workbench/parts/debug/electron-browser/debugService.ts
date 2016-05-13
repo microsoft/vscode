@@ -694,7 +694,11 @@ export class DebugService implements debug.IDebugService {
 		}
 
 		this.partService.removeClass('debugging');
-		this.editorService.focusGroup();
+
+		const activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			this.editorService.focusGroup(activeEditor.position);
+		}
 
 		this.model.clearThreads(true);
 		this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);

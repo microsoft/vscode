@@ -21,11 +21,11 @@ import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, EditorEvent, EditorInputEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
+import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState, ITitleAreaState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
@@ -117,6 +117,18 @@ export class EditorPart extends Part implements IEditorPart {
 		this.pendingEditorInputCloseTimeout = null;
 
 		this.stacksModel = this.instantiationService.createInstance(EditorStacksModel);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputStateChanged(event)));
+	}
+
+	private onEditorInputStateChanged(event: EditorInputEvent): void {
+		if (this.sideBySideControl) {
+			this.doUpdateEditorTitleArea();
+		}
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -388,7 +400,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// in that case notify others about the input change event as well as to make sure that the
 				// editor title area is up to date.
 				if (this.visibleInputs[position] && this.visibleInputs[position].matches(input)) {
-					this.sideBySideControl.updateEditorTitleArea();
+					this.doUpdateEditorTitleArea();
 					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), this.visibleInputs[position], options, position));
 				}
 
@@ -414,7 +426,7 @@ export class EditorPart extends Part implements IEditorPart {
 			if (inputChanged) {
 
 				// Update Title Area if input changed
-				this.sideBySideControl.updateEditorTitleArea();
+				this.doUpdateEditorTitleArea();
 
 				// Emit Input-Changed Event (if input changed)
 				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), input, options, position));
@@ -676,12 +688,12 @@ export class EditorPart extends Part implements IEditorPart {
 		arrays.move(this.instantiatedEditors, from, to);
 		arrays.move(this.mapEditorToEditorContainers, from, to);
 
-		// Update all title areas
-		this.sideBySideControl.updateEditorTitleArea();
-
 		// Restore focus
-		let activeEditor = this.sideBySideControl.getActiveEditor();
-		this.openEditor(activeEditor.input, null, activeEditor.position).done(null, errors.onUnexpectedError);
+		let position = this.sideBySideControl.getActivePosition();
+		this.focusGroup(position);
+
+		// Update all title areas
+		this.doUpdateEditorTitleArea();
 	}
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
@@ -814,6 +826,18 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
+	public focusGroup(position: Position): void {
+		const editor = this.visibleEditors[position];
+		if (editor) {
+
+			// Make active
+			this.activateGroup(position);
+
+			// Focus
+			editor.focus();
+		}
+	}
+
 	public pinEditor(position: Position, input: EditorInput): void {
 		const group = this.groupAt(position);
 		if (group) {
@@ -857,7 +881,24 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Update Title Area
-		this.sideBySideControl.updateEditorTitleArea();
+		this.doUpdateEditorTitleArea();
+	}
+
+	private doUpdateEditorTitleArea(): void {
+		if (this.sideBySideControl) {
+			const titleAreaState: ITitleAreaState[] = this.getVisibleEditors().map((e, index) => {
+				const group = this.groupAt(index);
+
+				return {
+					position: e.position,
+					editors: group.getEditors(),
+					preview: group.previewEditor,
+					active: group.activeEditor
+				};
+			});
+
+			this.sideBySideControl.updateEditorTitleArea(titleAreaState);
+		}
 	}
 
 	public layout(dimension: Dimension): Dimension[] {

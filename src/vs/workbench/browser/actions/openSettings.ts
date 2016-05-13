@@ -17,7 +17,7 @@ import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {Position, IEditor} from 'vs/platform/editor/common/editor';
+import {Position} from 'vs/platform/editor/common/editor';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
@@ -56,7 +56,7 @@ export class BaseTwoEditorsAction extends Action {
 		});
 	}
 
-	protected openTwoEditors(leftHandDefaultInput: StringEditorInput, editableResource: URI, defaultEditableContents: string): TPromise<IEditor> {
+	protected openTwoEditors(leftHandDefaultInput: StringEditorInput, editableResource: URI, defaultEditableContents: string): TPromise<void> {
 
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
@@ -67,7 +67,7 @@ export class BaseTwoEditorsAction extends Action {
 				];
 
 				return this.editorService.openEditors(editors).then(() => {
-					return this.editorService.focusGroup(Position.CENTER);
+					this.editorService.focusGroup(Position.CENTER);
 				});
 			});
 		});
@@ -90,7 +90,7 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
 
-	protected open(emptySettingsContents: string, settingsResource: URI): TPromise<IEditor> {
+	protected open(emptySettingsContents: string, settingsResource: URI): TPromise<void> {
 		return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService, this.configurationService), settingsResource, emptySettingsContents);
 	}
 }
@@ -116,7 +116,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
 
-	public run(event?: any): TPromise<IEditor> {
+	public run(event?: any): TPromise<void> {
 
 		// Inform user about workspace settings
 		if (this.configurationService.hasWorkspaceConfiguration() && !this.storageService.getBoolean(OpenGlobalSettingsAction.SETTINGS_INFO_IGNORE_KEY, StorageScope.WORKSPACE)) {
@@ -165,7 +165,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
 
-	public run(event?: any): TPromise<IEditor> {
+	public run(event?: any): TPromise<void> {
 		let emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 
 		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.keybindingService), URI.file(this.contextService.getConfiguration().env.appKeybindingsPath), emptyContents);
@@ -176,7 +176,7 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 	public static ID = 'workbench.action.openWorkspaceSettings';
 	public static LABEL = nls.localize('openWorkspaceSettings', "Open Workspace Settings");
 
-	public run(event?: any): TPromise<IEditor> {
+	public run(event?: any): TPromise<void> {
 		if (!this.contextService.getWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 

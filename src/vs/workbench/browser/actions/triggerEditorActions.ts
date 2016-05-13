@@ -73,7 +73,7 @@ export class SplitEditorAction extends Action {
 
 					return this.editorService.openEditor(activeEditor.input, options, Position.CENTER).then(() => {
 						return this.editorService.openEditor(centerInput, options, Position.RIGHT).then(() => {
-							return this.editorService.focusGroup(Position.CENTER);
+							this.editorService.focusGroup(Position.CENTER);
 						});
 					});
 				}
@@ -109,7 +109,9 @@ export class CycleEditorAction extends Action {
 		let editorCount = visibleEditors.length;
 		let newIndex = (activeEditor.position + 1) % editorCount;
 
-		return this.editorService.focusGroup(<Position>newIndex);
+		this.editorService.focusGroup(<Position>newIndex);
+
+		return TPromise.as(true);
 	}
 }
 
@@ -132,7 +134,9 @@ export class FocusFirstEditorAction extends Action {
 		let editors = this.editorService.getVisibleEditors();
 		for (var editor of editors) {
 			if (editor.position === Position.LEFT) {
-				return this.editorService.focusGroup(Position.LEFT);
+				this.editorService.focusGroup(Position.LEFT);
+
+				return TPromise.as(true);
 			}
 		}
 
@@ -181,7 +185,9 @@ export abstract class BaseFocusSideEditorAction extends Action {
 
 			// Target editor exists so focus it
 			if (editor.position === this.getTargetEditorSide()) {
-				return this.editorService.focusGroup(editor.position);
+				this.editorService.focusGroup(editor.position);
+
+				return TPromise.as(true);
 			}
 
 			// Remember reference editor
@@ -285,7 +291,9 @@ export class NavigateToLeftEditorAction extends Action {
 		}
 
 		// Focus next position if provided
-		return this.editorService.focusGroup(nextPosition);
+		this.editorService.focusGroup(nextPosition);
+
+		return TPromise.as(true);
 	}
 }
 

@@ -290,7 +290,7 @@ export class ExplorerView extends CollapsibleViewletView {
 				let editor = editors[i];
 				if (input.matches(editor.input)) {
 					if (!keepFocus) {
-						return this.editorService.focusGroup(editor.position);
+						this.editorService.focusGroup(editor.position);
 					}
 
 					return TPromise.as(editor);

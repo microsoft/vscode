@@ -36,6 +36,7 @@ export interface IEditorPart {
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
 	moveGroup(from: Position, to: Position): void;
+	focusGroup(position: Position): void;
 	activateGroup(position: Position): void;
 	pinEditor(position: Position, input: EditorInput): void;
 	unpinEditor(position: Position, input: EditorInput): void;
@@ -175,13 +176,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeAllEditors();
 	}
 
-	public focusGroup(position?: Position): TPromise<IEditor> {
-		let targetEditor = this.findEditor(position);
-		if (targetEditor) {
-			return this.editorPart.openEditor(targetEditor.input, null, targetEditor.position);
-		}
-
-		return TPromise.as(null);
+	public focusGroup(position: Position): void {
+		this.editorPart.focusGroup(position);
 	}
 
 	public activateGroup(position: Position): void {
@@ -358,6 +354,10 @@ class EditorPartDelegate implements IEditorPart {
 
 	public activateGroup(position: Position): void {
 		this.editorService.activateGroup(position);
+	}
+
+	public focusGroup(position: Position): void {
+		this.editorService.focusGroup(position);
 	}
 
 	public pinEditor(position: Position, input: IEditorInput): void {
