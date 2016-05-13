@@ -296,6 +296,10 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/prerm'))
 
+		var postrm = gulp.src('resources/linux/debian/postrm.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('DEBIAN/postrm'))
+
 		var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ARCHITECTURE@@', debArch))
@@ -303,7 +307,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'))
 
-		var all = es.merge(control, postinst, prerm, desktop, icon, code);
+		var all = es.merge(control, postinst, postrm, prerm, desktop, icon, code);
 
 		return all.pipe(symdest(destination));
 	};
