@@ -879,9 +879,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 				return {
 					position: e.position,
-					editors: group.getEditors(),
-					preview: group.previewEditor,
-					active: group.activeEditor
+					preview: group && group.previewEditor
 				};
 			});
 

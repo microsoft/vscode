@@ -56,9 +56,7 @@ interface IEditorActions {
 
 export interface ITitleAreaState {
 	position: number;
-	editors: EditorInput[];
 	preview: EditorInput;
-	active: EditorInput;
 }
 
 export interface ISideBySideEditorControl {
