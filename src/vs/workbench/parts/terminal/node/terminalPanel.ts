@@ -55,8 +55,6 @@ export class TerminalPanel extends Panel {
 		this.parentDomElement.innerHTML = '';
 		this.ptyProcess = fork(this.getShell(), [], {
 			name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
-			cols: 80,
-			rows: 6,
 			cwd: this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : process.env.HOME
 		});
 		this.terminalDomElement = document.createElement('div');
