@@ -197,11 +197,6 @@ export interface IMode {
 	declarationSupport?: IDeclarationSupport;
 
 	/**
-	 * Optional adapter to support revealing the type declaration of a symbol.
-	 */
-	typeDeclarationSupport?: ITypeDeclarationSupport;
-
-	/**
 	 * Optional adapter to support finding references to a symbol.
 	 */
 	referenceSupport?:IReferenceSupport;
@@ -474,11 +469,6 @@ export interface IReferenceSupport {
 export interface IDeclarationSupport {
 	canFindDeclaration(context:ILineContext, offset:number):boolean;
 	findDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference|IReference[]>;
-}
-
-export interface ITypeDeclarationSupport {
-	canFindTypeDeclaration(context:ILineContext, offset:number):boolean;
-	findTypeDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference>;
 }
 
 /**
