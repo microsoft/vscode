@@ -410,12 +410,12 @@ class CloseEditorsInOtherGroupsAction extends Action {
 	}
 }
 
-class CloseAllEditorsAction extends Action {
+export class CloseAllEditorsAction extends Action {
 
 	public static ID = 'workbench.files.action.closeAllEditors';
 
 	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(CloseAllEditorsAction.ID, nls.localize('closeAllEditors', "Close All Editors"));
+		super(CloseAllEditorsAction.ID, nls.localize('closeAllEditors', "Close All Editors"), 'action-close-all-files');
 	}
 
 	public run(): TPromise<any> {

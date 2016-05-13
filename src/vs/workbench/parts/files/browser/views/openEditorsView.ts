@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IActionRunner} from 'vs/base/common/actions';
+import {IAction, IActionRunner} from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
@@ -17,11 +17,12 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
+import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {Renderer, DataSource, Controller, AccessibilityProvider, OpenEditor, ActionProvider} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import {Renderer, DataSource, Controller, AccessibilityProvider, OpenEditor, ActionProvider, CloseAllEditorsAction} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 
 const $ = dom.emmet;
 
@@ -67,6 +68,13 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.updateDirtyIndicator();
 
 		super.renderHeader(container);
+	}
+
+	public getActions(): IAction[] {
+		return [
+			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
+			this.instantiationService.createInstance(CloseAllEditorsAction)
+		];
 	}
 
 	public renderBody(container: HTMLElement): void {
