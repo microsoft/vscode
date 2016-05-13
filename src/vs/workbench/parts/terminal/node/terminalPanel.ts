@@ -14,8 +14,8 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ITerminalConfiguration, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
 import {Panel} from 'vs/workbench/browser/panel';
-import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
-import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
+import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 const TERMINAL_CHAR_WIDTH = 8;
 const TERMINAL_CHAR_HEIGHT = 18;
@@ -61,8 +61,12 @@ export class TerminalPanel extends Panel {
 		});
 		this.terminalDomElement = document.createElement('div');
 		this.parentDomElement.classList.add('integrated-terminal');
-		let terminalScrollable = new DomNodeScrollable(this.terminalDomElement);
-		let terminalContainer = new ScrollableElement(this.terminalDomElement, terminalScrollable, { horizontal: 'hidden', vertical: 'auto' });
+		let terminalScrollable = new DomScrollableElement(this.terminalDomElement, {
+			canUseTranslate3d: false,
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto
+		});
+		//let terminalContainer = new ScrollableElement(this.terminalDomElement, terminalScrollable, { horizontal: 'hidden', vertical: 'auto' });
 		this.terminal = termJs({
 			cursorBlink: false // term.js' blinking cursor breaks selection
 		});
@@ -95,7 +99,7 @@ export class TerminalPanel extends Panel {
 		});
 
 		this.terminal.open(this.terminalDomElement);
-		this.parentDomElement.appendChild(terminalContainer.getDomNode());
+		this.parentDomElement.appendChild(terminalScrollable.getDomNode());
 
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 		this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
