@@ -333,7 +333,7 @@ export class TextEditorOptions extends EditorOptions {
 	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus) {
+			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus || input.options.pinned || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 

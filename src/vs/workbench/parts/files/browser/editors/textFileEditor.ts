@@ -184,13 +184,13 @@ export class TextFileEditor extends BaseTextEditor {
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 						return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
 
-							// Add to working files
-							this.textFileService.getWorkingFilesModel().addEntry((<FileEditorInput>input).getResource());
-
 							// Open
 							return this.editorService.openEditor({
 								resource: (<FileEditorInput>input).getResource(),
-								mime: MIME_TEXT
+								mime: MIME_TEXT,
+								options: {
+									pinned: true // new file gets pinned by default
+								}
 							});
 						});
 					})

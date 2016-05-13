@@ -578,10 +578,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	public run(): TPromise<any> {
 		let input = this.untitledEditorService.createOrGet();
 
-		// Make sure this untitled buffer shows up in working files set
-		this.textFileService.getWorkingFilesModel().addEntry(input.getResource());
-
-		return this.editorService.openEditor(input);
+		return this.editorService.openEditor(input, EditorOptions.create({ pinned: true })); // untitled are always pinned
 	}
 }
 

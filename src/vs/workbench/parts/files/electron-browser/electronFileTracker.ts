@@ -6,7 +6,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {TextFileChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {IFileService} from 'vs/platform/files/common/files';
@@ -122,16 +121,6 @@ export class FileTracker implements IWorkbenchContribution {
 			}
 
 			return viewletPromise.then(() => {
-
-				// Out of workspace files get added right away to working files model
-				resources.forEach((fileToOpen) => {
-					let resource = fileToOpen.resource;
-					let workspace = this.contextService.getWorkspace();
-
-					if (!workspace || !paths.isEqualOrParent(resource.fsPath, workspace.resource.fsPath)) {
-						this.textFileService.getWorkingFilesModel().addEntry(resource);
-					}
-				});
 
 				// In diffMode we open 2 resources as diff
 				if (diffMode) {
