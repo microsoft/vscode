@@ -9,8 +9,8 @@ import nls = require('vs/nls');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {TerminalService} from 'vs/workbench/parts/terminal/node/terminalService';
-import {ToggleTerminalAction} from 'vs/workbench/parts/terminal/node/terminalActions';
+import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
+import {ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_UNIX_LIKE, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/common/terminal';
 import * as panel from 'vs/workbench/browser/panel';
 import {Registry} from 'vs/platform/platform';
@@ -126,7 +126,7 @@ registerSingleton(ITerminalService, TerminalService);
 
 // Register Output Panel
 (<panel.PanelRegistry>Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
-	'vs/workbench/parts/terminal/node/terminalPanel',
+	'vs/workbench/parts/terminal/electron-browser/terminalPanel',
 	'TerminalPanel',
 	TERMINAL_PANEL_ID,
 	nls.localize('terminal', "Terminal"),

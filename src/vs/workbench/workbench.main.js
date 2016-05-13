@@ -58,7 +58,7 @@ define([
 
 	'vs/workbench/parts/output/browser/output.contribution',
 
-	'vs/workbench/parts/terminal/node/terminal.contribution',
+	'vs/workbench/parts/terminal/electron-browser/terminal.contribution',
 
 	'vs/workbench/parts/markdown/browser/markdown.contribution',
 	'vs/workbench/parts/markdown/browser/markdownActions.contribution',
