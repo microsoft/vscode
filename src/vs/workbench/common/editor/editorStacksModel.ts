@@ -770,9 +770,13 @@ export class EditorStacksModel implements IEditorStacksModel {
 		let serializableGroups = this._groups.map(g => g.serialize()).filter(g => g.editors.length > 0);
 
 		// Only consider active index if we do not have empty groups
-		let serializableActiveIndex = 0;
-		if (serializableGroups.length === this._groups.length) {
-			serializableActiveIndex = this.indexOf(this._activeGroup);
+		let serializableActiveIndex: number;
+		if (serializableGroups.length > 0) {
+			if (serializableGroups.length === this._groups.length) {
+				serializableActiveIndex = this.indexOf(this._activeGroup);
+			} else {
+				serializableActiveIndex = 0;
+			}
 		}
 
 		return {
@@ -830,7 +834,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return 3; // Too many groups
 		}
 
-		if (serialized.groups.some(g => !g.editors.length)) {
+		if (serialized.groups.some(g => !g.editors.length))  {
 			return 4; // Some empty groups
 		}
 
