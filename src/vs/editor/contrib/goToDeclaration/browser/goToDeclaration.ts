@@ -30,7 +30,7 @@ import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer'
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
+import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 
 export class DefinitionActionConfig {
 

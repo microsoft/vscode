@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./referenceSearchWidget';
+import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
 import * as collections from 'vs/base/common/collections';
 import {onUnexpectedError} from 'vs/base/common/errors';
@@ -36,7 +36,7 @@ import {Model} from 'vs/editor/common/model/model';
 import {ICodeEditor, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import {PeekViewWidget, IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {FileReferences, OneReference, ReferencesModel} from './referenceSearchModel';
+import {FileReferences, OneReference, ReferencesModel} from './referencesModel';
 
 class DecorationsManager implements IDisposable {
 
@@ -163,6 +163,12 @@ class DecorationsManager implements IDisposable {
 
 class DataSource implements tree.IDataSource {
 
+	constructor(
+		@IEditorService private _editorService: IEditorService
+	) {
+		//
+	}
+
 	public getId(tree:tree.ITree, element:any):string {
 		if(element instanceof ReferencesModel) {
 			return 'root';
@@ -181,7 +187,7 @@ class DataSource implements tree.IDataSource {
 		if(element instanceof ReferencesModel) {
 			return TPromise.as((<ReferencesModel> element).children);
 		} else if(element instanceof FileReferences) {
-			return (<FileReferences> element).resolve().then(val => val.children);
+			return (<FileReferences> element).resolve(this._editorService).then(val => val.children);
 		} else {
 			return TPromise.as([]);
 		}

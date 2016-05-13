@@ -97,7 +97,7 @@ export class FileReferences {
 	private _preview: FilePreview;
 	private _resolved: boolean;
 
-	constructor(private _parent: ReferencesModel, private _resource: URI, private _editorService: IEditorService) {
+	constructor(private _parent: ReferencesModel, private _resource: URI) {
 		this._children = [];
 	}
 
@@ -129,13 +129,13 @@ export class FileReferences {
 		return this._preview;
 	}
 
-	public resolve(): TPromise<FileReferences> {
+	public resolve(editorService: IEditorService): TPromise<FileReferences> {
 
 		if (this._resolved) {
 			return TPromise.as(this);
 		}
 
-		return this._editorService.resolveEditorModel({ resource: this._resource }).then(model => {
+		return editorService.resolveEditorModel({ resource: this._resource }).then(model => {
 			this._preview = new FilePreview((<IModel>model.textEditorModel).getValue());
 			this._resolved = true;
 			return this;
@@ -150,7 +150,7 @@ export class ReferencesModel  {
 
 	onDidChangeReferenceRange: Event<OneReference> = fromEventEmitter<OneReference>(this._eventBus, 'ref/changed');
 
-	constructor(references: IReference[], editorService: IEditorService) {
+	constructor(references: IReference[]) {
 
 		let referencesByFile: { [n: string]: FileReferences } = Object.create(null);
 		let seen: { [n: string]: boolean } = Object.create(null);
@@ -162,7 +162,7 @@ export class ReferencesModel  {
 				seen[hash] = true;
 
 				let resource = reference.resource;
-				let fileReferences = new FileReferences(this, resource, editorService);
+				let fileReferences = new FileReferences(this, resource);
 
 				fileReferences = collections.lookupOrInsert(referencesByFile, fileReferences.id, fileReferences);
 				fileReferences.children.push(new OneReference(fileReferences, reference.range, this._eventBus));
