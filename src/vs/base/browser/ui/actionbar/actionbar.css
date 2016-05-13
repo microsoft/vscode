@@ -185,6 +185,10 @@
 	margin-top: 9px; /* Center the select box */
 }
 
+.monaco-workbench .action-bar-select.windows {
+	margin-top: 7px; /* Center the select box */
+}
+
 .vs-dark .monaco-workbench .action-bar-select {
 	background-color: #3C3C3C;
 	border-color: #3C3C3C;
