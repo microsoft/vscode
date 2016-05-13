@@ -11,7 +11,7 @@ import {IAction, Action} from 'vs/base/common/actions';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import tree = require('vs/base/parts/tree/browser/tree');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {IActionItem, ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
+import {IActionItem, ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -254,7 +254,8 @@ export class Controller extends treedefaults.DefaultController {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
-		if (!(element instanceof OpenEditor)) {
+		// Check if clicked on some element
+		if (element === tree.getInput()) {
 			return false;
 		}
 
@@ -326,11 +327,26 @@ export class ActionProvider implements IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
-		return element instanceof OpenEditor;
+		return element instanceof OpenEditor || element instanceof EditorGroup;
 	}
 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		const result = [];
+		if (element instanceof EditorGroup) {
+			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
+		} else {
+			result.push(this.instantiationService.createInstance(CloseOpenEditorAction));
+			result.push(new Separator());
+			result.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction));
+			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
+			result.push(new Separator());
+		}
+
+		result.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction));
+		result.push(new Separator());
+		result.push(this.instantiationService.createInstance(CloseAllEditorsAction));
+
+		return TPromise.as(result);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: IAction): IActionItem {
@@ -349,5 +365,60 @@ class CloseOpenEditorAction extends Action {
 	public run(openEditor: OpenEditor): TPromise<any> {
 		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
 		return this.editorService.closeEditor(position, openEditor.editorInput);
+	}
+}
+
+class CloseOtherEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.files.action.closeOtherEditorsInGroup';
+
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(CloseOtherEditorsInGroupAction.ID, nls.localize('closeOtherEditorsInGroup', "Close Other Editors in Group"));
+	}
+
+	public run(openEditor: OpenEditor): TPromise<any> {
+		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
+		return this.editorService.closeEditors(position, openEditor.editorInput);
+	}
+}
+
+class CloseAllEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.files.action.closeAllEditorsInGroup';
+
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(CloseAllEditorsInGroupAction.ID, nls.localize('closeAllEditorsInGroup', "Close All Editors in Group"));
+	}
+
+	public run(openEditor: OpenEditor): TPromise<any> {
+		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
+		return this.editorService.closeEditors(position);
+	}
+}
+
+class CloseEditorsInOtherGroupsAction extends Action {
+
+	public static ID = 'workbench.files.action.closeEditorsInOtherGroups';
+
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(CloseEditorsInOtherGroupsAction.ID, nls.localize('closeEditorsInOtherGroups', "Close Editors in Other Groups"));
+	}
+
+	public run(openEditor: OpenEditor): TPromise<any> {
+		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
+		return this.editorService.closeAllEditors(position);
+	}
+}
+
+class CloseAllEditorsAction extends Action {
+
+	public static ID = 'workbench.files.action.closeAllEditors';
+
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(CloseAllEditorsAction.ID, nls.localize('closeAllEditors', "Close All Editors"));
+	}
+
+	public run(): TPromise<any> {
+		return this.editorService.closeAllEditors();
 	}
 }
