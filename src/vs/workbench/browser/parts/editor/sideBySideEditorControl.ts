@@ -22,7 +22,6 @@ import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, isInputRelated} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
-import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import DOM = require('vs/base/browser/dom');
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
@@ -82,7 +81,10 @@ export interface ISideBySideEditorControl {
 	layout(dimension: Dimension): void;
 	layout(position: Position): void;
 
-	updateEditorTitleArea(states: ITitleAreaState[]): void;
+	recreateTitleArea(states: ITitleAreaState[]): void;
+	updateTitleArea(state: ITitleAreaState): void;
+	updateTitleArea(input: EditorInput): void;
+
 	clearTitle(position: Position): void;
 
 	arrangeGroups(arrangement: GroupArrangement): void;
@@ -133,7 +135,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private lastActivePosition: Position;
 
 	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
-	private editorInputStateChangeListener: () => void;
 
 	private _onGroupFocusChanged: Emitter<void>;
 
@@ -175,14 +176,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this.initStyles();
 		this.create(this.parent);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Update editor input state indicators on state changes
-		this.editorInputStateChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputStateChanged(event));
 	}
 
 	private initStyles(): void {
@@ -1118,7 +1111,41 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		return actionItem;
 	}
 
-	public updateEditorTitleArea(states: ITitleAreaState[]): void {
+	public updateTitleArea(state: ITitleAreaState): void;
+	public updateTitleArea(input: EditorInput): void;
+	public updateTitleArea(arg1: any): void {
+
+		// Update all title areas that relate to given input if provided
+		if (arg1 instanceof EditorInput) {
+			const input = arg1;
+
+			// Update the input label in each position according to the new status
+			POSITIONS.forEach((position) => {
+				if (this.visibleEditors[position] && isInputRelated(this.visibleEditors[position].input, input)) {
+					this.titleLabel[position].safeInnerHtml(this.getNameForInput(input));
+				}
+			});
+		}
+
+		// Otherwise update specific title position
+		else {
+			const state:ITitleAreaState = arg1;
+
+			let editor = this.visibleEditors[state.position];
+			let input = editor ? editor.input : null;
+
+			if (input && editor) {
+				const isPinned = !input.matches(state.preview);
+				if (isPinned) {
+					this.titleContainer[state.position].addClass('pinned');
+				} else {
+					this.titleContainer[state.position].removeClass('pinned');
+				}
+			}
+		}
+	}
+
+	public recreateTitleArea(states: ITitleAreaState[]): void {
 		const activePosition = this.lastActivePosition;
 
 		states.forEach(state => {
@@ -1235,17 +1262,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		return label;
-	}
-
-	private onEditorInputStateChanged(event: EditorInputEvent): void {
-		const input = event.editorInput;
-
-		// Update the input label in each position according to the new status
-		POSITIONS.forEach((position) => {
-			if (this.visibleEditors[position] && isInputRelated(this.visibleEditors[position].input, input)) {
-				this.titleLabel[position].safeInnerHtml(this.getNameForInput(input));
-			}
-		});
 	}
 
 	public setLoading(position: Position, input: EditorInput): void {
@@ -1629,10 +1645,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.containers.forEach((container) => {
 			container.destroy();
 		});
-
-		if (this.editorInputStateChangeListener) {
-			this.editorInputStateChangeListener();
-		}
 
 		this.lastActiveEditor = null;
 		this.lastActivePosition = null;
