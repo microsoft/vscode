@@ -765,40 +765,18 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private serialize(): ISerializedEditorStacksModel {
-		let activeIndex = this.indexOf(this._activeGroup);
-		let activeIsEmptyGroup = false;
-
-		let serializedGroups = this._groups.map(g => g.serialize());
 
 		// Exclude now empty groups (can happen if an editor cannot be serialized)
-		let serializedNonEmptyGroups: ISerializedEditorGroup[] = [];
-		serializedGroups.forEach((g, index) => {
+		let serializableGroups = this._groups.map(g => g.serialize()).filter(g => g.editors.length > 0);
 
-			// non empty group
-			if (g.editors.length > 0) {
-				serializedNonEmptyGroups.push(g);
-			}
-
-			// empty group that is active
-			else if (activeIndex === index) {
-				activeIsEmptyGroup = true; // our active group is empty after serialization!
-			}
-		});
-
-		serializedGroups = serializedNonEmptyGroups;
-
-		// Determine serializable active index
-		let serializableActiveIndex;
-		if (activeIsEmptyGroup && serializedGroups.length > 0) {
-			serializableActiveIndex = 0; // just make first group active if active is empty and we have other groups to pick from
-		} else if (activeIsEmptyGroup) {
-			serializableActiveIndex = void 0; // there are no groups to make active
-		} else if (activeIndex >= 0) {
-			serializableActiveIndex = activeIndex; // active group is not empty and can be serialized
+		// Only consider active index if we do not have empty groups
+		let serializableActiveIndex = 0;
+		if (serializableGroups.length === this._groups.length) {
+			serializableActiveIndex = this.indexOf(this._activeGroup);
 		}
 
 		return {
-			groups: serializedGroups,
+			groups: serializableGroups,
 			active: serializableActiveIndex
 		};
 	}
