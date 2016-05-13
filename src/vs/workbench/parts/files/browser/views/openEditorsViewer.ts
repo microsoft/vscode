@@ -221,7 +221,6 @@ export class Controller extends treedefaults.DefaultController {
 
 		// Select, Focus and open files
 		else {
-			const preserveFocus = !isDoubleClick;
 			tree.setFocus(element, payload);
 
 			if (isDoubleClick) {
@@ -229,7 +228,7 @@ export class Controller extends treedefaults.DefaultController {
 			}
 
 			tree.setSelection([element], payload);
-			this.openEditor(element, preserveFocus);
+			this.openEditor(element, isDoubleClick);
 		}
 
 		return true;
@@ -246,7 +245,7 @@ export class Controller extends treedefaults.DefaultController {
 			return true;
 		}
 
-		this.openEditor(element, false);
+		this.openEditor(element, true);
 
 		return super.onEnter(tree, event);
 	}
@@ -280,11 +279,14 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
-	private openEditor(element: OpenEditor, preserveFocus: boolean): void {
+	private openEditor(element: OpenEditor, pinEditor: boolean): void {
 		if (element) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			const position = this.model.positionOfGroup(element.editorGroup);
-			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus }), position)
+			if (pinEditor) {
+				this.editorService.pinEditor(position, element.editorInput);
+			}
+			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus: !pinEditor }), position)
 				.done(() => this.editorService.activateGroup(position), errors.onUnexpectedError);
 		}
 	}
