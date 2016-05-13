@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import uri from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {EditorInput, UntitledEditorInput} from 'vs/workbench/common/editor';
@@ -34,6 +35,10 @@ export class OpenEditor {
 		return this.group.isPreview(this.editor);
 	}
 
+	public isUntitled(): boolean {
+		return this.editor instanceof UntitledEditorInput;
+	}
+
 	public isDirty(textFileService: ITextFileService, untitledEditorService: IUntitledEditorService): boolean {
 		if (this.editor instanceof FileEditorInput) {
 			return textFileService.isDirty((<FileEditorInput>this.editor).getResource());
@@ -44,14 +49,14 @@ export class OpenEditor {
 		return false;
 	}
 
-	public getFsPath(): string {
+	public getResource(): uri {
 		if (this.editor instanceof FileEditorInput) {
-			return (<FileEditorInput>this.editor).getResource().fsPath;
+			return (<FileEditorInput>this.editor).getResource();
 		} else if (this.editor instanceof UntitledEditorInput) {
-			return (<UntitledEditorInput>this.editor).getResource().fsPath;
+			return (<UntitledEditorInput>this.editor).getResource();
 		}
 
-		return '';
+		return null;
 	}
 }
 

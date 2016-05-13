@@ -19,10 +19,10 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {EditorOptions} from 'vs/workbench/common/editor';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {keybindingForAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {OpenEditor, CloseAllEditorsAction, CloseAllEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseOpenEditorAction, CloseOtherEditorsInGroupAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
 
@@ -131,7 +131,8 @@ export class Renderer implements tree.IRenderer {
 	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
 		editor.isDirty(this.textFileService, this.untitledEditorService) ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
-		templateData.root.title = editor.getFsPath();
+		const resource = editor.getResource();
+		templateData.root.title = resource ? resource.fsPath : '';
 		templateData.name.textContent = editor.editorInput.getName();
 		templateData.description.textContent = editor.editorInput.getDescription();
 		templateData.actionBar.context = editor;
@@ -271,7 +272,11 @@ export class AccessibilityProvider implements tree.IAccessibilityProvider {
 
 export class ActionProvider implements IActionProvider {
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+	) {
 		// noop
 	}
 
@@ -297,16 +302,57 @@ export class ActionProvider implements IActionProvider {
 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
 		const result = [];
+		const autoSaveEnabled = this.textFileService.getAutoSaveMode() !== AutoSaveMode.OFF;
+
 		if (element instanceof EditorGroup) {
 			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
 		} else {
+			const openEditor = <OpenEditor>element;
+			const resource = openEditor.getResource();
+			if (resource) {
+				// Open to side
+				result.push(this.instantiationService.createInstance(OpenToSideAction, tree, resource, false));
+
+				// Files: Save / Revert
+				if (!autoSaveEnabled && openEditor.isDirty(this.textFileService, this.untitledEditorService)) {
+					result.push(new Separator());
+
+					const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+					saveAction.setResource(resource);
+					saveAction.enabled = true;
+					result.push(saveAction);
+
+					const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
+					revertAction.setResource(resource);
+					revertAction.enabled = openEditor.isDirty(this.textFileService, this.untitledEditorService);
+					result.push(revertAction);
+				}
+
+				// Untitled: Save / Save As
+				if (openEditor.isUntitled()) {
+					result.push(new Separator());
+
+					if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
+						let saveUntitledAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+						saveUntitledAction.setResource(resource);
+						result.push(saveUntitledAction);
+					}
+
+					let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
+					saveAsAction.setResource(resource);
+					result.push(saveAsAction);
+				}
+
+				result.push(new Separator());
+			}
+
 			result.push(this.instantiationService.createInstance(CloseOpenEditorAction));
 			result.push(new Separator());
 			result.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction));
 			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
-			result.push(new Separator());
 		}
 
+		result.push(new Separator());
 		result.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction));
 		result.push(new Separator());
 		result.push(this.instantiationService.createInstance(CloseAllEditorsAction));
