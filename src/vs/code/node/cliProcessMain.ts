@@ -71,7 +71,8 @@ class Main {
 					const isInstalled = installed.some(e => getExtensionId(e) === id);
 
 					if (isInstalled) {
-						return TPromise.wrapError(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+						console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+						return;
 					}
 
 					console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
