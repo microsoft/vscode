@@ -11,6 +11,10 @@ if (env.isLinux) {
 		defaultTerminalLinux = 'x-terminal-emulator';
 	} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {
 		defaultTerminalLinux = 'gnome-terminal';
+	} else if (process.env.COLORTERM) {
+		defaultTerminalLinux = process.env.COLORTERM;
+	} else if (process.env.TERM) {
+		defaultTerminalLinux = process.env.TERM;
 	}
 }
 
