@@ -116,6 +116,21 @@ suite('Files - WorkingFilesModel', () => {
 		assert.equal(model.popLastClosedEntry(), null);
 	});
 
+	test("Clearing the model only adds files to the closed entries", function() {
+		let model = baseInstantiationService.createInstance(WorkingFilesModel);
+
+		model.addEntry(URI.create('untitled', null, '/foo'));
+		assert.equal(model.popLastClosedEntry(), null);
+		model.clear();
+		assert.equal(model.popLastClosedEntry(), null);
+
+		model.addEntry(URI.create('file', null, '/foo'));
+		model.addEntry(URI.create('untitled', null, '/bar'));
+		model.clear();
+		assert.ok(model.popLastClosedEntry().isFile);
+		assert.equal(model.popLastClosedEntry(), null);
+	});
+
 	test("Reopening multiple files will open the editor in the previously opened file", function() {
 		let model = baseInstantiationService.createInstance(WorkingFilesModel);
 

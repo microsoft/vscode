@@ -355,14 +355,14 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 
 		// Put the active entry on the top of the stack
 		let input = this.editorService.getActiveEditorInput();
-		let resource: uri = getUntitledOrFileResource(input);
+		let activeResource: uri = getUntitledOrFileResource(input);
 		let activeEntry: WorkingFileEntry;
-		if (resource) {
-			activeEntry = this.findEntry(resource);
+		if (activeResource && activeResource.scheme === 'file') {
+			activeEntry = this.findEntry(activeResource);
 		}
 
 		this.recentlyClosedEntries = this.recentlyClosedEntries.concat(resources.filter(e => {
-			return !activeEntry || e.resource.path !== activeEntry.resource.path;
+			return (!activeEntry || e.resource.path !== activeEntry.resource.path) && e.resource.scheme === 'file';
 		}));
 
 		if (activeEntry) {
