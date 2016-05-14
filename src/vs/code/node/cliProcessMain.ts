@@ -59,19 +59,20 @@ class Main {
 	}
 
 	private installExtension(ids: string[]): TPromise<any> {
-		return sequence(ids.map(id => () => {
-			return this.extensionGalleryService.query({ ids: [id] }).then(result => {
-				const [extension] = result.firstPage;
+		return this.extensionManagementService.getInstalled().then(installed => {
+			return sequence(ids.map(id => () => {
 
-				if (!extension) {
-					return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
+				const isInstalled = installed.some(e => getExtensionId(e) === id);
+
+				if (isInstalled) {
+					return TPromise.wrapError(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
 				}
 
-				return this.extensionManagementService.getInstalled().then(installed => {
-					const isInstalled = installed.some(e => getExtensionId(e) === id);
+				return this.extensionGalleryService.query({ ids: [id] }).then(result => {
+					const [extension] = result.firstPage;
 
-					if (isInstalled) {
-						return TPromise.wrapError(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+					if (!extension) {
+						return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
 					}
 
 					console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
@@ -81,8 +82,8 @@ class Main {
 						console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
 					});
 				});
-			});
-		}));
+			}));
+		});
 	}
 
 	private uninstallExtension(ids: string[]): TPromise<any> {
