@@ -24,8 +24,8 @@ import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHi
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 
-export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
-export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
+export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
+export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get it from us.
 
 export enum States {
 	Content,
