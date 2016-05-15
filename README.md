@@ -4,6 +4,8 @@ Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-comple
 ##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
 Once installed, do remember to [configure the path](https://github.com/DonJayamanne/pythonVSCode/wiki/Python-Path-and-Version) to the python executable.
 
+If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you can reference the `python` interpreter from your virtualenv (ie `~/.virtualenvs/XXX/bin/python`).
+
 ##Features
 * Linting (PyLint, Pep8, Flake8, pydocstyle with config files and plugins)
 * Intellisense and autocompletion
