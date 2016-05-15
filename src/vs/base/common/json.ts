@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import {localize} from 'vs/nls';
 
 export enum ScanError {
 	None,
@@ -35,19 +35,50 @@ export enum SyntaxKind {
 	EOF
 }
 
+/**
+ * The scanner object, representing a JSON scanner at a position in the input string.
+ */
 export interface JSONScanner {
+	/**
+	 * Sets the scan position to a new offset. A call to 'scan' is needed to get the first token.
+	 */
+	setPosition(pos: number);
+	/**
+	 * Read the next token. Returns the tolen code.
+	 */
 	scan(): SyntaxKind;
+	/**
+	 * Returns the current scan position, which is after the last read token.
+	 */
 	getPosition(): number;
+	/**
+	 * Returns the last read token.
+	 */
 	getToken(): SyntaxKind;
+	/**
+	 * Returns the last read token value. The value for strings is the decoded string content. For numbers its of type number, for boolean it's true or false.
+	 */
 	getTokenValue(): string;
+	/**
+	 * The start offset of the last read token.
+	 */
 	getTokenOffset(): number;
+	/**
+	 * The length of the last read token.
+	 */
 	getTokenLength(): number;
+	/**
+	 * An error code of the last scan.
+	 */
 	getTokenError(): ScanError;
 }
-
+/**
+ * Creates a JSON scanner on the given text.
+ * If ignoreTrivia is set, whitespaces or comments are ignored.
+ */
 export function createScanner(text:string, ignoreTrivia:boolean = false):JSONScanner {
 
-	var pos = 0,
+	let pos = 0,
 		len = text.length,
 		value:string = '',
 		tokenOffset = 0,
@@ -55,10 +86,10 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 		scanError:ScanError = ScanError.None;
 
 	function scanHexDigits(count: number, exact?: boolean): number {
-		var digits = 0;
-		var value = 0;
+		let digits = 0;
+		let value = 0;
 		while (digits < count || !exact) {
-			var ch = text.charCodeAt(pos);
+			let ch = text.charCodeAt(pos);
 			if (ch >= CharacterCodes._0 && ch <= CharacterCodes._9) {
 				value = value * 16 + ch - CharacterCodes._0;
 			}
@@ -80,8 +111,16 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 		return value;
 	}
 
+	function setPosition(newPosition: number) {
+		pos = newPosition;
+		value = '';
+		tokenOffset = 0;
+		token = SyntaxKind.Unknown;
+		scanError = ScanError.None;
+	}
+
 	function scanNumber(): string {
-		var start = pos;
+		let start = pos;
 		if (text.charCodeAt(pos) === CharacterCodes._0) {
 			pos++;
 		} else {
@@ -99,10 +138,10 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 				}
 			} else {
 				scanError = ScanError.UnexpectedEndOfNumber;
-				return text.substring(start, end);
+				return text.substring(start, pos);
 			}
 		}
-		var end = pos;
+		let end = pos;
 		if (pos < text.length && (text.charCodeAt(pos) === CharacterCodes.E || text.charCodeAt(pos) === CharacterCodes.e)) {
 			pos++;
 			if (pos < text.length && text.charCodeAt(pos) === CharacterCodes.plus || text.charCodeAt(pos) === CharacterCodes.minus) {
@@ -123,7 +162,7 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 
 	function scanString(): string {
 
-		var result = '',
+		let result = '',
 			start = pos;
 
 		while (true) {
@@ -132,7 +171,7 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 				scanError = ScanError.UnexpectedEndOfString;
 				break;
 			}
-			var ch = text.charCodeAt(pos);
+			let ch = text.charCodeAt(pos);
 			if (ch === CharacterCodes.doubleQuote) {
 				result += text.substring(start, pos);
 				pos++;
@@ -172,7 +211,7 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 						result += '\t';
 						break;
 					case CharacterCodes.u:
-						var ch = scanHexDigits(4, true);
+						let ch = scanHexDigits(4, true);
 						if (ch >= 0) {
 							result += String.fromCharCode(ch);
 						} else {
@@ -208,7 +247,7 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 			return token = SyntaxKind.EOF;
 		}
 
-		var code = text.charCodeAt(pos);
+		let code = text.charCodeAt(pos);
 		// trivia: whitespace
 		if (isWhiteSpace(code)) {
 			do {
@@ -260,7 +299,7 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 
 			// comments
 			case CharacterCodes.slash:
-				var start = pos - 1;
+				let start = pos - 1;
 				// Single-line comment
 				if (text.charCodeAt(pos + 1) === CharacterCodes.slash) {
 					pos += 2;
@@ -280,10 +319,10 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 				if (text.charCodeAt(pos + 1) === CharacterCodes.asterisk) {
 					pos += 2;
 
-					var safeLength = len - 1; // For lookahead.
-					var commentClosed = false;
+					let safeLength = len - 1; // For lookahead.
+					let commentClosed = false;
 					while (pos < safeLength) {
-						var ch = text.charCodeAt(pos);
+						let ch = text.charCodeAt(pos);
 
 						if (ch === CharacterCodes.asterisk && text.charCodeAt(pos + 1) === CharacterCodes.slash) {
 							pos += 2;
@@ -371,7 +410,7 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 
 
 	function scanNextNonTrivia():SyntaxKind {
-		var result : SyntaxKind;
+		let result : SyntaxKind;
 		do {
 			result = scanNext();
 		} while (result >= SyntaxKind.LineCommentTrivia && result <= SyntaxKind.Trivia);
@@ -379,6 +418,7 @@ export function createScanner(text:string, ignoreTrivia:boolean = false):JSONSca
 	}
 
 	return {
+		setPosition: setPosition,
 		getPosition: () => pos,
 		scan: ignoreTrivia ? scanNextNonTrivia : scanNext,
 		getToken: () => token,
@@ -401,10 +441,6 @@ function isLineBreak(ch: number): boolean {
 
 function isDigit(ch: number): boolean {
 	return ch >= CharacterCodes._0 && ch <= CharacterCodes._9;
-}
-
-export function isLetter(ch: number): boolean {
-	return ch >= CharacterCodes.a && ch <= CharacterCodes.z || ch >= CharacterCodes.A && ch <= CharacterCodes.Z;
 }
 
 enum CharacterCodes {
@@ -552,7 +588,7 @@ enum CharacterCodes {
  */
 export function stripComments(text:string, replaceCh?:string):string {
 
-	var _scanner = createScanner(text),
+	let _scanner = createScanner(text),
 		parts: string[] = [],
 		kind:SyntaxKind,
 		offset = 0,
@@ -579,23 +615,285 @@ export function stripComments(text:string, replaceCh?:string):string {
 	return parts.join('');
 }
 
-export function parse(text:string, errors: string[] = []) : any {
-	var noMatch = Object();
-	var _scanner = createScanner(text, true);
+export interface ParseError {
+	error: ParseErrorCode;
+}
 
-	function scanNext() : SyntaxKind {
-		var token = _scanner.scan();
-		while (token === SyntaxKind.Unknown) {
-			handleError(nls.localize('UnknownSymbol', 'Invalid symbol'));
-			token = _scanner.scan();
+export enum ParseErrorCode {
+	InvalidSymbol,
+	InvalidNumberFormat,
+	PropertyNameExpected,
+	ValueExpected,
+	ColonExpected,
+	CommaExpected,
+	CloseBraceExpected,
+	CloseBracketExpected,
+	EndOfFileExpected
+}
+
+export function getParseErrorMessage(errorCode: ParseErrorCode) : string {
+	switch (errorCode) {
+		case ParseErrorCode.InvalidSymbol: return localize('error.invalidSymbol', 'Invalid symbol');
+		case ParseErrorCode.InvalidNumberFormat: return localize('error.invalidNumberFormat', 'Invalid number format');
+		case ParseErrorCode.PropertyNameExpected: return localize('error.propertyNameExpected', 'Property name expected');
+		case ParseErrorCode.ValueExpected: return localize('error.valueExpected', 'Value expected');
+		case ParseErrorCode.ColonExpected: return localize('error.colonExpected', 'Colon expected');
+		case ParseErrorCode.CommaExpected: return localize('error.commaExpected', 'Comma expected');
+		case ParseErrorCode.CloseBraceExpected: return localize('error.closeBraceExpected', 'Closing brace expected');
+		case ParseErrorCode.CloseBracketExpected: return localize('error.closeBracketExpected', 'Closing bracket expected');
+		case ParseErrorCode.EndOfFileExpected: return localize('error.endOfFileExpected', 'End of file expected');
+		default:
+			return '';
+	}
+}
+
+export type NodeType = "object" | "array" | "property" | "string" | "number" | "null";
+
+export interface Node {
+	type: NodeType;
+	value: any;
+	offset: number;
+	length: number;
+	columnOffset?: number;
+}
+
+export interface Location {
+	previousNode?: Node;
+	segments: string[];
+	matches: (segments: string[]) => boolean;
+	completeProperty: boolean;
+}
+
+
+/**
+ * For a given offset, evaluate the location in the JSON document. Each segment in a location is either a property names or an array accessors.
+ */
+export function getLocation(text:string, position: number) : Location {
+	let segments: string[] = [];
+	let earlyReturnException = new Object();
+	let previousNode : Node = void 0;
+	const previousNodeInst : Node = {
+		value: void 0,
+		offset: void 0,
+		length: void 0,
+		type: void 0
+	};
+	let completeProperty = false;
+	let hasComma = false;
+	function setPreviousNode(value: string, offset: number, length: number, type: NodeType) {
+		previousNodeInst.value = value;
+		previousNodeInst.offset = offset;
+		previousNodeInst.length = length;
+		previousNodeInst.type = type;
+		previousNodeInst.columnOffset = void 0;
+		previousNode = previousNodeInst;
+	}
+	try {
+
+		visit(text, {
+			onObjectBegin: (offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				previousNode = void 0;
+				completeProperty = position > offset;
+				hasComma = false;
+			},
+			onObjectProperty: (name: string, offset: number, length: number) => {
+				if (position < offset) {
+					throw earlyReturnException;
+				}
+				setPreviousNode(name, offset, length, 'property');
+				hasComma = false;
+				segments.push(name);
+				if (position <= offset + length) {
+					throw earlyReturnException;
+				}
+			},
+			onObjectEnd: (offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				previousNode = void 0;
+				if (!hasComma) {
+					segments.pop();
+				}
+				hasComma = false;
+			},
+			onArrayBegin: (offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				previousNode = void 0;
+				segments.push('[0]');
+				hasComma = false;
+			},
+			onArrayEnd: (offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				previousNode = void 0;
+				if (!hasComma) {
+					segments.pop();
+				}
+				hasComma = false;
+			},
+			onLiteralValue: (value: any, offset: number, length: number) => {
+				if (position < offset) {
+					throw earlyReturnException;
+				}
+				setPreviousNode(value, offset, length, value === null ? 'null' : (typeof value === 'string' ? 'string' : 'number'));
+				if (position <= offset + length) {
+					throw earlyReturnException;
+				}
+			},
+			onSeparator: (sep: string, offset: number, length: number) => {
+				if (position <= offset) {
+					throw earlyReturnException;
+				}
+				if (sep === ':' && previousNode.type === 'property') {
+					previousNode.columnOffset = offset;
+					completeProperty = false;
+					previousNode = void 0;
+				} else if (sep === ',') {
+					let last = segments.pop();
+					if (last[0] === '[' && last[last.length - 1] === ']') {
+						segments.push('[' + (parseInt(last.substr(1, last.length - 2)) + 1) + ']');
+					} else {
+						completeProperty = true;
+					}
+					previousNode = void 0;
+					hasComma = true;
+				}
+			}
+		});
+	} catch (e) {
+		if (e !== earlyReturnException) {
+			throw e;
 		}
-		return token;
+	}
+	return {
+		segments,
+		previousNode,
+		completeProperty,
+		matches: (pattern: string[]) => {
+			let k = 0;
+			for (let i = 0; k < pattern.length && i < segments.length; i++) {
+				if (pattern[k] === segments[i] || pattern[k] === '*') {
+					k++;
+				} else if (pattern[k] !== '**') {
+					return false;
+				}
+			}
+			return k === pattern.length;
+		}
+	};
+}
+
+export interface ParseOptions {
+	disallowComments?: boolean;
+}
+
+/**
+ * Parses the given text and returns the object the JSON content represents. On invalid input, the parser tries to be as fault lolerant as possible, but still return a result.
+ * Therefore always check the errors list to find out if the input was valid.
+ */
+export function parse(text:string, errors: ParseError[] = [], options?: ParseOptions) : any {
+	let currentProperty : string = null;
+	let currentParent : any = [];
+	let previousParents : any[] = [];
+
+	function onValue(value: any) {
+		if (Array.isArray(currentParent)) {
+			(<any[]> currentParent).push(value);
+		} else if (currentProperty) {
+			currentParent[currentProperty] = value;
+		}
 	}
 
-	function handleError(message:string, skipUntilAfter: SyntaxKind[] = [], skipUntil: SyntaxKind[] = []) : void {
-		errors.push(message);
+	let visitor = {
+		onObjectBegin: () => {
+			let object = {};
+			onValue(object);
+			previousParents.push(currentParent);
+			currentParent = object;
+			currentProperty = null;
+		},
+		onObjectProperty: (name: string) => {
+			currentProperty = name;
+		},
+		onObjectEnd: () => {
+			currentParent = previousParents.pop();
+		},
+		onArrayBegin: () => {
+			let array = [];
+			onValue(array);
+			previousParents.push(currentParent);
+			currentParent = array;
+			currentProperty = null;
+		},
+		onArrayEnd: () => {
+			currentParent = previousParents.pop();
+		},
+		onLiteralValue: onValue,
+		onError:(error:ParseErrorCode) => {
+			errors.push({error: error});
+		}
+	};
+	visit(text, visitor, options);
+	return currentParent[0];
+}
+
+/**
+ * Parses the given text and invokes the visitor functions for each object, array and literal reached.
+ */
+export function visit(text:string, visitor: JSONVisitor, options?: ParseOptions) : any {
+
+	let _scanner = createScanner(text, false);
+
+	function toNoArgVisit(visitFunction: (offset: number, length: number) => void) : () => void {
+		return visitFunction ? () => visitFunction(_scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
+	}
+	function toOneArgVisit<T>(visitFunction: (arg: T, offset: number, length: number) => void) : (arg: T) => void {
+		return visitFunction ? (arg: T) => visitFunction(arg, _scanner.getTokenOffset(), _scanner.getTokenLength()) : () => true;
+	}
+
+	let onObjectBegin = toNoArgVisit(visitor.onObjectBegin),
+		onObjectProperty = toOneArgVisit(visitor.onObjectProperty),
+		onObjectEnd = toNoArgVisit(visitor.onObjectEnd),
+		onArrayBegin = toNoArgVisit(visitor.onArrayBegin),
+		onArrayEnd = toNoArgVisit(visitor.onArrayEnd),
+		onLiteralValue = toOneArgVisit(visitor.onLiteralValue),
+		onSeparator = toOneArgVisit(visitor.onSeparator),
+		onError = toOneArgVisit(visitor.onError);
+
+	let disallowComments = options && options.disallowComments;
+	function scanNext() : SyntaxKind {
+		while (true) {
+			let token = _scanner.scan();
+			switch (token) {
+				case SyntaxKind.LineCommentTrivia:
+				case SyntaxKind.BlockCommentTrivia:
+					if (disallowComments) {
+						handleError(ParseErrorCode.InvalidSymbol);
+					}
+					break;
+				case SyntaxKind.Unknown:
+					handleError(ParseErrorCode.InvalidSymbol);
+					break;
+				case SyntaxKind.Trivia:
+				case SyntaxKind.LineBreakTrivia:
+					break;
+				default:
+					return token;
+			}
+		}
+	}
+
+	function handleError(error:ParseErrorCode, skipUntilAfter: SyntaxKind[] = [], skipUntil: SyntaxKind[] = []) : void {
+		onError(error);
 		if (skipUntilAfter.length + skipUntil.length > 0) {
-			var token = _scanner.getToken();
+			let token = _scanner.getToken();
 			while (token !== SyntaxKind.EOF) {
 				if (skipUntilAfter.indexOf(token) !== -1) {
 					scanNext();
@@ -608,156 +906,186 @@ export function parse(text:string, errors: string[] = []) : any {
 		}
 	}
 
-	function parseString() : any {
+	function parseString(isValue: boolean) : boolean {
 		if (_scanner.getToken() !== SyntaxKind.StringLiteral) {
-			return noMatch;
+			return false;
 		}
-		var value = _scanner.getTokenValue();
+		let value = _scanner.getTokenValue();
+		if (isValue) {
+			onLiteralValue(value);
+		} else {
+			onObjectProperty(value);
+		}
 		scanNext();
-		return value;
+		return true;
 	}
 
-	function parseLiteral() : any {
-		var value : any;
+	function parseLiteral() : boolean {
 		switch (_scanner.getToken()) {
 			case SyntaxKind.NumericLiteral:
+				let value = 0;
 				try {
 					value = JSON.parse(_scanner.getTokenValue());
 					if (typeof value !== 'number') {
-						handleError(nls.localize('InvalidNumberFormat', 'Invalid number format'));
+						handleError(ParseErrorCode.InvalidNumberFormat);
 						value = 0;
 					}
 				} catch (e) {
-					value = 0;
+					handleError(ParseErrorCode.InvalidNumberFormat);
 				}
+				onLiteralValue(value);
 				break;
 			case SyntaxKind.NullKeyword:
-				value = null;
+				onLiteralValue(null);
 				break;
 			case SyntaxKind.TrueKeyword:
-				value = true;
+				onLiteralValue(true);
 				break;
 			case SyntaxKind.FalseKeyword:
-				value = false;
+				onLiteralValue(false);
 				break;
 			default:
-				return noMatch;
+				return false;
 		}
 		scanNext();
-		return value;
+		return true;
 	}
 
-	function parseProperty(result: any) : any {
-		var key = parseString();
-		if (key === noMatch) {
-			handleError(nls.localize('PropertyExpected', 'Property name expected'), [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
+	function parseProperty() : boolean {
+		if (!parseString(false)) {
+			handleError(ParseErrorCode.PropertyNameExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
 			return false;
 		}
 		if (_scanner.getToken() === SyntaxKind.ColonToken) {
+			onSeparator(':');
 			scanNext(); // consume colon
 
-			var value = parseValue();
-			if (value !== noMatch) {
-				result[key] = value;
-			} else {
-				handleError(nls.localize('ValueExpected', 'Value expected'), [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
+			if (!parseValue()) {
+				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
 			}
 		} else {
-			handleError(nls.localize('ColonExpected', 'Colon expected'), [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
+			handleError(ParseErrorCode.ColonExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
 		}
 		return true;
 	}
 
-	function parseObject() : any {
+	function parseObject() : boolean {
 		if (_scanner.getToken() !== SyntaxKind.OpenBraceToken) {
-			return noMatch;
+			return false;
 		}
-		var obj = {};
+		onObjectBegin();
 		scanNext(); // consume open brace
 
-		var needsComma = false;
+		let needsComma = false;
 		while (_scanner.getToken() !== SyntaxKind.CloseBraceToken && _scanner.getToken() !== SyntaxKind.EOF) {
 			if (_scanner.getToken() === SyntaxKind.CommaToken) {
 				if (!needsComma) {
-					handleError(nls.localize('ValueExpected', 'Value expected'), [], [] );
+					handleError(ParseErrorCode.ValueExpected, [], [] );
 				}
+				onSeparator(',');
 				scanNext(); // consume comma
 			} else if (needsComma) {
-				handleError(nls.localize('CommaExpected', 'Comma expected'), [], [] );
+				handleError(ParseErrorCode.CommaExpected, [], [] );
 			}
-			var propertyParsed = parseProperty(obj);
-			if (!propertyParsed) {
-				handleError(nls.localize('ValueExpected', 'Value expected'), [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
+			if (!parseProperty()) {
+				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBraceToken, SyntaxKind.CommaToken] );
 			}
 			needsComma = true;
 		}
-
+		onObjectEnd();
 		if (_scanner.getToken() !== SyntaxKind.CloseBraceToken) {
-			handleError(nls.localize('CloseBraceExpected', 'Closing brace expected'), [SyntaxKind.CloseBraceToken], []);
+			handleError(ParseErrorCode.CloseBraceExpected, [SyntaxKind.CloseBraceToken], []);
 		} else {
 			scanNext(); // consume close brace
 		}
-		return obj;
+		return true;
 	}
 
-	function parseArray() : any {
+	function parseArray() : boolean {
 		if (_scanner.getToken() !== SyntaxKind.OpenBracketToken) {
-			return noMatch;
+			return false;
 		}
-		var arr: any[] = [];
+		onArrayBegin();
 		scanNext(); // consume open bracket
 
-		var needsComma = false;
+		let needsComma = false;
 		while (_scanner.getToken() !== SyntaxKind.CloseBracketToken && _scanner.getToken() !== SyntaxKind.EOF) {
 			if (_scanner.getToken() === SyntaxKind.CommaToken) {
 				if (!needsComma) {
-					handleError(nls.localize('ValeExpected', 'Value expected'), [], [] );
+					handleError(ParseErrorCode.ValueExpected, [], [] );
 				}
+				onSeparator(',');
 				scanNext(); // consume comma
 			} else if (needsComma) {
-				handleError(nls.localize('CommaExpected', 'Comma expected'), [], [] );
+				handleError(ParseErrorCode.CommaExpected, [], [] );
 			}
-			var value = parseValue();
-			if (value === noMatch) {
-				handleError(nls.localize('ValueExpected', 'Value expected'), [], [SyntaxKind.CloseBracketToken, SyntaxKind.CommaToken] );
-			} else {
-				arr.push(value);
+			if (!parseValue()) {
+				handleError(ParseErrorCode.ValueExpected, [], [SyntaxKind.CloseBracketToken, SyntaxKind.CommaToken] );
 			}
 			needsComma = true;
 		}
-
+		onArrayEnd();
 		if (_scanner.getToken() !== SyntaxKind.CloseBracketToken) {
-			handleError(nls.localize('CloseBracketExpected', 'Closing bracket expected'), [SyntaxKind.CloseBracketToken], []);
+			handleError(ParseErrorCode.CloseBracketExpected, [SyntaxKind.CloseBracketToken], []);
 		} else {
 			scanNext(); // consume close bracket
 		}
-		return arr;
+		return true;
 	}
 
-	function parseValue() : any {
-		var result = parseArray();
-		if (result !== noMatch) {
-			return result;
-		}
-		result = parseObject();
-		if (result !== noMatch) {
-			return result;
-		}
-		result = parseString();
-		if (result !== noMatch) {
-			return result;
-		}
-		return parseLiteral();
+	function parseValue() : boolean {
+		return parseArray() || parseObject() || parseString(true) || parseLiteral();
 	}
 
 	scanNext();
-	var value = parseValue();
-	if (value === noMatch) {
-		handleError(nls.localize('ValueExpected', 'Value expected'), [], []);
-		return void 0;
+	if (!parseValue()) {
+		handleError(ParseErrorCode.ValueExpected, [], []);
+		return false;
 	}
 	if (_scanner.getToken() !== SyntaxKind.EOF) {
-		handleError(nls.localize('EOFExpected', 'End of content expected'), [], []);
+		handleError(ParseErrorCode.EndOfFileExpected, [], []);
 	}
-	return value;
+	return true;
+}
+
+export interface JSONVisitor {
+	/**
+	 * Invoked when an open brace is encountered and an object is started. The offset and length represent the location of the open brace.
+	 */
+	onObjectBegin?: (offset:number, length:number) => void;
+
+	/**
+	 * Invoked when a property is encountered. The offset and length represent the location of the property name.
+	 */
+	onObjectProperty?: (property: string, offset:number, length:number) => void;
+
+	/**
+	 * Invoked when a closing brace is encountered and an object is completed. The offset and length represent the location of the closing brace.
+	 */
+	onObjectEnd?: (offset:number, length:number) => void;
+
+	/**
+	 * Invoked when an open bracket is encountered. The offset and length represent the location of the open bracket.
+	 */
+	onArrayBegin?: (offset:number, length:number) => void;
+
+	/**
+	 * Invoked when a closing bracket is encountered. The offset and length represent the location of the closing bracket.
+	 */
+	onArrayEnd?: (offset:number, length:number) => void;
+
+	/**
+	 * Invoked when a literal value is encountered. The offset and length represent the location of the literal value.
+	 */
+	onLiteralValue?: (value: any, offset:number, length:number) => void;
+
+	/**
+	 * Invoked when a comma or colon separator is encountered. The offset and length represent the location of the separator.
+	 */
+	onSeparator?: (charcter: string, offset:number, length:number) => void;
+
+	/**
+	 * Invoked on an error.
+	 */
+	onError?: (error: ParseErrorCode, offset:number, length:number) => void;
 }

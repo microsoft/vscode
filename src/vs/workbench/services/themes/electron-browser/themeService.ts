@@ -262,10 +262,10 @@ function applyTheme(theme: IThemeData, onApply: (themeId:string) => void): TProm
 function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
 	return pfs.readFile(themePath).then(content => {
 		if (Paths.extname(themePath) === '.json') {
-			let errors: string[] = [];
+			let errors: Json.ParseError[] = [];
 			let contentValue = <ThemeDocument> Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.join(', '))));
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 			}
 			if (contentValue.include) {
 				return _loadThemeDocument(Paths.join(Paths.dirname(themePath), contentValue.include)).then(includedValue => {

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {parse} from 'vs/base/common/json';
+import {parse, ParseError} from 'vs/base/common/json';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {readFile} from 'vs/base/node/pfs';
@@ -23,7 +23,7 @@ export interface ITMSnippetsExtensionPoint {
 
 export function snippetUpdated(modeId: string, filePath: string): TPromise<void> {
 	return readFile(filePath).then((fileContents) => {
-		var errors: string[] = [];
+		var errors: ParseError[] = [];
 		var snippetsObj = parse(fileContents.toString(), errors);
 		var adaptedSnippets = TMSnippetsAdaptor.adapt(snippetsObj);
 		SnippetsRegistry.registerSnippets(modeId, filePath, adaptedSnippets);
@@ -98,7 +98,7 @@ export class MainProcessTextMateSnippet {
 
 	public registerDefinition(modeId: string, filePath: string): void {
 		readFile(filePath).then((fileContents) => {
-			var errors: string[] = [];
+			var errors: ParseError[] = [];
 			var snippetsObj = parse(fileContents.toString(), errors);
 			var adaptedSnippets = TMSnippetsAdaptor.adapt(snippetsObj);
 			SnippetsRegistry.registerDefaultSnippets(modeId, adaptedSnippets);

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { SyntaxKind, createScanner, parse } from 'vs/base/common/json';
+import { SyntaxKind, createScanner, parse, ParseError, getParseErrorMessage } from 'vs/base/common/json';
 
 function assertKinds(text:string, ...kinds:SyntaxKind[]):void {
 	var _json = createScanner(text);
@@ -18,17 +18,17 @@ function assertKinds(text:string, ...kinds:SyntaxKind[]):void {
 
 
 function assertValidParse(input:string, expected:any) : void {
-	var errors : string[] = [];
+	var errors : ParseError[] = [];
 	var actual = parse(input, errors);
 
 	if (errors.length !== 0) {
-		assert(false, errors[0]);
+		assert(false, getParseErrorMessage(errors[0].error));
 	}
 	assert.deepEqual(actual, expected);
 }
 
 function assertInvalidParse(input:string, expected:any) : void {
-	var errors : string[] = [];
+	var errors : ParseError[] = [];
 	var actual = parse(input, errors);
 
 	assert(errors.length > 0);

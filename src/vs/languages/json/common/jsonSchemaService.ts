@@ -342,9 +342,9 @@ export class JSONSchemaService implements IJSONSchemaService {
 				}
 
 				var schemaContent: IJSONSchema = {};
-				var jsonErrors = [];
-				schemaContent = Json.parse(content, errors);
-				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), jsonErrors[0])] : [];
+				var jsonErrors: Json.ParseError[] = [];
+				schemaContent = Json.parse(content, jsonErrors);
+				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), Json.getParseErrorMessage(jsonErrors[0].error))] : [];
 				return new UnresolvedSchema(schemaContent, errors);
 			},
 			(error : http.IXHRResponse) => {
