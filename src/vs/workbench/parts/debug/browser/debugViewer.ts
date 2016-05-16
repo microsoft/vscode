@@ -1106,8 +1106,24 @@ export class BreakpointsController extends BaseDebugController {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
+		if (element instanceof model.Breakpoint) {
+			this.openBreakpointSource(element, event, true);
+		}
 
 		return super.onLeftClick(tree, element, event);
+	}
+
+	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
+		if (element instanceof model.FunctionBreakpoint) {
+			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+			return true;
+		}
+		if (element instanceof model.Breakpoint) {
+			this.openBreakpointSource(element, event, false);
+		}
+
+		return super.onEnter(tree, event);
 	}
 
 	protected onSpace(tree: tree.ITree, event: IKeyboardEvent): boolean {
@@ -1117,7 +1133,6 @@ export class BreakpointsController extends BaseDebugController {
 
 		return true;
 	}
-
 
 	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
@@ -1132,5 +1147,12 @@ export class BreakpointsController extends BaseDebugController {
 		}
 
 		return false;
+	}
+
+	private openBreakpointSource(breakpoint: debug.IBreakpoint, event: IKeyboardEvent|IMouseEvent, preserveFocus: boolean): void {
+		if (!breakpoint.source.inMemory) {
+			const sideBySide = (event && (event.ctrlKey || event.metaKey));
+			this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		}
 	}
 }

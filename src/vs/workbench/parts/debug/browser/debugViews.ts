@@ -16,7 +16,7 @@ import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import splitview = require('vs/base/browser/ui/splitview/splitview');
 import viewlet = require('vs/workbench/browser/viewlet');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
+import { StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -346,31 +346,6 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 		const debugModel = this.debugService.getModel();
 
 		this.tree.setInput(debugModel);
-
-		this.toDispose.push(this.tree.addListener2('selection', (e: tree.ISelectionEvent) => {
-			if (!e.selection.length) {
-				return;
-			}
-			const element = e.selection[0];
-			if (!(element instanceof Breakpoint)) {
-				return;
-			}
-
-			const breakpoint = <debug.IBreakpoint> element;
-			if (!breakpoint.source.inMemory) {
-				const isMouse = (e.payload.origin === 'mouse');
-				let preserveFocus = isMouse;
-
-				const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
-				if (originalEvent && isMouse && originalEvent.detail === 2) {
-					preserveFocus = false;
-					originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
-				}
-
-				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-			}
-		}));
 
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
 			if (!fbp || !(fbp instanceof FunctionBreakpoint)) {
