@@ -148,15 +148,16 @@ export class FileTracker implements IWorkbenchContribution {
 	private toInputs(paths: IPath[], isNew: boolean): IResourceInput[] {
 		return paths.map(p => {
 			let input = <IResourceInput>{
-				resource: isNew ? this.untitledEditorService.createOrGet(URI.file(p.filePath)).getResource() : URI.file(p.filePath)
+				resource: isNew ? this.untitledEditorService.createOrGet(URI.file(p.filePath)).getResource() : URI.file(p.filePath),
+				options: {
+					pinned: true
+				}
 			};
 
 			if (!isNew && p.lineNumber) {
-				input.options = {
-					selection: {
-						startLineNumber: p.lineNumber,
-						startColumn: p.columnNumber
-					}
+				input.options.selection = {
+					startLineNumber: p.lineNumber,
+					startColumn: p.columnNumber
 				};
 			}
 
