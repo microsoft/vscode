@@ -9,6 +9,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import mime = require('vs/base/common/mime');
 import Event, { Emitter } from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Action } from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
@@ -857,41 +858,41 @@ export class DebugService implements debug.IDebugService {
 		return this.session.pause({ threadId });
 	}
 
-
 	private lazyTransitionToRunningState(threadId?: number): void {
-		let cancelTransitionToRunningState = false;
+		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
 		const toDispose = this.session.onDidStop(e => {
 			if (e.body.threadId === threadId || e.body.allThreadsStopped || !threadId) {
-				cancelTransitionToRunningState = true;
+				setNewFocusedStackFrameScheduler.cancel();
 			}
 		});
 
-		// Do not immediatly transition to running state since that might cause unnecessery flickering
-		// of the tree in the debug viewlet. Only transition if no stopped event has arrived in 500ms.
-		setTimeout(() => {
+		// TODO@Isidor temporary workaround for #1703
+		if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'php')) {
+			this.model.clearThreads(false, threadId);
+		} else {
+			this.model.clearThreads(false);
+		}
+
+		// Get a top stack frame of a stopped thread if there is any.
+		const threads = this.model.getThreads();
+		const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
+		const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
+		const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
+		const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
+
+		if (!stoppedThread) {
+			this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
+		}
+
+		// Do not immediatly set a new focused stack frame since that might cause unnecessery flickering
+		// of the tree in the debug viewlet. Only set focused stack frame if no stopped event has arrived in 500ms.
+		setNewFocusedStackFrameScheduler = new RunOnceScheduler(() => {
 			toDispose.dispose();
-			if (!cancelTransitionToRunningState) {
-				aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-				// TODO@Isidor temporary workaround for #1703
-				if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'php')) {
-					this.model.clearThreads(false, threadId);
-				} else {
-					this.model.clearThreads(false);
-				}
+			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 
-				// Get a top stack frame of a stopped thread if there is any.
-				const threads = this.model.getThreads();
-				const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
-				const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
-				const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
-				const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
-
-				this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-				if (!stoppedThread) {
-					this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
-				}
-			}
+			this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 		}, 500);
+		setNewFocusedStackFrameScheduler.schedule();
 	}
 
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {
