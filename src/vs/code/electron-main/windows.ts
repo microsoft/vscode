@@ -789,10 +789,6 @@ export class WindowsManager implements IWindowsService {
 		files = arrays.distinct(files);
 		folders = arrays.distinct(folders);
 
-		if (platform.isMacintosh && files.length > 0) {
-			files = files.filter(f => folders.indexOf(f) < 0); // TODO@Ben migration (remove in the future)
-		}
-
 		// Make sure it is bounded
 		files = files.slice(0, 10);
 		folders = folders.slice(0, 10);

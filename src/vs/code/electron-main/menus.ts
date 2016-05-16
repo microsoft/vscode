@@ -409,10 +409,6 @@ export class VSCodeMenu {
 
 		// Files
 		let files = recentList.files;
-		if (platform.isMacintosh && recentList.files.length > 0) {
-			files = recentList.files.filter(f => recentList.folders.indexOf(f) < 0); // TODO@Ben migration (remove in the future)
-		}
-
 		if (files.length > 0) {
 			openRecentMenu.append(__separator__());
 
