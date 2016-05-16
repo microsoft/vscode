@@ -381,10 +381,10 @@ export class ExplorerView extends CollapsibleViewletView {
 							// Focus new element
 							this.explorerViewer.setFocus(childElement);
 
-							// Open new file in editor
+							// Open new file in editor (pinned)
 							if (!childElement.isDirectory) {
 								let editorInput = this.instantiationService.createInstance(FileEditorInput, childElement.resource, childElement.mime, void 0);
-								return this.editorService.openEditor(editorInput);
+								return this.editorService.openEditor(editorInput, EditorOptions.create({ pinned: true }));
 							}
 						});
 					});
@@ -491,10 +491,11 @@ export class ExplorerView extends CollapsibleViewletView {
 			parentResource = URI.file(paths.dirname(importedElement.resource.fsPath));
 			parentElement = this.getInput().find(parentResource);
 
+			// Open it (pinned)
 			if (parentElement) {
 				this.explorerViewer.refresh(parentElement).then(() => {
 					let editorInput = this.instantiationService.createInstance(FileEditorInput, importedElement.resource, importedElement.mime, void 0);
-					return this.editorService.openEditor(editorInput);
+					return this.editorService.openEditor(editorInput, EditorOptions.create({ pinned: true }));
 				}).done(null, errors.onUnexpectedError);
 			}
 		}
