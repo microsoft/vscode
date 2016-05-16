@@ -57,8 +57,8 @@ export interface IEditorStacksModel {
 
 	positionOfGroup(group: IEditorGroup): Position;
 
-	next(inGroup: boolean): IEditorIdentifier;
-	previous(inGroup: boolean): IEditorIdentifier;
+	next(): IEditorIdentifier;
+	previous(): IEditorIdentifier;
 
 	toString(): string;
 }
@@ -773,7 +773,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this.indexOf(group);
 	}
 
-	public next(inGroup: boolean): IEditorIdentifier {
+	public next(): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -785,11 +785,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Return next in group
 		if (index + 1 < this.activeGroup.count) {
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index + 1) };
-		}
-
-		// Return first in group
-		if (inGroup) {
-			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
 		}
 
 		// Return first in next group
@@ -804,7 +799,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return { group: firstGroup, editor: firstGroup.getEditor(0) };
 	}
 
-	public previous(inGroup: boolean): IEditorIdentifier {
+	public previous(): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -816,11 +811,6 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Return previous in group
 		if (index > 0) {
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index - 1) };
-		}
-
-		// Return last in group
-		if (inGroup) {
-			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 		}
 
 		// Return last in previous group

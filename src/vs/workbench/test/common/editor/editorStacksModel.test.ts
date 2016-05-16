@@ -1297,44 +1297,6 @@ suite('Editor Stacks Model', () => {
 		assert.equal(model.groups.length, 0);
 	});
 
-	test('Stack - Multiple Editors - Navigation (in group)', function () {
-		const model = create();
-		const group = model.openGroup('group');
-
-		const input1 = input();
-		const input2 = input();
-		const input3 = input();
-
-		group.openEditor(input1, { pinned: true, active: true });
-		group.openEditor(input2, { pinned: true, active: true });
-		group.openEditor(input3, { pinned: true, active: true });
-
-		let next = model.next(true);
-		assert.equal(next.group, group);
-		assert.equal(next.editor, input1);
-
-		group.setActive(next.editor);
-		next = model.next(true);
-		assert.equal(next.editor, input2);
-
-		group.setActive(next.editor);
-		next = model.next(true);
-		assert.equal(next.editor, input3);
-
-		group.setActive(next.editor);
-		let previous = model.previous(true);
-		assert.equal(previous.group, group);
-		assert.equal(previous.editor, input2);
-
-		group.setActive(previous.editor);
-		previous = model.previous(true);
-		assert.equal(previous.editor, input1);
-
-		group.setActive(previous.editor);
-		previous = model.previous(true);
-		assert.equal(previous.editor, input3);
-	});
-
 	test('Stack - Multiple Editors - Navigation (across groups)', function () {
 		const model = create();
 
@@ -1360,28 +1322,28 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous(false);
+		let previous = model.previous();
 		assert.equal(previous.group, group2);
 		assert.equal(previous.editor, input6);
 
 		model.setActive(previous.group);
 		previous.group.setActive(previous.editor);
 
-		let next = model.next(false);
+		let next = model.next();
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
 		model.setActive(group1);
 		group1.setActive(input3);
 
-		next = model.next(false);
+		next = model.next();
 		assert.equal(next.group, group2);
 		assert.equal(next.editor, input4);
 
 		model.setActive(next.group);
 		next.group.setActive(next.editor);
 
-		previous = model.previous(false);
+		previous = model.previous();
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
 	});

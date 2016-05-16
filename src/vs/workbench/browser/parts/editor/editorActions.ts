@@ -780,21 +780,7 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 	}
 
 	protected navigate(): IEditorIdentifier {
-		return this.editorService.getStacksModel().next(false);
-	}
-}
-
-export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
-
-	public static ID = 'workbench.action.nextEditorInGroup';
-	public static LABEL = nls.localize('openNextEditorInGroup', "Open Next Editor in Group");
-
-	constructor(id: string, label: string, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, editorService);
-	}
-
-	protected navigate(): IEditorIdentifier {
-		return this.editorService.getStacksModel().next(true);
+		return this.editorService.getStacksModel().next();
 	}
 }
 
@@ -808,21 +794,7 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 	}
 
 	protected navigate(): IEditorIdentifier {
-		return this.editorService.getStacksModel().previous(false);
-	}
-}
-
-export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
-
-	public static ID = 'workbench.action.previousEditorInGroup';
-	public static LABEL = nls.localize('openPreviousEditorInGroup', "Open Previous Editor in Group");
-
-	constructor(id: string, label: string, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, editorService);
-	}
-
-	protected navigate(): IEditorIdentifier {
-		return this.editorService.getStacksModel().previous(true);
+		return this.editorService.getStacksModel().previous();
 	}
 }
 
