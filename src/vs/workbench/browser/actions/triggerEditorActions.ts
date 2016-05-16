@@ -517,7 +517,7 @@ export class MoveGroupLeftAction extends Action {
 
 let MOVE_GROUP_RIGHT_ACTION_ID = 'workbench.action.moveActiveEditorRight';
 let MOVE_GROUP_RIGHT_ACTION_LABEL = nls.localize('moveActiveGroupRight', "Move Active Editor Group Right");
-export class MoveEditorRightAction extends Action {
+export class MoveGroupRightAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -659,7 +659,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction,
 registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MAXIMIZE_GROUP_ACTION_ID, MAXIMIZE_GROUP_ACTION_LABEL), 'View: Maximize Active Editor Group and Hide Sidebar', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MINIMIZE_GROUPS_ACTION_ID, MINIMIZE_GROUPS_ACTION_LABEL), 'View: Minimize Other Editor Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupLeftAction, MOVE_GROUP_LEFT_ACTION_ID, MOVE_GROUP_LEFT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Active Editor Left', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorRightAction, MOVE_GROUP_RIGHT_ACTION_ID, MOVE_GROUP_RIGHT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Active Editor Right', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupRightAction, MOVE_GROUP_RIGHT_ACTION_ID, MOVE_GROUP_RIGHT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Active Editor Right', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToLeftEditorAction, NAVIGATE_LEFT_EDITOR_ACTION_ID, NAVIGATE_LEFT_EDITOR_ACTION_LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow }
