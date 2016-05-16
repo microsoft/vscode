@@ -86,10 +86,10 @@ export class SplitEditorAction extends Action {
 	}
 }
 
-export class CycleBetweenGroupsAction extends Action {
+export class NavigateBetweenGroupsAction extends Action {
 
-	public static ID = 'workbench.action.cycleEditor';
-	public static LABEL = nls.localize('cycleEditorGroup', "Cycle Between Editor Groups");
+	public static ID = 'workbench.action.navigateEditorGroups';
+	public static LABEL = nls.localize('navigateEditorGroups', "Navigate Between Editor Groups");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -117,7 +117,7 @@ export class CycleBetweenGroupsAction extends Action {
 export class FocusFirstGroupAction extends Action {
 
 	public static ID = 'workbench.action.focusFirstEditor';
-	public static LABEL = nls.localize('focusFirstEditorGroup', "Focus into Left Hand Editor Group");
+	public static LABEL = nls.localize('focusFirstEditorGroup', "Focus Left Editor Group");
 
 	constructor(
 		id: string,
@@ -226,7 +226,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 
 	public static ID = 'workbench.action.focusSecondEditor';
-	public static LABEL = nls.localize('focusSecondEditorGroup', "Focus into Side Editor Group");
+	public static LABEL = nls.localize('focusSecondEditorGroup', "Focus Center Editor Group");
 
 	constructor(
 		id: string,
@@ -249,7 +249,7 @@ export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
 
 	public static ID = 'workbench.action.focusThirdEditor';
-	public static LABEL = nls.localize('focusThirdEditorGroup', "Focus into Right Hand Editor Group");
+	public static LABEL = nls.localize('focusThirdEditorGroup', "Focus Right Editor Group");
 
 	constructor(
 		id: string,
@@ -269,10 +269,10 @@ export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
 	}
 }
 
-export class NavigateToLeftGroupAction extends Action {
+export class FocusPreviousGroup extends Action {
 
-	public static ID = 'workbench.action.focusLeftEditor';
-	public static LABEL = nls.localize('focusLeftEditorGroup', "Focus into Next Editor Group on the Left");
+	public static ID = 'workbench.action.focusPreviousGroup';
+	public static LABEL = nls.localize('focusPreviousGroup', "Focus Previous Group");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -300,10 +300,10 @@ export class NavigateToLeftGroupAction extends Action {
 	}
 }
 
-export class NavigateToRightGroupAction extends Action {
+export class FocusNextGroup extends Action {
 
-	public static ID = 'workbench.action.focusRightEditor';
-	public static LABEL = nls.localize('focusRigthEditorGroup', "Focus into Next Editor Group on the Right");
+	public static ID = 'workbench.action.focusNextGroup';
+	public static LABEL = nls.localize('focusNextGroup', "Focus Next Group");
 
 	private navigateActions: Action[];
 
