@@ -79,7 +79,7 @@ export class CloseOtherEditorsInGroupAction extends Action {
 	public static ID = 'workbench.files.action.closeOtherEditorsInGroup';
 
 	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(CloseOtherEditorsInGroupAction.ID, nls.localize('closeOtherEditorsInGroup', "Close Other Editors in Group"));
+		super(CloseOtherEditorsInGroupAction.ID, nls.localize('closeOtherEditorsInGroup', "Close Other Editors"));
 	}
 
 	public run(openEditor: OpenEditor): TPromise<any> {

@@ -89,7 +89,7 @@ export class SplitEditorAction extends Action {
 export class CycleBetweenGroupsAction extends Action {
 
 	public static ID = 'workbench.action.cycleEditor';
-	public static LABEL = nls.localize('cycleEditorGroup', "Cycle Between Opened Editor Groups");
+	public static LABEL = nls.localize('cycleEditorGroup', "Cycle Between Editor Groups");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -468,8 +468,8 @@ export class CloseEditorsInGroupAction extends Action {
 
 export class CloseLeftEditorsInGroupAction extends Action {
 
-	public static ID = 'workbench.action.closeLeftEditorsInGroup';
-	public static LABEL = nls.localize('closeLeftEditorsInGroup', "Close All Editors in Group to the Left");
+	public static ID = 'workbench.action.closeEditorsToTheLeft';
+	public static LABEL = nls.localize('closeEditorsToTheLeft', "Close Editors to the Left");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -487,8 +487,8 @@ export class CloseLeftEditorsInGroupAction extends Action {
 
 export class CloseRightEditorsInGroupAction extends Action {
 
-	public static ID = 'workbench.action.closeRightEditorsInGroup';
-	public static LABEL = nls.localize('closeRightEditorsInGroup', "Close All Editors in Group to the Right");
+	public static ID = 'workbench.action.closeEditorsToTheRight';
+	public static LABEL = nls.localize('closeEditorsToTheRight', "Close Editors to the Right");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -555,7 +555,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 export class CloseOtherEditorsInGroupAction extends Action {
 
 	public static ID = 'workbench.action.closeOtherEditors';
-	public static LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors in Group");
+	public static LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
