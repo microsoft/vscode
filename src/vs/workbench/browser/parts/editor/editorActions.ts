@@ -18,6 +18,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 export class SplitEditorAction extends Action {
 
@@ -822,5 +823,37 @@ export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
 
 	protected navigate(): IEditorIdentifier {
 		return this.editorService.getStacksModel().previous(true);
+	}
+}
+
+export class NavigateForwardAction extends Action {
+
+	public static ID = 'workbench.action.navigateForward';
+	public static LABEL = nls.localize('navigateNext', "Go Forward");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.forward();
+
+		return TPromise.as(null);
+	}
+}
+
+export class NavigateBackwardsAction extends Action {
+
+	public static ID = 'workbench.action.navigateBack';
+	public static LABEL = nls.localize('navigatePrevious', "Go Back");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.back();
+
+		return TPromise.as(null);
 	}
 }

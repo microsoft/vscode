@@ -12,6 +12,7 @@ import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
+import {Action} from 'vs/base/common/actions';
 import {Mode, IContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
@@ -382,5 +383,24 @@ export abstract class CommandQuickOpenHandler extends QuickOpenHandler {
 		}
 
 		return command.command.getEmptyLabel(input);
+	}
+}
+
+export class QuickOpenAction extends Action {
+	private prefix: string;
+
+	constructor(actionId: string, actionLabel: string, prefix: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
+		super(actionId, actionLabel);
+
+		this.prefix = prefix;
+		this.enabled = !!this.quickOpenService;
+	}
+
+	public run(): TPromise<any> {
+
+		// Show with prefix
+		this.quickOpenService.show(this.prefix);
+
+		return TPromise.as(null);
 	}
 }

@@ -34,7 +34,7 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
 	CycleBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, NavigateToLeftGroupAction, NavigateToRightGroupAction,
-	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenNextEditorInGroup, OpenPreviousEditor, OpenPreviousEditorInGroup
+	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenNextEditorInGroup, OpenPreviousEditor, OpenPreviousEditorInGroup, NavigateBackwardsAction, NavigateForwardAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
@@ -281,3 +281,16 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupLeftAction, M
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupRightAction, MoveGroupRightAction.ID, MoveGroupRightAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Editor Group Right', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToLeftGroupAction, NavigateToLeftGroupAction.ID, NavigateToLeftGroupAction.LABEL), 'View: Focus into Next Editor Group on the Left', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToRightGroupAction, NavigateToRightGroupAction.ID, NavigateToRightGroupAction.LABEL), 'View: Focus into Next Editor Group on the Right', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateForwardAction, NavigateForwardAction.ID, NavigateForwardAction.LABEL, {
+	primary: null,
+	win: { primary: KeyMod.Alt | KeyCode.RightArrow },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_MINUS },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS }
+}), 'Go Forward');
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBackwardsAction, NavigateBackwardsAction.ID, NavigateBackwardsAction.LABEL, {
+	primary: null,
+	win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS }
+}), 'Go Back');

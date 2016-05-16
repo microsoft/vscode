@@ -19,8 +19,7 @@ import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/qui
 import {SyncActionDescriptor, IActionsService} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
-import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
+import {QuickOpenHandler, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {matchesWords, matchesPrefix, matchesContiguousSubString, or} from 'vs/base/common/filters';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {EditorAction} from 'vs/editor/common/editorAction';

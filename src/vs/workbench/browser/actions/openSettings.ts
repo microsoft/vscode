@@ -96,6 +96,7 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 }
 
 export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
+
 	public static ID = 'workbench.action.openGlobalSettings';
 	public static LABEL = nls.localize('openGlobalSettings', "Open User Settings");
 
@@ -148,6 +149,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 }
 
 export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
+
 	public static ID = 'workbench.action.openGlobalKeybindings';
 	public static LABEL = nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts");
 
@@ -173,6 +175,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 }
 
 export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
+
 	public static ID = 'workbench.action.openWorkspaceSettings';
 	public static LABEL = nls.localize('openWorkspaceSettings', "Open Workspace Settings");
 
@@ -234,10 +237,10 @@ class DefaultKeybindingsInput extends StringEditorInput {
 
 // Contribute Global Actions
 const category = nls.localize('preferences', "Preferences");
-let actionRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL, {
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL, {
 	primary: null,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }
 }), 'Preferences: Open User Settings', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL), 'Preferences: Open Keyboard Shortcuts', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), 'Preferences: Open Workspace Settings', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL), 'Preferences: Open Keyboard Shortcuts', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceSettingsAction, OpenWorkspaceSettingsAction.ID, OpenWorkspaceSettingsAction.LABEL), 'Preferences: Open Workspace Settings', category);

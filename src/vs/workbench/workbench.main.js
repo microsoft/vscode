@@ -27,8 +27,6 @@ define([
 	'vs/workbench/browser/actions/toggleSidebarVisibility',
 	'vs/workbench/browser/actions/toggleSidebarPosition',
 	'vs/workbench/browser/actions/triggerQuickOpen',
-	'vs/workbench/browser/actions/triggerNavigation',
-	'vs/workbench/browser/actions/showPerformanceBox',
 	'vs/workbench/browser/actions/openSettings',
 	'vs/workbench/browser/actions/configureLocale',
 

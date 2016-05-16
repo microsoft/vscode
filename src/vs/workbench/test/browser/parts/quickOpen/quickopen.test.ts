@@ -11,10 +11,9 @@ import {TestContextService, TestStorageService, TestEventService, TestEditorServ
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {Registry} from 'vs/platform/platform';
 import {EditorHistoryModel, EditorHistoryEntry} from 'vs/workbench/browser/parts/quickopen/editorHistoryModel';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {isEmptyObject} from 'vs/base/common/types';

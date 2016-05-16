@@ -156,7 +156,7 @@ function navigateKeybinding(shift: boolean): IKeybindings {
 }
 
 // Contribute Quick Open
-let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction, GlobalQuickOpenAction.ID, GlobalQuickOpenAction.LABEL, quickOpenKb), 'Go to File...');
 
 // Contribute Quick Navigate
