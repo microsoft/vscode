@@ -134,13 +134,14 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	private createCallStackDecorations(modelUrlStr: string): editorcommon.IModelDeltaDecoration[] {
 		const result: editorcommon.IModelDeltaDecoration[] = [];
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+		const focusedThreadId = this.debugService.getViewModel().getFocusedThreadId();
 		const allThreads = this.debugService.getModel().getThreads();
-		if (!focusedStackFrame || !allThreads[focusedStackFrame.threadId] || !allThreads[focusedStackFrame.threadId].getCachedCallStack()) {
+		if (!focusedStackFrame || !allThreads[focusedThreadId] || !allThreads[focusedThreadId].getCachedCallStack()) {
 			return result;
 		}
 
 		// only show decorations for the currently focussed thread.
-		const thread = allThreads[focusedStackFrame.threadId];
+		const thread = allThreads[focusedThreadId];
 		thread.getCachedCallStack().filter(sf => sf.source.uri.toString() === modelUrlStr).forEach(sf => {
 			const wholeLineRange = createRange(sf.lineNumber, sf.column, sf.lineNumber, Number.MAX_VALUE);
 

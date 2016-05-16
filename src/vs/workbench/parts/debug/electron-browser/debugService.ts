@@ -251,17 +251,18 @@ export class DebugService implements debug.IDebugService {
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
-				this.model.getThreads()[threadId].getCallStack(this).then(callStack => {
+				const thread = this.model.getThreads()[threadId];
+				thread.getCallStack(this).then(callStack => {
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus, thread).done(null, errors.onUnexpectedError);
 						this.windowService.getWindow().focus();
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
 						return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
 					} else {
-						this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+						this.setFocusedStackFrameAndEvaluate(null, thread).done(null, errors.onUnexpectedError);
 					}
 				});
 			}, errors.onUnexpectedError);
@@ -394,8 +395,12 @@ export class DebugService implements debug.IDebugService {
 		return !!this.contextService.getWorkspace();
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
-		this.viewModel.setFocusedStackFrame(focusedStackFrame);
+	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, thread?: debug.IThread): TPromise<void> {
+		if (!thread && focusedStackFrame) {
+			thread = this.model.getThreads()[focusedStackFrame.threadId];
+		}
+
+		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread);
 		if (focusedStackFrame) {
 			return this.model.evaluateWatchExpressions(this.session, focusedStackFrame);
 		} else {
