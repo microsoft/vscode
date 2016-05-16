@@ -93,11 +93,13 @@ export class CloseAllEditorsInGroupAction extends Action {
 	public static ID = 'workbench.files.action.closeAllEditorsInGroup';
 
 	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(CloseAllEditorsInGroupAction.ID, nls.localize('closeAllEditorsInGroup', "Close All Editors in Group"));
+		super(CloseAllEditorsInGroupAction.ID, nls.localize('closeAllEditorsInGroup', "Close All Editors in Group"), 'action-close-all-files');
 	}
 
-	public run(openEditor: OpenEditor): TPromise<any> {
-		const position = this.editorService.getStacksModel().positionOfGroup(openEditor.editorGroup);
+	public run(editorOrGroup: OpenEditor|IEditorGroup): TPromise<any> {
+		const group = editorOrGroup instanceof OpenEditor ? editorOrGroup.editorGroup : editorOrGroup;
+		const position = this.editorService.getStacksModel().positionOfGroup(group);
+
 		return this.editorService.closeEditors(position);
 	}
 }
@@ -134,7 +136,7 @@ export class SaveAllInGroupAction extends Action {
 	public static ID = 'workbench.files.action.saveAllInGroup';
 
 	constructor(@ITextFileService private textFileService: ITextFileService) {
-		super(CloseAllEditorsAction.ID, nls.localize('saveAllInGroup', "Save All in Group"), 'action-save-all-in-group');
+		super(CloseAllEditorsAction.ID, nls.localize('saveAllInGroup', "Save All in Group"), 'explorer-action save-all');
 	}
 
 	public run(editorGroup: IEditorGroup): TPromise<any> {

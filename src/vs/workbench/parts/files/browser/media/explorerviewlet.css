@@ -27,6 +27,12 @@
 	top: 0;
 }
 
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .editor-group ~ .monaco-action-bar {
+	right: 0;
+	padding-right: 8px;
+	padding-left: 5px;
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
 	display: block;
 }
@@ -36,8 +42,14 @@
 	display: block;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-label {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-close-file {
 	width: 9px;
+	height: 22px;
+}
+
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-close-all-files,
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .save-all {
+	width: 22px;
 	height: 22px;
 }
 
@@ -55,7 +67,7 @@
 	padding: 0 20px 0 20px;
 }
 
-.explorer-viewlet .collapsible.header .action-close-all-files {
+.explorer-viewlet .action-close-all-files {
 	background: url("closeall.svg") center center no-repeat;
 }
 
@@ -100,7 +112,7 @@
 }
 
 /* Theming */
-.vs-dark .monaco-workbench .explorer-viewlet .collapsible.header .action-close-all-files {
+.vs-dark .monaco-workbench .explorer-viewlet .action-close-all-files {
 	background: url("closeall_inverse.svg") center center no-repeat;
 }
 

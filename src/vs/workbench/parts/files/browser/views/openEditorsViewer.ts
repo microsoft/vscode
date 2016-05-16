@@ -71,6 +71,8 @@ interface IOpenEditorTemplateData {
 
 interface IEditorGroupTemplateData {
 	root: HTMLElement;
+	name: HTMLSpanElement;
+	actionBar: ActionBar;
 }
 
 export class Renderer implements tree.IRenderer {
@@ -102,6 +104,9 @@ export class Renderer implements tree.IRenderer {
 		if (templateId === Renderer.EDITOR_GROUP_TEMPLATE_ID) {
 			const editorGroupTemplate: IEditorGroupTemplateData = Object.create(null);
 			editorGroupTemplate.root = dom.append(container, $('.editor-group'));
+			editorGroupTemplate.name = dom.append(editorGroupTemplate.root, $('span.name'));
+			editorGroupTemplate.actionBar = new ActionBar(container);
+			editorGroupTemplate.actionBar.push(this.actionProvider.getEditorGroupActions(), { icon: true, label: false});
 
 			return editorGroupTemplate;
 		}
@@ -127,7 +132,8 @@ export class Renderer implements tree.IRenderer {
 	}
 
 	private renderEditorGroup(tree: tree.ITree, editorGroup: IEditorGroup, templateData: IOpenEditorTemplateData): void {
-		templateData.root.textContent = editorGroup.label;
+		templateData.name.textContent = editorGroup.label;
+		templateData.actionBar.context = editorGroup;
 	}
 
 	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
@@ -143,6 +149,9 @@ export class Renderer implements tree.IRenderer {
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
 		if (templateId === Renderer.OPEN_EDITOR_TEMPLATE_ID) {
 			(<IOpenEditorTemplateData>templateData).actionBar.dispose();
+		}
+		if (templateId === Renderer.EDITOR_GROUP_TEMPLATE_ID) {
+			(<IEditorGroupTemplateData>templateData).actionBar.dispose();
 		}
 	}
 }
@@ -284,12 +293,16 @@ export class ActionProvider implements IActionProvider {
 	}
 
 	public hasActions(tree: tree.ITree, element: any): boolean {
-		return element instanceof OpenEditor;
+		const multipleGroups = this.model.groups.length > 1;
+		return element instanceof OpenEditor || (element instanceof EditorGroup && multipleGroups);
 	}
 
 	public getActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
 		if (element instanceof OpenEditor) {
 			return TPromise.as(this.getOpenEditorActions());
+		}
+		if (element instanceof EditorGroup) {
+			return TPromise.as(this.getEditorGroupActions());
 		}
 
 		return TPromise.as([]);
@@ -297,6 +310,16 @@ export class ActionProvider implements IActionProvider {
 
 	public getOpenEditorActions(): IAction[] {
 		return [this.instantiationService.createInstance(CloseOpenEditorAction)];
+	}
+
+	public getEditorGroupActions(): IAction[] {
+		const saveAllAction = this.instantiationService.createInstance(SaveAllInGroupAction);
+		saveAllAction.enabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.OFF;
+		
+		return [
+			saveAllAction,
+			this.instantiationService.createInstance(CloseAllEditorsInGroupAction)
+		];
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
