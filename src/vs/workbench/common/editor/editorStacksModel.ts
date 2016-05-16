@@ -32,6 +32,9 @@ export interface IEditorGroup {
 	onEditorUnpinned: Event<EditorInput>;
 	onEditorChanged: Event<EditorInput>;
 
+	getEditor(index: number): EditorInput;
+	indexOf(editor: EditorInput): number;
+
 	getEditors(mru?: boolean): EditorInput[];
 	isActive(editor: EditorInput): boolean;
 	isPreview(editor: EditorInput): boolean;
@@ -54,7 +57,15 @@ export interface IEditorStacksModel {
 
 	positionOfGroup(group: IEditorGroup): Position;
 
+	next(inGroup: boolean): IEditorIdentifier;
+	previous(inGroup: boolean): IEditorIdentifier;
+
 	toString(): string;
+}
+
+export interface IEditorIdentifier {
+	group: EditorGroup;
+	editor: EditorInput;
 }
 
 export type GroupIdentifier = number;
@@ -178,6 +189,10 @@ export class EditorGroup implements IEditorGroup {
 
 	public getEditors(mru?: boolean): EditorInput[] {
 		return mru ? this.mru.slice(0) : this.editors.slice(0);
+	}
+
+	public getEditor(index: number): EditorInput {
+		return this.editors[index];
 	}
 
 	public get activeEditor(): EditorInput {
@@ -453,7 +468,7 @@ export class EditorGroup implements IEditorGroup {
 		}
 	}
 
-	private indexOf(candidate: EditorInput, editors = this.editors): number {
+	public indexOf(candidate: EditorInput, editors = this.editors): number {
 		if (!candidate) {
 			return -1;
 		}
@@ -758,6 +773,68 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this.indexOf(group);
 	}
 
+	public next(inGroup: boolean): IEditorIdentifier {
+		this.ensureLoaded();
+
+		if (!this.activeGroup) {
+			return null;
+		}
+
+		const index = this.activeGroup.indexOf(this.activeGroup.activeEditor);
+
+		// Return next in group
+		if (index + 1 < this.activeGroup.count) {
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index + 1) };
+		}
+
+		// Return first in group
+		if (inGroup) {
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
+		}
+
+		// Return first in next group
+		const indexOfGroup = this.indexOf(this.activeGroup);
+		const nextGroup = this.groups[indexOfGroup + 1];
+		if (nextGroup) {
+			return { group: nextGroup, editor: nextGroup.getEditor(0) };
+		}
+
+		// Return first in first group
+		const firstGroup = this.groups[0];
+		return { group: firstGroup, editor: firstGroup.getEditor(0) };
+	}
+
+	public previous(inGroup: boolean): IEditorIdentifier {
+		this.ensureLoaded();
+
+		if (!this.activeGroup) {
+			return null;
+		}
+
+		const index = this.activeGroup.indexOf(this.activeGroup.activeEditor);
+
+		// Return previous in group
+		if (index > 0) {
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(index - 1) };
+		}
+
+		// Return last in group
+		if (inGroup) {
+			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
+		}
+
+		// Return last in previous group
+		const indexOfGroup = this.indexOf(this.activeGroup);
+		const previousGroup = this.groups[indexOfGroup - 1];
+		if (previousGroup) {
+			return { group: previousGroup, editor: previousGroup.getEditor(previousGroup.count - 1) };
+		}
+
+		// Return last in last group
+		const lastGroup = this.groups[this.groups.length - 1];
+		return { group: lastGroup, editor: lastGroup.getEditor(lastGroup.count - 1) };
+	}
+
 	private save(): void {
 		const serialized = this.serialize();
 
@@ -834,7 +911,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return 3; // Too many groups
 		}
 
-		if (serialized.groups.some(g => !g.editors.length))  {
+		if (serialized.groups.some(g => !g.editors.length)) {
 			return 4; // Some empty groups
 		}
 

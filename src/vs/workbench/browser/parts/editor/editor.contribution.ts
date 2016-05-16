@@ -7,7 +7,9 @@
 import {Registry} from 'vs/platform/platform';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
+import {Action, IAction} from 'vs/base/common/actions';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor, EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
@@ -25,11 +27,15 @@ import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
+import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
+	CycleBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, NavigateToLeftGroupAction, NavigateToRightGroupAction,
+	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenNextEditorInGroup, OpenPreviousEditor, OpenPreviousEditorInGroup
+} from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(
@@ -89,12 +95,11 @@ import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 let statusBar = (<IStatusbarRegistry>Registry.as(StatusExtensions.Statusbar));
 statusBar.registerStatusbarItem(new StatusbarItemDescriptor(EditorStatus, StatusbarAlignment.RIGHT, 100 /* High Priority */));
 
-// Register Actions
+// Register Status Actions
 let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL), 'Change File Encoding');
-
 
 export class ViewSourceEditorInputAction extends EditorInputAction {
 
@@ -117,7 +122,7 @@ export class ViewSourceEditorInputAction extends EditorInputAction {
 
 export class RefreshIFrameEditorInputAction extends EditorInputAction {
 
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super('workbench.files.action.refreshIFrameEditor', nls.localize('reload', "Reload"), 'iframe-editor-action refresh');
 	}
 
@@ -199,3 +204,80 @@ KeybindingsRegistry.registerCommandDesc({
 	when: undefined,
 	primary: undefined
 });
+
+export class QuickOpenActionContributor extends ActionBarContributor {
+	private openToSideActionInstance: OpenToSideAction;
+
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+		super();
+	}
+
+	public hasActions(context: any): boolean {
+		let entry = this.getEntry(context);
+
+		return !!entry;
+	}
+
+	public getActions(context: any): IAction[] {
+		let actions: Action[] = [];
+
+		let entry = this.getEntry(context);
+		if (entry) {
+			if (!this.openToSideActionInstance) {
+				this.openToSideActionInstance = this.instantiationService.createInstance(OpenToSideAction);
+			}
+
+			actions.push(this.openToSideActionInstance);
+		}
+
+		return actions;
+	}
+
+	private getEntry(context: any): IEditorQuickOpenEntry {
+		if (!context || !context.element) {
+			return null;
+		}
+
+		return toEditorQuickOpenEntry(context.element);
+	}
+}
+
+// Contribute to Quick Open
+actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
+
+// Register Editor Actions
+const category = nls.localize('view', "View");
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextEditor, OpenNextEditor.ID, OpenNextEditor.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow }
+}), 'View: Open Next Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextEditorInGroup, OpenNextEditorInGroup.ID, OpenNextEditorInGroup.LABEL), 'View: Open Next Editor in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditor, OpenPreviousEditor.ID, OpenPreviousEditor.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow },
+}), 'View: Open Previous Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorInGroup, OpenPreviousEditorInGroup.ID, OpenPreviousEditorInGroup.LABEL), 'View: Open Previous Editor in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(PinEditorAction, PinEditorAction.ID, PinEditorAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter) }), 'View: Pin Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL), 'View: Unpin Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL), 'View: Close All Editors', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseLeftEditorsInGroupAction, CloseLeftEditorsInGroupAction.ID, CloseLeftEditorsInGroupAction.LABEL), 'View: Close All Editors in Group to the Left', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, CloseRightEditorsInGroupAction.LABEL), 'View: Close All Editors in Group to the Right', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, CloseEditorsInGroupAction.LABEL), 'View: Close All Editors in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T, linux: null, win: null }), 'View: Close Other Editors in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL), 'View: Close Editors in Other Groups', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CycleBetweenGroupsAction, CycleBetweenGroupsAction.ID, CycleBetweenGroupsAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
+	mac: { primary: null } // on mac this keybinding is reserved to cycle between windows
+}), 'View: Cycle Between Opened Editors', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus into Left Hand Editor Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus into Side Editor Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), 'View: Focus into Right Hand Editor Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EvenGroupWidthsAction.ID, EvenGroupWidthsAction.LABEL), 'View: Even Editor Group Widths', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MaximizeGroupAction.ID, MaximizeGroupAction.LABEL), 'View: Maximize Editor Group and Hide Sidebar', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MinimizeOtherGroupsAction.ID, MinimizeOtherGroupsAction.LABEL), 'View: Minimize Other Editor Groups', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupLeftAction, MoveGroupLeftAction.ID, MoveGroupLeftAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Editor Group Left', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupRightAction, MoveGroupRightAction.ID, MoveGroupRightAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Editor Group Right', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToLeftGroupAction, NavigateToLeftGroupAction.ID, NavigateToLeftGroupAction.LABEL), 'View: Focus into Next Editor Group on the Left', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToRightGroupAction, NavigateToRightGroupAction.ID, NavigateToRightGroupAction.LABEL), 'View: Focus into Next Editor Group on the Right', category);

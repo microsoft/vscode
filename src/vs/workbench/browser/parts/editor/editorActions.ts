@@ -7,25 +7,22 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
-import {Action, IAction} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {Registry} from 'vs/platform/platform';
+import {Action} from 'vs/base/common/actions';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, getUntitledOrFileResource, TextEditorOptions} from 'vs/workbench/common/editor';
-import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {Position, IEditor} from 'vs/platform/editor/common/editor';
+import {Position, IEditor, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 
-export let SPLIT_EDITOR_ACTION_ID = 'workbench.action.splitEditor';
-export let SPLIT_EDITOR_ACTION_LABEL = nls.localize('splitEditor', "Split Editor");
 export class SplitEditorAction extends Action {
+
+	public static ID = 'workbench.action.splitEditor';
+	public static LABEL = nls.localize('splitEditor', "Split Editor");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -88,9 +85,10 @@ export class SplitEditorAction extends Action {
 	}
 }
 
-let CYCLE_EDITOR_ACTION_ID = 'workbench.action.cycleEditor';
-let CYCLE_EDITOR_ACTION_LABEL = nls.localize('cycleEditor', "Cycle Between Opened Editor Groups");
-export class CycleEditorAction extends Action {
+export class CycleBetweenGroupsAction extends Action {
+
+	public static ID = 'workbench.action.cycleEditor';
+	public static LABEL = nls.localize('cycleEditorGroup', "Cycle Between Opened Editor Groups");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -115,9 +113,10 @@ export class CycleEditorAction extends Action {
 	}
 }
 
-let FOCUS_FIRST_EDITOR_ACTION_ID = 'workbench.action.focusFirstEditor';
-let FOCUS_FIRST_EDITOR_ACTION_LABEL = nls.localize('focusFirstEditor', "Focus into Left Hand Editor Group");
-export class FocusFirstEditorAction extends Action {
+export class FocusFirstGroupAction extends Action {
+
+	public static ID = 'workbench.action.focusFirstEditor';
+	public static LABEL = nls.localize('focusFirstEditorGroup', "Focus into Left Hand Editor Group");
 
 	constructor(
 		id: string,
@@ -160,7 +159,7 @@ export class FocusFirstEditorAction extends Action {
 	}
 }
 
-export abstract class BaseFocusSideEditorAction extends Action {
+export abstract class BaseFocusSideGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -223,9 +222,10 @@ export abstract class BaseFocusSideEditorAction extends Action {
 	}
 }
 
-let FOCUS_SECOND_EDITOR_ACTION_ID = 'workbench.action.focusSecondEditor';
-let FOCUS_SECOND_EDITOR_ACTION_LABEL = nls.localize('focusSecondEditor', "Focus into Side Editor Group");
-export class FocusSecondEditorAction extends BaseFocusSideEditorAction {
+export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
+
+	public static ID = 'workbench.action.focusSecondEditor';
+	public static LABEL = nls.localize('focusSecondEditorGroup', "Focus into Side Editor Group");
 
 	constructor(
 		id: string,
@@ -245,9 +245,10 @@ export class FocusSecondEditorAction extends BaseFocusSideEditorAction {
 	}
 }
 
-let FOCUS_THIRD_EDITOR_ACTION_ID = 'workbench.action.focusThirdEditor';
-let FOCUS_THIRD_EDITOR_ACTION_LABEL = nls.localize('focusThirdEditor', "Focus into Right Hand Editor Group");
-export class FocusThirdEditorAction extends BaseFocusSideEditorAction {
+export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
+
+	public static ID = 'workbench.action.focusThirdEditor';
+	public static LABEL = nls.localize('focusThirdEditorGroup', "Focus into Right Hand Editor Group");
 
 	constructor(
 		id: string,
@@ -267,9 +268,10 @@ export class FocusThirdEditorAction extends BaseFocusSideEditorAction {
 	}
 }
 
-let NAVIGATE_LEFT_EDITOR_ACTION_ID = 'workbench.action.focusLeftEditor';
-let NAVIGATE_LEFT_EDITOR_ACTION_LABEL = nls.localize('focusLeftEditor', "Focus into Next Editor Group on the Left");
-export class NavigateToLeftEditorAction extends Action {
+export class NavigateToLeftGroupAction extends Action {
+
+	public static ID = 'workbench.action.focusLeftEditor';
+	public static LABEL = nls.localize('focusLeftEditorGroup', "Focus into Next Editor Group on the Left");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -297,9 +299,11 @@ export class NavigateToLeftEditorAction extends Action {
 	}
 }
 
-let NAVIGATE_RIGHT_EDITOR_ACTION_ID = 'workbench.action.focusRightEditor';
-let NAVIGATE_RIGHT_EDITOR_ACTION_LABEL = nls.localize('focusRigthEditor', "Focus into Next Editor Group on the Right");
-export class NavigateToRightEditorAction extends Action {
+export class NavigateToRightGroupAction extends Action {
+
+	public static ID = 'workbench.action.focusRightEditor';
+	public static LABEL = nls.localize('focusRigthEditorGroup', "Focus into Next Editor Group on the Right");
+
 	private navigateActions: Action[];
 
 	constructor(
@@ -311,9 +315,9 @@ export class NavigateToRightEditorAction extends Action {
 		super(id, label);
 
 		this.navigateActions = [];
-		this.navigateActions[Position.LEFT] = instantiationService.createInstance(FocusFirstEditorAction, FOCUS_FIRST_EDITOR_ACTION_ID, FOCUS_FIRST_EDITOR_ACTION_LABEL);
-		this.navigateActions[Position.CENTER] = instantiationService.createInstance(FocusSecondEditorAction, FOCUS_SECOND_EDITOR_ACTION_ID, FOCUS_SECOND_EDITOR_ACTION_LABEL);
-		this.navigateActions[Position.RIGHT] = instantiationService.createInstance(FocusThirdEditorAction, FOCUS_THIRD_EDITOR_ACTION_ID, FOCUS_THIRD_EDITOR_ACTION_LABEL);
+		this.navigateActions[Position.LEFT] = instantiationService.createInstance(FocusFirstGroupAction, FocusFirstGroupAction.ID, FocusFirstGroupAction.LABEL);
+		this.navigateActions[Position.CENTER] = instantiationService.createInstance(FocusSecondGroupAction, FocusSecondGroupAction.ID, FocusSecondGroupAction.LABEL);
+		this.navigateActions[Position.RIGHT] = instantiationService.createInstance(FocusThirdGroupAction, FocusThirdGroupAction.ID, FocusThirdGroupAction.LABEL);
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -343,7 +347,7 @@ export class OpenToSideAction extends Action {
 	public static OPEN_TO_SIDE_ID = 'workbench.action.openToSide';
 	public static OPEN_TO_SIDE_LABEL = nls.localize('openToSide', "Open to the Side");
 
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(OpenToSideAction.OPEN_TO_SIDE_ID, OpenToSideAction.OPEN_TO_SIDE_LABEL);
 
 		this.class = 'quick-open-sidebyside';
@@ -374,44 +378,7 @@ export class OpenToSideAction extends Action {
 	}
 }
 
-class QuickOpenActionContributor extends ActionBarContributor {
-	private openToSideActionInstance: OpenToSideAction;
-
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-		super();
-	}
-
-	public hasActions(context: any): boolean {
-		let entry = this.getEntry(context);
-
-		return !!entry;
-	}
-
-	public getActions(context: any): IAction[] {
-		let actions: Action[] = [];
-
-		let entry = this.getEntry(context);
-		if (entry) {
-			if (!this.openToSideActionInstance) {
-				this.openToSideActionInstance = this.instantiationService.createInstance(OpenToSideAction);
-			}
-
-			actions.push(this.openToSideActionInstance);
-		}
-
-		return actions;
-	}
-
-	private getEntry(context: any): IEditorQuickOpenEntry {
-		if (!context || !context.element) {
-			return null;
-		}
-
-		return toEditorQuickOpenEntry(context.element);
-	}
-}
-
-function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
+export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 
 	// QuickOpenEntryGroup
 	if (element instanceof QuickOpenEntryGroup) {
@@ -429,10 +396,11 @@ function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 	return null;
 }
 
-
-export let CLOSE_EDITOR_ACTION_ID = 'workbench.action.closeEditor';
-export let CLOSE_EDITOR_ACTION_LABEL = nls.localize('closeEditor', "Close Editor");
 export class CloseEditorAction extends Action {
+
+	public static ID = 'workbench.action.closeEditor';
+	public static LABEL = nls.localize('closeEditor', "Close Editor");
+
 	private position: Position;
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -463,9 +431,82 @@ export class CloseEditorAction extends Action {
 	}
 }
 
-let CLOSE_ALL_EDITORS_ACTION_ID = 'workbench.action.closeAllEditors';
-let CLOSE_ALL_EDITORS_ACTION_LABEL = nls.localize('closeAllEditors', "Close Editors in All Groups");
+export class CloseEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.action.closeEditorsInGroup';
+	public static LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
+
+	private position: Position;
+
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public setPosition(position: Position): void {
+		this.position = position;
+	}
+
+	public run(): TPromise<any> {
+		let position: Position;
+		if (typeof this.position === 'number') {
+			position = this.position;
+		} else {
+			let activeEditor = this.editorService.getActiveEditor();
+			if (activeEditor) {
+				position = activeEditor.position;
+			}
+		}
+
+		if (typeof position === 'number') {
+			return this.editorService.closeEditors(position);
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+export class CloseLeftEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.action.closeLeftEditorsInGroup';
+	public static LABEL = nls.localize('closeLeftEditorsInGroup', "Close All Editors in Group to the Left");
+
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			return this.editorService.closeEditors(activeEditor.position, activeEditor.input, Direction.LEFT);
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+export class CloseRightEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.action.closeRightEditorsInGroup';
+	public static LABEL = nls.localize('closeRightEditorsInGroup', "Close All Editors in Group to the Right");
+
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let activeEditor = this.editorService.getActiveEditor();
+		if (activeEditor) {
+			return this.editorService.closeEditors(activeEditor.position, activeEditor.input, Direction.RIGHT);
+		}
+
+		return TPromise.as(false);
+	}
+}
+
 export class CloseAllEditorsAction extends Action {
+
+	public static ID = 'workbench.action.closeAllEditors';
+	public static LABEL = nls.localize('closeAllEditors', "Close All Editors");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -476,9 +517,44 @@ export class CloseAllEditorsAction extends Action {
 	}
 }
 
-let CLOSE_OTHER_EDITORS_ACTION_ID = 'workbench.action.closeOtherEditors';
-let CLOSE_OTHER_EDITORS_ACTION_LABEL = nls.localize('closeOtherEditors', "Close Editors in Other Groups");
-export class CloseOtherEditorsAction extends Action {
+export class CloseEditorsInOtherGroupsAction extends Action {
+
+	public static ID = 'workbench.action.closeEditorsInOtherGroups';
+	public static LABEL = nls.localize('closeEditorsInOtherGroups', "Close Editors in Other Groups");
+
+	private position: Position;
+
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public setPosition(position: Position): void {
+		this.position = position;
+	}
+
+	public run(): TPromise<any> {
+		let position: Position;
+		if (typeof this.position === 'number') {
+			position = this.position;
+		} else {
+			let activeEditor = this.editorService.getActiveEditor();
+			if (activeEditor) {
+				position = activeEditor.position;
+			}
+		}
+
+		if (typeof position === 'number') {
+			return this.editorService.closeAllEditors(position);
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+export class CloseOtherEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.action.closeOtherEditors';
+	public static LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors in Group");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -487,59 +563,95 @@ export class CloseOtherEditorsAction extends Action {
 	public run(): TPromise<any> {
 		const active = this.editorService.getActiveEditor();
 		if (active) {
-			return this.editorService.closeAllEditors(active.position);
+			return this.editorService.closeEditors(active.position, active.input);
 		}
 
 		return TPromise.as(false);
 	}
 }
 
-let MOVE_GROUP_LEFT_ACTION_ID = 'workbench.action.moveActiveEditorLeft';
-let MOVE_GROUP_LEFT_ACTION_LABEL = nls.localize('moveActiveGroupLeft', "Move Active Editor Group Left");
 export class MoveGroupLeftAction extends Action {
 
+	public static ID = 'workbench.action.moveActiveEditorLeft';
+	public static LABEL = nls.localize('moveActiveGroupLeft', "Move Editor Group Left");
+
+	private position: Position;
+
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
+	public setPosition(position: Position): void {
+		this.position = position;
+		this.enabled = (position !== Position.LEFT);
+	}
+
 	public run(): TPromise<any> {
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
-			let newPosition = (activeEditor.position === Position.CENTER) ? Position.LEFT : Position.CENTER;
+		let position: Position;
+		if (typeof this.position === 'number') {
+			position = this.position;
+		} else {
+			let activeEditor = this.editorService.getActiveEditor();
+			if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
+				position = activeEditor.position;
+			}
+		}
+
+		if (typeof position === 'number') {
+			let newPosition = (position === Position.CENTER) ? Position.LEFT : Position.CENTER;
 
 			// Move group
-			this.editorService.moveGroup(activeEditor.position, newPosition);
+			this.editorService.moveGroup(position, newPosition);
 		}
 
 		return TPromise.as(false);
 	}
 }
 
-let MOVE_GROUP_RIGHT_ACTION_ID = 'workbench.action.moveActiveEditorRight';
-let MOVE_GROUP_RIGHT_ACTION_LABEL = nls.localize('moveActiveGroupRight', "Move Active Editor Group Right");
 export class MoveGroupRightAction extends Action {
 
+	public static ID = 'workbench.action.moveActiveEditorRight';
+	public static LABEL = nls.localize('moveActiveGroupRight', "Move Editor Group Right");
+
+	private position: Position;
+
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
+	public setPosition(position: Position): void {
+		this.position = position;
+		this.enabled = (position !== Position.RIGHT);
+	}
+
 	public run(): TPromise<any> {
-		let editors = this.editorService.getVisibleEditors();
-		let activeEditor = this.editorService.getActiveEditor();
-		if ((editors.length === 2 && activeEditor.position === Position.LEFT) || (editors.length === 3 && activeEditor.position !== Position.RIGHT)) {
-			let newPosition = (activeEditor.position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
+		let position: Position;
+		if (typeof this.position === 'number') {
+			position = this.position;
+		} else {
+			let activeEditor = this.editorService.getActiveEditor();
+			let editors = this.editorService.getVisibleEditors();
+
+			if ((editors.length === 2 && activeEditor.position === Position.LEFT) || (editors.length === 3 && activeEditor.position !== Position.RIGHT)) {
+				position = activeEditor.position;
+			}
+		}
+
+		if (typeof position === 'number') {
+			let newPosition = (position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
 
 			// Move group
-			this.editorService.moveGroup(activeEditor.position, newPosition);
+			this.editorService.moveGroup(position, newPosition);
 		}
 
 		return TPromise.as(false);
 	}
 }
 
-let MINIMIZE_GROUPS_ACTION_ID = 'workbench.action.minimizeOtherEditors';
-let MINIMIZE_GROUPS_ACTION_LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
 export class MinimizeOtherGroupsAction extends Action {
+
+	public static ID = 'workbench.action.minimizeOtherEditors';
+	public static LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -552,9 +664,10 @@ export class MinimizeOtherGroupsAction extends Action {
 	}
 }
 
-let EVEN_GROUP_WIDTHS_ACTION_ID = 'workbench.action.evenEditorWidths';
-let EVEN_GROUP_WIDTHS_ACTION_LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
 export class EvenGroupWidthsAction extends Action {
+
+	public static ID = 'workbench.action.evenEditorWidths';
+	public static LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
@@ -567,9 +680,10 @@ export class EvenGroupWidthsAction extends Action {
 	}
 }
 
-let MAXIMIZE_GROUP_ACTION_ID = 'workbench.action.maximizeEditor';
-let MAXIMIZE_GROUP_ACTION_LABEL = nls.localize('maximizeEditor', "Maximize Active Editor Group and Hide Sidebar");
 export class MaximizeGroupAction extends Action {
+
+	public static ID = 'workbench.action.maximizeEditor';
+	public static LABEL = nls.localize('maximizeEditor', "Maximize Editor Group and Hide Sidebar");
 
 	constructor(
 		id: string,
@@ -590,10 +704,10 @@ export class MaximizeGroupAction extends Action {
 	}
 }
 
-export class PinActiveEditor extends Action {
+export class PinEditorAction extends Action {
 
-	public static ID = 'workbench.action.pinActiveEditor';
-	public static LABEL = nls.localize('pinActiveEditor', "Pin Active Editor");
+	public static ID = 'workbench.action.pinEditor';
+	public static LABEL = nls.localize('pinEditor', "Pin Editor");
 
 	constructor(
 		id: string,
@@ -613,10 +727,10 @@ export class PinActiveEditor extends Action {
 	}
 }
 
-export class UnpinActiveEditor extends Action {
+export class UnpinEditorAction extends Action {
 
-	public static ID = 'workbench.action.unpinActiveEditor';
-	public static LABEL = nls.localize('unpinActiveEditor', "Unpin Active Editor");
+	public static ID = 'workbench.action.unpinEditor';
+	public static LABEL = nls.localize('unpinEditor', "Unpin Editor");
 
 	constructor(
 		id: string,
@@ -636,35 +750,77 @@ export class UnpinActiveEditor extends Action {
 	}
 }
 
-// Contribute to Quick Open
-let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
+export abstract class BaseNavigateEditorAction extends Action {
 
-// Contribute to Workbench Actions
-const category = nls.localize('view', "View");
-let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(PinActiveEditor, PinActiveEditor.ID, PinActiveEditor.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter) }), 'View: Pin Active Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(UnpinActiveEditor, UnpinActiveEditor.ID, UnpinActiveEditor.LABEL), 'View: Unpin Active Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorsAction, CLOSE_ALL_EDITORS_ACTION_ID, CLOSE_ALL_EDITORS_ACTION_LABEL), 'View: Close All Editors', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherEditorsAction, CLOSE_OTHER_EDITORS_ACTION_ID, CLOSE_OTHER_EDITORS_ACTION_LABEL), 'View: Close Other Editors', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SPLIT_EDITOR_ACTION_ID, SPLIT_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(CycleEditorAction, CYCLE_EDITOR_ACTION_ID, CYCLE_EDITOR_ACTION_LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-	mac: { primary: null } // on mac this keybinding is reserved to cycle between windows
-}), 'View: Cycle Between Opened Editors', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstEditorAction, FOCUS_FIRST_EDITOR_ACTION_ID, FOCUS_FIRST_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus into Left Hand Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondEditorAction, FOCUS_SECOND_EDITOR_ACTION_ID, FOCUS_SECOND_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus into Side Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdEditorAction, FOCUS_THIRD_EDITOR_ACTION_ID, FOCUS_THIRD_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), 'View: Focus into Right Hand Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EVEN_GROUP_WIDTHS_ACTION_ID, EVEN_GROUP_WIDTHS_ACTION_LABEL), 'View: Even Editor Group Widths', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MAXIMIZE_GROUP_ACTION_ID, MAXIMIZE_GROUP_ACTION_LABEL), 'View: Maximize Active Editor Group and Hide Sidebar', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MINIMIZE_GROUPS_ACTION_ID, MINIMIZE_GROUPS_ACTION_LABEL), 'View: Minimize Other Editor Groups', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupLeftAction, MOVE_GROUP_LEFT_ACTION_ID, MOVE_GROUP_LEFT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Active Editor Left', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupRightAction, MOVE_GROUP_RIGHT_ACTION_ID, MOVE_GROUP_RIGHT_ACTION_LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Active Editor Right', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToLeftEditorAction, NAVIGATE_LEFT_EDITOR_ACTION_ID, NAVIGATE_LEFT_EDITOR_ACTION_LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow }
-}), 'View: Focus into Next Editor on the Left', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateToRightEditorAction, NAVIGATE_RIGHT_EDITOR_ACTION_ID, NAVIGATE_RIGHT_EDITOR_ACTION_LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow },
-}), 'View: Focus into Next Editor on the Right', category);
+	constructor(id: string, label: string, protected editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const model = this.editorService.getStacksModel();
+		const result = this.navigate();
+		if (result) {
+			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(result.group));
+		}
+
+		return TPromise.as(false);
+	}
+
+	protected abstract navigate(): IEditorIdentifier;
+}
+
+export class OpenNextEditor extends BaseNavigateEditorAction {
+
+	public static ID = 'workbench.action.nextEditor';
+	public static LABEL = nls.localize('openNextEditor', "Open Next Editor");
+
+	constructor(id: string, label: string, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		super(id, label, editorService);
+	}
+
+	protected navigate(): IEditorIdentifier {
+		return this.editorService.getStacksModel().next(false);
+	}
+}
+
+export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
+
+	public static ID = 'workbench.action.nextEditorInGroup';
+	public static LABEL = nls.localize('openNextEditorInGroup', "Open Next Editor in Group");
+
+	constructor(id: string, label: string, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		super(id, label, editorService);
+	}
+
+	protected navigate(): IEditorIdentifier {
+		return this.editorService.getStacksModel().next(true);
+	}
+}
+
+export class OpenPreviousEditor extends BaseNavigateEditorAction {
+
+	public static ID = 'workbench.action.previousEditor';
+	public static LABEL = nls.localize('openPreviousEditor', "Open Previous Editor");
+
+	constructor(id: string, label: string, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		super(id, label, editorService);
+	}
+
+	protected navigate(): IEditorIdentifier {
+		return this.editorService.getStacksModel().previous(false);
+	}
+}
+
+export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
+
+	public static ID = 'workbench.action.previousEditorInGroup';
+	public static LABEL = nls.localize('openPreviousEditorInGroup', "Open Previous Editor in Group");
+
+	constructor(id: string, label: string, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		super(id, label, editorService);
+	}
+
+	protected navigate(): IEditorIdentifier {
+		return this.editorService.getStacksModel().previous(true);
+	}
+}

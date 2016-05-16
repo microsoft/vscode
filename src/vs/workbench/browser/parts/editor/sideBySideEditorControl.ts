@@ -23,7 +23,7 @@ import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/
 import {EditorInput, isInputRelated} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
 import DOM = require('vs/base/browser/dom');
-import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
+import {IActionItem, ActionsOrientation, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -32,7 +32,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {SplitEditorAction, SPLIT_EDITOR_ACTION_ID, SPLIT_EDITOR_ACTION_LABEL, CloseEditorAction, CLOSE_EDITOR_ACTION_ID, CLOSE_EDITOR_ACTION_LABEL} from 'vs/workbench/browser/actions/triggerEditorActions';
+import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 export enum Rochade {
 	NONE,
@@ -121,7 +121,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private mapActionsToEditors: { [editorId: string]: IEditorActions; }[];
 
-	private closeEditorAction: CloseEditorAction[];
+	private closeEditorActions: CloseEditorAction[];
+	private moveGroupLeftActions: MoveGroupLeftAction[];
+	private moveGroupRightActions: MoveGroupRightAction[];
+	private closeEditorsInGroupActions: CloseEditorsInGroupAction[];
+	private closeEditorsInOtherGroupsActions: CloseEditorsInOtherGroupsAction[];
+	private closeAllEditorsAction: CloseAllEditorsAction;
 	private splitEditorAction: SplitEditorAction;
 
 	private leftSash: Sash;
@@ -173,13 +178,39 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this._onGroupFocusChanged = new Emitter<void>();
 		this._onEditorTitleDoubleclick = new Emitter<Position>();
 
-		this.closeEditorAction = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CLOSE_EDITOR_ACTION_ID, CLOSE_EDITOR_ACTION_LABEL));
-		POSITIONS.map((position) => this.closeEditorAction[position].setPosition(position) || (this.closeEditorAction[position].class = 'close-editor-action'));
-		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SPLIT_EDITOR_ACTION_ID, SPLIT_EDITOR_ACTION_LABEL);
-		this.splitEditorAction.class = 'split-editor-action';
-
+		this.initActions();
 		this.initStyles();
 		this.create(this.parent);
+	}
+
+	private initActions(): void {
+
+		// Close
+		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
+		POSITIONS.map((position) => this.closeEditorActions[position].setPosition(position) || (this.closeEditorActions[position].class = 'close-editor-action'));
+
+		// Split
+		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
+		this.splitEditorAction.class = 'split-editor-action';
+
+		// Move Group Left
+		this.moveGroupLeftActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, MoveGroupLeftAction.LABEL));
+		POSITIONS.map((position) => this.moveGroupLeftActions[position].setPosition(position));
+
+		// Move Group Right
+		this.moveGroupRightActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupRightAction, MoveGroupRightAction.ID, MoveGroupRightAction.LABEL));
+		POSITIONS.map((position) => this.moveGroupRightActions[position].setPosition(position));
+
+		// Close All Editors in Group
+		this.closeEditorsInGroupActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, CloseEditorsInGroupAction.LABEL));
+		POSITIONS.map((position) => this.closeEditorsInGroupActions[position].setPosition(position));
+
+		// Close Editors in Other Groups
+		this.closeEditorsInOtherGroupsActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL));
+		POSITIONS.map((position) => this.closeEditorsInOtherGroupsActions[position].setPosition(position));
+
+		// Close All Editors
+		this.closeAllEditorsAction = this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL);
 	}
 
 	private initStyles(): void {
@@ -992,7 +1023,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}, (div) => {
 			const toolbar = this.doCreateToolbar(div, position);
 			this.editorTitleToolbar[position] = toolbar;
-			this.editorTitleToolbar[position].setActions([this.closeEditorAction[position]])();
+			this.editorTitleToolbar[position].setActions([this.closeEditorActions[position]])();
 		});
 
 		// Left Title Labe
@@ -1140,7 +1171,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			POSITIONS.forEach((position) => {
 				if (this.visibleEditors[position] && isInputRelated(this.visibleEditors[position].input, input)) {
 					const status = input.getStatus();
-					this.closeEditorAction[position].class = (status && status.decoration) ? 'close-editor-decorated-action' : 'close-editor-action';
+					this.closeEditorActions[position].class = (status && status.decoration) ? 'close-editor-decorated-action' : 'close-editor-action';
 				}
 			});
 		}
@@ -1264,12 +1295,20 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			primaryActions.unshift(this.splitEditorAction);
 		}
 
+		// Secondary Actions
+		if (secondaryActions.length) {
+			secondaryActions.push(new Separator());
+		}
+
+		secondaryActions.push(...this.getSecondaryActions(position));
+
+
 		// Set Primary/Secondary Actions
 		this.editorActionsToolbar[position].setActions(primaryActions, secondaryActions)();
 
 		// Update title actions accordingly
 		const status = input.getStatus();
-		this.closeEditorAction[position].class = (status && status.decoration) ? 'close-editor-decorated-action' : 'close-editor-action';
+		this.closeEditorActions[position].class = (status && status.decoration) ? 'close-editor-decorated-action' : 'close-editor-action';
 	}
 
 	public setLoading(position: Position, input: EditorInput): void {
@@ -1279,7 +1318,34 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.titleDescription[position].safeInnerHtml(nls.localize('loadingLabel', "Loading..."));
 
 		// Clear Primary/Secondary Actions
-		this.editorActionsToolbar[position].setActions([], [])();
+		this.editorActionsToolbar[position].setActions([], this.getSecondaryActions(position))();
+	}
+
+	private getSecondaryActions(position: Position): Action[] {
+
+		// Make sure enablement is good
+		this.updateActionsEnablement();
+
+		// Return actions
+		return [
+			this.moveGroupLeftActions[position],
+			this.moveGroupRightActions[position],
+			new Separator(),
+			this.closeEditorsInGroupActions[position],
+			this.closeEditorsInOtherGroupsActions[position],
+			new Separator(),
+			this.closeAllEditorsAction
+		];
+	}
+
+	private updateActionsEnablement(): void {
+
+		// Move Group Right
+		this.moveGroupRightActions[Position.LEFT].enabled = this.getVisibleEditorCount() > 1;
+		this.moveGroupRightActions[Position.CENTER].enabled = this.getVisibleEditorCount() > 2;
+
+		// Close Editors in Other Groups
+		POSITIONS.map((position) => this.closeEditorsInOtherGroupsActions[position].enabled = this.getVisibleEditorCount() > 1);
 	}
 
 	public clearTitle(position: Position): void {
@@ -1641,7 +1707,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 
 		// Actions
-		this.closeEditorAction.forEach((action) => {
+		[this.splitEditorAction, this.closeAllEditorsAction, ...this.closeEditorActions, ...this.moveGroupLeftActions, ...this.moveGroupRightActions, ...this.closeEditorsInGroupActions, ...this.closeEditorsInOtherGroupsActions].forEach((action) => {
 			action.dispose();
 		});
 

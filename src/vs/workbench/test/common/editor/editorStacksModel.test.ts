@@ -268,7 +268,6 @@ suite('Editor Stacks Model', () => {
 			groupEvents.push(group);
 		});
 
-
 		const first = model.openGroup('first');
 		assert.ok(groupEvents.length > count);
 		count = groupEvents.length;
@@ -1296,5 +1295,94 @@ suite('Editor Stacks Model', () => {
 		model = inst.createInstance(EditorStacksModel);
 
 		assert.equal(model.groups.length, 0);
+	});
+
+	test('Stack - Multiple Editors - Navigation (in group)', function () {
+		const model = create();
+		const group = model.openGroup('group');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group.openEditor(input1, { pinned: true, active: true });
+		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: true, active: true });
+
+		let next = model.next(true);
+		assert.equal(next.group, group);
+		assert.equal(next.editor, input1);
+
+		group.setActive(next.editor);
+		next = model.next(true);
+		assert.equal(next.editor, input2);
+
+		group.setActive(next.editor);
+		next = model.next(true);
+		assert.equal(next.editor, input3);
+
+		group.setActive(next.editor);
+		let previous = model.previous(true);
+		assert.equal(previous.group, group);
+		assert.equal(previous.editor, input2);
+
+		group.setActive(previous.editor);
+		previous = model.previous(true);
+		assert.equal(previous.editor, input1);
+
+		group.setActive(previous.editor);
+		previous = model.previous(true);
+		assert.equal(previous.editor, input3);
+	});
+
+	test('Stack - Multiple Editors - Navigation (across groups)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(input2, { pinned: true, active: true });
+		group1.openEditor(input3, { pinned: true, active: true });
+
+		const input4 = input();
+		const input5 = input();
+		const input6 = input();
+
+		group2.openEditor(input4, { pinned: true, active: true });
+		group2.openEditor(input5, { pinned: true, active: true });
+		group2.openEditor(input6, { pinned: true, active: true });
+
+		model.setActive(group1);
+		group1.setActive(input1);
+
+		let previous = model.previous(false);
+		assert.equal(previous.group, group2);
+		assert.equal(previous.editor, input6);
+
+		model.setActive(previous.group);
+		previous.group.setActive(previous.editor);
+
+		let next = model.next(false);
+		assert.equal(next.group, group1);
+		assert.equal(next.editor, input1);
+
+		model.setActive(group1);
+		group1.setActive(input3);
+
+		next = model.next(false);
+		assert.equal(next.group, group2);
+		assert.equal(next.editor, input4);
+
+		model.setActive(next.group);
+		next.group.setActive(next.editor);
+
+		previous = model.previous(false);
+		assert.equal(previous.group, group1);
+		assert.equal(previous.editor, input3);
 	});
 });
