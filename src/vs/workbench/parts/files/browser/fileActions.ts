@@ -1465,9 +1465,9 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					if (target.toString() !== source.toString() && positionsOfSource.length) {
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, target, mimeOfSource, encodingOfSource);
 
-						let options: TextEditorOptions;
+						let options = new TextEditorOptions();
+						options.pinned = true;
 						if (selectionOfSource) {
-							options = new TextEditorOptions();
 							options.selection(selectionOfSource.startLineNumber, selectionOfSource.startColumn, selectionOfSource.endLineNumber, selectionOfSource.endColumn);
 						}
 
@@ -1592,9 +1592,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 						let encodingOfSource: string = mapUntitledToProperties[res.source.toString()] && mapUntitledToProperties[res.source.toString()].encoding;
 
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, res.target, mimeOfSource, encodingOfSource);
-
-						let options = new EditorOptions();
-						options.preserveFocus = true;
+						let options = EditorOptions.create({ preserveFocus: true, pinned: true });
 
 						positions.forEach((position) => {
 							reopenPromises.push(() => {

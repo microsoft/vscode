@@ -86,6 +86,10 @@
 	width: 12px; /* move the actions close to the label */
 }
 
+.monaco-workbench > .part.editor > .content .inactive .title .title-label-actions {
+	opacity: 0.5;
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
 	padding-left: 0; /* remove padding because we have the title label actions to the left */
 }

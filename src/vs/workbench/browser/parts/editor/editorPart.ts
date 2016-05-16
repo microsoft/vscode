@@ -717,13 +717,43 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Side by Side Control
 		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea);
-		const unbind = this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged());
-		this.toUnbind.push(() => unbind.dispose());
+
+		const focusListener = this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged());
+		this.toUnbind.push(() => focusListener.dispose());
+
+		const titleClickListener = this.sideBySideControl.onEditorTitleDoubleclick((position) => this.onEditorTitleDoubleclick(position));
+		this.toUnbind.push(() => titleClickListener.dispose());
 
 		// get settings
 		this.memento = this.getMemento(this.storageService, MementoScope.WORKSPACE);
 
 		return contentArea;
+	}
+
+	private onGroupFocusChanged(): void {
+
+		// Update stacks model
+		let activePosition = this.sideBySideControl.getActivePosition();
+		if (typeof activePosition === 'number') {
+			this.stacksModel.setActive(this.groupAt(activePosition));
+		}
+
+		// Emit as editor input change event so that clients get aware of new active editor
+		let activeEditor = this.sideBySideControl.getActiveEditor();
+		if (activeEditor) {
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(activeEditor, activeEditor.getId(), activeEditor.input, null, activeEditor.position));
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor, activeEditor.getId(), activeEditor.input, null, activeEditor.position));
+		}
+
+		// Update Title Area
+		this.doUpdateEditorTitleArea();
+	}
+
+	private onEditorTitleDoubleclick(position: Position): void {
+		const editor = this.visibleEditors[position];
+		if (editor) {
+			this.pinEditor(position, editor.input);
+		}
 	}
 
 	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]> {
@@ -749,7 +779,7 @@ export class EditorPart extends Part implements IEditorPart {
 		let editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 		let widthRatios = editorState.widthRatio;
 
-		let activePosition:Position;
+		let activePosition: Position;
 		if (this.stacksModel.groups.length) {
 			activePosition = this.stacksModel.positionOfGroup(this.stacksModel.activeGroup);
 		}
@@ -891,25 +921,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 			}, errors.onUnexpectedError);
 		}
-	}
-
-	private onGroupFocusChanged(): void {
-
-		// Update stacks model
-		let activePosition = this.sideBySideControl.getActivePosition();
-		if (typeof activePosition === 'number') {
-			this.stacksModel.setActive(this.groupAt(activePosition));
-		}
-
-		// Emit as editor input change event so that clients get aware of new active editor
-		let activeEditor = this.sideBySideControl.getActiveEditor();
-		if (activeEditor) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(activeEditor, activeEditor.getId(), activeEditor.input, null, activeEditor.position));
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor, activeEditor.getId(), activeEditor.input, null, activeEditor.position));
-		}
-
-		// Update Title Area
-		this.doUpdateEditorTitleArea();
 	}
 
 	private doUpdateEditorTitleArea(): void {

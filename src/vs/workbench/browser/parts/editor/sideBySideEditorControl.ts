@@ -26,7 +26,6 @@ import DOM = require('vs/base/browser/dom');
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -61,6 +60,7 @@ export interface ITitleAreaState {
 export interface ISideBySideEditorControl {
 
 	onGroupFocusChanged: Event<void>;
+	onEditorTitleDoubleclick: Event<Position>;
 
 	show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void;
 	hide(editor: BaseEditor, container: Builder, position: Position, layoutAndRochade: boolean): Rochade;
@@ -139,12 +139,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
 
 	private _onGroupFocusChanged: Emitter<void>;
+	private _onEditorTitleDoubleclick: Emitter<Position>;
 
 	constructor(
 		parent: Builder,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IEventService private eventService: IEventService,
@@ -171,6 +171,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.mapActionsToEditors = arrays.fill(POSITIONS.length, () => Object.create(null));
 
 		this._onGroupFocusChanged = new Emitter<void>();
+		this._onEditorTitleDoubleclick = new Emitter<Position>();
 
 		this.closeEditorAction = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CLOSE_EDITOR_ACTION_ID, CLOSE_EDITOR_ACTION_LABEL));
 		POSITIONS.map((position) => this.closeEditorAction[position].setPosition(position) || (this.closeEditorAction[position].class = 'close-editor-action'));
@@ -203,6 +204,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	public get onGroupFocusChanged(): Event<void> {
 		return this._onGroupFocusChanged.event;
+	}
+
+	public get onEditorTitleDoubleclick(): Event<Position> {
+		return this._onEditorTitleDoubleclick.event;
 	}
 
 	public show(editor: BaseEditor, container: Builder, position: Position, preserveActive: boolean, widthRatios?: number[]): void {
@@ -770,14 +775,19 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private fillTitleArea(parent: Builder, position: Position): void {
-		let ignoreClick = false;
 		let wasDragged = false;
+
+		// Detect double click and emit
+		parent.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e);
+
+			this._onEditorTitleDoubleclick.fire(position);
+		});
 
 		// Allow to reorder positions by dragging the title
 		parent.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 
 			// Reset flag
-			ignoreClick = false;
 			wasDragged = false;
 
 			// Return early if there is only one editor active or the user clicked into the toolbar
@@ -952,13 +962,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					this.layoutContainers();
 				}
 
-				// Ignore next click if the user dragged the title some distance
-				if (wasDragged) {
-					ignoreClick = true;
-				}
-
-				// Otherwise if not dragging, make editor group active unless already active
-				else if (position !== this.getActivePosition()) {
+				// If not dragging, make editor group active unless already active
+				if (!wasDragged && position !== this.getActivePosition()) {
 					this.editorService.focusGroup(position);
 				}
 
@@ -990,25 +995,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.editorTitleToolbar[position].setActions([this.closeEditorAction[position]])();
 		});
 
-		// Left Title Label (click opens quick open unless we are configured to ignore click or we are not the active title)
+		// Left Title Labe
 		parent.div({
 			'class': 'title-label'
 		}, (div) => {
-			let clickHandler = (e: MouseEvent) => {
-				if (ignoreClick) {
-					return;
-				}
 
-				DOM.EventHelper.stop(e, true);
-
-				this.quickOpenService.show();
-			};
-
-			// Clickable label (focus editor and bring up quick open)
-			this.titleLabel[position] = $(div).a().on(DOM.EventType.CLICK, clickHandler);
+			// Label
+			this.titleLabel[position] = $(div).a();
 
 			// Subtle Description
-			this.titleDescription[position] = $(div).span().on(DOM.EventType.CLICK, clickHandler);
+			this.titleDescription[position] = $(div).span();
 		});
 
 		// Right Actions Container
@@ -1138,12 +1134,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Update all title areas that relate to given input if provided
 		if (arg1 instanceof EditorInput) {
-			const input:EditorInput = arg1;
+			const input: EditorInput = arg1;
 
 			// Update the input title actions in each position according to the new status
 			POSITIONS.forEach((position) => {
 				if (this.visibleEditors[position] && isInputRelated(this.visibleEditors[position].input, input)) {
-					this.closeEditorAction[position].class = !!input.getStatus().decoration ? 'close-editor-decorated-action' : 'close-editor-action';
+					const status = input.getStatus();
+					this.closeEditorAction[position].class = (status && status.decoration) ? 'close-editor-decorated-action' : 'close-editor-action';
 				}
 			});
 		}
@@ -1269,6 +1266,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Set Primary/Secondary Actions
 		this.editorActionsToolbar[position].setActions(primaryActions, secondaryActions)();
+
+		// Update title actions accordingly
+		const status = input.getStatus();
+		this.closeEditorAction[position].class = (status && status.decoration) ? 'close-editor-decorated-action' : 'close-editor-action';
 	}
 
 	public setLoading(position: Position, input: EditorInput): void {
@@ -1659,5 +1660,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.visibleEditorContainers = null;
 
 		this._onGroupFocusChanged.dispose();
+		this._onEditorTitleDoubleclick.dispose();
 	}
 }
