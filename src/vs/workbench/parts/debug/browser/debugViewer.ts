@@ -193,6 +193,38 @@ export class BaseDebugController extends treedefaults.DefaultController {
 
 // call stack
 
+export class CallStackController extends BaseDebugController {
+
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
+		if (typeof element === 'number') {
+			return this.showMoreStackFrames(tree, element);
+		}
+
+		return super.onLeftClick(tree, element, event);
+	}
+
+	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
+		if (typeof element === 'number') {
+			return this.showMoreStackFrames(tree, element);
+		}
+
+		return super.onEnter(tree, event);
+	}
+
+	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
+	private showMoreStackFrames(tree: tree.ITree, threadId: number): boolean {
+		const thread = this.debugService.getModel().getThreads()[threadId];
+		if (thread) {
+			thread.getCallStack(this.debugService, true)
+				.done(() => tree.refresh(), errors.onUnexpectedError);
+		}
+
+		return true;
+	}
+}
+
+
 export class CallStackActionProvider implements renderer.IActionProvider {
 
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {

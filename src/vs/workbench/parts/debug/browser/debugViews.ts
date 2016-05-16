@@ -224,7 +224,7 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			dataSource: this.instantiationService.createInstance(viewer.CallStackDataSource),
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
-			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, actionProvider)
+			controller: new viewer.CallStackController(this.debugService, this.contextMenuService, actionProvider)
 		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel'}, "Debug Call Stack")));
 
 		this.toDispose.push(this.tree.addListener2('selection', (e: tree.ISelectionEvent) => {
@@ -250,19 +250,6 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 
 				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
 				this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-			}
-
-			// user clicked on 'Load More Stack Frames', get those stack frames and refresh the tree.
-			if (typeof element === 'number') {
-				const thread = this.debugService.getModel().getThreads()[element];
-				if (thread) {
-					thread.getCallStack(this.debugService, true)
-					.then(() => this.tree.refresh())
-					.then(() => {
-						this.tree.clearFocus();
-						this.tree.clearSelection();
-					}).done(null, errors.onUnexpectedError);
-				}
 			}
 		}));
 
