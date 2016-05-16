@@ -275,6 +275,7 @@ export class AccessibilityProvider implements tree.IAccessibilityProvider {
 export class ActionProvider implements IActionProvider {
 
 	constructor(
+		private model: IEditorStacksModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
@@ -305,6 +306,7 @@ export class ActionProvider implements IActionProvider {
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
 		const result = [];
 		const autoSaveEnabled = this.textFileService.getAutoSaveMode() !== AutoSaveMode.OFF;
+		const multipleGroups = this.model.groups.length > 1;
 
 		if (element instanceof EditorGroup) {
 			if (!autoSaveEnabled) {
@@ -364,13 +366,19 @@ export class ActionProvider implements IActionProvider {
 			}
 
 			result.push(this.instantiationService.createInstance(CloseOpenEditorAction));
-			result.push(new Separator());
+			if (multipleGroups) {
+				result.push(new Separator());
+			}
 			result.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction));
-			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
-			result.push(new Separator());
+			if (multipleGroups) {
+				result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
+				result.push(new Separator());
+			}
 		}
 
-		result.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction));
+		if (multipleGroups) {
+			result.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction));
+		}
 		result.push(new Separator());
 		result.push(this.instantiationService.createInstance(CloseAllEditorsAction));
 

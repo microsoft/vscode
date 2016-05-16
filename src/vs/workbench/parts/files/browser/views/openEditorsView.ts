@@ -83,7 +83,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		dom.addClass(this.treeContainer, 'explorer-open-editors');
 
 		const dataSource = this.instantiationService.createInstance(DataSource);
-		const actionProvider = this.instantiationService.createInstance(ActionProvider);
+		const actionProvider = this.instantiationService.createInstance(ActionProvider, this.model);
 		const renderer = this.instantiationService.createInstance(Renderer, actionProvider);
 		const controller = this.instantiationService.createInstance(Controller, actionProvider, this.model);
 		const accessibilityProvider = this.instantiationService.createInstance(AccessibilityProvider);
