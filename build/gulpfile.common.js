@@ -40,10 +40,10 @@ exports.loaderConfig = function (emptyPaths) {
 			paths: {
 				'vs/extensions': 'extensions'
 			}
-		}
+		},
+		nodeModules: emptyPaths||[]
 	};
 
-	(emptyPaths || []).forEach(function(m) { result.paths[m] = 'empty:'; });
 	return result;
 };
 

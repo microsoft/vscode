@@ -81,7 +81,7 @@ var NLSLoaderPlugin;
                 });
             }
             else {
-                var suffix;
+                var suffix = void 0;
                 if (Resources && Resources.getString) {
                     suffix = '.nls.keys';
                     req([name + suffix], function (keyMap) {
@@ -175,7 +175,7 @@ var NLSLoaderPlugin;
         NLSPlugin.BUILD_MAP = {};
         NLSPlugin.BUILD_MAP_KEYS = {};
         return NLSPlugin;
-    })();
+    }());
     NLSLoaderPlugin.NLSPlugin = NLSPlugin;
     (function () {
         define('vs/nls', new NLSPlugin());
