@@ -5,12 +5,15 @@
 
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {EditorInput} from 'vs/workbench/common/editor';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
@@ -456,6 +459,31 @@ KeybindingsRegistry.registerCommandDesc({
 		} else {
 			ipc.send(ipcMessage);
 		}
+	},
+	when: undefined,
+	primary: undefined
+});
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_workbench.diff',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, args: [URI, URI, string]) {
+
+		const editorService = accessor.get(IWorkbenchEditorService);
+		let [left, right, label] = args;
+
+		if (!label) {
+			label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", left.toString(true), right.toString(true));
+		}
+
+		return TPromise.join([editorService.inputToType({ resource: left }), editorService.inputToType({ resource: right })]).then(inputs => {
+			const [left, right] = inputs;
+
+			const diff = new DiffEditorInput(label, undefined, <EditorInput>left, <EditorInput>right);
+			return editorService.openEditor(diff);
+		}).then(() => {
+			return void 0;
+		});
 	},
 	when: undefined,
 	primary: undefined

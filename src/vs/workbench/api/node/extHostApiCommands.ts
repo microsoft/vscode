@@ -197,6 +197,17 @@ class ExtHostApiCommands {
 				{ name: 'configuration', description: '(optional) Name of the debug configuration from \'launch.json\' to use. Or a configuration json object to use.' }
 			]
 		});
+
+		this._register('vscode.diff', (left: URI, right: URI, label: string) => {
+			return this._commands.executeCommand('_workbench.diff', [left, right, label]);
+		}, {
+			description: 'Opens the provided resources in the diff editor to compare their contents.',
+			args: [
+				{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
+				{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
+				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' }
+			]
+		});
 	}
 
 	// --- command impl

@@ -40,23 +40,6 @@ suite('commands namespace tests', () => {
 		}, done);
 	});
 
-	test('api-command: workbench.html.preview', function () {
-
-		let registration = workspace.registerTextDocumentContentProvider('speciale', {
-			provideTextDocumentContent(uri) {
-				return `content of URI <b>${uri.toString()}</b>`;
-			}
-		});
-
-		let virtualDocumentUri = Uri.parse('speciale://authority/path');
-
-		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri).then(success => {
-			assert.ok(success);
-			registration.dispose();
-		});
-
-	});
-
 	test('editorCommand with extra args', function () {
 
 		let args: IArguments;
@@ -76,5 +59,47 @@ suite('commands namespace tests', () => {
 			});
 		});
 
+	});
+
+	test('api-command: vscode.previewHtm', function () {
+
+		let registration = workspace.registerTextDocumentContentProvider('speciale', {
+			provideTextDocumentContent(uri) {
+				return `content of URI <b>${uri.toString()}</b>`;
+			}
+		});
+
+		let virtualDocumentUri = Uri.parse('speciale://authority/path');
+
+		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri).then(success => {
+			assert.ok(success);
+			registration.dispose();
+		});
+
+	});
+
+	test('api-command: vscode.diff', function () {
+
+		let registration = workspace.registerTextDocumentContentProvider('sc', {
+			provideTextDocumentContent(uri) {
+				return `content of URI <b>${uri.toString()}</b>#${Math.random()}`;
+			}
+		});
+
+
+		let a = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b'), 'DIFF').then(value => {
+			assert.ok(value === void 0);
+			registration.dispose();
+		});
+
+		let b = commands.executeCommand('vscode.diff', Uri.parse('sc:a'), Uri.parse('sc:b')).then(value => {
+			assert.ok(value === void 0);
+			registration.dispose();
+		});
+
+		let c = commands.executeCommand('vscode.diff').then(() => assert.ok(false), () => assert.ok(true));
+		let d = commands.executeCommand('vscode.diff', 1, 2, 3).then(() => assert.ok(false), () => assert.ok(true));
+
+		return Promise.all([a, b, c]);
 	});
 });
