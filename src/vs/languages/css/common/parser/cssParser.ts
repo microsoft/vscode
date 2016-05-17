@@ -229,7 +229,8 @@ export class Parser {
 			|| this._parseKeyframe()
 			|| this._parseViewPort()
 			|| this._parseNamespace()
-			|| this._parseDocument();
+			|| this._parseDocument()
+			|| this._parseVariableDeclaration();
 	}
 
 	public _tryParseRuleset(isNested: boolean): nodes.RuleSet {
@@ -318,6 +319,32 @@ export class Parser {
 		if (!this.accept(scanner.TokenType.CurlyR)) {
 			return this.finish(node, errors.ParseError.RightCurlyExpected, [scanner.TokenType.CurlyR, scanner.TokenType.SemiColon ]);
 		}
+		return this.finish(node);
+	}
+
+	// Css variables: --font-size: 12px;
+	public _parseVariableDeclaration(panic:scanner.TokenType[]=[]): nodes.VariableDeclaration {
+		var node = <nodes.VariableDeclaration> this.create(nodes.VariableDeclaration);
+
+		if (!node.setVariable(this._parseVariable())) {
+			return null;
+		}
+
+		if (!this.accept(scanner.TokenType.Colon, ':')) {
+			return this.finish(node, errors.ParseError.ColonExpected);
+		}
+		node.colonPosition = this.prevToken.offset;
+
+		if (!node.setValue(this._parseExpr())) {
+			return this.finish(node, errors.ParseError.VariableValueExpected, [], panic);
+		}
+
+		if (this.accept(scanner.TokenType.Exclamation)) {
+			if (!this.accept(scanner.TokenType.Ident, 'default', true)) {
+				return this.finish(node, errors.ParseError.UnknownKeyword);
+			}
+		}
+
 		return this.finish(node);
 	}
 
@@ -955,6 +982,13 @@ export class Parser {
 		return null;
 	}
 
+	public _parseVariable(): nodes.Variable {
+		var node = <nodes.Variable> this.create(nodes.Variable);
+		if (!this.accept(scanner.TokenType.VariableName)) {
+			return null;
+		}
+		return <nodes.Variable> node;
+	}
 
 	public _parseFunction(): nodes.Function {
 
