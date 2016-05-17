@@ -6,7 +6,7 @@
 import 'vs/css!./media/terminal.contribution';
 import nls = require('vs/nls');
 import product from 'vs/platform/product';
-//import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -138,6 +138,7 @@ if (product.quality === 'alpha') {
 
 	// Register toggle output action globally
 	let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
-	// { primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK }
-	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
+	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
+		primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK
+	}), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
 }
