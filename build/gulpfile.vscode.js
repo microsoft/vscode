@@ -19,7 +19,6 @@ var remote = require('gulp-remote-src');
 var shell = require("gulp-shell");
 var _ = require('underscore');
 var packageJson = require('../package.json');
-var shrinkwrap = require('../npm-shrinkwrap.json');
 var util = require('./lib/util');
 var buildfile = require('../src/buildfile');
 var common = require('./gulpfile.common');
@@ -28,13 +27,12 @@ var root = path.dirname(__dirname);
 var build = path.join(root, '.build');
 var commit = util.getVersion(root);
 
+var dependencies = util.listDeps(path.join(__dirname, '..'));
 var baseModules = [
-	'applicationinsights', 'assert', 'child_process', 'chokidar', 'crypto', 'emmet',
-	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
-	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
-	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
-	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib', 'minimist'
-];
+	'assert', 'child_process', 'crypto', 'events', 'fs', 'getmac',
+	'http', 'http-proxy-agent', 'https', 'https-proxy-agent', 'electron',
+	'net', 'os', 'path', 'stream', 'url', 'zlib'
+].concat(dependencies);
 
 // Build
 
@@ -197,8 +195,9 @@ function packageTask(platform, arch, opts) {
 		var license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 		var api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		var depsSrc = _.flatten(Object.keys(shrinkwrap.dependencies)
-			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
+		var depsSrc = _.flatten(dependencies.map(function (d) {
+			return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**'];
+		}));
 
 		var deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(util.cleanNodeModule('fsevents', ['binding.gyp', 'fsevents.cc', 'build/**', 'src/**', 'test/**'], true))
@@ -320,7 +319,7 @@ function buildDebPackage(arch) {
 		'mkdir -p deb',
 		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-' + debArch + '.deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
-	], { cwd: '.build/linux/deb/' + debArch});
+	], { cwd: '.build/linux/deb/' + debArch });
 }
 
 function getRpmBuildPath(rpmArch) {
