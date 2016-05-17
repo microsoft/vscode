@@ -2487,19 +2487,24 @@ declare namespace vscode {
 		set(uri: Uri, diagnostics: Diagnostic[]): void;
 
 		/**
+		 * Replace all entries in this collection.
+		 *
+		 * Diagnostics of multiple tuples of the same uri will be merged, e.g
+		 * `[[file1, [d1]], [file1, [d2]]]` is equivalent to `[[file1, [d1, d2]]]`.
+		 * If a diagnostics item is `undefined` as in `[file1, undefined]`
+		 * all previous but not subsequent diagnostics are removed.
+		 *
+		 * @param entries An array of tuples, like `[[file1, [d1, d2]], [file2, [d3, d4, d5]]]`, or `undefined`.
+		 */
+		set(entries: [Uri, Diagnostic[]][]): void;
+
+		/**
 		 * Remove all diagnostics from this collection that belong
 		 * to the provided `uri`. The same as `#set(uri, undefined)`.
 		 *
 		 * @param uri A resource identifier.
 		 */
 		delete(uri: Uri): void;
-
-		/**
-		 * Replace all entries in this collection.
-		 *
-		 * @param entries An array of tuples, like `[[file1, [d1, d2]], [file2, [d3, d4, d5]]]`, or `undefined`.
-		 */
-		set(entries: [Uri, Diagnostic[]][]): void;
 
 		/**
 		 * Remove all diagnostics from this collection. The same
