@@ -364,7 +364,6 @@ export class ActionProvider implements IActionProvider {
 
 	public getEditorGroupActions(): IAction[] {
 		const saveAllAction = this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL);
-		saveAllAction.enabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.OFF;
 
 		return [
 			saveAllAction,
