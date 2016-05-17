@@ -23,11 +23,11 @@ import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/comm
 import {ITextFileService, AutoSaveMode, FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {CloseOtherEditorsInGroupAction, CloseEditorsInOtherGroupsAction, SaveAllInGroupAction, CloseEditorAction, CloseAllEditorsAction, CloseAllEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {CloseOtherEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseEditorAction, CloseAllEditorsAction, CloseAllEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.emmet;
 

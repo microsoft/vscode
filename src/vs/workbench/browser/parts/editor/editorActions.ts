@@ -9,8 +9,7 @@ import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import {Action} from 'vs/base/common/actions';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, getUntitledOrFileResource, TextEditorOptions, UntitledEditorInput} from 'vs/workbench/common/editor';
-import {IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorInput, getUntitledOrFileResource, TextEditorOptions} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
@@ -20,7 +19,6 @@ import {Position, IEditor, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {ITextFileService, FileEditorInput} from 'vs/workbench/parts/files/common/files';
 
 export class SplitEditorAction extends Action {
 
@@ -808,26 +806,5 @@ export class NavigateBackwardsAction extends Action {
 		this.historyService.back();
 
 		return TPromise.as(null);
-	}
-}
-
-export class SaveAllInGroupAction extends Action {
-
-	public static ID = 'workbench.files.action.saveAllInGroup';
-	public static LABEL = nls.localize('saveAllInGroup', "Save All in Group");
-
-	constructor(id: string, label: string, @ITextFileService private textFileService: ITextFileService) {
-		super(id, label, 'explorer-action save-all');
-	}
-
-	public run(editorGroup: IEditorGroup): TPromise<any> {
-		const resourcesToSave = [];
-		editorGroup.getEditors().forEach(editor => {
-			if (editor instanceof FileEditorInput || editor instanceof UntitledEditorInput) {
-				resourcesToSave.push(editor.getResource());
-			}
-		});
-
-		return this.textFileService.saveAll(resourcesToSave);
 	}
 }

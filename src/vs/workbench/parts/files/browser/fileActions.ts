@@ -28,7 +28,7 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, UntitledEditorInput} from 'vs/workbench/common/editor';
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -1368,13 +1368,13 @@ export abstract class BaseActionWithErrorReporting extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<boolean> {
-		return this.doRun().then(() => true, (error) => {
+	public run(context?: any): TPromise<boolean> {
+		return this.doRun(context).then(() => true, (error) => {
 			this.messageService.show(Severity.Error, errors.toErrorMessage(error, false));
 		});
 	}
 
-	protected abstract doRun(): TPromise<boolean>;
+	protected abstract doRun(context?: any): TPromise<boolean>;
 }
 
 export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
@@ -1400,7 +1400,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 		this.resource = resource;
 	}
 
-	protected doRun(): TPromise<boolean> {
+	protected doRun(context: any): TPromise<boolean> {
 		let source: URI;
 		if (this.resource) {
 			source = this.resource;
@@ -1521,7 +1521,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -1537,7 +1537,9 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		this.registerListeners();
 	}
 
+	protected abstract getSaveAllArguments(context?: any): any;
 	protected abstract includeUntitled(): boolean;
+
 
 	private registerListeners(): void {
 
@@ -1560,7 +1562,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		}
 	}
 
-	protected doRun(): TPromise<boolean> {
+	protected doRun(context: any): TPromise<boolean> {
 
 		// Store mimes per untitled file to restore later
 		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; } } = Object.create(null);
@@ -1571,7 +1573,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 			.forEach(i => mapUntitledToProperties[i.getResource().toString()] = { mime: i.getMime(), encoding: i.getEncoding() });
 
 		// Save all
-		return this.textFileService.saveAll(this.includeUntitled()).then((result) => {
+		return this.textFileService.saveAll(this.getSaveAllArguments(context)).then((result) => {
 
 			// all saved - now try to reopen saved untitled ones
 			if (this.includeUntitled()) {
@@ -1651,6 +1653,40 @@ export class SaveAllAction extends BaseSaveAllAction {
 		return 'explorer-action save-all';
 	}
 
+	protected getSaveAllArguments(): boolean {
+		return this.includeUntitled();
+	}
+
+	protected includeUntitled(): boolean {
+		return true;
+	}
+}
+
+export class SaveAllInGroupAction extends BaseSaveAllAction {
+
+	public static ID = 'workbench.files.action.saveAllInGroup';
+	public static LABEL = nls.localize('saveAllInGroup', "Save All in Group");
+
+	public get class(): string {
+		return 'explorer-action save-all';
+	}
+
+	protected getSaveAllArguments(position: Position): any {
+		if (!position) {
+			return this.includeUntitled();
+		}
+
+		const editorGroup = this.editorService.getStacksModel().getGroup(position);
+		const resourcesToSave = [];
+		editorGroup.getEditors().forEach(editor => {
+			if (editor instanceof FileEditorInput || editor instanceof UntitledEditorInput) {
+				resourcesToSave.push(editor.getResource());
+			}
+		});
+
+		return resourcesToSave;
+	}
+
 	protected includeUntitled(): boolean {
 		return true;
 	}
@@ -1660,6 +1696,10 @@ export class SaveFilesAction extends BaseSaveAllAction {
 
 	public static ID = 'workbench.action.files.saveFiles';
 	public static LABEL = nls.localize('saveFiles', "Save Dirty Files");
+
+	protected getSaveAllArguments(): boolean {
+		return this.includeUntitled();
+	}
 
 	protected includeUntitled(): boolean {
 		return false;
