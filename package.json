@@ -1,469 +1,469 @@
 {
-    "name": "python",
-    "displayName": "Python",
-    "description": "Linting, Debugging (multi-threaded, remote), Intellisense, auto-completion, code formatting, snippets, and more.",
-    "version": "0.3.7",
-    "publisher": "donjayamanne",
-    "license": "SEE LICENSE IN LICENSE or README.MD",
-    "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/DonJayamanne/pythonVSCode"
-    },
-    "bugs": {
-        "url": "https://github.com/DonJayamanne/pythonVSCode/issues"
-    },
-    "icon": "images/icon.svg",
-    "galleryBanner": {
-        "color": "#1e415e",
-        "theme": "dark"
-    },
-    "engines": {
-        "vscode": "^0.10.8"
-    },
-    "categories": [
-        "Languages",
-        "Debuggers",
-        "Linters",
-        "Snippets",
-        "Other"
+  "name": "python",
+  "displayName": "Python",
+  "description": "Linting, Debugging (multi-threaded, remote), Intellisense, auto-completion, code formatting, snippets, and more.",
+  "version": "0.3.7",
+  "publisher": "donjayamanne",
+  "license": "SEE LICENSE IN LICENSE or README.MD",
+  "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DonJayamanne/pythonVSCode"
+  },
+  "bugs": {
+    "url": "https://github.com/DonJayamanne/pythonVSCode/issues"
+  },
+  "icon": "images/icon.svg",
+  "galleryBanner": {
+    "color": "#1e415e",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^0.10.8"
+  },
+  "categories": [
+    "Languages",
+    "Debuggers",
+    "Linters",
+    "Snippets",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "onCommand:python.sortImports",
+    "onCommand:python.runtests"
+  ],
+  "main": "./out/client/extension",
+  "contributes": {
+    "snippets": [
+      {
+        "language": "python",
+        "path": "./snippets/python.json"
+      }
     ],
-    "activationEvents": [
-        "onLanguage:python",
-        "onCommand:python.sortImports",
-        "onCommand:python.runtests"
+    "commands": [
+      {
+        "command": "python.sortImports",
+        "title": "Python: Sort Imports"
+      },
+      {
+        "command": "python.runtests",
+        "title": "Python: Run Unit Tests"
+      }
     ],
-    "main": "./out/client/extension",
-    "contributes": {
-        "snippets": [
-            {
-                "language": "python",
-                "path": "./snippets/python.json"
-            }
-        ],
-        "commands": [
-            {
-                "command": "python.sortImports",
-                "title": "Python: Sort Imports"
-            },
-            {
-                "command": "python.runtests",
-                "title": "Python: Run Unit Tests"
-            }
-        ],
-        "debuggers": [
-            {
-                "type": "python",
-                "label": "Python",
-                "enableBreakpointsFor": {
-                    "languageIds": [
-                        "python"
-                    ]
-                },
-                "program": "./out/client/debugger/Main.js",
-                "runtime": "node",
-                "configurationAttributes": {
-                    "launch": {
-                        "required": [
-                            "program"
-                        ],
-                        "properties": {
-                            "program": {
-                                "type": "string",
-                                "description": "Absolute path to the program.",
-                                "default": "${file}"
-                            },
-                            "pythonPath": {
-                                "type": "string",
-                                "description": "Path (fully qualified) to python executable.",
-                                "default": ""
-                            },
-                            "args": {
-                                "type": "array",
-                                "description": "Command line arguments passed to the program",
-                                "default": [],
-                                "items": {
-                                    "type": "string"
-                                }
-                            },
-                            "stopOnEntry": {
-                                "type": "boolean",
-                                "description": "Automatically stop after launch.",
-                                "default": true
-                            },
-                            "externalConsole": {
-                                "type": "boolean",
-                                "description": "Launch debug target in external console window.",
-                                "default": false
-                            },
-                            "cwd": {
-                                "type": "string",
-                                "description": "Absolute path to the working directory of the program being debugged. Default is the root directory of the file (leave null).",
-                                "default": null
-                            },
-                            "debugOptions": {
-                                "type": "array",
-                                "description": "Advanced options, view read me for further details.",
-                                "items": {
-                                    "type": "string",
-                                    "enum": [
-                                        "WaitOnAbnormalExit",
-                                        "WaitOnNormalExit",
-                                        "RedirectOutput",
-                                        "DebugStdLib",
-                                        "BreakOnSystemExitZero",
-                                        "DjangoDebugging"
-                                    ]
-                                },
-                                "default": [
-                                    "WaitOnAbnormalExit",
-                                    "WaitOnNormalExit",
-                                    "RedirectOutput"
-                                ]
-                            },
-                            "exceptionHandling": {
-                                "description": "List of exception types and how they are handled during debugging (ignore, always break or break only if unhandled).",
-                                "properties": {
-                                    "ignore": {
-                                        "type": "array",
-                                        "description": "Never break into these exceptions, e.g. 'copy.Error'",
-                                        "default": [],
-                                        "items": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "always": {
-                                        "type": "array",
-                                        "description": "Always break into these exceptions, e.g. 'copy.Error'",
-                                        "default": [],
-                                        "items": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "unhandled": {
-                                        "type": "array",
-                                        "description": "Break into these exceptions if they aren't handled, e.g. 'copy.Error'",
-                                        "default": [],
-                                        "items": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            },
-                            "env": {
-                                "type": "object",
-                                "description": "Environment variables defined as a key value pair. Property ends up being the Environment Variable and the value of the property ends up being the value of the Env Variable.",
-                                "default": null
-                            }
-                        }
-                    },
-                    "attach": {
-                        "required": [
-                            "localRoot",
-                            "remoteRoot"
-                        ],
-                        "properties": {
-                            "localRoot": {
-                                "type": "string",
-                                "description": "Local source root that corrresponds to the 'remoteRoot'.",
-                                "default": "${workspaceRoot}"
-                            },
-                            "remoteRoot": {
-                                "type": "string",
-                                "description": "The source root of the remote host.",
-                                "default": null
-                            },
-                            "port": {
-                                "type": "number",
-                                "description": "Debug port to attach",
-                                "default": null
-                            },
-                            "host": {
-                                "type": "string",
-                                "description": "IP Address of the of remote server (default is localhost or use 127.0.0.1).",
-                                "default": "localhost"
-                            },
-                            "secret": {
-                                "type": "string",
-                                "description": "Secret used to authenticate for remote debugging.",
-                                "default": ""
-                            }
-                        }
-                    }
-                },
-                "initialConfigurations": [
-                    {
-                        "name": "Python",
-                        "type": "python",
-                        "request": "launch",
-                        "stopOnEntry": true,
-                        "program": "${file}",
-                        "debugOptions": [
-                            "WaitOnAbnormalExit",
-                            "WaitOnNormalExit",
-                            "RedirectOutput"
-                        ]
-                    },
-                    {
-                        "name": "Python Console App",
-                        "type": "python",
-                        "request": "launch",
-                        "stopOnEntry": true,
-                        "program": "${file}",
-                        "externalConsole": true,
-                        "debugOptions": [
-                            "WaitOnAbnormalExit",
-                            "WaitOnNormalExit"
-                        ]
-                    },
-                    {
-                        "name": "Django",
-                        "type": "python",
-                        "request": "launch",
-                        "stopOnEntry": true,
-                        "program": "${workspaceRoot}/manage.py",
-                        "args": [
-                            "runserver",
-                            "--noreload"
-                        ],
-                        "debugOptions": [
-                            "WaitOnAbnormalExit",
-                            "WaitOnNormalExit",
-                            "RedirectOutput",
-                            "DjangoDebugging"
-                        ]
-                    },
-                    {
-                        "name": "Watson",
-                        "type": "python",
-                        "request": "launch",
-                        "stopOnEntry": true,
-                        "program": "${workspaceRoot}/console.py",
-                        "args": [
-                            "dev",
-                            "runserver",
-                            "--noreload=True"
-                        ],
-                        "debugOptions": [
-                            "WaitOnAbnormalExit",
-                            "WaitOnNormalExit",
-                            "RedirectOutput"
-                        ]
-                    }
-                ]
-            }
-        ],
-        "configuration": {
-            "type": "object",
-            "title": "Python Configuration",
+    "debuggers": [
+      {
+        "type": "python",
+        "label": "Python",
+        "enableBreakpointsFor": {
+          "languageIds": [
+            "python"
+          ]
+        },
+        "program": "./out/client/debugger/Main.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
             "properties": {
-                "python.pythonPath": {
-                    "type": "string",
-                    "default": "python",
-                    "description": "Path to Python, you can use a custom version of Python by modifying this setting to include the full path."
-                },
-                "python.devOptions": {
-                    "type": "array",
-                    "default": [],
-                    "description": "Advanced options used to enable new features or produce detailed diagnostics to identify extension issues."
-                },
-                "python.linting.enabled": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Whether to lint Python files."
-                },
-                "python.linting.pylintEnabled": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Whether to lint Python files using pylint."
-                },
-                "python.linting.pep8Enabled": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Whether to lint Python files using pep8"
-                },
-                "python.linting.flake8Enabled": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Whether to lint Python files using flake8"
-                },
-                "python.linting.pydocstyleEnabled": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Whether to lint Python files using pydocstyle"
-                },
-                "python.linting.lintOnTextChange": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Whether to lint Python files when modified."
-                },
-                "python.linting.lintOnSave": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Whether to lint Python files when saved."
-                },
-                "python.linting.maxNumberOfProblems": {
-                    "type": "number",
-                    "default": 100,
-                    "description": "Controls the maximum number of problems produced by the server."
-                },
-                "python.linting.pylintCategorySeverity.convention": {
-                    "type": "string",
-                    "default": "Hint",
-                    "description": "Severity of Pylint message type 'Convention/C'.",
-                    "enum": [
-                        "Hint",
-                        "Error",
-                        "Information",
-                        "Warning"
-                    ]
-                },
-                "python.linting.pylintCategorySeverity.refactor": {
-                    "type": "string",
-                    "default": "Hint",
-                    "description": "Severity of Pylint message type 'Refactor/R'.",
-                    "enum": [
-                        "Hint",
-                        "Error",
-                        "Information",
-                        "Warning"
-                    ]
-                },
-                "python.linting.pylintCategorySeverity.warning": {
-                    "type": "string",
-                    "default": "Warning",
-                    "description": "Severity of Pylint message type 'Warning/W'.",
-                    "enum": [
-                        "Hint",
-                        "Error",
-                        "Information",
-                        "Warning"
-                    ]
-                },
-                "python.linting.pylintCategorySeverity.error": {
-                    "type": "string",
-                    "default": "Error",
-                    "description": "Severity of Pylint message type 'Error/E'.",
-                    "enum": [
-                        "Hint",
-                        "Error",
-                        "Information",
-                        "Warning"
-                    ]
-                },
-                "python.linting.pylintCategorySeverity.fatal": {
-                    "type": "string",
-                    "default": "Error",
-                    "description": "Severity of Pylint message type 'Fatal/F'.",
-                    "enum": [
-                        "Hint",
-                        "Error",
-                        "Information",
-                        "Warning"
-                    ]
-                },
-                "python.linting.pylintPath": {
-                    "type": "string",
-                    "default": "pylint",
-                    "description": "Path to Pylint, you can use a custom version of pylint by modifying this setting to include the full path."
-                },
-                "python.linting.pep8Path": {
-                    "type": "string",
-                    "default": "pep8",
-                    "description": "Path to pep8, you can use a custom version of pep8 by modifying this setting to include the full path."
-                },
-                "python.linting.flake8Path": {
-                    "type": "string",
-                    "default": "flake8",
-                    "description": "Path to flake8, you can use a custom version of flake8 by modifying this setting to include the full path."
-                },
-                "python.linting.pydocStylePath": {
-                    "type": "string",
-                    "default": "pydocstyle",
-                    "description": "Path to pydocstyle, you can use a custom version of pydocstyle by modifying this setting to include the full path."
-                },
-                "python.linting.outputWindow": {
-                    "type": "string",
-                    "default": "Python",
-                    "description": "The output window name for the linting messages, defaults to Python output window."
-                },
-                "python.formatting.provider": {
-                    "type": "string",
-                    "default": "autopep8",
-                    "description": "Provider for formatting. Possible options include 'autopep8' and 'yapf'.",
-                    "enum": [
-                        "autopep8",
-                        "yapf"
-                    ]
-                },
-                "python.formatting.autopep8Path": {
-                    "type": "string",
-                    "default": "autopep8",
-                    "description": "Path to autopep8, you can use a custom version of autopep8 by modifying this setting to include the full path."
-                },
-                "python.formatting.yapfPath": {
-                    "type": "string",
-                    "default": "yapf",
-                    "description": "Path to yapf, you can use a custom version of yapf by modifying this setting to include the full path."
-                },
-                "python.formatting.formatOnSave": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Format the document upon saving."
-                },
-                "python.formatting.outputWindow": {
-                    "type": "string",
-                    "default": "Python",
-                    "description": "The output window name for the formatting messages, defaults to Python output window."
-                },
-                "python.autoComplete.extraPaths": {
-                    "type": "array",
-                    "default": [],
-                    "description": "List of paths to libraries and the like that need to be imported by auto complete engine. E.g. when using Google App SDK, the paths are not in system path, hence need to be added into this list."
-                },
-                "python.unitTest.nosetestsEnabled": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Whether to enable or disable unit testing using nosetests."
-                },
-                "python.unitTest.nosetestPath": {
-                    "type": "string",
-                    "default": "nosetests",
-                    "description": "Path to nosetests, you can use a custom version of nosetests by modifying this setting to include the full path."
-                },
-                "python.unitTest.unittestEnabled": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Whether to enable or disable unit testing using standard unittest (built into Python)."
-                },
-                "python.unitTest.outputWindow": {
-                    "type": "string",
-                    "default": "Python",
-                    "description": "The output window name for the unit test messages, defaults to Python output window."
+              "program": {
+                "type": "string",
+                "description": "Absolute path to the program.",
+                "default": "${file}"
+              },
+              "pythonPath": {
+                "type": "string",
+                "description": "Path (fully qualified) to python executable.",
+                "default": ""
+              },
+              "args": {
+                "type": "array",
+                "description": "Command line arguments passed to the program",
+                "default": [],
+                "items": {
+                  "type": "string"
                 }
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Automatically stop after launch.",
+                "default": true
+              },
+              "externalConsole": {
+                "type": "boolean",
+                "description": "Launch debug target in external console window.",
+                "default": false
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Absolute path to the working directory of the program being debugged. Default is the root directory of the file (leave null).",
+                "default": null
+              },
+              "debugOptions": {
+                "type": "array",
+                "description": "Advanced options, view read me for further details.",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "WaitOnAbnormalExit",
+                    "WaitOnNormalExit",
+                    "RedirectOutput",
+                    "DebugStdLib",
+                    "BreakOnSystemExitZero",
+                    "DjangoDebugging"
+                  ]
+                },
+                "default": [
+                  "WaitOnAbnormalExit",
+                  "WaitOnNormalExit",
+                  "RedirectOutput"
+                ]
+              },
+              "exceptionHandling": {
+                "description": "List of exception types and how they are handled during debugging (ignore, always break or break only if unhandled).",
+                "properties": {
+                  "ignore": {
+                    "type": "array",
+                    "description": "Never break into these exceptions, e.g. 'copy.Error'",
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "always": {
+                    "type": "array",
+                    "description": "Always break into these exceptions, e.g. 'copy.Error'",
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "unhandled": {
+                    "type": "array",
+                    "description": "Break into these exceptions if they aren't handled, e.g. 'copy.Error'",
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "env": {
+                "type": "object",
+                "description": "Environment variables defined as a key value pair. Property ends up being the Environment Variable and the value of the property ends up being the value of the Env Variable.",
+                "default": null
+              }
             }
+          },
+          "attach": {
+            "required": [
+              "localRoot",
+              "remoteRoot"
+            ],
+            "properties": {
+              "localRoot": {
+                "type": "string",
+                "description": "Local source root that corrresponds to the 'remoteRoot'.",
+                "default": "${workspaceRoot}"
+              },
+              "remoteRoot": {
+                "type": "string",
+                "description": "The source root of the remote host.",
+                "default": null
+              },
+              "port": {
+                "type": "number",
+                "description": "Debug port to attach",
+                "default": null
+              },
+              "host": {
+                "type": "string",
+                "description": "IP Address of the of remote server (default is localhost or use 127.0.0.1).",
+                "default": "localhost"
+              },
+              "secret": {
+                "type": "string",
+                "description": "Secret used to authenticate for remote debugging.",
+                "default": ""
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "name": "Python",
+            "type": "python",
+            "request": "launch",
+            "stopOnEntry": true,
+            "program": "${file}",
+            "debugOptions": [
+              "WaitOnAbnormalExit",
+              "WaitOnNormalExit",
+              "RedirectOutput"
+            ]
+          },
+          {
+            "name": "Python Console App",
+            "type": "python",
+            "request": "launch",
+            "stopOnEntry": true,
+            "program": "${file}",
+            "externalConsole": true,
+            "debugOptions": [
+              "WaitOnAbnormalExit",
+              "WaitOnNormalExit"
+            ]
+          },
+          {
+            "name": "Django",
+            "type": "python",
+            "request": "launch",
+            "stopOnEntry": true,
+            "program": "${workspaceRoot}/manage.py",
+            "args": [
+              "runserver",
+              "--noreload"
+            ],
+            "debugOptions": [
+              "WaitOnAbnormalExit",
+              "WaitOnNormalExit",
+              "RedirectOutput",
+              "DjangoDebugging"
+            ]
+          },
+          {
+            "name": "Watson",
+            "type": "python",
+            "request": "launch",
+            "stopOnEntry": true,
+            "program": "${workspaceRoot}/console.py",
+            "args": [
+              "dev",
+              "runserver",
+              "--noreload=True"
+            ],
+            "debugOptions": [
+              "WaitOnAbnormalExit",
+              "WaitOnNormalExit",
+              "RedirectOutput"
+            ]
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Python Configuration",
+      "properties": {
+        "python.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to Python, you can use a custom version of Python by modifying this setting to include the full path."
+        },
+        "python.devOptions": {
+          "type": "array",
+          "default": [],
+          "description": "Advanced options used to enable new features or produce detailed diagnostics to identify extension issues."
+        },
+        "python.linting.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to lint Python files."
+        },
+        "python.linting.pylintEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to lint Python files using pylint."
+        },
+        "python.linting.pep8Enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to lint Python files using pep8"
+        },
+        "python.linting.flake8Enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to lint Python files using flake8"
+        },
+        "python.linting.pydocstyleEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to lint Python files using pydocstyle"
+        },
+        "python.linting.lintOnTextChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to lint Python files when modified."
+        },
+        "python.linting.lintOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to lint Python files when saved."
+        },
+        "python.linting.maxNumberOfProblems": {
+          "type": "number",
+          "default": 100,
+          "description": "Controls the maximum number of problems produced by the server."
+        },
+        "python.linting.pylintCategorySeverity.convention": {
+          "type": "string",
+          "default": "Hint",
+          "description": "Severity of Pylint message type 'Convention/C'.",
+          "enum": [
+            "Hint",
+            "Error",
+            "Information",
+            "Warning"
+          ]
+        },
+        "python.linting.pylintCategorySeverity.refactor": {
+          "type": "string",
+          "default": "Hint",
+          "description": "Severity of Pylint message type 'Refactor/R'.",
+          "enum": [
+            "Hint",
+            "Error",
+            "Information",
+            "Warning"
+          ]
+        },
+        "python.linting.pylintCategorySeverity.warning": {
+          "type": "string",
+          "default": "Warning",
+          "description": "Severity of Pylint message type 'Warning/W'.",
+          "enum": [
+            "Hint",
+            "Error",
+            "Information",
+            "Warning"
+          ]
+        },
+        "python.linting.pylintCategorySeverity.error": {
+          "type": "string",
+          "default": "Error",
+          "description": "Severity of Pylint message type 'Error/E'.",
+          "enum": [
+            "Hint",
+            "Error",
+            "Information",
+            "Warning"
+          ]
+        },
+        "python.linting.pylintCategorySeverity.fatal": {
+          "type": "string",
+          "default": "Error",
+          "description": "Severity of Pylint message type 'Fatal/F'.",
+          "enum": [
+            "Hint",
+            "Error",
+            "Information",
+            "Warning"
+          ]
+        },
+        "python.linting.pylintPath": {
+          "type": "string",
+          "default": "pylint",
+          "description": "Path to Pylint, you can use a custom version of pylint by modifying this setting to include the full path."
+        },
+        "python.linting.pep8Path": {
+          "type": "string",
+          "default": "pep8",
+          "description": "Path to pep8, you can use a custom version of pep8 by modifying this setting to include the full path."
+        },
+        "python.linting.flake8Path": {
+          "type": "string",
+          "default": "flake8",
+          "description": "Path to flake8, you can use a custom version of flake8 by modifying this setting to include the full path."
+        },
+        "python.linting.pydocStylePath": {
+          "type": "string",
+          "default": "pydocstyle",
+          "description": "Path to pydocstyle, you can use a custom version of pydocstyle by modifying this setting to include the full path."
+        },
+        "python.linting.outputWindow": {
+          "type": "string",
+          "default": "Python",
+          "description": "The output window name for the linting messages, defaults to Python output window."
+        },
+        "python.formatting.provider": {
+          "type": "string",
+          "default": "autopep8",
+          "description": "Provider for formatting. Possible options include 'autopep8' and 'yapf'.",
+          "enum": [
+            "autopep8",
+            "yapf"
+          ]
+        },
+        "python.formatting.autopep8Path": {
+          "type": "string",
+          "default": "autopep8",
+          "description": "Path to autopep8, you can use a custom version of autopep8 by modifying this setting to include the full path."
+        },
+        "python.formatting.yapfPath": {
+          "type": "string",
+          "default": "yapf",
+          "description": "Path to yapf, you can use a custom version of yapf by modifying this setting to include the full path."
+        },
+        "python.formatting.formatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Format the document upon saving."
+        },
+        "python.formatting.outputWindow": {
+          "type": "string",
+          "default": "Python",
+          "description": "The output window name for the formatting messages, defaults to Python output window."
+        },
+        "python.autoComplete.extraPaths": {
+          "type": "array",
+          "default": [],
+          "description": "List of paths to libraries and the like that need to be imported by auto complete engine. E.g. when using Google App SDK, the paths are not in system path, hence need to be added into this list."
+        },
+        "python.unitTest.nosetestsEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to enable or disable unit testing using nosetests."
+        },
+        "python.unitTest.nosetestPath": {
+          "type": "string",
+          "default": "nosetests",
+          "description": "Path to nosetests, you can use a custom version of nosetests by modifying this setting to include the full path."
+        },
+        "python.unitTest.unittestEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to enable or disable unit testing using standard unittest (built into Python)."
+        },
+        "python.unitTest.outputWindow": {
+          "type": "string",
+          "default": "Python",
+          "description": "The output window name for the unit test messages, defaults to Python output window."
         }
-    },
-    "scripts": {
-        "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
-        "compile": "node ./node_modules/vscode/bin/compile  -watch -p ./ && installServerIntoExtension ./out ./src/server/package.json ./src/server/tsconfig.json",
-        "postinstall": "node ./node_modules/vscode/bin/install"
-    },
-    "dependencies": {
-        "fs-extra": "^0.26.5",
-        "line-by-line": "^0.1.4",
-        "named-js-regexp": "^1.3.1",
-        "prepend-file": "^1.3.0",
-        "tmp": "0.0.28",
-        "tree-kill": "^1.0.0",
-        "uint64be": "^1.0.1",
-        "vscode-debugadapter": "^1.0.1",
-        "vscode-debugprotocol": "^1.0.1",
-        "vscode-languageclient": "^1.1.0",
-        "vscode-languageserver": "^1.1.0"
-    },
-    "devDependencies": {
-        "typescript": "^1.7.5",
-        "vscode": "^0.11.0"
+      }
     }
+  },
+  "scripts": {
+    "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
+    "compile": "node ./node_modules/vscode/bin/compile  -watch -p ./ && installServerIntoExtension ./out ./src/server/package.json ./src/server/tsconfig.json",
+    "postinstall": "node ./node_modules/vscode/bin/install"
+  },
+  "dependencies": {
+    "fs-extra": "^0.26.5",
+    "line-by-line": "^0.1.4",
+    "named-js-regexp": "^1.3.1",
+    "prepend-file": "^1.3.0",
+    "tmp": "0.0.28",
+    "tree-kill": "^1.0.0",
+    "uint64be": "^1.0.1",
+    "vscode-debugadapter": "^1.0.1",
+    "vscode-debugprotocol": "^1.0.1",
+    "vscode-languageclient": "^1.1.0",
+    "vscode-languageserver": "^1.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^1.7.5",
+    "vscode": "^0.11.0"
+  }
 }

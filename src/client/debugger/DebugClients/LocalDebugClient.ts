@@ -190,10 +190,10 @@ export class LocalDebugClient extends DebugClient {
         });
     }
     protected buildLauncherArguments(): string[] {
-        var vsDebugOptions = "WaitOnAbnormalExit, WaitOnNormalExit, RedirectOutput";
+        var vsDebugOptions = "WaitOnAbnormalExit,WaitOnNormalExit,RedirectOutput";
         if (Array.isArray(this.args.debugOptions)) {
-            vsDebugOptions = this.args.debugOptions.join(", ");
-        }
+            vsDebugOptions = this.args.debugOptions.join(",");
+        } 
 
         var programArgs = Array.isArray(this.args.args) && this.args.args.length > 0 ? this.args.args : [];        
         return [vsDebugOptions, this.args.program].concat(programArgs);
