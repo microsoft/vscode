@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import uri from 'vs/base/common/uri';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -18,17 +19,64 @@ import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {EditorOptions} from 'vs/workbench/common/editor';
-import {ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/common/editor';
+import {ITextFileService, AutoSaveMode, FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {OpenEditor, CloseAllEditorsAction, CloseAllEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseOpenEditorAction, CloseOtherEditorsInGroupAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
+import {CloseOtherEditorsInGroupAction, CloseEditorsInOtherGroupsAction, SaveAllInGroupAction, CloseEditorAction, CloseAllEditorsAction, CloseAllEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.emmet;
+
+export class OpenEditor {
+
+	constructor(private editor: EditorInput, private group: IEditorGroup) {
+		// noop
+	}
+
+	public get editorInput() {
+		return this.editor;
+	}
+
+	public get editorGroup() {
+		return this.group;
+	}
+
+	public getId(): string {
+		return `openeditor:${this.group.id}:${this.editor.getName()}:${this.editor.getDescription()}`;
+	}
+
+	public isPreview(): boolean {
+		return this.group.isPreview(this.editor);
+	}
+
+	public isUntitled(): boolean {
+		return this.editor instanceof UntitledEditorInput;
+	}
+
+	public isDirty(textFileService: ITextFileService, untitledEditorService: IUntitledEditorService): boolean {
+		if (this.editor instanceof FileEditorInput) {
+			return textFileService.isDirty((<FileEditorInput>this.editor).getResource());
+		} else if (this.editor instanceof UntitledEditorInput) {
+			return untitledEditorService.isDirty((<UntitledEditorInput>this.editor).getResource());
+		}
+
+		return false;
+	}
+
+	public getResource(): uri {
+		if (this.editor instanceof FileEditorInput) {
+			return (<FileEditorInput>this.editor).getResource();
+		} else if (this.editor instanceof UntitledEditorInput) {
+			return (<UntitledEditorInput>this.editor).getResource();
+		}
+
+		return null;
+	}
+}
 
 export class DataSource implements tree.IDataSource {
 
@@ -81,7 +129,7 @@ export class Renderer implements tree.IRenderer {
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
-	constructor(private actionProvider: ActionProvider,
+	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
@@ -133,7 +181,7 @@ export class Renderer implements tree.IRenderer {
 
 	private renderEditorGroup(tree: tree.ITree, editorGroup: IEditorGroup, templateData: IOpenEditorTemplateData): void {
 		templateData.name.textContent = editorGroup.label;
-		templateData.actionBar.context = editorGroup;
+		templateData.actionBar.context = this.model.positionOfGroup(editorGroup);
 	}
 
 	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
@@ -143,7 +191,7 @@ export class Renderer implements tree.IRenderer {
 		templateData.root.title = resource ? resource.fsPath : '';
 		templateData.name.textContent = editor.editorInput.getName();
 		templateData.description.textContent = editor.editorInput.getDescription();
-		templateData.actionBar.context = editor;
+		templateData.actionBar.context = this.model.positionOfGroup(editor.editorGroup);
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
@@ -240,6 +288,7 @@ export class Controller extends treedefaults.DefaultController {
 		event.stopPropagation();
 
 		tree.setFocus(element);
+		const editorGroup = element instanceof EditorGroup ? element : (<OpenEditor>element).editorGroup;
 
 		let anchor = { x: event.posx + 1, y: event.posy };
 		this.contextMenuService.showContextMenu({
@@ -251,7 +300,7 @@ export class Controller extends treedefaults.DefaultController {
 					tree.DOMFocus();
 				}
 			},
-			getActionsContext: () => element
+			getActionsContext: () => this.model.positionOfGroup(editorGroup)
 		});
 
 		return true;
@@ -309,16 +358,16 @@ export class ActionProvider implements IActionProvider {
 	}
 
 	public getOpenEditorActions(): IAction[] {
-		return [this.instantiationService.createInstance(CloseOpenEditorAction)];
+		return [this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL)];
 	}
 
 	public getEditorGroupActions(): IAction[] {
-		const saveAllAction = this.instantiationService.createInstance(SaveAllInGroupAction);
+		const saveAllAction = this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL);
 		saveAllAction.enabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.OFF;
-		
+
 		return [
 			saveAllAction,
-			this.instantiationService.createInstance(CloseAllEditorsInGroupAction)
+			this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL)
 		];
 	}
 
@@ -333,11 +382,11 @@ export class ActionProvider implements IActionProvider {
 
 		if (element instanceof EditorGroup) {
 			if (!autoSaveEnabled) {
-				result.push(this.instantiationService.createInstance(SaveAllInGroupAction));
+				result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL));
 				result.push(new Separator());
 			}
 
-			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
+			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
 		} else {
 			const openEditor = <OpenEditor>element;
 			const resource = openEditor.getResource();
@@ -388,22 +437,22 @@ export class ActionProvider implements IActionProvider {
 				result.push(new Separator());
 			}
 
-			result.push(this.instantiationService.createInstance(CloseOpenEditorAction));
+			result.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
 			if (multipleGroups) {
 				result.push(new Separator());
 			}
-			result.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction));
+			result.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL));
 			if (multipleGroups) {
-				result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction));
+				result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
 				result.push(new Separator());
 			}
 		}
 
 		if (multipleGroups) {
-			result.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction));
+			result.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL));
 		}
 		result.push(new Separator());
-		result.push(this.instantiationService.createInstance(CloseAllEditorsAction));
+		result.push(this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL));
 
 		return TPromise.as(result);
 	}

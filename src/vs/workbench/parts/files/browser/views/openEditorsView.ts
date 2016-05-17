@@ -22,9 +22,9 @@ import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
-import {OpenEditor, CloseAllEditorsAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
+import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.emmet;
 
@@ -76,7 +76,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	public getActions(): IAction[] {
 		return [
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
-			this.instantiationService.createInstance(CloseAllEditorsAction)
+			this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL)
 		];
 	}
 
@@ -86,7 +86,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		const dataSource = this.instantiationService.createInstance(DataSource);
 		const actionProvider = this.instantiationService.createInstance(ActionProvider, this.model);
-		const renderer = this.instantiationService.createInstance(Renderer, actionProvider);
+		const renderer = this.instantiationService.createInstance(Renderer, actionProvider, this.model);
 		const controller = this.instantiationService.createInstance(Controller, actionProvider, this.model);
 		const accessibilityProvider = this.instantiationService.createInstance(AccessibilityProvider);
 
