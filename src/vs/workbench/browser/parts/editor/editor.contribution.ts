@@ -164,7 +164,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.compareEditor.nextChange',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: KbExpr.has('textCompareEditorVisible'),
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow),
+	primary: null,
 	handler: accessor => navigateInDiffEditor(accessor, true)
 });
 
@@ -172,7 +172,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.compareEditor.previousChange',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: KbExpr.has('textCompareEditorVisible'),
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow),
+	primary: null,
 	handler: accessor => navigateInDiffEditor(accessor, false)
 });
 
