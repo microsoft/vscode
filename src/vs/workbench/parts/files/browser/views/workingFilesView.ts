@@ -18,6 +18,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {EventType as WorkbenchEventType, UntitledEditorEvent, EditorEvent} from 'vs/workbench/common/events';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {CloseAllWorkingFilesAction, SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {WorkingFileEntry} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {WorkingFilesDragAndDrop, WorkingFilesSorter, WorkingFilesController, WorkingFilesDataSource, WorkingFilesRenderer, WorkingFilesAccessibilityProvider, WorkingFilesActionProvider} from 'vs/workbench/parts/files/browser/views/workingFilesViewer';
@@ -53,9 +54,10 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, WorkingFilesView.computeExpandedBodySize(textFileService.getWorkingFilesModel()), !!settings[WorkingFilesView.MEMENTO_COLLAPSED], nls.localize('workingFilesSection', "Working Files Section"), messageService, contextMenuService);
+		super(actionRunner, WorkingFilesView.computeExpandedBodySize(textFileService.getWorkingFilesModel()), !!settings[WorkingFilesView.MEMENTO_COLLAPSED], nls.localize('workingFilesSection', "Working Files Section"), messageService, keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = this.textFileService.getWorkingFilesModel();

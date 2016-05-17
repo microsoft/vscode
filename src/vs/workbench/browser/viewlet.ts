@@ -297,9 +297,9 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		initialBodySize: number,
 		collapsed: boolean,
 		private viewName: string,
-		@IMessageService private messageService: IMessageService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IContextMenuService protected contextMenuService: IContextMenuService
+		private messageService: IMessageService,
+		private keybindingService: IKeybindingService,
+		protected contextMenuService: IContextMenuService
 	) {
 		super({
 			expandedBodySize: initialBodySize,
@@ -426,9 +426,9 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		actionRunner: IActionRunner,
 		collapsed: boolean,
 		private viewName: string,
-		@IMessageService protected messageService: IMessageService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IContextMenuService protected contextMenuService: IContextMenuService
+		protected messageService: IMessageService,
+		private keybindingService: IKeybindingService,
+		protected contextMenuService: IContextMenuService
 	) {
 		super({
 			minimumSize: 2 * 22,

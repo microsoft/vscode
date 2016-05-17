@@ -24,6 +24,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {OpenEditor, CloseAllEditorsAction} from 'vs/workbench/parts/files/browser/views/openEditorActions';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 const $ = dom.emmet;
 
@@ -50,9 +51,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
-		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, contextMenuService);
+		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorService.getStacksModel();
