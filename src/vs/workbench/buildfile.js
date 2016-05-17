@@ -5,17 +5,17 @@
 'use strict';
 
 function createModuleDescription(name, exclude) {
-	var result= {};
+	var result = {};
 	var excludes = ['vs/css', 'vs/nls', 'vs/text'];
-	result.name= name;
+	result.name = name;
 	if (Array.isArray(exclude) && exclude.length > 0) {
 		excludes = excludes.concat(exclude);
 	}
-	result.exclude= excludes;
+	result.exclude = excludes;
 	return result;
 }
 
-exports.collectModules= function(excludes) {
+exports.collectModules = function(excludes) {
 	var languageMainExcludes = ['vs/editor/common/languages.common'];
 	var languageWorkerExcludes = ['vs/base/common/worker/workerServer', 'vs/editor/common/worker/editorWorkerServer'];
 
@@ -30,6 +30,8 @@ exports.collectModules= function(excludes) {
 		createModuleDescription('vs/workbench/parts/output/common/outputMode', languageMainExcludes),
 		createModuleDescription('vs/workbench/parts/output/common/outputWorker', languageWorkerExcludes),
 		createModuleDescription('vs/workbench/parts/output/browser/outputPanel', excludes),
+
+		createModuleDescription('vs/workbench/parts/terminal/electron-browser/terminalPanel', excludes),
 
 		createModuleDescription('vs/workbench/parts/debug/browser/debugViewlet', excludes),
 		createModuleDescription('vs/workbench/parts/debug/browser/repl', excludes),
