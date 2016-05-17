@@ -189,7 +189,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Close
 		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
-		POSITIONS.map((position) => this.closeEditorActions[position].setPosition(position) || (this.closeEditorActions[position].class = 'close-editor-action'));
+		POSITIONS.map((position) => this.closeEditorActions[position].class = 'close-editor-action');
 
 		// Split
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
@@ -197,19 +197,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Move Group Left
 		this.moveGroupLeftActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, MoveGroupLeftAction.LABEL));
-		POSITIONS.map((position) => this.moveGroupLeftActions[position].setPosition(position));
 
 		// Move Group Right
 		this.moveGroupRightActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupRightAction, MoveGroupRightAction.ID, MoveGroupRightAction.LABEL));
-		POSITIONS.map((position) => this.moveGroupRightActions[position].setPosition(position));
 
 		// Close All Editors in Group
 		this.closeEditorsInGroupActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, CloseEditorsInGroupAction.LABEL));
-		POSITIONS.map((position) => this.closeEditorsInGroupActions[position].setPosition(position));
 
 		// Close Editors in Other Groups
 		this.closeEditorsInOtherGroupsActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL));
-		POSITIONS.map((position) => this.closeEditorsInOtherGroupsActions[position].setPosition(position));
 
 		// Close All Editors
 		this.closeAllEditorsAction = this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL);
@@ -1026,6 +1022,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const toolbar = this.doCreateToolbar(div, position);
 			this.editorTitleToolbar[position] = toolbar;
 			this.editorTitleToolbar[position].setActions([this.closeEditorActions[position]])();
+			this.editorTitleToolbar[position].context = position;
 		});
 
 		// Left Title Labe
@@ -1046,6 +1043,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}, (div) => {
 			const toolbar = this.doCreateToolbar(div, position);
 			this.editorActionsToolbar[position] = toolbar;
+			this.editorActionsToolbar[position].context = position;
 		});
 	}
 

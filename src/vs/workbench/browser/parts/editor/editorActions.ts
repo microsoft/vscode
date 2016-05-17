@@ -402,20 +402,14 @@ export class CloseEditorAction extends Action {
 	public static ID = 'workbench.action.closeEditor';
 	public static LABEL = nls.localize('closeEditor', "Close Editor");
 
-	private position: Position;
-
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
-	public setPosition(position: Position): void {
-		this.position = position;
-	}
-
-	public run(): TPromise<any> {
+	public run(position: Position): TPromise<any> {
 
 		// Close Active Editor
-		if (typeof this.position !== 'number') {
+		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
 				return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
@@ -424,8 +418,8 @@ export class CloseEditorAction extends Action {
 
 		// Close Editor at Position
 		let visibleEditors = this.editorService.getVisibleEditors();
-		if (visibleEditors[this.position]) {
-			return this.editorService.closeEditor(this.position, visibleEditors[this.position].input);
+		if (visibleEditors[position]) {
+			return this.editorService.closeEditor(position, visibleEditors[position].input);
 		}
 
 		return TPromise.as(false);
@@ -437,21 +431,12 @@ export class CloseEditorsInGroupAction extends Action {
 	public static ID = 'workbench.action.closeEditorsInGroup';
 	public static LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
 
-	private position: Position;
-
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
-	public setPosition(position: Position): void {
-		this.position = position;
-	}
-
-	public run(): TPromise<any> {
-		let position: Position;
-		if (typeof this.position === 'number') {
-			position = this.position;
-		} else {
+	public run(position: Position): TPromise<any> {
+		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
 				position = activeEditor.position;
@@ -523,21 +508,12 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	public static ID = 'workbench.action.closeEditorsInOtherGroups';
 	public static LABEL = nls.localize('closeEditorsInOtherGroups', "Close Editors in Other Groups");
 
-	private position: Position;
-
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
-	public setPosition(position: Position): void {
-		this.position = position;
-	}
-
-	public run(): TPromise<any> {
-		let position: Position;
-		if (typeof this.position === 'number') {
-			position = this.position;
-		} else {
+	public run(position: Position): TPromise<any> {
+		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
 				position = activeEditor.position;
@@ -576,22 +552,12 @@ export class MoveGroupLeftAction extends Action {
 	public static ID = 'workbench.action.moveActiveEditorLeft';
 	public static LABEL = nls.localize('moveActiveGroupLeft', "Move Editor Group Left");
 
-	private position: Position;
-
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
-	public setPosition(position: Position): void {
-		this.position = position;
-		this.enabled = (position !== Position.LEFT);
-	}
-
-	public run(): TPromise<any> {
-		let position: Position;
-		if (typeof this.position === 'number') {
-			position = this.position;
-		} else {
+	public run(position: Position): TPromise<any> {
+		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
 				position = activeEditor.position;
@@ -614,22 +580,12 @@ export class MoveGroupRightAction extends Action {
 	public static ID = 'workbench.action.moveActiveEditorRight';
 	public static LABEL = nls.localize('moveActiveGroupRight', "Move Editor Group Right");
 
-	private position: Position;
-
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
-	public setPosition(position: Position): void {
-		this.position = position;
-		this.enabled = (position !== Position.RIGHT);
-	}
-
-	public run(): TPromise<any> {
-		let position: Position;
-		if (typeof this.position === 'number') {
-			position = this.position;
-		} else {
+	public run(position: Position): TPromise<any> {
+		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			let editors = this.editorService.getVisibleEditors();
 
