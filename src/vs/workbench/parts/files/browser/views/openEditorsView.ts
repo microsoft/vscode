@@ -22,7 +22,7 @@ import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
@@ -89,12 +89,14 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		const renderer = this.instantiationService.createInstance(Renderer, actionProvider, this.model);
 		const controller = this.instantiationService.createInstance(Controller, actionProvider, this.model);
 		const accessibilityProvider = this.instantiationService.createInstance(AccessibilityProvider);
+		const dnd = this.instantiationService.createInstance(DragAndDrop);
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource,
 			renderer,
 			controller,
-			accessibilityProvider
+			accessibilityProvider,
+			dnd
 		}, {
 			indentPixels: 0,
 			twistiePixels: 20,

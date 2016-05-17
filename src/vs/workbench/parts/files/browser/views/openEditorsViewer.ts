@@ -10,17 +10,18 @@ import errors = require('vs/base/common/errors');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import tree = require('vs/base/parts/tree/browser/tree');
+import {IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer} from 'vs/base/parts/tree/browser/tree';
+import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IActionItem, ActionBar, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
-import {IMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/common/editor';
-import {ITextFileService, AutoSaveMode, FileEditorInput} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
@@ -78,9 +79,9 @@ export class OpenEditor {
 	}
 }
 
-export class DataSource implements tree.IDataSource {
+export class DataSource implements IDataSource {
 
-	public getId(tree: tree.ITree, element: any): string {
+	public getId(tree: ITree, element: any): string {
 		if (element instanceof EditorStacksModel) {
 			return 'root';
 		}
@@ -91,11 +92,11 @@ export class DataSource implements tree.IDataSource {
 		return (<OpenEditor>element).getId();
 	}
 
-	public hasChildren(tree: tree.ITree, element: any): boolean {
+	public hasChildren(tree: ITree, element: any): boolean {
 		return element instanceof EditorStacksModel || element instanceof EditorGroup;
 	}
 
-	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
+	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof EditorStacksModel) {
 			return TPromise.as((<IEditorStacksModel>element).groups);
 		}
@@ -104,7 +105,7 @@ export class DataSource implements tree.IDataSource {
 		return TPromise.as(editorGroup.getEditors().map(ei => new OpenEditor(ei, editorGroup)));
 	}
 
-	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+	public getParent(tree: ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
@@ -123,7 +124,7 @@ interface IEditorGroupTemplateData {
 	actionBar: ActionBar;
 }
 
-export class Renderer implements tree.IRenderer {
+export class Renderer implements IRenderer {
 
 	public static ITEM_HEIGHT = 22;
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
@@ -136,11 +137,11 @@ export class Renderer implements tree.IRenderer {
 		// noop
 	}
 
-	public getHeight(tree: tree.ITree, element: any): number {
+	public getHeight(tree: ITree, element: any): number {
 		return Renderer.ITEM_HEIGHT;
 	}
 
-	public getTemplateId(tree: tree.ITree, element: any): string {
+	public getTemplateId(tree: ITree, element: any): string {
 		if (element instanceof EditorGroup) {
 			return Renderer.EDITOR_GROUP_TEMPLATE_ID;
 		}
@@ -148,7 +149,7 @@ export class Renderer implements tree.IRenderer {
 		return Renderer.OPEN_EDITOR_TEMPLATE_ID;
 	}
 
-	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
 		if (templateId === Renderer.EDITOR_GROUP_TEMPLATE_ID) {
 			const editorGroupTemplate: IEditorGroupTemplateData = Object.create(null);
 			editorGroupTemplate.root = dom.append(container, $('.editor-group'));
@@ -172,7 +173,7 @@ export class Renderer implements tree.IRenderer {
 		return editorTemplate;
 	}
 
-	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
+	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === Renderer.EDITOR_GROUP_TEMPLATE_ID) {
 			this.renderEditorGroup(tree, element, templateData);
 		} else {
@@ -180,12 +181,12 @@ export class Renderer implements tree.IRenderer {
 		}
 	}
 
-	private renderEditorGroup(tree: tree.ITree, editorGroup: IEditorGroup, templateData: IOpenEditorTemplateData): void {
+	private renderEditorGroup(tree: ITree, editorGroup: IEditorGroup, templateData: IOpenEditorTemplateData): void {
 		templateData.name.textContent = editorGroup.label;
 		templateData.actionBar.context = this.model.positionOfGroup(editorGroup);
 	}
 
-	private renderOpenEditor(tree: tree.ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
+	private renderOpenEditor(tree: ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
 		editor.isDirty(this.textFileService, this.untitledEditorService) ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		const resource = editor.getResource();
@@ -195,7 +196,7 @@ export class Renderer implements tree.IRenderer {
 		templateData.actionBar.context = this.model.positionOfGroup(editor.editorGroup);
 	}
 
-	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
+	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		if (templateId === Renderer.OPEN_EDITOR_TEMPLATE_ID) {
 			(<IOpenEditorTemplateData>templateData).actionBar.dispose();
 		}
@@ -216,7 +217,7 @@ export class Controller extends treedefaults.DefaultController {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
 	}
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 		// Status group should never get selected nor expanded/collapsed
@@ -260,7 +261,7 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
-	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
 		var element = tree.getFocus();
 
 		// Editor groups should never get selected nor expanded/collapsed
@@ -276,7 +277,7 @@ export class Controller extends treedefaults.DefaultController {
 		return super.onEnter(tree, event);
 	}
 
-	public onContextMenu(tree: tree.ITree, element: any, event: tree.ContextMenuEvent): boolean {
+	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -320,9 +321,9 @@ export class Controller extends treedefaults.DefaultController {
 	}
 }
 
-export class AccessibilityProvider implements tree.IAccessibilityProvider {
+export class AccessibilityProvider implements IAccessibilityProvider {
 
-	getAriaLabel(tree: tree.ITree, element: any): string {
+	getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof EditorGroup) {
 			return nls.localize('editorGroupAriaLabel', "{0}, Editor Group", (<EditorGroup>element).label);
 		}
@@ -342,12 +343,12 @@ export class ActionProvider implements IActionProvider {
 		// noop
 	}
 
-	public hasActions(tree: tree.ITree, element: any): boolean {
+	public hasActions(tree: ITree, element: any): boolean {
 		const multipleGroups = this.model.groups.length > 1;
 		return element instanceof OpenEditor || (element instanceof EditorGroup && multipleGroups);
 	}
 
-	public getActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
+	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
 		if (element instanceof OpenEditor) {
 			return TPromise.as(this.getOpenEditorActions());
 		}
@@ -371,11 +372,11 @@ export class ActionProvider implements IActionProvider {
 		];
 	}
 
-	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
+	public hasSecondaryActions(tree: ITree, element: any): boolean {
 		return element instanceof OpenEditor || element instanceof EditorGroup;
 	}
 
-	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<IAction[]> {
+	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const result = [];
 		const autoSaveEnabled = this.textFileService.getAutoSaveMode() !== AutoSaveMode.OFF;
 		const multipleGroups = this.model.groups.length > 1;
@@ -457,7 +458,86 @@ export class ActionProvider implements IActionProvider {
 		return TPromise.as(result);
 	}
 
-	public getActionItem(tree: tree.ITree, element: any, action: IAction): IActionItem {
+	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
 		return null;
+	}
+}
+
+export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
+
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super();
+	}
+
+	public getDragURI(tree: ITree, element: OpenEditor): string {
+		const resource = element instanceof OpenEditor ? element.getResource() : null;
+		return resource ? resource.toString() : null;
+	}
+
+	public onDragOver(baum: ITree, data: IDragAndDropData, target: OpenEditor, originalEvent: DragMouseEvent): IDragOverReaction {
+		if (!(target instanceof OpenEditor)) {
+			return DRAG_OVER_REJECT;
+		}
+
+		if (data instanceof ExternalElementsDragAndDropData) {
+			let resource = asFileResource(data.getData()[0]);
+
+			if (!resource) {
+				return DRAG_OVER_REJECT;
+			}
+
+			return resource.isDirectory ? DRAG_OVER_REJECT : DRAG_OVER_ACCEPT;
+		}
+
+		if (data instanceof DesktopDragAndDropData) {
+			return DRAG_OVER_REJECT;
+		}
+
+		if (!(data instanceof ElementsDragAndDropData)) {
+			return DRAG_OVER_REJECT;
+		}
+
+		let sourceResource: uri;
+		let targetResource = target.getResource();
+		let draggedData = data.getData()[0];
+
+		if (draggedData instanceof OpenEditor) {
+			sourceResource = (<OpenEditor>draggedData).getResource();
+		} else {
+			let source = asFileResource(draggedData);
+			if (!source) {
+				return DRAG_OVER_REJECT;
+			}
+
+			sourceResource = source.resource;
+		}
+
+		if (!targetResource || !sourceResource) {
+			return DRAG_OVER_REJECT;
+		}
+
+		return targetResource.toString() === sourceResource.toString() ? DRAG_OVER_REJECT : DRAG_OVER_ACCEPT;
+	}
+
+	public drop(tree: ITree, data: IDragAndDropData, target: OpenEditor, originalEvent: DragMouseEvent): void {
+		let draggedElement: OpenEditor;
+		const model = this.editorService.getStacksModel();
+		// Support drop from explorer viewer
+		if (data instanceof ExternalElementsDragAndDropData) {
+			let resource = asFileResource(data.getData()[0]);
+			this.editorService.openEditor(resource, model.positionOfGroup(target.editorGroup)).done(null, errors.onUnexpectedError);
+		}
+
+		// Drop within viewer
+		else {
+			let source: OpenEditor[] = data.getData();
+			if (Array.isArray(source)) {
+				draggedElement = source[0];
+			}
+		}
+
+		if (draggedElement) {
+			this.editorService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), model.positionOfGroup(target.editorGroup));
+		}
 	}
 }
