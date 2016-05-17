@@ -161,12 +161,13 @@ export class Renderer implements tree.IRenderer {
 
 		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
 		editorTemplate.container = container;
+		editorTemplate.actionBar = new ActionBar(container);
+		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false});
+
 		editorTemplate.root = dom.append(container, $('.open-editor'));
 		editorTemplate.name = dom.append(editorTemplate.root, $('span.name'));
 		editorTemplate.description = dom.append(editorTemplate.root, $('span.description'));
 
-		editorTemplate.actionBar = new ActionBar(container);
-		editorTemplate.actionBar.push(this.actionProvider.getOpenEditorActions(), { icon: true, label: false});
 
 		return editorTemplate;
 	}
