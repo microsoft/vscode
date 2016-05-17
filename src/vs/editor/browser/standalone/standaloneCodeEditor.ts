@@ -501,6 +501,10 @@ export function registerStandaloneLanguage(language:ILanguageExtensionPoint, def
 	});
 }
 
+export function registerStandaloneLanguage2(language:ILanguageExtensionPoint, defModule:string): void {
+	ModesRegistry.registerLanguage(language);
+}
+
 export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
 	let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 	schemaRegistry.registerSchema(uri, schema);

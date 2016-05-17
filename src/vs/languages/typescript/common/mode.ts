@@ -6,7 +6,7 @@
 
 import * as modes from 'vs/editor/common/modes';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import {createTokenizationSupport, Language} from 'vs/languages/typescript/common/tokenization';
+import {createTokenizationSupport2, Language} from 'vs/languages/typescript/common/tokenization';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -35,9 +35,7 @@ function setupMode(modelService:IModelService, markerService:IMarkerService, mod
 
 	disposables.push(modeService.registerRichEditSupport(modeId, richEditConfiguration));
 
-	disposables.push(modeService.registerTokenizationSupport(modeId, (mode) => {
-		return createTokenizationSupport(mode, language);
-	}));
+	disposables.push(modeService.registerTokenizationSupport2(modeId, createTokenizationSupport2(language)));
 }
 
 const richEditConfiguration:IRichEditConfiguration = {

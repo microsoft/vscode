@@ -13,14 +13,14 @@ import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 
-export interface IRelaxedToken {
-	startIndex:number;
-	type:string;
-}
-
 export interface ITestItem {
 	line: string;
-	tokens: IRelaxedToken[];
+	tokens: modes.IToken[];
+}
+
+export interface ITestItem2 {
+	line: string;
+	tokens: modes.IToken2[];
 }
 
 export function assertWords(actual:string[], expected:string[], message?:string): void {
@@ -33,7 +33,7 @@ export function assertTokenization(tokenizationSupport: modes.ITokenizationSuppo
 		assert.ok(true, tests[i].line);
 		var result = tokenizationSupport.tokenize(tests[i].line, state);
 		if (tests[i].tokens) {
-			assert.deepEqual(toRelaxedTokens(result.tokens), toRelaxedTokens(tests[i].tokens), JSON.stringify(result.tokens, null, '\t'));
+			assert.deepEqual(result.tokens, tests[i].tokens, JSON.stringify(result.tokens, null, '\t'));
 		}
 
 		state = result.endState;
@@ -85,6 +85,13 @@ export function executeTests(tokenizationSupport: modes.ITokenizationSupport, te
 	}
 }
 
+export function executeTests2(tokenizationSupport: modes.ITokenizationSupport2, tests:ITestItem2[][]): void {
+	for (var i = 0, len = tests.length; i < len; i++) {
+		assert.ok(true, 'TEST #' + i);
+		executeTest2(tokenizationSupport, tests[i]);
+	}
+}
+
 
 export function executeMonarchTokenizationTests(name:string, language:ILanguage, tests:ITestItem[][]): void {
 	var lexer = compile(language);
@@ -94,15 +101,6 @@ export function executeMonarchTokenizationTests(name:string, language:ILanguage,
 	var tokenizationSupport = createTokenizationSupport(modeService, new MockMode(), lexer);
 
 	executeTests(tokenizationSupport, tests);
-}
-
-function toRelaxedTokens(tokens: modes.IToken[]): IRelaxedToken[] {
-	return tokens.map((t) => {
-		return {
-			startIndex: t.startIndex,
-			type: t.type
-		};
-	});
 }
 
 function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITestItem[]): void {
@@ -120,6 +118,25 @@ function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITes
 	}
 }
 
-function assertTokens(actual:modes.IToken[], expected:IRelaxedToken[], message?:string): void {
-	assert.deepEqual(toRelaxedTokens(actual), toRelaxedTokens(expected), message + ': ' + JSON.stringify(actual, null, '\t'));
+function executeTest2(tokenizationSupport: modes.ITokenizationSupport2, tests:ITestItem2[]): void {
+	var state = tokenizationSupport.getInitialState();
+	for (var i = 0, len = tests.length; i < len; i++) {
+		assert.ok(true, tests[i].line);
+
+		var result = tokenizationSupport.tokenize(tests[i].line, state);
+
+		if (tests[i].tokens) {
+			assertTokens2(result.tokens, tests[i].tokens, 'Tokenizing line ' + tests[i].line);
+		}
+
+		state = result.endState;
+	}
+}
+
+function assertTokens(actual:modes.IToken[], expected:modes.IToken[], message?:string): void {
+	assert.deepEqual(actual, expected, message + ': ' + JSON.stringify(actual, null, '\t'));
+}
+
+function assertTokens2(actual:modes.IToken2[], expected:modes.IToken2[], message?:string): void {
+	assert.deepEqual(actual, expected, message + ': ' + JSON.stringify(actual, null, '\t'));
 }

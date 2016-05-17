@@ -303,6 +303,24 @@ export interface ITokenizationSupport {
 	tokenize(line:string, state:IState, offsetDelta?:number, stopAtOffset?:number):ILineTokens;
 }
 
+export interface IToken2 {
+	startIndex: number;
+	scopes: string|string[];
+}
+export interface ILineTokens2 {
+	tokens: IToken2[];
+	endState: IState2;
+	retokenize?: TPromise<void>;
+}
+export interface IState2 {
+	clone():IState2;
+	equals(other:IState2):boolean;
+}
+export interface ITokenizationSupport2 {
+	getInitialState(): IState2;
+	tokenize(line:string, state:IState2): ILineTokens2;
+}
+
 /**
  * Interface used to get extra info for a symbol
  */

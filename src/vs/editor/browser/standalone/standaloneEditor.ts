@@ -13,6 +13,8 @@ import {ClassNames, ContentWidgetPositionPreference, OverlayWidgetPositionPrefer
 import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import * as standaloneCodeEditor from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import {ILanguageDef} from 'vs/editor/standalone-languages/types';
+// import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
+import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 
 var global:any = self;
 if (!global.Monaco) {
@@ -77,3 +79,31 @@ if (!Monaco.Languages) {
 	Monaco.Languages = {};
 }
 Monaco.Languages.register = standaloneCodeEditor.registerStandaloneLanguage;
+Monaco.Languages.register2 = standaloneCodeEditor.registerStandaloneLanguage2;
+Monaco.Languages.onLanguage = (languageId:string, callback:()=>void) => {
+	let isDisposed = false;
+	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
+		if (!isDisposed) {
+			callback();
+		}
+	});
+	return {
+		dispose: () => { isDisposed = true; }
+	};
+};
+
+// let handlePlugin = (plugin) => {
+// 	if (Array.isArray(plugin.languages)) {
+// 		ModesRegistry.registerLanguages(plugin.languages);
+// 	}
+// 	if (plugin.activate) {
+// 		try {
+// 			plugin.activate();
+// 		} catch(err) {
+// 			console.error(err);
+// 		}
+// 	}
+// };
+// let MonacoPlugins = this.MonacoPlugins || [];
+// MonacoPlugins.forEach(handlePlugin);
+// this.MonacoPlugins = { push: handlePlugin };
