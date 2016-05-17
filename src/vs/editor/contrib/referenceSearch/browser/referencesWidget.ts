@@ -19,6 +19,7 @@ import * as dom from 'vs/base/browser/dom';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
+import {GestureEvent} from 'vs/base/browser/touch';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
 import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {LeftRightWidget} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
@@ -211,6 +212,18 @@ class Controller extends DefaultController {
 		SELECTED: 'events/custom/selected',
 		OPEN_TO_SIDE: 'events/custom/opentoside'
 	};
+
+	public onTap(tree: tree.ITree, element: any, event: GestureEvent):boolean {
+		if (element instanceof FileReferences) {
+			event.preventDefault();
+			event.stopPropagation();
+			return this._expandCollapse(tree, element);
+		}
+
+		var result = super.onTap(tree, element, event);
+		tree.emit(Controller.Events.FOCUSED, element);
+		return result;
+	}
 
 	public onMouseDown(tree:tree.ITree, element:any, event:IMouseEvent):boolean {
 		if (event.leftButton) {
