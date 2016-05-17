@@ -521,7 +521,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 			for (let i = 0; i < list.items.length; i++) {
 				const item = list.items[i];
-				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(<any>item);
+				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item);
 
 				if (item.textEdit) {
 
@@ -540,7 +540,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 					suggestion.overwriteAfter = editRange.end.character - pos.character;
 
 					allSuggestions.push({
-						currentWord: doc.getText(<any>editRange),
+						currentWord: doc.getText(editRange),
 						suggestions: [suggestion],
 						incomplete: list.isIncomplete
 					});
