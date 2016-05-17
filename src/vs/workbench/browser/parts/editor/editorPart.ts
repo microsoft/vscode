@@ -496,6 +496,17 @@ export class EditorPart extends Part implements IEditorPart {
 			return TPromise.as<void>(null);
 		}
 
+		// Check for dirty and veto
+		return this.handleDirty([input]).then(veto => {
+			if (veto) {
+				return;
+			}
+
+			return this.doCloseEditor(position, input);
+		});
+	}
+
+	private doCloseEditor(position: Position, input: EditorInput): TPromise<void> {
 		const group = this.groupAt(position);
 
 		// Closing the active editor of the group is a bit more work
@@ -504,60 +515,43 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Closing inactive editor is just a model update
-		this.doCloseInactiveEditor(input, position);
+		return this.doCloseInactiveEditor(input, position);
 	}
 
 	private doCloseActiveEditor(position: Position): TPromise<void> {
 
-		// Check for dirty and veto
-		const input = this.visibleInputs[position];
-		return this.handleDirty([input]).then(veto => {
-			if (veto) {
-				return;
-			}
+		// Update visible inputs for position
+		this.visibleInputs[position] = null;
 
-			// Update visible inputs for position
-			this.visibleInputs[position] = null;
+		// Dispose previous input listener if any
+		if (this.visibleInputListeners[position]) {
+			this.visibleInputListeners[position]();
+			this.visibleInputListeners[position] = null;
+		}
 
-			// Dispose previous input listener if any
-			if (this.visibleInputListeners[position]) {
-				this.visibleInputListeners[position]();
-				this.visibleInputListeners[position] = null;
-			}
+		// Reset counter
+		this.editorSetInputErrorCounter[position] = 0;
 
-			// Reset counter
-			this.editorSetInputErrorCounter[position] = 0;
+		// Update stacks model
+		const group = this.groupAt(position);
+		group.closeEditor(group.activeEditor);
 
-			// Update stacks model
-			const group = this.groupAt(position);
-			group.closeEditor(group.activeEditor);
+		// Close group is this is the last editor in group
+		if (group.count === 0) {
+			return this.doCloseGroup(position);
+		}
 
-			// Close group is this is the last editor in group
-			if (group.count === 0) {
-				return this.doCloseGroup(position);
-			}
-
-			// Otherwise open next active
-			return this.openEditor(group.activeEditor, null, position).then(null, (error) => {
-
-				// in case of an error, continue closing
-				return this.doCloseActiveEditor(position);
-			});
-		});
+		// Otherwise open next active
+		return this.openEditor(group.activeEditor, null, position).then(() => null);
 	}
 
 	private doCloseInactiveEditor(input: EditorInput, position: Position): TPromise<void> {
 
-		// Check for dirty and veto
-		return this.handleDirty([input]).then(veto => {
-			if (veto) {
-				return;
-			}
+		// Closing inactive editor is just a model update
+		const group = this.groupAt(position);
+		group.closeEditor(input);
 
-			// Closing inactive editor is just a model update
-			const group = this.groupAt(position);
-			group.closeEditor(input);
-		});
+		return TPromise.as<void>(null);
 	}
 
 	private doCloseGroup(position: Position): TPromise<void> {
@@ -782,7 +776,7 @@ export class EditorPart extends Part implements IEditorPart {
 			return TPromise.as<BaseEditor>(null);
 		}
 
-		return this.closeEditor(from, input).then(() => {
+		return this.doCloseEditor(from, input).then(() => {
 			return this.openEditor(input, EditorOptions.create({ pinned: true, index }), this.stacksModel.positionOfGroup(toGroup));
 		});
 	}
