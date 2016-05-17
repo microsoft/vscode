@@ -29,12 +29,6 @@
 	visibility: hidden;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content > .editor-group ~ .monaco-action-bar {
-	right: 0;
-	padding-right: 8px;
-	padding-left: 5px;
-}
-
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:hover > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.focused > .content .monaco-action-bar,
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content.dirty > .monaco-action-bar {
