@@ -42,7 +42,7 @@
 	display: block;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-close-file {
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .close-editor-action {
 	width: 9px;
 	height: 22px;
 }

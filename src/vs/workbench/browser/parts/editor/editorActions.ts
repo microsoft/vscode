@@ -28,7 +28,7 @@ export class SplitEditorAction extends Action {
 	public static LABEL = nls.localize('splitEditor', "Split Editor");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(id, label);
+		super(id, label, 'split-editor-action');
 	}
 
 	public run(): TPromise<any> {
@@ -405,7 +405,7 @@ export class CloseEditorAction extends Action {
 	public static LABEL = nls.localize('closeEditor', "Close Editor");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(id, label);
+		super(id, label, 'close-editor-action');
 	}
 
 	public run(position: Position): TPromise<any> {
@@ -497,7 +497,7 @@ export class CloseAllEditorsAction extends Action {
 	public static LABEL = nls.localize('closeAllEditors', "Close All Editors");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(id, label);
+		super(id, label, 'action-close-all-files');
 	}
 
 	public run(): TPromise<any> {

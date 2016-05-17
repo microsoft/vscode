@@ -189,11 +189,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Close
 		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
-		POSITIONS.map((position) => this.closeEditorActions[position].class = 'close-editor-action');
 
 		// Split
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
-		this.splitEditorAction.class = 'split-editor-action';
 
 		// Move Group Left
 		this.moveGroupLeftActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, MoveGroupLeftAction.LABEL));
