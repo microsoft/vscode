@@ -14,7 +14,7 @@ import Menu = require('vs/base/browser/ui/menu/menu');
 import Events = require('vs/base/common/events');
 import Severity from 'vs/base/common/severity';
 
-import {IContextViewService, IContextMenuDelegate} from './contextView';
+import {IContextViewService, IContextMenuDelegate} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
 

@@ -23,6 +23,7 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -297,6 +298,7 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		collapsed: boolean,
 		private viewName: string,
 		@IMessageService private messageService: IMessageService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
 		super({
@@ -320,7 +322,15 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action) => { return this.getActionItem(action); },
-			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName)
+			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
+			getKeyBinding: (action) => {
+				const opts = this.keybindingService.lookupKeybindings(action.id);
+				if (opts.length > 0) {
+					return opts[0]; // only take the first one
+				}
+
+				return null;
+			}
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
@@ -417,6 +427,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		collapsed: boolean,
 		private viewName: string,
 		@IMessageService protected messageService: IMessageService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
 		super({
@@ -445,7 +456,15 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action) => { return this.getActionItem(action); },
-			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName)
+			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
+			getKeyBinding: (action) => {
+				const opts = this.keybindingService.lookupKeybindings(action.id);
+				if (opts.length > 0) {
+					return opts[0]; // only take the first one
+				}
+
+				return null;
+			}
 		});
 		this.toolBar.actionRunner = this.actionRunner;
 		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();

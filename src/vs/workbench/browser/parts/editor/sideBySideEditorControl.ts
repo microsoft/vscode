@@ -32,6 +32,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 export enum Rochade {
@@ -153,6 +154,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IEventService private eventService: IEventService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.parent = parent;
@@ -1055,7 +1057,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const toolbar = new ToolBar(container.getHTMLElement(), this.contextMenuService, {
 			actionItemProvider: (action: Action) => this.actionItemProvider(action, position),
 			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions")
+			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),
+			getKeyBinding: (action) => {
+				const opts = this.keybindingService.lookupKeybindings(action.id);
+				if (opts.length > 0) {
+					return opts[0]; // only take the first one
+				}
+
+				return null;
+			}
 		});
 
 		// Action Run Handling
