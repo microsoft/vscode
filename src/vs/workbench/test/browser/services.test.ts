@@ -124,7 +124,7 @@ class TestEditorPart implements IEditorPart {
 		return [activeEditor];
 	}
 
-	public moveEditor(input: EditorInput, from: Position, to: Position): TPromise<BaseEditor> {
+	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
 		return TPromise.as(null);
 	}
 

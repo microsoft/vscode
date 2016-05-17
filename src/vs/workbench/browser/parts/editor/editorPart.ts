@@ -773,7 +773,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.doUpdateEditorTitleArea();
 	}
 
-	public moveEditor(input: EditorInput, from: Position, to: Position): TPromise<BaseEditor> {
+	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
 		const editor = this.visibleEditors[from];
 		const fromGroup = this.groupAt(from);
 		const toGroup = this.groupAt(to);
@@ -783,7 +783,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		return this.closeEditor(from, input).then(() => {
-			return this.openEditor(input, null, this.stacksModel.positionOfGroup(toGroup));
+			return this.openEditor(input, EditorOptions.create({ pinned: true, index }), this.stacksModel.positionOfGroup(toGroup));
 		});
 	}
 
