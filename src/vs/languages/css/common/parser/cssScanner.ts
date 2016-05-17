@@ -5,6 +5,7 @@
 'use strict';
 
 export enum TokenType {
+	VariableName,
 	Ident,
 	AtKeyword,
 	String,
@@ -288,6 +289,16 @@ export class Scanner {
 		if (tokenType !== null) {
 			return this.finishToken(offset, tokenType);
 		}
+
+		// variable --
+		if (this.stream.advanceIfChars([_MIN, _MIN])) {
+			let content: string[] = ['-', '-'] ;
+			if (this.ident(content)) {
+				return this.finishToken(offset, TokenType.VariableName, content.join(''));
+			}
+			this.stream.goBackTo(offset);
+		}
+
 		let content: string[] = [];
 		if (this.ident(content)) {
 			return this.finishToken(offset, TokenType.Ident, content.join(''));
@@ -608,6 +619,22 @@ export class Scanner {
 				// loop
 			}
 			return true;
+		}
+		this.stream.goBackTo(pos);
+		return false;
+	}
+
+	protected isVariable(result:string[]):boolean {
+		let pos = this.stream.pos();
+		let hasMinus = this._minus(result);
+		if (hasMinus && this._minus(result) /* -- */) {
+			let hasContent = false;
+			while (this._identChar(result) || this._escape(result)) {
+				hasContent = true;
+			}
+			if (hasContent) {
+				return true;
+			}
 		}
 		this.stream.goBackTo(pos);
 		return false;
