@@ -79,6 +79,55 @@ suite('languages namespace tests', () => {
 		collection.dispose();
 	});
 
+	test('diagnostics collection, set with dupliclated tuples', function () {
+		let collection = languages.createDiagnosticCollection('test');
+		let uri = Uri.parse('sc:hightower');
+		collection.set([
+			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
+			[Uri.parse('some:thing'), [new Diagnostic(new Range(0, 0, 1, 1), 'something')]],
+			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-2')]],
+		]);
+
+		let array = collection.get(uri);
+		assert.equal(array.length, 2);
+		let [first, second] = array;
+		assert.equal(first.message, 'message-1');
+		assert.equal(second.message, 'message-2');
+
+		// clear
+		collection.delete(uri);
+		assert.ok(!collection.has(uri));
+
+		// bad tuple clears 1/2
+		collection.set([
+			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
+			[Uri.parse('some:thing'), [new Diagnostic(new Range(0, 0, 1, 1), 'something')]],
+			[uri, undefined]
+		]);
+		assert.ok(!collection.has(uri));
+
+		// clear
+		collection.delete(uri);
+		assert.ok(!collection.has(uri));
+
+		// bad tuple clears 2/2
+		collection.set([
+			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
+			[Uri.parse('some:thing'), [new Diagnostic(new Range(0, 0, 1, 1), 'something')]],
+			[uri, undefined],
+			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-2')]],
+			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-3')]],
+		]);
+
+		array = collection.get(uri);
+		assert.equal(array.length, 2);
+		[first, second] = array;
+		assert.equal(first.message, 'message-2');
+		assert.equal(second.message, 'message-3');
+
+		collection.dispose();
+	});
+
 	test('diagnostics & CodeActionProvider', function (done) {
 
 		class D2 extends Diagnostic {
