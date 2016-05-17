@@ -122,7 +122,7 @@ const quickOpenKb: IKeybindings = {
 	secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E]
 };
 
-const QUICK_NAVIGATE_KEY = KeyCode.Tab;
+const QUICK_NAVIGATE_KEY = KeyCode.KEY_Q;
 
 const prevEditorKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | QUICK_NAVIGATE_KEY,
