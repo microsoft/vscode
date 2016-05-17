@@ -67,6 +67,7 @@ export class ToolBar {
 						this.options.getKeyBinding,
 						'toolbar-toggle-more'
 					);
+					this.toggleMenuActionItem.setActionContext(this.actionBar.context);
 
 					return this.toggleMenuActionItem;
 				}
@@ -82,6 +83,10 @@ export class ToolBar {
 
 	public get actionRunner(): IActionRunner {
 		return this.actionBar.actionRunner;
+	}
+
+	public set context(context: any) {
+		this.actionBar.context = context;
 	}
 
 	public getContainer(): Builder {
@@ -216,7 +221,8 @@ export class DropdownMenuActionItem extends BaseActionItem {
 		this.dropdownMenu.menuOptions = {
 			actionItemProvider: this.actionItemProvider,
 			actionRunner: this.actionRunner,
-			getKeyBinding: this.keybindings
+			getKeyBinding: this.keybindings,
+			context: this._context
 		};
 
 		// Reemit events for running actions
