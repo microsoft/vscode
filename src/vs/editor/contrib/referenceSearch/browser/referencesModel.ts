@@ -9,7 +9,7 @@ import Event, {fromEventEmitter} from 'vs/base/common/event';
 import {basename, dirname} from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import {generateUuid} from 'vs/base/common/uuid';
+import {defaultGenerator} from 'vs/base/common/idGenerator';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {Range} from 'vs/editor/common/core/range';
@@ -25,7 +25,7 @@ export class OneReference {
 		private _range: IRange,
 		private _eventBus: EventEmitter
 	) {
-		this._id = generateUuid();
+		this._id = defaultGenerator.nextId();
 	}
 
 	public get id(): string {
