@@ -14,7 +14,9 @@ export class IdGenerator {
 		this._lastId = 0;
 	}
 
-	public generate(): string {
+	public nextId(): string {
 		return this._prefix + (++this._lastId);
 	}
 }
+
+export const defaultGenerator = new IdGenerator('id#');
