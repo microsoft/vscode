@@ -124,7 +124,8 @@ KeybindingsRegistry.registerCommandDesc({
 				.then(() => debugService.createSession(false));
 		}
 
-		return debugService.createSession(!!configuration.noDebug, configuration);
+		const noDebug = configuration && !!configuration.noDebug;
+		return debugService.createSession(noDebug, configuration);
 	},
 	when: KbExpr.not(debug.CONTEXT_IN_DEBUG_MODE),
 	primary: undefined
