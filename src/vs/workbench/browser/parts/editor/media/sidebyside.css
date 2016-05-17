@@ -193,16 +193,52 @@
 	background: url('SplitEditor_inverse.svg') center center no-repeat;
 }
 
+.monaco-workbench .show-group-editors-overflowing-action {
+	background: url('chevron.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .show-group-editors-overflowing-action {
+	background: url('chevron-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .show-group-editors-action {
+	background: url('chevron-disabled.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .show-group-editors-action {
+	background: url('chevron-disabled-inverse.svg') center center no-repeat;
+}
+
 /* High Contrast Theming */
 
 .hc-black .monaco-workbench .close-editor-action,
 .hc-black .monaco-workbench .close-editor-decorated-action,
+.hc-black .monaco-workbench .show-group-editors-action,
+.hc-black .monaco-workbench .show-group-editors-overflowing-action,
 .hc-black .monaco-workbench .split-editor-action {
 	background: none;
 }
 
 .hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
 	width: 24px;
+}
+
+.hc-black .monaco-workbench .show-group-editors-overflowing-action:before {
+	content: url('chevron-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+
+.hc-black .monaco-workbench .show-group-editors-action:before {
+	content: url('chevron-disabled-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
 }
 
 .hc-black .monaco-workbench .close-editor-decorated-action:before {
@@ -215,7 +251,7 @@
 }
 
 .hc-black .monaco-workbench .close-editor-action:before {
-	content: url('close-inverse.svg');
+	content: url('close-dark.svg');
 	position: absolute;
 	top: 12px;
 	left: 8px;

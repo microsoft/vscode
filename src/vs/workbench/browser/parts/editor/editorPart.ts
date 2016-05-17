@@ -432,7 +432,7 @@ export class EditorPart extends Part implements IEditorPart {
 			if (inputChanged) {
 				this.doUpdateEditorTitleArea(); // full title update
 			} else {
-				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor }); // little update for position
+				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count }); // little update for position
 			}
 
 			timerEvent.stop();
@@ -968,7 +968,7 @@ export class EditorPart extends Part implements IEditorPart {
 			group.pin(input);
 
 			// Update UI
-			this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor });
+			this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
 		}
 	}
 
@@ -1004,7 +1004,7 @@ export class EditorPart extends Part implements IEditorPart {
 					group.unpin(input);
 
 					// Update UI
-					this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor });
+					this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
 
 				}, errors.onUnexpectedError);
 			});
@@ -1018,7 +1018,8 @@ export class EditorPart extends Part implements IEditorPart {
 
 				return {
 					position: e.position,
-					preview: group && group.previewEditor
+					preview: group && group.previewEditor,
+					editorCount: group ? group.count : 0
 				};
 			});
 

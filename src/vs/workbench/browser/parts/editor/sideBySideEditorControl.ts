@@ -7,6 +7,7 @@
 
 import 'vs/css!./media/sidebyside';
 import nls = require('vs/nls');
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
@@ -54,6 +55,7 @@ interface IEditorActions {
 }
 
 export interface ITitleAreaState {
+	editorCount: number;
 	position: number;
 	preview: EditorInput;
 }
@@ -94,6 +96,28 @@ export interface ISideBySideEditorControl {
 	dispose(): void;
 }
 
+class ShowGroupEditors extends Action {
+
+	public static ID = 'workbench.action.showGroupEditors';
+	public static LABEL = nls.localize('showGroupEditors', "Show Editors in Group");
+
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label, 'show-editors-action');
+	}
+
+	public setOverflowing(isOverflowing: boolean): void {
+		if (isOverflowing) {
+			this.class = 'show-group-editors-overflowing-action';
+		} else {
+			this.class = 'show-group-editors-action';
+		}
+	}
+
+	public run(position: Position): TPromise<any> {
+		return TPromise.as(false); // TODO@Ben
+	}
+}
+
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
@@ -123,6 +147,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private mapActionsToEditors: { [editorId: string]: IEditorActions; }[];
 
 	private closeEditorActions: CloseEditorAction[];
+	private showEditorsOfGroup: ShowGroupEditors[];
 	private moveGroupLeftActions: MoveGroupLeftAction[];
 	private moveGroupRightActions: MoveGroupRightAction[];
 	private closeEditorsInGroupActions: CloseEditorsInGroupAction[];
@@ -189,6 +214,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Close
 		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
+
+		// Show Editors
+		this.showEditorsOfGroup = POSITIONS.map((position) => this.instantiationService.createInstance(ShowGroupEditors, ShowGroupEditors.ID, ShowGroupEditors.LABEL));
 
 		// Split
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
@@ -1208,12 +1236,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			let input = editor ? editor.input : null;
 
 			if (input && editor) {
-				this.doUpdateEditorTitleArea(editor, input, state.position, !input.matches(state.preview), activePosition === state.position);
+				this.doUpdateEditorTitleArea(editor, input, state.position, !input.matches(state.preview), activePosition === state.position, state.editorCount > 1);
 			}
 		});
 	}
 
-	private doUpdateEditorTitleArea(editor: BaseEditor, input: EditorInput, position: Position, isPinned: boolean, isActive: boolean): void {
+	private doUpdateEditorTitleArea(editor: BaseEditor, input: EditorInput, position: Position, isPinned: boolean, isActive: boolean, isOverflowing: boolean): void {
 		let primaryActions: IAction[] = [];
 		let secondaryActions: IAction[] = [];
 
@@ -1238,7 +1266,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Apply to title in side by side control
-		this.setTitle(position, input, prepareActions(primaryActions), prepareActions(secondaryActions), isPinned, isActive);
+		this.setTitle(position, input, prepareActions(primaryActions), prepareActions(secondaryActions), isPinned, isActive, isOverflowing);
 	}
 
 	private getEditorActionsForContext(context: BaseEditor, editor: BaseEditor, position: Position): IEditorActions;
@@ -1264,7 +1292,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		};
 	}
 
-	private setTitle(position: Position, input: EditorInput, primaryActions: IAction[], secondaryActions: IAction[], isPinned: boolean, isActive: boolean): void {
+	private setTitle(position: Position, input: EditorInput, primaryActions: IAction[], secondaryActions: IAction[], isPinned: boolean, isActive: boolean, isOverflowing: boolean): void {
 
 		// Pinned state
 		if (isPinned) {
@@ -1300,6 +1328,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		if (isActive && this.getVisibleEditorCount() < 3 && this.lastActiveEditor.supportsSplitEditor()) {
 			primaryActions.unshift(this.splitEditorAction);
 		}
+
+		const showEditorAction = this.showEditorsOfGroup[position];
+		showEditorAction.setOverflowing(isOverflowing);
+		primaryActions.unshift(this.showEditorsOfGroup[position]);
 
 		// Secondary Actions
 		if (secondaryActions.length) {
