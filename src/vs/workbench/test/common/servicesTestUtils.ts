@@ -333,6 +333,12 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.callback('unpinEditor');
 	}
 
+	public moveEditor(input: IEditorInput, from: Position, to: Position): TPromise<IEditor> {
+		this.callback('moveEditor');
+
+		return TPromise.as(null);
+	}
+
 	public moveGroup(from: Position, to: Position): void {
 		this.callback('moveGroup');
 	}

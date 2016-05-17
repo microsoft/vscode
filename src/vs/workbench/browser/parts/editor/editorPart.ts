@@ -773,6 +773,20 @@ export class EditorPart extends Part implements IEditorPart {
 		this.doUpdateEditorTitleArea();
 	}
 
+	public moveEditor(input: EditorInput, from: Position, to: Position): TPromise<BaseEditor> {
+		const editor = this.visibleEditors[from];
+		const fromGroup = this.groupAt(from);
+		const toGroup = this.groupAt(to);
+
+		if (!editor || !fromGroup || !toGroup || from === to) {
+			return TPromise.as<BaseEditor>(null);
+		}
+
+		return this.closeEditor(from, input).then(() => {
+			return this.openEditor(input, null, this.stacksModel.positionOfGroup(toGroup));
+		});
+	}
+
 	public arrangeGroups(arrangement: GroupArrangement): void {
 		this.sideBySideControl.arrangeGroups(arrangement);
 	}

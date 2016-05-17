@@ -35,6 +35,7 @@ export interface IEditorPart {
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
+	moveEditor(input: EditorInput, from: Position, to: Position): TPromise<BaseEditor>;
 	moveGroup(from: Position, to: Position): void;
 	focusGroup(position: Position): void;
 	activateGroup(position: Position): void;
@@ -94,6 +95,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 			return false;
 		});
+	}
+
+	public moveEditor(input: EditorInput, from: Position, to: Position): TPromise<BaseEditor> {
+		return this.editorPart.moveEditor(input, from, to);
 	}
 
 	public moveGroup(from: Position, to: Position): void {
@@ -374,6 +379,10 @@ class EditorPartDelegate implements IEditorPart {
 
 	public getVisibleEditors(): IEditor[] {
 		return this.editorService.getVisibleEditors();
+	}
+
+	public moveEditor(input: EditorInput, from: Position, to: Position): TPromise<BaseEditor> {
+		return this.editorService.moveEditor(input, from, to);
 	}
 
 	public moveGroup(from: Position, to: Position): void {

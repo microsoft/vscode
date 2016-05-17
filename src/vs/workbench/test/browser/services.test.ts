@@ -124,6 +124,10 @@ class TestEditorPart implements IEditorPart {
 		return [activeEditor];
 	}
 
+	public moveEditor(input: EditorInput, from: Position, to: Position): TPromise<BaseEditor> {
+		return TPromise.as(null);
+	}
+
 	public moveGroup(from: Position, to: Position) {
 		// Unsupported
 	}
