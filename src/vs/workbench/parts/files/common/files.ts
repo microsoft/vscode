@@ -11,7 +11,7 @@ import Event from 'vs/base/common/event';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {IModel, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {EncodingMode, EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
+import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -280,12 +280,6 @@ export class TextFileChangeEvent extends LocalFileChangeEvent {
 }
 
 export const TEXT_FILE_SERVICE_ID = 'textFileService';
-
-export enum ConfirmResult {
-	SAVE,
-	DONT_SAVE,
-	CANCEL
-}
 
 export interface ITextFileOperationResult {
 	results: IResult[];

@@ -25,10 +25,10 @@ import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
-import Files = require('vs/workbench/parts/files/common/files');
+import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, ITextFileOperationResult, IWorkingFileModelChangeEvent, IWorkingFileEntry, IWorkingFilesModel, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, UntitledEditorInput} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, UntitledEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -49,8 +49,6 @@ import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instant
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
-
-import ITextFileService = Files.ITextFileService;
 
 export interface IEditableData {
 	action: IAction;
@@ -155,11 +153,11 @@ export class BaseFileAction extends Action {
 	protected handleDirty(): TPromise<boolean /* cancel */> {
 		if (this.textFileService.isDirty(this._element.resource)) {
 			let res = this.textFileService.confirmSave([this._element.resource]);
-			if (res === Files.ConfirmResult.SAVE) {
+			if (res === ConfirmResult.SAVE) {
 				return this.textFileService.save(this._element.resource).then(() => false);
 			}
 
-			if (res === Files.ConfirmResult.DONT_SAVE) {
+			if (res === ConfirmResult.DONT_SAVE) {
 				return this.textFileService.revert(this._element.resource).then(() => false);
 			}
 
@@ -325,7 +323,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 			before = this.element.clone(); // Clone element to not expose viewers element to listeners
 		}
 
-		this.eventService.emit('files.internal:fileChanged', new Files.LocalFileChangeEvent(before, stat));
+		this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(before, stat));
 	}
 }
 
@@ -524,7 +522,7 @@ export abstract class BaseGlobalNewAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet) => {
+		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet) => {
 			return TPromise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
 				viewlet.focus();
 
@@ -730,7 +728,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 		// Since a delete operation can take a while we want to emit the event proactively to avoid issues
 		// with stale entries in the explorer tree.
-		this.eventService.emit('files.internal:fileChanged', new Files.LocalFileChangeEvent(this.element.clone(), null));
+		this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(this.element.clone(), null));
 
 		// Call function
 		let servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
@@ -748,7 +746,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			this.onErrorWithRetry(error, () => this.run(), extraAction);
 
 			// Since the delete failed, best we can do is to refresh the explorer from the root to show the current state of files.
-			let event = new Files.LocalFileChangeEvent(new FileStat(this.contextService.getWorkspace().resource, true, true), new FileStat(this.contextService.getWorkspace().resource, true, true));
+			let event = new LocalFileChangeEvent(new FileStat(this.contextService.getWorkspace().resource, true, true), new FileStat(this.contextService.getWorkspace().resource, true, true));
 			this.eventService.emit('files.internal:fileChanged', event);
 
 			// Focus back to tree
@@ -890,7 +888,7 @@ export class ImportFileAction extends BaseFileAction {
 									// Emit Deleted Event if file gets replaced unless it is the same file
 									let oldFile = targetNames[isLinux ? file.name : file.name.toLowerCase()];
 									if (oldFile && oldFile.resource.fsPath !== result.stat.resource.fsPath) {
-										this.eventService.emit('files.internal:fileChanged', new Files.LocalFileChangeEvent(oldFile, null));
+										this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(oldFile, null));
 									}
 
 									// Emit Import Event
@@ -917,7 +915,7 @@ export class ImportFileAction extends BaseFileAction {
 }
 
 /** File import event is emitted when a file is import into the workbench. */
-export class FileImportedEvent extends Files.LocalFileChangeEvent {
+export class FileImportedEvent extends LocalFileChangeEvent {
 	private isNew: boolean;
 
 	constructor(stat?: IFileStat, isNew?: boolean, originalEvent?: Event) {
@@ -1083,7 +1081,7 @@ export class DuplicateFileAction extends BaseFileAction {
 
 		// Copy File and emit event
 		let result = this.fileService.copyFile(this.element.resource, this.findTarget()).then((stat: IFileStat) => {
-			this.eventService.emit('files.internal:fileChanged', new Files.LocalFileChangeEvent(null, stat));
+			this.eventService.emit('files.internal:fileChanged', new LocalFileChangeEvent(null, stat));
 		}, (error: any) => {
 			this.onError(error);
 		});
@@ -1544,10 +1542,10 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	private registerListeners(): void {
 
 		// listen to files being changed locally
-		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_DIRTY, (e: Files.TextFileChangeEvent) => this.updateEnablement(true)));
-		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_SAVED, (e: Files.TextFileChangeEvent) => this.updateEnablement(false)));
-		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_REVERTED, (e: Files.TextFileChangeEvent) => this.updateEnablement(false)));
-		this.toDispose.push(this.eventService.addListener2(Files.EventType.FILE_SAVE_ERROR, (e: Files.TextFileChangeEvent) => this.updateEnablement(true)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.updateEnablement(true)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.updateEnablement(false)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.updateEnablement(false)));
+		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.updateEnablement(true)));
 
 		if (this.includeUntitled()) {
 			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.updateEnablement(true)));
@@ -1765,8 +1763,8 @@ export class ReopenClosedFileAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let workingFilesModel: Files.IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
-		let entry: Files.IWorkingFileEntry = workingFilesModel.popLastClosedEntry();
+		let workingFilesModel: IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
+		let entry: IWorkingFileEntry = workingFilesModel.popLastClosedEntry();
 
 		if (entry === null) {
 			return TPromise.as(true);
@@ -1825,12 +1823,12 @@ export abstract class BaseCloseWorkingFileAction extends Action {
 			isDirty = this.textFileService.isDirty();
 		}
 
-		let saveOrRevertPromise: TPromise<Files.ITextFileOperationResult> = TPromise.as(null);
+		let saveOrRevertPromise: TPromise<ITextFileOperationResult> = TPromise.as(null);
 		if (isDirty) {
 			let confirmResult = this.textFileService.confirmSave(this.elements);
 
 			switch (confirmResult) {
-				case Files.ConfirmResult.SAVE:
+				case ConfirmResult.SAVE:
 					if (this.elements) {
 						saveOrRevertPromise = this.textFileService.saveAll(this.elements);
 					} else {
@@ -1838,7 +1836,7 @@ export abstract class BaseCloseWorkingFileAction extends Action {
 					}
 
 					break;
-				case Files.ConfirmResult.DONT_SAVE:
+				case ConfirmResult.DONT_SAVE:
 					if (this.elements) {
 						saveOrRevertPromise = this.textFileService.revertAll(this.elements);
 					} else {
@@ -1846,12 +1844,12 @@ export abstract class BaseCloseWorkingFileAction extends Action {
 					}
 
 					break;
-				case Files.ConfirmResult.CANCEL:
+				case ConfirmResult.CANCEL:
 					return TPromise.as(null);
 			}
 		}
 
-		return saveOrRevertPromise.then((result?: Files.ITextFileOperationResult) => {
+		return saveOrRevertPromise.then((result?: ITextFileOperationResult) => {
 
 			// Collect resources to dispose
 			let resourcesToDispose: URI[] = [];
@@ -1922,7 +1920,7 @@ export class CloseAllWorkingFilesAction extends BaseCloseWorkingFileAction {
 		return super.run().then(() => closeNonFileEditors(this.editorService)); // close non file editors too
 	}
 
-	private onModelChange(event: Files.IWorkingFileModelChangeEvent): void {
+	private onModelChange(event: IWorkingFileModelChangeEvent): void {
 		this.enabled = (this.model.count() > 0);
 	}
 
@@ -2246,7 +2244,7 @@ export class FocusOpenEditorsView extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			viewlet.getOpenEditorsView().expand();
 			viewlet.getOpenEditorsView().getViewer().DOMFocus();
 		});
@@ -2267,7 +2265,7 @@ export class FocusFilesExplorer extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			const view = viewlet.getExplorerView();
 			if (view) {
 				view.expand();
@@ -2296,7 +2294,7 @@ export class ShowActiveFileInExplorer extends Action {
 	public run(): TPromise<any> {
 		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
-			return this.viewletService.openViewlet(Files.VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
+			return this.viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
 				const isInsideWorkspace = this.contextService.isInsideWorkspace(fileInput.getResource());
 				if (isInsideWorkspace) {
 					const explorerView = viewlet.getExplorerView();

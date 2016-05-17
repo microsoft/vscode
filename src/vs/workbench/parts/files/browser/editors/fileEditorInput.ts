@@ -14,7 +14,7 @@ import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
-import {EditorModel, IInputStatus, EncodingMode} from 'vs/workbench/common/editor';
+import {EditorModel, IInputStatus, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
@@ -173,6 +173,22 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 
 		return null;
+	}
+
+	public isDirty(): boolean {
+		return this.textFileService.isDirty(this.resource);
+	}
+
+	public confirmSave(): ConfirmResult {
+		return this.textFileService.confirmSave([this.resource]);
+	}
+
+	public save(): TPromise<boolean> {
+		return this.textFileService.save(this.resource);
+	}
+
+	public revert(): TPromise<boolean> {
+		return this.textFileService.revert(this.resource);
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {

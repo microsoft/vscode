@@ -23,7 +23,7 @@ import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
 import {EventType as WorkbenchEventType, EditorInputEvent, EditorEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState, ITitleAreaState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
@@ -467,6 +467,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
+		// Event
 		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
 
 		// Recover from this error by closing the editor if the attempt of setInput failed and we are not having any previous input
@@ -503,37 +504,59 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Closing inactive editor is just a model update
-		group.closeEditor(input);
+		this.doCloseInactiveEditor(input, position);
 	}
 
 	private doCloseActiveEditor(position: Position): TPromise<void> {
 
-		// Update visible inputs for position
-		this.visibleInputs[position] = null;
+		// Check for dirty and veto
+		const input = this.visibleInputs[position];
+		return this.handleDirty([input]).then(veto => {
+			if (veto) {
+				return;
+			}
 
-		// Dispose previous input listener if any
-		if (this.visibleInputListeners[position]) {
-			this.visibleInputListeners[position]();
-			this.visibleInputListeners[position] = null;
-		}
+			// Update visible inputs for position
+			this.visibleInputs[position] = null;
 
-		// Reset counter
-		this.editorSetInputErrorCounter[position] = 0;
+			// Dispose previous input listener if any
+			if (this.visibleInputListeners[position]) {
+				this.visibleInputListeners[position]();
+				this.visibleInputListeners[position] = null;
+			}
 
-		// Update stacks model
-		const group = this.groupAt(position);
-		group.closeEditor(group.activeEditor);
+			// Reset counter
+			this.editorSetInputErrorCounter[position] = 0;
 
-		// Close group is this is the last editor in group
-		if (group.count === 0) {
-			return this.doCloseGroup(position);
-		}
+			// Update stacks model
+			const group = this.groupAt(position);
+			group.closeEditor(group.activeEditor);
 
-		// Otherwise open next active
-		return this.openEditor(group.activeEditor, null, position).then(null, (error) => {
+			// Close group is this is the last editor in group
+			if (group.count === 0) {
+				return this.doCloseGroup(position);
+			}
 
-			// in case of an error, continue closing
-			return this.doCloseActiveEditor(position);
+			// Otherwise open next active
+			return this.openEditor(group.activeEditor, null, position).then(null, (error) => {
+
+				// in case of an error, continue closing
+				return this.doCloseActiveEditor(position);
+			});
+		});
+	}
+
+	private doCloseInactiveEditor(input: EditorInput, position: Position): TPromise<void> {
+
+		// Check for dirty and veto
+		return this.handleDirty([input]).then(veto => {
+			if (veto) {
+				return;
+			}
+
+			// Closing inactive editor is just a model update
+			const group = this.groupAt(position);
+			group.closeEditor(input);
 		});
 	}
 
@@ -610,30 +633,44 @@ export class EditorPart extends Part implements IEditorPart {
 
 		const group = this.groupAt(position);
 
-		// Close all editors in group
-		if (!except) {
-
-			// Update stacks model: remove all non active editors first to prevent opening the next editor in group
-			group.closeEditors(group.activeEditor);
-
-			// Now close active editor in group which will close the group
-			return this.doCloseActiveEditor(position);
+		// Check for dirty and veto
+		let editorsToClose: EditorInput[];
+		if (!direction) {
+			editorsToClose = group.getEditors().filter(e => !except || !e.matches(except));
+		} else {
+			editorsToClose = (direction === Direction.LEFT) ? group.getEditors().slice(0, group.indexOf(except)) : group.getEditors().slice(group.indexOf(except) + 1);
 		}
 
-		// Close all editors in group except active one
-		if (except.matches(group.activeEditor)) {
+		return this.handleDirty(editorsToClose).then(veto => {
+			if (veto) {
+				return;
+			}
 
-			// Update stacks model: close non active editors supporting the direction
-			group.closeEditors(group.activeEditor, direction);
+			// Close all editors in group
+			if (!except) {
 
-			// No UI update needed
-			return TPromise.as(null);
-		}
+				// Update stacks model: remove all non active editors first to prevent opening the next editor in group
+				group.closeEditors(group.activeEditor);
 
-		// Finally: we are asked to close editors around a non-active editor
-		// Thus we make the non-active one active and then close the others
-		return this.openEditor(except, null, position).then(() => {
-			return this.closeEditors(position, except, direction);
+				// Now close active editor in group which will close the group
+				return this.doCloseActiveEditor(position);
+			}
+
+			// Close all editors in group except active one
+			if (except.matches(group.activeEditor)) {
+
+				// Update stacks model: close non active editors supporting the direction
+				group.closeEditors(group.activeEditor, direction);
+
+				// No UI update needed
+				return TPromise.as(null);
+			}
+
+			// Finally: we are asked to close editors around a non-active editor
+			// Thus we make the non-active one active and then close the others
+			return this.openEditor(except, null, position).then(() => {
+				return this.closeEditors(position, except, direction);
+			});
 		});
 	}
 
@@ -646,6 +683,38 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		return TPromise.join(editors.map(e => this.closeEditors(e.position))).then(() => void 0);
+	}
+
+	private handleDirty(inputs: EditorInput[]): TPromise<boolean /* veto */> {
+		if (!inputs.length) {
+			return TPromise.as(false); // no veto
+		}
+
+		return this.doHandleDirty(inputs.shift()).then(veto => {
+			if (veto) {
+				return veto;
+			}
+
+			return this.handleDirty(inputs);
+		});
+	}
+
+	private doHandleDirty(input: EditorInput): TPromise<boolean /* veto */> {
+		if (!input || !input.isDirty()) {
+			return TPromise.as(false); // no veto
+		}
+
+		const res = input.confirmSave();
+		switch (res) {
+			case ConfirmResult.SAVE:
+				return input.save().then(ok => !ok);
+
+			case ConfirmResult.DONT_SAVE:
+				return input.revert().then(ok => !ok);
+
+			case ConfirmResult.CANCEL:
+				return TPromise.as(true); // veto
+		}
 	}
 
 	public getStacksModel(): EditorStacksModel {
@@ -902,24 +971,35 @@ export class EditorPart extends Part implements IEditorPart {
 				return;
 			}
 
-			let closeActivePromise: TPromise<void> = TPromise.as(null);
-
-			// The active editor is the preview editor and we are asked to make
-			// another editor the preview editor. So we need to take care of closing
-			// the active editor first
-			if (group.isPreview(group.activeEditor) && !group.activeEditor.matches(input)) {
-				closeActivePromise = this.doCloseActiveEditor(position);
+			// Unpinning an editor closes the preview editor if we have any
+			let handlePreviewEditor: TPromise<boolean> = TPromise.as(false);
+			if (group.previewEditor) {
+				handlePreviewEditor = this.handleDirty([group.previewEditor]);
 			}
 
-			closeActivePromise.done(() => {
+			handlePreviewEditor.done(veto => {
+				if (veto) {
+					return;
+				}
 
-				// Update stacks model
-				group.unpin(input);
+				// The active editor is the preview editor and we are asked to make
+				// another editor the preview editor. So we need to take care of closing
+				// the active editor first
+				let closeActivePromise: TPromise<void> = TPromise.as(null);
+				if (group.isPreview(group.activeEditor) && !group.activeEditor.matches(input)) {
+					closeActivePromise = this.doCloseActiveEditor(position);
+				}
 
-				// Update UI
-				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor });
+				closeActivePromise.done(() => {
 
-			}, errors.onUnexpectedError);
+					// Update stacks model
+					group.unpin(input);
+
+					// Update UI
+					this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor });
+
+				}, errors.onUnexpectedError);
+			});
 		}
 	}
 

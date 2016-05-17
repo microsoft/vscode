@@ -317,6 +317,9 @@ export class EditorGroup implements IEditorGroup {
 			this.preview = null;
 		}
 
+		// Close it
+		editor.close();
+
 		// Remove from arrays
 		this.splice(index, true);
 

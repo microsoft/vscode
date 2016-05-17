@@ -38,6 +38,12 @@ export interface IInputStatus {
 	decoration?: string;
 }
 
+export enum ConfirmResult {
+	SAVE,
+	DONT_SAVE,
+	CANCEL
+}
+
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
@@ -102,6 +108,40 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	 * this could mean to refresh the editor model contents with the version from disk.
 	 */
 	public abstract resolve(refresh?: boolean): TPromise<EditorModel>;
+
+	/**
+	 * An editor that is dirty will be asked to be saved once it closes.
+	 */
+	public isDirty(): boolean {
+		return false;
+	}
+
+	/**
+	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
+	 */
+	public confirmSave(): ConfirmResult {
+		return ConfirmResult.DONT_SAVE;
+	}
+
+	/**
+	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
+	 */
+	public save(): TPromise<boolean> {
+		return TPromise.as(true);
+	}
+
+	/**
+	 * Reverts the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
+	 */
+	public revert(): TPromise<boolean> {
+		return TPromise.as(true);
+	}
+
+	/**
+	 * Called when the editor is closed. Subclasses can free resources as needed.
+	 */
+	public close(): void {
+	}
 
 	/**
 	 * Called when an editor input is no longer needed. Allows to free up any resources taken by
@@ -221,6 +261,27 @@ export abstract class BaseDiffEditorInput extends EditorInput {
 
 	public getModifiedInput(): EditorInput {
 		return this.modifiedInput;
+	}
+
+	public isDirty(): boolean {
+		return this._modifiedInput.isDirty();
+	}
+
+	public confirmSave(): ConfirmResult {
+		return this._modifiedInput.confirmSave();
+	}
+
+	public save(): TPromise<boolean> {
+		return this._modifiedInput.save();
+	}
+
+	public revert(): TPromise<boolean> {
+		return this._modifiedInput.revert();
+	}
+
+	public close(): void {
+		this._originalInput.close();
+		this._modifiedInput.close();
 	}
 }
 
