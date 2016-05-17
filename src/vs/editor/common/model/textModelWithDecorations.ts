@@ -8,7 +8,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {IHTMLContentElement, htmlContentElementArrEquals} from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IdGenerator} from 'vs/editor/common/core/idGenerator';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {TextModelWithTrackedRanges} from 'vs/editor/common/model/textModelWithTrackedRanges';

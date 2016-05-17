@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IdGenerator} from 'vs/editor/common/core/idGenerator';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
