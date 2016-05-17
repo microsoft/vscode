@@ -11,6 +11,8 @@ import URI from 'vs/base/common/uri';
 import objects = require('vs/base/common/objects');
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
 import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 /**
  * A simple bag for input related status that can be shown in the UI
@@ -580,6 +582,25 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 	// File
 	let fileInput = asFileEditorInput(input, supportDiff);
 	return fileInput && fileInput.getResource();
+}
+
+/**
+ * Helper to return all opened editors with resources not belonging to the currently opened workspace.
+ */
+export function getOutOfWorkspaceEditorResources(editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService): URI[] {
+	const resources: URI[] = [];
+
+	editorService.getStacksModel().groups.forEach(group => {
+		const editors = group.getEditors();
+		editors.forEach(editor => {
+			const fileInput = asFileEditorInput(editor, true);
+			if (fileInput && !contextService.isInsideWorkspace(fileInput.getResource())) {
+				resources.push(fileInput.getResource());
+			}
+		});
+	});
+
+	return resources;
 }
 
 /**

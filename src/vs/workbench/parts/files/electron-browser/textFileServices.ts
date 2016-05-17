@@ -359,9 +359,6 @@ export class TextFileService extends AbstractTextFileService {
 			return this.fileService.copyFile(resource, target);
 		}).then(() => {
 
-			// Add target to working files because this is an operation that indicates activity
-			this.getWorkingFilesModel().addEntry(target);
-
 			// Revert the source
 			return this.revert(resource).then(() => {
 
