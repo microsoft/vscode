@@ -39,7 +39,7 @@ var TextLoaderPlugin;
             req.send(null);
         };
         return BrowserTextLoader;
-    })();
+    }());
     function readFileAndRemoveBOM(fs, path) {
         var BOM_CHAR_CODE = 65279;
         var contents = fs.readFileSync(path, 'utf8');
@@ -57,7 +57,7 @@ var TextLoaderPlugin;
             callback(readFileAndRemoveBOM(this.fs, fileUrl));
         };
         return NodeTextLoader;
-    })();
+    }());
     // ------------------------------ Finally, the plugin
     var TextPlugin = (function () {
         function TextPlugin(textLoader) {
@@ -95,7 +95,7 @@ var TextLoaderPlugin;
         };
         TextPlugin.BUILD_MAP = {};
         return TextPlugin;
-    })();
+    }());
     TextLoaderPlugin.TextPlugin = TextPlugin;
     var Utilities = (function () {
         function Utilities() {
@@ -170,7 +170,7 @@ var TextLoaderPlugin;
             return resultPieces.join('');
         };
         return Utilities;
-    })();
+    }());
     TextLoaderPlugin.Utilities = Utilities;
     (function () {
         var textLoader = null;
