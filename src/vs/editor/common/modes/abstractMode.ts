@@ -9,6 +9,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
@@ -251,13 +252,14 @@ export class FrankensteinMode extends AbstractMode {
 	public suggestSupport:modes.ISuggestSupport;
 
 	constructor(
-		descriptor:modes.IModeDescriptor,
+		descriptor: modes.IModeDescriptor,
+		@IConfigurationService configurationService: IConfigurationService,
 		@optional(IEditorWorkerService) editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
 
 		if (editorWorkerService) {
-			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService, configurationService);
 		}
 	}
 }

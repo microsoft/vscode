@@ -69,6 +69,7 @@ suite('Syntax Highlighting - PHP', () => {
 		let mode = new PHPMode(
 			{ id: 'php' },
 			modeService,
+			null,
 			null
 		);
 
