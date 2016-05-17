@@ -9,14 +9,14 @@
 }
 
 .monaco-workbench .integrated-terminal {
-	background-color: #1e1e1e!important;
-	color: #CCC;
+	background-color: #FFF!important;
+	color: #333;
 	-webkit-user-select: initial;
 	overflow: hidden; /* prevents the terminal output being incorrectly placed over the title */
 }
 
 .monaco-workbench .integrated-terminal .terminal {
-	background-color: #1e1e1e!important;
+	background-color: #FFF!important;
 }
 
 .monaco-workbench .integrated-terminal .terminal span {
@@ -24,11 +24,28 @@
 }
 
 .monaco-workbench .integrated-terminal .terminal-cursor {
-	background-color: #CCC;
+	background-color: #333;
 }
 
 .monaco-workbench .integrated-terminal .reverse-video {
 	color: #1e1e1e;
+}
+
+.vs-dark .monaco-workbench .integrated-terminal {
+	background-color: #1e1e1e!important;
+	color: #CCC;
+}
+
+.vs-dark .monaco-workbench .integrated-terminal .terminal {
+	background-color: #1e1e1e!important;
+}
+
+.vs-dark .monaco-workbench .integrated-terminal .terminal-cursor {
+	background-color: #CCC;
+}
+
+.vs-dark .monaco-workbench .integrated-terminal .reverse-video {
+	color: #FFF;
 }
 
 /* High Contrast Theming */
