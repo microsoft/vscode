@@ -18,17 +18,16 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EditorInput, asFileEditorInput} from 'vs/workbench/common/editor';
+import {IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 
-export class EditorGroupPickerEntry extends QuickOpenEntryGroup {
-	private editor: EditorInput;
+export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	constructor(
-		editor: EditorInput,
+		private editor: EditorInput,
+		private _group: IEditorGroup,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super();
-
-		this.editor = editor;
 	}
 
 	public getPrefix(): string {
@@ -41,6 +40,10 @@ export class EditorGroupPickerEntry extends QuickOpenEntryGroup {
 
 	public getLabel(): string {
 		return this.editor.getName();
+	}
+
+	public get group(): IEditorGroup {
+		return this._group;
 	}
 
 	public getResource(): URI {
@@ -66,19 +69,19 @@ export class EditorGroupPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	private runOpen(context: IContext): boolean {
-		this.editorService.openEditor(this.editor).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor(this.editor, null, this.editorService.getStacksModel().positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
 
 		return true;
 	}
 }
 
-export class EditorGroupPicker extends QuickOpenHandler {
+export abstract class BaseEditorPicker extends QuickOpenHandler {
 	private scorerCache: { [key: string]: number };
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService
 	) {
 		super();
 
@@ -94,51 +97,65 @@ export class EditorGroupPicker extends QuickOpenHandler {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 
-		return TPromise.as(new QuickOpenModel(stacks.activeGroup.getEditors(true)
-
-			// Convert to quick open entries
-			.map(e => this.instantiationService.createInstance(EditorGroupPickerEntry, e))
-
-			// Filter by search value
-			.filter(e => {
-				if (!searchValue) {
-					return true;
-				}
-
-				let resource = e.getResource();
-				let targetToMatch = resource ? labels.getPathLabel(e.getResource(), this.contextService) : e.getLabel();
-				if (!scorer.matches(targetToMatch, normalizedSearchValueLowercase)) {
-					return false;
-				}
-
-				const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
-				e.setHighlights(labelHighlights, descriptionHighlights);
-
+		const entries = this.getEditorEntries().filter(e => {
+			if (!searchValue) {
 				return true;
-			}).
+			}
 
-			// Sort by search value score or natural order if not searching
-			sort((e1, e2) => {
-				if (!searchValue) {
-					return 0;
+			let resource = e.getResource();
+			let targetToMatch = resource ? labels.getPathLabel(e.getResource(), this.contextService) : e.getLabel();
+			if (!scorer.matches(targetToMatch, normalizedSearchValueLowercase)) {
+				return false;
+			}
+
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
+			e.setHighlights(labelHighlights, descriptionHighlights);
+
+			return true;
+		});
+
+		// Sorting
+		if (searchValue) {
+			entries.sort((e1, e2) => {
+				if (e1.group !== e2.group) {
+					return stacks.positionOfGroup(e1.group) - stacks.positionOfGroup(e2.group);
 				}
 
 				return QuickOpenEntry.compareByScore(e1, e2, searchValue, normalizedSearchValueLowercase, this.scorerCache);
-			}).
+			});
+		}
 
-			// Apply group label
-			map((e, index) => {
-				if (index === 0) {
-					e.setGroupLabel(nls.localize('groupLabel', "Group: {0}", stacks.activeGroup.label));
-				}
+		// Grouping
+		let lastGroup: IEditorGroup;
+		entries.forEach(e => {
+			if (!lastGroup || lastGroup !== e.group) {
+				e.setGroupLabel(nls.localize('groupLabel', "Group: {0}", e.group.label));
+				e.setShowBorder(!!lastGroup);
+				lastGroup = e.group;
+			}
+		});
 
-				return e;
-			})));
+		return TPromise.as(new QuickOpenModel(entries));
+	}
+
+	public onClose(canceled: boolean): void {
+		this.scorerCache = Object.create(null);
+	}
+
+	protected abstract getEditorEntries(): EditorPickerEntry[];
+}
+
+export class EditorGroupPicker extends BaseEditorPicker {
+
+	protected getEditorEntries(): EditorPickerEntry[] {
+		const stacks = this.editorService.getStacksModel();
+
+		return stacks.activeGroup.getEditors(true).map((editor, index) => this.instantiationService.createInstance(EditorPickerEntry, editor, stacks.activeGroup));
 	}
 
 	public getEmptyLabel(searchString: string): string {
 		if (searchString) {
-			return nls.localize('noResultsFound', "No matching opened editor found in group");
+			return nls.localize('noResultsFoundInGroup', "No matching opened editor found in group");
 		}
 
 		return nls.localize('noOpenedEditors', "List of opened editors is currently empty");
@@ -161,8 +178,38 @@ export class EditorGroupPicker extends QuickOpenHandler {
 			autoFocusSecondEntry: stacks.activeGroup.count > 1
 		};
 	}
+}
 
-	public onClose(canceled: boolean): void {
-		this.scorerCache = Object.create(null);
+export class AllEditorsPicker extends BaseEditorPicker {
+
+	protected getEditorEntries(): EditorPickerEntry[] {
+		const entries: EditorPickerEntry[] = [];
+
+		const stacks = this.editorService.getStacksModel();
+		stacks.groups.forEach((group, position) => {
+			group.getEditors().forEach((editor, index) => {
+				entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, group));
+			});
+		});
+
+		return entries;
+	}
+
+	public getEmptyLabel(searchString: string): string {
+		if (searchString) {
+			return nls.localize('noResultsFound', "No matching opened editor found");
+		}
+
+		return nls.localize('noOpenedEditors', "List of opened editors is currently empty");
+	}
+
+	public getAutoFocus(searchValue: string): IAutoFocus {
+		if (searchValue) {
+			return {
+				autoFocusFirstEntry: true
+			};
+		}
+
+		return super.getAutoFocus(searchValue);
 	}
 }

@@ -853,6 +853,18 @@ export class ShowEditorsInGroupAction extends QuickOpenAction {
 	}
 }
 
+export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = '~:';
+
+export class ShowAllEditorsAction extends QuickOpenAction {
+
+	public static ID = 'workbench.action.showAllEditors';
+	public static LABEL = nls.localize('showAllEditors', "Show All Editors");
+
+	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, quickOpenService);
+	}
+}
+
 export class OpenPreviousEditorInGroupAction extends Action {
 
 	public static ID = 'workbench.action.openPreviousEditorInGroup';
@@ -982,41 +994,41 @@ interface IEditorPickOpenEntry extends IPickOpenEntry {
 	identifier: IEditorIdentifier;
 }
 
-export class ShowAllEditorsAction extends Action {
+// export class ShowAllEditorsAction extends Action {
 
-	public static ID = 'workbench.action.showAllEditors';
-	public static LABEL = nls.localize('showAllEditors', "Show All Editors");
+// 	public static ID = 'workbench.action.showAllEditors';
+// 	public static LABEL = nls.localize('showAllEditors', "Show All Editors");
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
+// 	constructor(
+// 		id: string,
+// 		label: string,
+// 		@IQuickOpenService private quickOpenService: IQuickOpenService,
+// 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+// 	) {
+// 		super(id, label);
+// 	}
 
-	public run(event?: any): TPromise<any> {
-		const stacks = this.editorService.getStacksModel();
-		const entrys: IEditorPickOpenEntry[] = [];
-		let identifier = 0;
+// 	public run(event?: any): TPromise<any> {
+// 		const stacks = this.editorService.getStacksModel();
+// 		const entrys: IEditorPickOpenEntry[] = [];
+// 		let identifier = 0;
 
-		stacks.groups.forEach(group => {
-			group.getEditors().forEach((editor, index) => {
-				entrys.push({
-					id: String(identifier++),
-					label: editor.isDirty() ? `\u25cf ${editor.getName()}` : editor.getName(),
-					description: editor.getDescription(),
-					identifier: { editor: editor, group: group },
-					separator: index === 0 ? { border: true, label: group.label } : void 0
-				});
-			});
-		});
+// 		stacks.groups.forEach(group => {
+// 			group.getEditors().forEach((editor, index) => {
+// 				entrys.push({
+// 					id: String(identifier++),
+// 					label: editor.isDirty() ? `\u25cf ${editor.getName()}` : editor.getName(),
+// 					description: editor.getDescription(),
+// 					identifier: { editor: editor, group: group },
+// 					separator: index === 0 ? { border: true, label: group.label } : void 0
+// 				});
+// 			});
+// 		});
 
-		return this.quickOpenService.pick(entrys, { matchOnDescription: true }).then(pick => {
-			if (pick) {
-				return this.editorService.openEditor(pick.identifier.editor, null, stacks.positionOfGroup(pick.identifier.group));
-			}
-		});
-	}
-}
+// 		return this.quickOpenService.pick(entrys, { matchOnDescription: true }).then(pick => {
+// 			if (pick) {
+// 				return this.editorService.openEditor(pick.identifier.editor, null, stacks.positionOfGroup(pick.identifier.group));
+// 			}
+// 		});
+// 	}
+// }

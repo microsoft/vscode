@@ -35,7 +35,7 @@ import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
 	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInGroupAction,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousEditorInGroupAction, NAVIGATE_IN_GROUP_PREFIX,
-	GlobalQuickOpenAction, OpenPreviousEditorAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction
+	GlobalQuickOpenAction, OpenPreviousEditorAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX
 } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
@@ -245,19 +245,21 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
-// Register quick open handler for navigating in editor group
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/browser/parts/editor/editorGroupPicker',
+		'vs/workbench/browser/parts/editor/editorPicker',
 		'EditorGroupPicker',
 		NAVIGATE_IN_GROUP_PREFIX,
-		[
-			{
-				prefix: NAVIGATE_IN_GROUP_PREFIX,
-				needsEditor: false,
-				description: nls.localize('navigateInGroup', "Navigate in Editor Group")
-			}
-		]
+		[]
+	)
+);
+
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/browser/parts/editor/editorPicker',
+		'AllEditorsPicker',
+		NAVIGATE_ALL_EDITORS_GROUP_PREFIX,
+		[]
 	)
 );
 

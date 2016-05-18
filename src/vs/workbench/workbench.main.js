@@ -30,7 +30,7 @@ define([
 	'vs/workbench/browser/actions/configureLocale',
 
 	'vs/workbench/parts/quickopen/browser/quickopen.contribution',
-	'vs/workbench/browser/parts/editor/editorGroupPicker',
+	'vs/workbench/browser/parts/editor/editorPicker',
 
 	'vs/workbench/parts/files/browser/explorerViewlet',
 	'vs/workbench/parts/files/browser/fileActions.contribution',
