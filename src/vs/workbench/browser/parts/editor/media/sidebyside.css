@@ -86,6 +86,7 @@
 	width: 12px; /* move the actions close to the label */
 }
 
+.monaco-workbench > .part.editor > .content .inactive .title .title-actions,
 .monaco-workbench > .part.editor > .content .inactive .title .title-label-actions {
 	opacity: 0.5;
 }
