@@ -117,7 +117,7 @@ export class NavigateBetweenGroupsAction extends Action {
 
 export class FocusFirstGroupAction extends Action {
 
-	public static ID = 'workbench.action.focusFirstEditor';
+	public static ID = 'workbench.action.focusFirstEditorGroup';
 	public static LABEL = nls.localize('focusFirstEditorGroup', "Focus Left Editor Group");
 
 	constructor(
@@ -226,7 +226,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 
-	public static ID = 'workbench.action.focusSecondEditor';
+	public static ID = 'workbench.action.focusSecondEditorGroup';
 	public static LABEL = nls.localize('focusSecondEditorGroup', "Focus Center Editor Group");
 
 	constructor(
@@ -249,7 +249,7 @@ export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 
 export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
 
-	public static ID = 'workbench.action.focusThirdEditor';
+	public static ID = 'workbench.action.focusThirdEditorGroup';
 	public static LABEL = nls.localize('focusThirdEditorGroup', "Focus Right Editor Group");
 
 	constructor(
@@ -573,7 +573,7 @@ export class CloseAllEditorsInGroupAction extends Action {
 
 export class MoveGroupLeftAction extends Action {
 
-	public static ID = 'workbench.action.moveActiveEditorLeft';
+	public static ID = 'workbench.action.moveActiveEditorGroupLeft';
 	public static LABEL = nls.localize('moveActiveGroupLeft', "Move Editor Group Left");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -601,7 +601,7 @@ export class MoveGroupLeftAction extends Action {
 
 export class MoveGroupRightAction extends Action {
 
-	public static ID = 'workbench.action.moveActiveEditorRight';
+	public static ID = 'workbench.action.moveActiveEditorGroupRight';
 	public static LABEL = nls.localize('moveActiveGroupRight', "Move Editor Group Right");
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
@@ -912,7 +912,7 @@ export class GlobalQuickOpenAction extends Action {
 export class OpenPreviousEditorAction extends Action {
 
 	public static ID = 'workbench.action.openPreviousEditor';
-	public static LABEL = nls.localize('navigateEditorHistoryByInput', "Navigate History");
+	public static LABEL = nls.localize('navigateEditorHistoryByInput', "Open Previous Editor from History");
 
 	constructor(
 		id: string,
@@ -993,42 +993,3 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 interface IEditorPickOpenEntry extends IPickOpenEntry {
 	identifier: IEditorIdentifier;
 }
-
-// export class ShowAllEditorsAction extends Action {
-
-// 	public static ID = 'workbench.action.showAllEditors';
-// 	public static LABEL = nls.localize('showAllEditors', "Show All Editors");
-
-// 	constructor(
-// 		id: string,
-// 		label: string,
-// 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-// 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-// 	) {
-// 		super(id, label);
-// 	}
-
-// 	public run(event?: any): TPromise<any> {
-// 		const stacks = this.editorService.getStacksModel();
-// 		const entrys: IEditorPickOpenEntry[] = [];
-// 		let identifier = 0;
-
-// 		stacks.groups.forEach(group => {
-// 			group.getEditors().forEach((editor, index) => {
-// 				entrys.push({
-// 					id: String(identifier++),
-// 					label: editor.isDirty() ? `\u25cf ${editor.getName()}` : editor.getName(),
-// 					description: editor.getDescription(),
-// 					identifier: { editor: editor, group: group },
-// 					separator: index === 0 ? { border: true, label: group.label } : void 0
-// 				});
-// 			});
-// 		});
-
-// 		return this.quickOpenService.pick(entrys, { matchOnDescription: true }).then(pick => {
-// 			if (pick) {
-// 				return this.editorService.openEditor(pick.identifier.editor, null, stacks.positionOfGroup(pick.identifier.group));
-// 			}
-// 		});
-// 	}
-// }

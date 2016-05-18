@@ -294,10 +294,8 @@ function navigateKeybinding(shift: boolean): IKeybindings {
 const category = nls.localize('view', "View");
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorInGroupAction, OpenPreviousEditorInGroupAction.ID, OpenPreviousEditorInGroupAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.Tab,
-	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab],
 	mac: {
-		primary: KeyMod.WinCtrl | KeyCode.Tab,
-		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab]
+		primary: KeyMod.WinCtrl | KeyCode.Tab
 	}
 }), 'Open Previous in Editor Group');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllEditorsAction, ShowAllEditorsAction.ID, ShowAllEditorsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab }), 'View: Show All Editors', category);
@@ -349,6 +347,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBackwardsActio
 }), 'Go Back');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction, GlobalQuickOpenAction.ID, GlobalQuickOpenAction.LABEL, quickOpenKb), 'Go to File...');
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorAction, OpenPreviousEditorAction.ID, OpenPreviousEditorAction.LABEL), 'Navigate History');
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorAction, OpenPreviousEditorAction.ID, OpenPreviousEditorAction.LABEL), 'Open Previous Editor from History');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), KbExpr.has('inQuickOpen')), 'Navigate Next in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), KbExpr.has('inQuickOpen'), KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');
