@@ -403,31 +403,42 @@ export class ActionProvider implements IActionProvider {
 			if (resource) {
 				// Open to side
 				result.push(this.instantiationService.createInstance(OpenToSideAction, tree, resource, false));
-				result.push(new Separator());
 
-				result.push(this.instantiationService.createInstance(RevealInOSAction, resource));
-				const openConsoleAction = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.ScopedLabel);
-				openConsoleAction.setResource(uri.file(paths.dirname(resource.fsPath)));
-				result.push(openConsoleAction);
-				result.push(this.instantiationService.createInstance(CopyPathAction, resource));
-
-				// Files: Save / Revert
-				if (!autoSaveEnabled && openEditor.isDirty(this.textFileService, this.untitledEditorService)) {
+				if (!openEditor.isUntitled()) {
 					result.push(new Separator());
 
-					const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-					saveAction.setResource(resource);
-					saveAction.enabled = true;
-					result.push(saveAction);
+					result.push(this.instantiationService.createInstance(RevealInOSAction, resource));
+					const openConsoleAction = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.ScopedLabel);
+					openConsoleAction.setResource(uri.file(paths.dirname(resource.fsPath)));
+					result.push(openConsoleAction);
+					result.push(this.instantiationService.createInstance(CopyPathAction, resource));
 
-					const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-					revertAction.setResource(resource);
-					revertAction.enabled = openEditor.isDirty(this.textFileService, this.untitledEditorService);
-					result.push(revertAction);
+					// Files: Save / Revert
+					if (!autoSaveEnabled && openEditor.isDirty(this.textFileService, this.untitledEditorService)) {
+						result.push(new Separator());
+
+						const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+						saveAction.setResource(resource);
+						saveAction.enabled = true;
+						result.push(saveAction);
+
+						const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
+						revertAction.setResource(resource);
+						revertAction.enabled = openEditor.isDirty(this.textFileService, this.untitledEditorService);
+						result.push(revertAction);
+					}
+
+					result.push(new Separator());
+
+					// Compare Actions
+					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
+					if (runCompareAction._isEnabled()) {
+						result.push(runCompareAction);
+					}
+					result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, tree));
 				}
-
 				// Untitled: Save / Save As
-				if (openEditor.isUntitled()) {
+				else {
 					result.push(new Separator());
 
 					if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
@@ -440,14 +451,6 @@ export class ActionProvider implements IActionProvider {
 					saveAsAction.setResource(resource);
 					result.push(saveAsAction);
 				}
-
-				result.push(new Separator());
-				// Run Compare
-				const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
-				if (runCompareAction._isEnabled()) {
-					result.push(runCompareAction);
-				}
-				result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, tree));
 
 				result.push(new Separator());
 			}
