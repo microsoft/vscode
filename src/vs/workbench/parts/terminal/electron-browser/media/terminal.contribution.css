@@ -13,6 +13,7 @@
 	color: #333;
 	-webkit-user-select: initial;
 	overflow: hidden; /* prevents the terminal output being incorrectly placed over the title */
+	padding: 0 20px;
 }
 
 .monaco-workbench .integrated-terminal .terminal {
