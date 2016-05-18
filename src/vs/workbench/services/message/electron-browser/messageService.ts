@@ -43,8 +43,10 @@ export class MessageService extends WorkbenchMessageService {
 			cancelId: 1
 		};
 
+		// Linux: buttons are swapped
 		if (isLinux) {
-			opts.defaultId = 1; // Linux: buttons are swapped
+			opts.defaultId = 1;
+			opts.cancelId = 0;
 		}
 
 		if (confirmation.detail) {
