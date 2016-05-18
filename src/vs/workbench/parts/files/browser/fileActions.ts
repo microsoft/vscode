@@ -25,7 +25,7 @@ import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
-import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, ITextFileOperationResult, IWorkingFileModelChangeEvent, IWorkingFileEntry, IWorkingFilesModel, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, ITextFileOperationResult, IWorkingFileModelChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, UntitledEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
@@ -41,7 +41,6 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -1738,51 +1737,6 @@ export class RevertFileAction extends Action {
 		}
 
 		return TPromise.as(true);
-	}
-}
-
-export class ReopenClosedFileAction extends Action {
-
-	public static ID = 'workbench.files.action.reopenClosedFile';
-	public static LABEL = nls.localize('reopenClosedFile', "Reopen Closed File");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPartService private partService: IPartService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IViewletService private viewletService: IViewletService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileService private fileService: IFileService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		let workingFilesModel: IWorkingFilesModel = this.textFileService.getWorkingFilesModel();
-		let entry: IWorkingFileEntry = workingFilesModel.popLastClosedEntry();
-
-		if (entry === null) {
-			return TPromise.as(true);
-		}
-
-		// If the current resource is the recently closed resource, run action again
-		let activeResource = getUntitledOrFileResource(this.editorService.getActiveEditorInput());
-		if (activeResource && activeResource.path === entry.resource.path) {
-			return this.run();
-		}
-
-		return this.fileService.existsFile(entry.resource).then((exists) => {
-			if (!exists) {
-				return this.run(); // repeat in case the last closed file got deleted meanwhile
-			}
-
-			// Make it a working file again
-			workingFilesModel.addEntry(entry.resource);
-
-			// Open in editor
-			return this.editorService.openEditor(entry);
-		});
 	}
 }
 

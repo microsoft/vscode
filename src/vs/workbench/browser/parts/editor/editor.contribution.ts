@@ -34,7 +34,7 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
 		NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup,
-		toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction
+		toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
@@ -256,6 +256,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditor, Op
 	primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow }
 }), 'View: Open Previous Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ReopenClosedEditorAction, ReopenClosedEditorAction.ID, ReopenClosedEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_T }), 'View: Reopen Closed Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(PinEditorAction, PinEditorAction.ID, PinEditorAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter) }), 'View: Pin Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL), 'View: Unpin Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL), 'View: Close All Editors', category);

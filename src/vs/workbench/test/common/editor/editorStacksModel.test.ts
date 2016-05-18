@@ -76,7 +76,7 @@ function groupListener(group: IEditorGroup): GroupEvents {
 	};
 
 	group.onEditorOpened(e => groupEvents.opened.push(e));
-	group.onEditorClosed(e => groupEvents.closed.push(e));
+	group.onEditorClosed(e => groupEvents.closed.push(e.editor));
 	group.onEditorActivated(e => groupEvents.activated.push(e));
 	group.onEditorPinned(e => groupEvents.pinned.push(e));
 	group.onEditorUnpinned(e => groupEvents.unpinned.push(e));
@@ -94,7 +94,7 @@ class TestEditorInput extends EditorInput {
 	public resolve() { return null; }
 
 	public matches(other: TestEditorInput): boolean {
-		return this.id === other.id && other instanceof TestEditorInput;
+		return other && this.id === other.id && other instanceof TestEditorInput;
 	}
 }
 
@@ -106,7 +106,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 	public resolve() { return null; }
 
 	public matches(other: TestEditorInput): boolean {
-		return this.id === other.id && other instanceof NonSerializableTestEditorInput;
+		return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
 	}
 }
 
@@ -262,7 +262,7 @@ suite('Editor Stacks Model', () => {
 	test('Groups - Event Aggregation', function () {
 		const model = create();
 
-		let groupEvents:IEditorGroup[] = [];
+		let groupEvents: IEditorGroup[] = [];
 		let count = groupEvents.length;
 		model.onModelChanged(group => {
 			groupEvents.push(group);
@@ -529,9 +529,57 @@ suite('Editor Stacks Model', () => {
 		assert.equal(input3, group.getEditors()[2]);
 
 		const input4 = input();
-		group.openEditor(input4, { pinned: false, active: true}); // this should cause the preview editor to move after input3
+		group.openEditor(input4, { pinned: false, active: true }); // this should cause the preview editor to move after input3
 
 		assert.equal(input4, group.getEditors()[2]);
+	});
+
+	test('Stack - Multiple Editors - Recently Closed Tracking', function () {
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		services.set(IWorkspaceContextService, new TestContextService());
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+
+		let model: EditorStacksModel = inst.createInstance(EditorStacksModel);
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+
+		group1.openEditor(input1, { pinned: false, active: true });
+		group1.openEditor(input2, { pinned: true, active: true });
+		group1.openEditor(input3, { pinned: true, active: true });
+
+		const input4 = input();
+		const input5 = input();
+
+		group2.openEditor(input4, { pinned: true, active: true });
+		group2.openEditor(input5, { pinned: true, active: true });
+
+		assert.ok(!model.popLastClosedEditor());
+
+		group1.closeEditor(input1);
+		assert.ok(!model.popLastClosedEditor()); // preview editors are not recorded
+
+		group1.closeEditor(input3);
+
+		assert.ok(input3.matches(model.popLastClosedEditor()));
+
+		group2.closeAllEditors();
+
+		assert.ok(input5.matches(model.popLastClosedEditor()));
+		assert.ok(input4.matches(model.popLastClosedEditor()));
+
+		assert.ok(!model.popLastClosedEditor());
 	});
 
 	test('Stack - Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {

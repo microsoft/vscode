@@ -123,7 +123,6 @@ let descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files
 
 interface ISerializedFileInput {
 	resource: string;
-	mime: string;
 }
 
 // Register Editor Input Factory
@@ -134,8 +133,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	public serialize(editorInput: EditorInput): string {
 		let fileEditorInput = <FileEditorInput>editorInput;
 		let fileInput: ISerializedFileInput = {
-			resource: fileEditorInput.getResource().toString(),
-			mime: fileEditorInput.getMime()
+			resource: fileEditorInput.getResource().toString()
 		};
 
 		return JSON.stringify(fileInput);
@@ -144,7 +142,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 		let fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
 
-		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), fileInput.mime, void 0);
+		return instantiationService.createInstance(FileEditorInput, URI.parse(fileInput.resource), void 0, void 0);
 	}
 }
 

@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import {Action} from 'vs/base/common/actions';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, getUntitledOrFileResource, TextEditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
@@ -806,5 +806,36 @@ export class NavigateBackwardsAction extends Action {
 		this.historyService.back();
 
 		return TPromise.as(null);
+	}
+}
+
+export class ReopenClosedEditorAction extends Action {
+
+	public static ID = 'workbench.action.reopenClosedEditor';
+	public static LABEL = nls.localize('reopenClosedEditor', "Reopen Closed Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const stacks = this.editorService.getStacksModel();
+
+		// Find an editor that was closed and is currently not opened in the group
+		let lastClosedEditor = stacks.popLastClosedEditor();
+		while (lastClosedEditor && stacks.activeGroup && stacks.activeGroup.indexOf(lastClosedEditor) >= 0) {
+			lastClosedEditor = stacks.popLastClosedEditor();
+		}
+
+		if (lastClosedEditor) {
+			this.editorService.openEditor(lastClosedEditor, EditorOptions.create({ pinned: true }));
+		}
+
+		return TPromise.as(false);
 	}
 }

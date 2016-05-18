@@ -26,7 +26,7 @@ export interface IEditorGroup {
 
 	onEditorActivated: Event<EditorInput>;
 	onEditorOpened: Event<EditorInput>;
-	onEditorClosed: Event<EditorInput>;
+	onEditorClosed: Event<IGroupEvent>;
 	onEditorMoved: Event<EditorInput>;
 	onEditorPinned: Event<EditorInput>;
 	onEditorUnpinned: Event<EditorInput>;
@@ -39,6 +39,11 @@ export interface IEditorGroup {
 	isActive(editor: EditorInput): boolean;
 	isPreview(editor: EditorInput): boolean;
 	isPinned(editor: EditorInput): boolean;
+}
+
+export interface IGroupEvent {
+	editor: EditorInput;
+	pinned: boolean;
 }
 
 export interface IEditorStacksModel {
@@ -59,6 +64,8 @@ export interface IEditorStacksModel {
 
 	next(): IEditorIdentifier;
 	previous(): IEditorIdentifier;
+
+	popLastClosedEditor(): EditorInput;
 
 	toString(): string;
 }
@@ -110,7 +117,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private _onEditorActivated: Emitter<EditorInput>;
 	private _onEditorOpened: Emitter<EditorInput>;
-	private _onEditorClosed: Emitter<EditorInput>;
+	private _onEditorClosed: Emitter<IGroupEvent>;
 	private _onEditorMoved: Emitter<EditorInput>;
 	private _onEditorPinned: Emitter<EditorInput>;
 	private _onEditorUnpinned: Emitter<EditorInput>;
@@ -134,7 +141,7 @@ export class EditorGroup implements IEditorGroup {
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
-		this._onEditorClosed = new Emitter<EditorInput>();
+		this._onEditorClosed = new Emitter<IGroupEvent>();
 		this._onEditorMoved = new Emitter<EditorInput>();
 		this._onEditorPinned = new Emitter<EditorInput>();
 		this._onEditorUnpinned = new Emitter<EditorInput>();
@@ -167,7 +174,7 @@ export class EditorGroup implements IEditorGroup {
 		return this._onEditorOpened.event;
 	}
 
-	public get onEditorClosed(): Event<EditorInput> {
+	public get onEditorClosed(): Event<IGroupEvent> {
 		return this._onEditorClosed.event;
 	}
 
@@ -313,8 +320,10 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		// Preview Editor closed
+		let pinned = true;
 		if (this.matches(this.preview, editor)) {
 			this.preview = null;
+			pinned = false;
 		}
 
 		// Close it
@@ -324,7 +333,7 @@ export class EditorGroup implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		this.fireEvent(this._onEditorClosed, editor);
+		this.fireEvent(this._onEditorClosed, { editor, pinned });
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {
@@ -434,9 +443,9 @@ export class EditorGroup implements IEditorGroup {
 		return !this.matches(this.preview, editor);
 	}
 
-	private fireEvent(emitter: Emitter<EditorInput>, editor: EditorInput): void {
-		emitter.fire(editor);
-		this._onEditorChanged.fire(editor);
+	private fireEvent(emitter: Emitter<EditorInput | IGroupEvent>, arg2: EditorInput | IGroupEvent): void {
+		emitter.fire(arg2);
+		this._onEditorChanged.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
 	}
 
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
@@ -505,7 +514,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public serialize(): ISerializedEditorGroup {
-		let registry = (<IEditorRegistry>Registry.as(Extensions.Editors));
+		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 
 		// Serialize all editor inputs so that we can store them.
 		// Editors that cannot be serialized need to be ignored
@@ -539,7 +548,7 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private deserialize(data: ISerializedEditorGroup): void {
-		let registry = (<IEditorRegistry>Registry.as(Extensions.Editors));
+		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 
 		this._label = data.label;
 		this.editors = data.editors.map(e => registry.getEditorInputFactory(e.id).deserialize(this.instantiationService, e.value));
@@ -556,6 +565,7 @@ export class EditorGroup implements IEditorGroup {
 interface ISerializedEditorStacksModel {
 	groups: ISerializedEditorGroup[];
 	active: number;
+	lastClosed: ISerializedEditorInput[];
 }
 
 export class EditorStacksModel implements IEditorStacksModel {
@@ -568,6 +578,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _groups: EditorGroup[];
 	private _activeGroup: EditorGroup;
 	private groupToIdentifier: { [id: number]: EditorGroup };
+
+	private recentlyClosedEditors: ISerializedEditorInput[];
 
 	private _onGroupOpened: Emitter<EditorGroup>;
 	private _onGroupClosed: Emitter<EditorGroup>;
@@ -586,6 +598,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		this._groups = [];
 		this.groupToIdentifier = Object.create(null);
+
+		this.recentlyClosedEditors = [];
 
 		this._onGroupOpened = new Emitter<EditorGroup>();
 		this._onGroupClosed = new Emitter<EditorGroup>();
@@ -851,7 +865,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		return {
 			groups: serializableGroups,
-			active: serializableActiveIndex
+			active: serializableActiveIndex,
+			lastClosed: this.recentlyClosedEditors
 		};
 	}
 
@@ -888,6 +903,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 			this._groups = serialized.groups.map(s => this.doCreateGroup(s));
 			this._activeGroup = this._groups[serialized.active];
 			this._groups.forEach(g => this.groupToIdentifier[g.id] = g);
+			this.recentlyClosedEditors = serialized.lastClosed || [];
 		}
 	}
 
@@ -928,13 +944,43 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Funnel editor changes in the group through our event aggregator
 		const l1 = group.onEditorChanged(e => this._onModelChanged.fire(group));
-		const l2 = this.onGroupClosed(g => {
+		const l2 = group.onEditorClosed(e => this.onEditorClosed(e));
+		const l3 = this.onGroupClosed(g => {
 			if (g === group) {
-				dispose(l1, l2);
+				dispose(l1, l2, l3);
 			}
 		});
 
 		return group;
+	}
+
+	public popLastClosedEditor(): EditorInput {
+		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+
+		let serializedEditor = this.recentlyClosedEditors.pop();
+		if (serializedEditor) {
+			return registry.getEditorInputFactory(serializedEditor.id).deserialize(this.instantiationService, serializedEditor.value);
+		}
+
+		return null;
+	}
+
+	private onEditorClosed(event: IGroupEvent): void {
+		if (!event.pinned) {
+			return; // we only care about pinned editors
+		}
+
+		const editor = event.editor;
+		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+
+		let factory = registry.getEditorInputFactory(editor.getId());
+		if (factory) {
+			let value = factory.serialize(editor);
+			if (typeof value === 'string') {
+				this.recentlyClosedEditors.push({ id: editor.getId(), value });
+				this.recentlyClosedEditors = this.recentlyClosedEditors.slice(0, 10); // upper bound of recently closed
+			}
+		}
 	}
 
 	private onShutdown(): void {
