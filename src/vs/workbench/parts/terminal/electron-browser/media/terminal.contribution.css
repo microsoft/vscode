@@ -45,19 +45,24 @@
 }
 
 .vs-dark .monaco-workbench .integrated-terminal .reverse-video {
-	color: #FFF;
+	color: #CCC;
 }
 
 /* High Contrast Theming */
 
-.hc-dark .monaco-workbench .integrated-terminal .terminal {
+.hc-black .monaco-workbench .integrated-terminal {
+	background-color: black!important;
+	color: #FFF;
+}
+
+.hc-black .monaco-workbench .integrated-terminal .terminal {
 	background-color: black!important;
 }
 
-.hc-dark .monaco-workbench .integrated-terminal .terminal-cursor {
-	background-color: white;
+.hc-black .monaco-workbench .integrated-terminal .terminal-cursor {
+	background-color: #FFF;
 }
 
-.hc-dark .monaco-workbench .integrated-terminal .reverse-video {
-	color: black;
+.hc-black .monaco-workbench .integrated-terminal .reverse-video {
+	color: #FFF;
 }
