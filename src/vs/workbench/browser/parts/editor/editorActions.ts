@@ -841,7 +841,7 @@ export class ReopenClosedEditorAction extends Action {
 	}
 }
 
-export const NAVIGATE_IN_GROUP_PREFIX = '~';
+export const NAVIGATE_IN_GROUP_PREFIX = '~>';
 
 export class ShowEditorsInGroupAction extends QuickOpenAction {
 
@@ -853,7 +853,7 @@ export class ShowEditorsInGroupAction extends QuickOpenAction {
 	}
 }
 
-export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = '~:';
+export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = '~';
 
 export class ShowAllEditorsAction extends QuickOpenAction {
 
