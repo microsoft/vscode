@@ -20,7 +20,7 @@ import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IContextMenuService, ContextSubMenu} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/common/editor';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
@@ -388,6 +388,7 @@ export class ActionProvider implements IActionProvider {
 		const result = [];
 		const autoSaveEnabled = this.textFileService.getAutoSaveMode() !== AutoSaveMode.OFF;
 		const multipleGroups = this.model.groups.length > 1;
+		const closeActions = [];
 
 		if (element instanceof EditorGroup) {
 			if (!autoSaveEnabled) {
@@ -395,7 +396,7 @@ export class ActionProvider implements IActionProvider {
 				result.push(new Separator());
 			}
 
-			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
+			closeActions.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
 		} else {
 			const openEditor = <OpenEditor>element;
 			const resource = openEditor.getResource();
@@ -451,22 +452,28 @@ export class ActionProvider implements IActionProvider {
 				result.push(new Separator());
 			}
 
-			result.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
+			closeActions.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
 			if (multipleGroups) {
-				result.push(new Separator());
+				closeActions.push(new Separator());
 			}
-			result.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL));
+			closeActions.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL));
 			if (multipleGroups) {
-				result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
-				result.push(new Separator());
+				closeActions.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
+				closeActions.push(new Separator());
 			}
 		}
 
 		if (multipleGroups) {
-			result.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL));
+			closeActions.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL));
 		}
-		result.push(new Separator());
-		result.push(this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL));
+		closeActions.push(new Separator());
+		closeActions.push(this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL));
+
+		if (closeActions.length > 4) {
+			result.push(new ContextSubMenu(nls.localize('close', "Close"), closeActions));
+		} else {
+			result.push(...closeActions);
+		}
 
 		return TPromise.as(result);
 	}
