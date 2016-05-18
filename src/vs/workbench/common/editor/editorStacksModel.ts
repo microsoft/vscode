@@ -71,7 +71,7 @@ export interface IEditorStacksModel {
 }
 
 export interface IEditorIdentifier {
-	group: EditorGroup;
+	group: IEditorGroup;
 	editor: EditorInput;
 }
 

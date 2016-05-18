@@ -13,7 +13,7 @@ import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -975,5 +975,46 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(id, label, false, quickOpenService, keybindingService);
+	}
+}
+
+interface IEditorPickOpenEntry extends IPickOpenEntry {
+	identifier: IEditorIdentifier;
+}
+
+export class ShowAllEditorsAction extends Action {
+
+	public static ID = 'workbench.action.showAllEditors';
+	public static LABEL = nls.localize('showAllEditors', "Show All Editors");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const stacks = this.editorService.getStacksModel();
+		const entrys: IEditorPickOpenEntry[] = [];
+
+		stacks.groups.forEach(group => {
+			group.getEditors().forEach((editor, index) => {
+				entrys.push({
+					label: editor.getName(),
+					description: editor.getDescription(),
+					identifier: { editor: editor, group: group },
+					separator: index === 0 ? { border: true, label: group.label } : void 0
+				});
+			});
+		});
+
+		return this.quickOpenService.pick(entrys, { matchOnDescription: true }).then(pick => {
+			if (pick) {
+				return this.editorService.openEditor(pick.identifier.editor, null, stacks.positionOfGroup(pick.identifier.group));
+			}
+		});
 	}
 }

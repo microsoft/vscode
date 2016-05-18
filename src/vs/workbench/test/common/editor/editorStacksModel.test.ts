@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, IEditorStacksModel, IEditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, IEditorStacksModel, IEditorGroup, EditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {TestStorageService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -1374,8 +1374,8 @@ suite('Editor Stacks Model', () => {
 		assert.equal(previous.group, group2);
 		assert.equal(previous.editor, input6);
 
-		model.setActive(previous.group);
-		previous.group.setActive(previous.editor);
+		model.setActive(<EditorGroup>previous.group);
+		(<EditorGroup>previous.group).setActive(previous.editor);
 
 		let next = model.next();
 		assert.equal(next.group, group1);
@@ -1388,8 +1388,8 @@ suite('Editor Stacks Model', () => {
 		assert.equal(next.group, group2);
 		assert.equal(next.editor, input4);
 
-		model.setActive(next.group);
-		next.group.setActive(next.editor);
+		model.setActive(<EditorGroup>next.group);
+		(<EditorGroup>next.group).setActive(next.editor);
 
 		previous = model.previous();
 		assert.equal(previous.group, group1);

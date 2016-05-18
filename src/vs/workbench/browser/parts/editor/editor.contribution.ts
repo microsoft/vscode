@@ -35,7 +35,7 @@ import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
 	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInGroupAction,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousEditorInGroupAction, NAVIGATE_IN_GROUP_PREFIX,
-	GlobalQuickOpenAction, OpenPreviousEditorAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction
+	GlobalQuickOpenAction, OpenPreviousEditorAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
@@ -298,6 +298,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorInGr
 		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab]
 	}
 }), 'Open Previous in Editor Group');
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllEditorsAction, ShowAllEditorsAction.ID, ShowAllEditorsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab }), 'View: Show All Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, ShowEditorsInGroupAction.LABEL), 'View: Show Editors in Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextEditor, OpenNextEditor.ID, OpenNextEditor.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
