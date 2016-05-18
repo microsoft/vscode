@@ -143,22 +143,12 @@
 	background: none;
 }
 
-.hc-black .monaco-workbench .explorer-action:before,
-.hc-black .monaco-workbench .iframe-editor-action:before,
-.hc-black .monaco-workbench .file-editor-action.action-open-preview:before {
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
+.hc-black .monaco-workbench .explorer-viewlet .action-close-all-files {
+	background: url("closeall_inverse.svg") center center no-repeat;
 }
 
-.hc-black .monaco-workbench .explorer-action.save-all:before {
-	content: url('saveall_inverse.svg');
-}
-
-.hc-black .monaco-workbench .explorer-action.action-close-all-files:before {
-	content: url('closeall_inverse.svg');
+.hc-black .monaco-workbench .explorer-action.save-all {
+	background: url('saveall_inverse.svg') center center no-repeat;
 }
 
 .hc-black .monaco-workbench .explorer-action.new-file:before {
@@ -173,8 +163,8 @@
 	content: url('Refresh_inverse.svg');
 }
 
-.hc-black .monaco-workbench .explorer-action.collapse-explorer:before {
-	content: url('CollapseAll_inverse.svg');
+.hc-black .monaco-workbench .explorer-action.collapse-explorer {
+	background: url('CollapseAll_inverse.svg') center center no-repeat;
 }
 
 .hc-black .monaco-workbench .quick-open-sidebyside:before {
