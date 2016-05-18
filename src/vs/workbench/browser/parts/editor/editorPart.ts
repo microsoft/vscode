@@ -1282,6 +1282,8 @@ export class EditorPart extends Part implements IEditorPart {
 
 				group = this.stacksModel.openGroup('', activate, position);
 			});
+		} else {
+			this.renameGroups(); // ensure group labels are proper
 		}
 
 		if (activate) {
@@ -1297,6 +1299,10 @@ export class EditorPart extends Part implements IEditorPart {
 		modification();
 
 		// Adjust group labels as needed
+		this.renameGroups();
+	}
+
+	private renameGroups(): void {
 		const groups = this.stacksModel.groups;
 		if (groups.length > 0) {
 
