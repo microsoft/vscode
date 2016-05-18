@@ -431,7 +431,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 				// Set input
 				if (!this.pickOpenWidget.isVisible()) {
-					this.pickOpenWidget.show(model, autoFocus);
+					this.pickOpenWidget.show(model, void 0, autoFocus);
 				} else {
 					this.pickOpenWidget.setInput(model, autoFocus);
 				}
@@ -544,7 +544,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Show quick open with prefix or editor history
 		if (!this.quickOpenWidget.isVisible() || quickNavigateConfiguration) {
 			if (prefix) {
-				this.quickOpenWidget.show(prefix);
+				this.quickOpenWidget.show(prefix, quickNavigateConfiguration);
 			} else {
 				let editorHistory = this.getEditorHistoryModelWithGroupLabel();
 				if (editorHistory.getEntries().length < 2) {
@@ -559,7 +559,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					autoFocus = { autoFocusFirstEntry: visibleEditorCount === 0, autoFocusSecondEntry: visibleEditorCount !== 0 };
 				}
 
-				this.quickOpenWidget.show(editorHistory, autoFocus, quickNavigateConfiguration);
+				this.quickOpenWidget.show(editorHistory, quickNavigateConfiguration, autoFocus);
 			}
 		}
 

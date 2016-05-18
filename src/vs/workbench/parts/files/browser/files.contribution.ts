@@ -12,13 +12,11 @@ import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, Tog
 import nls = require('vs/nls');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Registry} from 'vs/platform/platform';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
 import {AutoSaveConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
@@ -257,36 +255,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-// Register quick open handler for working files
-
-const ALL_WORKING_FILES_PREFIX = '~';
-
-class OpenWorkingFileByNameAction extends QuickOpenAction {
-
-	public static ID = 'workbench.files.action.workingFilesPicker';
-	public static LABEL = nls.localize('workingFilesPicker', "Open Working File by Name");
-
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, ALL_WORKING_FILES_PREFIX, quickOpenService);
-	}
-}
-
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
-	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/files/browser/workingFilesPicker',
-		'WorkingFilesPicker',
-		ALL_WORKING_FILES_PREFIX,
-		[
-			{
-				prefix: ALL_WORKING_FILES_PREFIX,
-				needsEditor: false,
-				description: nls.localize('openWorkingFile', "Open Working File By Name")
-			}
-		]
-	)
-);
-
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkingFileByNameAction, OpenWorkingFileByNameAction.ID, OpenWorkingFileByNameAction.LABEL, {
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P)
-}), 'Files: Open Working File by Name', nls.localize('filesCategory', "Files"));

@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Action, IAction} from 'vs/base/common/actions';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IEditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import {IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor} from 'vs/workbench/browser/quickopen';
 import {StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor, EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
@@ -19,7 +19,7 @@ import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInpu
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
@@ -33,8 +33,9 @@ import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
-		NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup,
-		toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction
+	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInGroupAction,
+	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousEditorInGroupAction, NAVIGATE_IN_GROUP_PREFIX,
+	GlobalQuickOpenAction, OpenPreviousEditorAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
@@ -242,12 +243,62 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 	}
 }
 
-// Contribute to Quick Open
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
+
+// Register quick open handler for navigating in editor group
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/browser/parts/editor/editorGroupPicker',
+		'EditorGroupPicker',
+		NAVIGATE_IN_GROUP_PREFIX,
+		[
+			{
+				prefix: NAVIGATE_IN_GROUP_PREFIX,
+				needsEditor: false,
+				description: nls.localize('navigateInGroup', "Navigate in Editor Group")
+			}
+		]
+	)
+);
+
+const quickOpenKb: IKeybindings = {
+	primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
+	secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E]
+};
+
+function navigateKeybinding(shift: boolean): IKeybindings {
+	if (shift) {
+		return {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
+			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab],
+			mac: {
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab]
+			}
+		};
+	} else {
+		return {
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
+			secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.CtrlCmd | KeyCode.Tab],
+			mac: {
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
+				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E, KeyMod.WinCtrl | KeyCode.Tab]
+			}
+		};
+	}
+}
 
 // Register Editor Actions
 const category = nls.localize('view', "View");
-
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorInGroupAction, OpenPreviousEditorInGroupAction.ID, OpenPreviousEditorInGroupAction.LABEL, {
+	primary: KeyMod.CtrlCmd | KeyCode.Tab,
+	secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab],
+	mac: {
+		primary: KeyMod.WinCtrl | KeyCode.Tab,
+		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab]
+	}
+}), 'Open Previous in Editor Group');
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, ShowEditorsInGroupAction.LABEL), 'View: Show Editors in Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextEditor, OpenNextEditor.ID, OpenNextEditor.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow }
@@ -293,3 +344,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBackwardsActio
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS }
 }), 'Go Back');
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction, GlobalQuickOpenAction.ID, GlobalQuickOpenAction.LABEL, quickOpenKb), 'Go to File...');
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorAction, OpenPreviousEditorAction.ID, OpenPreviousEditorAction.LABEL), 'Navigate History');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), KbExpr.has('inQuickOpen')), 'Navigate Next in Quick Open');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), KbExpr.has('inQuickOpen'), KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');

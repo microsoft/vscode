@@ -416,9 +416,9 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public show(prefix: string): void;
-	public show(input: IModel<any>, autoFocus?: IAutoFocus, quickNavigateConfiguration?: IQuickNavigateConfiguration): void;
-	public show(param: any, autoFocus?: IAutoFocus, quickNavigateConfiguration?: IQuickNavigateConfiguration): void {
+	public show(prefix: string, quickNavigateConfiguration?: IQuickNavigateConfiguration): void;
+	public show(input: IModel<any>, quickNavigateConfiguration?: IQuickNavigateConfiguration, autoFocus?: IAutoFocus): void;
+	public show(param: any, quickNavigateConfiguration?: IQuickNavigateConfiguration, autoFocus?: IAutoFocus): void {
 		if (types.isUndefined(autoFocus)) {
 			autoFocus = {};
 		}

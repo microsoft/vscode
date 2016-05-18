@@ -11,7 +11,7 @@ import {Action} from 'vs/base/common/actions';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -19,6 +19,7 @@ import {Position, IEditor, Direction} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 export class SplitEditorAction extends Action {
 
@@ -837,5 +838,142 @@ export class ReopenClosedEditorAction extends Action {
 		}
 
 		return TPromise.as(false);
+	}
+}
+
+export const NAVIGATE_IN_GROUP_PREFIX = '~';
+
+export class ShowEditorsInGroupAction extends QuickOpenAction {
+
+	public static ID = 'workbench.action.showEditorsInGroup';
+	public static LABEL = nls.localize('showEditorsInGroup', "Show Editors in Group");
+
+	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(actionId, actionLabel, NAVIGATE_IN_GROUP_PREFIX, quickOpenService);
+	}
+}
+
+export class OpenPreviousEditorInGroupAction extends Action {
+
+	public static ID = 'workbench.action.openPreviousEditorInGroup';
+	public static LABEL = nls.localize('openPreviousEditorInGroup', "Open Previous in Editor Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IKeybindingService private keybindingService: IKeybindingService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let keys = this.keybindingService.lookupKeybindings(this.id);
+
+		this.quickOpenService.show(NAVIGATE_IN_GROUP_PREFIX, {
+			keybindings: keys
+		});
+
+		return TPromise.as(true);
+	}
+}
+
+export class GlobalQuickOpenAction extends Action {
+
+	public static ID = 'workbench.action.quickOpen';
+	public static LABEL = nls.localize('quickOpen', "Go to File...");
+
+	constructor(id: string, label: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
+		super(id, label);
+
+		this.order = 100; // Allow other actions to position before or after
+		this.class = 'quickopen';
+	}
+
+	public run(): TPromise<any> {
+		this.quickOpenService.show(null);
+
+		return TPromise.as(true);
+	}
+}
+
+export class OpenPreviousEditorAction extends Action {
+
+	public static ID = 'workbench.action.openPreviousEditor';
+	public static LABEL = nls.localize('navigateEditorHistoryByInput', "Navigate History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IKeybindingService private keybindingService: IKeybindingService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let keys = this.keybindingService.lookupKeybindings(this.id);
+
+		this.quickOpenService.show(null, {
+			keybindings: keys
+		});
+
+		return TPromise.as(true);
+	}
+}
+
+export class BaseQuickOpenNavigateAction extends Action {
+	private navigateNext: boolean;
+
+	constructor(
+		id: string,
+		label: string,
+		navigateNext: boolean,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IKeybindingService private keybindingService: IKeybindingService
+	) {
+		super(id, label);
+
+		this.navigateNext = navigateNext;
+	}
+
+	public run(event?: any): TPromise<any> {
+		let keys = this.keybindingService.lookupKeybindings(this.id);
+
+		this.quickOpenService.quickNavigate({
+			keybindings: keys
+		}, this.navigateNext);
+
+		return TPromise.as(true);
+	}
+}
+
+export class QuickOpenNavigateNextAction extends BaseQuickOpenNavigateAction {
+
+	public static ID = 'workbench.action.quickOpenNavigateNext';
+	public static LABEL = nls.localize('quickNavigateNext', "Navigate Next in Quick Open");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, true, quickOpenService, keybindingService);
+	}
+}
+
+export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction {
+
+	public static ID = 'workbench.action.quickOpenNavigatePrevious';
+	public static LABEL = nls.localize('quickNavigatePrevious', "Navigate Previous in Quick Open");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(id, label, false, quickOpenService, keybindingService);
 	}
 }

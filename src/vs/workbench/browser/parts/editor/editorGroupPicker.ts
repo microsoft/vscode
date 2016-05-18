@@ -6,41 +6,33 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import {IAutoFocus, Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {WorkingFilesModel, WorkingFileEntry} from 'vs/workbench/parts/files/common/workingFilesModel';
 import scorer = require('vs/base/common/scorer');
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {EditorInput, asFileEditorInput} from 'vs/workbench/common/editor';
 
-export class WorkingFilePickerEntry extends QuickOpenEntryGroup {
-	private name: string;
-	private description: string;
-	private workingFilesEntry: WorkingFileEntry;
+export class EditorGroupPickerEntry extends QuickOpenEntryGroup {
+	private editor: EditorInput;
 
 	constructor(
-		name: string,
-		description: string,
-		entry: WorkingFileEntry,
+		editor: EditorInput,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super();
 
-		this.workingFilesEntry = entry;
-		this.name = name;
-		this.description = description;
+		this.editor = editor;
 	}
 
 	public getPrefix(): string {
-		if (this.workingFilesEntry.dirty) {
+		if (this.editor.isDirty()) {
 			return '\u25cf '; // dirty decoration
 		}
 
@@ -48,23 +40,21 @@ export class WorkingFilePickerEntry extends QuickOpenEntryGroup {
 	}
 
 	public getLabel(): string {
-		return this.name;
-	}
-
-	public getAriaLabel(): string {
-		return nls.localize('entryAriaLabel', "{0}, working file picker", this.getLabel());
-	}
-
-	public getDescription(): string {
-		return this.description;
+		return this.editor.getName();
 	}
 
 	public getResource(): URI {
-		return this.workingFilesEntry.resource;
+		const fileInput = asFileEditorInput(this.editor, true);
+
+		return fileInput && fileInput.getResource();
 	}
 
-	public getWorkingFilesEntry(): WorkingFileEntry {
-		return this.workingFilesEntry;
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, editor group picker", this.getLabel());
+	}
+
+	public getDescription(): string {
+		return this.editor.getDescription();
 	}
 
 	public run(mode: Mode, context: IContext): boolean {
@@ -76,22 +66,19 @@ export class WorkingFilePickerEntry extends QuickOpenEntryGroup {
 	}
 
 	private runOpen(context: IContext): boolean {
-		let event = context.event;
-		let sideBySide = (event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey))));
-
-		this.editorService.openEditor({ resource: this.workingFilesEntry.resource }, sideBySide).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor(this.editor).done(null, errors.onUnexpectedError);
 
 		return true;
 	}
 }
 
-export class WorkingFilesPicker extends QuickOpenHandler {
+export class EditorGroupPicker extends QuickOpenHandler {
 	private scorerCache: { [key: string]: number };
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextFileService private textFileService: ITextFileService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super();
 
@@ -99,22 +86,18 @@ export class WorkingFilesPicker extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim();
+		const stacks = this.editorService.getStacksModel();
+		if (!stacks.activeGroup) {
+			return TPromise.as(null);
+		}
 
+		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 
-		return TPromise.as(new QuickOpenModel(this.textFileService.getWorkingFilesModel().getEntries()
+		return TPromise.as(new QuickOpenModel(stacks.activeGroup.getEditors(true)
 
-			// Convert working files to quick open entries
-			.map(e => {
-				let label = paths.basename(e.resource.fsPath);
-				let description = labels.getPathLabel(paths.dirname(e.resource.fsPath), this.contextService);
-				if (description === '.') {
-					description = null; // for untitled files
-				}
-
-				return this.instantiationService.createInstance(WorkingFilePickerEntry, label, description, e);
-			})
+			// Convert to quick open entries
+			.map(e => this.instantiationService.createInstance(EditorGroupPickerEntry, e))
 
 			// Filter by search value
 			.filter(e => {
@@ -122,7 +105,8 @@ export class WorkingFilesPicker extends QuickOpenHandler {
 					return true;
 				}
 
-				let targetToMatch = labels.getPathLabel(e.getResource(), this.contextService);
+				let resource = e.getResource();
+				let targetToMatch = resource ? labels.getPathLabel(e.getResource(), this.contextService) : e.getLabel();
 				if (!scorer.matches(targetToMatch, normalizedSearchValueLowercase)) {
 					return false;
 				}
@@ -136,7 +120,7 @@ export class WorkingFilesPicker extends QuickOpenHandler {
 			// Sort by search value score or natural order if not searching
 			sort((e1, e2) => {
 				if (!searchValue) {
-					return WorkingFilesModel.compare(e1.getWorkingFilesEntry(), e2.getWorkingFilesEntry());
+					return 0;
 				}
 
 				return QuickOpenEntry.compareByScore(e1, e2, searchValue, normalizedSearchValueLowercase, this.scorerCache);
@@ -145,7 +129,7 @@ export class WorkingFilesPicker extends QuickOpenHandler {
 			// Apply group label
 			map((e, index) => {
 				if (index === 0) {
-					e.setGroupLabel(nls.localize('workingFilesGroupLabel', "working files"));
+					e.setGroupLabel(nls.localize('groupLabel', "Group: {0}", stacks.activeGroup.label));
 				}
 
 				return e;
@@ -154,10 +138,10 @@ export class WorkingFilesPicker extends QuickOpenHandler {
 
 	public getEmptyLabel(searchString: string): string {
 		if (searchString) {
-			return nls.localize('noResultsFound', "No matching working files found");
+			return nls.localize('noResultsFound', "No matching opened editor found in group");
 		}
 
-		return nls.localize('noWorkingFiles', "List of working files is currently empty");
+		return nls.localize('noOpenedEditors', "List of opened editors is currently empty");
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {
@@ -167,7 +151,15 @@ export class WorkingFilesPicker extends QuickOpenHandler {
 			};
 		}
 
-		return super.getAutoFocus(searchValue);
+		const stacks = this.editorService.getStacksModel();
+		if (!stacks.activeGroup) {
+			return super.getAutoFocus(searchValue);
+		}
+
+		return {
+			autoFocusFirstEntry: stacks.activeGroup.count === 1,
+			autoFocusSecondEntry: stacks.activeGroup.count > 1
+		};
 	}
 
 	public onClose(canceled: boolean): void {

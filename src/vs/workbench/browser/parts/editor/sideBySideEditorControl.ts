@@ -7,7 +7,6 @@
 
 import 'vs/css!./media/sidebyside';
 import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {IAction, Action} from 'vs/base/common/actions';
@@ -34,7 +33,7 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {ShowEditorsInGroupAction, CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 export enum Rochade {
 	NONE,
@@ -96,28 +95,6 @@ export interface ISideBySideEditorControl {
 	dispose(): void;
 }
 
-class ShowGroupEditors extends Action {
-
-	public static ID = 'workbench.action.showGroupEditors';
-	public static LABEL = nls.localize('showGroupEditors', "Show Editors in Group");
-
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(id, label, 'show-editors-action');
-	}
-
-	public setOverflowing(isOverflowing: boolean): void {
-		if (isOverflowing) {
-			this.class = 'show-group-editors-overflowing-action';
-		} else {
-			this.class = 'show-group-editors-action';
-		}
-	}
-
-	public run(position: Position): TPromise<any> {
-		return TPromise.as(false); // TODO@Ben
-	}
-}
-
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
@@ -147,7 +124,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private mapActionsToEditors: { [editorId: string]: IEditorActions; }[];
 
 	private closeEditorActions: CloseEditorAction[];
-	private showEditorsOfGroup: ShowGroupEditors[];
+	private showEditorsOfGroup: ShowEditorsInGroupAction[];
 	private moveGroupLeftActions: MoveGroupLeftAction[];
 	private moveGroupRightActions: MoveGroupRightAction[];
 	private closeEditorsInGroupActions: CloseEditorsInGroupAction[];
@@ -216,7 +193,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
 
 		// Show Editors
-		this.showEditorsOfGroup = POSITIONS.map((position) => this.instantiationService.createInstance(ShowGroupEditors, ShowGroupEditors.ID, ShowGroupEditors.LABEL));
+		this.showEditorsOfGroup = POSITIONS.map((position) => this.instantiationService.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, ShowEditorsInGroupAction.LABEL));
 
 		// Split
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
@@ -1330,7 +1307,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		const showEditorAction = this.showEditorsOfGroup[position];
-		showEditorAction.setOverflowing(isOverflowing);
+		if (isOverflowing) {
+			showEditorAction.class = 'show-group-editors-overflowing-action';
+		} else {
+			showEditorAction.class = 'show-group-editors-action';
+		}
 		primaryActions.unshift(this.showEditorsOfGroup[position]);
 
 		// Secondary Actions
