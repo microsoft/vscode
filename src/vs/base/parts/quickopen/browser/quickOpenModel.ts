@@ -107,6 +107,13 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * Extra CSS class name to add to the quick open entry to do custom styling of entries.
+	 */
+	public getExtraClass(): string {
+		return null;
+	}
+
+	/**
 	 * Allows to reuse the same model while filtering. Hidden entries will not show up in the viewer.
 	 */
 	public isHidden(): boolean {
@@ -402,6 +409,10 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getHighlights() : super.getHighlights();
 	}
 
+	public getExtraClass(): string {
+		return this.entry ? this.entry.getExtraClass() : super.getExtraClass();
+	}
+
 	public isHidden(): boolean {
 		return this.entry ? this.entry.isHidden() : super.isHidden();
 	}
@@ -463,6 +474,7 @@ class NoActionProvider implements IActionProvider {
 
 export interface IQuickOpenEntryTemplateData {
 	container: HTMLElement;
+	entry: HTMLElement;
 	icon: HTMLSpanElement;
 	prefix: HTMLSpanElement;
 	label: HighlightedLabel;
@@ -569,6 +581,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 		return {
 			container,
+			entry,
 			icon,
 			prefix,
 			label,
@@ -628,6 +641,14 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		if (entry instanceof QuickOpenEntry) {
 			let [labelHighlights, descriptionHighlights, detailHighlights] = entry.getHighlights();
 
+			// Extra Class
+			let extraClass = entry.getExtraClass();
+			if (extraClass) {
+				DOM.addClass(data.entry, extraClass);
+			} else {
+				data.entry.className = 'quick-open-entry';
+			}
+
 			// Icon
 			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
 			data.icon.className = iconClass;
@@ -656,6 +677,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.actionBar.dispose();
 			data.actionBar = null;
 			data.container = null;
+			data.entry = null;
 			data.description.dispose();
 			data.description = null;
 			data.detail.dispose();

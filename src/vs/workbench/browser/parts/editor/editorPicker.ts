@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./media/editorPicker';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import labels = require('vs/base/common/labels');
@@ -18,9 +19,10 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EditorInput, asFileEditorInput} from 'vs/workbench/common/editor';
-import {IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
+	private stacks: IEditorStacksModel;
 
 	constructor(
 		private editor: EditorInput,
@@ -28,6 +30,8 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super();
+
+		this.stacks = editorService.getStacksModel();
 	}
 
 	public getPrefix(): string {
@@ -60,6 +64,10 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		return this.editor.getDescription();
 	}
 
+	public getExtraClass(): string {
+		return this._group.isPreview(this.editor) ? 'editor-preview' : '';
+	}
+
 	public run(mode: Mode, context: IContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
@@ -69,7 +77,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	private runOpen(context: IContext): boolean {
-		this.editorService.openEditor(this.editor, null, this.editorService.getStacksModel().positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
+		this.editorService.openEditor(this.editor, null, this.stacks.positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
 
 		return true;
 	}
