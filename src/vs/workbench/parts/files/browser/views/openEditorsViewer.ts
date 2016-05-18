@@ -531,7 +531,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		// Support drop from explorer viewer
 		if (data instanceof ExternalElementsDragAndDropData) {
 			let resource = <IResourceInput>asFileResource(data.getData()[0]);
-			resource.options = { index };
+			resource.options = { index, pinned: true };
 			this.editorService.openEditor(resource, positionOfTargetGroup).done(null, errors.onUnexpectedError);
 		}
 
