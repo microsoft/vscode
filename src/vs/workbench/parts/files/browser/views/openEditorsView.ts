@@ -166,6 +166,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		if (entry) {
 			this.tree.setFocus(entry);
 			this.tree.setSelection([entry]);
+			this.tree.reveal(entry).done(null, errors.onUnexpectedError);
 		}
 	}
 
