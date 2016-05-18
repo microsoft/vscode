@@ -408,7 +408,7 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			const focus = !options || !options.preserveFocus;
-			const pinned = options && options.pinned;
+			const pinned = options && (options.pinned || typeof options.index === 'number'); // make pinned when index is provided
 			const index = options && options.index;
 
 			// Focus (unless prevented)
