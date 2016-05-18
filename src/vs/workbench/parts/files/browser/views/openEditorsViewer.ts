@@ -7,6 +7,7 @@ import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import errors = require('vs/base/common/errors');
+import paths = require('vs/base/common/paths');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction} from 'vs/base/common/actions';
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
@@ -397,8 +398,8 @@ export class ActionProvider implements IActionProvider {
 				result.push(new Separator());
 
 				result.push(this.instantiationService.createInstance(RevealInOSAction, resource));
-				const openConsoleAction = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.Label);
-				openConsoleAction.setResource(resource);
+				const openConsoleAction = this.instantiationService.createInstance(OpenConsoleAction, OpenConsoleAction.ID, OpenConsoleAction.ScopedLabel);
+				openConsoleAction.setResource(uri.file(paths.dirname(resource.fsPath)));
 				result.push(openConsoleAction);
 				result.push(this.instantiationService.createInstance(CopyPathAction, resource));
 
