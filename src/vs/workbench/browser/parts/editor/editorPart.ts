@@ -944,18 +944,13 @@ export class EditorPart extends Part implements IEditorPart {
 
 		return TPromise.join(promises).then(editors => {
 
-			// Workaround for bad layout issue: If any of the editors fails to load, reset side by side by closing
-			// all editors. This fixes an issue where a side editor might show, but no editor to the left hand side.
-			if (this.getVisibleEditors().length !== positions) {
-				this.closeAllEditors().done(null, errors.onUnexpectedError);
-			}
-
-			// Update stacks model for remaining inactive editors if the open was successful
-			else {
-				[leftEditors, centerEditors, rightEditors].forEach((editors, index) => {
-					editors.forEach(editor => this.groupAt(index).openEditor(editor.input, { pinned: true }));
-				});
-			}
+			// Update stacks model for remaining inactive editors
+			[leftEditors, centerEditors, rightEditors].forEach((editors, index) => {
+				const group = this.groupAt(index);
+				if (group) {
+					editors.forEach(editor => group.openEditor(editor.input, { pinned: true })); // group could be null if one openeditor call failed!
+				}
+			});
 
 			// Full layout side by side
 			this.sideBySideControl.layout(this.dimension);
