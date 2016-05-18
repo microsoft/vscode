@@ -110,6 +110,10 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
+	public focus(): void {
+		this.focusTerminal(true);
+	}
+
 	private focusTerminal(force?: boolean): void {
 		let text = window.getSelection().toString();
 		if (!text || force) {
