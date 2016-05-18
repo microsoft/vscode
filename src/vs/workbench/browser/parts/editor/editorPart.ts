@@ -772,8 +772,19 @@ export class EditorPart extends Part implements IEditorPart {
 		const fromGroup = this.groupAt(from);
 		const toGroup = this.groupAt(to);
 
-		if (!editor || !fromGroup || !toGroup || from === to) {
+		if (!editor || !fromGroup || !toGroup) {
 			return TPromise.as<BaseEditor>(null);
+		}
+
+		if (from === to) {
+			if (typeof index !== 'number') {
+				return TPromise.as<BaseEditor>(null); // do nothing if we move into same group without index
+			}
+
+			const currentIndex = fromGroup.indexOf(input);
+			if (currentIndex === index) {
+				return TPromise.as<BaseEditor>(null); // do nothing if editor is already at the given index
+			}
 		}
 
 		return this.doCloseEditor(from, input).then(() => {
