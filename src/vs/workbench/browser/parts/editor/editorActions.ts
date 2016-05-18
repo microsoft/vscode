@@ -1003,7 +1003,7 @@ export class ShowAllEditorsAction extends Action {
 		stacks.groups.forEach(group => {
 			group.getEditors().forEach((editor, index) => {
 				entrys.push({
-					label: editor.getName(),
+					label: editor.isDirty() ? `\u25cf ${editor.getName()}` : editor.getName(),
 					description: editor.getDescription(),
 					identifier: { editor: editor, group: group },
 					separator: index === 0 ? { border: true, label: group.label } : void 0
