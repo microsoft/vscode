@@ -20,6 +20,8 @@ import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export enum States {
 	Selector,
@@ -401,9 +403,13 @@ export class CSSMode extends AbstractMode {
 		return this._worker((w) => w.findDeclaration(resource, position));
 	}
 
-	static $computeInfo = OneWorkerAttr(CSSMode, CSSMode.prototype.computeInfo);
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
-		return this._worker((w) => w.computeInfo(resource, position));
+	public provideHover(model:EditorCommon.IModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
+		return wireCancellationToken(cancellationToken, this._provideHover(model.getAssociatedResource(), position));
+	}
+
+	static $_provideHover = OneWorkerAttr(CSSMode, CSSMode.prototype._provideHover);
+	private _provideHover(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.Hover> {
+		return this._worker((w) => w.provideHover(resource, position));
 	}
 
 	static $findReferences = OneWorkerAttr(CSSMode, CSSMode.prototype.findReferences);

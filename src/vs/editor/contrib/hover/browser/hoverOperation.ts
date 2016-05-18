@@ -6,7 +6,7 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
+import {CancellationToken, CancellationTokenSource} from 'vs/base/common/cancellation';
 
 export interface IHoverComputer<Result> {
 
@@ -18,7 +18,7 @@ export interface IHoverComputer<Result> {
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: () => TPromise<Result>;
+	computeAsync?: (cancellationToken:CancellationToken) => Thenable<Result>;
 
 	/**
 	 * This is called after all the hover time
@@ -56,7 +56,7 @@ export class HoverOperation<Result> {
 	private _firstWaitScheduler: RunOnceScheduler;
 	private _secondWaitScheduler: RunOnceScheduler;
 	private _loadingMessageScheduler: RunOnceScheduler;
-	private _asyncComputationPromise:TPromise<Result>;
+	private _asyncComputationCancellationTokenSource: CancellationTokenSource;
 	private _asyncComputationPromiseDone:boolean;
 
 	private _completeCallback:(r:Result)=>void;
@@ -71,7 +71,7 @@ export class HoverOperation<Result> {
 		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), this._getHoverTimeMillis() / 2);
 		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 3 * this._getHoverTimeMillis());
 
-		this._asyncComputationPromise = null;
+		this._asyncComputationCancellationTokenSource = new CancellationTokenSource();
 		this._asyncComputationPromiseDone = false;
 
 		this._completeCallback = success;
@@ -96,12 +96,12 @@ export class HoverOperation<Result> {
 
 		if (this._computer.computeAsync) {
 			this._asyncComputationPromiseDone = false;
-			this._asyncComputationPromise = this._computer.computeAsync();
-
-			this._asyncComputationPromise.then((asyncResult: Result) => {
+			this._asyncComputationCancellationTokenSource.dispose();
+			this._asyncComputationCancellationTokenSource = new CancellationTokenSource();
+			this._computer.computeAsync(this._asyncComputationCancellationTokenSource.token).then((asyncResult: Result) => {
 				this._asyncComputationPromiseDone = true;
 				this._withAsyncResult(asyncResult);
-			}).done(null, () => this._onError);
+			}).then(null, () => this._onError);
 		} else {
 			this._asyncComputationPromiseDone = true;
 		}
@@ -173,14 +173,10 @@ export class HoverOperation<Result> {
 		}
 		if (this._state === ComputeHoverOperationState.SECOND_WAIT) {
 			this._secondWaitScheduler.cancel();
-			if (this._asyncComputationPromise) {
-				this._asyncComputationPromise.cancel();
-			}
+			this._asyncComputationCancellationTokenSource.cancel();
 		}
 		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION) {
-			if (this._asyncComputationPromise) {
-				this._asyncComputationPromise.cancel();
-			}
+			this._asyncComputationCancellationTokenSource.cancel();
 		}
 		this._state = ComputeHoverOperationState.IDLE;
 	}

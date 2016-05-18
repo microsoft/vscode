@@ -21,6 +21,7 @@ import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} 
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
+import {asWinJsPromise} from 'vs/base/common/async';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -150,10 +151,12 @@ export class HTMLWorker {
 		return callback(model.getAllEmbedded());
 	}
 
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode && model.getMode().extraInfoSupport) {
-				return model.getMode().extraInfoSupport.computeInfo(model.getAssociatedResource(), position);
+				return asWinJsPromise((token) => {
+					return model.getMode().extraInfoSupport.provideHover(/*TODO*/<EditorCommon.IModel><any>model, Position.lift(position), token);
+				});
 			}
 		});
 	}

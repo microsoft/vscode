@@ -23,6 +23,8 @@ import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSup
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export var language: Types.ILanguage = <Types.ILanguage> {
 	displayName: 'LESS',
@@ -265,9 +267,13 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
-	static $computeInfo = OneWorkerAttr(LESSMode, LESSMode.prototype.computeInfo);
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
-		return this._worker((w) => w.computeInfo(resource, position));
+	public provideHover(model:EditorCommon.IModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
+		return wireCancellationToken(cancellationToken, this._provideHover(model.getAssociatedResource(), position));
+	}
+
+	static $_provideHover = OneWorkerAttr(LESSMode, LESSMode.prototype._provideHover);
+	public _provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
+		return this._worker((w) => w.provideHover(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(LESSMode, LESSMode.prototype.getOutline);

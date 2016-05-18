@@ -68,7 +68,7 @@ export interface IJSONWorkerContribution {
 	collectDefaultSuggestions(resource: URI, result: ISuggestionsCollector): WinJS.Promise;
 }
 
-export class JSONWorker implements Modes.IExtraInfoSupport {
+export class JSONWorker {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private requestService: IRequestService;
@@ -275,7 +275,7 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 		return this.jsonIntellisense.doSuggest(resource, modelMirror, position);
 	}
 
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	public provideHover(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.Hover> {
 
 		var modelMirror = this.resourceService.get(resource);
 
@@ -333,11 +333,10 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 		});
 	}
 
-	private createInfoResult(htmlContent : HtmlContent.IHTMLContentElement[], node: Parser.ASTNode, modelMirror: EditorCommon.IMirrorModel) : Modes.IComputeExtraInfoResult {
+	private createInfoResult(htmlContent : HtmlContent.IHTMLContentElement[], node: Parser.ASTNode, modelMirror: EditorCommon.IMirrorModel) : Modes.Hover {
 		var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
 
-		var result:Modes.IComputeExtraInfoResult = {
-			value: '',
+		var result:Modes.Hover = {
 			htmlContent: htmlContent,
 			range: range
 		};

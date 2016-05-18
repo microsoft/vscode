@@ -11,6 +11,7 @@ import URI from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
+import {Position as EditorPosition} from 'vs/editor/common/core/position';
 import {TestThreadService} from './testThreadService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -359,7 +360,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 
-			getExtraInfoAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
+			getExtraInfoAtPosition(model, new EditorPosition(1, 1)).then(value => {
 
 				assert.equal(value.length, 1);
 				let [entry] = value;
@@ -379,7 +380,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 
-			getExtraInfoAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
+			getExtraInfoAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -405,7 +406,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 			threadService.sync().then(() => {
 
-				getExtraInfoAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
+				getExtraInfoAtPosition(model, new EditorPosition(1, 1)).then(value => {
 					assert.equal(value.length, 2);
 					let [first, second] = value;
 					assert.equal(first.htmlContent[0].markdown, 'registered second');
@@ -433,7 +434,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 
-			getExtraInfoAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
+			getExtraInfoAtPosition(model, new EditorPosition(1, 1)).then(value => {
 
 				assert.equal(value.length, 1);
 				done();

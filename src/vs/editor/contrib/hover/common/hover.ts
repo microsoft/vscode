@@ -8,23 +8,23 @@
 import {coalesce} from 'vs/base/common/arrays';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IComputeExtraInfoResult, ExtraInfoRegistry} from 'vs/editor/common/modes';
+import {Hover, ExtraInfoRegistry} from 'vs/editor/common/modes';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {toThenable} from 'vs/base/common/async';
 
-export function getExtraInfoAtPosition(model: IModel, position: IPosition): TPromise<IComputeExtraInfoResult[]> {
+export function getExtraInfoAtPosition(model: IModel, position: IEditorPosition, cancellationToken = CancellationToken.None): Thenable<Hover[]> {
 
-	const resource = model.getAssociatedResource();
 	const supports = ExtraInfoRegistry.ordered(model);
-	const values: IComputeExtraInfoResult[] = [];
+	const values: Hover[] = [];
 
 	const promises = supports.map((support, idx) => {
-		return support.computeInfo(resource, position).then(result => {
+		return toThenable(support.provideHover(model, position, cancellationToken)).then(result => {
 			if (result) {
 				let hasRange = (typeof result.range !== 'undefined');
-				let hasValue = (typeof result.value !== 'undefined');
 				let hasHtmlContent = (typeof result.htmlContent !== 'undefined' && result.htmlContent && result.htmlContent.length > 0);
-				if (hasRange && (hasValue || hasHtmlContent)) {
+				if (hasRange && hasHtmlContent) {
 					values[idx]  = result;
 				}
 			}

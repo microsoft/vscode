@@ -12,6 +12,7 @@ import {IFilter} from 'vs/base/common/filters';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {CancellationToken} from 'vs/base/common/cancellation';
 
 export interface ITokenizationResult {
 	type?:string;
@@ -322,16 +323,25 @@ export interface ITokenizationSupport2 {
 }
 
 /**
- * Interface used to get extra info for a symbol
+ * A hover represents additional information for a symbol or word. Hovers are
+ * rendered in a tooltip-like widget.
  */
-export interface IComputeExtraInfoResult {
+export interface Hover {
+	/**
+	 * The contents of this hover.
+	 */
+	htmlContent: IHTMLContentElement[];
+
+	/**
+	 * The range to which this hover applies. When missing, the
+	 * editor will use the range at the current position or the
+	 * current position itself.
+	 */
 	range: editorCommon.IRange;
-	value?: string;
-	htmlContent?: IHTMLContentElement[];
-	className?: string;
 }
+
 export interface IExtraInfoSupport {
-	computeInfo(resource:URI, position:editorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
+	provideHover(model:editorCommon.IModel, position:editorCommon.IEditorPosition, cancellationToken:CancellationToken): Hover | Thenable<Hover>;
 }
 
 export type SuggestionType = 'method'

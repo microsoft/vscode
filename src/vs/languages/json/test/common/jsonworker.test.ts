@@ -62,11 +62,11 @@ suite('JSON - Worker', () => {
 		return env.worker.suggest(url, position).then(result => result[0]);
 	};
 
-	function testComputeInfo(content:string, schema:jsonSchema.IJSONSchema, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	function testComputeInfo(content:string, schema:jsonSchema.IJSONSchema, position:EditorCommon.IPosition):WinJS.TPromise<Modes.Hover> {
 		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, content);
 		prepareSchemaServer(schema, env.worker);
-		return env.worker.computeInfo(url, position);
+		return env.worker.provideHover(url, position);
 	}
 
 	var testValueSetFor = function(value:string, schema:jsonSchema.IJSONSchema, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {

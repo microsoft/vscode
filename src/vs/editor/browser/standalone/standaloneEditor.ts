@@ -7,6 +7,7 @@
 import 'vs/editor/standalone-languages/all';
 import './standaloneSchemas';
 import 'vs/css!./media/standalone-tokens';
+import {Emitter} from 'vs/base/common/event';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ClassNames, ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
@@ -91,7 +92,10 @@ Monaco.Languages.onLanguage = (languageId:string, callback:()=>void) => {
 		dispose: () => { isDisposed = true; }
 	};
 };
-
+Monaco.createWebWorker = standaloneCodeEditor.createWebWorker;
+Monaco.Languages.registerTokensProvider = standaloneCodeEditor.registerTokensProvider;
+Monaco.Languages.registerHoverProvider = standaloneCodeEditor.registerHoverProvider;
+Monaco.Emitter = Emitter;
 // let handlePlugin = (plugin) => {
 // 	if (Array.isArray(plugin.languages)) {
 // 		ModesRegistry.registerLanguages(plugin.languages);

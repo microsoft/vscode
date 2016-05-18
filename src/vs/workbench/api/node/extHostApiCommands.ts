@@ -248,7 +248,7 @@ class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.IComputeExtraInfoResult[]>('_executeHoverProvider', args).then(value => {
+		return this._commands.executeCommand<modes.Hover[]>('_executeHoverProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toHover);
 			}

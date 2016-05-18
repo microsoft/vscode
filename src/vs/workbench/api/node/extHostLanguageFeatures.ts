@@ -11,13 +11,14 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {Range, DocumentHighlightKind, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
-import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IModel, IEditorPosition, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
-import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
+import {asWinJsPromise, ShallowCancelThenPromise, wireCancellationToken} from 'vs/base/common/async';
+import {CancellationToken} from 'vs/base/common/cancellation';
 
 // --- adapter
 
@@ -188,7 +189,7 @@ class DeclarationAdapter implements modes.IDeclarationSupport {
 	}
 }
 
-class ExtraInfoAdapter implements modes.IExtraInfoSupport {
+class ExtraInfoAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.HoverProvider;
@@ -198,7 +199,7 @@ class ExtraInfoAdapter implements modes.IExtraInfoSupport {
 		this._provider = provider;
 	}
 
-	computeInfo(resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
+	public provideHover(resource: URI, position: IPosition): TPromise<modes.Hover> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
@@ -710,8 +711,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$computeInfo(handle: number, resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> {
-		return this._withAdapter(handle, ExtraInfoAdapter, adpater => adpater.computeInfo(resource, position));
+	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover> {
+		return this._withAdapter(handle, ExtraInfoAdapter, adpater => adpater.provideHover(resource, position));
 	}
 
 	// --- occurrences
@@ -911,8 +912,8 @@ export class MainThreadLanguageFeatures {
 
 	$registerExtraInfoSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.ExtraInfoRegistry.register(selector, <modes.IExtraInfoSupport>{
-			computeInfo: (resource: URI, position: IPosition): TPromise<modes.IComputeExtraInfoResult> => {
-				return this._proxy.$computeInfo(handle, resource, position);
+			provideHover: (model:IModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.Hover> => {
+				return wireCancellationToken(cancellationToken, this._proxy.$provideHover(handle, model.getAssociatedResource(), position));
 			}
 		});
 		return undefined;

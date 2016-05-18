@@ -338,14 +338,14 @@ export const location = {
 	}
 };
 
-export function fromHover(hover: vscode.Hover): modes.IComputeExtraInfoResult {
-	return <modes.IComputeExtraInfoResult>{
+export function fromHover(hover: vscode.Hover): modes.Hover {
+	return <modes.Hover>{
 		range: fromRange(hover.range),
 		htmlContent: hover.contents.map(fromFormattedString)
 	};
 }
 
-export function toHover(info: modes.IComputeExtraInfoResult): types.Hover {
+export function toHover(info: modes.Hover): types.Hover {
 	return new types.Hover(info.htmlContent.map(toFormattedString), toRange(info.range));
 }
 

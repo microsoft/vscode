@@ -19,6 +19,8 @@ import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/pl
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
@@ -148,9 +150,13 @@ export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, M
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
-	static $computeInfo = OneWorkerAttr(JSONMode, JSONMode.prototype.computeInfo);
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
-		return this._worker((w) => w.computeInfo(resource, position));
+	public provideHover(model:EditorCommon.IModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
+		return wireCancellationToken(cancellationToken, this._provideHover(model.getAssociatedResource(), position));
+	}
+
+	static $_provideHover = OneWorkerAttr(JSONMode, JSONMode.prototype._provideHover);
+	public _provideHover(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.Hover> {
+		return this._worker((w) => w.provideHover(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(JSONMode, JSONMode.prototype.getOutline);

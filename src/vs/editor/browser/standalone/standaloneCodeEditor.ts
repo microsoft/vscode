@@ -24,7 +24,7 @@ import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteT
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
-import {IMode} from 'vs/editor/common/modes';
+import {IExtraInfoSupport, IMode} from 'vs/editor/common/modes';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -38,6 +38,11 @@ import {SimpleEditorService, StandaloneKeybindingService} from 'vs/editor/browse
 import {IEditorContextViewService, IEditorOverrideServices, ensureDynamicPlatformServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
+import * as modes from 'vs/editor/common/modes';
+import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
+import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
+import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
+import {StandaloneWorker} from 'vs/editor/browser/standalone/standaloneWorker';
 
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
@@ -455,6 +460,87 @@ export function createCustomMode(language:ILanguage): TPromise<IMode> {
 	});
 
 	return modeService.getOrCreateMode(modeId);
+}
+
+export function registerTokensProvider(languageId:string, support:modes.ITokenizationSupport2): IDisposable {
+	startup.initStaticServicesIfNecessary();
+	let staticPlatformServices = ensureStaticPlatformServices(null);
+
+	return staticPlatformServices.modeService.registerTokenizationSupport2(languageId, support);
+}
+
+export function registerHoverProvider(languageId:string, support:IExtraInfoSupport): IDisposable {
+	return modes.ExtraInfoRegistry.register(languageId, support);
+}
+
+interface IMonacoWebWorkerState<T> {
+	myProxy:StandaloneWorker;
+	foreignProxy:T;
+	modelMananger: EditorModelManager;
+}
+
+export class MonacoWebWorker<T> {
+
+	private _loaded: TPromise<IMonacoWebWorkerState<T>>;
+	private _client: SimpleWorkerClient<StandaloneWorker>;
+
+	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
+		this._client = new SimpleWorkerClient<StandaloneWorker>(new DefaultWorkerFactory(), 'vs/editor/browser/standalone/standaloneWorker', null);
+
+		this._loaded = this._client.getProxyObject().then((proxy) => {
+
+			let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
+				return proxy.fmr(method, args);
+			};
+
+			let createProxyMethod = (method:string, proxyMethodRequest:(method:string, args:any[])=>TPromise<any>): Function => {
+				return function () {
+					let args = Array.prototype.slice.call(arguments, 0);
+					return proxyMethodRequest(method, args);
+				};
+			};
+
+			const manager = new EditorModelManager(proxy, modelService, true);
+
+			return proxy.loadModule(opts.moduleId).then((foreignMethods): IMonacoWebWorkerState<T> => {
+
+				let foreignProxy = <T><any>{};
+				for (let i = 0; i < foreignMethods.length; i++) {
+					foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
+				}
+
+				return {
+					myProxy: proxy,
+					foreignProxy: foreignProxy,
+					modelMananger: manager
+				};
+			});
+		});
+	}
+
+	public dispose(): void {
+		console.log('TODO: I should dispose now');
+	}
+
+	public getProxy(): TPromise<T> {
+		return this._loaded.then(data => data.foreignProxy);
+	}
+
+	public withSyncedResources(resources: URI[]): TPromise<void> {
+		return this._loaded.then(data => data.modelMananger.withSyncedResources(resources));
+	}
+}
+
+export interface IWebWorkerOptions {
+	moduleId: string;
+}
+
+export function createWebWorker<T>(opts:IWebWorkerOptions): MonacoWebWorker<T> {
+	startup.initStaticServicesIfNecessary();
+	let staticPlatformServices = ensureStaticPlatformServices(null);
+	let modelService = staticPlatformServices.modelService;
+
+	return new MonacoWebWorker(modelService, opts);
 }
 
 export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {

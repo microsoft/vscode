@@ -95,6 +95,7 @@ export declare class TPromise<V> {
 	public static is(value: any): value is TPromise<any>;
 	public static timeout(delay:number):TPromise<void>;
 	public static join<ValueType>(promises:TPromise<ValueType>[]):TPromise<ValueType[]>;
+	public static join<ValueType>(promises:Thenable<ValueType>[]):Thenable<ValueType[]>;
 	public static join<ValueType>(promises: {[n:string]:TPromise<ValueType>}):TPromise<{[n:string]:ValueType}>;
 	public static any<ValueType>(promises:TPromise<ValueType>[]):TPromise<{ key:string; value:TPromise<ValueType>;}>;
 	public static wrapError<ValueType>(error:any):TPromise<ValueType>;

@@ -257,7 +257,7 @@ export class CSSWorker {
 		});
 	}
 
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
 
 		return this.languageService.join().then(() => {
 

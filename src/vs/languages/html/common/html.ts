@@ -23,6 +23,8 @@ import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get it from us.
@@ -483,9 +485,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w.format(resource, range, options));
 	}
 
-	static $computeInfo = OneWorkerAttr(HTMLMode, HTMLMode.prototype.computeInfo);
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
-		return this._worker((w) => w.computeInfo(resource, position));
+	public provideHover(model:EditorCommon.IModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
+		return wireCancellationToken(cancellationToken, this._provideHover(model.getAssociatedResource(), position));
+	}
+
+	static $_provideHover = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideHover);
+	public _provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
+		return this._worker((w) => w.provideHover(resource, position));
 	}
 
 	static $findReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findReferences);

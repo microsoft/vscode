@@ -15,6 +15,7 @@ import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {TypeScriptWorkerProtocol, LanguageServiceDefaults} from 'vs/languages/typescript/common/typescript';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import {CancellationToken} from 'vs/base/common/cancellation';
 
 export function register(modelService: IModelService, markerService: IMarkerService,
 	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
@@ -301,16 +302,18 @@ class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupp
 
 class QuickInfoAdapter extends Adapter implements modes.IExtraInfoSupport {
 
-	computeInfo(resource: URI, position: editor.IPosition): TPromise<modes.IComputeExtraInfoResult> {
+	provideHover(model:editor.IModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): TPromise<modes.Hover> {
+		let resource = model.getAssociatedResource();
+
 		return this._worker(resource).then(worker => {
 			return worker.getQuickInfoAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(info => {
 			if (!info) {
 				return;
 			}
-			return <modes.IComputeExtraInfoResult>{
+			return <modes.Hover>{
 				range: this._textSpanToRange(resource, info.textSpan),
-				value: ts.displayPartsToString(info.displayParts)
+				htmlContent: [{ text: ts.displayPartsToString(info.displayParts) }]
 			};
 		});
 	}
