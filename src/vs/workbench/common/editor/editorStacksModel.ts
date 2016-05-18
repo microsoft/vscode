@@ -904,6 +904,49 @@ export class EditorStacksModel implements IEditorStacksModel {
 			this._activeGroup = this._groups[serialized.active];
 			this._groups.forEach(g => this.groupToIdentifier[g.id] = g);
 			this.recentlyClosedEditors = serialized.lastClosed || [];
+		} else {
+			this.migrate();
+		}
+	}
+
+	// TODO@Ben migration
+	private migrate(): void {
+		const LEGACY_EDITOR_STATE_STORAGE_KEY = 'memento/workbench.parts.editor';
+		const legacyModelRaw = this.storageService.get(LEGACY_EDITOR_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (legacyModelRaw) {
+			try {
+				const legacyModel = JSON.parse(legacyModelRaw);
+				const state = legacyModel['editorpart.editorState'];
+				const editorsRaw: { inputId: string; inputValue: string }[] = state.editors;
+
+				const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+				const editors = editorsRaw.map(editorRaw => registry.getEditorInputFactory(editorRaw.inputId).deserialize(this.instantiationService, editorRaw.inputValue));
+
+				if (editors.length > 0) {
+					const leftGroup = this.openGroup('', true);
+					leftGroup.openEditor(editors[0], { active: true });
+				}
+
+				if (editors.length > 1) {
+					const centerGroup = this.openGroup('', true);
+					centerGroup.openEditor(editors[1], { active: true });
+				}
+
+				if (editors.length > 2) {
+					const rightGroup = this.openGroup('', true);
+					rightGroup.openEditor(editors[2], { active: true });
+				}
+
+				this.storageService.remove(LEGACY_EDITOR_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+			} catch (error) {
+				console.warn('Unable to migrate previous editor state', error, legacyModelRaw);
+
+				// Reset
+				this._groups = [];
+				this._activeGroup = void 0;
+				this.groupToIdentifier = Object.create(null);
+				this.recentlyClosedEditors = [];
+			}
 		}
 	}
 
@@ -973,7 +1016,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		const editor = event.editor;
 		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 
-		let factory = registry.getEditorInputFactory(editor.getId());
+		const factory = registry.getEditorInputFactory(editor.getId());
 		if (factory) {
 			let value = factory.serialize(editor);
 			if (typeof value === 'string') {
