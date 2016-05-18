@@ -39,11 +39,6 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ConfigurationChanged, () => this.update()));
 		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelChanged, () => this.update()));
 		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.update()));
-		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelModeSupportChanged,(e: editorCommon.IModeSupportChangedEvent) => {
-			if (e.formattingSupport) {
-				this.update();
-			}
-		}));
 		this.callOnDispose.push(FormatOnTypeRegistry.onDidChange(this.update, this));
 	}
 

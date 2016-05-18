@@ -121,11 +121,6 @@ class LinkDetector {
 		this.listenersToRemove.push(editor.addListener('change', (e:editorCommon.IModelContentChangedEvent) => this.onChange()));
 		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelChanged, (e:editorCommon.IModelContentChangedEvent) => this.onModelChanged()));
 		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => this.onModelModeChanged()));
-		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
-			if (e.linkSupport) {
-				this.onModelModeChanged();
-			}
-		}));
 		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.MouseUp, (e:IEditorMouseEvent) => this.onEditorMouseUp(e)));
 		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.MouseMove, (e:IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.KeyDown, (e:IKeyboardEvent) => this.onEditorKeyDown(e)));

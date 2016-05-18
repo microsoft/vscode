@@ -165,6 +165,25 @@ export interface ILineContext {
 	findIndexOfOffset(offset:number): number;
 }
 
+export enum MutableSupport {
+	RichEditSupport = 1,
+	TokenizationSupport = 2,
+	SuggestSupport = 3
+}
+export function mutableSupportToString(registerableSupport:MutableSupport) {
+	if (registerableSupport === MutableSupport.RichEditSupport) {
+		return 'richEditSupport';
+	}
+	if (registerableSupport === MutableSupport.TokenizationSupport) {
+		return 'tokenizationSupport';
+	}
+	if (registerableSupport === MutableSupport.SuggestSupport) {
+		return 'suggestSupport';
+	}
+	throw new Error('Illegal argument!');
+}
+
+
 export interface IMode {
 
 	getId(): string;
@@ -179,7 +198,7 @@ export interface IMode {
 	/**
 	 * Register a support by name. Only optional.
 	 */
-	registerSupport?<T>(support:string, callback:(mode:IMode)=>T): IDisposable;
+	registerSupport?<T>(support:MutableSupport, callback:(mode:IMode)=>T): IDisposable;
 
 	/**
 	 * Optional adapter to support tokenization.
@@ -205,11 +224,6 @@ export interface IMode {
 	 * Optional adapter to support intellisense.
 	 */
 	suggestSupport?:ISuggestSupport;
-
-	/**
-	 * Optional adapter to support intellisense.
-	 */
-	parameterHintsSupport?:IParameterHintsSupport;
 
 	/**
 	 * Optional adapter to support showing extra info in tokens.
@@ -250,16 +264,6 @@ export interface IMode {
 	 * Optional adapter to support quick fix of typing errors.
 	 */
 	quickFixSupport?:IQuickFixSupport;
-
-	/**
-	 * Optional adapter to show code lens
-	 */
-	codeLensSupport?:ICodeLensSupport;
-
-	/**
-	 * Optional adapter to support renaming
-	 */
-	renameSupport?: IRenameSupport;
 
 	/**
 	 * Optional adapter to support task running
@@ -444,7 +448,6 @@ export interface IParameterHints {
  */
 export interface IParameterHintsSupport {
 	getParameterHintsTriggerCharacters(): string[];
-	shouldTriggerParameterHints(context: ILineContext, offset: number): boolean;
 	getParameterHints(resource: URI, position: editorCommon.IPosition, triggerCharacter?: string): TPromise<IParameterHints>;
 }
 
@@ -760,11 +763,11 @@ export interface IRichEditSupport {
 
 export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
 
-export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
+export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>(null);
 
 export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
 
-export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>('parameterHintsSupport');
+export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>(null);
 
 export const ExtraInfoRegistry = new LanguageFeatureRegistry<IExtraInfoSupport>('extraInfoSupport');
 
@@ -774,7 +777,7 @@ export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSuppo
 
 export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
 
-export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>('codeLensSupport');
+export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>(null);
 
 export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>('quickFixSupport');
 

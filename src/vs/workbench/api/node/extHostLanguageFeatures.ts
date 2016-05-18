@@ -611,10 +611,6 @@ class ParameterHintsAdapter implements modes.IParameterHintsSupport {
 	getParameterHintsTriggerCharacters(): string[] {
 		throw new Error('illegal state');
 	}
-
-	shouldTriggerParameterHints(context: modes.ILineContext, offset: number): boolean {
-		throw new Error('illegal state');
-	}
 }
 
 type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter
@@ -1041,9 +1037,6 @@ export class MainThreadLanguageFeatures {
 			},
 			getParameterHintsTriggerCharacters(): string[] {
 				return triggerCharacter;
-			},
-			shouldTriggerParameterHints(context: modes.ILineContext, offset: number): boolean {
-				return true;
 			}
 		});
 		return undefined;

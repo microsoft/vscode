@@ -18,9 +18,7 @@ import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
-// import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
-import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {CancellationToken} from 'vs/base/common/cancellation';
@@ -297,7 +295,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public formattingSupport: Modes.IFormattingSupport;
-	public parameterHintsSupport: Modes.IParameterHintsSupport;
 	public suggestSupport: Modes.ISuggestSupport;
 	public configSupport: Modes.IConfigurationSupport;
 
@@ -326,15 +323,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: ['invalid'],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
-
-		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
-			triggerCharacters: ['(', ','],
-			excludeTokens: ['*'],
-			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
-		// TODO@Alex TODO@Joh: there is something off about declaration support of embedded JS in HTML
-		// this.declarationSupport = new DeclarationSupport(this, {
-		// 		tokens: ['invalid'],
-		// 		findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
 		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
@@ -517,10 +505,5 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	static $findColorDeclarations = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findColorDeclarations);
 	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
-	}
-
-	static $getParameterHints = OneWorkerAttr(HTMLMode, HTMLMode.prototype.getParameterHints);
-	public getParameterHints(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IParameterHints> {
-		return this._worker((w) => w.getParameterHints(resource, position));
 	}
 }

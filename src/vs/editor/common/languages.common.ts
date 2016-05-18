@@ -35,7 +35,6 @@ import 'vs/editor/common/modes/abstractState';
 import 'vs/editor/common/modes/monarch/monarch';
 import 'vs/editor/common/modes/monarch/monarchCompile';
 import 'vs/editor/common/modes/supports/declarationSupport';
-import 'vs/editor/common/modes/supports/parameterHintsSupport';
 import 'vs/editor/common/modes/supports/referenceSupport';
 import 'vs/editor/common/modes/supports/richEditSupport';
 import 'vs/editor/common/modes/supports/suggestSupport';

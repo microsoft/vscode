@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {Range} from 'vs/editor/common/core/range';
-import {EventType, ICursorPositionChangedEvent, IModeSupportChangedEvent, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {EventType, ICursorPositionChangedEvent, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {QuickFixRegistry} from 'vs/editor/common/modes';
 import {IQuickFix2, getQuickFixes} from '../common/quickFix';
@@ -80,11 +80,6 @@ export class QuickFixModel extends EventEmitter {
 
 		this.toDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.onModelChanged()));
 		this.toDispose.push(this.editor.addListener2(EventType.ModelModeChanged, () => this.onModelChanged()));
-		this.toDispose.push(this.editor.addListener2(EventType.ModelModeSupportChanged, (e: IModeSupportChangedEvent) => {
-			if (e.quickFixSupport) {
-				this.onModelChanged();
-			}
-		}));
 		this.toDispose.push(QuickFixRegistry.onDidChange(this.onModelChanged, this));
 	}
 

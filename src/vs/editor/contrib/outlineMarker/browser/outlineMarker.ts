@@ -132,11 +132,6 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onChange(true)));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onChange(false)));
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
-			if (e.outlineSupport) {
-				this.onChange(false);
-			}
-		}));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged,(e: editorCommon.IConfigurationChangedEvent) => {
 			let oldIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.outlineMarkers;

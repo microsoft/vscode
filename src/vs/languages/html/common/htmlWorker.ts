@@ -195,14 +195,6 @@ export class HTMLWorker {
 		});
 	}
 
-	public getParameterHints(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IParameterHints> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().parameterHintsSupport) {
-				return model.getMode().parameterHintsSupport.getParameterHints(model.getAssociatedResource(), position);
-			}
-		});
-	}
-
 	private findMatchingOpenTag(scanner: IHTMLScanner) : string {
 		let closedTags : { [name:string]: number } = {};
 		let tagClosed = false;

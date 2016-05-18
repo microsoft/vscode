@@ -994,23 +994,7 @@ export interface IConfigurationChangedEvent {
  */
 export interface IModeSupportChangedEvent {
 	tokenizationSupport:boolean;
-	occurrencesSupport:boolean;
-	declarationSupport:boolean;
-	typeDeclarationSupport:boolean;
-	navigateTypesSupport:boolean;
-	referenceSupport:boolean;
 	suggestSupport:boolean;
-	parameterHintsSupport:boolean;
-	extraInfoSupport:boolean;
-	outlineSupport:boolean;
-	logicalSelectionSupport:boolean;
-	formattingSupport:boolean;
-	inplaceReplaceSupport:boolean;
-	emitOutputSupport:boolean;
-	linkSupport:boolean;
-	configSupport:boolean;
-	quickFixSupport: boolean;
-	codeLensSupport: boolean;
 	richEditSupport: boolean;
 }
 

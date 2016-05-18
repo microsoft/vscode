@@ -239,7 +239,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 							}
 							if (e.tokenizationSupport) {
 								emitting = true;
-								this._mode.registerSupport('tokenizationSupport', (mode) => {
+								this._mode.registerSupport(modes.MutableSupport.TokenizationSupport, (mode) => {
 									return mode.tokenizationSupport;
 								});
 								emitting = false;

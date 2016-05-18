@@ -364,11 +364,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChange()));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onModelChange()));
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
-			if (e.codeLensSupport) {
-				this.onModelChange();
-			}
-		}));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;

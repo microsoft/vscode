@@ -25,7 +25,6 @@ import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
 import {IRichEditConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
@@ -396,16 +395,16 @@ export class ModeServiceImpl implements IModeService {
 		};
 	}
 
-	private _registerModeSupport<T>(mode:modes.IMode, support: string, callback: (mode: modes.IMode) => T): IDisposable {
+	private _registerModeSupport<T>(mode:modes.IMode, support: modes.MutableSupport, callback: (mode: modes.IMode) => T): IDisposable {
 		if (mode.registerSupport) {
 			return mode.registerSupport(support, callback);
 		} else {
-			console.warn('Cannot register support ' + support + ' on mode ' + mode.getId() + ' because it does not support it.');
+			console.warn('Cannot register support ' + modes.mutableSupportToString(support) + ' on mode ' + mode.getId() + ' because it does not support it.');
 			return EmptyDisposable;
 		}
 	}
 
-	protected registerModeSupport<T>(modeId: string, support: string, callback: (mode: modes.IMode) => T): IDisposable {
+	protected registerModeSupport<T>(modeId: string, support: modes.MutableSupport, callback: (mode: modes.IMode) => T): IDisposable {
 		if (this._instantiatedModes.hasOwnProperty(modeId)) {
 			return this._registerModeSupport(this._instantiatedModes[modeId], support, callback);
 		}
@@ -444,21 +443,16 @@ export class ModeServiceImpl implements IModeService {
 		return this.doRegisterMonarchDefinition(modeId, lexer);
 	}
 
-
 	public registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable {
-		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
-	}
-
-	public registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new DeclarationSupport(modeId, contribution));
+		return this.registerModeSupport(modeId, modes.MutableSupport.RichEditSupport, (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
 	}
 
 	public registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'tokenizationSupport', callback);
+		return this.registerModeSupport(modeId, modes.MutableSupport.TokenizationSupport, callback);
 	}
 
 	public registerTokenizationSupport2(modeId: string, support: modes.ITokenizationSupport2): IDisposable {
-		return this.registerModeSupport(modeId, 'tokenizationSupport', (mode) => {
+		return this.registerModeSupport(modeId, modes.MutableSupport.TokenizationSupport, (mode) => {
 			return new TokenizationSupport2Adapter(mode, support);
 		});
 	}
@@ -661,7 +655,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		return combinedDisposable(
 			super.doRegisterMonarchDefinition(modeId, lexer),
 
-			this.registerModeSupport(modeId, 'suggestSupport', (mode) => {
+			this.registerModeSupport(modeId, modes.MutableSupport.SuggestSupport, (mode) => {
 				return createSuggestSupport(modelService, editorWorkerService, modeId, lexer);
 			})
 		);

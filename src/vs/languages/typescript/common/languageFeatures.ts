@@ -248,10 +248,6 @@ class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupp
 		return ['(', ','];
 	}
 
-	shouldTriggerParameterHints(context: modes.ILineContext, offset: number): boolean {
-		return true;
-	}
-
 	getParameterHints(resource: URI, position: editor.IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
 		return this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 

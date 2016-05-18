@@ -9,7 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent} from 'vs/editor/common/editorCommon';
 import {ParameterHintsRegistry, IParameterHints} from 'vs/editor/common/modes';
 import {getParameterHints} from '../common/parameterHints';
 
@@ -45,7 +45,6 @@ export class ParameterHintsModel extends Disposable {
 
 		this._register(this.editor.addListener2(EventType.ModelChanged, e => this.onModelChanged()));
 		this._register(this.editor.addListener2(EventType.ModelModeChanged, _ => this.onModelChanged()));
-		this._register(this.editor.addListener2(EventType.ModelModeSupportChanged, e => this.onModeChanged(e)));
 		this._register(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
 		this._register(ParameterHintsRegistry.onDidChange(this.onModelChanged, this));
 		this.onModelChanged();
@@ -110,24 +109,11 @@ export class ParameterHintsModel extends Disposable {
 
 		this.triggerCharactersListeners = support.getParameterHintsTriggerCharacters().map((ch) => {
 			let listener = this.editor.addTypingListener(ch, () => {
-				let position = this.editor.getPosition();
-				let lineContext = model.getLineContext(position.lineNumber);
-
-				if (!support.shouldTriggerParameterHints(lineContext, position.column - 1)) {
-					return;
-				}
-
 				this.trigger(ch);
 			});
 
 			return { dispose: listener };
 		});
-	}
-
-	private onModeChanged(e: IModeSupportChangedEvent): void {
-		if (e.parameterHintsSupport) {
-			this.onModelChanged();
-		}
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {

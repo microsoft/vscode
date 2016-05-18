@@ -108,13 +108,6 @@ export class SwitchingMode extends MockMode {
 		return EmptyDisposable;
 	}
 
-	/**
-	 * Register a support by name. Only optional.
-	 */
-	public registerSupport<T>(support:string, callback:(mode:modes.IMode)=>T): IDisposable {
-		return EmptyDisposable;
-	}
-
 	public getInitialState():modes.IState {
 		return new StateMemorizingLastWord(this, this._switchingModeDescriptor, null);
 	}

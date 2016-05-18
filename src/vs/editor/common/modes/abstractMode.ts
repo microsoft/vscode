@@ -102,16 +102,17 @@ export abstract class AbstractMode implements modes.IMode {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);
 	}
 
-	public registerSupport<T>(support:string, callback:(mode:modes.IMode) => T) : IDisposable {
+	public registerSupport<T>(supportEnum:modes.MutableSupport, callback:(mode:modes.IMode) => T) : IDisposable {
+		let supportStr = modes.mutableSupportToString(supportEnum);
 		var supportImpl = callback(this);
-		this[support] = supportImpl;
-		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(support));
+		this[supportStr] = supportImpl;
+		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(supportEnum));
 
 		return {
 			dispose: () => {
-				if (this[support] === supportImpl) {
-					delete this[support];
-					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(support));
+				if (this[supportStr] === supportImpl) {
+					delete this[supportStr];
+					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(supportEnum));
 				}
 			}
 		};
@@ -135,11 +136,8 @@ class SimplifiedMode implements modes.IMode {
 
 		if (this._sourceMode.addSupportChangedListener) {
 			this._sourceMode.addSupportChangedListener((e) => {
-				if (e.tokenizationSupport || e.richEditSupport) {
-					this._assignSupports();
-					let newEvent = SimplifiedMode._createModeSupportChangedEvent(e);
-					this._eventEmitter.emit('modeSupportChanged', newEvent);
-				}
+				this._assignSupports();
+				this._eventEmitter.emit('modeSupportChanged', e);
 			});
 		}
 	}
@@ -155,31 +153,6 @@ class SimplifiedMode implements modes.IMode {
 	private _assignSupports(): void {
 		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
 		this.richEditSupport = this._sourceMode.richEditSupport;
-	}
-
-	private static _createModeSupportChangedEvent(originalModeEvent:IModeSupportChangedEvent): IModeSupportChangedEvent {
-		var event:IModeSupportChangedEvent = {
-			codeLensSupport: false,
-			tokenizationSupport: originalModeEvent.tokenizationSupport,
-			occurrencesSupport:false,
-			declarationSupport:false,
-			typeDeclarationSupport:false,
-			navigateTypesSupport:false,
-			referenceSupport:false,
-			suggestSupport:false,
-			parameterHintsSupport:false,
-			extraInfoSupport:false,
-			outlineSupport:false,
-			logicalSelectionSupport:false,
-			formattingSupport:false,
-			inplaceReplaceSupport:false,
-			emitOutputSupport:false,
-			linkSupport:false,
-			configSupport:false,
-			quickFixSupport:false,
-			richEditSupport: originalModeEvent.richEditSupport,
-		};
-		return event;
 	}
 }
 
@@ -264,28 +237,25 @@ export class FrankensteinMode extends AbstractMode {
 	}
 }
 
-function _createModeSupportChangedEvent(...changedSupports: string[]): IModeSupportChangedEvent {
-	var event:IModeSupportChangedEvent = {
-		codeLensSupport: false,
-		tokenizationSupport:false,
-		occurrencesSupport:false,
-		declarationSupport:false,
-		typeDeclarationSupport:false,
-		navigateTypesSupport:false,
-		referenceSupport:false,
-		suggestSupport:false,
-		parameterHintsSupport:false,
-		extraInfoSupport:false,
-		outlineSupport:false,
-		logicalSelectionSupport:false,
-		formattingSupport:false,
-		inplaceReplaceSupport:false,
-		emitOutputSupport:false,
-		linkSupport:false,
-		configSupport:false,
-		quickFixSupport:false,
-		richEditSupport: false
-	};
-	changedSupports.forEach(support => event[support] = true);
-	return event;
+function _createModeSupportChangedEvent(supportEnum:modes.MutableSupport): IModeSupportChangedEvent {
+	if (supportEnum === modes.MutableSupport.RichEditSupport) {
+		return {
+			richEditSupport: true,
+			tokenizationSupport: false,
+			suggestSupport: false,
+		};
+	} else if (supportEnum === modes.MutableSupport.TokenizationSupport) {
+		return {
+			richEditSupport: false,
+			tokenizationSupport: true,
+			suggestSupport: false,
+		};
+	} else if (supportEnum === modes.MutableSupport.SuggestSupport) {
+		return {
+			richEditSupport: false,
+			tokenizationSupport: false,
+			suggestSupport: true,
+		};
+	}
+	throw new Error('Illegal argument!');
 }
