@@ -223,13 +223,6 @@ export class Controller extends treedefaults.DefaultController {
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
-		// Status group should never get selected nor expanded/collapsed
-		if (!(element instanceof OpenEditor)) {
-			event.preventDefault();
-			event.stopPropagation();
-
-			return true;
-		}
 
 		// Cancel Event
 		const isMouseDown = event && event.browserEvent && event.browserEvent.type === 'mousedown';
@@ -237,6 +230,11 @@ export class Controller extends treedefaults.DefaultController {
 			event.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
 		}
 		event.stopPropagation();
+
+		// Status group should never get selected nor expanded/collapsed
+		if (!(element instanceof OpenEditor)) {
+			return true;
+		}
 
 		// Set DOM focus
 		tree.DOMFocus();
