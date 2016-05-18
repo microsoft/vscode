@@ -11,7 +11,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {Emitter} from 'vs/base/common/event';
 import {CommonKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
-import severity from 'vs/base/common/severity';
+import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -21,6 +21,7 @@ import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -72,13 +73,7 @@ class MarkerModel {
 		this._markers = markers || [];
 
 		// sort markers
-		this._markers.sort((left, right) => {
-			if (left.startLineNumber === right.startLineNumber) {
-				return left.startColumn - right.startColumn;
-			} else {
-				return left.startLineNumber - right.startLineNumber;
-			}
-		});
+		this._markers.sort((left, right) => Severity.compare(left.severity, right.severity) || Range.compareRangesUsingStarts(left, right));
 
 		this._nextIdx = -1;
 		this._onMarkerSetChanged.fire(this);
@@ -278,11 +273,11 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 		// set color
 		switch (marker.severity) {
-			case severity.Error:
+			case Severity.Error:
 				this.options.frameColor = '#ff5a5a';
 				break;
-			case severity.Warning:
-			case severity.Info:
+			case Severity.Warning:
+			case Severity.Info:
 				this.options.frameColor = '#5aac5a';
 				break;
 		}
