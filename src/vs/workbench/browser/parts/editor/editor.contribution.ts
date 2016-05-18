@@ -250,7 +250,13 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		'vs/workbench/browser/parts/editor/editorPicker',
 		'EditorGroupPicker',
 		NAVIGATE_IN_GROUP_PREFIX,
-		[]
+		[
+			{
+				prefix: NAVIGATE_IN_GROUP_PREFIX,
+				needsEditor: false,
+				description: nls.localize('editorGroupPicker', "Show Editors in Active Group")
+			}
+		]
 	)
 );
 
@@ -259,7 +265,13 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		'vs/workbench/browser/parts/editor/editorPicker',
 		'AllEditorsPicker',
 		NAVIGATE_ALL_EDITORS_GROUP_PREFIX,
-		[]
+		[
+			{
+				prefix: NAVIGATE_ALL_EDITORS_GROUP_PREFIX,
+				needsEditor: false,
+				description: nls.localize('allEditorsPicker', "Show All Opened Editors")
+			}
+		]
 	)
 );
 
