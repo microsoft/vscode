@@ -776,19 +776,39 @@ export class EditorPart extends Part implements IEditorPart {
 			return TPromise.as<BaseEditor>(null);
 		}
 
+		// Move within group
 		if (from === to) {
-			if (typeof index !== 'number') {
-				return TPromise.as<BaseEditor>(null); // do nothing if we move into same group without index
-			}
-
-			const currentIndex = fromGroup.indexOf(input);
-			if (currentIndex === index) {
-				return TPromise.as<BaseEditor>(null); // do nothing if editor is already at the given index
-			}
+			return this.doMoveEditorInsideGroups(input, from, index);
 		}
 
+		// Move across groups
+		return this.doMoveEditorAcrossGroups(input, from, to, index);
+	}
+
+	private doMoveEditorInsideGroups(input: EditorInput, position: Position, toIndex: number): TPromise<BaseEditor> {
+		if (typeof toIndex !== 'number') {
+			return TPromise.as<BaseEditor>(null); // do nothing if we move into same group without index
+		}
+
+		const group = this.groupAt(position);
+		const currentIndex = group.indexOf(input);
+		if (currentIndex === toIndex) {
+			return TPromise.as<BaseEditor>(null); // do nothing if editor is already at the given index
+		}
+
+		// Update stacks model
+		group.moveEditor(input, toIndex);
+		group.pin(input);
+
+		// Update UI
+		this.doUpdateEditorTitleArea();
+	}
+
+	private doMoveEditorAcrossGroups(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
+
+		// A move to another group is a close first and an open in the target group
 		return this.doCloseEditor(from, input).then(() => {
-			return this.openEditor(input, EditorOptions.create({ pinned: true, index }), this.stacksModel.positionOfGroup(toGroup));
+			return this.openEditor(input, EditorOptions.create({ pinned: true, index }), to);
 		});
 	}
 
