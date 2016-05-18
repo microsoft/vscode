@@ -5,7 +5,6 @@
 
 import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
-import {Keybinding} from 'vs/base/common/keyCodes';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -21,6 +20,7 @@ import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/common/editor';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -213,7 +213,8 @@ export class Controller extends treedefaults.DefaultController {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
 	}
@@ -297,7 +298,14 @@ export class Controller extends treedefaults.DefaultController {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
-			getKeyBinding: (a): Keybinding => keybindingForAction(a.id),
+			getKeyBinding: (action) => {
+				const opts = this.keybindingService.lookupKeybindings(action.id);
+				if (opts.length > 0) {
+					return opts[0]; // only take the first one
+				}
+
+				return keybindingForAction(action.id);
+			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					tree.DOMFocus();
