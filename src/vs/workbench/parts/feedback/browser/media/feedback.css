@@ -351,6 +351,7 @@
 
 .monaco-shell.hc-black .feedback-form .sentiment {
 	background: none;
+	border: 1px solid transparent;
 }
 
 .monaco-shell.hc-black .feedback-form .sentiment.checked {
@@ -362,8 +363,8 @@
 	width: 21px;
 	display: inline-block;
 	position: relative;
-	top: 4px;
-	left: 4px;
+	top: 3px;
+	left: 3px;
 }
 
 .monaco-shell.hc-black .feedback-form .sentiment.smile:before {
