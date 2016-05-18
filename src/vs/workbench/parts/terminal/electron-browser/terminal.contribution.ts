@@ -139,6 +139,8 @@ if (product.quality === 'alpha') {
 	// Register toggle output action globally
 	let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
-		primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK
+		primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
+		// on mac this keybinding is reserved to cycle between windows
+		mac: { primary: null }
 	}), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
 }
