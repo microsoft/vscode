@@ -25,7 +25,7 @@ import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/comm
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
-import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -434,6 +434,11 @@ export class ActionProvider implements IActionProvider {
 				}
 
 				result.push(new Separator());
+				// Run Compare
+				const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, tree);
+				if (runCompareAction._isEnabled()) {
+					result.push(runCompareAction);
+				}
 				result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, tree));
 
 				result.push(new Separator());
