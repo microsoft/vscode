@@ -17,6 +17,7 @@ import {IActionItem, ActionBar, Separator} from 'vs/base/browser/ui/actionbar/ac
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -518,9 +519,11 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		let draggedElement: OpenEditor|EditorGroup;
 		const model = this.editorService.getStacksModel();
 		const positionOfTargetGroup =  model.positionOfGroup(target instanceof EditorGroup ? target : target.editorGroup);
+		const index = target instanceof OpenEditor ? target.editorGroup.indexOf(target.editorInput) : undefined;
 		// Support drop from explorer viewer
 		if (data instanceof ExternalElementsDragAndDropData) {
-			let resource = asFileResource(data.getData()[0]);
+			let resource = <IResourceInput>asFileResource(data.getData()[0]);
+			resource.options = { index };
 			this.editorService.openEditor(resource, positionOfTargetGroup).done(null, errors.onUnexpectedError);
 		}
 
@@ -533,7 +536,6 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		}
 
 		if (draggedElement) {
-			const index = target instanceof OpenEditor ? target.editorGroup.indexOf(target.editorInput) : undefined;
 			if (draggedElement instanceof OpenEditor) {
 				this.editorService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
 			} else {
