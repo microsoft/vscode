@@ -229,8 +229,7 @@ export class Parser {
 			|| this._parseKeyframe()
 			|| this._parseViewPort()
 			|| this._parseNamespace()
-			|| this._parseDocument()
-			|| this._parseVariableDeclaration();
+			|| this._parseDocument();
 	}
 
 	public _tryParseRuleset(isNested: boolean): nodes.RuleSet {
@@ -263,7 +262,7 @@ export class Parser {
 	}
 
 	public _parseRuleSetDeclaration() : nodes.Node {
-		return this._parseDeclaration();
+		return this._parseDeclaration() || this._parseVariableDeclaration();
 	}
 
 	public _needsSemicolonAfter(node: nodes.Node) : boolean {
@@ -337,12 +336,6 @@ export class Parser {
 
 		if (!node.setValue(this._parseExpr())) {
 			return this.finish(node, errors.ParseError.VariableValueExpected, [], panic);
-		}
-
-		if (this.accept(scanner.TokenType.Exclamation)) {
-			if (!this.accept(scanner.TokenType.Ident, 'default', true)) {
-				return this.finish(node, errors.ParseError.UnknownKeyword);
-			}
 		}
 
 		return this.finish(node);
@@ -916,7 +909,8 @@ export class Parser {
 			node.setExpression(this._parseStringLiteral()) ||
 			node.setExpression(this._parseNumeric()) ||
 			node.setExpression(this._parseHexColor()) ||
-			node.setExpression(this._parseOperation())
+			node.setExpression(this._parseOperation()) ||
+			node.setExpression(this._parseVariableExpression())
 		) {
 			return <nodes.Term> this.finish(node);
 		}
@@ -988,6 +982,27 @@ export class Parser {
 			return null;
 		}
 		return <nodes.Variable> node;
+	}
+
+	public _parseVariableExpression(): nodes.VariableExpression {
+		if (!this.accept(scanner.TokenType.Var)) {
+			return null;
+		}
+
+		var node = <nodes.VariableExpression> this.create(nodes.VariableExpression);
+		if (!this.accept(scanner.TokenType.ParenthesisL)) {
+			return this.finish(node, errors.ParseError.LeftParenthesisExpected);
+		}
+
+		if (!node.addChild(this._parseVariable())) {
+			return this.finish(node, errors.ParseError.VariableValueExpected);
+		}
+
+		if (!this.accept(scanner.TokenType.ParenthesisR)) {
+			return this.finish(node, errors.ParseError.RightParenthesisExpected);
+		}
+
+		return node;
 	}
 
 	public _parseFunction(): nodes.Function {

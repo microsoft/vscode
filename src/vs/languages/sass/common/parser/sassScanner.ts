@@ -20,9 +20,9 @@ const _LAN = '<'.charCodeAt(0);
 const _RAN = '>'.charCodeAt(0);
 const _DOT = '.'.charCodeAt(0);
 
-let customTokenValue = scanner.TokenType.CustomToken;
+export const VariableName = scanner.TokenType.VariableName;
 
-export const VariableName = customTokenValue++;
+let customTokenValue = scanner.TokenType.CustomToken;
 export const InterpolationFunction: scanner.TokenType = customTokenValue++;
 export const Default: scanner.TokenType = customTokenValue++;
 export const EqualsOperator: scanner.TokenType = customTokenValue++;

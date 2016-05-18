@@ -176,14 +176,85 @@ export class ScopeBuilder implements nodes.IVisitor {
 
 	public visitRuleSet(node:nodes.RuleSet):boolean {
 		var current = this.scope.findScope(node.offset, node.length);
-		node.getSelectors().getChildren().forEach((node) => {
-			if (node instanceof nodes.Selector) {
-				if (node.getChildren().length === 1) { // only selectors with a single element can be extended
-					current.addSymbol(new Symbol(node.getChild(0).getText(), node, nodes.ReferenceType.Rule));
+		node.getSelectors().getChildren().forEach((child) => {
+			if (child instanceof nodes.Selector) {
+				if (child.getChildren().length === 1) { // only selectors with a single element can be extended
+					current.addSymbol(new Symbol(child.getChild(0).getText(), child, nodes.ReferenceType.Rule));
 				}
 			}
 		});
+		node.accept(new RootVariablesBuilder(this.scope));
 		return true;
+	}
+}
+
+class RootVariablesBuilder implements nodes.IVisitor {
+
+	constructor(private scope: Scope) {
+	}
+
+	public visitNode(node:nodes.Node):boolean {
+		switch (node.type) {
+			case nodes.NodeType.Ruleset:
+				return this.getRootSelectoNode(<nodes.RuleSet>node) !== null;
+			case nodes.NodeType.VariableDeclaration:
+				this.addRootVariables(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
+				return true;
+			default:
+				break;
+		}
+		return true;
+	}
+
+	private addRootVariables(node:nodes.Node, name:string, type: nodes.ReferenceType) : void {
+		if (node.offset !== -1) {
+			var rootScope = this.getRootScope(node, name, type);
+			rootScope.addSymbol(new Symbol(name, node, type));
+		}
+	}
+
+	private getRootSelectoNode(node:nodes.RuleSet):nodes.Node {
+		var visitor= new RootSelectorVisitor();
+		node.accept(visitor);
+		return visitor.rootSelector;
+	}
+
+	private getRootScope(node:nodes.Node, name:string, type: nodes.ReferenceType): Scope {
+		let current = this.scope.findScope(node.offset, node.length);
+		while (current.parent !== null) {
+			current= current.parent;
+		}
+		return current;
+	}
+}
+
+class RootSelectorVisitor implements nodes.IVisitor {
+
+	public rootSelector: nodes.Node= null;
+
+	public visitNode(node:nodes.Node):boolean {
+		switch (node.type) {
+			case nodes.NodeType.PseudoSelector:
+				if (this.isRootSelector(node)) {
+					this.rootSelector= node;
+				}
+				break;
+			default:
+				break;
+		}
+		return true;
+	}
+
+	private isRootSelector(pseudoSelector:nodes.Node):boolean {
+		let selectorName= this.getSelectorName(pseudoSelector);
+		return 'root' === selectorName;
+	}
+
+	private getSelectorName(pseudoSelector:nodes.Node):string {
+		if (pseudoSelector.getChildren().length > 0) {
+			return pseudoSelector.getChildren()[0].getText();
+		}
+		return null;
 	}
 }
 
