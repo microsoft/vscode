@@ -37,10 +37,16 @@ export interface IContextMenuService {
 
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; };
-	getActions(): TPromise<IAction[]>;
+	getActions(): TPromise<(IAction|ContextSubMenu)[]>;
 	getActionItem?(action: IAction): ActionBar.IActionItem;
 	getActionsContext?(): any;
 	getKeyBinding?(action: IAction): Keybinding;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
+}
+
+export class ContextSubMenu {
+	constructor(public label: string, public entries: (ContextSubMenu|IAction)[]) {
+		// noop
+	}
 }
