@@ -59,7 +59,27 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.settings = settings;
 		this.model = editorService.getStacksModel();
 		this.lastDirtyCount = 0;
-		this.updateTreeScheduler = new RunOnceScheduler(() => this.updateTree(), 0);
+		this.updateTreeScheduler = new RunOnceScheduler(() => {
+			if (this.isDisposed) {
+				return;
+			}
+
+			// View size
+			this.expandedBodySize = this.getExpandedBodySize(this.model);
+
+			if (this.tree) {
+				// Show groups only if there is more than 1 group
+				const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
+				(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh())
+				// Always expand all the groups as they are unclickable
+					.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
+
+				// Make sure to keep active open editor highlighted
+				if (this.model.activeGroup) {
+					this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
+				}
+			}
+		}, 0);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -103,7 +123,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
 		});
 
-		this.updateTree();
+		this.updateTreeScheduler.schedule();
 	}
 
 	public create(): TPromise<void> {
@@ -135,28 +155,6 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		// Also handle configuration updates
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
-	}
-
-	private updateTree(): void {
-		if (this.isDisposed) {
-			return;
-		}
-
-		// View size
-		this.expandedBodySize = this.getExpandedBodySize(this.model);
-
-		if (this.tree) {
-			// Show groups only if there is more than 1 group
-			const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
-			(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh())
-			// Always expand all the groups as they are unclickable
-				.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
-
-			// Make sure to keep active open editor highlighted
-			if (this.model.activeGroup) {
-				this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
-			}
-		}
 	}
 
 	private highlightEntry(entry: OpenEditor): void {
