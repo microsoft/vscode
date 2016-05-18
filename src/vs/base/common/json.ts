@@ -647,29 +647,57 @@ export function getParseErrorMessage(errorCode: ParseErrorCode) : string {
 	}
 }
 
-export type NodeType = "object" | "array" | "property" | "string" | "number" | "null";
+export type NodeType = "object" | "array" | "property" | "string" | "number" | "boolean" | "null";
+
+function getLiteralNodeType(value: any) : NodeType {
+	switch (typeof value) {
+		case 'boolean': return 'boolean';
+		case 'number': return 'number';
+		case 'string': return 'string';
+		default: return 'null';
+	}
+}
 
 export interface Node {
 	type: NodeType;
-	value: any;
+	value?: any;
 	offset: number;
 	length: number;
 	columnOffset?: number;
+	parent?: Node;
+	children?: Node[];
 }
 
+export type Segment = string | number;
+
 export interface Location {
+	/**
+	 * The previous property key or literal value (string, number, boolean or null) or undefined.
+	 */
 	previousNode?: Node;
-	segments: string[];
-	matches: (segments: string[]) => boolean;
-	completeProperty: boolean;
+	/**
+	 * The path describing the location in the JSON document. The path consists of a sequence strings
+	 * representing an object property or numbers for array indices.
+	 */
+	path: Segment[];
+	/**
+	 * Matches the locations path against a pattern consisting of strings (for properties) and numbers (for array indices).
+	 * '*' will match a single segment, of any property name or index.
+	 * '**' will match a sequece of segments or no segment, of any property name or index.
+	 */
+	matches: (patterns: Segment[]) => boolean;
+	/**
+	 * If set, the location's offset is at a property key.
+	 */
+	isAtPropertyKey: boolean;
 }
 
 
 /**
- * For a given offset, evaluate the location in the JSON document. Each segment in a location is either a property names or an array accessors.
+ * For a given offset, evaluate the location in the JSON document. Each segment in the location path is either a property name or an array index.
  */
 export function getLocation(text:string, position: number) : Location {
-	let segments: string[] = [];
+	let segments: any[] = []; // strings or numbers
 	let earlyReturnException = new Object();
 	let previousNode : Node = void 0;
 	const previousNodeInst : Node = {
@@ -678,8 +706,7 @@ export function getLocation(text:string, position: number) : Location {
 		length: void 0,
 		type: void 0
 	};
-	let completeProperty = false;
-	let hasComma = false;
+	let isAtPropertyKey = false;
 	function setPreviousNode(value: string, offset: number, length: number, type: NodeType) {
 		previousNodeInst.value = value;
 		previousNodeInst.offset = offset;
@@ -696,16 +723,15 @@ export function getLocation(text:string, position: number) : Location {
 					throw earlyReturnException;
 				}
 				previousNode = void 0;
-				completeProperty = position > offset;
-				hasComma = false;
+				isAtPropertyKey = position > offset;
+				segments.push(''); // push a placeholder (will be replaced or removed)
 			},
 			onObjectProperty: (name: string, offset: number, length: number) => {
 				if (position < offset) {
 					throw earlyReturnException;
 				}
 				setPreviousNode(name, offset, length, 'property');
-				hasComma = false;
-				segments.push(name);
+				segments[segments.length - 1] = name;
 				if (position <= offset + length) {
 					throw earlyReturnException;
 				}
@@ -715,34 +741,28 @@ export function getLocation(text:string, position: number) : Location {
 					throw earlyReturnException;
 				}
 				previousNode = void 0;
-				if (!hasComma) {
-					segments.pop();
-				}
-				hasComma = false;
+				segments.pop();
 			},
 			onArrayBegin: (offset: number, length: number) => {
 				if (position <= offset) {
 					throw earlyReturnException;
 				}
 				previousNode = void 0;
-				segments.push('[0]');
-				hasComma = false;
+				segments.push(0);
 			},
 			onArrayEnd: (offset: number, length: number) => {
 				if (position <= offset) {
 					throw earlyReturnException;
 				}
 				previousNode = void 0;
-				if (!hasComma) {
-					segments.pop();
-				}
-				hasComma = false;
+				segments.pop();
 			},
 			onLiteralValue: (value: any, offset: number, length: number) => {
 				if (position < offset) {
 					throw earlyReturnException;
 				}
-				setPreviousNode(value, offset, length, value === null ? 'null' : (typeof value === 'string' ? 'string' : 'number'));
+				setPreviousNode(value, offset, length, getLiteralNodeType(value));
+
 				if (position <= offset + length) {
 					throw earlyReturnException;
 				}
@@ -753,17 +773,17 @@ export function getLocation(text:string, position: number) : Location {
 				}
 				if (sep === ':' && previousNode.type === 'property') {
 					previousNode.columnOffset = offset;
-					completeProperty = false;
+					isAtPropertyKey = false;
 					previousNode = void 0;
 				} else if (sep === ',') {
-					let last = segments.pop();
-					if (last[0] === '[' && last[last.length - 1] === ']') {
-						segments.push('[' + (parseInt(last.substr(1, last.length - 2)) + 1) + ']');
+					let last = segments[segments.length - 1];
+					if (typeof last === 'number') {
+						segments[segments.length - 1] = last + 1;
 					} else {
-						completeProperty = true;
+						isAtPropertyKey = true;
+						segments[segments.length - 1] = '';
 					}
 					previousNode = void 0;
-					hasComma = true;
 				}
 			}
 		});
@@ -772,10 +792,14 @@ export function getLocation(text:string, position: number) : Location {
 			throw e;
 		}
 	}
+
+	if (segments[segments.length - 1] === '') {
+		segments.pop();
+	}
 	return {
-		segments,
+		path: segments,
 		previousNode,
-		completeProperty,
+		isAtPropertyKey,
 		matches: (pattern: string[]) => {
 			let k = 0;
 			for (let i = 0; k < pattern.length && i < segments.length; i++) {
@@ -795,7 +819,7 @@ export interface ParseOptions {
 }
 
 /**
- * Parses the given text and returns the object the JSON content represents. On invalid input, the parser tries to be as fault lolerant as possible, but still return a result.
+ * Parses the given text and returns the object the JSON content represents. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
  * Therefore always check the errors list to find out if the input was valid.
  */
 export function parse(text:string, errors: ParseError[] = [], options?: ParseOptions) : any {
@@ -811,7 +835,7 @@ export function parse(text:string, errors: ParseError[] = [], options?: ParseOpt
 		}
 	}
 
-	let visitor = {
+	let visitor : JSONVisitor = {
 		onObjectBegin: () => {
 			let object = {};
 			onValue(object);
@@ -842,6 +866,69 @@ export function parse(text:string, errors: ParseError[] = [], options?: ParseOpt
 	};
 	visit(text, visitor, options);
 	return currentParent[0];
+}
+
+
+/**
+ * Parses the given text and returns a tree representation the JSON content. On invalid input, the parser tries to be as fault tolerant as possible, but still return a result.
+ */
+export function parseTree(text:string, errors: ParseError[] = [], options?: ParseOptions) : Node {
+	let currentParent : Node = { type: 'array', offset: -1, length: -1, children: [] }; // artificial root
+
+	function ensurePropertyComplete(endOffset:number) {
+		if (currentParent.type === 'property') {
+			currentParent.length = endOffset - currentParent.offset;
+			currentParent = currentParent.parent;
+		}
+	}
+
+	function onValue(valueNode: Node) : Node {
+		currentParent.children.push(valueNode);
+		ensurePropertyComplete(valueNode.offset + valueNode.length);
+		return valueNode;
+	}
+
+	let visitor : JSONVisitor = {
+		onObjectBegin: (offset: number) => {
+			currentParent = onValue({ type: 'object', offset, length: -1, parent: currentParent, children: [] });
+		},
+		onObjectProperty: (name: string, offset: number, length: number) => {
+			currentParent = onValue({ type: 'property', offset, length: -1, parent: currentParent, children: [] });
+			currentParent.children.push({ type: 'string', value: name, offset, length, parent: currentParent});
+		},
+		onObjectEnd: (offset: number, length: number) => {
+			ensurePropertyComplete(offset);
+			currentParent.length = offset + length - currentParent.offset;
+			currentParent = currentParent.parent;
+		},
+		onArrayBegin: (offset: number, length: number) => {
+			currentParent = onValue({ type: 'array', offset, length: -1, parent: currentParent, children: [] });
+		},
+		onArrayEnd: (offset: number, length: number) => {
+			currentParent.length = offset + length - currentParent.offset;
+			currentParent = currentParent.parent;
+		},
+		onLiteralValue: (value: any, offset: number, length: number) => {
+			onValue({ type: getLiteralNodeType(value), offset, length, parent: currentParent, value });
+		},
+		onSeparator: (sep: string, offset: number, length: number) => {
+			if (currentParent.type === 'property') {
+				if (sep === ':') {
+					currentParent.columnOffset = offset;
+				} else if (sep === ',') {
+					ensurePropertyComplete(offset);
+				}
+			}
+		},
+		onError:(error:ParseErrorCode) => {
+			errors.push({error: error});
+		}
+	};
+	visit(text, visitor, options);
+
+	let result = currentParent.children[0];
+	delete result.parent;
+	return result;
 }
 
 /**
