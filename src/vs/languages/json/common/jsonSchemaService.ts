@@ -19,7 +19,6 @@ import {IResourceService, ResourceEvents, IResourceChangedEvent} from 'vs/editor
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 export interface IJSONSchemaService {
 
@@ -215,15 +214,12 @@ export class JSONSchemaService implements IJSONSchemaService {
 	private requestService: IRequestService;
 	private contextService : IWorkspaceContextService;
 	private callOnDispose:Function[];
-	private telemetryService: ITelemetryService;
 
 	constructor(@IRequestService requestService: IRequestService,
-		@ITelemetryService telemetryService?: ITelemetryService,
 		@IWorkspaceContextService contextService?: IWorkspaceContextService,
 		@IResourceService resourceService?: IResourceService) {
 		this.requestService = requestService;
 		this.contextService = contextService;
-		this.telemetryService = telemetryService;
 		this.callOnDispose = [];
 
 		if (resourceService) {
@@ -327,12 +323,6 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	public loadSchema(url:string) : WinJS.TPromise<UnresolvedSchema> {
-		if (this.telemetryService && Strings.startsWith(url, 'https://schema.management.azure.com')) {
-			this.telemetryService.publicLog('json.schema', {
-				schemaURL: url
-			});
-		}
-
 		return this.requestService.makeRequest({ url: url }).then(
 			request => {
 				var content = request.responseText;
