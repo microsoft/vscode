@@ -488,8 +488,8 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 		return resource ? resource.toString() : null;
 	}
 
-	public onDragOver(baum: ITree, data: IDragAndDropData, target: OpenEditor, originalEvent: DragMouseEvent): IDragOverReaction {
-		if (!(target instanceof OpenEditor)) {
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: OpenEditor|EditorGroup, originalEvent: DragMouseEvent): IDragOverReaction {
+		if (!(target instanceof OpenEditor) && !(target instanceof EditorGroup)) {
 			return DRAG_OVER_REJECT;
 		}
 
@@ -511,47 +511,34 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 			return DRAG_OVER_REJECT;
 		}
 
-		let sourceResource: uri;
-		let targetResource = target.getResource();
-		let draggedData = data.getData()[0];
-
-		if (draggedData instanceof OpenEditor) {
-			sourceResource = (<OpenEditor>draggedData).getResource();
-		} else {
-			let source = asFileResource(draggedData);
-			if (!source) {
-				return DRAG_OVER_REJECT;
-			}
-
-			sourceResource = source.resource;
-		}
-
-		if (!targetResource || !sourceResource) {
-			return DRAG_OVER_REJECT;
-		}
-
-		return targetResource.toString() === sourceResource.toString() ? DRAG_OVER_REJECT : DRAG_OVER_ACCEPT;
+		return DRAG_OVER_ACCEPT;
 	}
 
-	public drop(tree: ITree, data: IDragAndDropData, target: OpenEditor, originalEvent: DragMouseEvent): void {
-		let draggedElement: OpenEditor;
+	public drop(tree: ITree, data: IDragAndDropData, target: OpenEditor|EditorGroup, originalEvent: DragMouseEvent): void {
+		let draggedElement: OpenEditor|EditorGroup;
 		const model = this.editorService.getStacksModel();
+		const positionOfTargetGroup =  model.positionOfGroup(target instanceof EditorGroup ? target : target.editorGroup);
 		// Support drop from explorer viewer
 		if (data instanceof ExternalElementsDragAndDropData) {
 			let resource = asFileResource(data.getData()[0]);
-			this.editorService.openEditor(resource, model.positionOfGroup(target.editorGroup)).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(resource, positionOfTargetGroup).done(null, errors.onUnexpectedError);
 		}
 
 		// Drop within viewer
 		else {
-			let source: OpenEditor[] = data.getData();
+			let source: OpenEditor|EditorGroup[] = data.getData();
 			if (Array.isArray(source)) {
 				draggedElement = source[0];
 			}
 		}
 
 		if (draggedElement) {
-			this.editorService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), model.positionOfGroup(target.editorGroup));
+			const index = target instanceof OpenEditor ? target.editorGroup.indexOf(target.editorInput) : undefined;
+			if (draggedElement instanceof OpenEditor) {
+				this.editorService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
+			} else {
+				this.editorService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
+			}
 		}
 	}
 }
