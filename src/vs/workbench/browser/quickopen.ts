@@ -62,7 +62,7 @@ export class QuickOpenHandler {
 	 * Indicates if the handler wishes the quick open widget to automatically select the first result entry or an entry
 	 * based on a specific prefix match.
 	 */
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	public getAutoFocus(searchValue: string, isQuickNavigating?: boolean): IAutoFocus {
 		return {};
 	}
 

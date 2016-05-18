@@ -705,6 +705,10 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
+	public isQuickNavigating(): boolean {
+		return !!this.quickNavigateConfiguration;
+	}
+
 	public setPlaceHolder(placeHolder: string): void {
 		if (this.inputBox) {
 			this.inputBox.setPlaceHolder(placeHolder);

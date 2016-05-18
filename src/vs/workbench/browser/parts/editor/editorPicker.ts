@@ -161,8 +161,8 @@ export class EditorGroupPicker extends BaseEditorPicker {
 		return nls.localize('noOpenedEditors', "List of opened editors is currently empty");
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
-		if (searchValue) {
+	public getAutoFocus(searchValue: string, isQuickNavigating?: boolean): IAutoFocus {
+		if (searchValue || !isQuickNavigating) {
 			return {
 				autoFocusFirstEntry: true
 			};
