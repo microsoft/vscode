@@ -47,6 +47,7 @@ export enum NodeType {
 	HexColorValue,
 	MixinDeclaration,
 	MixinReference,
+	VariableExpression,
 	VariableName,
 	VariableDeclaration,
 	Prio,
@@ -1164,6 +1165,17 @@ export class Interpolation extends Node {
 
 	public get type():NodeType {
 		return NodeType.Interpolation;
+	}
+}
+
+export class VariableExpression extends Node {
+
+	constructor(offset:number, length:number) {
+		super(offset, length);
+	}
+
+	public get type():NodeType {
+		return NodeType.VariableExpression;
 	}
 }
 

@@ -20,6 +20,8 @@ import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 
 export enum States {
 	Selector,
@@ -333,15 +335,15 @@ export class CSSMode extends AbstractMode {
 
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
-		//this.occurrencesSupport = this;
+		this.occurrencesSupport = this;
 		this.extraInfoSupport = this;
-		// this.referenceSupport = new ReferenceSupport(this.getId(), {
-		// 	tokens: [cssTokenTypes.TOKEN_PROPERTY + '.css', cssTokenTypes.TOKEN_VALUE + '.css', cssTokenTypes.TOKEN_SELECTOR_TAG + '.css'],
-		// 	findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
+			tokens: void 0,
+			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.outlineSupport = this;
-		// this.declarationSupport = new DeclarationSupport(this.getId(), {
-		// 	tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
-		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
+			tokens: void 0,
+			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
 		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [' ', ':'],

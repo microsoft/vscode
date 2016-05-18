@@ -36,7 +36,7 @@ export class CSSIntellisense {
 	}
 
 
-	private getSymbolContext() : cssSymbols.Symbols {
+	protected getSymbolContext() : cssSymbols.Symbols {
 		if (!this.symbolContext) {
 			this.symbolContext = new cssSymbols.Symbols(this.styleSheet);
 		}
@@ -76,6 +76,8 @@ export class CSSIntellisense {
 				this.getCompletionsForFunctionArguments(<nodes.FunctionArgument> node, result);
 			} else if (node instanceof nodes.FunctionDeclaration) {
 				this.getCompletionsForFunctionDeclaration(<nodes.FunctionDeclaration> node, result);
+			} else if (node instanceof nodes.VariableExpression) {
+				this.getVariableProposals(result, true);
 			}
 			if (result.length > 0) {
 				return { currentWord: this.currentWord, suggestions: result, incomplete: this.isIncomplete };
@@ -193,12 +195,12 @@ export class CSSIntellisense {
 		return result;
 	}
 
-	public getVariableProposals(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
+	public getVariableProposals(result:Modes.ISuggestion[], withoutVarSyntax?: boolean):Modes.ISuggestion[]{
 		var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Variable);
 		symbols.forEach((symbol) => {
 			result.push({
 				label: symbol.name,
-				codeSnippet: symbol.name,
+				codeSnippet: withoutVarSyntax ? symbol.name : `var(${symbol.name})`,
 				type: 'variable'
 			});
 		});

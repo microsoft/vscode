@@ -5,7 +5,6 @@
 'use strict';
 
 export enum TokenType {
-	VariableName,
 	Ident,
 	AtKeyword,
 	String,
@@ -50,6 +49,8 @@ export enum TokenType {
 	Comment,
 	SingleLineComment,
 	EOF,
+	Var,
+	VariableName,
 	CustomToken
 }
 
@@ -147,6 +148,7 @@ const _l = 'l'.charCodeAt(0);
 const _p = 'p'.charCodeAt(0);
 const _r = 'r'.charCodeAt(0);
 const _u = 'u'.charCodeAt(0);
+const _v = 'v'.charCodeAt(0);
 const _x = 'x'.charCodeAt(0);
 const _z = 'z'.charCodeAt(0);
 const _A = 'A'.charCodeAt(0);
@@ -290,13 +292,18 @@ export class Scanner {
 			return this.finishToken(offset, tokenType);
 		}
 
-		// variable --
+		// variable name --identifier
 		if (this.stream.advanceIfChars([_MIN, _MIN])) {
 			let content: string[] = ['-', '-'] ;
 			if (this.ident(content)) {
 				return this.finishToken(offset, TokenType.VariableName, content.join(''));
 			}
 			this.stream.goBackTo(offset);
+		}
+
+		// var
+		if (this.stream.advanceIfChars([_v, _a, _r])) {
+			return this.finishToken(offset, TokenType.Var);
 		}
 
 		let content: string[] = [];
