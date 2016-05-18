@@ -999,10 +999,12 @@ export class ShowAllEditorsAction extends Action {
 	public run(event?: any): TPromise<any> {
 		const stacks = this.editorService.getStacksModel();
 		const entrys: IEditorPickOpenEntry[] = [];
+		let identifier = 0;
 
 		stacks.groups.forEach(group => {
 			group.getEditors().forEach((editor, index) => {
 				entrys.push({
+					id: String(identifier++),
 					label: editor.isDirty() ? `\u25cf ${editor.getName()}` : editor.getName(),
 					description: editor.getDescription(),
 					identifier: { editor: editor, group: group },
