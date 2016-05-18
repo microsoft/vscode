@@ -9,7 +9,6 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IFilter} from 'vs/base/common/filters';
-import {IMarker} from 'vs/platform/markers/common/markers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -390,9 +389,7 @@ export interface IQuickFixResult {
 }
 
 export interface IQuickFixSupport {
-	getQuickFixes(resource: URI, range: IMarker | editorCommon.IRange): TPromise<IQuickFix[]>;
-	//TODO@joh this should be removed in the furture such that we can trust the command and it's args
-	runQuickFixAction(resource: URI, range: editorCommon.IRange, quickFix: IQuickFix):TPromise<IQuickFixResult>;
+	getQuickFixes(resource: URI, range: editorCommon.IRange): TPromise<IQuickFix[]>;
 }
 
 export interface IParameter {

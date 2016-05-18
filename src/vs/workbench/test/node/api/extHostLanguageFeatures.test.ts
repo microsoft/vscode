@@ -639,37 +639,6 @@ suite('ExtHostLanguageFeatures', function() {
 		});
 	});
 
-	test('Quick Fix, invoke command+args', function() {
-		let actualArgs: any;
-		let commands = threadService.getRemotable(ExtHostCommands);
-		disposables.push(commands.registerCommand('test1', function(...args: any[]) {
-			actualArgs = args;
-		}));
-
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
-			provideCodeActions(): any {
-				return [<vscode.Command>{ command: 'test1', title: 'Testing', arguments: [true, 1, { bar: 'boo', foo: 'far' }, null] }];
-			}
-		}));
-
-		return threadService.sync().then(() => {
-			return getQuickFixes(model, model.getFullModelRange()).then(value => {
-				assert.equal(value.length, 1);
-
-				let [entry] = value;
-				entry.support.runQuickFixAction(model.getAssociatedResource(), model.getFullModelRange(), entry).then(value => {
-					assert.equal(value, undefined);
-
-					assert.equal(actualArgs.length, 4);
-					assert.equal(actualArgs[0], true);
-					assert.equal(actualArgs[1], 1);
-					assert.deepEqual(actualArgs[2], { bar: 'boo', foo: 'far' });
-					assert.equal(actualArgs[3], null);
-				});
-			});
-		});
-	});
-
 	test('Quick Fix, evil provider', function(done) {
 
 		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{

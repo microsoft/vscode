@@ -425,9 +425,4 @@ export class CSSMode extends AbstractMode {
 	public getQuickFixes(resource: URI, marker: IMarker | EditorCommon.IRange): WinJS.TPromise<Modes.IQuickFix[]>{
 		return this._worker((w) => w.getQuickFixes(resource, marker));
 	}
-
-	static runQuickFixAction = OneWorkerAttr(CSSMode, CSSMode.prototype.runQuickFixAction);
-	public runQuickFixAction(resource:URI, range:EditorCommon.IRange, id: any):WinJS.TPromise<Modes.IQuickFixResult>{
-		return this._worker((w) => w.runQuickFixAction(resource, range, id));
-	}
 }

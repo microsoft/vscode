@@ -23,6 +23,7 @@ import lint = require('vs/languages/css/common/services/lint');
 import lintRules = require('vs/languages/css/common/services/lintRules');
 import {IMarker, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
+import {Range} from 'vs/editor/common/core/range';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
@@ -383,7 +384,7 @@ export class CSSWorker {
 		}
 	}
 
-	private getFixesForUnknownProperty(property: nodes.Property) : Modes.IQuickFix[] {
+	private getFixesForUnknownProperty(property: nodes.Property, marker: IMarker) : Modes.IQuickFix[] {
 
 		let propertyName = property.getName();
 		let result: Modes.IQuickFix[] = [];
@@ -392,9 +393,9 @@ export class CSSWorker {
 			if (score >= propertyName.length / 2 /*score_lim*/) {
 				result.push({
 					command: {
-						id: 'css.renameProptery',
+						id: '_css.replaceText',
 						title: nls.localize('css.quickfix.rename', "Rename to '{0}'", p),
-						arguments: [{ type: 'rename', name: p }]
+						arguments: [{ range: Range.lift(marker), newText: p }]
 					},
 					score
 				});
@@ -409,40 +410,39 @@ export class CSSWorker {
 		return result.slice(0, 3 /*max_result*/);
 	}
 
-	public getQuickFixes(resource: URI, marker: IMarker | EditorCommon.IRange): winjs.TPromise<Modes.IQuickFix[]> {
-		if ((<IMarker> marker).code !== lintRules.Rules.UnknownProperty.id) {
-			return winjs.TPromise.as([]);
+	private appendFixesForMarker(bucket: Modes.IQuickFix[], marker: IMarker): void {
+
+		if ((<IMarker>marker).code !== lintRules.Rules.UnknownProperty.id) {
+			return;
 		}
+		let model = this.resourceService.get(marker.resource),
+			offset = model.getOffsetFromPosition({ column: marker.startColumn, lineNumber: marker.startLineNumber }),
+			stylesheet = this.languageService.getStylesheet(marker.resource),
+			nodepath = nodes.getNodePath(stylesheet, offset);
 
-		return this.languageService.join().then(() => {
-
-			let model = this.resourceService.get(resource),
-				offset = model.getOffsetFromPosition({ column: marker.startColumn, lineNumber: marker.startLineNumber }),
-				stylesheet = this.languageService.getStylesheet(resource),
-				nodepath = nodes.getNodePath(stylesheet, offset);
-
-			for (let i = nodepath.length - 1; i >= 0; i--) {
-				let node = nodepath[i];
-				if (node instanceof nodes.Declaration) {
-					let property = (<nodes.Declaration> node).getProperty();
-					if (property && property.offset === offset && property.length === marker.endColumn - marker.startColumn) {
-						return this.getFixesForUnknownProperty(property);
-					}
+		for (let i = nodepath.length - 1; i >= 0; i--) {
+			let node = nodepath[i];
+			if (node instanceof nodes.Declaration) {
+				let property = (<nodes.Declaration> node).getProperty();
+				if (property && property.offset === offset && property.length === marker.endColumn - marker.startColumn) {
+					bucket.push(...this.getFixesForUnknownProperty(property, marker));
+					return;
 				}
 			}
-			return [];
+		}
+	}
+
+	public getQuickFixes(resource: URI, range: EditorCommon.IRange): winjs.TPromise<Modes.IQuickFix[]> {
+
+		return this.languageService.join().then(() => {
+			const result: Modes.IQuickFix[] = [];
+
+			this.markerService.read({ resource })
+				.filter(marker => Range.containsRange(range, marker))
+				.forEach(marker => this.appendFixesForMarker(result, marker));
+
+			return result;
 		});
 	}
 
-	public runQuickFixAction(resource: URI, range: EditorCommon.IRange, quickFix: Modes.IQuickFix): winjs.TPromise<Modes.IQuickFixResult>{
-		let [{type, name}] = quickFix.command.arguments;
-		switch (type) {
-			case 'rename': {
-				return winjs.TPromise.as({
-					edits: [{ resource, range, newText: name }]
-				});
-			}
-		}
-		return null;
-	}
 }
