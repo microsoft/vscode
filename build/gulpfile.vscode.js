@@ -40,6 +40,7 @@ var baseModules = [
 // build on Windows.
 if (process.platform === 'win32') {
 	baseModules.splice(baseModules.indexOf('pty.js'), 1);
+	baseModules.splice(baseModules.indexOf('term.js'), 1);
 }
 
 // Build

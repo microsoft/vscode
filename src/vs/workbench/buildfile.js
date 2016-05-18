@@ -19,7 +19,7 @@ exports.collectModules = function(excludes) {
 	var languageMainExcludes = ['vs/editor/common/languages.common'];
 	var languageWorkerExcludes = ['vs/base/common/worker/workerServer', 'vs/editor/common/worker/editorWorkerServer'];
 
-	return [
+	var modules = [
 		createModuleDescription('vs/workbench/parts/search/browser/searchViewlet', excludes),
 		createModuleDescription('vs/workbench/parts/search/browser/openAnythingHandler', excludes),
 
@@ -31,8 +31,6 @@ exports.collectModules = function(excludes) {
 		createModuleDescription('vs/workbench/parts/output/common/outputWorker', languageWorkerExcludes),
 		createModuleDescription('vs/workbench/parts/output/browser/outputPanel', excludes),
 
-		createModuleDescription('vs/workbench/parts/terminal/electron-browser/terminalPanel', excludes),
-
 		createModuleDescription('vs/workbench/parts/debug/browser/debugViewlet', excludes),
 		createModuleDescription('vs/workbench/parts/debug/browser/repl', excludes),
 
@@ -43,4 +41,10 @@ exports.collectModules = function(excludes) {
 
 		createModuleDescription('vs/workbench/node/extensionHostProcess', []),
 	];
+
+	if (process.platform !== 'win32') {
+		modules.push(createModuleDescription('vs/workbench/parts/terminal/electron-browser/terminalPanel', excludes));
+	}
+
+	return modules;
 };
