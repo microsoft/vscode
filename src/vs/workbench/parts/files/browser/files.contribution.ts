@@ -238,14 +238,14 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('explorerConfigurationTitle', "File Explorer configuration"),
 	'type': 'object',
 	'properties': {
-		'explorer.workingFiles.maxVisible': {
+		'explorer.openEditors.maxVisible': {
 			'type': 'number',
-			'description': nls.localize('maxVisible', "Maximum number of working files to show before scrollbars appear."),
+			'description': nls.localize('maxVisible', "Maximum number of open editors to show before scrollbars appear."),
 			'default': 9
 		},
-		'explorer.workingFiles.dynamicHeight': {
+		'explorer.openEditors.dynamicHeight': {
 			'type': 'boolean',
-			'description': nls.localize('dynamicHeight', "Controls if the height of the working files section should adapt dynamically to the number of elements or not."),
+			'description': nls.localize('dynamicHeight', "Controls if the height of the open editors section should adapt dynamically to the number of elements or not."),
 			'default': true
 		},
 		'explorer.autoReveal': {
