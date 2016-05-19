@@ -53,6 +53,11 @@ export class SassParser extends cssParser.Parser {
 
 	// Sass variables: $font-size: 12px;
 	public _parseVariableDeclaration(panic:scanner.TokenType[]=[]): nodes.VariableDeclaration {
+		var cssVariableDeclaration= super._parseCssVariableDeclaration(panic);
+		if (cssVariableDeclaration) {
+			return cssVariableDeclaration;
+		}
+
 		var node = <nodes.VariableDeclaration> this.create(nodes.VariableDeclaration);
 
 		if (!node.setVariable(this._parseVariable())) {

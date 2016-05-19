@@ -50,7 +50,7 @@ export enum TokenType {
 	SingleLineComment,
 	EOF,
 	Var,
-	VariableName,
+	CssVariableName,
 	CustomToken
 }
 
@@ -103,6 +103,15 @@ export class MultiLineStream {
 
 	public peekChar(n:number=0):number {
 		return this.source.charCodeAt(this.position + n) || 0;
+	}
+
+	public peekNextChar(ignore:number[]):number {
+		var index= 0;
+		var nextChar= this.peekChar(index);
+		while (ignore.indexOf(nextChar) !== -1) {
+			nextChar= this.peekChar(++index);
+		}
+		return nextChar;
 	}
 
 	public lookbackChar(n:number=0):number {
@@ -292,18 +301,24 @@ export class Scanner {
 			return this.finishToken(offset, tokenType);
 		}
 
-		// variable name --identifier
+		// css variable name --identifier followed by ':' or ')'
 		if (this.stream.advanceIfChars([_MIN, _MIN])) {
 			let content: string[] = ['-', '-'] ;
 			if (this.ident(content)) {
-				return this.finishToken(offset, TokenType.VariableName, content.join(''));
+				let nextChar= this.stream.peekNextChar([_WSP, _TAB, _NWL, _CAR]);
+				if (nextChar === _COL || nextChar === _RPA) {
+					return this.finishToken(offset, TokenType.CssVariableName, content.join(''));
+				}
 			}
 			this.stream.goBackTo(offset);
 		}
 
 		// var
 		if (this.stream.advanceIfChars([_v, _a, _r])) {
-			return this.finishToken(offset, TokenType.Var);
+			if (this.stream.peekChar() === _LPA) {
+				return this.finishToken(offset, TokenType.Var);
+			}
+			this.stream.goBackTo(offset);
 		}
 
 		let content: string[] = [];
