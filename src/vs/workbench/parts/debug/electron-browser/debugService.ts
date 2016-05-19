@@ -845,8 +845,15 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		return this.session.continue({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(threadId);
+		return this.session.continue({ threadId }).then(response => {
+			let allThreadsContinued = response.body ? response.body.allThreadsContinued !== false : true;
+
+			// TODO@Isidor temporary workaround for #1703
+			if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'php')) {
+				allThreadsContinued = false;
+			}
+
+			this.lazyTransitionToRunningState(allThreadsContinued ? undefined : threadId);
 		});
 	}
 
@@ -866,12 +873,7 @@ export class DebugService implements debug.IDebugService {
 			}
 		});
 
-		// TODO@Isidor temporary workaround for #1703
-		if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'php')) {
-			this.model.clearThreads(false, threadId);
-		} else {
-			this.model.clearThreads(false);
-		}
+		this.model.clearThreads(false, threadId);
 
 		// Get a top stack frame of a stopped thread if there is any.
 		const threads = this.model.getThreads();
