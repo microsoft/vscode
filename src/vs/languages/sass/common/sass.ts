@@ -283,7 +283,6 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public declarationSupport: Modes.IDeclarationSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 
@@ -310,9 +309,9 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 		Modes.ReferenceSearchRegistry.register(this.getId(), this);
-		this.declarationSupport = {
+		Modes.DeclarationRegistry.register(this.getId(), {
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)
-		};
+		});
 		Modes.OutlineRegistry.register(this.getId(), this);
 
 		Modes.SuggestRegistry.register(this.getId(), {

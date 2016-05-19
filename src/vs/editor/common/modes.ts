@@ -202,11 +202,6 @@ export interface IMode {
 	tokenizationSupport?: ITokenizationSupport;
 
 	/**
-	 * Optional adapter to support revealing the declaration of a symbol.
-	 */
-	declarationSupport?: IDeclarationSupport;
-
-	/**
 	 * Optional adapter to support formatting.
 	 */
 	formattingSupport?:IFormattingSupport;
@@ -800,7 +795,7 @@ export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>(null
 
 export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>(null);
 
-export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
+export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>(null);
 
 export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>(null);
 

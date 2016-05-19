@@ -174,14 +174,6 @@ export class HTMLWorker {
 		});
 	}
 
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().declarationSupport) {
-				return model.getMode().declarationSupport.findDeclaration(model.getAssociatedResource(), position);
-			}
-		});
-	}
-
 	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._delegateToAllModes(resource, (models) => {
 			let allPromises: winjs.TPromise<IColorRange[]>[] = [];

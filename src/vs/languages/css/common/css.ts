@@ -283,7 +283,6 @@ export class CSSMode extends AbstractMode {
 	public richEditSupport: Modes.IRichEditSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public declarationSupport: Modes.IDeclarationSupport;
 	public quickFixSupport: Modes.IQuickFixSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<cssWorker.CSSWorker>;
@@ -333,9 +332,9 @@ export class CSSMode extends AbstractMode {
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		// Modes.ReferenceSearchRegistry.register(this.getId(), this);
 		Modes.OutlineRegistry.register(this.getId(), this);
-		// this.declarationSupport = {
+		// Modes.DeclarationRegistry.register(this.getId(), {
 		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)
-		// };
+		// });
 
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [' ', ':'],

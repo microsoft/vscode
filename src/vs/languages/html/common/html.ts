@@ -488,11 +488,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w.findReferences(resource, position, includeDeclaration));
 	}
 
-	static $findDeclaration = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findDeclaration);
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
-		return this._worker((w) => w.findDeclaration(resource, position));
-	}
-
 	static $findOccurrences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findOccurrences);
 	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): winjs.TPromise<Modes.IOccurence[]> {
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
