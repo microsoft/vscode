@@ -29,7 +29,7 @@ import {IMessageService, IConfirmation} from 'vs/platform/message/common/message
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -323,6 +323,12 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	public activateGroup(position: Position): void {
 		this.callback('activateGroup');
+	}
+
+	public groupAt(position: Position): IEditorGroup {
+		this.callback('groupAt');
+
+		return null;
 	}
 
 	public pinEditor(position: Position, input: IEditorInput): void {

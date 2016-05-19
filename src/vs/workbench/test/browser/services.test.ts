@@ -42,7 +42,7 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -94,6 +94,11 @@ class TestEditorPart implements IEditorPart {
 
 	public activateGroup(position: Position): void {
 		// Unsupported
+	}
+
+	public groupAt(position: Position): IEditorGroup {
+		// Unsupported
+		return null;
 	}
 
 	public focusGroup(position: Position): void {

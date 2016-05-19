@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
@@ -102,6 +102,11 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Activate the editor group at the provided position without moving focus.
 	 */
 	activateGroup(position: Position): void;
+
+	/**
+	 * Returns the group at the provided position.
+	 */
+	groupAt(position: Position): IEditorGroup;
 
 	/**
 	 * Moves an editor from one group to another. The index in the group is optional.

@@ -959,6 +959,10 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
+	public groupAt(position: Position): EditorGroup {
+		return this.stacksModel.groups[position];
+	}
+
 	public activateGroup(position: Position): void {
 		const editor = this.visibleEditors[position];
 		if (editor) {
@@ -1350,10 +1354,6 @@ export class EditorPart extends Part implements IEditorPart {
 				this.stacksModel.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
 			}
 		}
-	}
-
-	private groupAt(position: Position): EditorGroup {
-		return this.stacksModel.groups[position];
 	}
 
 	private hasGroup(position: Position): boolean {

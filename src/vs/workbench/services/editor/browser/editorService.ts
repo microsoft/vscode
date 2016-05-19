@@ -23,7 +23,7 @@ import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/e
 import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 
 export interface IEditorPart {
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -38,6 +38,7 @@ export interface IEditorPart {
 	moveEditor(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor>;
 	moveGroup(from: Position, to: Position): void;
 	focusGroup(position: Position): void;
+	groupAt(position: Position): IEditorGroup;
 	activateGroup(position: Position): void;
 	pinEditor(position: Position, input: EditorInput): void;
 	unpinEditor(position: Position, input: EditorInput): void;
@@ -187,6 +188,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public activateGroup(position: Position): void {
 		this.editorPart.activateGroup(position);
+	}
+
+	public groupAt(position: Position): IEditorGroup {
+		return this.editorPart.groupAt(position);
 	}
 
 	public pinEditor(position: Position, input: EditorInput): void {
@@ -359,6 +364,10 @@ class EditorPartDelegate implements IEditorPart {
 
 	public activateGroup(position: Position): void {
 		this.editorService.activateGroup(position);
+	}
+
+	public groupAt(position: Position): IEditorGroup {
+		return this.editorService.groupAt(position);
 	}
 
 	public focusGroup(position: Position): void {
