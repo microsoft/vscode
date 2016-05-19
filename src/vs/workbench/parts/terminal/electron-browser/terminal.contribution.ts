@@ -18,7 +18,7 @@ import {Registry} from 'vs/platform/platform';
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
 
 // Only enable in the alpha channel until more stable
-if (product.quality === 'alpha') {
+if (product.quality === 'alpha' || product.quality === 'insider') {
 	let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		'id': 'terminal',
