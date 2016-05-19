@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import cp = require('child_process');
 import termJs = require('term.js');
 import lifecycle = require('vs/base/common/lifecycle');
-import fs = require('fs');
+import path = require('path');
+import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
-import {fork, Terminal} from 'pty.js';
 import platform = require('vs/base/common/platform');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IStringDictionary} from 'vs/base/common/collections';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ITerminalConfiguration, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
@@ -25,7 +27,7 @@ const TERMINAL_CHAR_HEIGHT = 18;
 export class TerminalPanel extends Panel {
 
 	private toDispose: lifecycle.IDisposable[];
-	private ptyProcess: Terminal;
+	private ptyProcess: cp.ChildProcess;
 	private parentDomElement: HTMLElement;
 	private terminal;
 	private terminalDomElement: HTMLDivElement;
@@ -43,24 +45,41 @@ export class TerminalPanel extends Panel {
 		let cols = Math.floor(this.parentDomElement.offsetWidth / TERMINAL_CHAR_WIDTH);
 		let rows = Math.floor(this.parentDomElement.offsetHeight / TERMINAL_CHAR_HEIGHT);
 		this.terminal.resize(cols, rows);
-		this.ptyProcess.resize(cols, rows);
+		this.ptyProcess.send({
+			event: 'resize',
+			cols: cols,
+			rows: rows
+		});
 	}
 
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
-
 		this.parentDomElement = parent.getHTMLElement();
-
 		return this.createTerminal();
+	}
+
+	private cloneEnv(): IStringDictionary<string> {
+		let newEnv: IStringDictionary<string> = Object.create(null);
+		Object.keys(process.env).forEach((key) => {
+			newEnv[key] = process.env[key];
+		});
+		return newEnv;
+	}
+
+	private createTerminalProcess(): cp.ChildProcess {
+		let env = this.cloneEnv();
+		env['PTYSHELL'] = this.getShell();
+		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : process.env.HOME;
+		return cp.fork('./terminalProcess', [], {
+			env: env,
+			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
+		});
 	}
 
 	private createTerminal(): TPromise<void> {
 		return new TPromise<void>(resolve => {
 			this.parentDomElement.innerHTML = '';
-			this.ptyProcess = fork(this.getShell(), [], {
-				name: fs.existsSync('/usr/share/terminfo/x/xterm-256color') ? 'xterm-256color' : 'xterm',
-				cwd: this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : process.env.HOME
-			});
+			this.ptyProcess = this.createTerminalProcess();
 			this.terminalDomElement = document.createElement('div');
 			this.parentDomElement.classList.add('integrated-terminal');
 			let terminalScrollbar = new DomScrollableElement(this.terminalDomElement, {
@@ -73,17 +92,20 @@ export class TerminalPanel extends Panel {
 				cursorBlink: false // term.js' blinking cursor breaks selection
 			});
 
-			this.ptyProcess.on('data', (data) => {
+			this.ptyProcess.on('message', (data) => {
 				this.terminal.write(data);
 			});
 			this.terminal.on('data', (data) => {
-				this.ptyProcess.write(data);
+				this.ptyProcess.send({
+					event: 'input',
+					data: data
+				});
 				return false;
 			});
 			this.ptyProcess.on('exit', (data) => {
 				this.terminal.destroy();
 				// TODO: When multiple terminals are supported this should do something smarter. There is
-				// also a weird bug here at leasy on Ubuntu 15.10 where the new terminal text does not
+				// also a weird bug here at least on Ubuntu 15.10 where the new terminal text does not
 				// repaint correctly.
 				this.createTerminal();
 			});
@@ -157,6 +179,8 @@ export class TerminalPanel extends Panel {
 
 	public dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.terminal.destroy();
+		this.ptyProcess.kill();
 		super.dispose();
 	}
 }
