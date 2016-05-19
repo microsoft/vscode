@@ -333,7 +333,11 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			}
 		});
 
-		modes.ReferenceSearchRegistry.register(this.getId(), this);
+		modes.ReferenceProviderRegistry.register(this.getId(), {
+			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._provideReferences(model.getAssociatedResource(), position, context));
+			}
+		});
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
@@ -493,9 +497,9 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $findReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findReferences);
-	public findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<modes.Location[]> {
-		return this._worker((w) => w.findReferences(resource, position, includeDeclaration));
+	static $_provideReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideReferences);
+	protected _provideReferences(resource:URI, position:editorCommon.IPosition, context: modes.ReferenceContext): winjs.TPromise<modes.Location[]> {
+		return this._worker((w) => w.provideReferences(resource, position));
 	}
 
 	static $_provideDocumentHighlights = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentHighlights);

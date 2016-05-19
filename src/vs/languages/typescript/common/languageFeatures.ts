@@ -27,7 +27,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
 	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker)));
-	disposables.push(modes.ReferenceSearchRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
+	disposables.push(modes.ReferenceProviderRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
 	disposables.push(modes.OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
 	disposables.push(modes.FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
 	disposables.push(modes.FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
@@ -366,10 +366,12 @@ class DefinitionAdapter extends Adapter {
 
 // --- references ------
 
-class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
+class ReferenceAdapter extends Adapter implements modes.ReferenceProvider {
 
-	findReferences(resource: URI, position: editorCommon.IPosition, includeDeclaration: boolean): TPromise<modes.Location[]> {
-		return this._worker(resource).then(worker => {
+	provideReferences(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
+		const resource = model.getAssociatedResource();
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
@@ -386,7 +388,7 @@ class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
 				}
 			}
 			return result;
-		});
+		}));
 	}
 }
 

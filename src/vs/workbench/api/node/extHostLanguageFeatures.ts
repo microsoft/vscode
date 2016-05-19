@@ -246,7 +246,7 @@ class DocumentHighlightAdapter {
 	}
 }
 
-class ReferenceAdapter implements modes.IReferenceSupport {
+class ReferenceAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.ReferenceProvider;
@@ -256,11 +256,11 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 		this._provider = provider;
 	}
 
-	findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.Location[]> {
+	provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
-		return asWinJsPromise(token => this._provider.provideReferences(doc, pos, { includeDeclaration }, token)).then(value => {
+		return asWinJsPromise(token => this._provider.provideReferences(doc, pos, context, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(ReferenceAdapter._convertLocation);
 			}
@@ -714,8 +714,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$findReferences(handle: number, resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.Location[]> {
-		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.findReferences(resource, position, includeDeclaration));
+	$provideReferences(handle: number, resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> {
+		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.provideReferences(resource, position, context));
 	}
 
 	// --- quick fix
@@ -907,9 +907,9 @@ export class MainThreadLanguageFeatures {
 	// --- references
 
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.ReferenceSearchRegistry.register(selector, <modes.IReferenceSupport>{
-			findReferences: (resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.Location[]> => {
-				return this._proxy.$findReferences(handle, resource, position, includeDeclaration);
+		this._registrations[handle] = modes.ReferenceProviderRegistry.register(selector, <modes.ReferenceProvider>{
+			provideReferences: (model:IReadOnlyModel, position:IEditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._proxy.$provideReferences(handle, model.getAssociatedResource(), position, context));
 			}
 		});
 		return undefined;

@@ -410,17 +410,13 @@ export interface DocumentHighlightProvider {
 }
 
 
-/**
- * Interface used to find references to a symbol
- */
-export interface IReferenceSupport {
-
-	/**
-	 * @returns a list of reference of the symbol at the position in the
-	 * 	given resource.
-	 */
-	findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean):TPromise<Location[]>;
+export interface ReferenceContext {
+	includeDeclaration: boolean;
 }
+export interface ReferenceProvider {
+	provideReferences(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+}
+
 
 export class Location {
 	uri: URI;
@@ -693,7 +689,7 @@ export interface IRichEditSupport {
 
 // --- feature registries ------
 
-export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>();
+export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
 
 export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>();
 

@@ -27,7 +27,7 @@ import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {provideHover} from 'vs/editor/contrib/hover/common/hover';
 import {getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import {findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
@@ -515,7 +515,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return findReferences(model, { lineNumber: 1, column: 2 }).then(value => {
+			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 2);
 
 				let [first, second] = value;
@@ -535,7 +535,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return findReferences(model, { lineNumber: 1, column: 2 }).then(value => {
+			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
 
 				let [item] = value;
@@ -561,7 +561,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return findReferences(model, { lineNumber: 1, column: 2 }).then(value => {
+			return provideReferences(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
 			});
 

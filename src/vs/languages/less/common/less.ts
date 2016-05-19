@@ -213,7 +213,11 @@ export class LESSMode extends AbstractMode implements modes.IOutlineSupport {
 
 		this.configSupport = this;
 
-		modes.ReferenceSearchRegistry.register(this.getId(), this);
+		modes.ReferenceProviderRegistry.register(this.getId(), {
+			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._provideReferences(model.getAssociatedResource(), position));
+			}
+		});
 
 		modes.DefinitionProviderRegistry.register(this.getId(), {
 			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
@@ -270,9 +274,9 @@ export class LESSMode extends AbstractMode implements modes.IOutlineSupport {
 		return this._worker((w) => w.enableValidator());
 	}
 
-	static $findReferences = OneWorkerAttr(LESSMode, LESSMode.prototype.findReferences);
-	public findReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
-		return this._worker((w) => w.findReferences(resource, position));
+	static $_provideReferences = OneWorkerAttr(LESSMode, LESSMode.prototype._provideReferences);
+	private _provideReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
+		return this._worker((w) => w.provideReferences(resource, position));
 	}
 
 	static $_provideCompletionItems = OneWorkerAttr(LESSMode, LESSMode.prototype._provideCompletionItems);

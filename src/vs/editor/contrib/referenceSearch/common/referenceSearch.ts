@@ -7,15 +7,18 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {Location, ReferenceSearchRegistry} from 'vs/editor/common/modes';
+import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
+import {asWinJsPromise} from 'vs/base/common/async';
 
-export function findReferences(model: IReadOnlyModel, position: IPosition): TPromise<Location[]> {
+export function provideReferences(model: IReadOnlyModel, position: IEditorPosition): TPromise<Location[]> {
 
 	// collect references from all providers
-	const promises = ReferenceSearchRegistry.ordered(model).map(provider => {
-		return provider.findReferences(model.getAssociatedResource(), position, true).then(result => {
+	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
+		return asWinJsPromise((token) => {
+			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
+		}).then(result => {
 			if (Array.isArray(result)) {
 				return <Location[]> result;
 			}
@@ -35,4 +38,4 @@ export function findReferences(model: IReadOnlyModel, position: IPosition): TPro
 	});
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', findReferences);
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);

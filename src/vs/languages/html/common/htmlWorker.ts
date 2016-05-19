@@ -22,7 +22,7 @@ import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
 import {provideHover} from 'vs/editor/contrib/hover/common/hover';
-import {findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 
 enum LinkDetectionState {
@@ -157,10 +157,10 @@ export class HTMLWorker {
 		});
 	}
 
-	public findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<modes.Location[]> {
+	public provideReferences(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Location[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
-				return findReferences(model, Position.lift(position));
+				return provideReferences(model, Position.lift(position));
 			}
 		});
 	}

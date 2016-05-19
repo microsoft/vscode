@@ -339,7 +339,11 @@ export class CSSMode extends AbstractMode {
 			}
 		});
 
-		// modes.ReferenceSearchRegistry.register(this.getId(), this);
+		// modes.ReferenceProviderRegistry.register(this.getId(), {
+		// 	provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+		// 		return wireCancellationToken(token, this._provideReferences(model.getAssociatedResource(), position));
+		// 	}
+		// });
 
 		modes.OutlineRegistry.register(this.getId(), this);
 
@@ -414,9 +418,9 @@ export class CSSMode extends AbstractMode {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $findReferences = OneWorkerAttr(CSSMode, CSSMode.prototype.findReferences);
-	public findReferences(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.Location[]> {
-		return this._worker((w) => w.findReferences(resource, position));
+	static $_provideReferences = OneWorkerAttr(CSSMode, CSSMode.prototype._provideReferences);
+	private _provideReferences(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.Location[]> {
+		return this._worker((w) => w.provideReferences(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(CSSMode, CSSMode.prototype.getOutline);

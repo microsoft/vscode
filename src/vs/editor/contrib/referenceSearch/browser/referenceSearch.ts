@@ -18,9 +18,9 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {Location, ReferenceSearchRegistry} from 'vs/editor/common/modes';
+import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
 import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {findReferences} from '../common/referenceSearch';
+import {provideReferences} from '../common/referenceSearch';
 import {ReferenceWidget} from './referencesWidget';
 import {ReferencesController, RequestOptions, ctxReferenceSearchVisible} from './referencesController';
 import {ReferencesModel} from './referencesModel';
@@ -61,7 +61,7 @@ export class ReferenceAction extends EditorAction {
 	}
 
 	public isSupported():boolean {
-		return ReferenceSearchRegistry.has(this.editor.getModel()) && super.isSupported();
+		return ReferenceProviderRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState():boolean {
@@ -69,13 +69,13 @@ export class ReferenceAction extends EditorAction {
 			return false;
 		}
 
-		return ReferenceSearchRegistry.has(this.editor.getModel());
+		return ReferenceProviderRegistry.has(this.editor.getModel());
 	}
 
 	public run():TPromise<boolean> {
 		let range = this.editor.getSelection();
 		let model = this.editor.getModel();
-		let references = findReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
+		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
 		let controller = ReferencesController.getController(this.editor);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions)).then(() => true);
 	}
@@ -97,7 +97,7 @@ let findReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 			return;
 		}
 
-		let references = findReferences(control.getModel(), position).then(references => new ReferencesModel(references));
+		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
 		let controller = ReferencesController.getController(control);
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));

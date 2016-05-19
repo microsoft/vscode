@@ -332,7 +332,7 @@ export class CSSWorker {
 		});
 	}
 
-	public findReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
+	public provideReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
 
 		return this.languageService.join().then(() => {
 			let model = this.resourceService.get(resource),
