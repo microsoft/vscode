@@ -102,6 +102,7 @@ export class Symbol {
 export class ScopeBuilder implements nodes.IVisitor {
 
 	public scope:Scope;
+	private _isRootSelectorNode: boolean= false;
 
 	constructor(scope:Scope) {
 		this.scope = scope;
@@ -140,8 +141,7 @@ export class ScopeBuilder implements nodes.IVisitor {
 				this.addSymbol(node, (<nodes.Keyframe> node).getName(), nodes.ReferenceType.Keyframe);
 				return true;
 			case nodes.NodeType.VariableDeclaration:
-				this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
-				return true;
+				return this.visitVariableDeclarationNode(<nodes.VariableDeclaration>node);
 			case nodes.NodeType.Ruleset:
 				return this.visitRuleSet(<nodes.RuleSet> node);
 			case nodes.NodeType.MixinDeclaration:
@@ -183,27 +183,24 @@ export class ScopeBuilder implements nodes.IVisitor {
 				}
 			}
 		});
-		node.accept(new RootVariablesBuilder(this.scope));
+
+		this._isRootSelectorNode= this.isRootSelectorNode(node);
 		return true;
 	}
-}
 
-class RootVariablesBuilder implements nodes.IVisitor {
-
-	constructor(private scope: Scope) {
-	}
-
-	public visitNode(node:nodes.Node):boolean {
-		switch (node.type) {
-			case nodes.NodeType.Ruleset:
-				return this.getRootSelectoNode(<nodes.RuleSet>node) !== null;
-			case nodes.NodeType.VariableDeclaration:
-				this.addRootVariables(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
-				return true;
-			default:
-				break;
+	public visitVariableDeclarationNode(node:nodes.VariableDeclaration):boolean {
+		if (this._isRootSelectorNode) {
+			this.addRootVariables(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
+		} else {
+			this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
 		}
 		return true;
+	}
+
+	private isRootSelectorNode(node:nodes.RuleSet):boolean {
+		var visitor= new RootSelectorVisitor();
+		node.accept(visitor);
+		return visitor.rootSelector !== null;
 	}
 
 	private addRootVariables(node:nodes.Node, name:string, type: nodes.ReferenceType) : void {
@@ -211,12 +208,6 @@ class RootVariablesBuilder implements nodes.IVisitor {
 			var rootScope = this.getRootScope(node, name, type);
 			rootScope.addSymbol(new Symbol(name, node, type));
 		}
-	}
-
-	private getRootSelectoNode(node:nodes.RuleSet):nodes.Node {
-		var visitor= new RootSelectorVisitor();
-		node.accept(visitor);
-		return visitor.rootSelector;
 	}
 
 	private getRootScope(node:nodes.Node, name:string, type: nodes.ReferenceType): Scope {

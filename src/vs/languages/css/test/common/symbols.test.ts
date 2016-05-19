@@ -182,4 +182,9 @@ suite('CSS - symbols', () => {
 		var p = new parser.Parser();
 		assertSymbolsInScope(p, '.a{ --var1: abc; } :root{ --var2: abc;}', 2, {name:'--var1', type:nodes.ReferenceType.Variable}, {name:'--var2', type:nodes.ReferenceType.Variable});
 	});
+
+	test('mark occurrences for variable defined in root and used in a rule', function() {
+		var p = new parser.Parser();
+		assertOccurrences(p, '.a{ background: var(--var1) } :root{ --var1: abc;}', '--var1', 2, 1, nodes.ReferenceType.Variable);
+	});
 });
