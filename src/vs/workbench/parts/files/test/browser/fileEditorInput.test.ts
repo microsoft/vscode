@@ -81,7 +81,6 @@ suite('Files - FileEditorInput', () => {
 			let resolvedModelA = resolved;
 			return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 				assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
-				assert(inputToResolve.getStatus());
 
 				return editorService.resolveEditorModel(sameOtherInput, true).then(function (otherResolved) {
 					assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
