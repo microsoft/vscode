@@ -18,7 +18,6 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -210,9 +209,9 @@ export class LESSMode extends AbstractMode implements Modes.HoverProvider, Modes
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 		Modes.ReferenceSearchRegistry.register(this.getId(), this);
-		this.declarationSupport = new DeclarationSupport(this.getId(), {
-			tokens: ['variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
-			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
+		this.declarationSupport = {
+			findDeclaration: (resource, position) => this.findDeclaration(resource, position)
+		};
 		Modes.OutlineRegistry.register(this.getId(), this);
 
 		Modes.SuggestRegistry.register(this.getId(), {

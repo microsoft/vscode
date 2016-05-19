@@ -522,7 +522,6 @@ export interface IReferenceSupport {
  * Interface used to find declarations on a symbol
  */
 export interface IDeclarationSupport {
-	canFindDeclaration(context:ILineContext, offset:number):boolean;
 	findDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference|IReference[]>;
 }
 

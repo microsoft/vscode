@@ -162,10 +162,6 @@ class DeclarationAdapter implements modes.IDeclarationSupport {
 		this._provider = provider;
 	}
 
-	canFindDeclaration() {
-		return true;
-	}
-
 	findDeclaration(resource: URI, position: IPosition): TPromise<modes.IReference[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
@@ -887,9 +883,6 @@ export class MainThreadLanguageFeatures {
 
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.DeclarationRegistry.register(selector, <modes.IDeclarationSupport>{
-			canFindDeclaration() {
-				return true;
-			},
 			findDeclaration: (resource: URI, position: IPosition): TPromise<modes.IReference[]> => {
 				return this._proxy.$findDeclaration(handle, resource, position);
 			}

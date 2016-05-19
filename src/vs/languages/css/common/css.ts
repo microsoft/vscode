@@ -333,9 +333,9 @@ export class CSSMode extends AbstractMode {
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		// Modes.ReferenceSearchRegistry.register(this.getId(), this);
 		Modes.OutlineRegistry.register(this.getId(), this);
-		// this.declarationSupport = new DeclarationSupport(this.getId(), {
-		// 	tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
-		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
+		// this.declarationSupport = {
+		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)
+		// };
 
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [' ', ':'],

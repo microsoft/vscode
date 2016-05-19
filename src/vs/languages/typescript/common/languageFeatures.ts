@@ -337,10 +337,6 @@ class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
 
 class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
 
-	canFindDeclaration(context: modes.ILineContext, offset: number): boolean {
-		return true;
-	}
-
 	findDeclaration(resource: URI, position: editor.IPosition): TPromise<modes.IReference[]> {
 		return this._worker(resource).then(worker => {
 			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));

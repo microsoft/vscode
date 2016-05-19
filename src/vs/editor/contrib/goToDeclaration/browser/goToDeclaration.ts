@@ -70,13 +70,7 @@ export class DefinitionAction extends EditorAction {
 			return false;
 		}
 
-		const model = this.editor.getModel();
-		const position = this.editor.getSelection().getStartPosition();
-		return DeclarationRegistry.all(model).some(provider => {
-			return provider.canFindDeclaration(
-				model.getLineContext(position.lineNumber),
-				position.column - 1);
-		});
+		return DeclarationRegistry.has(this.editor.getModel());
 	}
 
 	public run(): TPromise<any> {

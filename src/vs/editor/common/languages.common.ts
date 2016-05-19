@@ -36,7 +36,6 @@ import 'vs/editor/common/modes/monarch/monarchCommon';
 import 'vs/editor/common/modes/monarch/monarchDefinition';
 import 'vs/editor/common/modes/monarch/monarchLexer';
 import 'vs/editor/common/modes/monarch/monarchCompile';
-import 'vs/editor/common/modes/supports/declarationSupport';
 import 'vs/editor/common/modes/supports/richEditSupport';
 import 'vs/editor/common/modes/supports/suggestSupport';
 import 'vs/editor/common/modes/supports/tokenizationSupport';
