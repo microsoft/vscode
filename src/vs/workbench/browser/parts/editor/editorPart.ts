@@ -38,7 +38,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup, IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 
 class ProgressMonitor {
 
@@ -72,11 +72,10 @@ export class EditorPart extends Part implements IEditorPart {
 	private dimension: Dimension;
 	private sideBySideControl: ISideBySideEditorControl;
 	private memento: any;
-	private stacksModel: EditorStacksModel;
+	private stacks: EditorStacksModel;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleInputs: EditorInput[];
-	private visibleInputListeners: Function[];
 	private visibleEditors: BaseEditor[];
 	private visibleEditorListeners: Function[][];
 	private instantiatedEditors: BaseEditor[][];
@@ -85,7 +84,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorCreationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private editorSetInputErrorCounter: number[];
-	private pendingEditorInputsToClose: { input: EditorInput; position: Position }[];
+	private pendingEditorInputsToClose: IEditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
@@ -100,7 +99,6 @@ export class EditorPart extends Part implements IEditorPart {
 		super(id);
 
 		this.visibleInputs = [];
-		this.visibleInputListeners = [];
 		this.visibleEditors = [];
 
 		this.editorOpenToken = arrays.fill(POSITIONS.length, () => 0);
@@ -116,19 +114,27 @@ export class EditorPart extends Part implements IEditorPart {
 		this.pendingEditorInputsToClose = [];
 		this.pendingEditorInputCloseTimeout = null;
 
-		this.stacksModel = this.instantiationService.createInstance(EditorStacksModel);
+		this.stacks = this.instantiationService.createInstance(EditorStacksModel);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputStateChanged(event)));
+
+		const unbind = this.stacks.onEditorDisposed(editor => this.onEditorDisposed(editor));
+		this.toUnbind.push(() => unbind.dispose());
 	}
 
 	private onEditorInputStateChanged(event: EditorInputEvent): void {
 		if (this.sideBySideControl) {
 			this.sideBySideControl.updateTitleArea(event.editorInput);
 		}
+	}
+
+	private onEditorDisposed(identifier: IEditorIdentifier): void {
+		this.pendingEditorInputsToClose.push(identifier);
+		this.startDelayedCloseEditorsFromInputDispose();
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -162,12 +168,6 @@ export class EditorPart extends Part implements IEditorPart {
 		// Remember as visible input for this position
 		this.visibleInputs[position] = input;
 
-		// Dispose previous input listener if any
-		if (this.visibleInputListeners[position]) {
-			this.visibleInputListeners[position]();
-			this.visibleInputListeners[position] = null;
-		}
-
 		// Open: input is provided
 		return this.doOpenEditor(input, options, position, widthRatios);
 	}
@@ -189,18 +189,6 @@ export class EditorPart extends Part implements IEditorPart {
 			// Determine options if the editor opens to the side by looking at same input already opened
 			options = this.findSideOptions(input, options, position);
 		}
-
-		// Close editor when input provided and input gets disposed
-		this.visibleInputListeners[position] = input.addListener(EventType.DISPOSE, () => {
-
-			// Keep the inputs to close. We use this to support multiple inputs closing
-			// right after each other and this helps avoid layout issues with the delayed
-			// timeout based closing below
-			if (input === this.visibleInputs[position]) {
-				this.pendingEditorInputsToClose.push({ input, position });
-				this.startDelayedCloseEditorsFromInputDispose();
-			}
-		});
 
 		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
@@ -523,12 +511,6 @@ export class EditorPart extends Part implements IEditorPart {
 		// Update visible inputs for position
 		this.visibleInputs[position] = null;
 
-		// Dispose previous input listener if any
-		if (this.visibleInputListeners[position]) {
-			this.visibleInputListeners[position]();
-			this.visibleInputListeners[position] = null;
-		}
-
 		// Reset counter
 		this.editorSetInputErrorCounter[position] = 0;
 
@@ -564,7 +546,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Update stacks model
 			const group = this.groupAt(position);
-			this.modifyGroups(() => this.stacksModel.closeGroup(group));
+			this.modifyGroups(() => this.stacks.closeGroup(group));
 
 			// Emit Input-Changed Event
 			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
@@ -712,7 +694,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public getStacksModel(): EditorStacksModel {
-		return this.stacksModel;
+		return this.stacks;
 	}
 
 	public getActiveEditorInput(): EditorInput {
@@ -743,14 +725,13 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Update stacks model
-		this.modifyGroups(() => this.stacksModel.moveGroup(this.groupAt(from), to));
+		this.modifyGroups(() => this.stacks.moveGroup(this.groupAt(from), to));
 
 		// Move widgets
 		this.sideBySideControl.move(from, to);
 
 		// Move data structures
 		arrays.move(this.visibleInputs, from, to);
-		arrays.move(this.visibleInputListeners, from, to);
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorListeners, from, to);
 		arrays.move(this.editorOpenToken, from, to);
@@ -843,7 +824,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Update stacks model
 		let activePosition = this.sideBySideControl.getActivePosition();
 		if (typeof activePosition === 'number') {
-			this.stacksModel.setActive(this.groupAt(activePosition));
+			this.stacks.setActive(this.groupAt(activePosition));
 		}
 
 		// Emit as editor input change event so that clients get aware of new active editor
@@ -873,7 +854,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public restoreEditors(): TPromise<BaseEditor[]> {
-		const editors = this.stacksModel.groups.map((group, index) => {
+		const editors = this.stacks.groups.map((group, index) => {
 			return {
 				input: group.activeEditor,
 				position: index
@@ -888,8 +869,8 @@ export class EditorPart extends Part implements IEditorPart {
 		let widthRatios = editorState.widthRatio;
 
 		let activePosition: Position;
-		if (this.stacksModel.groups.length) {
-			activePosition = this.stacksModel.positionOfGroup(this.stacksModel.activeGroup);
+		if (this.stacks.groups.length) {
+			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
 		}
 
 		return this.doOpenEditors(editors, activePosition, widthRatios);
@@ -960,7 +941,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public groupAt(position: Position): EditorGroup {
-		return this.stacksModel.groups[position];
+		return this.stacks.groups[position];
 	}
 
 	public activateGroup(position: Position): void {
@@ -968,7 +949,7 @@ export class EditorPart extends Part implements IEditorPart {
 		if (editor) {
 
 			// Update stacks model
-			this.stacksModel.setActive(this.groupAt(position));
+			this.stacks.setActive(this.groupAt(position));
 
 			// Update UI
 			this.sideBySideControl.setActive(editor);
@@ -1105,16 +1086,6 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 		}
 
-		// Input listeners
-		for (let i = 0; i < this.visibleInputListeners.length; i++) {
-			let listener = this.visibleInputListeners[i];
-			if (listener) {
-				listener();
-			}
-
-			this.visibleInputListeners = [];
-		}
-
 		// Pass to active editors
 		this.visibleEditors.forEach((editor) => {
 			if (editor) {
@@ -1245,11 +1216,27 @@ export class EditorPart extends Part implements IEditorPart {
 		if (this.pendingEditorInputCloseTimeout === null) {
 			this.pendingEditorInputCloseTimeout = setTimeout(() => {
 
-				// Close all
-				TPromise.join(this.pendingEditorInputsToClose
-					.sort((c1, c2) => c2.position - c1.position) 		// reduce layout work by starting right first
-					.map(c => this.closeEditor(c.position, c.input)))	// close input at position
-					.done(null, errors.onUnexpectedError);
+				// Split between active and inactive editors
+				const activeEditors: IEditorIdentifier[] = [];
+				const inactiveEditors: IEditorIdentifier[] = [];
+				this.pendingEditorInputsToClose.forEach(identifier => {
+					if (identifier.group.isActive(identifier.editor)) {
+						activeEditors.push(identifier);
+					} else {
+						inactiveEditors.push(identifier);
+					}
+				});
+
+				// Close all inactive first
+				TPromise.join(inactiveEditors.map(inactive => this.closeEditor(this.stacks.positionOfGroup(inactive.group), inactive.editor))).done(() => {
+
+					// Close active ones second
+					TPromise.join(activeEditors
+						.sort((a1, a2) => this.stacks.positionOfGroup(a2.group) - this.stacks.positionOfGroup(a1.group))	// reduce layout work by starting right first
+						.map(active => this.closeEditor(this.stacks.positionOfGroup(active.group), active.editor))
+					).done(null, errors.onUnexpectedError);
+
+				}, errors.onUnexpectedError);
 
 				// Reset
 				this.pendingEditorInputCloseTimeout = null;
@@ -1279,7 +1266,6 @@ export class EditorPart extends Part implements IEditorPart {
 			let to = <Position>arg2;
 
 			this.doRochade(this.visibleInputs, from, to, null);
-			this.doRochade(this.visibleInputListeners, from, to, null);
 			this.doRochade(this.visibleEditors, from, to, null);
 			this.doRochade(this.editorOpenToken, from, to, null);
 			this.doRochade(this.mapEditorInstantiationPromiseToEditor, from, to, Object.create(null));
@@ -1306,18 +1292,18 @@ export class EditorPart extends Part implements IEditorPart {
 			this.modifyGroups(() => {
 				for (let i = 0; i < position; i++) {
 					if (!this.hasGroup(i)) {
-						this.stacksModel.openGroup('', false, i);
+						this.stacks.openGroup('', false, i);
 					}
 				}
 
-				group = this.stacksModel.openGroup('', activate, position);
+				group = this.stacks.openGroup('', activate, position);
 			});
 		} else {
 			this.renameGroups(); // ensure group labels are proper
 		}
 
 		if (activate) {
-			this.stacksModel.setActive(group);
+			this.stacks.setActive(group);
 		}
 
 		return group;
@@ -1333,25 +1319,25 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private renameGroups(): void {
-		const groups = this.stacksModel.groups;
+		const groups = this.stacks.groups;
 		if (groups.length > 0) {
 
 			// LEFT | CENTER | RIGHT
 			if (groups.length > 2) {
-				this.stacksModel.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
-				this.stacksModel.renameGroup(this.groupAt(Position.CENTER), EditorPart.GROUP_CENTER_LABEL);
-				this.stacksModel.renameGroup(this.groupAt(Position.RIGHT), EditorPart.GROUP_RIGHT_LABEL);
+				this.stacks.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+				this.stacks.renameGroup(this.groupAt(Position.CENTER), EditorPart.GROUP_CENTER_LABEL);
+				this.stacks.renameGroup(this.groupAt(Position.RIGHT), EditorPart.GROUP_RIGHT_LABEL);
 			}
 
 			// LEFT | RIGHT
 			else if (groups.length > 1) {
-				this.stacksModel.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
-				this.stacksModel.renameGroup(this.groupAt(Position.CENTER), EditorPart.GROUP_RIGHT_LABEL);
+				this.stacks.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+				this.stacks.renameGroup(this.groupAt(Position.CENTER), EditorPart.GROUP_RIGHT_LABEL);
 			}
 
 			// LEFT
 			else {
-				this.stacksModel.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
+				this.stacks.renameGroup(this.groupAt(Position.LEFT), EditorPart.GROUP_LEFT_LABEL);
 			}
 		}
 	}

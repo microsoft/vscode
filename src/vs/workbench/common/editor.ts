@@ -53,6 +53,12 @@ export enum ConfirmResult {
 export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	private disposed: boolean;
 
+	constructor() {
+		super();
+		
+		this.disposed = false;
+	}
+
 	/**
 	 * Returns the unique id of this input.
 	 */
@@ -97,13 +103,6 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 
 	/**
-	 * Returns true if this input is identical to the otherInput.
-	 */
-	public matches(otherInput: any): boolean {
-		return this === otherInput;
-	}
-
-	/**
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
 	 * override to provide a meaningful model. The optional second argument allows to specify
 	 * if the EditorModel should be refreshed before returning it. Depending on the implementation
@@ -140,9 +139,17 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 
 	/**
-	 * Called when the editor is closed. Subclasses can free resources as needed.
+	 * Called when this input is no longer opened in any editor. Subclasses can free resources as needed.
 	 */
 	public close(): void {
+		this.dispose();
+	}
+
+	/**
+	 * Returns true if this input is identical to the otherInput.
+	 */
+	public matches(otherInput: any): boolean {
+		return this === otherInput;
 	}
 
 	/**
@@ -279,11 +286,6 @@ export abstract class BaseDiffEditorInput extends EditorInput {
 
 	public revert(): TPromise<boolean> {
 		return this._modifiedInput.revert();
-	}
-
-	public close(): void {
-		this._originalInput.close();
-		this._modifiedInput.close();
 	}
 }
 

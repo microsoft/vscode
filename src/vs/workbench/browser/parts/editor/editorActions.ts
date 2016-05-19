@@ -422,7 +422,7 @@ export class CloseEditorAction extends Action {
 			// Get Top Editor at Position
 			let visibleEditors = this.editorService.getVisibleEditors();
 			if (visibleEditors[position]) {
-				input = visibleEditors[position].input;
+				input = <EditorInput>visibleEditors[position].input;
 			}
 		}
 
@@ -555,7 +555,7 @@ export class CloseOtherEditorsInGroupAction extends Action {
 		const active = this.editorService.getActiveEditor();
 		if (active) {
 			position = typeof position === 'number' ? position : active.position;
-			input = input ? input : active.input;
+			input = input ? input : <EditorInput>active.input;
 		}
 
 		if (typeof position === 'number' && input) {

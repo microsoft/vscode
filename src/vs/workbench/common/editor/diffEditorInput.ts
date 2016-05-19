@@ -197,10 +197,6 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 			this.cachedModel = null;
 		}
 
-		// Delegate to Inputs
-		this.originalInput.dispose();
-		this.modifiedInput.dispose();
-
 		super.dispose();
 	}
 }

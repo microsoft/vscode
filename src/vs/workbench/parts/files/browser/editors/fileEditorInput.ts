@@ -275,6 +275,15 @@ export class FileEditorInput extends CommonFileEditorInput {
 		});
 	}
 
+	public close(): void {
+		let inputs: FileEditorInput[] = [this, ...FileEditorInput.getAll(this.resource)];
+		inputs.forEach(input => {
+			if (!input.isDisposed()) {
+				input.dispose(true);
+			}
+		});
+	}
+
 	private indexOfClient(): number {
 		if (!types.isUndefinedOrNull(FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()])) {
 			for (let i = 0; i < FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].length; i++) {

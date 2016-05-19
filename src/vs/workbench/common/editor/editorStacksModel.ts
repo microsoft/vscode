@@ -14,7 +14,8 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
-import {Position, Direction, IEditorInput} from 'vs/platform/editor/common/editor';
+import {Position, Direction} from 'vs/platform/editor/common/editor';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 
 export interface IEditorGroup {
 
@@ -72,7 +73,7 @@ export interface IEditorStacksModel {
 
 export interface IEditorIdentifier {
 	group: IEditorGroup;
-	editor: IEditorInput;
+	editor: EditorInput;
 }
 
 export type GroupIdentifier = number;
@@ -118,6 +119,7 @@ export class EditorGroup implements IEditorGroup {
 	private _onEditorActivated: Emitter<EditorInput>;
 	private _onEditorOpened: Emitter<EditorInput>;
 	private _onEditorClosed: Emitter<IGroupEvent>;
+	private _onEditorDisposed: Emitter<EditorInput>;
 	private _onEditorMoved: Emitter<EditorInput>;
 	private _onEditorPinned: Emitter<EditorInput>;
 	private _onEditorUnpinned: Emitter<EditorInput>;
@@ -142,12 +144,13 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
 		this._onEditorClosed = new Emitter<IGroupEvent>();
+		this._onEditorDisposed = new Emitter<EditorInput>();
 		this._onEditorMoved = new Emitter<EditorInput>();
 		this._onEditorPinned = new Emitter<EditorInput>();
 		this._onEditorUnpinned = new Emitter<EditorInput>();
 		this._onEditorChanged = new Emitter<EditorInput>();
 
-		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorChanged);
+		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorDisposed, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorChanged);
 	}
 
 	public get id(): GroupIdentifier {
@@ -176,6 +179,10 @@ export class EditorGroup implements IEditorGroup {
 
 	public get onEditorClosed(): Event<IGroupEvent> {
 		return this._onEditorClosed.event;
+	}
+
+	public get onEditorDisposed(): Event<EditorInput> {
+		return this._onEditorDisposed.event;
 	}
 
 	public get onEditorMoved(): Event<EditorInput> {
@@ -270,6 +277,21 @@ export class EditorGroup implements IEditorGroup {
 				this.preview = editor;
 			}
 
+			// Re-emit disposal of editor input as our own event
+			const l1 = editor.addOneTimeDisposableListener('dispose', () => {
+				if (this.indexOf(editor) >= 0) {
+					this._onEditorDisposed.fire(editor);
+				}
+			});
+
+			// Clean up dispose listeners once the editor gets closed
+			const l2 = this.onEditorClosed(event => {
+				if (event.editor.matches(editor)) {
+					l1.dispose();
+					l2.dispose();
+				}
+			});
+
 			// Event
 			this.fireEvent(this._onEditorOpened, editor);
 
@@ -325,9 +347,6 @@ export class EditorGroup implements IEditorGroup {
 			this.preview = null;
 			pinned = false;
 		}
-
-		// Close it
-		editor.close();
 
 		// Remove from arrays
 		this.splice(index, true);
@@ -587,6 +606,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupActivated: Emitter<EditorGroup>;
 	private _onGroupRenamed: Emitter<EditorGroup>;
 	private _onModelChanged: Emitter<EditorGroup>;
+	private _onEditorDisposed: Emitter<IEditorIdentifier>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -607,8 +627,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupMoved = new Emitter<EditorGroup>();
 		this._onGroupRenamed = new Emitter<EditorGroup>();
 		this._onModelChanged = new Emitter<EditorGroup>();
+		this._onEditorDisposed = new Emitter<IEditorIdentifier>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed);
 
 		this.registerListeners();
 	}
@@ -639,6 +660,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	public get onModelChanged(): Event<EditorGroup> {
 		return this._onModelChanged.event;
+	}
+
+	public get onEditorDisposed(): Event<IEditorIdentifier> {
+		return this._onEditorDisposed.event;
 	}
 
 	public get groups(): EditorGroup[] {
@@ -786,6 +811,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups.indexOf(group);
 	}
 
+	public positionOfGroup(group: IEditorGroup);
+	public positionOfGroup(group: EditorGroup);
 	public positionOfGroup(group: EditorGroup): Position {
 		return this.indexOf(group);
 	}
@@ -988,9 +1015,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Funnel editor changes in the group through our event aggregator
 		const l1 = group.onEditorChanged(e => this._onModelChanged.fire(group));
 		const l2 = group.onEditorClosed(e => this.onEditorClosed(e));
-		const l3 = this.onGroupClosed(g => {
+		const l3 = group.onEditorDisposed(editor => this._onEditorDisposed.fire({ editor, group }));
+		const l4 = this.onGroupClosed(g => {
 			if (g === group) {
-				dispose(l1, l2, l3);
+				dispose(l1, l2, l3, l4);
 			}
 		});
 
@@ -1009,21 +1037,39 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	private onEditorClosed(event: IGroupEvent): void {
-		if (!event.pinned) {
-			return; // we only care about pinned editors
-		}
-
 		const editor = event.editor;
-		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 
-		const factory = registry.getEditorInputFactory(editor.getId());
-		if (factory) {
-			let value = factory.serialize(editor);
-			if (typeof value === 'string') {
-				this.recentlyClosedEditors.push({ id: editor.getId(), value });
-				this.recentlyClosedEditors = this.recentlyClosedEditors.slice(0, 10); // upper bound of recently closed
+		// Close the editor when it is no longer open in any group
+		if (!this.isOpen(editor)) {
+			editor.close();
+
+			// Also take care of diff editor inputs that wrap around 2 editors
+			if (editor instanceof DiffEditorInput) {
+				[editor.getOriginalInput(), editor.getModifiedInput()].forEach(editor => {
+					if (!this.isOpen(editor)) {
+						editor.close();
+					}
+				});
 			}
 		}
+
+		// Track closing of pinned editor to support to reopen closed editors
+		if (event.pinned) {
+			const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
+
+			const factory = registry.getEditorInputFactory(editor.getId());
+			if (factory) {
+				let value = factory.serialize(editor);
+				if (typeof value === 'string') {
+					this.recentlyClosedEditors.push({ id: editor.getId(), value });
+					this.recentlyClosedEditors = this.recentlyClosedEditors.slice(0, 10); // upper bound of recently closed
+				}
+			}
+		}
+	}
+
+	private isOpen(editor: EditorInput): boolean {
+		return this._groups.some(g => g.indexOf(editor) >= 0);
 	}
 
 	private onShutdown(): void {
