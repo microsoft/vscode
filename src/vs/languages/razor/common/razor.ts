@@ -68,6 +68,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 
 	protected _registerSupports(): void {
 		Modes.HoverProviderRegistry.register(this.getId(), this);
+		Modes.ReferenceSearchRegistry.register(this.getId(), this);
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {

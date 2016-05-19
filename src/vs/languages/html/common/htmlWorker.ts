@@ -23,6 +23,7 @@ import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport'
 import paths = require('vs/base/common/paths');
 import {asWinJsPromise} from 'vs/base/common/async';
 import {provideHover} from 'vs/editor/contrib/hover/common/hover';
+import {findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -166,8 +167,8 @@ export class HTMLWorker {
 
 	public findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().referenceSupport) {
-				return model.getMode().referenceSupport.findReferences(model.getAssociatedResource(), position, includeDeclaration);
+			if (isEmbeddedMode) {
+				return findReferences(/*TODO*/<EditorCommon.IModel><any>model, Position.lift(position));
 			}
 		});
 	}

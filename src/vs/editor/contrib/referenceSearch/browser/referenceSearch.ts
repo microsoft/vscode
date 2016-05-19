@@ -69,14 +69,7 @@ export class ReferenceAction extends EditorAction {
 			return false;
 		}
 
-		let model = this.editor.getModel();
-		let position = this.editor.getSelection().getStartPosition();
-		let context = model.getLineContext(position.lineNumber);
-		let offset = position.column - 1;
-
-		return ReferenceSearchRegistry.all(model).some(support => {
-			return support.canFindReferences(context, offset);
-		});
+		return ReferenceSearchRegistry.has(this.editor.getModel());
 	}
 
 	public run():TPromise<boolean> {

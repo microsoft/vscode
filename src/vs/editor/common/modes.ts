@@ -216,11 +216,6 @@ export interface IMode {
 	declarationSupport?: IDeclarationSupport;
 
 	/**
-	 * Optional adapter to support finding references to a symbol.
-	 */
-	referenceSupport?:IReferenceSupport;
-
-	/**
 	 * Optional adapter to support intellisense.
 	 */
 	suggestSupport?:ISuggestSupport;
@@ -534,12 +529,6 @@ export interface IReference {
 export interface IReferenceSupport {
 
 	/**
-	 * @returns true if on the given line (and its tokens) at the given
-	 * 	offset reference search can be invoked.
-	 */
-	canFindReferences(context:ILineContext, offset:number):boolean;
-
-	/**
 	 * @returns a list of reference of the symbol at the position in the
 	 * 	given resource.
 	 */
@@ -816,7 +805,7 @@ export interface IRichEditSupport {
 
 // --- feature registries ------
 
-export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
+export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>(null);
 
 export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>(null);
 

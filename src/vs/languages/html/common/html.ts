@@ -18,7 +18,6 @@ import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {CancellationToken} from 'vs/base/common/cancellation';
@@ -292,7 +291,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	public richEditSupport: Modes.IRichEditSupport;
 	public linkSupport:Modes.ILinkSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
-	public referenceSupport: Modes.IReferenceSupport;
 	public formattingSupport: Modes.IFormattingSupport;
 	public suggestSupport: Modes.ISuggestSupport;
 	public configSupport: Modes.IConfigurationSupport;
@@ -318,9 +316,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.configSupport = this;
 		this.formattingSupport = this;
 		this.occurrencesSupport = this;
-		this.referenceSupport = new ReferenceSupport(this.getId(), {
-			tokens: ['invalid'],
-			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 
 		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
@@ -345,6 +340,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		}
 
 		Modes.HoverProviderRegistry.register(this.getId(), this);
+		Modes.ReferenceSearchRegistry.register(this.getId(), this);
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {

@@ -119,6 +119,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 
 	protected _registerSupports(): void {
 		Modes.HoverProviderRegistry.register(this.getId(), this);
+		Modes.ReferenceSearchRegistry.register(this.getId(), this);
 	}
 
 	protected _createRichEditSupport(): Modes.IRichEditSupport {

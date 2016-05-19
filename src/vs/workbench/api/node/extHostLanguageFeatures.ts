@@ -260,10 +260,6 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 		this._provider = provider;
 	}
 
-	canFindReferences(): boolean {
-		return true;
-	}
-
 	findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
@@ -926,9 +922,6 @@ export class MainThreadLanguageFeatures {
 
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.ReferenceSearchRegistry.register(selector, <modes.IReferenceSupport>{
-			canFindReferences() {
-				return true;
-			},
 			findReferences: (resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> => {
 				return this._proxy.$findReferences(handle, resource, position, includeDeclaration);
 			}

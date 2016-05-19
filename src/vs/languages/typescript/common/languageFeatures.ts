@@ -367,10 +367,6 @@ class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
 
 class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
 
-	canFindReferences(context: modes.ILineContext, offset: number): boolean {
-		return true;
-	}
-
 	findReferences(resource: URI, position: editor.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
 		return this._worker(resource).then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));

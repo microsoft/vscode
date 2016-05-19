@@ -284,7 +284,6 @@ export class CSSMode extends AbstractMode {
 	public richEditSupport: Modes.IRichEditSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public referenceSupport: Modes.IReferenceSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
@@ -336,9 +335,7 @@ export class CSSMode extends AbstractMode {
 		this.configSupport = this;
 		//this.occurrencesSupport = this;
 		Modes.HoverProviderRegistry.register(this.getId(), this);
-		// this.referenceSupport = new ReferenceSupport(this.getId(), {
-		// 	tokens: [cssTokenTypes.TOKEN_PROPERTY + '.css', cssTokenTypes.TOKEN_VALUE + '.css', cssTokenTypes.TOKEN_SELECTOR_TAG + '.css'],
-		// 	findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
+		// Modes.ReferenceSearchRegistry.register(this.getId(), this);
 		this.outlineSupport = this;
 		// this.declarationSupport = new DeclarationSupport(this.getId(), {
 		// 	tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],

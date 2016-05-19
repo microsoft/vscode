@@ -20,7 +20,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
-import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {CancellationToken} from 'vs/base/common/cancellation';
@@ -284,7 +283,6 @@ export class SASSMode extends Monarch.MonarchMode implements Modes.HoverProvider
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public referenceSupport: Modes.IReferenceSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public suggestSupport: Modes.ISuggestSupport;
@@ -310,9 +308,7 @@ export class SASSMode extends Monarch.MonarchMode implements Modes.HoverProvider
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
-		this.referenceSupport = new ReferenceSupport(this.getId(), {
-			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
-			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
+		Modes.ReferenceSearchRegistry.register(this.getId(), this);
 		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
