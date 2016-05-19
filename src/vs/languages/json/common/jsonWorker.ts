@@ -10,7 +10,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import HtmlContent = require('vs/base/common/htmlContent');
 import Parser = require('./parser/jsonParser');
-import JSONFormatter = require('vs/languages/json/common/features/jsonFormatter');
+import JSONFormatter = require('vs/base/common/jsonFormatter');
 import SchemaService = require('./jsonSchemaService');
 import JSONSchema = require('vs/base/common/jsonSchema');
 import JSONIntellisense = require('./jsonIntellisense');
@@ -412,8 +412,11 @@ export class JSONWorker {
 	}
 
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
-		var model = this.resourceService.get(resource);
-		return WinJS.TPromise.as(JSONFormatter.format(model, range, options));
+		let model = this.resourceService.get(resource);
+		let formatRange = range ? model.getOffsetAndLengthFromRange(range) : void 0;
+		let edits = JSONFormatter.format(model.getValue(), formatRange, { insertSpaces: options.insertSpaces, tabSize: options.tabSize, eol: model.getEOL() });
+		let operations = edits.map(e => ({ range: model.getRangeFromOffsetAndLength(e.offset, e.length), text: e.content }));
+		return WinJS.TPromise.as(operations);
 	}
 }
 

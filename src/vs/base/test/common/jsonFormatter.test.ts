@@ -4,46 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {Range} from 'vs/editor/common/core/range';
-import {Model} from 'vs/editor/common/model/model';
-import ModesTestUtils = require('vs/editor/test/common/modesTestUtils');
-import Formatter = require('vs/languages/json/common/features/jsonFormatter');
-import MirrorModel = require('vs/editor/common/model/mirrorModel');
+import Formatter = require('vs/base/common/jsonFormatter');
 import assert = require('assert');
 
 suite('JSON - formatter', () => {
 
-	function format(unformatted: string, expected: string, insertSpaces = true) {
-		var range : EditorCommon.IRange = null;
-
-		var mirrorModel = MirrorModel.createTestMirrorModelFromString(unformatted);
-
-		var rangeStart = unformatted.indexOf('|');
-		var rangeEnd = unformatted.lastIndexOf('|');
+	function format(content: string, expected: string, insertSpaces = true) {
+		let range = void 0;
+		var rangeStart = content.indexOf('|');
+		var rangeEnd = content.lastIndexOf('|');
 		if (rangeStart !== -1 && rangeEnd !== -1) {
-			unformatted = unformatted.substring(0, rangeStart) + unformatted.substring(rangeStart + 1, rangeEnd) + unformatted.substring(rangeEnd + 1);
-
-			var startPos = mirrorModel.getPositionFromOffset(rangeStart);
-			var endPos = mirrorModel.getPositionFromOffset(rangeEnd);
-			range = { startLineNumber: startPos.lineNumber, startColumn: startPos.column, endLineNumber: endPos.lineNumber, endColumn: endPos.column };
-			mirrorModel = MirrorModel.createTestMirrorModelFromString(unformatted);
+			content = content.substring(0, rangeStart) + content.substring(rangeStart + 1, rangeEnd) + content.substring(rangeEnd + 1);
+			range = { offset: rangeStart, length: rangeEnd - rangeStart };
 		}
 
-		var operations = Formatter.format(mirrorModel, range, { tabSize: 2, insertSpaces: insertSpaces });
+		var edits = Formatter.format(content, range, { tabSize: 2, insertSpaces: insertSpaces, eol: '\n' });
 
-		var model = new Model(unformatted, Model.DEFAULT_CREATION_OPTIONS, null);
-		model.pushEditOperations([], operations.map(o => {
-			return {
-				range: Range.lift(o.range),
-				text: o.text,
-				identifier: null,
-				forceMoveMarkers: false
-			};
-		}), () => []);
-		var newContent = model.getValue(EditorCommon.EndOfLinePreference.LF);
-		assert.equal(newContent, expected);
-		model.dispose();
+		let lastEditOffset = content.length;
+		for (let i = edits.length - 1; i >= 0; i--) {
+			let edit = edits[i];
+			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length)
+			assert(typeof edit.content === 'string');
+			assert(lastEditOffset >= edit.offset + edit.length); // make sure all edits are ordered
+			lastEditOffset = edit.offset;
+			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
+		}
+
+		assert.equal(content, expected);
 	}
 
 	test('object - single property', () => {
