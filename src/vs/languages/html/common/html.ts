@@ -289,7 +289,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 	public linkSupport:Modes.ILinkSupport;
-	public formattingSupport: Modes.IFormattingSupport;
 	public configSupport: Modes.IConfigurationSupport;
 
 	private modeService:IModeService;
@@ -311,7 +310,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, true);
 		this.linkSupport = this;
 		this.configSupport = this;
-		this.formattingSupport = this;
 
 		this.richEditSupport = this._createRichEditSupport();
 
@@ -338,6 +336,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			suggest: (resource, position) => this.suggest(resource, position)
 		});
 		Modes.OccurrencesRegistry.register(this.getId(), this);
+		Modes.FormatRegistry.register(this.getId(), this);
+		Modes.FormatOnTypeRegistry.register(this.getId(), this);
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {

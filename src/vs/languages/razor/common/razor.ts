@@ -62,8 +62,6 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		@IThreadService threadService: IThreadService
 	) {
 		super(descriptor, instantiationService, modeService, threadService);
-
-		this.formattingSupport = null;
 	}
 
 	protected _registerSupports(): void {

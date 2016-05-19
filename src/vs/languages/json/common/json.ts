@@ -26,7 +26,6 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 	public richEditSupport: Modes.IRichEditSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public formattingSupport: Modes.IFormattingSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<jsonWorker.JSONWorker>;
 	private _threadService:IThreadService;
@@ -72,7 +71,8 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 		// Initialize Outline support
 		Modes.OutlineRegistry.register(this.getId(), this);
 
-		this.formattingSupport = this;
+		Modes.FormatRegistry.register(this.getId(), this);
+		Modes.FormatOnTypeRegistry.register(this.getId(), this);
 
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],

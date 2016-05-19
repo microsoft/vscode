@@ -202,11 +202,6 @@ export interface IMode {
 	tokenizationSupport?: ITokenizationSupport;
 
 	/**
-	 * Optional adapter to support formatting.
-	 */
-	formattingSupport?:IFormattingSupport;
-
-	/**
 	 * Optional adapter to support inplace-replace.
 	 */
 	inplaceReplaceSupport?:IInplaceReplaceSupport;
@@ -796,6 +791,6 @@ export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>(nu
 
 export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>(null);
 
-export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
+export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>(null);
 
-export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
+export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>(null);

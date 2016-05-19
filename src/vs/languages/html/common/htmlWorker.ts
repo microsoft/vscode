@@ -69,13 +69,7 @@ export class HTMLWorker {
 	}
 
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
-		return this._delegateToModeAtPosition(resource, Position.startPosition(range), (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().formattingSupport) {
-				return model.getMode().formattingSupport.formatRange(model.getAssociatedResource(), range, options);
-			}
-
-			return this.formatHTML(resource, range, options);
-		});
+		return this.formatHTML(resource, range, options);
 	}
 
 	private formatHTML(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
