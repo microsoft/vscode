@@ -9,7 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent} from 'vs/editor/common/editorCommon';
-import {ParameterHintsRegistry, SignatureHelp} from 'vs/editor/common/modes';
+import {SignatureHelpProviderRegistry, SignatureHelp} from 'vs/editor/common/modes';
 import {provideSignatureHelp} from '../common/parameterHints';
 
 export interface IHintEvent {
@@ -45,7 +45,7 @@ export class ParameterHintsModel extends Disposable {
 		this._register(this.editor.addListener2(EventType.ModelChanged, e => this.onModelChanged()));
 		this._register(this.editor.addListener2(EventType.ModelModeChanged, _ => this.onModelChanged()));
 		this._register(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
-		this._register(ParameterHintsRegistry.onDidChange(this.onModelChanged, this));
+		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 		this.onModelChanged();
 	}
 
@@ -60,7 +60,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	public trigger(delay = ParameterHintsModel.DELAY): void {
-		if (!ParameterHintsRegistry.has(this.editor.getModel())) {
+		if (!SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
@@ -101,12 +101,12 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		let support = ParameterHintsRegistry.ordered(model)[0];
+		let support = SignatureHelpProviderRegistry.ordered(model)[0];
 		if (!support) {
 			return;
 		}
 
-		this.triggerCharactersListeners = support.parameterHintsTriggerCharacters.map((ch) => {
+		this.triggerCharactersListeners = support.signatureHelpTriggerCharacters.map((ch) => {
 			let listener = this.editor.addTypingListener(ch, () => {
 				this.trigger();
 			});

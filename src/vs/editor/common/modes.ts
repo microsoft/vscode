@@ -490,9 +490,9 @@ export interface SignatureHelp {
  * The signature help provider interface defines the contract between extensions and
  * the [parameter hints](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints)-feature.
  */
-export interface IParameterHintsSupport {
+export interface SignatureHelpProvider {
 
-	parameterHintsTriggerCharacters: string[];
+	signatureHelpTriggerCharacters: string[];
 
 	/**
 	 * Provide help for the signature at the given position and document.
@@ -822,7 +822,7 @@ export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>(null);
 
 export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
 
-export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>(null);
+export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>(null);
 
 export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>(null);
 

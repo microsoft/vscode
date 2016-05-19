@@ -586,7 +586,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 	}
 }
 
-class ParameterHintsAdapter {
+class SignatureHelpAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.SignatureHelpProvider;
@@ -612,7 +612,7 @@ class ParameterHintsAdapter {
 type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | HoverProviderAdapter
 	| OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
-	| SuggestAdapter | ParameterHintsAdapter;
+	| SuggestAdapter | SignatureHelpAdapter;
 
 @Remotable.ExtHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
@@ -832,13 +832,13 @@ export class ExtHostLanguageFeatures {
 
 	registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, triggerCharacters: string[]): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new ParameterHintsAdapter(this._documents, provider);
-		this._proxy.$registerParameterHintsSupport(handle, selector, triggerCharacters);
+		this._adapter[handle] = new SignatureHelpAdapter(this._documents, provider);
+		this._proxy.$registerSignatureHelpProvider(handle, selector, triggerCharacters);
 		return this._createDisposable(handle);
 	}
 
 	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
-		return this._withAdapter(handle, ParameterHintsAdapter, adapter => adapter.provideSignatureHelp(resource, position));
+		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(resource, position));
 	}
 }
 
@@ -1026,10 +1026,10 @@ export class MainThreadLanguageFeatures {
 
 	// --- parameter hints
 
-	$registerParameterHintsSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> {
-		this._registrations[handle] = modes.ParameterHintsRegistry.register(selector, <modes.IParameterHintsSupport>{
+	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> {
+		this._registrations[handle] = modes.SignatureHelpProviderRegistry.register(selector, <modes.SignatureHelpProvider>{
 
-			parameterHintsTriggerCharacters: triggerCharacter,
+			signatureHelpTriggerCharacters: triggerCharacter,
 
 			provideSignatureHelp: (model:IModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.SignatureHelp> => {
 				return wireCancellationToken(cancellationToken, this._proxy.$provideSignatureHelp(handle, model.getAssociatedResource(), position));

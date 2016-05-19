@@ -22,7 +22,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
-	disposables.push(modes.ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
+	disposables.push(modes.SignatureHelpProviderRegistry.register(selector, new SignatureHelpAdapter(modelService, worker)));
 	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
 	disposables.push(modes.OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(modes.DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
@@ -242,9 +242,9 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 	}
 }
 
-class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupport {
+class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvider {
 
-	public parameterHintsTriggerCharacters = ['(', ','];
+	public signatureHelpTriggerCharacters = ['(', ','];
 
 	provideSignatureHelp(model: editor.IModel, position: editor.IEditorPosition, token: CancellationToken): TPromise<modes.SignatureHelp> {
 		let resource = model.getAssociatedResource();
