@@ -505,7 +505,7 @@
     <entry name="::-webkit-meter-even-less-good-value" version="3.0" browsers="E13,C,O15,S6" />
     <entry name="::-webkit-meter-optimum-value" version="3.0" browsers="E13,C,O15,S6" />
     <entry name="::-webkit-meter-suboptimal-value" version="3.0" browsers="E13,C,O15,S6" />
-    <entry name="::-webkit-ouer-spin-button" version="3.0" browsers="C,O,S6" />
+    <entry name="::-webkit-outer-spin-button" version="3.0" browsers="C,O,S6" />
     <entry name="::-webkit-progress-bar" version="3.0" browsers="C,S3" />
     <entry name="::-webkit-progress-inner-element" version="3.0" browsers="C,S3" />
     <entry name="::-webkit-progress-value" version="3.0" browsers="C,S3" />
