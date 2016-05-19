@@ -76,7 +76,7 @@ export class CSSIntellisense {
 				this.getCompletionsForFunctionArguments(<nodes.FunctionArgument> node, result);
 			} else if (node instanceof nodes.FunctionDeclaration) {
 				this.getCompletionsForFunctionDeclaration(<nodes.FunctionDeclaration> node, result);
-			} else if (node instanceof nodes.VariableExpression) {
+			} else if (nodes.NodeType.VariableExpression === node.type) {
 				this.getVariableProposals(result, true);
 			}
 			if (result.length > 0) {

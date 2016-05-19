@@ -262,7 +262,7 @@ export class Parser {
 	}
 
 	public _parseRuleSetDeclaration() : nodes.Node {
-		return this._parseDeclaration() || this._parseVariableDeclaration();
+		return this._parseDeclaration() || this._parseCssVariableDeclaration();
 	}
 
 	public _needsSemicolonAfter(node: nodes.Node) : boolean {
@@ -322,10 +322,10 @@ export class Parser {
 	}
 
 	// Css variables: --font-size: 12px;
-	public _parseVariableDeclaration(panic:scanner.TokenType[]=[]): nodes.VariableDeclaration {
+	public _parseCssVariableDeclaration(panic:scanner.TokenType[]=[]): nodes.VariableDeclaration {
 		var node = <nodes.VariableDeclaration> this.create(nodes.VariableDeclaration);
 
-		if (!node.setVariable(this._parseVariable())) {
+		if (!node.setVariable(this._parseCssVariable())) {
 			return null;
 		}
 
@@ -976,25 +976,25 @@ export class Parser {
 		return null;
 	}
 
-	public _parseVariable(): nodes.Variable {
+	public _parseCssVariable(): nodes.Variable {
 		var node = <nodes.Variable> this.create(nodes.Variable);
-		if (!this.accept(scanner.TokenType.VariableName)) {
+		if (!this.accept(scanner.TokenType.CssVariableName)) {
 			return null;
 		}
 		return <nodes.Variable> node;
 	}
 
-	public _parseVariableExpression(): nodes.VariableExpression {
+	public _parseVariableExpression(): nodes.Node {
 		if (!this.accept(scanner.TokenType.Var)) {
 			return null;
 		}
 
-		var node = <nodes.VariableExpression> this.create(nodes.VariableExpression);
+		var node= this.createNode(nodes.NodeType.VariableExpression);
 		if (!this.accept(scanner.TokenType.ParenthesisL)) {
 			return this.finish(node, errors.ParseError.LeftParenthesisExpected);
 		}
 
-		if (!node.addChild(this._parseVariable())) {
+		if (!node.addChild(this._parseCssVariable())) {
 			return this.finish(node, errors.ParseError.VariableValueExpected);
 		}
 

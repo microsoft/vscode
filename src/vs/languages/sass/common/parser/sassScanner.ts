@@ -20,9 +20,9 @@ const _LAN = '<'.charCodeAt(0);
 const _RAN = '>'.charCodeAt(0);
 const _DOT = '.'.charCodeAt(0);
 
-export const VariableName = scanner.TokenType.VariableName;
-
 let customTokenValue = scanner.TokenType.CustomToken;
+
+export const VariableName = customTokenValue++;
 export const InterpolationFunction: scanner.TokenType = customTokenValue++;
 export const Default: scanner.TokenType = customTokenValue++;
 export const EqualsOperator: scanner.TokenType = customTokenValue++;
@@ -87,7 +87,7 @@ export class SassScanner extends scanner.Scanner {
 		// ellipis
 		if (this.stream.advanceIfChars([_DOT, _DOT, _DOT])) {
 			return this.finishToken(offset, Ellipsis);
-		}
+	}
 
 		return super.scan();
 	}

@@ -1168,17 +1168,6 @@ export class Interpolation extends Node {
 	}
 }
 
-export class VariableExpression extends Node {
-
-	constructor(offset:number, length:number) {
-		super(offset, length);
-	}
-
-	public get type():NodeType {
-		return NodeType.VariableExpression;
-	}
-}
-
 export class Variable extends Node {
 
 	constructor(offset:number, length:number) {
