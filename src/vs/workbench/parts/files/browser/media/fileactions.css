@@ -91,14 +91,6 @@
 	background: url('Refresh_inverse.svg') center center no-repeat;
 }
 
-.explorer-viewlet .explorer-folders-view .action-add-to-workingfiles {
-	background: url("add.svg") center center no-repeat;
-}
-
-.explorer-viewlet .explorer-folders-view .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-add-to-workingfiles {
-	background: url("add-focus.svg") center center no-repeat;
-}
-
 .explorer-viewlet .explorer-open-editors .close-editor-action {
 	background: url("action-close.svg") center center no-repeat;
 }
@@ -121,14 +113,6 @@
 
 .explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.selected:not(:hover) > .content.dirty > .monaco-action-bar .close-editor-action {
 	background: url("action-close-dirty-focus.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-folders-view .action-add-to-workingfiles {
-	background: url("add-inverse.svg") center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .explorer-viewlet .explorer-folders-view .focused .monaco-tree-row.selected:not(.highlighted) > .content .action-add-to-workingfiles {
-	background: url("add-focus.svg") center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .explorer-viewlet .explorer-open-editors .close-editor-action {

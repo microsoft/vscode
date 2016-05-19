@@ -14,7 +14,6 @@ import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editor
 import {IResult, ITextFileOperationResult, ITextFileService, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {EventType} from 'vs/workbench/common/events';
 import {ConfirmResult} from 'vs/workbench/common/editor';
-import {WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -32,7 +31,6 @@ export abstract class TextFileService implements ITextFileService {
 	public serviceId = ITextFileService;
 
 	private listenerToUnbind: ListenerUnbind[];
-	private _workingFilesModel: WorkingFilesModel;
 
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
 
@@ -62,14 +60,6 @@ export abstract class TextFileService implements ITextFileService {
 
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
 		return this._onAutoSaveConfigurationChange.event;
-	}
-
-	protected get workingFilesModel(): WorkingFilesModel {
-		if (!this._workingFilesModel) {
-			this._workingFilesModel = this.instantiationService.createInstance(WorkingFilesModel);
-		}
-
-		return this._workingFilesModel;
 	}
 
 	protected registerListeners(): void {
@@ -208,9 +198,6 @@ export abstract class TextFileService implements ITextFileService {
 					let clients = FileEditorInput.getAll(model.getResource());
 					clients.forEach((input) => input.dispose(true));
 
-					// also make sure to have it removed from any working files
-					this.workingFilesModel.removeEntry(model.getResource());
-
 					// store as successful revert
 					mapResourceToResult[model.getResource().toString()].success = true;
 				}
@@ -225,10 +212,6 @@ export abstract class TextFileService implements ITextFileService {
 				results: Object.keys(mapResourceToResult).map((k) => mapResourceToResult[k])
 			};
 		});
-	}
-
-	public getWorkingFilesModel(): WorkingFilesModel {
-		return this.workingFilesModel;
 	}
 
 	public getAutoSaveMode(): AutoSaveMode {
@@ -254,8 +237,6 @@ export abstract class TextFileService implements ITextFileService {
 		while (this.listenerToUnbind.length) {
 			this.listenerToUnbind.pop()();
 		}
-
-		this.workingFilesModel.dispose();
 
 		// Clear all caches
 		CACHE.clear();

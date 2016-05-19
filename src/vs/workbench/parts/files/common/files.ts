@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {guessMimeTypes} from 'vs/base/common/mime';
 import {IModel, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
@@ -35,11 +34,6 @@ export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
  * Binary file editor id.
  */
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
-
-/**
- * Marker ID for model entries.
- */
-export const WORKING_FILES_MODEL_ENTRY_CLASS_ID = 'workbench.workingFiles.model.entry.class';
 
 /**
  * API class to denote file editor inputs. Internal implementation is provided.
@@ -72,61 +66,6 @@ export interface IFilesConfiguration extends IFilesConfiguration {
 	editor: IEditorOptions;
 }
 
-export interface IWorkingFileModelChangeEvent {
-	added?: IWorkingFileEntry[];
-	removed?: IWorkingFileEntry[];
-}
-
-export interface IWorkingFilesModel {
-
-	onModelChange: Event<IWorkingFileModelChangeEvent>;
-
-	onWorkingFileChange: Event<IWorkingFileEntry>;
-
-	getEntries(excludeOutOfContext?: boolean): IWorkingFileEntry[];
-
-	first(): IWorkingFileEntry;
-	last(): IWorkingFileEntry;
-	next(start?: URI): IWorkingFileEntry;
-	previous(start?: URI): IWorkingFileEntry;
-
-	getOutOfWorkspaceContextEntries(): IWorkingFileEntry[];
-
-	count(): number;
-
-	addEntry(resource: URI): IWorkingFileEntry;
-	addEntry(stat: IFileStat): IWorkingFileEntry;
-	addEntry(entry: IWorkingFileEntry): IWorkingFileEntry;
-	addEntry(arg1: IFileStat | IWorkingFileEntry | URI): IWorkingFileEntry;
-
-	moveEntry(oldResource: URI, newResource: URI): void;
-
-	removeEntry(resource: URI): IWorkingFileEntry;
-	removeEntry(entry: IWorkingFileEntry): IWorkingFileEntry;
-	removeEntry(arg1: IWorkingFileEntry | URI): IWorkingFileEntry;
-
-	popLastClosedEntry(): IWorkingFileEntry;
-
-	reorder(source: IWorkingFileEntry, target: IWorkingFileEntry): void;
-
-	hasEntry(resource: URI): boolean;
-	findEntry(resource: URI): IWorkingFileEntry;
-
-	clear(): void;
-}
-
-export interface IWorkingFileEntry {
-	resource: URI;
-	index: number;
-	dirty: boolean;
-	CLASS_ID: string;
-	isFile: boolean;
-	isUntitled: boolean;
-
-	setIndex(index: number): void;
-	setDirty(dirty: boolean): void;
-}
-
 export interface IFileResource {
 	resource: URI;
 	isDirectory: boolean;
@@ -145,17 +84,6 @@ export function asFileResource(obj: any): IFileResource {
 			mimes: stat.mime ? stat.mime.split(', ') : [],
 			isDirectory: stat.isDirectory
 		};
-	}
-
-	if (obj && (<IWorkingFileEntry>obj).CLASS_ID === WORKING_FILES_MODEL_ENTRY_CLASS_ID) {
-		let entry = <IWorkingFileEntry>obj;
-		if (entry.isFile) {
-			return {
-				resource: entry.resource,
-				mimes: guessMimeTypes(entry.resource.fsPath),
-				isDirectory: false
-			};
-		}
 	}
 
 	return null;
@@ -371,11 +299,6 @@ export interface ITextFileService extends IDisposable {
 	 * confirming for all dirty resources.
 	 */
 	confirmSave(resources?: URI[]): ConfirmResult;
-
-	/**
-	 * Provides access to the list of working files.
-	 */
-	getWorkingFilesModel(): IWorkingFilesModel;
 
 	/**
 	 * Convinient fast access to the current auto save mode.

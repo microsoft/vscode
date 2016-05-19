@@ -106,10 +106,6 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	private onShutdown(): void {
-
-		// Propagate to working files model
-		this.workingFilesModel.shutdown();
-
 		super.dispose();
 	}
 

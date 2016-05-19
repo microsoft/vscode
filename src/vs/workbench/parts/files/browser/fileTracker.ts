@@ -457,8 +457,7 @@ export class FileTracker implements IWorkbenchContribution {
 		inputsContainingPath.forEach((input) => {
 			if (!input.isDisposed()) {
 				if (input instanceof FileEditorInput) {
-					let fileInputToDispose = <FileEditorInput>input;
-					fileInputToDispose.dispose(true /* force */);
+					input.dispose(true /* force */);
 				} else {
 					input.dispose();
 				}
