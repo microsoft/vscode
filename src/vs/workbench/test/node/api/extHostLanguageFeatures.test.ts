@@ -25,7 +25,7 @@ import {getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {OutlineRegistry} from 'vs/editor/common/modes';
 import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {getExtraInfoAtPosition} from 'vs/editor/contrib/hover/common/hover';
+import {provideHover} from 'vs/editor/contrib/hover/common/hover';
 import {getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
@@ -350,7 +350,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 	// --- extra info
 
-	test('ExtraInfo, word range at pos', function(done) {
+	test('HoverProvider, word range at pos', function(done) {
 
 		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
@@ -360,7 +360,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 
-			getExtraInfoAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			provideHover(model, new EditorPosition(1, 1)).then(value => {
 
 				assert.equal(value.length, 1);
 				let [entry] = value;
@@ -370,7 +370,7 @@ suite('ExtHostLanguageFeatures', function() {
 		});
 	});
 
-	test('ExtraInfo, given range', function(done) {
+	test('HoverProvider, given range', function(done) {
 
 		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
@@ -380,7 +380,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 
-			getExtraInfoAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			provideHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -389,7 +389,7 @@ suite('ExtHostLanguageFeatures', function() {
 		});
 	});
 
-	test('ExtraInfo, registration order', function(done) {
+	test('HoverProvider, registration order', function(done) {
 
 		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
@@ -406,7 +406,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 			threadService.sync().then(() => {
 
-				getExtraInfoAtPosition(model, new EditorPosition(1, 1)).then(value => {
+				provideHover(model, new EditorPosition(1, 1)).then(value => {
 					assert.equal(value.length, 2);
 					let [first, second] = value;
 					assert.equal(first.htmlContent[0].markdown, 'registered second');
@@ -419,7 +419,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 	});
 
-	test('ExtraInfo, evil provider', function(done) {
+	test('HoverProvider, evil provider', function(done) {
 
 		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
 			provideHover(): any {
@@ -434,7 +434,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 
-			getExtraInfoAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			provideHover(model, new EditorPosition(1, 1)).then(value => {
 
 				assert.equal(value.length, 1);
 				done();

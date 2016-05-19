@@ -178,12 +178,11 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 	}
 };
 
-export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
+export class LESSMode extends Monarch.MonarchMode implements Modes.HoverProvider, Modes.IOutlineSupport {
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
-	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public suggestSupport: Modes.ISuggestSupport;
@@ -206,7 +205,7 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 
 		this.modeService = modeService;
 
-		this.extraInfoSupport = this;
+		Modes.HoverProviderRegistry.register(this.getId(), this);
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {

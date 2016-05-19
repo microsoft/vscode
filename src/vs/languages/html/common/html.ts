@@ -291,7 +291,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 	public linkSupport:Modes.ILinkSupport;
-	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public formattingSupport: Modes.IFormattingSupport;
@@ -318,7 +317,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.linkSupport = this;
 		this.configSupport = this;
 		this.formattingSupport = this;
-		this.extraInfoSupport = this;
 		this.occurrencesSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: ['invalid'],
@@ -330,6 +328,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			suggest: (resource, position) => this.suggest(resource, position)});
 
 		this.richEditSupport = this._createRichEditSupport();
+
+		this._registerSupports();
 	}
 
 	public asyncCtor(): winjs.Promise {
@@ -337,6 +337,14 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			this.modeService.getOrCreateMode('text/css'),
 			this.modeService.getOrCreateMode('text/javascript'),
 		]);
+	}
+
+	protected _registerSupports(): void {
+		if (this.getId() !== 'html') {
+			throw new Error('This method must be overwritten!');
+		}
+
+		Modes.HoverProviderRegistry.register(this.getId(), this);
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {

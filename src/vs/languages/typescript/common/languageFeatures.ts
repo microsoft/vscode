@@ -23,7 +23,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
 	disposables.push(modes.ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
-	disposables.push(modes.ExtraInfoRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
+	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
 	disposables.push(modes.OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(modes.DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
 	disposables.push(modes.ReferenceSearchRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
@@ -293,7 +293,7 @@ class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupp
 
 // --- hover ------
 
-class QuickInfoAdapter extends Adapter implements modes.IExtraInfoSupport {
+class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
 	provideHover(model:editor.IModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): TPromise<modes.Hover> {
 		let resource = model.getAssociatedResource();

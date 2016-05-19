@@ -13,10 +13,10 @@ import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opene
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {IEditorRange, IRange} from 'vs/editor/common/editorCommon';
-import {ExtraInfoRegistry, Hover, IMode} from 'vs/editor/common/modes';
+import {HoverProviderRegistry, Hover, IMode} from 'vs/editor/common/modes';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {getExtraInfoAtPosition} from '../common/hover';
+import {provideHover} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
 import {CancellationToken} from 'vs/base/common/cancellation';
@@ -44,11 +44,11 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 	public computeAsync(cancellationToken:CancellationToken): Thenable<Hover[]> {
 
 		let model = this._editor.getModel();
-		if (!ExtraInfoRegistry.has(model)) {
+		if (!HoverProviderRegistry.has(model)) {
 			return TPromise.as(null);
 		}
 
-		return getExtraInfoAtPosition(model, new Position(
+		return provideHover(model, new Position(
 			this._range.startLineNumber,
 			this._range.startColumn
 		), cancellationToken);

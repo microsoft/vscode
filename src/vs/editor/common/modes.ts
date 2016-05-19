@@ -226,11 +226,6 @@ export interface IMode {
 	suggestSupport?:ISuggestSupport;
 
 	/**
-	 * Optional adapter to support showing extra info in tokens.
-	 */
-	extraInfoSupport?:IExtraInfoSupport;
-
-	/**
 	 * Optional adapter to support showing an outline.
 	 */
 	outlineSupport?:IOutlineSupport;
@@ -344,7 +339,7 @@ export interface Hover {
 	range: editorCommon.IRange;
 }
 
-export interface IExtraInfoSupport {
+export interface HoverProvider {
 	provideHover(model:editorCommon.IModel, position:editorCommon.IEditorPosition, cancellationToken:CancellationToken): Hover | Thenable<Hover>;
 }
 
@@ -829,7 +824,7 @@ export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('sug
 
 export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>(null);
 
-export const ExtraInfoRegistry = new LanguageFeatureRegistry<IExtraInfoSupport>('extraInfoSupport');
+export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>(null);
 
 export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
 

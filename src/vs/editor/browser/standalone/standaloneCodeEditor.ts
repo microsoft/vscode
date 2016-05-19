@@ -24,7 +24,7 @@ import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteT
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
-import {IExtraInfoSupport, IMode} from 'vs/editor/common/modes';
+import {HoverProvider, IMode} from 'vs/editor/common/modes';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -469,8 +469,8 @@ export function registerTokensProvider(languageId:string, support:modes.ITokeniz
 	return staticPlatformServices.modeService.registerTokenizationSupport2(languageId, support);
 }
 
-export function registerHoverProvider(languageId:string, support:IExtraInfoSupport): IDisposable {
-	return modes.ExtraInfoRegistry.register(languageId, support);
+export function registerHoverProvider(languageId:string, support:HoverProvider): IDisposable {
+	return modes.HoverProviderRegistry.register(languageId, support);
 }
 
 interface IMonacoWebWorkerState<T> {

@@ -66,6 +66,10 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		this.formattingSupport = null;
 	}
 
+	protected _registerSupports(): void {
+		Modes.HoverProviderRegistry.register(this.getId(), this);
+	}
+
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {
 		return new ModeWorkerManager<RAZORWorker>(descriptor, 'vs/languages/razor/common/razorWorker', 'RAZORWorker', 'vs/languages/html/common/htmlWorker', instantiationService);
 	}

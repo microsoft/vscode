@@ -189,7 +189,7 @@ class DeclarationAdapter implements modes.IDeclarationSupport {
 	}
 }
 
-class ExtraInfoAdapter {
+class HoverProviderAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.HoverProvider;
@@ -609,7 +609,7 @@ class ParameterHintsAdapter {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfoAdapter
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | HoverProviderAdapter
 	| OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | ParameterHintsAdapter;
@@ -698,13 +698,13 @@ export class ExtHostLanguageFeatures {
 
 	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new ExtraInfoAdapter(this._documents, provider);
-		this._proxy.$registerExtraInfoSupport(handle, selector);
+		this._adapter[handle] = new HoverProviderAdapter(this._documents, provider);
+		this._proxy.$registerHoverProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
 
 	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover> {
-		return this._withAdapter(handle, ExtraInfoAdapter, adpater => adpater.provideHover(resource, position));
+		return this._withAdapter(handle, HoverProviderAdapter, adpater => adpater.provideHover(resource, position));
 	}
 
 	// --- occurrences
@@ -902,8 +902,8 @@ export class MainThreadLanguageFeatures {
 
 	// --- extra info
 
-	$registerExtraInfoSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.ExtraInfoRegistry.register(selector, <modes.IExtraInfoSupport>{
+	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
 			provideHover: (model:IModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.Hover> => {
 				return wireCancellationToken(cancellationToken, this._proxy.$provideHover(handle, model.getAssociatedResource(), position));
 			}

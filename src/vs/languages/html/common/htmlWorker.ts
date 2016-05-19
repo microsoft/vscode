@@ -22,6 +22,7 @@ import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
 import {asWinJsPromise} from 'vs/base/common/async';
+import {provideHover} from 'vs/editor/contrib/hover/common/hover';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -153,9 +154,11 @@ export class HTMLWorker {
 
 	public provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().extraInfoSupport) {
+			if (isEmbeddedMode) {
 				return asWinJsPromise((token) => {
-					return model.getMode().extraInfoSupport.provideHover(/*TODO*/<EditorCommon.IModel><any>model, Position.lift(position), token);
+					return provideHover(/*TODO*/<EditorCommon.IModel><any>model, Position.lift(position), token).then((r) => {
+						return (r.length > 0 ? r[0] : null);
+					});
 				});
 			}
 		});

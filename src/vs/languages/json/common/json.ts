@@ -22,13 +22,12 @@ import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
 
-export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
+export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes.IOutlineSupport {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public formattingSupport: Modes.IFormattingSupport;
 	public suggestSupport: Modes.ISuggestSupport;
@@ -72,7 +71,7 @@ export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, M
 			}
 		});
 
-		this.extraInfoSupport = this;
+		Modes.HoverProviderRegistry.register(this.getId(), this);
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 

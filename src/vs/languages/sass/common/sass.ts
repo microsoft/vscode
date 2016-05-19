@@ -280,12 +280,11 @@ export var language = <Types.ILanguage>{
 	}
 };
 
-export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
+export class SASSMode extends Monarch.MonarchMode implements Modes.HoverProvider, Modes.IOutlineSupport {
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
-	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public suggestSupport: Modes.ISuggestSupport;
@@ -308,7 +307,7 @@ export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 
 		this.modeService = modeService;
 
-		this.extraInfoSupport = this;
+		Modes.HoverProviderRegistry.register(this.getId(), this);
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
