@@ -41,7 +41,6 @@ export class QuickOpenEntry {
 	private descriptionHighlights: IHighlight[];
 	private detailHighlights: IHighlight[];
 	private hidden: boolean;
-	private labelPrefix: string;
 
 	constructor(highlights: IHighlight[] = []) {
 		this.id = (IDS++).toString();
@@ -54,13 +53,6 @@ export class QuickOpenEntry {
 	 */
 	public getId(): string {
 		return this.id;
-	}
-
-	/**
-	 * The prefix to show in front of the label if any
-	 */
-	public getPrefix(): string {
-		return this.labelPrefix;
 	}
 
 	/**
@@ -125,13 +117,6 @@ export class QuickOpenEntry {
 	 */
 	public setHidden(hidden: boolean): void {
 		this.hidden = hidden;
-	}
-
-	/**
-	 * Sets the prefix to show in front of the label
-	 */
-	public setPrefix(prefix: string): void {
-		this.labelPrefix = prefix;
 	}
 
 	/**
@@ -373,10 +358,6 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		this.withBorder = showBorder;
 	}
 
-	public getPrefix(): string {
-		return this.entry ? this.entry.getPrefix() : super.getPrefix();
-	}
-
 	public getLabel(): string {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
@@ -476,7 +457,6 @@ export interface IQuickOpenEntryTemplateData {
 	container: HTMLElement;
 	entry: HTMLElement;
 	icon: HTMLSpanElement;
-	prefix: HTMLSpanElement;
 	label: HighlightedLabel;
 	detail: HighlightedLabel;
 	description: HighlightedLabel;
@@ -560,10 +540,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		let icon = document.createElement('span');
 		entry.appendChild(icon);
 
-		// Prefix
-		let prefix = document.createElement('span');
-		entry.appendChild(prefix);
-
 		// Label
 		let label = new HighlightedLabel(entry);
 
@@ -583,7 +559,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			container,
 			entry,
 			icon,
-			prefix,
 			label,
 			detail,
 			description,
@@ -653,10 +628,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
 			data.icon.className = iconClass;
 
-			// Prefix
-			let prefix = entry.getPrefix() || '';
-			data.prefix.textContent = prefix;
-
 			// Label
 			data.label.set(entry.getLabel(), labelHighlights || []);
 
@@ -686,7 +657,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.icon = null;
 			data.label.dispose();
 			data.label = null;
-			data.prefix = null;
 		}
 	}
 }
