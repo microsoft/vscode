@@ -342,7 +342,6 @@ export class CSSMode extends AbstractMode {
 
 		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
 			triggerCharacters: [' ', ':'],
-			excludeTokens: ['comment.css', 'string.css'],
 			suggest: (resource, position) => this.suggest(resource, position)
 		}));
 

@@ -373,6 +373,8 @@ export interface ISuggestResult {
  */
 export interface ISuggestSupport {
 
+	triggerCharacters: string[];
+
 	/**
 	 * Compute all completions for the given resource at the given position.
 	 */
@@ -384,7 +386,7 @@ export interface ISuggestSupport {
 	getSuggestionDetails?: (resource: URI, position: editorCommon.IPosition, suggestion: ISuggestion) => TPromise<ISuggestion>;
 
 	filter?: IFilter;
-	getTriggerCharacters(): string[];
+
 	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean;
 }
 

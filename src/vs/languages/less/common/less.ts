@@ -219,7 +219,6 @@ export class LESSMode extends AbstractMode implements Modes.HoverProvider, Modes
 
 		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
-			excludeTokens: ['comment.less', 'string.less'],
 			suggest: (resource, position) => this.suggest(resource, position)
 		}));
 

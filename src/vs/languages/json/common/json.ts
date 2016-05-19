@@ -88,7 +88,6 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 
 		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
-			excludeTokens: ['comment.line.json', 'comment.block.json'],
 			suggest: (resource, position) => this.suggest(resource, position)
 		}));
 	}

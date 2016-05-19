@@ -123,7 +123,6 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		Modes.ReferenceSearchRegistry.register(this.getId(), this);
 		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
-			excludeTokens: ['comment'],
 			suggest: (resource, position) => this.suggest(resource, position)
 		}));
 	}

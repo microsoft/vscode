@@ -7,9 +7,8 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IPosition} from 'vs/editor/common/editorCommon';
-import {ILineContext, IMode, ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
+import {ILineContext, ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
 import {IFilter, matchesStrictPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
-import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
@@ -19,49 +18,38 @@ import {localize} from 'vs/nls';
 export interface ISuggestContribution {
 	triggerCharacters: string[];
 	disableAutoTrigger?: boolean;
-	excludeTokens: string[];
 	suggest: (resource: URI, position: IPosition) => TPromise<ISuggestResult[]>;
 	getSuggestionDetails? : (resource:URI, position:IPosition, suggestion:ISuggestion) => TPromise<ISuggestion>;
 }
 
 export class SuggestSupport implements ISuggestSupport {
 
-	private _modeId: string;
-	private contribution: ISuggestContribution;
-
-	public suggest : (resource:URI, position:IPosition) => TPromise<ISuggestResult[]>;
+	public triggerCharacters: string[];
 	public getSuggestionDetails : (resource:URI, position:IPosition, suggestion:ISuggestion) => TPromise<ISuggestion>;
+
+	private _modeId: string;
+	private _contribution: ISuggestContribution;
 
 	constructor(modeId: string, contribution : ISuggestContribution){
 		this._modeId = modeId;
-		this.contribution = contribution;
-		this.suggest = (resource, position) => contribution.suggest(resource, position);
+		this._contribution = contribution;
+
+		this.triggerCharacters = this._contribution.triggerCharacters;
 
 		if (typeof contribution.getSuggestionDetails === 'function') {
 			this.getSuggestionDetails = (resource, position, suggestion) => contribution.getSuggestionDetails(resource, position, suggestion);
 		}
 	}
 
-	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean {
-		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
-				if (this.contribution.disableAutoTrigger) {
-					return false;
-				}
-				if (!Array.isArray(this.contribution.excludeTokens)) {
-					return true;
-				}
-				if (this.contribution.excludeTokens.length === 1 && this.contribution.excludeTokens[0] === '*') {
-					return false;
-				}
-				return !isLineToken(context, offset-1, this.contribution.excludeTokens, true);
-			}
-			return true;
-		});
+	public suggest(resource:URI, position:IPosition): TPromise<ISuggestResult[]> {
+		return this._contribution.suggest(resource, position);
 	}
 
-	public getTriggerCharacters(): string[] {
-		return this.contribution.triggerCharacters;
+	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean {
+		if (this._contribution.disableAutoTrigger) {
+			return false;
+		}
+		return true;
 	}
 }
 
@@ -79,6 +67,8 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		}
 	});
 	/* tslint:enable */
+
+	public triggerCharacters: string[] = [];
 
 	private _modeId: string;
 	private _editorWorkerService: IEditorWorkerService;
@@ -101,17 +91,8 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		return matchesStrictPrefix;
 	}
 
-	public getTriggerCharacters(): string[] {
-		return [];
-	}
-
 	public shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean {
-		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
-				return true;
-			}
-			return true;
-		});
+		return true;
 	}
 
 }

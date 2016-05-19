@@ -101,7 +101,7 @@ export class SuggestController implements IEditorContribution {
 			let groupTriggerCharacters: { [ch: string]: ISuggestSupport[] } = Object.create(null);
 
 			group.forEach(support => {
-				let localTriggerCharacters = support.getTriggerCharacters();
+				let localTriggerCharacters = support.triggerCharacters;
 				if (localTriggerCharacters) {
 					for (let ch of localTriggerCharacters) {
 						let array = groupTriggerCharacters[ch];

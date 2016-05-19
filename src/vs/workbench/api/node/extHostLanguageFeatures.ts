@@ -475,6 +475,8 @@ interface ISuggestion2 extends modes.ISuggestion {
 
 class SuggestAdapter implements modes.ISuggestSupport {
 
+	public triggerCharacters: string[] = [];
+
 	private _documents: ExtHostModelService;
 	private _provider: vscode.CompletionItemProvider;
 	private _cache: { [key: string]: CompletionList } = Object.create(null);
@@ -574,9 +576,6 @@ class SuggestAdapter implements modes.ISuggestSupport {
 		});
 	}
 
-	getTriggerCharacters(): string[] {
-		throw new Error('illegal state');
-	}
 	shouldAutotriggerSuggest(context: modes.ILineContext, offset: number, triggeredByCharacter: string): boolean {
 		throw new Error('illegal state');
 	}
@@ -1001,14 +1000,12 @@ export class MainThreadLanguageFeatures {
 
 	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[]): TPromise<any> {
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
+			triggerCharacters: triggerCharacters,
 			suggest: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.ISuggestResult[]> => {
 				return this._proxy.$suggest(handle, resource, position);
 			},
 			getSuggestionDetails: (resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> => {
 				return this._proxy.$getSuggestionDetails(handle, resource, position, suggestion);
-			},
-			getTriggerCharacters(): string[] {
-				return triggerCharacters;
 			},
 			shouldAutotriggerSuggest(): boolean {
 				return true;

@@ -320,7 +320,6 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 
 		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
-			excludeTokens: ['comment.sass', 'string.sass'],
 			suggest: (resource, position) => this.suggest(resource, position)
 		}));
 

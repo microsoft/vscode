@@ -211,7 +211,6 @@ class MarkdownSuggestSupport extends SuggestSupport {
 		super(modeId, {
 			triggerCharacters: [],
 			disableAutoTrigger: true,
-			excludeTokens: [],
 			suggest: (resource, position) => {
 				return editorWorkerService.textualSuggest(resource, position);
 			}

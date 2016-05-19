@@ -165,6 +165,8 @@ class DiagnostcsAdapter extends Adapter {
 
 class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 
+	public triggerCharacters: string[] = ['.'];
+
 	suggest(resource: URI, position: editor.IPosition, triggerCharacter?: string) {
 
 		const model = this._modelService.getModel(resource);
@@ -231,10 +233,6 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		}
 
 		return 'variable';
-	}
-
-	getTriggerCharacters(): string[] {
-		return ['.'];
 	}
 
 	shouldAutotriggerSuggest(context: modes.ILineContext, offset: number, triggeredByCharacter: string): boolean {
