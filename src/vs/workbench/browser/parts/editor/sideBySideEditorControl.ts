@@ -1025,7 +1025,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const toolbar = this.doCreateToolbar(div, position);
 			this.editorTitleToolbar[position] = toolbar;
 			this.editorTitleToolbar[position].setActions([this.closeEditorActions[position]])();
-			this.editorTitleToolbar[position].context = position;
+			const group = this.editorService.getStacksModel().getGroup(position);
+			this.editorTitleToolbar[position].context = { group };
 		});
 
 		// Left Title Labe
@@ -1046,7 +1047,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}, (div) => {
 			const toolbar = this.doCreateToolbar(div, position);
 			this.editorActionsToolbar[position] = toolbar;
-			this.editorActionsToolbar[position].context = position;
+			const group = this.editorService.getStacksModel().getGroup(position);
+			this.editorActionsToolbar[position].context = { group };
 		});
 	}
 
@@ -1173,7 +1175,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	public updateTitleArea(state: ITitleAreaState): void;
 	public updateTitleArea(input: EditorInput): void;
 	public updateTitleArea(arg1: any): void {
-
+		
 		// Update all title areas that relate to given input if provided
 		if (arg1 instanceof EditorInput) {
 			const input: EditorInput = arg1;
@@ -1209,6 +1211,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const activePosition = this.lastActivePosition;
 
 		states.forEach(state => {
+			const group = this.editorService.getStacksModel().groups[state.position];
+			this.editorTitleToolbar[state.position].context = { group };
+			this.editorActionsToolbar[state.position].context = { group };
 			let editor = this.visibleEditors[state.position];
 			let input = editor ? editor.input : null;
 

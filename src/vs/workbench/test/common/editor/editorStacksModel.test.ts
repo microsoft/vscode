@@ -1375,7 +1375,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(previous.editor, input6);
 
 		model.setActive(<EditorGroup>previous.group);
-		(<EditorGroup>previous.group).setActive(previous.editor);
+		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
 		let next = model.next();
 		assert.equal(next.group, group1);
@@ -1389,7 +1389,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(next.editor, input4);
 
 		model.setActive(<EditorGroup>next.group);
-		(<EditorGroup>next.group).setActive(next.editor);
+		(<EditorGroup>next.group).setActive(<EditorInput>next.editor);
 
 		previous = model.previous();
 		assert.equal(previous.group, group1);

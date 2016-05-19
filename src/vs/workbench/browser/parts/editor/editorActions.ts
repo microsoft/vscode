@@ -407,8 +407,8 @@ export class CloseEditorAction extends Action {
 		super(id, label, 'close-editor-action');
 	}
 
-	public run(position: Position): TPromise<any> {
-
+	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
+		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
 		// Close Active Editor
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
@@ -417,10 +417,17 @@ export class CloseEditorAction extends Action {
 			}
 		}
 
-		// Close Editor at Position
-		let visibleEditors = this.editorService.getVisibleEditors();
-		if (visibleEditors[position]) {
-			return this.editorService.closeEditor(position, visibleEditors[position].input);
+		let input = editorIdentifier ? editorIdentifier.editor : null;
+		if (!input) {
+			// Get Top Editor at Position
+			let visibleEditors = this.editorService.getVisibleEditors();
+			if (visibleEditors[position]) {
+				input = visibleEditors[position].input;
+			}
+		}
+
+		if (input) {
+			return this.editorService.closeEditor(position, input);
 		}
 
 		return TPromise.as(false);
@@ -436,7 +443,8 @@ export class CloseEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	public run(position: Position): TPromise<any> {
+	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
+		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -513,7 +521,8 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		super(id, label);
 	}
 
-	public run(position: Position): TPromise<any> {
+	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
+		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -538,10 +547,19 @@ export class CloseOtherEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
+		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
+		let input = editorIdentifier ? editorIdentifier.editor : null;
+
+		// If position or input are not passed in take the position and input of the active editor.
 		const active = this.editorService.getActiveEditor();
 		if (active) {
-			return this.editorService.closeEditors(active.position, active.input);
+			position = typeof position === 'number' ? position : active.position;
+			input = input ? input : active.input;
+		}
+
+		if (typeof position === 'number' && input) {
+			return this.editorService.closeEditors(position, input);
 		}
 
 		return TPromise.as(false);
@@ -557,7 +575,8 @@ export class CloseAllEditorsInGroupAction extends Action {
 		super(id, label, 'action-close-all-files');
 	}
 
-	public run(position: Position): TPromise<any> {
+	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
+		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -580,7 +599,8 @@ export class MoveGroupLeftAction extends Action {
 		super(id, label);
 	}
 
-	public run(position: Position): TPromise<any> {
+	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
+		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
@@ -608,7 +628,8 @@ export class MoveGroupRightAction extends Action {
 		super(id, label);
 	}
 
-	public run(position: Position): TPromise<any> {
+	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
+		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			let editors = this.editorService.getVisibleEditors();

@@ -14,7 +14,7 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
-import {Position, Direction} from 'vs/platform/editor/common/editor';
+import {Position, Direction, IEditorInput} from 'vs/platform/editor/common/editor';
 
 export interface IEditorGroup {
 
@@ -72,7 +72,7 @@ export interface IEditorStacksModel {
 
 export interface IEditorIdentifier {
 	group: IEditorGroup;
-	editor: EditorInput;
+	editor: IEditorInput;
 }
 
 export type GroupIdentifier = number;

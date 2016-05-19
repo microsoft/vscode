@@ -185,7 +185,7 @@ export class Renderer implements IRenderer {
 
 	private renderEditorGroup(tree: ITree, editorGroup: IEditorGroup, templateData: IOpenEditorTemplateData): void {
 		templateData.name.textContent = editorGroup.label;
-		templateData.actionBar.context = this.model.positionOfGroup(editorGroup);
+		templateData.actionBar.context = { group: editorGroup };
 	}
 
 	private renderOpenEditor(tree: ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
@@ -195,7 +195,7 @@ export class Renderer implements IRenderer {
 		templateData.root.title = resource ? resource.fsPath : '';
 		templateData.name.textContent = editor.editorInput.getName();
 		templateData.description.textContent = editor.editorInput.getDescription();
-		templateData.actionBar.context = this.model.positionOfGroup(editor.editorGroup);
+		templateData.actionBar.context = { group: editor.editorGroup, editor: editor.editorInput };
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
@@ -291,7 +291,8 @@ export class Controller extends treedefaults.DefaultController {
 		event.stopPropagation();
 
 		tree.setFocus(element);
-		const editorGroup = element instanceof EditorGroup ? element : (<OpenEditor>element).editorGroup;
+		const group = element instanceof EditorGroup ? element : (<OpenEditor>element).editorGroup;
+		const editor = element instanceof OpenEditor ? (<OpenEditor>element).editorInput : undefined;
 
 		let anchor = { x: event.posx + 1, y: event.posy };
 		this.contextMenuService.showContextMenu({
@@ -310,7 +311,7 @@ export class Controller extends treedefaults.DefaultController {
 					tree.DOMFocus();
 				}
 			},
-			getActionsContext: () => this.model.positionOfGroup(editorGroup)
+			getActionsContext: () => ({ group, editor })
 		});
 
 		return true;
