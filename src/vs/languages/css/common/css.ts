@@ -283,7 +283,6 @@ export class CSSMode extends AbstractMode {
 	public richEditSupport: Modes.IRichEditSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public quickFixSupport: Modes.IQuickFixSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<cssWorker.CSSWorker>;
 	private _threadService:IThreadService;
@@ -342,8 +341,7 @@ export class CSSMode extends AbstractMode {
 			suggest: (resource, position) => this.suggest(resource, position)
 		});
 
-
-		this.quickFixSupport = this;
+		Modes.QuickFixRegistry.register(this.getId(), this);
 	}
 
 	public creationDone(): void {

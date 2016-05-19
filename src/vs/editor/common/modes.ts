@@ -227,11 +227,6 @@ export interface IMode {
 	configSupport?:IConfigurationSupport;
 
 	/**
-	 * Optional adapter to support quick fix of typing errors.
-	 */
-	quickFixSupport?:IQuickFixSupport;
-
-	/**
 	 * Optional adapter to support task running
 	 */
 	taskSupport?: ITaskSupport;
@@ -799,7 +794,7 @@ export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSuppo
 
 export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>(null);
 
-export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>('quickFixSupport');
+export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>(null);
 
 export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
 
