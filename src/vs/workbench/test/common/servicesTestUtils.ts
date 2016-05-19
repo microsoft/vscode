@@ -30,6 +30,8 @@ import {BaseRequestService} from 'vs/platform/request/common/baseRequestService'
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
 import {EditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -282,9 +284,21 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	public activeEditorPosition;
 
 	private callback: (method: string) => void;
+	private stacksModel: EditorStacksModel;
 
 	constructor(callback?: (method: string) => void) {
 		this.callback = callback || ((s: string) => { });
+
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		services.set(WorkspaceContextService.IWorkspaceContextService, new TestContextService());
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		this.stacksModel = inst.createInstance(EditorStacksModel);
 	}
 
 	public openEditors(inputs): Promise {
@@ -387,7 +401,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	}
 
 	public getStacksModel(): EditorStacksModel {
-		return null;
+		return this.stacksModel;
 	}
 }
 
