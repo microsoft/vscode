@@ -14,7 +14,7 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, IWorkingFilesModel, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
@@ -38,7 +38,6 @@ export class FileTracker implements IWorkbenchContribution {
 	private static FILE_CHANGE_UPDATE_DELAY = 2000;
 
 	private lastDirtyCount: number;
-	private workingFiles: IWorkingFilesModel;
 
 	private toUnbind: { (): void; }[];
 
@@ -52,7 +51,6 @@ export class FileTracker implements IWorkbenchContribution {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		this.toUnbind = [];
-		this.workingFiles = textFileService.getWorkingFilesModel();
 
 		this.registerListeners();
 	}
@@ -64,7 +62,6 @@ export class FileTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Update editors and inputs from local changes and saves
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorInputEvent) => this.onEditorInputChanged(e)));
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledEditorDeleted(e)));
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledEditorDirty(e)));
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
@@ -76,10 +73,6 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Update editors and inputs from disk changes
 		this.toUnbind.push(this.eventService.addListener(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
-	}
-
-	private onEditorInputChanged(e: EditorInputEvent): void {
-		this.disposeTextFileModels();
 	}
 
 	private onTextFileDirty(e: TextFileChangeEvent): void {
@@ -490,24 +483,13 @@ export class FileTracker implements IWorkbenchContribution {
 		return false;
 	}
 
-	private disposeTextFileModels(): void {
-
-		// To not grow our text file model cache infinitly, we dispose models that
-		// are not showing up in any editor and are not in the working file set or dirty.
-
-		// Get all cached file models
-		CACHE.getAll()
-
-			// Only take text file models and remove those that are under working files or opened
-			.filter((model) => !this.workingFiles.hasEntry(model.getResource()) && this.canDispose(model))
-
-			// Dispose
-			.forEach((model) => CACHE.dispose(model.getResource()));
-	}
-
 	private canDispose(textModel: TextFileEditorModel): boolean {
 		if (!textModel) {
 			return false; // we need data!
+		}
+
+		if (textModel.isDisposed()) {
+			return false; // already disposed
 		}
 
 		if (textModel.textEditorModel && textModel.textEditorModel.isAttachedToEditor()) {
