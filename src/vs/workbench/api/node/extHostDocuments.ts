@@ -631,7 +631,7 @@ export class MainThreadDocuments {
 		this._resourceContentProvider[handle] = ResourceEditorInput.registerResourceContentProvider(scheme, {
 			provideTextContent: (uri: URI): TPromise<EditorCommon.IModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
-					if (value) {
+					if (typeof value === 'string') {
 						this._virtualDocumentSet[uri.toString()] = true;
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
 						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
