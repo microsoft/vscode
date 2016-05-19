@@ -183,7 +183,7 @@
 }
 
 .vs-dark .monaco-workbench .close-editor-decorated-action {
-	background: url('close-decorated-dark.svg') center center no-repeat;
+	background: url('close-decorated-inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .split-editor-action {
