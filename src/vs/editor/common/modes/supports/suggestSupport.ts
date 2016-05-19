@@ -7,51 +7,13 @@
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IPosition} from 'vs/editor/common/editorCommon';
-import {ILineContext, ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
+import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
 import {IFilter, matchesStrictPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
 import {localize} from 'vs/nls';
-
-export interface ISuggestContribution {
-	triggerCharacters: string[];
-	disableAutoTrigger?: boolean;
-	suggest: (resource: URI, position: IPosition) => TPromise<ISuggestResult[]>;
-	getSuggestionDetails? : (resource:URI, position:IPosition, suggestion:ISuggestion) => TPromise<ISuggestion>;
-}
-
-export class SuggestSupport implements ISuggestSupport {
-
-	public triggerCharacters: string[];
-	public getSuggestionDetails : (resource:URI, position:IPosition, suggestion:ISuggestion) => TPromise<ISuggestion>;
-
-	private _modeId: string;
-	private _contribution: ISuggestContribution;
-
-	constructor(modeId: string, contribution : ISuggestContribution){
-		this._modeId = modeId;
-		this._contribution = contribution;
-
-		this.triggerCharacters = this._contribution.triggerCharacters;
-
-		if (typeof contribution.getSuggestionDetails === 'function') {
-			this.getSuggestionDetails = (resource, position, suggestion) => contribution.getSuggestionDetails(resource, position, suggestion);
-		}
-	}
-
-	public suggest(resource:URI, position:IPosition): TPromise<ISuggestResult[]> {
-		return this._contribution.suggest(resource, position);
-	}
-
-	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean {
-		if (this._contribution.disableAutoTrigger) {
-			return false;
-		}
-		return true;
-	}
-}
 
 export class TextualSuggestSupport implements ISuggestSupport {
 
@@ -68,7 +30,17 @@ export class TextualSuggestSupport implements ISuggestSupport {
 	});
 	/* tslint:enable */
 
-	public triggerCharacters: string[] = [];
+	public get triggerCharacters(): string[] {
+		return [];
+	}
+
+	public get shouldAutotriggerSuggest(): boolean {
+		return true;
+	}
+
+	public get filter(): IFilter {
+		return matchesStrictPrefix;
+	}
 
 	private _modeId: string;
 	private _editorWorkerService: IEditorWorkerService;
@@ -86,15 +58,6 @@ export class TextualSuggestSupport implements ISuggestSupport {
 			? this._editorWorkerService.textualSuggest(resource, position)
 			: TPromise.as([]);
 	}
-
-	public get filter(): IFilter {
-		return matchesStrictPrefix;
-	}
-
-	public shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean {
-		return true;
-	}
-
 }
 
 export function filterSuggestions(value: ISuggestResult): ISuggestResult[] {

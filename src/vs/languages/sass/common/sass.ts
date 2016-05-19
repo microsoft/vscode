@@ -19,7 +19,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -318,10 +317,11 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;
 
-		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
+		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
+			shouldAutotriggerSuggest: true,
 			suggest: (resource, position) => this.suggest(resource, position)
-		}));
+		});
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 

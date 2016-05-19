@@ -80,10 +80,8 @@ class Context {
 			}
 		}
 
-		const lineContext = model.getLineContext(position.lineNumber);
-		const character = model.getLineContent(position.lineNumber).charAt(position.column - 1);
 		const supports = SuggestRegistry.all(model);
-		this.isAutoTriggerEnabled = supports.some(s => s.shouldAutotriggerSuggest(lineContext, position.column - 1, character));
+		this.isAutoTriggerEnabled = supports.some(s => s.shouldAutotriggerSuggest);
 	}
 
 	public shouldAutoTrigger(): boolean {

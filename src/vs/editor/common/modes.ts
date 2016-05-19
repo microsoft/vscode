@@ -375,6 +375,10 @@ export interface ISuggestSupport {
 
 	triggerCharacters: string[];
 
+	shouldAutotriggerSuggest: boolean;
+
+	filter?: IFilter;
+
 	/**
 	 * Compute all completions for the given resource at the given position.
 	 */
@@ -384,10 +388,6 @@ export interface ISuggestSupport {
 	 * Compute more details for the given suggestion.
 	 */
 	getSuggestionDetails?: (resource: URI, position: editorCommon.IPosition, suggestion: ISuggestion) => TPromise<ISuggestion>;
-
-	filter?: IFilter;
-
-	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean;
 }
 
 /**

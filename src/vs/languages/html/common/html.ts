@@ -18,7 +18,6 @@ import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -335,10 +334,11 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		Modes.ReferenceSearchRegistry.register(this.getId(), this);
-		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
+		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
+			shouldAutotriggerSuggest: true,
 			suggest: (resource, position) => this.suggest(resource, position)
-		}));
+		});
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {

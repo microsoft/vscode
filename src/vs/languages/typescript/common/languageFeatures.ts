@@ -165,7 +165,13 @@ class DiagnostcsAdapter extends Adapter {
 
 class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 
-	public triggerCharacters: string[] = ['.'];
+	public get triggerCharacters(): string[] {
+		return ['.'];
+	}
+
+	public get shouldAutotriggerSuggest(): boolean {
+		return true;
+	}
 
 	suggest(resource: URI, position: editor.IPosition, triggerCharacter?: string) {
 
@@ -233,10 +239,6 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		}
 
 		return 'variable';
-	}
-
-	shouldAutotriggerSuggest(context: modes.ILineContext, offset: number, triggeredByCharacter: string): boolean {
-		return true;
 	}
 }
 

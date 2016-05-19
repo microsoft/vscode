@@ -19,7 +19,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
 
@@ -340,10 +339,11 @@ export class CSSMode extends AbstractMode {
 		// 	tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
 		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
+		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [' ', ':'],
+			shouldAutotriggerSuggest: true,
 			suggest: (resource, position) => this.suggest(resource, position)
-		}));
+		});
 
 
 		this.quickFixSupport = this;

@@ -23,7 +23,6 @@ import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMo
 import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export const language =
 	<Types.ILanguage>{
@@ -205,20 +204,6 @@ export const language =
 		}
 	};
 
-class MarkdownSuggestSupport extends SuggestSupport {
-
-	constructor(modeId:string, modelService: IModelService, editorWorkerService: IEditorWorkerService) {
-		super(modeId, {
-			triggerCharacters: [],
-			disableAutoTrigger: true,
-			suggest: (resource, position) => {
-				return editorWorkerService.textualSuggest(resource, position);
-			}
-		});
-	}
-
-}
-
 export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSupport {
 
 	public emitOutputSupport: Modes.IEmitOutputSupport;
@@ -251,11 +236,13 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 
-		Modes.SuggestRegistry.register(this.getId(), new MarkdownSuggestSupport(
-			this.getId(),
-			modelService,
-			editorWorkerService
-		));
+		Modes.SuggestRegistry.register(this.getId(), {
+			triggerCharacters: [],
+			shouldAutotriggerSuggest: false,
+			suggest: (resource, position) => {
+				return editorWorkerService.textualSuggest(resource, position);
+			}
+		});
 	}
 
 	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {

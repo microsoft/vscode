@@ -129,11 +129,8 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private triggerCharacterHandler(character: string, groups: ISuggestSupport[][]): void {
-		const position = this.editor.getPosition();
-		const lineContext = this.editor.getModel().getLineContext(position.lineNumber);
-
 		groups = groups.map(supports => {
-			return supports.filter(support => support.shouldAutotriggerSuggest(lineContext, position.column - 1, character));
+			return supports.filter(support => support.shouldAutotriggerSuggest);
 		});
 
 		if (groups.length > 0) {
