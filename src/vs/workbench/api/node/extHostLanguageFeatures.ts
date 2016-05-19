@@ -152,7 +152,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 	}
 }
 
-class DeclarationAdapter implements modes.IDeclarationSupport {
+class DefinitionAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.DefinitionProvider;
@@ -162,24 +162,24 @@ class DeclarationAdapter implements modes.IDeclarationSupport {
 		this._provider = provider;
 	}
 
-	findDeclaration(resource: URI, position: IPosition): TPromise<modes.IReference[]> {
+	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(DeclarationAdapter._convertLocation);
+				return value.map(DefinitionAdapter._convertLocation);
 			} else if (value) {
-				return DeclarationAdapter._convertLocation(value);
+				return DefinitionAdapter._convertLocation(value);
 			}
 		});
 	}
 
-	private static _convertLocation(location: vscode.Location): modes.IReference {
+	private static _convertLocation(location: vscode.Location): modes.Location {
 		if (!location) {
 			return;
 		}
-		return <modes.IReference>{
-			resource: location.uri,
+		return <modes.Location>{
+			uri: location.uri,
 			range: TypeConverters.fromRange(location.range)
 		};
 	}
@@ -256,7 +256,7 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 		this._provider = provider;
 	}
 
-	findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
+	findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.Location[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
@@ -267,9 +267,9 @@ class ReferenceAdapter implements modes.IReferenceSupport {
 		});
 	}
 
-	private static _convertLocation(location: vscode.Location): modes.IReference {
-		return <modes.IReference>{
-			resource: location.uri,
+	private static _convertLocation(location: vscode.Location): modes.Location {
+		return <modes.Location>{
+			uri: location.uri,
 			range: TypeConverters.fromRange(location.range)
 		};
 	}
@@ -594,7 +594,7 @@ class SignatureHelpAdapter {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | HoverAdapter
+type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter;
@@ -670,13 +670,13 @@ export class ExtHostLanguageFeatures {
 
 	registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new DeclarationAdapter(this._documents, provider);
+		this._adapter[handle] = new DefinitionAdapter(this._documents, provider);
 		this._proxy.$registerDeclaractionSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
 
-	$findDeclaration(handle: number, resource: URI, position: IPosition): TPromise<modes.IReference[]> {
-		return this._withAdapter(handle, DeclarationAdapter, adapter => adapter.findDeclaration(resource, position));
+	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
+		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(resource, position));
 	}
 
 	// --- extra info
@@ -714,7 +714,7 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$findReferences(handle: number, resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
+	$findReferences(handle: number, resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.Location[]> {
 		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.findReferences(resource, position, includeDeclaration));
 	}
 
@@ -874,9 +874,9 @@ export class MainThreadLanguageFeatures {
 	// --- declaration
 
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.DeclarationRegistry.register(selector, <modes.IDeclarationSupport>{
-			findDeclaration: (resource: URI, position: IPosition): TPromise<modes.IReference[]> => {
-				return this._proxy.$findDeclaration(handle, resource, position);
+		this._registrations[handle] = modes.DefinitionProviderRegistry.register(selector, <modes.DefinitionProvider>{
+			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.getAssociatedResource(), position));
 			}
 		});
 		return undefined;
@@ -908,7 +908,7 @@ export class MainThreadLanguageFeatures {
 
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.ReferenceSearchRegistry.register(selector, <modes.IReferenceSupport>{
-			findReferences: (resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> => {
+			findReferences: (resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<modes.Location[]> => {
 				return this._proxy.$findReferences(handle, resource, position, includeDeclaration);
 			}
 		});

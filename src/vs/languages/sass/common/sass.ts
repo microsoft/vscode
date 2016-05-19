@@ -8,8 +8,8 @@ import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import winjs = require('vs/base/common/winjs.base');
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import editorCommon = require('vs/editor/common/editorCommon');
+import modes = require('vs/editor/common/modes');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
 import {ModeWorkerManager, AbstractMode} from 'vs/editor/common/modes/abstractMode';
@@ -19,7 +19,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
@@ -279,19 +278,19 @@ export var language = <Types.ILanguage>{
 	}
 };
 
-export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes.IOutlineSupport {
+export class SASSMode extends AbstractMode implements modes.IOutlineSupport {
 
-	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public configSupport:Modes.IConfigurationSupport;
-	public tokenizationSupport: Modes.ITokenizationSupport;
-	public richEditSupport: Modes.IRichEditSupport;
+	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
+	public configSupport:modes.IConfigurationSupport;
+	public tokenizationSupport: modes.ITokenizationSupport;
+	public richEditSupport: modes.IRichEditSupport;
 
 	private modeService: IModeService;
 	private _modeWorkerManager: ModeWorkerManager<sassWorker.SassWorker>;
 	private _threadService:IThreadService;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
@@ -305,20 +304,32 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 
 		this.modeService = modeService;
 
-		Modes.HoverProviderRegistry.register(this.getId(), this);
-		this.inplaceReplaceSupport = this;
-		this.configSupport = this;
-		Modes.ReferenceSearchRegistry.register(this.getId(), this);
-		Modes.DeclarationRegistry.register(this.getId(), {
-			findDeclaration: (resource, position) => this.findDeclaration(resource, position)
+		modes.HoverProviderRegistry.register(this.getId(), {
+			provideHover: (model, position, token): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+			}
 		});
-		Modes.OutlineRegistry.register(this.getId(), this);
 
-		Modes.SuggestRegistry.register(this.getId(), {
+		this.inplaceReplaceSupport = this;
+
+		this.configSupport = this;
+
+		modes.ReferenceSearchRegistry.register(this.getId(), this);
+
+		modes.DefinitionProviderRegistry.register(this.getId(), {
+			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._provideDefinition(model.getAssociatedResource(), position));
+			}
+		});
+
+		modes.OutlineRegistry.register(this.getId(), this);
+
+		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
-		});
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+			}		});
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
@@ -350,7 +361,7 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 	}
 
 	static $navigateValueSet = OneWorkerAttr(SASSMode, SASSMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, position:editorCommon.IRange, up:boolean):winjs.TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
@@ -360,40 +371,32 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 	}
 
 	static $findReferences = OneWorkerAttr(SASSMode, SASSMode.prototype.findReferences);
-	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
-	public provideCompletionItems(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, token:CancellationToken): Thenable<Modes.ISuggestResult[]> {
-		return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
-	}
-
 	static $_provideCompletionItems = OneWorkerAttr(SASSMode, SASSMode.prototype._provideCompletionItems);
-	private _provideCompletionItems(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+	private _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
-	public provideHover(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, token:CancellationToken): Thenable<Modes.Hover> {
-		return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
-	}
-
 	static $_provideHover = OneWorkerAttr(SASSMode, SASSMode.prototype._provideHover);
-	private _provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
+	private _provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(SASSMode, SASSMode.prototype.getOutline);
-	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):winjs.TPromise<modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
 	}
 
-	static $findDeclaration = OneWorkerAttr(SASSMode, SASSMode.prototype.findDeclaration);
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
-		return this._worker((w) => w.findDeclaration(resource, position));
+	static $_provideDefinition = OneWorkerAttr(SASSMode, SASSMode.prototype._provideDefinition);
+	private _provideDefinition(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Definition> {
+		return this._worker((w) => w.provideDefinition(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(SASSMode, SASSMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:editorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 }

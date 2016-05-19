@@ -9,15 +9,15 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IReference, ReferenceSearchRegistry} from 'vs/editor/common/modes';
+import {Location, ReferenceSearchRegistry} from 'vs/editor/common/modes';
 
-export function findReferences(model: IReadOnlyModel, position: IPosition): TPromise<IReference[]> {
+export function findReferences(model: IReadOnlyModel, position: IPosition): TPromise<Location[]> {
 
 	// collect references from all providers
 	const promises = ReferenceSearchRegistry.ordered(model).map(provider => {
 		return provider.findReferences(model.getAssociatedResource(), position, true).then(result => {
 			if (Array.isArray(result)) {
-				return <IReference[]> result;
+				return <Location[]> result;
 			}
 		}, err => {
 			onUnexpectedError(err);
@@ -25,7 +25,7 @@ export function findReferences(model: IReadOnlyModel, position: IPosition): TPro
 	});
 
 	return TPromise.join(promises).then(references => {
-		let result: IReference[] = [];
+		let result: Location[] = [];
 		for (let ref of references) {
 			if (ref) {
 				result.push(...ref);

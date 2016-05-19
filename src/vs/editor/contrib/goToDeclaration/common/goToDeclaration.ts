@@ -7,19 +7,21 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {DeclarationRegistry} from 'vs/editor/common/modes';
-import {IReference} from 'vs/editor/common/modes';
+import {DefinitionProviderRegistry} from 'vs/editor/common/modes';
+import {Location} from 'vs/editor/common/modes';
+import {asWinJsPromise} from 'vs/base/common/async';
 
-export function getDeclarationsAtPosition(model: IReadOnlyModel, position: IPosition): TPromise<IReference[]> {
+export function getDeclarationsAtPosition(model: IReadOnlyModel, position: IEditorPosition): TPromise<Location[]> {
 
-	const resource = model.getAssociatedResource();
-	const provider = DeclarationRegistry.ordered(model);
+	const provider = DefinitionProviderRegistry.ordered(model);
 
 	// get results
 	const promises = provider.map((provider, idx) => {
-		return provider.findDeclaration(resource, position).then(result => {
+		return asWinJsPromise((token) => {
+			return provider.provideDefinition(model, position, token);
+		}).then(result => {
 			return result;
 		}, err => {
 			onUnexpectedError(err);
@@ -27,7 +29,7 @@ export function getDeclarationsAtPosition(model: IReadOnlyModel, position: IPosi
 	});
 
 	return TPromise.join(promises).then(allReferences => {
-		let result: IReference[] = [];
+		let result: Location[] = [];
 		for (let references of allReferences) {
 			if (Array.isArray(references)) {
 				result.push(...references);

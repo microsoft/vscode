@@ -411,14 +411,6 @@ export interface DocumentHighlightProvider {
 
 
 /**
- * Interface used to find declarations on a symbol
- */
-export interface IReference {
-	resource: URI;
-	range: editorCommon.IRange;
-}
-
-/**
  * Interface used to find references to a symbol
  */
 export interface IReferenceSupport {
@@ -427,15 +419,18 @@ export interface IReferenceSupport {
 	 * @returns a list of reference of the symbol at the position in the
 	 * 	given resource.
 	 */
-	findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean):TPromise<IReference[]>;
+	findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean):TPromise<Location[]>;
 }
 
-/**
- * Interface used to find declarations on a symbol
- */
-export interface IDeclarationSupport {
-	findDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference|IReference[]>;
+export class Location {
+	uri: URI;
+	range: editorCommon.IRange;
 }
+export type Definition = Location | Location[];
+export interface DefinitionProvider {
+	provideDefinition(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Definition | Thenable<Definition>;
+}
+
 
 /**
  * Interface used to compute an outline
@@ -712,7 +707,7 @@ export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>();
 
 export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
 
-export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>();
+export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
 
 export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>();
 

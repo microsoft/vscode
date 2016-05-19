@@ -25,7 +25,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IReference, DeclarationRegistry} from 'vs/editor/common/modes';
+import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -62,7 +62,7 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	public isSupported(): boolean {
-		return DeclarationRegistry.has(this.editor.getModel()) && super.isSupported();
+		return DefinitionProviderRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState(): boolean {
@@ -70,7 +70,7 @@ export class DefinitionAction extends EditorAction {
 			return false;
 		}
 
-		return DeclarationRegistry.has(this.editor.getModel());
+		return DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
 	public run(): TPromise<any> {
@@ -87,19 +87,19 @@ export class DefinitionAction extends EditorAction {
 			// * remove falsy references
 			// * remove reference at the current pos
 			// * collapse ranges to start pos
-			let result: IReference[] = [];
+			let result: Location[] = [];
 			for (let i = 0; i < references.length; i++) {
 				let reference = references[i];
 				if (!reference) {
 					continue;
 				}
-				let {resource, range} = reference;
+				let {uri, range} = reference;
 				if (!this._configuration.filterCurrent
-					|| resource.toString() !== model.getAssociatedResource().toString()
+					|| uri.toString() !== model.getAssociatedResource().toString()
 					|| !Range.containsPosition(range, pos)) {
 
 					result.push({
-						resource,
+						uri,
 						range: Range.collapseToStart(range)
 					});
 				}
@@ -118,7 +118,7 @@ export class DefinitionAction extends EditorAction {
 		});
 	}
 
-	private _onResult(references: IReference[]) {
+	private _onResult(references: Location[]) {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(this.editor, references);
 		} else {
@@ -131,14 +131,14 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(reference: IReference, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor>{
-		let {resource, range} = reference;
-		return this._editorService.openEditor({ resource, options: { selection: range } }, sideBySide).then(editor => {
+	private _openReference(reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor>{
+		let {uri, range} = reference;
+		return this._editorService.openEditor({ resource:uri, options: { selection: range } }, sideBySide).then(editor => {
 			return <editorCommon.IEditor> editor.getControl();
 		});
 	}
 
-	private _openInPeek(target: editorCommon.ICommonCodeEditor, references: IReference[]) {
+	private _openInPeek(target: editorCommon.ICommonCodeEditor, references: Location[]) {
 		let controller = ReferencesController.getController(target);
 		controller.toggleWidget(target.getSelection(), TPromise.as(new ReferencesModel(references)), {
 			getMetaTitle: (model) => {
@@ -288,7 +288,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			// Single result
 			else {
 				let result = results[0];
-				this.editorService.resolveEditorModel({ resource: result.resource }).then(model => {
+				this.editorService.resolveEditorModel({ resource: result.uri }).then(model => {
 					let source: string;
 					if (model && model.textEditorModel) {
 
@@ -429,10 +429,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			(browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
 			mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
-			DeclarationRegistry.has(this.editor.getModel());
+			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget): TPromise<IReference[]> {
+	private findDefinition(target: IMouseTarget): TPromise<Location[]> {
 		let model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);

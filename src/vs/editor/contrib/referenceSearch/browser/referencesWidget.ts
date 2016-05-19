@@ -73,7 +73,7 @@ class DecorationsManager implements IDisposable {
 		}
 
 		for(var i = 0, len = this.model.groups.length; i < len; i++) {
-			if(this.model.groups[i].resource.toString() === model.getAssociatedResource().toString()) {
+			if(this.model.groups[i].uri.toString() === model.getAssociatedResource().toString()) {
 				this._addDecorations(this.model.groups[i]);
 				return;
 			}
@@ -351,7 +351,7 @@ class Renderer extends LegacyRenderer {
 
 			/* tslint:disable:no-unused-expression */
 			new LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
-				var resource = fileReferences.resource;
+				var resource = fileReferences.uri;
 				new FileLabel(left, resource, this._contextService);
 
 				return <IDisposable> null;
@@ -685,14 +685,14 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _revealReference(reference: OneReference) {
 
 		// Update widget header
-		if (reference.resource.scheme !== Schemas.inMemory) {
+		if (reference.uri.scheme !== Schemas.inMemory) {
 			this.setTitle(reference.name, getPathLabel(reference.directory, this._contextService));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}
 
 		return TPromise.join([
-			this._editorService.resolveEditorModel({ resource: reference.resource }),
+			this._editorService.resolveEditorModel({ resource: reference.uri }),
 			this._tree.reveal(reference)
 		]).then(values => {
 			if (!this._model) {

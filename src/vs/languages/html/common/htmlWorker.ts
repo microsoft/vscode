@@ -157,7 +157,7 @@ export class HTMLWorker {
 		});
 	}
 
-	public findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<modes.IReference[]> {
+	public findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<modes.Location[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
 				return findReferences(model, Position.lift(position));

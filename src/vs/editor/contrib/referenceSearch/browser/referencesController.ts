@@ -184,10 +184,10 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 	private _gotoReference(ref: OneReference): void {
 		this._ignoreModelChangeEvent = true;
-		const {resource, range} = ref;
+		const {uri, range} = ref;
 
 		this._editorService.openEditor({
-			resource,
+			resource: uri,
 			options: { selection: range }
 		}).done(openedEditor => {
 			this._ignoreModelChangeEvent = false;
@@ -214,9 +214,9 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	private _openReference(ref: OneReference, sideBySide: boolean): void {
-		const {resource, range} = ref;
+		const {uri, range} = ref;
 		this._editorService.openEditor({
-			resource,
+			resource: uri,
 			options: { selection: range }
 		}, sideBySide);
 

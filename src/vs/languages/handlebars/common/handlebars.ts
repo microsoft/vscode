@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
+import modes = require('vs/editor/common/modes');
 import htmlMode = require('vs/languages/html/common/html');
 import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebarsTokenTypes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
@@ -14,6 +14,7 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export enum States {
 	HTML,
@@ -23,7 +24,7 @@ export enum States {
 
 export class HandlebarsState extends htmlMode.State {
 
-	constructor(mode:Modes.IMode,
+	constructor(mode:modes.IMode,
 		public kind:htmlMode.States,
 		public handlebarsKind:States,
 		public lastTagName:string,
@@ -39,7 +40,7 @@ export class HandlebarsState extends htmlMode.State {
 		return new HandlebarsState(this.getMode(), this.kind, this.handlebarsKind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValue);
 	}
 
-	public equals(other:Modes.IState):boolean {
+	public equals(other:modes.IState):boolean {
 		if (other instanceof HandlebarsState) {
 			return (
 				super.equals(other)
@@ -48,7 +49,7 @@ export class HandlebarsState extends htmlMode.State {
 		return false;
 	}
 
-	public tokenize(stream:Modes.IStream) : Modes.ITokenizationResult {
+	public tokenize(stream:modes.IStream) : modes.ITokenizationResult {
 		switch(this.handlebarsKind) {
 			case States.HTML:
 				if (stream.advanceIfString('{{{').length > 0) {
@@ -107,7 +108,7 @@ export class HandlebarsState extends htmlMode.State {
 export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@IThreadService threadService: IThreadService
@@ -116,17 +117,30 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	}
 
 	protected _registerSupports(): void {
-		Modes.HoverProviderRegistry.register(this.getId(), this);
-		Modes.ReferenceSearchRegistry.register(this.getId(), this);
-		Modes.SuggestRegistry.register(this.getId(), {
+		modes.HoverProviderRegistry.register(this.getId(), {
+			provideHover: (model, position, token): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+			}
+		});
+
+		modes.ReferenceSearchRegistry.register(this.getId(), this);
+
+		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+			}
 		});
-		Modes.DocumentHighlightProviderRegistry.register(this.getId(), this);
+
+		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
+			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
+				return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
+			}
+		});
 	}
 
-	protected _createRichEditSupport(): Modes.IRichEditSupport {
+	protected _createRichEditSupport(): modes.IRichEditSupport {
 		return new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('#-?%'),
@@ -164,21 +178,21 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 				{
 					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
-					action: { indentAction: Modes.IndentAction.IndentOutdent }
+					action: { indentAction: modes.IndentAction.IndentOutdent }
 				},
 				{
 					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					action: { indentAction: Modes.IndentAction.Indent }
+					action: { indentAction: modes.IndentAction.Indent }
 				}
 			],
 		});
 	}
 
-	public getInitialState() : Modes.IState {
+	public getInitialState() : modes.IState {
 		return new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState):ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:modes.IState):ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
 			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');

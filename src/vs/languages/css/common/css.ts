@@ -19,7 +19,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export enum States {
@@ -327,18 +326,35 @@ export class CSSMode extends AbstractMode {
 
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
-		// Modes.OccurrencesRegistry.register(this.getId(), this);
-		modes.HoverProviderRegistry.register(this.getId(), this);
-		// Modes.ReferenceSearchRegistry.register(this.getId(), this);
+
+		// modes.DocumentHighlightProviderRegistry.register(this.getId(), {
+		// 	provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
+		// 		return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
+		// 	}
+		// });
+
+		modes.HoverProviderRegistry.register(this.getId(), {
+			provideHover: (model, position, token): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+			}
+		});
+
+		// modes.ReferenceSearchRegistry.register(this.getId(), this);
+
 		modes.OutlineRegistry.register(this.getId(), this);
-		// Modes.DeclarationRegistry.register(this.getId(), {
-		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)
+
+		// modes.DefinitionProviderRegistry.register(this.getId(), {
+		// 	provideDefinition: (model, position, token): Thenable<modes.Definition> => {
+		// 		return wireCancellationToken(token, this._provideDefinition(model.getAssociatedResource(), position));
+		// 	}
 		// });
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [' ', ':'],
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+			}
 		});
 
 		modes.QuickFixRegistry.register(this.getId(), this);
@@ -378,37 +394,28 @@ export class CSSMode extends AbstractMode {
 		return this._worker((w) => w.enableValidator());
 	}
 
-	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
-		return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
-	}
 	static $_provideDocumentHighlights = OneWorkerAttr(CSSMode, CSSMode.prototype._provideDocumentHighlights);
 	private _provideDocumentHighlights(resource:URI, position:editorCommon.IPosition): WinJS.TPromise<modes.DocumentHighlight[]> {
 		return this._worker((w) => w.provideDocumentHighlights(resource, position));
 	}
 
-	public provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
-		return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
-	}
 	static $_provideCompletionItems = OneWorkerAttr(CSSMode, CSSMode.prototype._provideCompletionItems);
 	private _provideCompletionItems(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.ISuggestResult[]> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
-	static $findDeclaration = OneWorkerAttr(CSSMode, CSSMode.prototype.findDeclaration);
-	public findDeclaration(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.IReference> {
-		return this._worker((w) => w.findDeclaration(resource, position));
+	static $_provideDefinition = OneWorkerAttr(CSSMode, CSSMode.prototype._provideDefinition);
+	private _provideDefinition(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.Definition> {
+		return this._worker((w) => w.provideDefinition(resource, position));
 	}
 
-	public provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
-		return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
-	}
 	static $_provideHover = OneWorkerAttr(CSSMode, CSSMode.prototype._provideHover);
 	private _provideHover(resource:URI, position:editorCommon.IPosition): WinJS.TPromise<modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
 	static $findReferences = OneWorkerAttr(CSSMode, CSSMode.prototype.findReferences);
-	public findReferences(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.IReference[]> {
+	public findReferences(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.Location[]> {
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 

@@ -13,8 +13,8 @@ import languageService = require('vs/languages/css/common/services/cssLanguageSe
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
 import occurrences = require('./services/occurrences');
 import cssIntellisense = require('vs/languages/css/common/services/intelliSense');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import editorCommon = require('vs/editor/common/editorCommon');
+import modes = require('vs/editor/common/modes');
 import nodes = require('vs/languages/css/common/parser/cssNodes');
 import _level = require('vs/languages/css/common/level');
 import parser = require('vs/languages/css/common/parser/cssParser');
@@ -59,7 +59,7 @@ export class CSSWorker {
 		this.validationEnabled = true;
 	}
 
-	public navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, range:editorCommon.IRange, up:boolean):winjs.TPromise<modes.IInplaceReplaceSupportResult> {
 		return this.languageService.join().then(() => {
 
 			let model = this.resourceService.get(resource);
@@ -99,7 +99,7 @@ export class CSSWorker {
 							nextIdx = len - 1;
 						}
 					}
-					let result:Modes.IInplaceReplaceSupportResult = {
+					let result:modes.IInplaceReplaceSupportResult = {
 						value: values[nextIdx],
 						range: this._range(node, model)
 					};
@@ -108,7 +108,7 @@ export class CSSWorker {
 			}
 			// if none matches, take the first one
 			if (values.length > 0) {
-				let result:Modes.IInplaceReplaceSupportResult = {
+				let result:modes.IInplaceReplaceSupportResult = {
 					value: values[0],
 					range: this._range(node, model)
 				};
@@ -175,7 +175,7 @@ export class CSSWorker {
 		});
 	}
 
-	private _createMarkerData(model: EditorCommon.IMirrorModel, marker: nodes.IMarker): IMarkerData {
+	private _createMarkerData(model: editorCommon.IMirrorModel, marker: nodes.IMarker): IMarkerData {
 		let range = model.getRangeFromOffsetAndLength(marker.getOffset(), marker.getLength());
 		return <IMarkerData> {
 			code: marker.getRule().id,
@@ -196,11 +196,11 @@ export class CSSWorker {
 		return new cssIntellisense.CSSIntellisense();
 	}
 
-	public provideCompletionItems(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+	public provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
 		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 
-	private doSuggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult> {
+	private doSuggest(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult> {
 
 		return this.languageService.join().then(() => {
 
@@ -211,17 +211,17 @@ export class CSSWorker {
 
 	}
 
-	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):winjs.TPromise<modes.IOutlineEntry[]> {
 
 		return this.languageService.join().then(() => {
 
 			let model = this.resourceService.get(resource),
 				stylesheet = this.languageService.getStylesheet(resource),
-				result:Modes.IOutlineEntry[] = [];
+				result:modes.IOutlineEntry[] = [];
 
 			stylesheet.accept((node) => {
 
-				let entry:Modes.IOutlineEntry = {
+				let entry:modes.IOutlineEntry = {
 					label: null,
 					type: 'rule',
 					range: null,
@@ -257,7 +257,7 @@ export class CSSWorker {
 		});
 	}
 
-	public provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
+	public provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
 
 		return this.languageService.join().then(() => {
 
@@ -296,7 +296,7 @@ export class CSSWorker {
 		});
 	}
 
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public provideDefinition(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location> {
 
 		return this.languageService.join().then(() => {
 
@@ -308,14 +308,14 @@ export class CSSWorker {
 				return null;
 			}
 
-			return <Modes.IReference> {
-				resource: resource,
+			return {
+				uri: resource,
 				range: this._range(node, model, true)
 			};
 		});
 	}
 
-	public provideDocumentHighlights(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.DocumentHighlight[]> {
+	public provideDocumentHighlights(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.DocumentHighlight[]> {
 
 		return this.languageService.join().then(() => {
 
@@ -332,7 +332,7 @@ export class CSSWorker {
 		});
 	}
 
-	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
 
 		return this.languageService.join().then(() => {
 			let model = this.resourceService.get(resource),
@@ -340,8 +340,8 @@ export class CSSWorker {
 				nodes = occurrences.findOccurrences(this.languageService.getStylesheet(resource), offset);
 
 			return nodes.map((occurrence) => {
-				return <Modes.IReference> {
-					resource: model.getAssociatedResource(),
+				return {
+					uri: model.getAssociatedResource(),
 					range: this._range(occurrence.node, model)
 				};
 			});
@@ -354,7 +354,7 @@ export class CSSWorker {
 
 			let model = this.resourceService.get(resource),
 				styleSheet = this.languageService.getStylesheet(resource),
-				result:{range:EditorCommon.IRange; value:string; }[] = [];
+				result:{range:editorCommon.IRange; value:string; }[] = [];
 
 			styleSheet.accept((node) => {
 				if (languageFacts.isColorValue(node)) {
@@ -370,7 +370,7 @@ export class CSSWorker {
 		});
 	}
 
-	_range(node:{offset:number; length:number;}, model:EditorCommon.IMirrorModel, empty:boolean = false):EditorCommon.IRange {
+	_range(node:{offset:number; length:number;}, model:editorCommon.IMirrorModel, empty:boolean = false):editorCommon.IRange {
 		if (empty) {
 			let position = model.getPositionFromOffset(node.offset);
 			return {
@@ -384,10 +384,10 @@ export class CSSWorker {
 		}
 	}
 
-	private getFixesForUnknownProperty(property: nodes.Property, marker: IMarker) : Modes.IQuickFix[] {
+	private getFixesForUnknownProperty(property: nodes.Property, marker: IMarker) : modes.IQuickFix[] {
 
 		let propertyName = property.getName();
-		let result: Modes.IQuickFix[] = [];
+		let result: modes.IQuickFix[] = [];
 		for (let p in languageFacts.getProperties()) {
 			let score = strings.difference(propertyName, p);
 			if (score >= propertyName.length / 2 /*score_lim*/) {
@@ -410,7 +410,7 @@ export class CSSWorker {
 		return result.slice(0, 3 /*max_result*/);
 	}
 
-	private appendFixesForMarker(bucket: Modes.IQuickFix[], marker: IMarker): void {
+	private appendFixesForMarker(bucket: modes.IQuickFix[], marker: IMarker): void {
 
 		if ((<IMarker>marker).code !== lintRules.Rules.UnknownProperty.id) {
 			return;
@@ -432,10 +432,10 @@ export class CSSWorker {
 		}
 	}
 
-	public getQuickFixes(resource: URI, range: EditorCommon.IRange): winjs.TPromise<Modes.IQuickFix[]> {
+	public getQuickFixes(resource: URI, range: editorCommon.IRange): winjs.TPromise<modes.IQuickFix[]> {
 
 		return this.languageService.join().then(() => {
-			const result: Modes.IQuickFix[] = [];
+			const result: modes.IQuickFix[] = [];
 
 			this.markerService.read({ resource })
 				.filter(marker => Range.containsRange(range, marker))

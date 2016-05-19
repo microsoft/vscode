@@ -19,7 +19,6 @@ import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
@@ -328,15 +327,30 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			throw new Error('This method must be overwritten!');
 		}
 
-		modes.HoverProviderRegistry.register(this.getId(), this);
+		modes.HoverProviderRegistry.register(this.getId(), {
+			provideHover: (model, position, token): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+			}
+		});
+
 		modes.ReferenceSearchRegistry.register(this.getId(), this);
+
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+			}
 		});
-		modes.DocumentHighlightProviderRegistry.register(this.getId(), this);
+
+		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
+			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
+				return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
+			}
+		});
+
 		modes.FormatRegistry.register(this.getId(), this);
+
 		modes.FormatOnTypeRegistry.register(this.getId(), this);
 	}
 
@@ -474,32 +488,23 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w.format(resource, range, options));
 	}
 
-	public provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
-		return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
-	}
 	static $_provideHover = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideHover);
-	private _provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
+	protected _provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
 	static $findReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findReferences);
-	public findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<modes.IReference[]> {
+	public findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<modes.Location[]> {
 		return this._worker((w) => w.findReferences(resource, position, includeDeclaration));
 	}
 
-	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
-		return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
-	}
 	static $_provideDocumentHighlights = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentHighlights);
-	private _provideDocumentHighlights(resource:URI, position:editorCommon.IPosition, strict:boolean = false): winjs.TPromise<modes.DocumentHighlight[]> {
+	protected _provideDocumentHighlights(resource:URI, position:editorCommon.IPosition, strict:boolean = false): winjs.TPromise<modes.DocumentHighlight[]> {
 		return this._worker((w) => w.provideDocumentHighlights(resource, position, strict));
 	}
 
-	public provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
-		return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
-	}
 	static $_provideCompletionItems = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideCompletionItems);
-	private _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
+	protected _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 

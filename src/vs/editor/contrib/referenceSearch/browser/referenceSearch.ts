@@ -18,7 +18,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IReference, ReferenceSearchRegistry} from 'vs/editor/common/modes';
+import {Location, ReferenceSearchRegistry} from 'vs/editor/common/modes';
 import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {findReferences} from '../common/referenceSearch';
 import {ReferenceWidget} from './referencesWidget';
@@ -104,7 +104,7 @@ let findReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 	});
 };
 
-let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resource:URI, position:editorCommon.IPosition, references:IReference[]) => {
+let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resource:URI, position:editorCommon.IPosition, references:Location[]) => {
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri expected');
 	}

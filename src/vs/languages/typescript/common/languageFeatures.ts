@@ -26,7 +26,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	disposables.push(modes.SignatureHelpProviderRegistry.register(selector, new SignatureHelpAdapter(modelService, worker)));
 	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
 	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
-	disposables.push(modes.DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
+	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker)));
 	disposables.push(modes.ReferenceSearchRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
 	disposables.push(modes.OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
 	disposables.push(modes.FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
@@ -338,27 +338,29 @@ class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvi
 
 // --- definition ------
 
-class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
+class DefinitionAdapter extends Adapter {
 
-	findDeclaration(resource: URI, position: editorCommon.IPosition): TPromise<modes.IReference[]> {
-		return this._worker(resource).then(worker => {
+	public provideDefinition(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Definition> {
+		const resource = model.getAssociatedResource();
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
 				return;
 			}
-			const result: modes.IReference[] = [];
+			const result: modes.Location[] = [];
 			for (let entry of entries) {
 				const uri = URI.parse(entry.fileName);
 				if (this._modelService.getModel(uri)) {
 					result.push({
-						resource: uri,
+						uri: uri,
 						range: this._textSpanToRange(uri, entry.textSpan)
 					});
 				}
 			}
 			return result;
-		});
+		}));
 	}
 }
 
@@ -366,19 +368,19 @@ class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
 
 class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
 
-	findReferences(resource: URI, position: editorCommon.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
+	findReferences(resource: URI, position: editorCommon.IPosition, includeDeclaration: boolean): TPromise<modes.Location[]> {
 		return this._worker(resource).then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
 				return;
 			}
-			const result: modes.IReference[] = [];
+			const result: modes.Location[] = [];
 			for (let entry of entries) {
 				const uri = URI.parse(entry.fileName);
 				if (this._modelService.getModel(uri)) {
 					result.push({
-						resource: uri,
+						uri: uri,
 						range: this._textSpanToRange(uri, entry.textSpan)
 					});
 				}

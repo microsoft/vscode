@@ -327,14 +327,14 @@ export function toSymbolInformation(bearing: ITypeBearing): types.SymbolInformat
 
 
 export const location = {
-	from(value: types.Location): modes.IReference {
+	from(value: types.Location): modes.Location {
 		return {
 			range: fromRange(value.range),
-			resource: value.uri
+			uri: value.uri
 		};
 	},
-	to(value: modes.IReference): types.Location {
-		return new types.Location(value.resource, toRange(value.range));
+	to(value: modes.Location): types.Location {
+		return new types.Location(value.uri, toRange(value.range));
 	}
 };
 

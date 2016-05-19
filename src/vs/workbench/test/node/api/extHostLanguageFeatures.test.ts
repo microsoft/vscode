@@ -243,11 +243,11 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
+			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
-				assert.equal(entry.resource.toString(), model.getAssociatedResource().toString());
+				assert.equal(entry.uri.toString(), model.getAssociatedResource().toString());
 			});
 		});
 	});
@@ -267,7 +267,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
+			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 			});
 		});
@@ -289,12 +289,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
+			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				// let [first, second] = value;
 
-				assert.equal(value[0].resource.authority, 'second');
-				assert.equal(value[1].resource.authority, 'first');
+				assert.equal(value[0].uri.authority, 'second');
+				assert.equal(value[1].uri.authority, 'first');
 			});
 		});
 	});
@@ -314,7 +314,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getDeclarationsAtPosition(model, { lineNumber: 1, column: 1 }).then(value => {
+			return getDeclarationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -519,8 +519,8 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 2);
 
 				let [first, second] = value;
-				assert.equal(first.resource.path, '/second');
-				assert.equal(second.resource.path, '/first');
+				assert.equal(first.uri.path, '/second');
+				assert.equal(second.uri.path, '/first');
 			});
 		});
 	});
@@ -540,7 +540,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 				let [item] = value;
 				assert.deepEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
-				assert.equal(item.resource.toString(), model.getAssociatedResource().toString());
+				assert.equal(item.uri.toString(), model.getAssociatedResource().toString());
 			});
 
 		});
