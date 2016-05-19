@@ -16,23 +16,13 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 
 export interface IOutline {
 	entries: IOutlineEntry[];
-	outlineGroupLabel: { [n: string]: string; };
 }
 
 export function getOutlineEntries(model: IModel): TPromise<IOutline> {
 
-	let groupLabels: { [n: string]: string } = Object.create(null);
 	let entries: IOutlineEntry[] = [];
 
 	let promises = OutlineRegistry.all(model).map(support => {
-
-		if (support.outlineGroupLabel) {
-			let keys = Object.keys(support.outlineGroupLabel);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				let key = keys[i];
-				groupLabels[key] = support.outlineGroupLabel[key];
-			}
-		}
 
 		return support.getOutline(model.getAssociatedResource()).then(result => {
 			if (Array.isArray(result)) {
@@ -50,7 +40,6 @@ export function getOutlineEntries(model: IModel): TPromise<IOutline> {
 
 		return {
 			entries: flatEntries,
-			outlineGroupLabel: groupLabels
 		};
 	});
 }

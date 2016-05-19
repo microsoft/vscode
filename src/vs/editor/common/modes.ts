@@ -212,11 +212,6 @@ export interface IMode {
 	declarationSupport?: IDeclarationSupport;
 
 	/**
-	 * Optional adapter to support showing an outline.
-	 */
-	outlineSupport?:IOutlineSupport;
-
-	/**
 	 * Optional adapter to support formatting.
 	 */
 	formattingSupport?:IFormattingSupport;
@@ -550,7 +545,6 @@ export interface IOutlineEntry {
 
 export interface IOutlineSupport {
 	getOutline(resource:URI):TPromise<IOutlineEntry[]>;
-	outlineGroupLabel?: { [name: string]: string; };
 }
 
 /**
@@ -808,7 +802,7 @@ export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<Signatu
 
 export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>(null);
 
-export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
+export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>(null);
 
 export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
 

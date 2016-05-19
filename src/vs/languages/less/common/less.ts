@@ -183,7 +183,6 @@ export class LESSMode extends AbstractMode implements Modes.HoverProvider, Modes
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
-	public outlineSupport: Modes.IOutlineSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 
@@ -214,7 +213,7 @@ export class LESSMode extends AbstractMode implements Modes.HoverProvider, Modes
 		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: ['variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
-		this.outlineSupport = this;
+		Modes.OutlineRegistry.register(this.getId(), this);
 
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],

@@ -17,8 +17,9 @@ import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {ICommonCodeEditor, IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
-import {IOutlineEntry} from 'vs/editor/common/modes';
+import {IOutlineEntry, OutlineRegistry} from 'vs/editor/common/modes';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
+import {getOutlineEntries, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 
 let SCOPE_PREFIX = ':';
 
@@ -130,28 +131,23 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 	}
 
 	public isSupported(): boolean {
-		let mode = this.editor.getModel().getMode();
-
-		return !!mode && !!mode.outlineSupport && super.isSupported();
+		return (OutlineRegistry.has(this.editor.getModel()) && super.isSupported());
 	}
 
 	public run(): TPromise<boolean> {
 		let model = this.editor.getModel();
-		let mode = model.getMode();
-		let outlineSupport = mode.outlineSupport;
 
-		// Only works for models with outline support
-		if (!outlineSupport) {
+		if (!OutlineRegistry.has(model)) {
 			return null;
 		}
 
 		// Resolve outline
-		let promise = outlineSupport.getOutline(model.getAssociatedResource());
-		return promise.then((result: IOutlineEntry[]) => {
-			if (Array.isArray(result) && result.length > 0) {
+		let promise = getOutlineEntries(model);
+		return promise.then((result: IOutline) => {
+			if (result.entries.length > 0) {
 
 				// Cache result
-				this.cachedResult = result;
+				this.cachedResult = result.entries;
 
 				return super.run();
 			}

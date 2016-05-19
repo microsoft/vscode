@@ -284,7 +284,6 @@ export class CSSMode extends AbstractMode {
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
-	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public quickFixSupport: Modes.IQuickFixSupport;
 
@@ -334,7 +333,7 @@ export class CSSMode extends AbstractMode {
 		//this.occurrencesSupport = this;
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		// Modes.ReferenceSearchRegistry.register(this.getId(), this);
-		this.outlineSupport = this;
+		Modes.OutlineRegistry.register(this.getId(), this);
 		// this.declarationSupport = new DeclarationSupport(this.getId(), {
 		// 	tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
 		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)});

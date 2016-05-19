@@ -12,9 +12,10 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IOutlineEntry} from 'vs/editor/common/modes';
+import {IOutlineEntry, OutlineRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {getOutlineEntries, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 
 class OutlineViewZone implements IViewZone {
 
@@ -117,7 +118,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 	private _globalToDispose:IDisposable[];
 
 	private _localToDispose:IDisposable[];
-	private _currentOutlinePromise:TPromise<IOutlineEntry[]>;
+	private _currentOutlinePromise:TPromise<IOutline>;
 
 	private _markers:OutlineMarker[];
 
@@ -176,8 +177,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 			return;
 		}
 
-		var mode = model.getMode();
-		if (!mode.outlineSupport) {
+		if (!OutlineRegistry.has(model)) {
 			return;
 		}
 
@@ -186,10 +186,10 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 				this._currentOutlinePromise.cancel();
 			}
 
-			this._currentOutlinePromise = mode.outlineSupport.getOutline(model.getAssociatedResource());
+			this._currentOutlinePromise = getOutlineEntries(model);
 
 			this._currentOutlinePromise.then((result) => {
-				this.renderOutlines(result);
+				this.renderOutlines(result.entries);
 			}, (error) => {
 				onUnexpectedError(error);
 			});

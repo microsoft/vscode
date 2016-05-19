@@ -9,7 +9,6 @@ import Modes = require('vs/editor/common/modes');
 import URI from 'vs/base/common/uri';
 import WinJS = require('vs/base/common/winjs.base');
 import Platform = require('vs/platform/platform');
-import nls = require('vs/nls');
 import jsonWorker = require('vs/languages/json/common/jsonWorker');
 import tokenization = require('vs/languages/json/common/features/tokenization');
 import {AbstractMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
@@ -27,10 +26,7 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 	public richEditSupport: Modes.IRichEditSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public outlineSupport: Modes.IOutlineSupport;
 	public formattingSupport: Modes.IFormattingSupport;
-
-	public outlineGroupLabel : { [name: string]: string; };
 
 	private _modeWorkerManager: ModeWorkerManager<jsonWorker.JSONWorker>;
 	private _threadService:IThreadService;
@@ -74,14 +70,7 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 		this.configSupport = this;
 
 		// Initialize Outline support
-		this.outlineSupport = this;
-		this.outlineGroupLabel = Object.create(null);
-		this.outlineGroupLabel['object'] = nls.localize('object', "objects");
-		this.outlineGroupLabel['array'] = nls.localize('array', "arrays");
-		this.outlineGroupLabel['string'] = nls.localize('string', "strings");
-		this.outlineGroupLabel['number'] = nls.localize('number', "numbers");
-		this.outlineGroupLabel['boolean'] = nls.localize('boolean', "booleans");
-		this.outlineGroupLabel['null'] = nls.localize('undefined', "undefined");
+		Modes.OutlineRegistry.register(this.getId(), this);
 
 		this.formattingSupport = this;
 
