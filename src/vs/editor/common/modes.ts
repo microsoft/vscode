@@ -167,8 +167,7 @@ export interface ILineContext {
 
 export enum MutableSupport {
 	RichEditSupport = 1,
-	TokenizationSupport = 2,
-	SuggestSupport = 3
+	TokenizationSupport = 2
 }
 export function mutableSupportToString(registerableSupport:MutableSupport) {
 	if (registerableSupport === MutableSupport.RichEditSupport) {
@@ -176,9 +175,6 @@ export function mutableSupportToString(registerableSupport:MutableSupport) {
 	}
 	if (registerableSupport === MutableSupport.TokenizationSupport) {
 		return 'tokenizationSupport';
-	}
-	if (registerableSupport === MutableSupport.SuggestSupport) {
-		return 'suggestSupport';
 	}
 	throw new Error('Illegal argument!');
 }

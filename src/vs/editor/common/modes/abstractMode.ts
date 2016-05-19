@@ -238,24 +238,16 @@ export class FrankensteinMode extends AbstractMode {
 }
 
 function _createModeSupportChangedEvent(supportEnum:modes.MutableSupport): IModeSupportChangedEvent {
+	let e:IModeSupportChangedEvent = {
+		richEditSupport: false,
+		tokenizationSupport: false
+	};
 	if (supportEnum === modes.MutableSupport.RichEditSupport) {
-		return {
-			richEditSupport: true,
-			tokenizationSupport: false,
-			suggestSupport: false,
-		};
+		e.richEditSupport = true;
+		return e;
 	} else if (supportEnum === modes.MutableSupport.TokenizationSupport) {
-		return {
-			richEditSupport: false,
-			tokenizationSupport: true,
-			suggestSupport: false,
-		};
-	} else if (supportEnum === modes.MutableSupport.SuggestSupport) {
-		return {
-			richEditSupport: false,
-			tokenizationSupport: false,
-			suggestSupport: true,
-		};
+		e.tokenizationSupport = true;
+		return e;
 	}
 	throw new Error('Illegal argument!');
 }

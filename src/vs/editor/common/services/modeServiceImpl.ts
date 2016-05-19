@@ -22,7 +22,7 @@ import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
+import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {IRichEditConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
@@ -652,13 +652,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
 		this._getModeServiceWorkerHelper().registerMonarchDefinition(modeId, language);
 		var lexer = compile(objects.clone(language));
-		return combinedDisposable(
-			super.doRegisterMonarchDefinition(modeId, lexer),
-
-			this.registerModeSupport(modeId, modes.MutableSupport.SuggestSupport, (mode) => {
-				return createSuggestSupport(modelService, editorWorkerService, modeId, lexer);
-			})
-		);
+		return super.doRegisterMonarchDefinition(modeId, lexer);
 	}
 }
 

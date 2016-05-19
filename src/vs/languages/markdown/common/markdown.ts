@@ -20,19 +20,16 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
-import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
+import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export const language =
 	<Types.ILanguage>{
 		displayName: 'Markdown',
 		name: 'md',
 		defaultToken: '',
-
-		suggestSupport: {
-			disableAutoTrigger: true,
-		},
 
 		autoClosingPairs: [],
 
@@ -208,6 +205,21 @@ export const language =
 		}
 	};
 
+class MarkdownSuggestSupport extends SuggestSupport {
+
+	constructor(modeId:string, modelService: IModelService, editorWorkerService: IEditorWorkerService) {
+		super(modeId, {
+			triggerCharacters: [],
+			disableAutoTrigger: true,
+			excludeTokens: [],
+			suggest: (resource, position) => {
+				return editorWorkerService.textualSuggest(resource, position);
+			}
+		});
+	}
+
+}
+
 export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSupport {
 
 	public emitOutputSupport: Modes.IEmitOutputSupport;
@@ -241,7 +253,11 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 
-		this.suggestSupport = createSuggestSupport(modelService, editorWorkerService, this.getId(), lexer);
+		this.suggestSupport = new MarkdownSuggestSupport(
+			this.getId(),
+			modelService,
+			editorWorkerService
+		);
 	}
 
 	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {

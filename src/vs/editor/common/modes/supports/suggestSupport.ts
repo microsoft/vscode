@@ -6,12 +6,11 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IPosition} from 'vs/editor/common/editorCommon';
 import {ILineContext, IMode, ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
 import {IFilter, matchesStrictPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
@@ -121,59 +120,6 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		});
 	}
 
-}
-
-export class PredefinedResultSuggestSupport extends SuggestSupport {
-
-	constructor(modeId:string, modelService: IModelService, predefined:ISuggestion[], triggerCharacters: string[], disableAutoTrigger?: boolean) {
-		super(modeId, {
-			triggerCharacters: triggerCharacters,
-			disableAutoTrigger: disableAutoTrigger,
-			excludeTokens: [],
-			suggest: (resource, position) => {
-				let model = modelService.getModel(resource);
-				let result = _addSuggestionsAtPosition(model, position, predefined, null);
-				return TPromise.as(result);
-			}
-		});
-	}
-
-}
-
-export class TextualAndPredefinedResultSuggestSupport extends SuggestSupport {
-
-	constructor(modeId:string, modelService: IModelService, editorWorkerService: IEditorWorkerService, predefined:ISuggestion[], triggerCharacters: string[], disableAutoTrigger?: boolean) {
-		super(modeId, {
-			triggerCharacters: triggerCharacters,
-			disableAutoTrigger: disableAutoTrigger,
-			excludeTokens: [],
-			suggest: (resource, position) => {
-				return editorWorkerService.textualSuggest(resource, position).then((textualSuggestions) => {
-					let model = modelService.getModel(resource);
-					let result = _addSuggestionsAtPosition(model, position, predefined, textualSuggestions);
-					return result;
-				});
-			}
-		});
-	}
-
-}
-
-function _addSuggestionsAtPosition(model: IModel, position:IPosition, predefined:ISuggestion[], superSuggestions:ISuggestResult[]): ISuggestResult[] {
-	if (!predefined || predefined.length === 0) {
-		return superSuggestions;
-	}
-
-	if (!superSuggestions) {
-		superSuggestions = [];
-	}
-
-	superSuggestions.push({
-		currentWord: model.getWordUntilPosition(position).word,
-		suggestions: predefined.slice(0)
-	});
-
-	return superSuggestions;
 }
 
 export function filterSuggestions(value: ISuggestResult): ISuggestResult[] {

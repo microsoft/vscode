@@ -12,7 +12,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {EditorAction} from 'vs/editor/common/editorAction';
-import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
@@ -53,11 +53,6 @@ export class SuggestController implements IEditorContribution {
 		this.toDispose.push(editor.addListener2(EventType.ConfigurationChanged, () => this.update()));
 		this.toDispose.push(editor.addListener2(EventType.ModelChanged, () => this.update()));
 		this.toDispose.push(editor.addListener2(EventType.ModelModeChanged, () => this.update()));
-		this.toDispose.push(editor.addListener2(EventType.ModelModeSupportChanged, (e: IModeSupportChangedEvent) => {
-			if (e.suggestSupport) {
-				this.update();
-			}
-		}));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.update, this));
 
 		this.toDispose.push(this.model.onDidAccept(e => getSnippetController(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
