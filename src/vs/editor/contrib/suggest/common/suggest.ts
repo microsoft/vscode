@@ -8,7 +8,7 @@ import {sequence} from 'vs/base/common/async';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ISuggestResult, ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
@@ -21,7 +21,7 @@ export interface ISuggestResult2 extends ISuggestResult {
 	support?: ISuggestSupport;
 }
 
-export function suggest(model: IModel, position: IPosition, triggerCharacter: string, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
+export function suggest(model: IReadOnlyModel, position: IPosition, triggerCharacter: string, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
 
 	if (!groups) {
 		groups = SuggestRegistry.orderedGroups(model);

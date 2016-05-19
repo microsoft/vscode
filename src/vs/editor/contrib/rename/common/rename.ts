@@ -9,11 +9,11 @@ import {localize} from 'vs/nls';
 import {sequence} from 'vs/base/common/async';
 import {illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IRenameResult, RenameRegistry} from 'vs/editor/common/modes';
 
-export function rename(model: IModel, position: IPosition, newName: string): TPromise<IRenameResult> {
+export function rename(model: IReadOnlyModel, position: IPosition, newName: string): TPromise<IRenameResult> {
 
 	const supports = RenameRegistry.ordered(model);
 	const resource = model.getAssociatedResource();

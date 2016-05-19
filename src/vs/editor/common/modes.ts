@@ -301,7 +301,7 @@ export interface Hover {
 }
 
 export interface HoverProvider {
-	provideHover(model:editorCommon.IModel, position:editorCommon.IEditorPosition, cancellationToken:CancellationToken): Hover | Thenable<Hover>;
+	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, cancellationToken:CancellationToken): Hover | Thenable<Hover>;
 }
 
 export type SuggestionType = 'method'
@@ -466,7 +466,7 @@ export interface SignatureHelpProvider {
 	 * @return Signature help or a thenable that resolves to such. The lack of a result can be
 	 * signaled by returning `undefined` or `null`.
 	 */
-	provideSignatureHelp(model: editorCommon.IModel, position: editorCommon.IEditorPosition, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
+	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 }
 
 
@@ -771,26 +771,26 @@ export interface IRichEditSupport {
 
 // --- feature registries ------
 
-export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>(null);
+export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>();
 
-export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>(null);
+export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>();
 
-export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>(null);
+export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>();
 
-export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>(null);
+export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>();
 
-export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>(null);
+export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
 
-export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>(null);
+export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>();
 
-export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>(null);
+export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>();
 
-export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>(null);
+export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>();
 
-export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>(null);
+export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>();
 
-export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>(null);
+export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>();
 
-export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>(null);
+export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>();
 
-export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>(null);
+export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>();

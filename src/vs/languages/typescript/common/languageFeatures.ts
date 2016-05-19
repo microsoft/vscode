@@ -246,7 +246,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 	public signatureHelpTriggerCharacters = ['(', ','];
 
-	provideSignatureHelp(model: editor.IModel, position: editor.IEditorPosition, token: CancellationToken): TPromise<modes.SignatureHelp> {
+	provideSignatureHelp(model: editor.IReadOnlyModel, position: editor.IEditorPosition, token: CancellationToken): TPromise<modes.SignatureHelp> {
 		let resource = model.getAssociatedResource();
 		return this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
@@ -295,7 +295,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
-	provideHover(model:editor.IModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): TPromise<modes.Hover> {
+	provideHover(model:editor.IReadOnlyModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): TPromise<modes.Hover> {
 		let resource = model.getAssociatedResource();
 
 		return this._worker(resource).then(worker => {

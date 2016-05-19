@@ -137,7 +137,7 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
-	public provideHover(model:EditorCommon.IModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
+	public provideHover(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
 		return wireCancellationToken(cancellationToken, this._provideHover(model.getAssociatedResource(), position));
 	}
 

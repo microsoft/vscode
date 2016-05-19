@@ -474,7 +474,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w.format(resource, range, options));
 	}
 
-	public provideHover(model:EditorCommon.IModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
+	public provideHover(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
 		return wireCancellationToken(cancellationToken, this._provideHover(model.getAssociatedResource(), position));
 	}
 

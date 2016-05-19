@@ -169,8 +169,6 @@ class LineContext implements ILineContext {
 export class TextModelWithTokens extends TextModel implements editorCommon.ITokenizedModel {
 
 	private static MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
-	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
-	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 
 	private _shouldAutoTokenize:boolean;
 	private _mode: IMode;
@@ -184,9 +182,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _revalidateTokensTimeout:number;
 	private _scheduleRetokenizeNow: RunOnceScheduler;
 	private _retokenizers:IRetokenizeRequest[];
-
-	private _shouldSimplifyMode: boolean;
-	private _shouldDenyMode: boolean;
 
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, shouldAutoTokenize:boolean, modeOrPromise:IMode|TPromise<IMode>) {
 		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
@@ -206,9 +201,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._revalidateTokensTimeout = -1;
 		this._scheduleRetokenizeNow = null;
 		this._retokenizers = null;
-
-		this._shouldSimplifyMode = (rawText.length > TextModelWithTokens.MODEL_SYNC_LIMIT);
-		this._shouldDenyMode = (rawText.length > TextModelWithTokens.MODEL_TOKENIZATION_LIMIT);
 
 		if (!modeOrPromise) {
 			this._mode = new NullMode();
@@ -251,14 +243,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._scheduleRetokenizeNow.dispose();
 
 		super.dispose();
-	}
-
-	public isTooLargeForHavingAMode(): boolean {
-		return this._shouldDenyMode;
-	}
-
-	public isTooLargeForHavingARichMode(): boolean {
-		return this._shouldSimplifyMode;
 	}
 
 	private _massageMode(mode: IMode): IMode {

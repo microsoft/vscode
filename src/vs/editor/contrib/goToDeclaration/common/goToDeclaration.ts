@@ -7,12 +7,12 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {DeclarationRegistry} from 'vs/editor/common/modes';
 import {IReference} from 'vs/editor/common/modes';
 
-export function getDeclarationsAtPosition(model: IModel, position: IPosition): TPromise<IReference[]> {
+export function getDeclarationsAtPosition(model: IReadOnlyModel, position: IPosition): TPromise<IReference[]> {
 
 	const resource = model.getAssociatedResource();
 	const provider = DeclarationRegistry.ordered(model);

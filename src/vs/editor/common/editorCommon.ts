@@ -1593,6 +1593,35 @@ export interface ITextModel {
 	 * Returns iff the model was disposed or not.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * No mode supports allowed on this model because it is simply too large.
+	 * (even tokenization would cause too much memory pressure)
+	 */
+	isTooLargeForHavingAMode(): boolean;
+
+	/**
+	 * Only basic mode supports allowed on this model because it is simply too large.
+	 * (tokenization is allowed and other basic supports)
+	 */
+	isTooLargeForHavingARichMode(): boolean;
+}
+
+export interface IReadOnlyModel extends ITextModel {
+	/**
+	 * Gets the resource associated with this editor model.
+	 */
+	getAssociatedResource(): URI;
+
+	getModeId(): string;
+
+	/**
+	 * Get the word under or besides `position`.
+	 * @param position The position to look for a word.
+	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
+	 * @return The word under or besides `position`. Might be null.
+	 */
+	getWordAtPosition(position:IPosition): IWordAtPosition;
 }
 
 export interface IRichEditBracket {
@@ -1715,18 +1744,6 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param position The position at which to look for a bracket.
 	 */
 	matchBracket(position:IPosition): [IEditorRange,IEditorRange];
-
-	/**
-	 * No mode supports allowed on this model because it is simply too large.
-	 * (even tokenization would cause too much memory pressure)
-	 */
-	isTooLargeForHavingAMode(): boolean;
-
-	/**
-	 * Only basic mode supports allowed on this model because it is simply too large.
-	 * (tokenization is allowed and other basic supports)
-	 */
-	isTooLargeForHavingARichMode(): boolean;
 }
 
 /**
@@ -1953,7 +1970,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 /**
  * A model.
  */
-export interface IModel extends IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEventEmitter, IEditorModel {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEventEmitter, IEditorModel {
 	/**
 	 * A unique identifier associated with this model.
 	 */
@@ -1964,11 +1981,6 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * and make all necessary clean-up to release this object to the GC.
 	 */
 	destroy(): void;
-
-	/**
-	 * Gets the resource associated with this editor model.
-	 */
-	getAssociatedResource(): URI;
 
 	/**
 	 * Search the model.
@@ -2032,8 +2044,6 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 
 	onBeforeDetached(): void;
 
-	getModeId(): string;
-
 	/**
 	 * Returns iff this model is attached to an editor or not.
 	 */
@@ -2059,6 +2069,8 @@ export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 
 	getAllWordsWithRange(): IRangeWithText[];
 	getAllUniqueWords(skipWordOnce?:string): string[];
+
+	getModeId(): string;
 }
 
 /**

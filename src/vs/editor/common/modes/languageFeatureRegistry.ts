@@ -5,10 +5,9 @@
 
 'use strict';
 
-import {binarySearch} from 'vs/base/common/arrays';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {IModel} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {LanguageSelector, score} from 'vs/editor/common/modes/languageSelector';
 
 interface Entry<T> {
@@ -23,10 +22,8 @@ export default class LanguageFeatureRegistry<T> {
 	private _clock: number = 0;
 	private _entries: Entry<T>[] = [];
 	private _onDidChange: Emitter<number> = new Emitter<number>();
-	private _supportName: string;
 
-	constructor(supportName?: string) {
-		this._supportName = supportName;
+	constructor() {
 	}
 
 	get onDidChange(): Event<number> {
@@ -61,11 +58,11 @@ export default class LanguageFeatureRegistry<T> {
 		};
 	}
 
-	has(model: IModel): boolean {
+	has(model: IReadOnlyModel): boolean {
 		return this.all(model).length > 0;
 	}
 
-	all(model: IModel): T[] {
+	all(model: IReadOnlyModel): T[] {
 		if (!model || model.isTooLargeForHavingAMode()) {
 			return [];
 		}
@@ -73,27 +70,23 @@ export default class LanguageFeatureRegistry<T> {
 		this._updateScores(model);
 		const result: T[] = [];
 
-		// (1) from registry
+		// from registry
 		for (let entry of this._entries) {
 			if (entry._score > 0) {
 				result.push(entry.provider);
 			}
 		}
-		// (2) from mode
-		if (model.getMode() && model.getMode()[this._supportName]) {
-			result.push(model.getMode()[this._supportName]);
-		}
 
 		return result;
 	}
 
-	ordered(model: IModel): T[] {
+	ordered(model: IReadOnlyModel): T[] {
 		const result: T[] = [];
 		this._orderedForEach(model, entry => result.push(entry.provider));
 		return result;
 	}
 
-	orderedGroups(model: IModel): T[][] {
+	orderedGroups(model: IReadOnlyModel): T[][] {
 		const result: T[][] = [];
 		let lastBucket: T[];
 		let lastBucketScore: number;
@@ -111,7 +104,7 @@ export default class LanguageFeatureRegistry<T> {
 		return result;
 	}
 
-	private _orderedForEach(model: IModel, callback: (provider: Entry<T>) => any): void {
+	private _orderedForEach(model: IReadOnlyModel, callback: (provider: Entry<T>) => any): void {
 
 		if (!model || model.isTooLargeForHavingAMode()) {
 			return;
@@ -119,35 +112,17 @@ export default class LanguageFeatureRegistry<T> {
 
 		this._updateScores(model);
 
-		let supportIndex: number = -1;
-		let supportEntry: Entry<T>;
-
-		if (model.getMode() && model.getMode()[this._supportName]) {
-			supportEntry = {
-				selector: undefined,
-				provider: model.getMode()[this._supportName],
-				_score: .5,
-				_time: -1
-			};
-			supportIndex = ~binarySearch(this._entries, supportEntry, LanguageFeatureRegistry._compareByScoreAndTime);
-		}
-
-		const to = Math.max(supportIndex + 1, this._entries.length);
-		for (let from = 0; from < to; from++) {
-			if (from === supportIndex) {
-				callback(supportEntry);
-			} else {
-				let entry = this._entries[from];
-				if (entry._score > 0) {
-					callback(entry);
-				}
+		for (let from = 0; from < this._entries.length; from++) {
+			let entry = this._entries[from];
+			if (entry._score > 0) {
+				callback(entry);
 			}
 		}
 	}
 
 	private _lastCandidate: { uri: string; language: string; };
 
-	private _updateScores(model: IModel): boolean {
+	private _updateScores(model: IReadOnlyModel): boolean {
 
 		let candidate = {
 			uri: model.getAssociatedResource().toString(),

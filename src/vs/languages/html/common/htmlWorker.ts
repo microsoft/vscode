@@ -152,7 +152,7 @@ export class HTMLWorker {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
 				return asWinJsPromise((token) => {
-					return provideHover(/*TODO*/<EditorCommon.IModel><any>model, Position.lift(position), token).then((r) => {
+					return provideHover(model, Position.lift(position), token).then((r) => {
 						return (r.length > 0 ? r[0] : null);
 					});
 				});
@@ -163,7 +163,7 @@ export class HTMLWorker {
 	public findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
-				return findReferences(/*TODO*/<EditorCommon.IModel><any>model, Position.lift(position));
+				return findReferences(model, Position.lift(position));
 			}
 		});
 	}
@@ -342,7 +342,7 @@ export class HTMLWorker {
 	public suggest(resource:URI, position:EditorCommon.IPosition, triggerCharacter?:string):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
-				return suggest(/*TODO*/<EditorCommon.IModel><any>model, Position.lift(position), triggerCharacter);
+				return suggest(model, Position.lift(position), triggerCharacter);
 			}
 
 			return this.suggestHTML(resource, position);

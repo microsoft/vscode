@@ -8,13 +8,13 @@
 import {coalesce} from 'vs/base/common/arrays';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IEditorPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Hover, HoverProviderRegistry} from 'vs/editor/common/modes';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {toThenable} from 'vs/base/common/async';
 
-export function provideHover(model: IModel, position: IEditorPosition, cancellationToken = CancellationToken.None): Thenable<Hover[]> {
+export function provideHover(model: IReadOnlyModel, position: IEditorPosition, cancellationToken = CancellationToken.None): Thenable<Hover[]> {
 
 	const supports = HoverProviderRegistry.ordered(model);
 	const values: Hover[] = [];

@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
@@ -185,7 +185,7 @@ export class SnippetsRegistry {
 	}
 
 	// the previous
-	private static getNonWhitespacePrefix(model: IModel, position: IPosition) {
+	private static getNonWhitespacePrefix(model: IReadOnlyModel, position: IPosition) {
 		let line = model.getLineContent(position.lineNumber);
 		let match = line.match(/[^\s]+$/);
 		if (match) {
@@ -194,7 +194,7 @@ export class SnippetsRegistry {
 		return '';
 	}
 
-	public static getSnippets(model: IModel, position: IPosition): modes.ISuggestResult {
+	public static getSnippets(model: IReadOnlyModel, position: IPosition): modes.ISuggestResult {
 		let word = model.getWordAtPosition(position);
 		let currentWord = word ? word.word.substring(0, position.column - word.startColumn).toLowerCase() : '';
 		let currentFullWord = SnippetsRegistry.getNonWhitespacePrefix(model, position).toLowerCase();
@@ -203,7 +203,7 @@ export class SnippetsRegistry {
 			suggestions: []
 		};
 
-		let modeId = model.getMode().getId();
+		let modeId = model.getModeId();
 		let snippets : modes.ISuggestion[]= [];
 		let snipppetsByMode = this._snippets[modeId];
 		if (snipppetsByMode) {

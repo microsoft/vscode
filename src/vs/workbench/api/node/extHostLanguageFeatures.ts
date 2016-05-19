@@ -11,7 +11,7 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {Range, DocumentHighlightKind, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
-import {IModel, IEditorPosition, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorPosition, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
@@ -894,7 +894,7 @@ export class MainThreadLanguageFeatures {
 
 	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
-			provideHover: (model:IModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.Hover> => {
+			provideHover: (model:IReadOnlyModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.Hover> => {
 				return wireCancellationToken(cancellationToken, this._proxy.$provideHover(handle, model.getAssociatedResource(), position));
 			}
 		});
@@ -1014,7 +1014,7 @@ export class MainThreadLanguageFeatures {
 
 			signatureHelpTriggerCharacters: triggerCharacter,
 
-			provideSignatureHelp: (model:IModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.SignatureHelp> => {
+			provideSignatureHelp: (model:IReadOnlyModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.SignatureHelp> => {
 				return wireCancellationToken(cancellationToken, this._proxy.$provideSignatureHelp(handle, model.getAssociatedResource(), position));
 			}
 

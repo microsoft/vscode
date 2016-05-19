@@ -12,7 +12,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IOccurence, OccurrencesRegistry} from 'vs/editor/common/modes';
 
-export function getOccurrencesAtPosition(model: editorCommon.IModel, position: editorCommon.IPosition):TPromise<IOccurence[]> {
+export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: editorCommon.IPosition):TPromise<IOccurence[]> {
 
 	const resource = model.getAssociatedResource();
 	const orderedByScore = OccurrencesRegistry.ordered(model);

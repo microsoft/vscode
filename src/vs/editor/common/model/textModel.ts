@@ -17,6 +17,8 @@ var LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
 
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
+	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
+	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 
 	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
 		tabSize: DEFAULT_INDENTATION.tabSize,
@@ -39,15 +41,29 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _alternativeVersionId: number;
 	private _BOM:string;
 
+	private _shouldSimplifyMode: boolean;
+	private _shouldDenyMode: boolean;
+
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText) {
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged, editorCommon.EventType.ModelOptionsChanged);
 		super(allowedEventTypes);
+
+		this._shouldSimplifyMode = (rawText.length > TextModel.MODEL_SYNC_LIMIT);
+		this._shouldDenyMode = (rawText.length > TextModel.MODEL_TOKENIZATION_LIMIT);
 
 		this._options = rawText.options;
 		this._constructLines(rawText);
 		this._setVersionId(1);
 		this._isDisposed = false;
 		this._isDisposing = false;
+	}
+
+	public isTooLargeForHavingAMode(): boolean {
+		return this._shouldDenyMode;
+	}
+
+	public isTooLargeForHavingARichMode(): boolean {
+		return this._shouldSimplifyMode;
 	}
 
 	public getOptions(): editorCommon.ITextModelResolvedOptions {

@@ -7,11 +7,11 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IReference, ReferenceSearchRegistry} from 'vs/editor/common/modes';
 
-export function findReferences(model: IModel, position: IPosition): TPromise<IReference[]> {
+export function findReferences(model: IReadOnlyModel, position: IPosition): TPromise<IReference[]> {
 
 	// collect references from all providers
 	const promises = ReferenceSearchRegistry.ordered(model).map(provider => {

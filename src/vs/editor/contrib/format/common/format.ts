@@ -9,12 +9,12 @@ import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {IModel, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {FormatRegistry, FormatOnTypeRegistry, IFormattingOptions} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
-export function formatRange(model: IModel, range: IRange, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+export function formatRange(model: IReadOnlyModel, range: IRange, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = FormatRegistry.ordered(model)
 		.filter(s => typeof s.formatRange === 'function');
 
@@ -24,7 +24,7 @@ export function formatRange(model: IModel, range: IRange, options: IFormattingOp
 	return support.formatRange(model.getAssociatedResource(), range, options);
 }
 
-export function formatDocument(model: IModel, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+export function formatDocument(model: IReadOnlyModel, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = FormatRegistry.ordered(model);
 	if (!support) {
 		return TPromise.as(undefined);
@@ -40,7 +40,7 @@ export function formatDocument(model: IModel, options: IFormattingOptions): TPro
 	return support.formatDocument(model.getAssociatedResource(), options);
 }
 
-export function formatAfterKeystroke(model: IModel, position: IPosition, ch: string, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+export function formatAfterKeystroke(model: IReadOnlyModel, position: IPosition, ch: string, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = FormatOnTypeRegistry.ordered(model);
 	if (!support) {
 		return TPromise.as(undefined);
