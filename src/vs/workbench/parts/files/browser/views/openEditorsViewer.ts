@@ -457,27 +457,19 @@ export class ActionProvider implements IActionProvider {
 			}
 
 			closeActions.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
-			if (multipleGroups) {
-				closeActions.push(new Separator());
-			}
+			closeActions.push(new Separator());
 			closeActions.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL));
-			if (multipleGroups) {
-				closeActions.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
-				closeActions.push(new Separator());
-			}
+			closeActions.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
+			closeActions.push(new Separator());
 		}
 
-		if (multipleGroups) {
-			closeActions.push(this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL));
-		}
+		const closeEditorInOtherGroupsAction = this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL);
+		closeEditorInOtherGroupsAction.enabled = multipleGroups;
+		closeActions.push(closeEditorInOtherGroupsAction);
 		closeActions.push(new Separator());
 		closeActions.push(this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL));
 
-		if (closeActions.length > 4) {
-			result.push(new ContextSubMenu(nls.localize('close', "Close"), closeActions));
-		} else {
-			result.push(...closeActions);
-		}
+		result.push(new ContextSubMenu(nls.localize('close', "Close"), closeActions));
 
 		return TPromise.as(result);
 	}
