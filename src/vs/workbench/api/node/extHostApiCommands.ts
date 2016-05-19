@@ -260,7 +260,7 @@ class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.IOccurence[]>('_executeDocumentHighlights', args).then(value => {
+		return this._commands.executeCommand<modes.DocumentHighlight[]>('_executeDocumentHighlights', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toDocumentHighlight);
 			}

@@ -18,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
-import {OccurrencesRegistry} from 'vs/editor/common/modes';
+import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {RunOnceScheduler} from 'vs/base/common/async';
 
 export enum FindStartFocusAction {
@@ -575,7 +575,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return;
 		}
 
-		let hasFindOccurences = OccurrencesRegistry.has(model);
+		let hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
 		if (r.nextMatch) {
 			// This is an empty selection
 			if (hasFindOccurences) {

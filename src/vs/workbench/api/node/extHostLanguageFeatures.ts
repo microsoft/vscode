@@ -10,7 +10,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {Range, DocumentHighlightKind, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
+import {Range, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
 import {IReadOnlyModel, IEditorPosition, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
@@ -185,7 +185,7 @@ class DeclarationAdapter implements modes.IDeclarationSupport {
 	}
 }
 
-class HoverProviderAdapter {
+class HoverAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.HoverProvider;
@@ -216,7 +216,7 @@ class HoverProviderAdapter {
 	}
 }
 
-class OccurrencesAdapter implements modes.IOccurrencesSupport {
+class DocumentHighlightAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentHighlightProvider;
@@ -226,22 +226,22 @@ class OccurrencesAdapter implements modes.IOccurrencesSupport {
 		this._provider = provider;
 	}
 
-	findOccurrences(resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
+	provideDocumentHighlights(resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 
 		return asWinJsPromise(token => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(OccurrencesAdapter._convertDocumentHighlight);
+				return value.map(DocumentHighlightAdapter._convertDocumentHighlight);
 			}
 		});
 	}
 
-	private static _convertDocumentHighlight(documentHighlight: vscode.DocumentHighlight): modes.IOccurence {
+	private static _convertDocumentHighlight(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
 		return {
 			range: TypeConverters.fromRange(documentHighlight.range),
-			kind: DocumentHighlightKind[documentHighlight.kind].toString().toLowerCase()
+			kind: documentHighlight.kind
 		};
 	}
 }
@@ -594,8 +594,8 @@ class SignatureHelpAdapter {
 	}
 }
 
-type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | HoverProviderAdapter
-	| OccurrencesAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
+type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | HoverAdapter
+	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter;
 
@@ -683,26 +683,26 @@ export class ExtHostLanguageFeatures {
 
 	registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new HoverProviderAdapter(this._documents, provider);
+		this._adapter[handle] = new HoverAdapter(this._documents, provider);
 		this._proxy.$registerHoverProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
 
 	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover> {
-		return this._withAdapter(handle, HoverProviderAdapter, adpater => adpater.provideHover(resource, position));
+		return this._withAdapter(handle, HoverAdapter, adpater => adpater.provideHover(resource, position));
 	}
 
 	// --- occurrences
 
 	registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter[handle] = new OccurrencesAdapter(this._documents, provider);
-		this._proxy.$registerOccurrencesSupport(handle, selector);
+		this._adapter[handle] = new DocumentHighlightAdapter(this._documents, provider);
+		this._proxy.$registerDocumentHighlightProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
 
-	$findOccurrences(handle: number, resource: URI, position: IPosition): TPromise<modes.IOccurence[]> {
-		return this._withAdapter(handle, OccurrencesAdapter, adapter => adapter.findOccurrences(resource, position));
+	$provideDocumentHighlights(handle: number, resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> {
+		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(resource, position));
 	}
 
 	// --- references
@@ -895,10 +895,10 @@ export class MainThreadLanguageFeatures {
 
 	// --- occurrences
 
-	$registerOccurrencesSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.OccurrencesRegistry.register(selector, <modes.IOccurrencesSupport>{
-			findOccurrences: (resource: URI, position: IPosition): TPromise<modes.IOccurence[]> => {
-				return this._proxy.$findOccurrences(handle, resource, position);
+	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+		this._registrations[handle] = modes.DocumentHighlightProviderRegistry.register(selector, <modes.DocumentHighlightProvider>{
+			provideDocumentHighlights: (model: IReadOnlyModel, position: IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> => {
+				return wireCancellationToken(token, this._proxy.$provideDocumentHighlights(handle, model.getAssociatedResource(), position));
 			}
 		});
 		return undefined;

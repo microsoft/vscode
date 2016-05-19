@@ -87,13 +87,13 @@ suite('Validation - CSS', () => {
 		return env.worker.navigateValueSet(url, range, up);
 	};
 
-	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {
+	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.DocumentHighlight[]; model: mm.MirrorModel; }> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);
 
-		return env.worker.findOccurrences(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
+		return env.worker.provideDocumentHighlights(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
 	};
 
 	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.IQuickFix[]; model: mm.MirrorModel; }> {
@@ -121,7 +121,7 @@ suite('Validation - CSS', () => {
 		assert.equal(result.value, expected);
 	};
 
-	var assertOccurrences= function(occurrences: Modes.IOccurence[], model: mm.MirrorModel , expectedNumber:number, expectedContent:string) {
+	var assertOccurrences= function(occurrences: Modes.DocumentHighlight[], model: mm.MirrorModel , expectedNumber:number, expectedContent:string) {
 		assert.equal(occurrences.length, expectedNumber);
 		occurrences.forEach((occurrence) => {
 			assert.equal(model.getValueInRange(occurrence.range), expectedContent);

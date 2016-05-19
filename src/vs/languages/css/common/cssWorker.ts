@@ -315,7 +315,7 @@ export class CSSWorker {
 		});
 	}
 
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
+	public provideDocumentHighlights(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.DocumentHighlight[]> {
 
 		return this.languageService.join().then(() => {
 

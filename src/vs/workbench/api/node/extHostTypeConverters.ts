@@ -349,9 +349,8 @@ export function toHover(info: modes.Hover): types.Hover {
 	return new types.Hover(info.htmlContent.map(toFormattedString), toRange(info.range));
 }
 
-export function toDocumentHighlight(occurrence: modes.IOccurence): types.DocumentHighlight {
-	return new types.DocumentHighlight(toRange(occurrence.range),
-		types.DocumentHighlightKind[occurrence.kind.charAt(0).toUpperCase() + occurrence.kind.substr(1)]);
+export function toDocumentHighlight(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
+	return new types.DocumentHighlight(toRange(occurrence.range), occurrence.kind);
 }
 
 export const CompletionItemKind = {

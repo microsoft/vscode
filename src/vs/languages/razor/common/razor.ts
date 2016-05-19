@@ -72,7 +72,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
 		});
-		Modes.OccurrencesRegistry.register(this.getId(), this);
+		Modes.DocumentHighlightProviderRegistry.register(this.getId(), this);
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {

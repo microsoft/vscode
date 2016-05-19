@@ -7,8 +7,8 @@
 import WinJS = require('vs/base/common/winjs.base');
 import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import editorCommon = require('vs/editor/common/editorCommon');
+import modes = require('vs/editor/common/modes');
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import cssWorker = require('vs/languages/css/common/cssWorker');
 import cssTokenTypes = require('vs/languages/css/common/cssTokenTypes');
@@ -46,7 +46,7 @@ export class State extends AbstractState {
 	public inMeta:boolean;
 	public metaBraceCount: number;
 
-	constructor(mode:Modes.IMode, kind:States, inComment:boolean, quote:string, inMeta:boolean, metaBraceCount: number) {
+	constructor(mode:modes.IMode, kind:States, inComment:boolean, quote:string, inMeta:boolean, metaBraceCount: number) {
 		super(mode);
 		this.kind = kind;
 		this.inComment = inComment;
@@ -55,7 +55,7 @@ export class State extends AbstractState {
 		this.metaBraceCount = metaBraceCount;
 	}
 
-	private nextState(next:States, token:Modes.ITokenizationResult):Modes.ITokenizationResult {
+	private nextState(next:States, token:modes.ITokenizationResult):modes.ITokenizationResult {
 		this.kind = next;
 		return token;
 	}
@@ -64,18 +64,18 @@ export class State extends AbstractState {
 		return new State(this.getMode(), this.kind, this.inComment, this.quote, this.inMeta, this.metaBraceCount);
 	}
 
-	public equals(other:Modes.IState):boolean {
+	public equals(other:modes.IState):boolean {
 		return super.equals(other) && objects.equals(this, other);
 	}
 
-	private tokenizeInComment(stream:Modes.IStream):Modes.ITokenizationResult {
+	private tokenizeInComment(stream:modes.IStream):modes.ITokenizationResult {
 		if (/\*\/$/.test(stream.advanceUntilString('*/', true))) {
 			this.inComment = false;
 		}
 		return { type:'comment.css' };
 	}
 
-	private tokenizeInString(stream:Modes.IStream):Modes.ITokenizationResult {
+	private tokenizeInString(stream:modes.IStream):modes.ITokenizationResult {
 		var ch:string, afterBackslash = false, quote = this.quote;
 
 		while (!stream.eos()) {
@@ -97,7 +97,7 @@ export class State extends AbstractState {
 		return { type:'string.css' };
 	}
 
-	private consumeIdent(stream:Modes.IStream) {
+	private consumeIdent(stream:modes.IStream) {
 		stream.goBack(1);
 		if (stream.advanceIfRegExp2(identRegEx)) {
 			return true;
@@ -106,7 +106,7 @@ export class State extends AbstractState {
 		return false;
 	}
 
-	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
+	public tokenize(stream:modes.IStream):modes.ITokenizationResult {
 		if (this.inComment) {
 			return this.tokenizeInComment(stream);
 		}
@@ -279,16 +279,16 @@ export class State extends AbstractState {
 
 export class CSSMode extends AbstractMode {
 
-	public tokenizationSupport: Modes.ITokenizationSupport;
-	public richEditSupport: Modes.IRichEditSupport;
-	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public configSupport:Modes.IConfigurationSupport;
+	public tokenizationSupport: modes.ITokenizationSupport;
+	public richEditSupport: modes.IRichEditSupport;
+	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
+	public configSupport:modes.IConfigurationSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<cssWorker.CSSWorker>;
 	private _threadService:IThreadService;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
@@ -328,20 +328,20 @@ export class CSSMode extends AbstractMode {
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 		// Modes.OccurrencesRegistry.register(this.getId(), this);
-		Modes.HoverProviderRegistry.register(this.getId(), this);
+		modes.HoverProviderRegistry.register(this.getId(), this);
 		// Modes.ReferenceSearchRegistry.register(this.getId(), this);
-		Modes.OutlineRegistry.register(this.getId(), this);
+		modes.OutlineRegistry.register(this.getId(), this);
 		// Modes.DeclarationRegistry.register(this.getId(), {
 		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)
 		// });
 
-		Modes.SuggestRegistry.register(this.getId(), {
+		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [' ', ':'],
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
 		});
 
-		Modes.QuickFixRegistry.register(this.getId(), this);
+		modes.QuickFixRegistry.register(this.getId(), this);
 	}
 
 	public creationDone(): void {
@@ -369,7 +369,7 @@ export class CSSMode extends AbstractMode {
 	}
 
 	static $navigateValueSet = OneWorkerAttr(CSSMode, CSSMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, position:editorCommon.IRange, up:boolean):WinJS.TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
@@ -378,51 +378,52 @@ export class CSSMode extends AbstractMode {
 		return this._worker((w) => w.enableValidator());
 	}
 
-	static $findOccurrences = OneWorkerAttr(CSSMode, CSSMode.prototype.findOccurrences);
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): WinJS.TPromise<Modes.IOccurence[]> {
-		return this._worker((w) => w.findOccurrences(resource, position, strict));
+	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
+		return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
+	}
+	static $_provideDocumentHighlights = OneWorkerAttr(CSSMode, CSSMode.prototype._provideDocumentHighlights);
+	private _provideDocumentHighlights(resource:URI, position:editorCommon.IPosition): WinJS.TPromise<modes.DocumentHighlight[]> {
+		return this._worker((w) => w.provideDocumentHighlights(resource, position));
 	}
 
-	public provideCompletionItems(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, token:CancellationToken): Thenable<Modes.ISuggestResult[]> {
+	public provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
 	}
-
 	static $_provideCompletionItems = OneWorkerAttr(CSSMode, CSSMode.prototype._provideCompletionItems);
-	private _provideCompletionItems(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+	private _provideCompletionItems(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.ISuggestResult[]> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
 	static $findDeclaration = OneWorkerAttr(CSSMode, CSSMode.prototype.findDeclaration);
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference> {
+	public findDeclaration(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.IReference> {
 		return this._worker((w) => w.findDeclaration(resource, position));
 	}
 
-	public provideHover(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, token:CancellationToken): Thenable<Modes.Hover> {
+	public provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
 		return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
 	}
-
 	static $_provideHover = OneWorkerAttr(CSSMode, CSSMode.prototype._provideHover);
-	private _provideHover(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.Hover> {
+	private _provideHover(resource:URI, position:editorCommon.IPosition): WinJS.TPromise<modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
 	static $findReferences = OneWorkerAttr(CSSMode, CSSMode.prototype.findReferences);
-	public findReferences(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference[]> {
+	public findReferences(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
 	static $getOutline = OneWorkerAttr(CSSMode, CSSMode.prototype.getOutline);
-	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	public getOutline(resource:URI):WinJS.TPromise<modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(CSSMode, CSSMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:URI):WinJS.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):WinJS.TPromise<{range:editorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 
 	static getQuickFixes = OneWorkerAttr(CSSMode, CSSMode.prototype.getQuickFixes);
-	public getQuickFixes(resource: URI, marker: IMarker | EditorCommon.IRange): WinJS.TPromise<Modes.IQuickFix[]>{
+	public getQuickFixes(resource: URI, marker: IMarker | editorCommon.IRange): WinJS.TPromise<modes.IQuickFix[]>{
 		return this._worker((w) => w.getQuickFixes(resource, marker));
 	}
 }

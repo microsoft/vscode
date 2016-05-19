@@ -123,7 +123,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
 		});
-		Modes.OccurrencesRegistry.register(this.getId(), this);
+		Modes.DocumentHighlightProviderRegistry.register(this.getId(), this);
 	}
 
 	protected _createRichEditSupport(): Modes.IRichEditSupport {

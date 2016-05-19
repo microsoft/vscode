@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import * as editor from 'vs/editor/common/editorCommon';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import matches from 'vs/editor/common/modes/languageSelector';
 import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
@@ -25,7 +25,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
 	disposables.push(modes.SignatureHelpProviderRegistry.register(selector, new SignatureHelpAdapter(modelService, worker)));
 	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
-	disposables.push(modes.OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
+	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(modes.DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
 	disposables.push(modes.ReferenceSearchRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
 	disposables.push(modes.OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
@@ -42,7 +42,7 @@ abstract class Adapter {
 
 	}
 
-	protected _positionToOffset(resource: URI, position: editor.IPosition): number {
+	protected _positionToOffset(resource: URI, position: editorCommon.IPosition): number {
 		const model = this._modelService.getModel(resource);
 		let result = position.column - 1;
 		for (let i = 1; i < position.lineNumber; i++) {
@@ -51,7 +51,7 @@ abstract class Adapter {
 		return result;
 	}
 
-	protected _offsetToPosition(resource: URI, offset: number): editor.IPosition {
+	protected _offsetToPosition(resource: URI, offset: number): editorCommon.IPosition {
 		const model = this._modelService.getModel(resource);
 		let lineNumber = 1;
 		while (true) {
@@ -65,7 +65,7 @@ abstract class Adapter {
 		return { lineNumber, column: 1 + offset };
 	}
 
-	protected _textSpanToRange(resource: URI, span: ts.TextSpan): editor.IRange {
+	protected _textSpanToRange(resource: URI, span: ts.TextSpan): editorCommon.IRange {
 		let p1 = this._offsetToPosition(resource, span.start);
 		let p2 = this._offsetToPosition(resource, span.start + span.length);
 		let {lineNumber: startLineNumber, column: startColumn} = p1;
@@ -87,13 +87,13 @@ class DiagnostcsAdapter extends Adapter {
 	) {
 		super(modelService, worker);
 
-		const onModelAdd = (model: editor.IModel): void => {
+		const onModelAdd = (model: editorCommon.IModel): void => {
 			if (!matches(_selector, model.getAssociatedResource(), model.getModeId())) {
 				return;
 			}
 
 			let handle: number;
-			this._listener[model.getAssociatedResource().toString()] = model.addListener2(editor.EventType.ModelContentChanged2, () => {
+			this._listener[model.getAssociatedResource().toString()] = model.addListener2(editorCommon.EventType.ModelContentChanged2, () => {
 				clearTimeout(handle);
 				handle = setTimeout(() => this._doValidate(model.getAssociatedResource()), 500);
 			});
@@ -101,7 +101,7 @@ class DiagnostcsAdapter extends Adapter {
 			this._doValidate(model.getAssociatedResource());
 		};
 
-		const onModelRemoved = (model: editor.IModel): void => {
+		const onModelRemoved = (model: editorCommon.IModel): void => {
 			delete this._listener[model.getAssociatedResource().toString()];
 		};
 
@@ -174,7 +174,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return true;
 	}
 
-	provideCompletionItems(model:editor.IReadOnlyModel, position:editor.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		const wordInfo = model.getWordUntilPosition(position);
 		const resource = model.getAssociatedResource();
 		const offset = this._positionToOffset(resource, position);
@@ -200,7 +200,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		}));
 	}
 
-	resolveCompletionItem(model:editor.IReadOnlyModel, position:editor.IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
 		const resource = model.getAssociatedResource();
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -247,7 +247,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 	public signatureHelpTriggerCharacters = ['(', ','];
 
-	provideSignatureHelp(model: editor.IReadOnlyModel, position: editor.IEditorPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
+	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
 		let resource = model.getAssociatedResource();
 		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
@@ -296,7 +296,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
-	provideHover(model:editor.IReadOnlyModel, position:editor.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
+	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
 		let resource = model.getAssociatedResource();
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -315,22 +315,24 @@ class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
 // --- occurrences ------
 
-class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
+class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvider {
 
-	findOccurrences(resource: URI, position: editor.IPosition, strict?: boolean): TPromise<modes.IOccurence[]> {
-		return this._worker(resource).then(worker => {
+	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
+		const resource = model.getAssociatedResource();
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getOccurrencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
 				return;
 			}
 			return entries.map(entry => {
-				return <modes.IOccurence>{
+				return <modes.DocumentHighlight>{
 					range: this._textSpanToRange(resource, entry.textSpan),
-					kind: entry.isWriteAccess ? 'write' : 'text'
+					kind: entry.isWriteAccess ? modes.DocumentHighlightKind.Write : modes.DocumentHighlightKind.Text
 				};
 			});
-		});
+		}));
 	}
 }
 
@@ -338,7 +340,7 @@ class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
 
 class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
 
-	findDeclaration(resource: URI, position: editor.IPosition): TPromise<modes.IReference[]> {
+	findDeclaration(resource: URI, position: editorCommon.IPosition): TPromise<modes.IReference[]> {
 		return this._worker(resource).then(worker => {
 			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
@@ -364,7 +366,7 @@ class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
 
 class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
 
-	findReferences(resource: URI, position: editor.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
+	findReferences(resource: URI, position: editorCommon.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
 		return this._worker(resource).then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
@@ -414,7 +416,7 @@ class OutlineAdapter extends Adapter implements modes.IOutlineSupport {
 
 class FormatAdapter extends Adapter implements modes.IFormattingSupport {
 
-	formatRange(resource: URI, range: editor.IRange, options: modes.IFormattingOptions): TPromise<editor.ISingleEditOperation[]>{
+	formatRange(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>{
 		return this._worker(resource).then(worker => {
 			return worker.getFormattingEditsForRange(resource.toString(),
 				this._positionToOffset(resource, { lineNumber: range.startLineNumber, column: range.startColumn }),
@@ -431,7 +433,7 @@ class FormatAdapter extends Adapter implements modes.IFormattingSupport {
 		return [';', '}', '\n'];
 	}
 
-	formatAfterKeystroke(resource: URI, position: editor.IPosition, ch: string, options: modes.IFormattingOptions): TPromise<editor.ISingleEditOperation[]> {
+	formatAfterKeystroke(resource: URI, position: editorCommon.IPosition, ch: string, options: modes.IFormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker(resource).then(worker => {
 			return worker.getFormattingEditsAfterKeystroke(resource.toString(),
 				this._positionToOffset(resource, position),
@@ -443,8 +445,8 @@ class FormatAdapter extends Adapter implements modes.IFormattingSupport {
 		});
 	}
 
-	private _convertTextChanges(resource: URI, change: ts.TextChange): editor.ISingleEditOperation {
-		return <editor.ISingleEditOperation>{
+	private _convertTextChanges(resource: URI, change: ts.TextChange): editorCommon.ISingleEditOperation {
+		return <editorCommon.ISingleEditOperation>{
 			text: change.newText,
 			range: this._textSpanToRange(resource, change.span)
 		};

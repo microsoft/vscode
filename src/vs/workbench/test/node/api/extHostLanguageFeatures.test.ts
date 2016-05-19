@@ -22,7 +22,7 @@ import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/
 import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {OutlineRegistry} from 'vs/editor/common/modes';
+import {OutlineRegistry, DocumentHighlightKind} from 'vs/editor/common/modes';
 import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {provideHover} from 'vs/editor/contrib/hover/common/hover';
@@ -418,11 +418,11 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getOccurrencesAtPosition(model, { lineNumber: 1, column: 2 }).then(value => {
+			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-				assert.equal(entry.kind, 'text');
+				assert.equal(entry.kind, DocumentHighlightKind.Text);
 			});
 		});
 	});
@@ -442,11 +442,11 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getOccurrencesAtPosition(model, { lineNumber: 1, column: 2 }).then(value => {
+			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-				assert.equal(entry.kind, 'text');
+				assert.equal(entry.kind, DocumentHighlightKind.Text);
 			});
 		});
 	});
@@ -466,11 +466,11 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getOccurrencesAtPosition(model, { lineNumber: 1, column: 2 }).then(value => {
+			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
-				assert.equal(entry.kind, 'text');
+				assert.equal(entry.kind, DocumentHighlightKind.Text);
 			});
 		});
 	});
@@ -491,7 +491,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getOccurrencesAtPosition(model, { lineNumber: 1, column: 2 }).then(value => {
+			return getOccurrencesAtPosition(model, new EditorPosition(1, 2)).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});

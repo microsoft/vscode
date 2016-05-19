@@ -343,17 +343,6 @@ export interface ISuggestResult {
 	incomplete?: boolean;
 }
 
-/**
- * The completion item provider interface defines the contract between extensions and
- * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
- *
- * When computing *complete* completion items is expensive, providers can optionally implement
- * the `resolveCompletionItem`-function. In that case it is enough to return completion
- * items with a [label](#CompletionItem.label) from the
- * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
- * when a completion item is shown in the UI and gains focus this provider is asked to resolve
- * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
- */
 export interface ISuggestSupport {
 
 	triggerCharacters: string[];
@@ -362,28 +351,8 @@ export interface ISuggestSupport {
 
 	filter?: IFilter;
 
-	/**
-	 * Provide completion items for the given position and document.
-	 *
-	 * @param document The document in which the command was invoked.
-	 * @param position The position at which the command was invoked.
-	 * @param token A cancellation token.
-	 * @return An array of completions, a [completion list](#CompletionList), or a thenable that resolves to either.
-	 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
-	 */
 	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
 
-	/**
-	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
-	 * or [details](#CompletionItem.detail).
-	 *
-	 * The editor will only resolve a completion item once.
-	 *
-	 * @param item A completion item currently active in the UI.
-	 * @param token A cancellation token.
-	 * @return The resolved completion item or a thenable that resolves to of such. It is OK to return the given
-	 * `item`. When no result is returned, the given `item` will be used.
-	 */
 	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
@@ -404,104 +373,40 @@ export interface IQuickFixSupport {
 	getQuickFixes(resource: URI, range: editorCommon.IRange): TPromise<IQuickFix[]>;
 }
 
-/**
- * Represents a parameter of a callable-signature. A parameter can
- * have a label and a doc-comment.
- */
+
 export interface ParameterInformation {
-
-	/**
-	 * The label of this signature. Will be shown in
-	 * the UI.
-	 */
 	label: string;
-
-	/**
-	 * The human-readable doc-comment of this signature. Will be shown
-	 * in the UI but can be omitted.
-	 */
 	documentation: string;
 }
-
-/**
- * Represents the signature of something callable. A signature
- * can have a label, like a function-name, a doc-comment, and
- * a set of parameters.
- */
 export interface SignatureInformation {
-
-	/**
-	 * The label of this signature. Will be shown in
-	 * the UI.
-	 */
 	label: string;
-
-	/**
-	 * The human-readable doc-comment of this signature. Will be shown
-	 * in the UI but can be omitted.
-	 */
 	documentation: string;
-
-	/**
-	 * The parameters of this signature.
-	 */
 	parameters: ParameterInformation[];
 }
-
-/**
- * Signature help represents the signature of something
- * callable. There can be multiple signatures but only one
- * active and only one active parameter.
- */
 export interface SignatureHelp {
-
-	/**
-	 * One or more signatures.
-	 */
 	signatures: SignatureInformation[];
-
-	/**
-	 * The active signature.
-	 */
 	activeSignature: number;
-
-	/**
-	 * The active parameter of the active signature.
-	 */
 	activeParameter: number;
 }
-
-/**
- * The signature help provider interface defines the contract between extensions and
- * the [parameter hints](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints)-feature.
- */
 export interface SignatureHelpProvider {
 
 	signatureHelpTriggerCharacters: string[];
 
-	/**
-	 * Provide help for the signature at the given position and document.
-	 *
-	 * @param document The document in which the command was invoked.
-	 * @param position The position at which the command was invoked.
-	 * @param token A cancellation token.
-	 * @return Signature help or a thenable that resolves to such. The lack of a result can be
-	 * signaled by returning `undefined` or `null`.
-	 */
 	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 }
 
 
-export interface IOccurence {
-	kind?: 'write' | 'text' | string;
-	range: editorCommon.IRange;
+export enum DocumentHighlightKind {
+	Text,
+	Read,
+	Write
 }
-
-/**
- * Interface used to find occurrences of a symbol
- */
-export interface IOccurrencesSupport {
-	findOccurrences(resource:URI, position:editorCommon.IPosition, strict?:boolean):TPromise<IOccurence[]>;
+export interface DocumentHighlight {
+	range: editorCommon.IRange;
+	kind: DocumentHighlightKind;
+}
+export interface DocumentHighlightProvider {
+	provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
 }
 
 
@@ -805,7 +710,7 @@ export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>(
 
 export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>();
 
-export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>();
+export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
 
 export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>();
 
