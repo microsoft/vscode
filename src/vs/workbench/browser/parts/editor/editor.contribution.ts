@@ -35,7 +35,7 @@ import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
 	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInGroupAction,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousEditorInGroupAction, NAVIGATE_IN_GROUP_PREFIX,
-	GlobalQuickOpenAction, OpenPreviousEditorAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX
+	GlobalQuickOpenAction, OpenPreviousEditorFromHistoryAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ClearEditorHistoryAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
@@ -359,6 +359,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBackwardsActio
 }), 'Go Back');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalQuickOpenAction, GlobalQuickOpenAction.ID, GlobalQuickOpenAction.LABEL, quickOpenKb), 'Go to File...');
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorAction, OpenPreviousEditorAction.ID, OpenPreviousEditorAction.LABEL), 'Open Previous Editor from History');
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorFromHistoryAction, OpenPreviousEditorFromHistoryAction.ID, OpenPreviousEditorFromHistoryAction.LABEL), 'Open Previous Editor from History');
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearEditorHistoryAction, ClearEditorHistoryAction.ID, ClearEditorHistoryAction.LABEL), 'Clear Editor History');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigateNextAction, QuickOpenNavigateNextAction.ID, QuickOpenNavigateNextAction.LABEL, navigateKeybinding(false), KbExpr.has('inQuickOpen')), 'Navigate Next in Quick Open');
 registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenNavigatePreviousAction, QuickOpenNavigatePreviousAction.ID, QuickOpenNavigatePreviousAction.LABEL, navigateKeybinding(true), KbExpr.has('inQuickOpen'), KeybindingsRegistry.WEIGHT.workbenchContrib(50)), 'Navigate Previous in Quick Open');

@@ -96,6 +96,11 @@ export interface IQuickOpenService {
 	refresh(input?: string): TPromise<void>;
 
 	/**
+	 * Clears all traces of editor history.
+	 */
+	clearEditorHistory(): void;
+
+	/**
 	 * Returns the sorted list of editor inputs that have been opened by the user.
 	 */
 	getEditorHistory(): IEditorInput[];

@@ -285,6 +285,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
+	public clear(): void {
+		this.index = -1;
+		this.stack.splice(0);
+	}
+
 	private navigate(): void {
 		let state = this.stack[this.index];
 

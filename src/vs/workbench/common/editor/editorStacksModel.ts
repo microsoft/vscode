@@ -67,6 +67,7 @@ export interface IEditorStacksModel {
 	previous(): IEditorIdentifier;
 
 	popLastClosedEditor(): EditorInput;
+	clearLastClosedEditors(): void;
 
 	toString(): string;
 }
@@ -1034,6 +1035,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}
 
 		return null;
+	}
+
+	public clearLastClosedEditors(): void {
+		this.recentlyClosedEditors = [];
 	}
 
 	private onEditorClosed(event: IGroupEvent): void {

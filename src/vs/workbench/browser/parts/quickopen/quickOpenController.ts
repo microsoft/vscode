@@ -165,6 +165,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		return this.editorHistoryModel ? this.editorHistoryModel.getEntries().map((entry) => entry.getInput()) : [];
 	}
 
+	public clearEditorHistory(): void {
+		this.editorHistoryModel.setEntries([]);
+	}
+
 	public removeEditorHistoryEntry(input: EditorInput): void {
 		this.editorHistoryModel.remove(input);
 	}

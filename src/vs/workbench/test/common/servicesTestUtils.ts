@@ -449,6 +449,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void { }
 	public dispose() { }
 	public quickNavigate(): void { }
+	public clearEditorHistory(): void { }
 }
 
 export const TestFileService = {

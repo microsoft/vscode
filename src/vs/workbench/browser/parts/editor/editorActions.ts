@@ -930,9 +930,9 @@ export class GlobalQuickOpenAction extends Action {
 	}
 }
 
-export class OpenPreviousEditorAction extends Action {
+export class OpenPreviousEditorFromHistoryAction extends Action {
 
-	public static ID = 'workbench.action.openPreviousEditor';
+	public static ID = 'workbench.action.openPreviousEditorFromHistory';
 	public static LABEL = nls.localize('navigateEditorHistoryByInput', "Open Previous Editor from History");
 
 	constructor(
@@ -950,6 +950,36 @@ export class OpenPreviousEditorAction extends Action {
 		this.quickOpenService.show(null, {
 			keybindings: keys
 		});
+
+		return TPromise.as(true);
+	}
+}
+
+export class ClearEditorHistoryAction extends Action {
+
+	public static ID = 'workbench.action.clearEditorHistory';
+	public static LABEL = nls.localize('clearEditorHistory', "Clear Editor History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IHistoryService private historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+
+		// Quick open history
+		this.quickOpenService.clearEditorHistory();
+
+		// Editor cursor history
+		this.historyService.clear();
+
+		// Recently closed editors
+		this.editorService.getStacksModel().clearLastClosedEditors();
 
 		return TPromise.as(true);
 	}
