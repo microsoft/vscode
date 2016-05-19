@@ -12,7 +12,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition, CursorChangeReason} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {ISuggestResult2, suggest} from '../common/suggest';
+import {ISuggestResult2, provideCompletionItems} from '../common/suggest';
 import {CompletionModel} from './completionModel';
 
 export interface ICancelEvent {
@@ -323,7 +323,7 @@ export class SuggestModel implements IDisposable {
 
 		const position = this.editor.getPosition();
 
-		this.requestPromise = suggest(model, position, triggerCharacter, groups).then(all => {
+		this.requestPromise = provideCompletionItems(model, position, groups).then(all => {
 			this.requestPromise = null;
 
 			if (this.state === State.Idle) {

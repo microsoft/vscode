@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
 import {IFilter, matchesStrictPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -14,6 +12,8 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
 import {localize} from 'vs/nls';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export class TextualSuggestSupport implements ISuggestSupport {
 
@@ -52,11 +52,12 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		this._configurationService = configurationService;
 	}
 
-	public suggest(resource: URI, position: IPosition, triggerCharacter?: string): TPromise<ISuggestResult[]> {
+	public provideCompletionItems(model:IReadOnlyModel, position:IEditorPosition, cancellationToken:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]> {
 		let config = this._configurationService.getConfiguration<{ wordBasedSuggestions: boolean }>('editor');
-		return (!config || config.wordBasedSuggestions)
-			? this._editorWorkerService.textualSuggest(resource, position)
-			: TPromise.as([]);
+		if (!config || config.wordBasedSuggestions) {
+			return wireCancellationToken(cancellationToken, this._editorWorkerService.textualSuggest(model.getAssociatedResource(), position));
+		}
+		return <ISuggestResult[]>[];
 	}
 }
 

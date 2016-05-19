@@ -40,7 +40,7 @@ suite('LESS - Intellisense', () => {
 				lineNumber: 1
 			};
 		}
-		return worker.suggest(url, position).then(result => result[0]);
+		return worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
 	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string) {

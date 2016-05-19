@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {sequence} from 'vs/base/common/async';
+import {sequence, asWinJsPromise} from 'vs/base/common/async';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
-import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ISuggestResult, ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
@@ -21,13 +21,12 @@ export interface ISuggestResult2 extends ISuggestResult {
 	support?: ISuggestSupport;
 }
 
-export function suggest(model: IReadOnlyModel, position: IPosition, triggerCharacter: string, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
+export function provideCompletionItems(model: IReadOnlyModel, position: IEditorPosition, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
 
 	if (!groups) {
 		groups = SuggestRegistry.orderedGroups(model);
 	}
 
-	const resource = model.getAssociatedResource();
 	const result: ISuggestResult2[] = [];
 
 	const factory = groups.map((supports, index) => {
@@ -40,7 +39,9 @@ export function suggest(model: IReadOnlyModel, position: IPosition, triggerChara
 
 			// for each support in the group ask for suggestions
 			return TPromise.join(supports.map(support => {
-				return support.suggest(resource, position, triggerCharacter).then(values => {
+				return asWinJsPromise((token) => {
+					return support.provideCompletionItems(model, position, token);
+				}).then(values => {
 
 					if (!values) {
 						return;
@@ -74,11 +75,5 @@ export function suggest(model: IReadOnlyModel, position: IPosition, triggerChara
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
-
-	let triggerCharacter = args['triggerCharacter'];
-	if (typeof triggerCharacter !== 'undefined' && typeof triggerCharacter !== 'string') {
-		throw illegalArgument('triggerCharacter');
-	}
-
-	return suggest(model, position, triggerCharacter);
+	return provideCompletionItems(model, position);
 });

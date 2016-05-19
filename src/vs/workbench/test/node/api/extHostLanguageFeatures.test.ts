@@ -32,7 +32,7 @@ import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import {suggest} from 'vs/editor/contrib/suggest/common/suggest';
+import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {formatDocument, formatRange, formatAfterKeystroke} from 'vs/editor/contrib/format/common/format';
 
 const defaultSelector = { scheme: 'far' };
@@ -744,7 +744,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+			return provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
 				assert.ok(value.length >= 1); // check for min because snippets and others contribute
 				let [first] = value;
 				assert.equal(first.suggestions.length, 1);
@@ -768,7 +768,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+			return provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
 				assert.ok(value.length >= 1);
 				let [first] = value;
 				assert.equal(first.suggestions.length, 1);
@@ -792,7 +792,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}, []));
 
 		return threadService.sync().then(() => {
-			return suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+			return provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
 				assert.ok(value.length >= 2);
 				let [first, second] = value;
 				assert.equal(first.suggestions.length, 1);
@@ -819,7 +819,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+			return provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value[0].incomplete, undefined);
 			});
 		});
@@ -835,7 +835,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			suggest(model, { lineNumber: 1, column: 1 }, ',').then(value => {
+			provideCompletionItems(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value[0].incomplete, true);
 			});
 		});

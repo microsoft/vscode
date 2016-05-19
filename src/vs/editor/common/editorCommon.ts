@@ -1622,6 +1622,14 @@ export interface IReadOnlyModel extends ITextModel {
 	 * @return The word under or besides `position`. Might be null.
 	 */
 	getWordAtPosition(position:IPosition): IWordAtPosition;
+
+	/**
+	 * Get the word under or besides `position` trimmed to `position`.column
+	 * @param position The position to look for a word.
+	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
+	 * @return The word under or besides `position`. Will never be null.
+	 */
+	getWordUntilPosition(position:IPosition): IWordAtPosition;
 }
 
 export interface IRichEditBracket {

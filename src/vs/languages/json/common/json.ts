@@ -77,7 +77,7 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: true,
-			suggest: (resource, position) => this.suggest(resource, position)
+			provideCompletionItems: (model, position, cancellationToken) => this.provideCompletionItems(model, position, cancellationToken)
 		});
 	}
 
@@ -132,9 +132,13 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
-	static $suggest = OneWorkerAttr(JSONMode, JSONMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
+	public provideCompletionItems(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.ISuggestResult[]> {
+		return wireCancellationToken(cancellationToken, this._provideCompletionItems(model.getAssociatedResource(), position));
+	}
+
+	static $_provideCompletionItems = OneWorkerAttr(JSONMode, JSONMode.prototype._provideCompletionItems);
+	private _provideCompletionItems(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
 	public provideHover(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
@@ -142,7 +146,7 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 	}
 
 	static $_provideHover = OneWorkerAttr(JSONMode, JSONMode.prototype._provideHover);
-	public _provideHover(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.Hover> {
+	private _provideHover(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 

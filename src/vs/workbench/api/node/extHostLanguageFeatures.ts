@@ -469,15 +469,7 @@ interface ISuggestion2 extends modes.ISuggestion {
 	id: string;
 }
 
-class SuggestAdapter implements modes.ISuggestSupport {
-
-	public get triggerCharacters(): string[] {
-		throw new Error('illegal state');
-	}
-
-	public get shouldAutotriggerSuggest(): boolean {
-		throw new Error('illegal state');
-	}
+class SuggestAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.CompletionItemProvider;
@@ -997,8 +989,8 @@ export class MainThreadLanguageFeatures {
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			triggerCharacters: triggerCharacters,
 			shouldAutotriggerSuggest: true,
-			suggest: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.ISuggestResult[]> => {
-				return this._proxy.$suggest(handle, resource, position);
+			provideCompletionItems: (model:IReadOnlyModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(cancellationToken, this._proxy.$suggest(handle, model.getAssociatedResource(), position));
 			},
 			getSuggestionDetails: (resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> => {
 				return this._proxy.$getSuggestionDetails(handle, resource, position, suggestion);

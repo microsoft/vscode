@@ -74,7 +74,7 @@ suite('Validation - CSS', () => {
 
 		var idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
 		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.suggest(url, position).then(result => result[0]);
+		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {

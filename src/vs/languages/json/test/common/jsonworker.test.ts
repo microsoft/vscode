@@ -59,7 +59,7 @@ suite('JSON - Worker', () => {
 
 		var idx = stringAfter ? value.indexOf(stringAfter) : 0;
 		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.suggest(url, position).then(result => result[0]);
+		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
 	function testComputeInfo(content:string, schema:jsonSchema.IJSONSchema, position:EditorCommon.IPosition):WinJS.TPromise<Modes.Hover> {

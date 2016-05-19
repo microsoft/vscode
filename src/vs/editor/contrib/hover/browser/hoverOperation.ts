@@ -6,7 +6,7 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {CancellationToken, CancellationTokenSource} from 'vs/base/common/cancellation';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 export interface IHoverComputer<Result> {
 
@@ -18,7 +18,7 @@ export interface IHoverComputer<Result> {
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: (cancellationToken:CancellationToken) => Thenable<Result>;
+	computeAsync?: () => TPromise<Result>;
 
 	/**
 	 * This is called after all the hover time
@@ -56,7 +56,7 @@ export class HoverOperation<Result> {
 	private _firstWaitScheduler: RunOnceScheduler;
 	private _secondWaitScheduler: RunOnceScheduler;
 	private _loadingMessageScheduler: RunOnceScheduler;
-	private _asyncComputationCancellationTokenSource: CancellationTokenSource;
+	private _asyncComputationPromise: TPromise<void>;
 	private _asyncComputationPromiseDone:boolean;
 
 	private _completeCallback:(r:Result)=>void;
@@ -71,7 +71,7 @@ export class HoverOperation<Result> {
 		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), this._getHoverTimeMillis() / 2);
 		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 3 * this._getHoverTimeMillis());
 
-		this._asyncComputationCancellationTokenSource = new CancellationTokenSource();
+		this._asyncComputationPromise = null;
 		this._asyncComputationPromiseDone = false;
 
 		this._completeCallback = success;
@@ -96,12 +96,10 @@ export class HoverOperation<Result> {
 
 		if (this._computer.computeAsync) {
 			this._asyncComputationPromiseDone = false;
-			this._asyncComputationCancellationTokenSource.dispose();
-			this._asyncComputationCancellationTokenSource = new CancellationTokenSource();
-			this._computer.computeAsync(this._asyncComputationCancellationTokenSource.token).then((asyncResult: Result) => {
+			this._asyncComputationPromise = this._computer.computeAsync().then((asyncResult: Result) => {
 				this._asyncComputationPromiseDone = true;
 				this._withAsyncResult(asyncResult);
-			}).then(null, () => this._onError);
+			}, () => this._onError);
 		} else {
 			this._asyncComputationPromiseDone = true;
 		}
@@ -173,10 +171,16 @@ export class HoverOperation<Result> {
 		}
 		if (this._state === ComputeHoverOperationState.SECOND_WAIT) {
 			this._secondWaitScheduler.cancel();
-			this._asyncComputationCancellationTokenSource.cancel();
+			if (this._asyncComputationPromise) {
+				this._asyncComputationPromise.cancel();
+				this._asyncComputationPromise = null;
+			}
 		}
 		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION) {
-			this._asyncComputationCancellationTokenSource.cancel();
+			if (this._asyncComputationPromise) {
+				this._asyncComputationPromise.cancel();
+				this._asyncComputationPromise = null;
+			}
 		}
 		this._state = ComputeHoverOperationState.IDLE;
 	}

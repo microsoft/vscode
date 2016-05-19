@@ -11,16 +11,17 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Hover, HoverProviderRegistry} from 'vs/editor/common/modes';
-import {CancellationToken} from 'vs/base/common/cancellation';
-import {toThenable} from 'vs/base/common/async';
+import {asWinJsPromise} from 'vs/base/common/async';
 
-export function provideHover(model: IReadOnlyModel, position: IEditorPosition, cancellationToken = CancellationToken.None): Thenable<Hover[]> {
+export function provideHover(model: IReadOnlyModel, position: IEditorPosition): TPromise<Hover[]> {
 
 	const supports = HoverProviderRegistry.ordered(model);
 	const values: Hover[] = [];
 
 	const promises = supports.map((support, idx) => {
-		return toThenable(support.provideHover(model, position, cancellationToken)).then(result => {
+		return asWinJsPromise((token) => {
+			return support.provideHover(model, position, token);
+		}).then((result) => {
 			if (result) {
 				let hasRange = (typeof result.range !== 'undefined');
 				let hasHtmlContent = (typeof result.htmlContent !== 'undefined' && result.htmlContent && result.htmlContent.length > 0);

@@ -16,6 +16,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {TypeScriptWorkerProtocol, LanguageServiceDefaults} from 'vs/languages/typescript/common/typescript';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {CancellationToken} from 'vs/base/common/cancellation';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export function register(modelService: IModelService, markerService: IMarkerService,
 	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
@@ -173,13 +174,12 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return true;
 	}
 
-	suggest(resource: URI, position: editor.IPosition, triggerCharacter?: string) {
-
-		const model = this._modelService.getModel(resource);
+	provideCompletionItems(model:editor.IReadOnlyModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		const wordInfo = model.getWordUntilPosition(position);
+		const resource = model.getAssociatedResource();
 		const offset = this._positionToOffset(resource, position);
 
-		return this._worker(resource).then(worker => {
+		return wireCancellationToken(cancellationToken, this._worker(resource).then(worker => {
 			return worker.getCompletionsAtPosition(resource.toString(), offset);
 		}).then(info => {
 			if (!info) {
@@ -197,7 +197,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 				currentWord: wordInfo && wordInfo.word,
 				suggestions
 			}];
-		});
+		}));
 	}
 
 	getSuggestionDetails(resource: URI, position: editor.IPosition, suggestion: modes.ISuggestion) {
@@ -246,9 +246,9 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 	public signatureHelpTriggerCharacters = ['(', ','];
 
-	provideSignatureHelp(model: editor.IReadOnlyModel, position: editor.IEditorPosition, token: CancellationToken): TPromise<modes.SignatureHelp> {
+	provideSignatureHelp(model: editor.IReadOnlyModel, position: editor.IEditorPosition, cancellationToken: CancellationToken): Thenable<modes.SignatureHelp> {
 		let resource = model.getAssociatedResource();
-		return this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
+		return wireCancellationToken(cancellationToken, this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
 			if (!info) {
 				return;
@@ -287,7 +287,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 			return ret;
 
-		});
+		}));
 	}
 }
 
@@ -295,10 +295,10 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
-	provideHover(model:editor.IReadOnlyModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): TPromise<modes.Hover> {
+	provideHover(model:editor.IReadOnlyModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.Hover> {
 		let resource = model.getAssociatedResource();
 
-		return this._worker(resource).then(worker => {
+		return wireCancellationToken(cancellationToken, this._worker(resource).then(worker => {
 			return worker.getQuickInfoAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(info => {
 			if (!info) {
@@ -308,7 +308,7 @@ class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 				range: this._textSpanToRange(resource, info.textSpan),
 				htmlContent: [{ text: ts.displayPartsToString(info.displayParts) }]
 			};
-		});
+		}));
 	}
 }
 

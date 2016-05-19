@@ -357,7 +357,7 @@ export interface ISuggestSupport {
 	/**
 	 * Compute all completions for the given resource at the given position.
 	 */
-	suggest(resource: URI, position: editorCommon.IPosition, triggerCharacter?: string): TPromise<ISuggestResult[]>;
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, cancellationToken:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
 
 	/**
 	 * Compute more details for the given suggestion.

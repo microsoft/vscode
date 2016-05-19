@@ -265,7 +265,7 @@ export class JSONWorker {
 
 	}
 
-	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+	public provideCompletionItems(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
 		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 

@@ -21,10 +21,9 @@ import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} 
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
-import {asWinJsPromise} from 'vs/base/common/async';
 import {provideHover} from 'vs/editor/contrib/hover/common/hover';
 import {findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import {suggest} from 'vs/editor/contrib/suggest/common/suggest';
+import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -151,10 +150,8 @@ export class HTMLWorker {
 	public provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
-				return asWinJsPromise((token) => {
-					return provideHover(model, Position.lift(position), token).then((r) => {
-						return (r.length > 0 ? r[0] : null);
-					});
+				return provideHover(model, Position.lift(position)).then((r) => {
+					return (r.length > 0 ? r[0] : null);
 				});
 			}
 		});
@@ -339,10 +336,10 @@ export class HTMLWorker {
 		});
 	}
 
-	public suggest(resource:URI, position:EditorCommon.IPosition, triggerCharacter?:string):winjs.TPromise<Modes.ISuggestResult[]> {
+	public provideCompletionItems(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
-				return suggest(model, Position.lift(position), triggerCharacter);
+				return provideCompletionItems(model, Position.lift(position));
 			}
 
 			return this.suggestHTML(resource, position);

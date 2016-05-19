@@ -338,7 +338,7 @@ export class CSSMode extends AbstractMode {
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [' ', ':'],
 			shouldAutotriggerSuggest: true,
-			suggest: (resource, position) => this.suggest(resource, position)
+			provideCompletionItems: (model, position, cancellationToken) => this.provideCompletionItems(model, position, cancellationToken)
 		});
 
 		Modes.QuickFixRegistry.register(this.getId(), this);
@@ -383,9 +383,13 @@ export class CSSMode extends AbstractMode {
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
-	static $suggest = OneWorkerAttr(CSSMode, CSSMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
+	public provideCompletionItems(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.ISuggestResult[]> {
+		return wireCancellationToken(cancellationToken, this._provideCompletionItems(model.getAssociatedResource(), position));
+	}
+
+	static $_provideCompletionItems = OneWorkerAttr(CSSMode, CSSMode.prototype._provideCompletionItems);
+	private _provideCompletionItems(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
 	static $findDeclaration = OneWorkerAttr(CSSMode, CSSMode.prototype.findDeclaration);

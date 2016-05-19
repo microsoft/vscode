@@ -333,7 +333,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			shouldAutotriggerSuggest: true,
-			suggest: (resource, position) => this.suggest(resource, position)
+			provideCompletionItems: (model, position, cancellationToken) => this.provideCompletionItems(model, position, cancellationToken)
 		});
 		Modes.OccurrencesRegistry.register(this.getId(), this);
 		Modes.FormatRegistry.register(this.getId(), this);
@@ -479,7 +479,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	}
 
 	static $_provideHover = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideHover);
-	public _provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
+	private _provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
@@ -493,9 +493,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
-	static $suggest = OneWorkerAttr(HTMLMode, HTMLMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
+	public provideCompletionItems(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.ISuggestResult[]> {
+		return wireCancellationToken(cancellationToken, this._provideCompletionItems(model.getAssociatedResource(), position));
+	}
+
+	static $_provideCompletionItems = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideCompletionItems);
+	private _provideCompletionItems(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findColorDeclarations);

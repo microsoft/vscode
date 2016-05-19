@@ -196,7 +196,7 @@ export class CSSWorker {
 		return new cssIntellisense.CSSIntellisense();
 	}
 
-	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+	public provideCompletionItems(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 

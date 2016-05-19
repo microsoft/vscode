@@ -19,7 +19,6 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {provideHover} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
-import {CancellationToken} from 'vs/base/common/cancellation';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -41,7 +40,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		this._result = [];
 	}
 
-	public computeAsync(cancellationToken:CancellationToken): Thenable<Hover[]> {
+	public computeAsync(): TPromise<Hover[]> {
 
 		let model = this._editor.getModel();
 		if (!HoverProviderRegistry.has(model)) {
@@ -51,7 +50,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 		return provideHover(model, new Position(
 			this._range.startLineNumber,
 			this._range.startColumn
-		), cancellationToken);
+		));
 	}
 
 	public computeSync(): Hover[] {

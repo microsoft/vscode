@@ -23,6 +23,7 @@ import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMo
 import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
 	<Types.ILanguage>{
@@ -239,8 +240,8 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: false,
-			suggest: (resource, position) => {
-				return editorWorkerService.textualSuggest(resource, position);
+			provideCompletionItems: (model, position, cancellationToken) => {
+				return wireCancellationToken(cancellationToken, editorWorkerService.textualSuggest(model.getAssociatedResource(), position));
 			}
 		});
 	}

@@ -216,7 +216,7 @@ export class LESSMode extends AbstractMode implements Modes.HoverProvider, Modes
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: true,
-			suggest: (resource, position) => this.suggest(resource, position)
+			provideCompletionItems: (model, position, cancellationToken) => this.provideCompletionItems(model, position, cancellationToken)
 		});
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
@@ -263,9 +263,13 @@ export class LESSMode extends AbstractMode implements Modes.HoverProvider, Modes
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
-	static $suggest = OneWorkerAttr(LESSMode, LESSMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
+	public provideCompletionItems(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.ISuggestResult[]> {
+		return wireCancellationToken(cancellationToken, this._provideCompletionItems(model.getAssociatedResource(), position));
+	}
+
+	static $_provideCompletionItems = OneWorkerAttr(LESSMode, LESSMode.prototype._provideCompletionItems);
+	private _provideCompletionItems(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
 	public provideHover(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
@@ -273,7 +277,7 @@ export class LESSMode extends AbstractMode implements Modes.HoverProvider, Modes
 	}
 
 	static $_provideHover = OneWorkerAttr(LESSMode, LESSMode.prototype._provideHover);
-	public _provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
+	private _provideHover(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
