@@ -5,7 +5,6 @@
 'use strict';
 
 import WinJS = require('vs/base/common/winjs.base');
-import Monarch = require('vs/editor/common/modes/monarch/monarch');
 import URI from 'vs/base/common/uri';
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
@@ -20,7 +19,10 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
+import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export const language =
 	<Types.ILanguage>{
@@ -206,10 +208,13 @@ export const language =
 		}
 	};
 
-export class MarkdownMode extends Monarch.MonarchMode implements Modes.IEmitOutputSupport {
+export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSupport {
 
 	public emitOutputSupport: Modes.IEmitOutputSupport;
 	public configSupport:Modes.IConfigurationSupport;
+	public suggestSupport:Modes.ISuggestSupport;
+	public tokenizationSupport: Modes.ITokenizationSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<MarkdownWorker.MarkdownWorker>;
 	private _threadService:IThreadService;
@@ -223,12 +228,20 @@ export class MarkdownMode extends Monarch.MonarchMode implements Modes.IEmitOutp
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
+		super(descriptor.id);
+		let lexer = Compile.compile(language);
+
 		this._modeWorkerManager = new ModeWorkerManager<MarkdownWorker.MarkdownWorker>(descriptor, 'vs/languages/markdown/common/markdownWorker', 'MarkdownWorker', null, instantiationService);
 		this._threadService = threadService;
 
 		this.emitOutputSupport = this;
 		this.configSupport = this;
+
+		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
+
+		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
+
+		this.suggestSupport = createSuggestSupport(modelService, editorWorkerService, this.getId(), lexer);
 	}
 
 	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {

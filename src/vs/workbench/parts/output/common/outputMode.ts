@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {MonarchMode} from 'vs/editor/common/modes/monarch/monarch';
 import types = require('vs/editor/common/modes/monarch/monarchTypes');
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {IModeDescriptor} from 'vs/editor/common/modes';
@@ -18,6 +17,10 @@ import URI from 'vs/base/common/uri';
 import Modes = require('vs/editor/common/modes');
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
+import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 
 export const language: types.ILanguage = {
 	displayName: 'Log',
@@ -43,9 +46,12 @@ export const language: types.ILanguage = {
 	}
 };
 
-export class OutputMode extends MonarchMode {
+export class OutputMode extends AbstractMode {
 
 	public linkSupport:Modes.ILinkSupport;
+	public suggestSupport:Modes.ISuggestSupport;
+	public tokenizationSupport: Modes.ITokenizationSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<OutputWorker>;
 
@@ -56,10 +62,17 @@ export class OutputMode extends MonarchMode {
 		@IModelService modelService: IModelService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor.id, compile(language), modeService, modelService, editorWorkerService);
+		super(descriptor.id);
+		let lexer = compile(language);
 		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
 
 		this.linkSupport = this;
+
+		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
+
+		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
+
+		this.suggestSupport = createSuggestSupport(modelService, editorWorkerService, this.getId(), lexer);
 	}
 
 	private _worker<T>(runner:(worker:OutputWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {

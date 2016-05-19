@@ -8,12 +8,11 @@ import winjs = require('vs/base/common/winjs.base');
 import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import Monarch = require('vs/editor/common/modes/monarch/monarch');
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import lessWorker = require('vs/languages/less/common/lessWorker');
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
-import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {ModeWorkerManager, AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -24,6 +23,9 @@ import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
+import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export var language: Types.ILanguage = <Types.ILanguage> {
 	displayName: 'LESS',
@@ -177,13 +179,15 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 	}
 };
 
-export class LESSMode extends Monarch.MonarchMode implements Modes.HoverProvider, Modes.IOutlineSupport {
+export class LESSMode extends AbstractMode implements Modes.HoverProvider, Modes.IOutlineSupport {
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public suggestSupport: Modes.ISuggestSupport;
+	public tokenizationSupport: Modes.ITokenizationSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	private modeService: IModeService;
 	private _modeWorkerManager: ModeWorkerManager<lessWorker.LessWorker>;
@@ -197,7 +201,9 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.HoverProvider
 		@IModelService modelService: IModelService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
+		super(descriptor.id);
+		let lexer = Compile.compile(language);
+
 		this._modeWorkerManager = new ModeWorkerManager<lessWorker.LessWorker>(descriptor, 'vs/languages/less/common/lessWorker', 'LessWorker', 'vs/languages/css/common/cssWorker', instantiationService);
 		this._threadService = threadService;
 
@@ -215,7 +221,12 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.HoverProvider
 		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.less', 'string.less'],
-			suggest: (resource, position) => this.suggest(resource, position)});
+			suggest: (resource, position) => this.suggest(resource, position)
+		});
+
+		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
+
+		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 	}
 
 	public creationDone(): void {
