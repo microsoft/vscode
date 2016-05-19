@@ -70,7 +70,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, cancellationToken) => this.provideCompletionItems(model, position, cancellationToken)
+			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
 		});
 		Modes.OccurrencesRegistry.register(this.getId(), this);
 	}

@@ -121,7 +121,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, cancellationToken) => this.provideCompletionItems(model, position, cancellationToken)
+			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
 		});
 		Modes.OccurrencesRegistry.register(this.getId(), this);
 	}

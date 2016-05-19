@@ -480,7 +480,7 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	suggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
+	provideCompletionItems(resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
@@ -553,7 +553,7 @@ class SuggestAdapter {
 		});
 	}
 
-	getSuggestionDetails(resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
+	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}
@@ -805,12 +805,12 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$suggest(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.suggest(resource, position));
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult[]> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(resource, position));
 	}
 
-	$getSuggestionDetails(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
-		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.getSuggestionDetails(resource, position, suggestion));
+	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> {
+		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(resource, position, suggestion));
 	}
 
 	// --- parameter hints
@@ -886,8 +886,8 @@ export class MainThreadLanguageFeatures {
 
 	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
-			provideHover: (model:IReadOnlyModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.Hover> => {
-				return wireCancellationToken(cancellationToken, this._proxy.$provideHover(handle, model.getAssociatedResource(), position));
+			provideHover: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._proxy.$provideHover(handle, model.getAssociatedResource(), position));
 			}
 		});
 		return undefined;
@@ -989,11 +989,11 @@ export class MainThreadLanguageFeatures {
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			triggerCharacters: triggerCharacters,
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model:IReadOnlyModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.ISuggestResult[]> => {
-				return wireCancellationToken(cancellationToken, this._proxy.$suggest(handle, model.getAssociatedResource(), position));
+			provideCompletionItems: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.getAssociatedResource(), position));
 			},
-			getSuggestionDetails: (resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> => {
-				return this._proxy.$getSuggestionDetails(handle, resource, position, suggestion);
+			resolveCompletionItem: (model:IReadOnlyModel, position:IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
+				return wireCancellationToken(token, this._proxy.$resolveCompletionItem(handle, model.getAssociatedResource(), position, suggestion));
 			}
 		});
 		return undefined;
@@ -1006,8 +1006,8 @@ export class MainThreadLanguageFeatures {
 
 			signatureHelpTriggerCharacters: triggerCharacter,
 
-			provideSignatureHelp: (model:IReadOnlyModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.SignatureHelp> => {
-				return wireCancellationToken(cancellationToken, this._proxy.$provideSignatureHelp(handle, model.getAssociatedResource(), position));
+			provideSignatureHelp: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.SignatureHelp> => {
+				return wireCancellationToken(token, this._proxy.$provideSignatureHelp(handle, model.getAssociatedResource(), position));
 			}
 
 		});

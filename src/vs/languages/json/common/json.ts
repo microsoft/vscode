@@ -77,7 +77,7 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model, position, cancellationToken) => this.provideCompletionItems(model, position, cancellationToken)
+			provideCompletionItems: (model, position, token) => this.provideCompletionItems(model, position, token)
 		});
 	}
 
@@ -132,8 +132,8 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
-	public provideCompletionItems(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.ISuggestResult[]> {
-		return wireCancellationToken(cancellationToken, this._provideCompletionItems(model.getAssociatedResource(), position));
+	public provideCompletionItems(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, token:CancellationToken): Thenable<Modes.ISuggestResult[]> {
+		return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
 	}
 
 	static $_provideCompletionItems = OneWorkerAttr(JSONMode, JSONMode.prototype._provideCompletionItems);
@@ -141,8 +141,8 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
-	public provideHover(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, cancellationToken:CancellationToken): Thenable<Modes.Hover> {
-		return wireCancellationToken(cancellationToken, this._provideHover(model.getAssociatedResource(), position));
+	public provideHover(model:EditorCommon.IReadOnlyModel, position:EditorCommon.IEditorPosition, token:CancellationToken): Thenable<Modes.Hover> {
+		return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
 	}
 
 	static $_provideHover = OneWorkerAttr(JSONMode, JSONMode.prototype._provideHover);

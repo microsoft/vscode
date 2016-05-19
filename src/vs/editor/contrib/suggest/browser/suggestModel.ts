@@ -9,11 +9,12 @@ import Event, { Emitter } from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition, CursorChangeReason} from 'vs/editor/common/editorCommon';
+import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IEditorPosition, CursorChangeReason} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ISuggestResult2, provideCompletionItems} from '../common/suggest';
 import {CompletionModel} from './completionModel';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -228,15 +229,12 @@ export class SuggestModel implements IDisposable {
 		return actuallyCanceled;
 	}
 
-	public getRequestPosition(): IPosition {
+	public getRequestPosition(): IEditorPosition {
 		if (!this.context) {
 			return null;
 		}
 
-		return {
-			lineNumber: this.context.lineNumber,
-			column: this.context.column
-		};
+		return new Position(this.context.lineNumber, this.context.column);
 	}
 
 	private isAutoSuggest(): boolean {

@@ -174,12 +174,12 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return true;
 	}
 
-	provideCompletionItems(model:editor.IReadOnlyModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.ISuggestResult[]> {
+	provideCompletionItems(model:editor.IReadOnlyModel, position:editor.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		const wordInfo = model.getWordUntilPosition(position);
 		const resource = model.getAssociatedResource();
 		const offset = this._positionToOffset(resource, position);
 
-		return wireCancellationToken(cancellationToken, this._worker(resource).then(worker => {
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getCompletionsAtPosition(resource.toString(), offset);
 		}).then(info => {
 			if (!info) {
@@ -200,9 +200,10 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		}));
 	}
 
-	getSuggestionDetails(resource: URI, position: editor.IPosition, suggestion: modes.ISuggestion) {
+	resolveCompletionItem(model:editor.IReadOnlyModel, position:editor.IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+		const resource = model.getAssociatedResource();
 
-		return this._worker(resource).then(worker => {
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getCompletionEntryDetails(resource.toString(),
 				this._positionToOffset(resource, position),
 				suggestion.label);
@@ -218,7 +219,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 				typeLabel: ts.displayPartsToString(details.displayParts),
 				documentationLabel: ts.displayPartsToString(details.documentation)
 			};
-		});
+		}));
 	}
 
 	static asType(kind: string): modes.SuggestionType{
@@ -246,9 +247,9 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 	public signatureHelpTriggerCharacters = ['(', ','];
 
-	provideSignatureHelp(model: editor.IReadOnlyModel, position: editor.IEditorPosition, cancellationToken: CancellationToken): Thenable<modes.SignatureHelp> {
+	provideSignatureHelp(model: editor.IReadOnlyModel, position: editor.IEditorPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
 		let resource = model.getAssociatedResource();
-		return wireCancellationToken(cancellationToken, this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
+		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
 			if (!info) {
 				return;
@@ -295,10 +296,10 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
-	provideHover(model:editor.IReadOnlyModel, position:editor.IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.Hover> {
+	provideHover(model:editor.IReadOnlyModel, position:editor.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
 		let resource = model.getAssociatedResource();
 
-		return wireCancellationToken(cancellationToken, this._worker(resource).then(worker => {
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getQuickInfoAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(info => {
 			if (!info) {

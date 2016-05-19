@@ -301,7 +301,7 @@ export interface Hover {
 }
 
 export interface HoverProvider {
-	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, cancellationToken:CancellationToken): Hover | Thenable<Hover>;
+	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Hover | Thenable<Hover>;
 }
 
 export type SuggestionType = 'method'
@@ -344,7 +344,15 @@ export interface ISuggestResult {
 }
 
 /**
- * Interface used to get completion suggestions at a specific location.
+ * The completion item provider interface defines the contract between extensions and
+ * the [IntelliSense](https://code.visualstudio.com/docs/editor/editingevolved#_intellisense).
+ *
+ * When computing *complete* completion items is expensive, providers can optionally implement
+ * the `resolveCompletionItem`-function. In that case it is enough to return completion
+ * items with a [label](#CompletionItem.label) from the
+ * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
+ * when a completion item is shown in the UI and gains focus this provider is asked to resolve
+ * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
  */
 export interface ISuggestSupport {
 
@@ -355,14 +363,28 @@ export interface ISuggestSupport {
 	filter?: IFilter;
 
 	/**
-	 * Compute all completions for the given resource at the given position.
+	 * Provide completion items for the given position and document.
+	 *
+	 * @param document The document in which the command was invoked.
+	 * @param position The position at which the command was invoked.
+	 * @param token A cancellation token.
+	 * @return An array of completions, a [completion list](#CompletionList), or a thenable that resolves to either.
+	 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
 	 */
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, cancellationToken:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
 
 	/**
-	 * Compute more details for the given suggestion.
+	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
+	 * or [details](#CompletionItem.detail).
+	 *
+	 * The editor will only resolve a completion item once.
+	 *
+	 * @param item A completion item currently active in the UI.
+	 * @param token A cancellation token.
+	 * @return The resolved completion item or a thenable that resolves to of such. It is OK to return the given
+	 * `item`. When no result is returned, the given `item` will be used.
 	 */
-	getSuggestionDetails?: (resource: URI, position: editorCommon.IPosition, suggestion: ISuggestion) => TPromise<ISuggestion>;
+	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
 /**

@@ -52,10 +52,10 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		this._configurationService = configurationService;
 	}
 
-	public provideCompletionItems(model:IReadOnlyModel, position:IEditorPosition, cancellationToken:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]> {
+	public provideCompletionItems(model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]> {
 		let config = this._configurationService.getConfiguration<{ wordBasedSuggestions: boolean }>('editor');
 		if (!config || config.wordBasedSuggestions) {
-			return wireCancellationToken(cancellationToken, this._editorWorkerService.textualSuggest(model.getAssociatedResource(), position));
+			return wireCancellationToken(token, this._editorWorkerService.textualSuggest(model.getAssociatedResource(), position));
 		}
 		return <ISuggestResult[]>[];
 	}
