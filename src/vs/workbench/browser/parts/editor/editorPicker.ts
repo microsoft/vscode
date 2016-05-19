@@ -34,12 +34,8 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		this.stacks = editorService.getStacksModel();
 	}
 
-	public getPrefix(): string {
-		if (this.editor.isDirty()) {
-			return '\u25cf '; // dirty decoration
-		}
-
-		return void 0;
+	public getIcon(): string {
+		return this.editor.isDirty() ? 'dirty' : '';
 	}
 
 	public getLabel(): string {

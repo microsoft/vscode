@@ -1185,8 +1185,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			// Update the input title actions in each position according to the new status
 			POSITIONS.forEach((position) => {
 				if (this.visibleEditors[position] && isInputRelated(this.visibleEditors[position].input, input)) {
-					const status = input.getStatus();
-					this.closeEditorActions[position].class = (status && status.decoration) ? 'close-editor-decorated-action' : 'close-editor-action';
+					this.closeEditorActions[position].class = input.isDirty() ? 'close-editor-dirty-action' : 'close-editor-action';
 				}
 			});
 		}
@@ -1334,8 +1333,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.editorActionsToolbar[position].setActions(primaryActions, secondaryActions)();
 
 		// Update title actions accordingly
-		const status = input.getStatus();
-		this.closeEditorActions[position].class = (status && status.decoration) ? 'close-editor-decorated-action' : 'close-editor-action';
+		this.closeEditorActions[position].class = input.isDirty() ? 'close-editor-dirty-action' : 'close-editor-action';
 	}
 
 	public setLoading(position: Position, input: EditorInput): void {

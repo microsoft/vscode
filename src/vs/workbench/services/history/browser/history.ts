@@ -166,9 +166,8 @@ export abstract class BaseHistoryService {
 
 		let prefix = input && input.getName();
 		if (prefix && input) {
-			let status = (<EditorInput>input).getStatus();
-			if (status && status.decoration && !platform.isMacintosh /* Mac has its own decoration in window */) {
-				prefix = nls.localize('prefixDecoration', "{0} {1}", status.decoration, prefix);
+			if ((<EditorInput>input).isDirty() && !platform.isMacintosh /* Mac has its own decoration in window */) {
+				prefix = nls.localize('prefixDecoration', "\u25cf {0}", prefix);
 			}
 		}
 

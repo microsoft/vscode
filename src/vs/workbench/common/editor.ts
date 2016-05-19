@@ -14,32 +14,6 @@ import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/pla
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-/**
- * A simple bag for input related status that can be shown in the UI
- */
-export interface IInputStatus {
-
-	/**
-	 * An identifier of the state that can be used e.g. as CSS class when displaying the input.
-	 */
-	state?: string;
-
-	/**
-	 * A label to display describing the current input status.
-	 */
-	displayText?: string;
-
-	/**
-	 * A longer description giving more detail about the current input status.
-	 */
-	description?: string;
-
-	/**
-	 * Preferably a short label to append to the input name to indicate the input status.
-	 */
-	decoration?: string;
-}
-
 export enum ConfirmResult {
 	SAVE,
 	DONT_SAVE,
@@ -55,7 +29,7 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 
 	constructor() {
 		super();
-		
+
 		this.disposed = false;
 	}
 
@@ -79,14 +53,6 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	 * @param verbose controls if the description should be short or can contain additional details.
 	 */
 	public getDescription(verbose?: boolean): string {
-		return null;
-	}
-
-	/**
-	 * Returns status information about this input that can be shown to the user. Examples include showing the status
-	 * of the input when hovering over the name of the input.
-	 */
-	public getStatus(): IInputStatus {
 		return null;
 	}
 

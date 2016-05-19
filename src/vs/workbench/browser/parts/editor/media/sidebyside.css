@@ -169,21 +169,21 @@
 }
 
 .monaco-workbench .close-editor-action,
-.monaco-workbench .close-editor-decorated-action:hover {
+.monaco-workbench .close-editor-dirty-action:hover {
 	background: url('close.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .close-editor-action,
-.vs-dark .monaco-workbench .close-editor-decorated-action:hover {
-	background: url('close-dark.svg') center center no-repeat;
+.vs-dark .monaco-workbench .close-editor-dirty-action:hover {
+	background: url('close-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .close-editor-decorated-action {
-	background: url('close-decorated.svg') center center no-repeat;
+.monaco-workbench .close-editor-dirty-action {
+	background: url('close-dirty.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .close-editor-decorated-action {
-	background: url('close-decorated-inverse.svg') center center no-repeat;
+.vs-dark .monaco-workbench .close-editor-dirty-action {
+	background: url('close-dirty-inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .split-editor-action {
@@ -213,7 +213,7 @@
 /* High Contrast Theming */
 
 .hc-black .monaco-workbench .close-editor-action,
-.hc-black .monaco-workbench .close-editor-decorated-action,
+.hc-black .monaco-workbench .close-editor-dirty-action,
 .hc-black .monaco-workbench .show-group-editors-action,
 .hc-black .monaco-workbench .show-group-editors-overflowing-action,
 .hc-black .monaco-workbench .split-editor-action {
@@ -242,7 +242,7 @@
 	width: 16px;
 }
 
-.hc-black .monaco-workbench .close-editor-decorated-action:before {
+.hc-black .monaco-workbench .close-editor-dirty-action:before {
 	content: url('close-decorated-inverse.svg');
 	position: absolute;
 	top: 12px;
@@ -252,7 +252,7 @@
 }
 
 .hc-black .monaco-workbench .close-editor-action:before {
-	content: url('close-dark.svg');
+	content: url('close-inverse.svg');
 	position: absolute;
 	top: 12px;
 	left: 8px;
