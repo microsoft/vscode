@@ -458,7 +458,9 @@ export class ActionProvider implements IActionProvider {
 
 			closeActions.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
 			closeActions.push(new Separator());
-			closeActions.push(this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL));
+			const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL);
+			closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
+			closeActions.push(closeOtherEditorsInGroupAction);
 			closeActions.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
 			closeActions.push(new Separator());
 		}
