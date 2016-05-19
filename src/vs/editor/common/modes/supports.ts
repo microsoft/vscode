@@ -71,42 +71,6 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 	return runner(nestedMode, newCtx, offset - firstTokenCharacterOffset);
 }
 
-/**
- * Returns {{true}} if the line token at the specified
- * offset matches one of the provided types. Matching
- * happens on a substring start from the end, unless
- * anywhereInToken is set to true in which case matches
- * happen on a substring at any position.
- */
-export function isLineToken(context:modes.ILineContext, offset:number, types:string[], anywhereInToken:boolean = false):boolean {
-
-	if (!Array.isArray(types) || types.length === 0) {
-		return false;
-	}
-
-	if (context.getLineContent().length <= offset) {
-		return false;
-	}
-
-	var tokenIdx = context.findIndexOfOffset(offset);
-	var type = context.getTokenType(tokenIdx);
-
-	for (var i = 0, len = types.length; i < len; i++) {
-		if (anywhereInToken) {
-			if (type.indexOf(types[i]) >= 0) {
-				return true;
-			}
-		}
-		else {
-			if (strings.endsWith(type, types[i])) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
 export class FilteredLineContext implements modes.ILineContext {
 
 	public modeTransitions: ModeTransition[];

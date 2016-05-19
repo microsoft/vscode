@@ -415,7 +415,7 @@ class NavigateTypeAdapter implements INavigateTypesSupport {
 	}
 }
 
-class RenameAdapter implements modes.IRenameSupport {
+class RenameAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.RenameProvider;
@@ -425,7 +425,7 @@ class RenameAdapter implements modes.IRenameSupport {
 		this._provider = provider;
 	}
 
-	rename(resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> {
+	provideRenameEdits(resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
@@ -436,8 +436,7 @@ class RenameAdapter implements modes.IRenameSupport {
 				return;
 			}
 
-			let result = <modes.IRenameResult>{
-				currentName: undefined,
+			let result = <modes.WorkspaceEdit>{
 				edits: []
 			};
 
@@ -454,8 +453,7 @@ class RenameAdapter implements modes.IRenameSupport {
 			return result;
 		}, err => {
 			if (typeof err === 'string') {
-				return <modes.IRenameResult>{
-					currentName: undefined,
+				return <modes.WorkspaceEdit>{
 					edits: undefined,
 					rejectReason: err
 				};
@@ -792,8 +790,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$rename(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> {
-		return this._withAdapter(handle, RenameAdapter, adapter => adapter.rename(resource, position, newName));
+	$provideRenameEdits(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> {
+		return this._withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(resource, position, newName));
 	}
 
 	// --- suggestion
@@ -975,9 +973,9 @@ export class MainThreadLanguageFeatures {
 	// --- rename
 
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.RenameRegistry.register(selector, <modes.IRenameSupport>{
-			rename: (resource: URI, position: IPosition, newName: string): TPromise<modes.IRenameResult> => {
-				return this._proxy.$rename(handle, resource, position, newName);
+		this._registrations[handle] = modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
+			provideRenameEdits: (model:IReadOnlyModel, position:IEditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
+				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.getAssociatedResource(), position, newName));
 			}
 		});
 		return undefined;

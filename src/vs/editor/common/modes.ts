@@ -521,26 +521,18 @@ export interface IConfigurationSupport {
 	configure(options:any):TPromise<void>;
 }
 
+
 export interface IResourceEdit {
 	resource: URI;
-	range?: editorCommon.IRange;
+	range: editorCommon.IRange;
 	newText: string;
 }
-
-export interface IRenameResult {
-	currentName: string;
+export interface WorkspaceEdit {
 	edits: IResourceEdit[];
 	rejectReason?: string;
 }
-
-/**
- * Interface used to support renaming of symbols
- */
-export interface IRenameSupport {
-
-	filter?: string[];
-
-	rename(resource: URI, position: editorCommon.IPosition, newName: string): TPromise<IRenameResult>;
+export interface RenameProvider {
+	provideRenameEdits(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 }
 
 export interface ICommand {
@@ -691,7 +683,7 @@ export interface IRichEditSupport {
 
 export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
 
-export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>();
+export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider>();
 
 export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>();
 

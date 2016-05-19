@@ -285,7 +285,7 @@ class ExtHostApiCommands {
 			position: position && typeConverters.fromPosition(position),
 			newName
 		};
-		return this._commands.executeCommand<modes.IRenameResult>('_executeDocumentRenameProvider', args).then(value => {
+		return this._commands.executeCommand<modes.WorkspaceEdit>('_executeDocumentRenameProvider', args).then(value => {
 			if (!value) {
 				return;
 			}

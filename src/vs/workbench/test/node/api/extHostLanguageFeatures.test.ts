@@ -650,7 +650,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return rename(model, { lineNumber: 1, column: 1 }, 'newName').then(value => {
+			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				throw new Error('');
 			}, err => {
 				// expected
@@ -676,7 +676,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return rename(model, { lineNumber: 1, column: 1 }, 'newName').then(value => {
+			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				assert.equal(value.edits.length, 1);
 			});
 		});
@@ -701,7 +701,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return rename(model, { lineNumber: 1, column: 1 }, 'newName').then(value => {
+			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				assert.equal(value.edits.length, 2); // least relevant renamer
 			});
 		});

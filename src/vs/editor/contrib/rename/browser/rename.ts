@@ -18,8 +18,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {isLineToken} from 'vs/editor/common/modes/supports';
-import {RenameRegistry} from 'vs/editor/common/modes';
+import {RenameProviderRegistry} from 'vs/editor/common/modes';
 import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {rename} from '../common/rename';
@@ -58,28 +57,11 @@ export class RenameAction extends EditorAction {
 	}
 
 	public isSupported(): boolean {
-		return RenameRegistry.has(this.editor.getModel()) && !this.editor.getModel().hasEditableRange() && super.isSupported();
+		return RenameProviderRegistry.has(this.editor.getModel()) && !this.editor.getModel().hasEditableRange() && super.isSupported();
 	}
 
 	public getEnablementState(): boolean {
-
-		let model = this.editor.getModel();
-		let position = this.editor.getSelection().getStartPosition();
-		let lineContext = model.getLineContext(position.lineNumber);
-
-		return RenameRegistry.ordered(model).some(support => {
-			if (!support.filter) {
-				return true;
-			}
-			if (isLineToken(lineContext, position.column - 1, support.filter)) {
-				return true;
-			}
-
-			if (position.column > 1 && isLineToken(lineContext, position.column - 2, support.filter)) {
-				// in case we are in between two tokens
-				return true;
-			}
-		});
+		return RenameProviderRegistry.has(this.editor.getModel());
 	}
 
 	public run(event?: any): TPromise<any> {
