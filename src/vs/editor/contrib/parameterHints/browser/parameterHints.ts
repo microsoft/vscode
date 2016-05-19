@@ -65,7 +65,7 @@ class ParameterHintsController implements IEditorContribution {
 	}
 
 	public trigger(): void {
-		this.model.trigger(undefined, 0);
+		this.model.trigger(0);
 	}
 }
 

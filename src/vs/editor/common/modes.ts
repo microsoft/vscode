@@ -424,31 +424,91 @@ export interface IQuickFixSupport {
 	getQuickFixes(resource: URI, range: editorCommon.IRange): TPromise<IQuickFix[]>;
 }
 
-export interface IParameter {
-	label:string;
-	documentation?:string;
-	signatureLabelOffset?:number;
-	signatureLabelEnd?:number;
-}
+/**
+ * Represents a parameter of a callable-signature. A parameter can
+ * have a label and a doc-comment.
+ */
+export interface ParameterInformation {
 
-export interface ISignature {
-	label:string;
-	documentation?:string;
-	parameters:IParameter[];
-}
+	/**
+	 * The label of this signature. Will be shown in
+	 * the UI.
+	 */
+	label: string;
 
-export interface IParameterHints {
-	currentSignature:number;
-	currentParameter:number;
-	signatures:ISignature[];
+	/**
+	 * The human-readable doc-comment of this signature. Will be shown
+	 * in the UI but can be omitted.
+	 */
+	documentation: string;
 }
 
 /**
- * Interface used to get parameter hints.
+ * Represents the signature of something callable. A signature
+ * can have a label, like a function-name, a doc-comment, and
+ * a set of parameters.
+ */
+export interface SignatureInformation {
+
+	/**
+	 * The label of this signature. Will be shown in
+	 * the UI.
+	 */
+	label: string;
+
+	/**
+	 * The human-readable doc-comment of this signature. Will be shown
+	 * in the UI but can be omitted.
+	 */
+	documentation: string;
+
+	/**
+	 * The parameters of this signature.
+	 */
+	parameters: ParameterInformation[];
+}
+
+/**
+ * Signature help represents the signature of something
+ * callable. There can be multiple signatures but only one
+ * active and only one active parameter.
+ */
+export interface SignatureHelp {
+
+	/**
+	 * One or more signatures.
+	 */
+	signatures: SignatureInformation[];
+
+	/**
+	 * The active signature.
+	 */
+	activeSignature: number;
+
+	/**
+	 * The active parameter of the active signature.
+	 */
+	activeParameter: number;
+}
+
+/**
+ * The signature help provider interface defines the contract between extensions and
+ * the [parameter hints](https://code.visualstudio.com/docs/editor/editingevolved#_parameter-hints)-feature.
  */
 export interface IParameterHintsSupport {
-	getParameterHintsTriggerCharacters(): string[];
-	getParameterHints(resource: URI, position: editorCommon.IPosition, triggerCharacter?: string): TPromise<IParameterHints>;
+
+	parameterHintsTriggerCharacters: string[];
+
+	/**
+	 * Provide help for the signature at the given position and document.
+	 *
+	 * @param document The document in which the command was invoked.
+	 * @param position The position at which the command was invoked.
+	 * @param token A cancellation token.
+	 * @return Signature help or a thenable that resolves to such. The lack of a result can be
+	 * signaled by returning `undefined` or `null`.
+	 */
+	provideSignatureHelp(model: editorCommon.IModel, position: editorCommon.IEditorPosition, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 }
 
 

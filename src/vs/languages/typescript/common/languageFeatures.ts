@@ -244,26 +244,25 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 
 class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupport {
 
-	getParameterHintsTriggerCharacters(): string[] {
-		return ['(', ','];
-	}
+	public parameterHintsTriggerCharacters = ['(', ','];
 
-	getParameterHints(resource: URI, position: editor.IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
+	provideSignatureHelp(model: editor.IModel, position: editor.IEditorPosition, token: CancellationToken): TPromise<modes.SignatureHelp> {
+		let resource = model.getAssociatedResource();
 		return this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
 			if (!info) {
 				return;
 			}
 
-			let ret = <modes.IParameterHints>{
-				currentSignature: info.selectedItemIndex,
-				currentParameter: info.argumentIndex,
+			let ret:modes.SignatureHelp = {
+				activeSignature: info.selectedItemIndex,
+				activeParameter: info.argumentIndex,
 				signatures: []
 			};
 
 			info.items.forEach(item => {
 
-				let signature = <modes.ISignature>{
+				let signature:modes.SignatureInformation = {
 					label: '',
 					documentation: null,
 					parameters: []
@@ -272,11 +271,9 @@ class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupp
 				signature.label += ts.displayPartsToString(item.prefixDisplayParts);
 				item.parameters.forEach((p, i, a) => {
 					let label = ts.displayPartsToString(p.displayParts);
-					let parameter = <modes.IParameter>{
+					let parameter:modes.ParameterInformation = {
 						label: label,
-						documentation: ts.displayPartsToString(p.documentation),
-						signatureLabelOffset: signature.label.length,
-						signatureLabelEnd: signature.label.length + label.length
+						documentation: ts.displayPartsToString(p.documentation)
 					};
 					signature.label += label;
 					signature.parameters.push(parameter);

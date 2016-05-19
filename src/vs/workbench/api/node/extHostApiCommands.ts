@@ -306,7 +306,7 @@ class ExtHostApiCommands {
 			position: position && typeConverters.fromPosition(position),
 			triggerCharacter
 		};
-		return this._commands.executeCommand<modes.IParameterHints>('_executeSignatureHelpProvider', args).then(value => {
+		return this._commands.executeCommand<modes.SignatureHelp>('_executeSignatureHelpProvider', args).then(value => {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
 			}

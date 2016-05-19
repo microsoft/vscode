@@ -426,68 +426,12 @@ export const Suggest = {
 
 export namespace SignatureHelp {
 
-	export function from(signatureHelp: types.SignatureHelp): modes.IParameterHints {
-
-		let result: modes.IParameterHints = {
-			currentSignature: signatureHelp.activeSignature,
-			currentParameter: signatureHelp.activeParameter,
-			signatures: []
-		};
-
-		for (let signature of signatureHelp.signatures) {
-
-			let signatureItem: modes.ISignature = {
-				label: signature.label,
-				documentation: signature.documentation,
-				parameters: []
-			};
-
-			let idx = 0;
-			for (let parameter of signature.parameters) {
-
-				let parameterItem: modes.IParameter = {
-					label: parameter.label,
-					documentation: parameter.documentation,
-				};
-
-				signatureItem.parameters.push(parameterItem);
-				idx = signature.label.indexOf(parameter.label, idx);
-
-				if (idx >= 0) {
-					parameterItem.signatureLabelOffset = idx;
-					idx += parameter.label.length;
-					parameterItem.signatureLabelEnd = idx;
-				} else {
-					parameterItem.signatureLabelOffset = 0;
-					parameterItem.signatureLabelEnd = 0;
-				}
-			}
-
-			result.signatures.push(signatureItem);
-		}
-
-		return result;
+	export function from(signatureHelp: types.SignatureHelp): modes.SignatureHelp {
+		return signatureHelp;
 	}
 
-	export function to(hints: modes.IParameterHints): types.SignatureHelp {
-
-		const result = new types.SignatureHelp();
-		result.activeSignature = hints.currentSignature;
-		result.activeParameter = hints.currentParameter;
-
-		for (let signature of hints.signatures) {
-
-			const signatureItem = new types.SignatureInformation(signature.label, signature.documentation);
-			result.signatures.push(signatureItem);
-
-			for (let parameter of signature.parameters) {
-
-				const parameterItem = new types.ParameterInformation(parameter.label, parameter.documentation);
-				signatureItem.parameters.push(parameterItem);
-			}
-		}
-
-		return result;
+	export function to(hints: modes.SignatureHelp): types.SignatureHelp {
+		return hints;
 	}
 }
 

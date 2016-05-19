@@ -555,16 +555,9 @@ export class RunOnceScheduler {
 	}
 
 	/**
-	 * Set timeout. This change will only impact new schedule calls.
-	 */
-	public setTimeout(timeout: number): void {
-		this.timeout = timeout;
-	}
-
-	/**
 	 * Cancel previous runner (if any) & schedule a new runner.
 	 */
-	public schedule(): void {
+	public schedule(delay = this.timeout): void {
 		this.cancel();
 		this.timeoutToken = platform.setTimeout(this.timeoutHandler, this.timeout);
 	}

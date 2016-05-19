@@ -586,7 +586,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 	}
 }
 
-class ParameterHintsAdapter implements modes.IParameterHintsSupport {
+class ParameterHintsAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.SignatureHelpProvider;
@@ -596,7 +596,7 @@ class ParameterHintsAdapter implements modes.IParameterHintsSupport {
 		this._provider = provider;
 	}
 
-	getParameterHints(resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
+	provideSignatureHelp(resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
@@ -606,10 +606,6 @@ class ParameterHintsAdapter implements modes.IParameterHintsSupport {
 				return TypeConverters.SignatureHelp.from(value);
 			}
 		});
-	}
-
-	getParameterHintsTriggerCharacters(): string[] {
-		throw new Error('illegal state');
 	}
 }
 
@@ -841,8 +837,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$getParameterHints(handle: number, resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
-		return this._withAdapter(handle, ParameterHintsAdapter, adapter => adapter.getParameterHints(resource, position, triggerCharacter));
+	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
+		return this._withAdapter(handle, ParameterHintsAdapter, adapter => adapter.provideSignatureHelp(resource, position));
 	}
 }
 
@@ -1032,12 +1028,13 @@ export class MainThreadLanguageFeatures {
 
 	$registerParameterHintsSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> {
 		this._registrations[handle] = modes.ParameterHintsRegistry.register(selector, <modes.IParameterHintsSupport>{
-			getParameterHints: (resource: URI, position: IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> => {
-				return this._proxy.$getParameterHints(handle, resource, position, triggerCharacter);
-			},
-			getParameterHintsTriggerCharacters(): string[] {
-				return triggerCharacter;
+
+			parameterHintsTriggerCharacters: triggerCharacter,
+
+			provideSignatureHelp: (model:IModel, position:IEditorPosition, cancellationToken:CancellationToken): Thenable<modes.SignatureHelp> => {
+				return wireCancellationToken(cancellationToken, this._proxy.$provideSignatureHelp(handle, model.getAssociatedResource(), position));
 			}
+
 		});
 		return undefined;
 	}

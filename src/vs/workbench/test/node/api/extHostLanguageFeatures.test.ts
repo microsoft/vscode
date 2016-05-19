@@ -31,7 +31,7 @@ import {findReferences} from 'vs/editor/contrib/referenceSearch/common/reference
 import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
-import {getParameterHints} from 'vs/editor/contrib/parameterHints/common/parameterHints';
+import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {suggest} from 'vs/editor/contrib/suggest/common/suggest';
 import {formatDocument, formatRange, formatAfterKeystroke} from 'vs/editor/contrib/format/common/format';
 
@@ -769,7 +769,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		threadService.sync().then(() => {
 
-			getParameterHints(model, { lineNumber: 1, column: 1 }, '(').then(value => {
+			provideSignatureHelp(model, new EditorPosition(1, 1)).then(value => {
 				done(new Error('error expeted'));
 			}, err => {
 				assert.equal(err.message, 'evil');

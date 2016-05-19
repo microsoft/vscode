@@ -5,26 +5,21 @@
 
 'use strict';
 
-import {illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IParameterHints, ParameterHintsRegistry} from 'vs/editor/common/modes';
+import {SignatureHelp, ParameterHintsRegistry} from 'vs/editor/common/modes';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {toThenable} from 'vs/base/common/async';
 
-export function getParameterHints(model:IModel, position:IPosition, triggerCharacter: string): TPromise<IParameterHints> {
+export function provideSignatureHelp(model:IModel, position:IEditorPosition, cancellationToken = CancellationToken.None): Thenable<SignatureHelp> {
 
 	let support = ParameterHintsRegistry.ordered(model)[0];
 	if (!support) {
 		return TPromise.as(undefined);
 	}
 
-	return support.getParameterHints(model.getAssociatedResource(), position, triggerCharacter);
+	return toThenable(support.provideSignatureHelp(model, position, cancellationToken));
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeSignatureHelpProvider', function(model, position, args) {
-	let {triggerCharacter} = args;
-	if (triggerCharacter && typeof triggerCharacter !== 'string') {
-		throw illegalArgument('triggerCharacter');
-	}
-	return getParameterHints(model, position, triggerCharacter);
-});
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeSignatureHelpProvider', provideSignatureHelp);
