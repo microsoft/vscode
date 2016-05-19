@@ -26,7 +26,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
-import {IStorageService} from 'vs/platform/storage/common/storage';
+import {IStorageService, NullStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {MainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -86,6 +86,7 @@ export interface IStaticServices {
 	codeEditorService: ICodeEditorService;
 	editorWorkerService: IEditorWorkerService;
 	eventService: IEventService;
+	storageService: IStorageService;
 	instantiationService: IInstantiationService;
 }
 
@@ -197,6 +198,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		codeEditorService: codeEditorService,
 		editorWorkerService: editorWorkerService,
 		eventService: eventService,
+		storageService: services.storageService || NullStorageService,
 		instantiationService: void 0
 	};
 
