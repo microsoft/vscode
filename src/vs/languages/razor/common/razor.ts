@@ -74,6 +74,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 			shouldAutotriggerSuggest: true,
 			suggest: (resource, position) => this.suggest(resource, position)
 		});
+		Modes.OccurrencesRegistry.register(this.getId(), this);
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {

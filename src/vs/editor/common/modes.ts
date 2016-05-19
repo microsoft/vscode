@@ -202,11 +202,6 @@ export interface IMode {
 	tokenizationSupport?: ITokenizationSupport;
 
 	/**
-	 * Optional adapter to support showing occurrences of words or such.
-	 */
-	occurrencesSupport?:IOccurrencesSupport;
-
-	/**
 	 * Optional adapter to support revealing the declaration of a symbol.
 	 */
 	declarationSupport?: IDeclarationSupport;
@@ -804,7 +799,7 @@ export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>(
 
 export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>(null);
 
-export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
+export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>(null);
 
 export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
 

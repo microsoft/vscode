@@ -283,7 +283,6 @@ export class CSSMode extends AbstractMode {
 	public richEditSupport: Modes.IRichEditSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public quickFixSupport: Modes.IQuickFixSupport;
 
@@ -330,7 +329,7 @@ export class CSSMode extends AbstractMode {
 
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
-		//this.occurrencesSupport = this;
+		// Modes.OccurrencesRegistry.register(this.getId(), this);
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		// Modes.ReferenceSearchRegistry.register(this.getId(), this);
 		Modes.OutlineRegistry.register(this.getId(), this);

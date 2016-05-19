@@ -125,6 +125,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 			shouldAutotriggerSuggest: true,
 			suggest: (resource, position) => this.suggest(resource, position)
 		});
+		Modes.OccurrencesRegistry.register(this.getId(), this);
 	}
 
 	protected _createRichEditSupport(): Modes.IRichEditSupport {

@@ -491,17 +491,6 @@ export class HTMLWorker {
 	}
 
 	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): winjs.TPromise<Modes.IOccurence[]> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().occurrencesSupport) {
-				return model.getMode().occurrencesSupport.findOccurrences(model.getAssociatedResource(), position, strict);
-			}
-
-			return this.findOccurrencesHTML(resource, position, strict);
-		});
-	}
-
-	public findOccurrencesHTML(resource:URI, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
-
 		let model = this.resourceService.get(resource),
 			wordAtPosition = model.getWordAtPosition(position),
 			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
