@@ -13,10 +13,10 @@ export interface ILinkComputerTarget {
 
 // State machine for http:// or https://
 var STATE_MAP:{[ch:string]:number}[] = [], START_STATE = 1, END_STATE = 9, ACCEPT_STATE = 10;
-STATE_MAP[1] = { 'h': 2, 'H': 2 };
-STATE_MAP[2] = { 't': 3, 'T': 3 };
-STATE_MAP[3] = { 't': 4, 'T': 4 };
-STATE_MAP[4] = { 'p': 5, 'P': 5 };
+STATE_MAP[1] = { 'h': 2, 'H': 2, 'f': 2, 'F': 2 };
+STATE_MAP[2] = { 't': 3, 'T': 3, 'i': 3, 'I': 3 };
+STATE_MAP[3] = { 't': 4, 'T': 4, 'l': 4, 'L': 4 };
+STATE_MAP[4] = { 'p': 5, 'P': 5, 'e': 6, 'E': 6 };
 STATE_MAP[5] = { 's': 6, 'S': 6, ':': 7 };
 STATE_MAP[6] = { ':': 7 };
 STATE_MAP[7] = { '/': 8 };

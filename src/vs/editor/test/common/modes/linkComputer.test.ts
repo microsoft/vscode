@@ -163,6 +163,25 @@ suite('Editor Modes - Link Computer', () => {
 			'     http://go.microsoft.com/fwlink/?LinkId=761051 '
 		);
 
+		assertLink(
+			'x = "file:///foo.bar";',
+			'     file:///foo.bar  '
+		);
+		assertLink(
+			'x = "file://c:/foo.bar";',
+			'     file://c:/foo.bar  '
+		);
+
+		assertLink(
+			'x = "file://shares/foo.bar";',
+			'     file://shares/foo.bar  '
+		);
+
+		assertLink(
+			'x = "file://shäres/foo.bar";',
+			'     file://shäres/foo.bar  '
+		);
+
 		// foo bar (see http://www.w3schools.com/tags/att_iframe_sandbox.asp)
 	});
 });
