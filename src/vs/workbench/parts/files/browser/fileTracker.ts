@@ -26,7 +26,6 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
-import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -198,7 +197,7 @@ export class FileTracker implements IWorkbenchContribution {
 		// Dispose all known inputs passed on resource
 		let oldFile = e.getBefore();
 		if ((e.gotMoved() || e.gotDeleted())) {
-			this.disposeAll(oldFile.resource, this.quickOpenService.getEditorHistory());
+			this.disposeAll(oldFile.resource);
 		}
 	}
 
@@ -208,7 +207,7 @@ export class FileTracker implements IWorkbenchContribution {
 		let allDeleted = e.getDeleted();
 		if (allDeleted && allDeleted.length > 0) {
 			allDeleted.forEach((deleted) => {
-				this.disposeAll(deleted.resource, this.quickOpenService.getEditorHistory());
+				this.disposeAll(deleted.resource);
 			});
 		}
 
@@ -408,7 +407,7 @@ export class FileTracker implements IWorkbenchContribution {
 		return null;
 	}
 
-	private disposeAll(deletedResource: URI, history: IEditorInput[]): void {
+	private disposeAll(deletedResource: URI): void {
 		if (this.textFileService.isDirty(deletedResource)) {
 			return; // never dispose dirty resources
 		}
@@ -416,25 +415,10 @@ export class FileTracker implements IWorkbenchContribution {
 		// Add existing clients matching resource
 		let inputsContainingPath: EditorInput[] = FileEditorInput.getAll(deletedResource);
 
-		// Add those from history as well
-		for (let i = 0; i < history.length; i++) {
-			let element = history[i];
-
-			// File Input
-			if (element instanceof FileEditorInput && this.containsResource(<FileEditorInput>element, deletedResource)) {
-				inputsContainingPath.push(<FileEditorInput>element);
-			}
-
-			// IFrame Input
-			else if (element instanceof IFrameEditorInput && this.containsResource(<IFrameEditorInput>element, deletedResource)) {
-				inputsContainingPath.push(<IFrameEditorInput>element);
-			}
-		}
-
-		// Add those from visible editors too
-		let editors = this.editorService.getVisibleEditors();
-		editors.forEach((editor) => {
-			let input = editor.input;
+		// Collect from history and opened editors and see which ones to pick
+		const candidates = this.quickOpenService.getEditorHistory();
+		this.editorService.getStacksModel().groups.forEach(group => candidates.push(...group.getEditors()));
+		candidates.forEach(input => {
 			if (input instanceof DiffEditorInput) {
 				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, deletedResource);
 				if (input instanceof FileEditorInput) {
@@ -453,8 +437,13 @@ export class FileTracker implements IWorkbenchContribution {
 			}
 		});
 
-		// Dispose all
+		// Clean up inputs that match
 		inputsContainingPath.forEach((input) => {
+
+			// Editor History
+			this.quickOpenService.removeEditorHistoryEntry(input);
+
+			// Dispose
 			if (!input.isDisposed()) {
 				if (input instanceof FileEditorInput) {
 					input.dispose(true /* force */);
