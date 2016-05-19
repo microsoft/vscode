@@ -5,7 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { SyntaxKind, createScanner, parse, getLocation, Node, ParseError, parseTree, ParseErrorCode, getParseErrorMessage, ParseOptions, Segment } from 'vs/base/common/json';
+import { SyntaxKind, createScanner, parse, getLocation, Node, ParseError, parseTree, ParseErrorCode,
+	getParseErrorMessage, ParseOptions, Segment, findNodeAtLocation, getNodeValue } from 'vs/base/common/json';
 
 function assertKinds(text:string, ...kinds:SyntaxKind[]):void {
 	var _json = createScanner(text);
@@ -52,6 +53,11 @@ function assertTree(input:string, expected:any) : void {
 	checkParent(actual);
 
 	assert.deepEqual(actual, expected);
+}
+
+function assertNodeAtLocation(input:Node, segments: Segment[], expected: any) {
+	let actual = findNodeAtLocation(input, segments);
+	assert.deepEqual(actual ? getNodeValue(actual) : void 0, expected);
 }
 
 
@@ -303,5 +309,19 @@ suite('JSON', () => {
 				]}
 			]}
 		);
+	});
+
+	test('tree: find location', () => {
+		let root = parseTree('{ "key1": { "key11": [ "val111", "val112" ] }, "key2": [ { "key21": false, "key22": 221 }, null, [{}] ] }');
+		assertNodeAtLocation(root, [ "key1"], { key11: [ 'val111', 'val112' ]});
+		assertNodeAtLocation(root, [ "key1", "key11"], [ 'val111', 'val112' ]);
+		assertNodeAtLocation(root, [ "key1", "key11", 0], 'val111');
+		assertNodeAtLocation(root, [ "key1", "key11", 1], 'val112');
+		assertNodeAtLocation(root, [ "key1", "key11", 2], void 0);
+		assertNodeAtLocation(root, [ "key2", 0, "key21"], false);
+		assertNodeAtLocation(root, [ "key2", 0, "key22"], 221);
+		assertNodeAtLocation(root, [ "key2", 1], null);
+		assertNodeAtLocation(root, [ "key2", 2], [{}]);
+		assertNodeAtLocation(root, [ "key2", 2, 0], {});
 	});
 });

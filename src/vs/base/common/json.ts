@@ -931,6 +931,49 @@ export function parseTree(text:string, errors: ParseError[] = [], options?: Pars
 	return result;
 }
 
+export function findNodeAtLocation(root: Node, segments: Segment[]) : Node {
+	let node = root;
+	for (let segment of segments) {
+		if (typeof segment === 'string') {
+			if (node.type !== 'object') {
+				return void 0;
+			}
+			let found = false;
+			for (let propertyNode of node.children) {
+				if (propertyNode.children[0].value === segment) {
+					node = propertyNode.children[1];
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				return void 0;
+			}
+		} else {
+			let index = <number> segment;
+			if (node.type !== 'array' || index < 0 || index >= node.children.length) {
+				return void 0;
+			}
+			node = node.children[index];
+		}
+	}
+	return node;
+}
+
+export function getNodeValue(node: Node) : any {
+	if (node.type === 'array') {
+		return node.children.map(getNodeValue);
+	} else if (node.type === 'object') {
+		let obj = {};
+		for (let prop of node.children) {
+			obj[prop.children[0].value] = getNodeValue(prop.children[1]);
+		}
+		return obj;
+	}
+	return node.value;
+}
+
+
 /**
  * Parses the given text and invokes the visitor functions for each object, array and literal reached.
  */
