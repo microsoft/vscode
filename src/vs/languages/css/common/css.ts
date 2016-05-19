@@ -287,7 +287,6 @@ export class CSSMode extends AbstractMode {
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
-	public suggestSupport: Modes.ISuggestSupport;
 	public quickFixSupport: Modes.IQuickFixSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<cssWorker.CSSWorker>;
@@ -341,10 +340,11 @@ export class CSSMode extends AbstractMode {
 		// 	tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
 		// 	findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		this.suggestSupport = new SuggestSupport(this.getId(), {
+		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
 			triggerCharacters: [' ', ':'],
 			excludeTokens: ['comment.css', 'string.css'],
-			suggest: (resource, position) => this.suggest(resource, position)});
+			suggest: (resource, position) => this.suggest(resource, position)
+		}));
 
 
 		this.quickFixSupport = this;

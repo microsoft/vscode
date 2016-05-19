@@ -55,11 +55,8 @@ export class SuggestSupport implements ISuggestSupport {
 					return false;
 				}
 				return !isLineToken(context, offset-1, this.contribution.excludeTokens, true);
-			} else if (nestedMode.suggestSupport) {
-				return nestedMode.suggestSupport.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
-			} else {
-				return false;
 			}
+			return true;
 		});
 	}
 
@@ -112,11 +109,8 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				return true;
-			} else if (nestedMode.suggestSupport) {
-				return nestedMode.suggestSupport.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
-			} else {
-				return false;
 			}
+			return true;
 		});
 	}
 

@@ -454,7 +454,6 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
-	public suggestSupport:Modes.ISuggestSupport;
 
 	private modeService:IModeService;
 
@@ -495,7 +494,7 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 		});
 
 		if (editorWorkerService) {
-			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService, configurationService);
+			Modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(this.getId(), editorWorkerService, configurationService));
 		}
 	}
 

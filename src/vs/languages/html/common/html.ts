@@ -292,7 +292,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	public linkSupport:Modes.ILinkSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public formattingSupport: Modes.IFormattingSupport;
-	public suggestSupport: Modes.ISuggestSupport;
 	public configSupport: Modes.IConfigurationSupport;
 
 	private modeService:IModeService;
@@ -317,11 +316,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.formattingSupport = this;
 		this.occurrencesSupport = this;
 
-		this.suggestSupport = new SuggestSupport(this.getId(), {
-			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
-			excludeTokens: ['comment'],
-			suggest: (resource, position) => this.suggest(resource, position)});
-
 		this.richEditSupport = this._createRichEditSupport();
 
 		this._registerSupports();
@@ -341,6 +335,11 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		Modes.ReferenceSearchRegistry.register(this.getId(), this);
+		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
+			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
+			excludeTokens: ['comment'],
+			suggest: (resource, position) => this.suggest(resource, position)
+		}));
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {

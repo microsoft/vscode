@@ -222,8 +222,6 @@ export var isDigit:(character:string, base:number)=>boolean = (function () {
 
 export class FrankensteinMode extends AbstractMode {
 
-	public suggestSupport:modes.ISuggestSupport;
-
 	constructor(
 		descriptor: modes.IModeDescriptor,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -232,7 +230,7 @@ export class FrankensteinMode extends AbstractMode {
 		super(descriptor.id);
 
 		if (editorWorkerService) {
-			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService, configurationService);
+			modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(this.getId(), editorWorkerService, configurationService));
 		}
 	}
 }

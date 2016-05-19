@@ -15,6 +15,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
@@ -69,6 +70,11 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	protected _registerSupports(): void {
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		Modes.ReferenceSearchRegistry.register(this.getId(), this);
+		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
+			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
+			excludeTokens: ['comment'],
+			suggest: (resource, position) => this.suggest(resource, position)
+		}));
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {

@@ -287,7 +287,6 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 	public configSupport:Modes.IConfigurationSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
-	public suggestSupport: Modes.ISuggestSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 
@@ -319,11 +318,11 @@ export class SASSMode extends AbstractMode implements Modes.HoverProvider, Modes
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;
 
-		this.suggestSupport = new SuggestSupport(this.getId(), {
+		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.sass', 'string.sass'],
 			suggest: (resource, position) => this.suggest(resource, position)
-		});
+		}));
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 

@@ -224,7 +224,6 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 	public emitOutputSupport: Modes.IEmitOutputSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public suggestSupport:Modes.ISuggestSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 
@@ -253,11 +252,11 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 
-		this.suggestSupport = new MarkdownSuggestSupport(
+		Modes.SuggestRegistry.register(this.getId(), new MarkdownSuggestSupport(
 			this.getId(),
 			modelService,
 			editorWorkerService
-		);
+		));
 	}
 
 	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {

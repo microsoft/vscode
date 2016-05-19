@@ -14,6 +14,7 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export enum States {
 	HTML,
@@ -120,6 +121,11 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	protected _registerSupports(): void {
 		Modes.HoverProviderRegistry.register(this.getId(), this);
 		Modes.ReferenceSearchRegistry.register(this.getId(), this);
+		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
+			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
+			excludeTokens: ['comment'],
+			suggest: (resource, position) => this.suggest(resource, position)
+		}));
 	}
 
 	protected _createRichEditSupport(): Modes.IRichEditSupport {

@@ -30,7 +30,6 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public formattingSupport: Modes.IFormattingSupport;
-	public suggestSupport: Modes.ISuggestSupport;
 
 	public outlineGroupLabel : { [name: string]: string; };
 
@@ -87,10 +86,11 @@ export class JSONMode extends AbstractMode implements Modes.HoverProvider, Modes
 
 		this.formattingSupport = this;
 
-		this.suggestSupport = new SuggestSupport(this.getId(), {
+		Modes.SuggestRegistry.register(this.getId(), new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.line.json', 'comment.block.json'],
-			suggest: (resource, position) => this.suggest(resource, position)});
+			suggest: (resource, position) => this.suggest(resource, position)
+		}));
 	}
 
 	public creationDone(): void {

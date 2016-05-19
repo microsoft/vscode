@@ -24,6 +24,7 @@ import paths = require('vs/base/common/paths');
 import {asWinJsPromise} from 'vs/base/common/async';
 import {provideHover} from 'vs/editor/contrib/hover/common/hover';
 import {findReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import {suggest} from 'vs/editor/contrib/suggest/common/suggest';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -354,8 +355,8 @@ export class HTMLWorker {
 
 	public suggest(resource:URI, position:EditorCommon.IPosition, triggerCharacter?:string):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().suggestSupport) {
-				return model.getMode().suggestSupport.suggest(model.getAssociatedResource(), position, triggerCharacter);
+			if (isEmbeddedMode) {
+				return suggest(/*TODO*/<EditorCommon.IModel><any>model, Position.lift(position), triggerCharacter);
 			}
 
 			return this.suggestHTML(resource, position);

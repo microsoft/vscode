@@ -212,11 +212,6 @@ export interface IMode {
 	declarationSupport?: IDeclarationSupport;
 
 	/**
-	 * Optional adapter to support intellisense.
-	 */
-	suggestSupport?:ISuggestSupport;
-
-	/**
 	 * Optional adapter to support showing an outline.
 	 */
 	outlineSupport?:IOutlineSupport;
@@ -805,7 +800,7 @@ export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSup
 
 export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>(null);
 
-export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
+export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>(null);
 
 export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>(null);
 
