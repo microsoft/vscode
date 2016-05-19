@@ -42,9 +42,9 @@ exports.collectModules = function(excludes) {
 		createModuleDescription('vs/workbench/node/extensionHostProcess', []),
 	];
 
-	if (process.platform !== 'win32') {
+	/*if (process.platform !== 'win32') {
 		modules.push(createModuleDescription('vs/workbench/parts/terminal/electron-browser/terminalPanel', excludes));
-	}
+	}*/
 
 	return modules;
 };
