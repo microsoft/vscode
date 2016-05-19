@@ -19,7 +19,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 
-export class JSONMode extends AbstractMode implements modes.IOutlineSupport {
+export class JSONMode extends AbstractMode {
 
 	public tokenizationSupport: modes.ITokenizationSupport;
 	public richEditSupport: modes.IRichEditSupport;
@@ -74,7 +74,11 @@ export class JSONMode extends AbstractMode implements modes.IOutlineSupport {
 		this.configSupport = this;
 
 		// Initialize Outline support
-		modes.OutlineRegistry.register(this.getId(), this);
+		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
+			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.getAssociatedResource()));
+			}
+		});
 
 		modes.FormatRegistry.register(this.getId(), this);
 
@@ -150,9 +154,9 @@ export class JSONMode extends AbstractMode implements modes.IOutlineSupport {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $getOutline = OneWorkerAttr(JSONMode, JSONMode.prototype.getOutline);
-	public getOutline(resource:URI):WinJS.TPromise<modes.IOutlineEntry[]> {
-		return this._worker((w) => w.getOutline(resource));
+	static $_provideDocumentSymbols = OneWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentSymbols);
+	private _provideDocumentSymbols(resource:URI):WinJS.TPromise<modes.SymbolInformation[]> {
+		return this._worker((w) => w.provideDocumentSymbols(resource));
 	}
 
 	static $formatDocument = OneWorkerAttr(JSONMode, JSONMode.prototype.formatDocument);

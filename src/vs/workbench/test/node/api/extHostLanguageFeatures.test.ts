@@ -21,8 +21,8 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostLanguageFeatures, MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {ExtHostCommands, MainThreadCommands} from 'vs/workbench/api/node/extHostCommands';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
-import {getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {OutlineRegistry, DocumentHighlightKind} from 'vs/editor/common/modes';
+import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {DocumentSymbolProviderRegistry, DocumentHighlightKind} from 'vs/editor/common/modes';
 import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {provideHover} from 'vs/editor/contrib/hover/common/hover';
@@ -105,7 +105,7 @@ suite('ExtHostLanguageFeatures', function() {
 	// --- outline
 
 	test('DocumentSymbols, register/deregister', function() {
-		assert.equal(OutlineRegistry.all(model).length, 0);
+		assert.equal(DocumentSymbolProviderRegistry.all(model).length, 0);
 		let d1 = extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols() {
 				return [];
@@ -113,7 +113,7 @@ suite('ExtHostLanguageFeatures', function() {
 		});
 
 		return threadService.sync().then(() => {
-			assert.equal(OutlineRegistry.all(model).length, 1);
+			assert.equal(DocumentSymbolProviderRegistry.all(model).length, 1);
 			d1.dispose();
 			return threadService.sync();
 		});
@@ -134,7 +134,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getOutlineEntries(model).then(value => {
+			return getDocumentSymbols(model).then(value => {
 				assert.equal(value.entries.length, 1);
 			});
 		});
@@ -149,12 +149,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			return getOutlineEntries(model).then(value => {
+			return getDocumentSymbols(model).then(value => {
 				assert.equal(value.entries.length, 1);
 
 				let entry = value.entries[0];
-				assert.equal(entry.label, 'test');
-				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+				assert.equal(entry.name, 'test');
+				assert.deepEqual(entry.location.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});

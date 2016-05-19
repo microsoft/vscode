@@ -278,7 +278,7 @@ export var language = <Types.ILanguage>{
 	}
 };
 
-export class SASSMode extends AbstractMode implements modes.IOutlineSupport {
+export class SASSMode extends AbstractMode {
 
 	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
 	public configSupport:modes.IConfigurationSupport;
@@ -326,14 +326,19 @@ export class SASSMode extends AbstractMode implements modes.IOutlineSupport {
 			}
 		});
 
-		modes.OutlineRegistry.register(this.getId(), this);
+		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
+			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.getAssociatedResource()));
+			}
+		});
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
-			}		});
+			}
+		});
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
@@ -389,9 +394,9 @@ export class SASSMode extends AbstractMode implements modes.IOutlineSupport {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $getOutline = OneWorkerAttr(SASSMode, SASSMode.prototype.getOutline);
-	public getOutline(resource:URI):winjs.TPromise<modes.IOutlineEntry[]> {
-		return this._worker((w) => w.getOutline(resource));
+	static $_provideDocumentSymbols = OneWorkerAttr(SASSMode, SASSMode.prototype._provideDocumentSymbols);
+	private _provideDocumentSymbols(resource:URI):winjs.TPromise<modes.SymbolInformation[]> {
+		return this._worker((w) => w.provideDocumentSymbols(resource));
 	}
 
 	static $_provideDefinition = OneWorkerAttr(SASSMode, SASSMode.prototype._provideDefinition);

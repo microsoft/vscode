@@ -211,42 +211,44 @@ export class CSSWorker {
 
 	}
 
-	public getOutline(resource:URI):winjs.TPromise<modes.IOutlineEntry[]> {
+	public provideDocumentSymbols(resource:URI):winjs.TPromise<modes.SymbolInformation[]> {
 
 		return this.languageService.join().then(() => {
 
 			let model = this.resourceService.get(resource),
 				stylesheet = this.languageService.getStylesheet(resource),
-				result:modes.IOutlineEntry[] = [];
+				result:modes.SymbolInformation[] = [];
 
 			stylesheet.accept((node) => {
 
-				let entry:modes.IOutlineEntry = {
-					label: null,
-					type: 'rule',
-					range: null,
-					children: []
+				let entry:modes.SymbolInformation = {
+					name: null,
+					kind: modes.SymbolKind.Class, // TODO@Martin: find a good SymbolKind
+					location: null
 				};
 
 				if(node instanceof nodes.Selector) {
-					entry.label = node.getText();
+					entry.name = node.getText();
 				} else if(node instanceof nodes.VariableDeclaration) {
-					entry.label = (<nodes.VariableDeclaration> node).getName();
-					entry.type = 'letiable';
+					entry.name = (<nodes.VariableDeclaration> node).getName();
+					entry.kind = modes.SymbolKind.Variable;
 				} else if(node instanceof nodes.MixinDeclaration) {
-					entry.label = (<nodes.MixinDeclaration> node).getName();
-					entry.type = 'method';
+					entry.name = (<nodes.MixinDeclaration> node).getName();
+					entry.kind = modes.SymbolKind.Method;
 				} else if(node instanceof nodes.FunctionDeclaration) {
-					entry.label = (<nodes.FunctionDeclaration> node).getName();
-					entry.type = 'function';
+					entry.name = (<nodes.FunctionDeclaration> node).getName();
+					entry.kind = modes.SymbolKind.Function;
 				} else if(node instanceof nodes.Keyframe) {
-					entry.label = nls.localize('literal.keyframes', "@keyframes {0}", (<nodes.Keyframe> node).getName());
+					entry.name = nls.localize('literal.keyframes', "@keyframes {0}", (<nodes.Keyframe> node).getName());
 				} else if(node instanceof nodes.FontFace) {
-					entry.label = nls.localize('literal.fontface', "@font-face");
+					entry.name = nls.localize('literal.fontface', "@font-face");
 				}
 
-				if(entry.label) {
-					entry.range = this._range(node, model, true);
+				if(entry.name) {
+					entry.location = {
+						uri: resource,
+						range: this._range(node, model, true)
+					};
 					result.push(entry);
 				}
 

@@ -28,7 +28,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker)));
 	disposables.push(modes.ReferenceProviderRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
-	disposables.push(modes.OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
+	disposables.push(modes.DocumentSymbolProviderRegistry.register(selector, new OutlineAdapter(modelService, worker)));
 	disposables.push(modes.FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
 	disposables.push(modes.FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
 	disposables.push(new DiagnostcsAdapter(defaults, selector, markerService, modelService, worker));
@@ -394,27 +394,89 @@ class ReferenceAdapter extends Adapter implements modes.ReferenceProvider {
 
 // --- outline ------
 
-class OutlineAdapter extends Adapter implements modes.IOutlineSupport {
+class OutlineAdapter extends Adapter implements modes.DocumentSymbolProvider {
 
-	getOutline(resource: URI): TPromise<modes.IOutlineEntry[]> {
-		return this._worker(resource).then(worker => worker.getNavigationBarItems(resource.toString())).then(items => {
+	public provideDocumentSymbols(model:editorCommon.IReadOnlyModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> {
+		const resource = model.getAssociatedResource();
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getNavigationBarItems(resource.toString())).then(items => {
 			if (!items) {
 				return;
 			}
 
-			const convert = (item: ts.NavigationBarItem): modes.IOutlineEntry => {
-				return {
-					label: item.text,
-					type: item.kind,
-					range: this._textSpanToRange(resource, item.spans[0]),
-					children: item.childItems && item.childItems.map(convert)
+			function convert(bucket: modes.SymbolInformation[], item: ts.NavigationBarItem, containerLabel?: string): void {
+				let result: modes.SymbolInformation = {
+					name: item.text,
+					kind: outlineTypeTable[item.kind] || modes.SymbolKind.Variable,
+					location: {
+						uri: resource,
+						range: this._textSpanToRange(resource, item.spans[0])
+					},
+					containerName: containerLabel
 				};
-			};
 
-			return items.map(convert);
-		});
+				if (item.childItems && item.childItems.length > 0) {
+					for (let child of item.childItems) {
+						convert(bucket, child, result.name);
+					}
+				}
+
+				bucket.push(result);
+			}
+
+			let result: modes.SymbolInformation[] = [];
+			items.forEach(item => convert(result, item));
+			return result;
+		}));
 	}
 }
+
+export class Kind {
+	public static unknown:string = '';
+	public static keyword:string = 'keyword';
+	public static script:string = 'script';
+	public static module:string = 'module';
+	public static class:string = 'class';
+	public static interface:string = 'interface';
+	public static type:string = 'type';
+	public static enum:string = 'enum';
+	public static variable:string = 'var';
+	public static localVariable:string = 'local var';
+	public static function:string = 'function';
+	public static localFunction:string = 'local function';
+	public static memberFunction:string = 'method';
+	public static memberGetAccessor:string = 'getter';
+	public static memberSetAccessor:string = 'setter';
+	public static memberVariable:string = 'property';
+	public static constructorImplementation:string = 'constructor';
+	public static callSignature:string = 'call';
+	public static indexSignature:string = 'index';
+	public static constructSignature:string = 'construct';
+	public static parameter:string = 'parameter';
+	public static typeParameter:string = 'type parameter';
+	public static primitiveType:string = 'primitive type';
+	public static label:string = 'label';
+	public static alias:string = 'alias';
+	public static const:string = 'const';
+	public static let:string = 'let';
+	public static warning:string = 'warning';
+}
+
+let outlineTypeTable: { [kind: string]: modes.SymbolKind } = Object.create(null);
+outlineTypeTable[Kind.module] = modes.SymbolKind.Module;
+outlineTypeTable[Kind.class] = modes.SymbolKind.Class;
+outlineTypeTable[Kind.enum] = modes.SymbolKind.Enum;
+outlineTypeTable[Kind.interface] = modes.SymbolKind.Interface;
+outlineTypeTable[Kind.memberFunction] = modes.SymbolKind.Method;
+outlineTypeTable[Kind.memberVariable] = modes.SymbolKind.Property;
+outlineTypeTable[Kind.memberGetAccessor] = modes.SymbolKind.Property;
+outlineTypeTable[Kind.memberSetAccessor] = modes.SymbolKind.Property;
+outlineTypeTable[Kind.variable] = modes.SymbolKind.Variable;
+outlineTypeTable[Kind.const] = modes.SymbolKind.Variable;
+outlineTypeTable[Kind.localVariable] = modes.SymbolKind.Variable;
+outlineTypeTable[Kind.variable] = modes.SymbolKind.Variable;
+outlineTypeTable[Kind.function] = modes.SymbolKind.Function;
+outlineTypeTable[Kind.localFunction] = modes.SymbolKind.Function;
 
 // --- formatting ----
 

@@ -15,6 +15,7 @@ import {IPosition, ISelection, IRange, IRangeWithMessage, ISingleEditOperation} 
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
+import URI from 'vs/base/common/uri';
 
 export interface PositionLike {
 	line: number;
@@ -194,114 +195,27 @@ export const TextEdit = {
 	}
 };
 
-export namespace SymbolKind {
-
-	export function from(kind: number | types.SymbolKind): string {
-		switch (kind) {
-			case types.SymbolKind.Method:
-				return 'method';
-			case types.SymbolKind.Function:
-				return 'function';
-			case types.SymbolKind.Constructor:
-				return 'constructor';
-			case types.SymbolKind.Variable:
-				return 'variable';
-			case types.SymbolKind.Class:
-				return 'class';
-			case types.SymbolKind.Interface:
-				return 'interface';
-			case types.SymbolKind.Namespace:
-				return 'namespace';
-			case types.SymbolKind.Package:
-				return 'package';
-			case types.SymbolKind.Module:
-				return 'module';
-			case types.SymbolKind.Property:
-				return 'property';
-			case types.SymbolKind.Enum:
-				return 'enum';
-			case types.SymbolKind.String:
-				return 'string';
-			case types.SymbolKind.File:
-				return 'file';
-			case types.SymbolKind.Array:
-				return 'array';
-			case types.SymbolKind.Number:
-				return 'number';
-			case types.SymbolKind.Boolean:
-				return 'boolean';
-			case types.SymbolKind.Object:
-				return 'object';
-			case types.SymbolKind.Key:
-				return 'key';
-			case types.SymbolKind.Null:
-				return 'null';
-		}
-		return 'property';
-	}
-
-	export function to(type: string): types.SymbolKind {
-		switch (type) {
-			case 'method':
-				return types.SymbolKind.Method;
-			case 'function':
-				return types.SymbolKind.Function;
-			case 'constructor':
-				return types.SymbolKind.Constructor;
-			case 'variable':
-				return types.SymbolKind.Variable;
-			case 'class':
-				return types.SymbolKind.Class;
-			case 'interface':
-				return types.SymbolKind.Interface;
-			case 'namespace':
-				return types.SymbolKind.Namespace;
-			case 'package':
-				return types.SymbolKind.Package;
-			case 'module':
-				return types.SymbolKind.Module;
-			case 'property':
-				return types.SymbolKind.Property;
-			case 'enum':
-				return types.SymbolKind.Enum;
-			case 'string':
-				return types.SymbolKind.String;
-			case 'file':
-				return types.SymbolKind.File;
-			case 'array':
-				return types.SymbolKind.Array;
-			case 'number':
-				return types.SymbolKind.Number;
-			case 'boolean':
-				return types.SymbolKind.Boolean;
-			case 'object':
-				return types.SymbolKind.Object;
-			case 'key':
-				return types.SymbolKind.Key;
-			case 'null':
-				return types.SymbolKind.Null;
-		}
-		return types.SymbolKind.Property;
-	}
-}
-
 export namespace SymbolInformation {
 
-	export function fromOutlineEntry(entry: modes.IOutlineEntry): types.SymbolInformation {
-		return new types.SymbolInformation(entry.label,
-			SymbolKind.to(entry.type),
-			toRange(entry.range),
-			undefined,
-			entry.containerLabel);
+	export function fromOutlineEntry(entry: modes.SymbolInformation): types.SymbolInformation {
+		return new types.SymbolInformation(
+			entry.name,
+			entry.kind,
+			toRange(entry.location.range),
+			entry.location.uri,
+			entry.containerName
+		);
 	}
 
-	export function toOutlineEntry(symbol: vscode.SymbolInformation): modes.IOutlineEntry {
-		return <modes.IOutlineEntry>{
-			type: SymbolKind.from(symbol.kind),
-			range: fromRange(symbol.location.range),
-			containerLabel: symbol.containerName,
-			label: symbol.name,
-			icon: undefined,
+	export function toOutlineEntry(symbol: vscode.SymbolInformation): modes.SymbolInformation {
+		return <modes.SymbolInformation>{
+			name: symbol.name,
+			kind: symbol.kind,
+			containerName: symbol.containerName,
+			location: {
+				uri: <URI>symbol.location.uri,
+				range: fromRange(symbol.location.range)
+			}
 		};
 	}
 }

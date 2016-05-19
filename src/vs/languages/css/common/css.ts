@@ -345,7 +345,11 @@ export class CSSMode extends AbstractMode {
 		// 	}
 		// });
 
-		modes.OutlineRegistry.register(this.getId(), this);
+		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
+			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.getAssociatedResource()));
+			}
+		});
 
 		// modes.DefinitionProviderRegistry.register(this.getId(), {
 		// 	provideDefinition: (model, position, token): Thenable<modes.Definition> => {
@@ -423,9 +427,9 @@ export class CSSMode extends AbstractMode {
 		return this._worker((w) => w.provideReferences(resource, position));
 	}
 
-	static $getOutline = OneWorkerAttr(CSSMode, CSSMode.prototype.getOutline);
-	public getOutline(resource:URI):WinJS.TPromise<modes.IOutlineEntry[]> {
-		return this._worker((w) => w.getOutline(resource));
+	static $_provideDocumentSymbols = OneWorkerAttr(CSSMode, CSSMode.prototype._provideDocumentSymbols);
+	private _provideDocumentSymbols(resource:URI):WinJS.TPromise<modes.SymbolInformation[]> {
+		return this._worker((w) => w.provideDocumentSymbols(resource));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(CSSMode, CSSMode.prototype.findColorDeclarations);

@@ -12,10 +12,10 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IOutlineEntry, OutlineRegistry} from 'vs/editor/common/modes';
+import {SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry} from 'vs/editor/common/modes';
 import {ICodeEditor, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {getOutlineEntries, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {getDocumentSymbols, IOutline} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 
 class OutlineViewZone implements IViewZone {
 
@@ -25,15 +25,14 @@ class OutlineViewZone implements IViewZone {
 
 	public domNode:HTMLElement;
 
-	constructor(range:editorCommon.IRange, outlineType:string)
-	{
+	constructor(range:editorCommon.IRange, outlineType:SymbolKind) {
 		this.afterLineNumber = range.startLineNumber-1;
 		this.heightInPx = 4;
 		this.suppressMouseDown = true;
 
 		this.domNode = document.createElement('div');
 		var hr = document.createElement('hr');
-		hr.className = 'outlineRule ' + outlineType;
+		hr.className = 'outlineRule ' + SymbolKind.from(outlineType);
 		this.domNode.appendChild(hr);
 	}
 }
@@ -78,8 +77,7 @@ class OutlineMarker {
 	private _editor:ICodeEditor;
 
 
-	public constructor(range:editorCommon.IRange, outlineType:string, _editor:ICodeEditor, helper:OutlineMarkerHelper, viewZoneChangeAccessor:IViewZoneChangeAccessor)
-	{
+	public constructor(range:editorCommon.IRange, outlineType:SymbolKind, _editor:ICodeEditor, helper:OutlineMarkerHelper, viewZoneChangeAccessor:IViewZoneChangeAccessor) {
 		this._editor = _editor;
 		this._viewZone = new OutlineViewZone(range, outlineType);
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
@@ -177,7 +175,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 			return;
 		}
 
-		if (!OutlineRegistry.has(model)) {
+		if (!DocumentSymbolProviderRegistry.has(model)) {
 			return;
 		}
 
@@ -186,7 +184,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 				this._currentOutlinePromise.cancel();
 			}
 
-			this._currentOutlinePromise = getOutlineEntries(model);
+			this._currentOutlinePromise = getDocumentSymbols(model);
 
 			this._currentOutlinePromise.then((result) => {
 				this.renderOutlines(result.entries);
@@ -224,7 +222,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 		scheduler.schedule();
 	}
 
-	private renderOutlines(entries: IOutlineEntry[]): void {
+	private renderOutlines(entries: SymbolInformation[]): void {
 		var centeredRange = this._editor.getCenteredRangeInViewport();
 		var oldMarkersCount = this._markers.length;
 		this._editor.changeDecorations((decorationsAccessor) => {
@@ -244,18 +242,16 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 		}
 	}
 
-	private renderOutlinesRecursive(entries: IOutlineEntry[], helper:OutlineMarkerHelper, viewZoneChangeAccessor:IViewZoneChangeAccessor): void {
+	private renderOutlinesRecursive(entries: SymbolInformation[], helper:OutlineMarkerHelper, viewZoneChangeAccessor:IViewZoneChangeAccessor): void {
 		if (entries) {
 			entries.forEach((outline) => {
-				if (outline.type === 'class' || outline.type === 'method' || outline.type === 'function') {
-					var range = Range.lift(outline.range);
+				if (outline.kind === SymbolKind.Class || outline.kind === SymbolKind.Method || outline.kind === SymbolKind.Function) {
+					var range = Range.lift(outline.location.range);
 					if (!this.alreadyHasMarkerAtRange(range)) {
-						var marker = new OutlineMarker(range, outline.type, this._editor, helper, viewZoneChangeAccessor);
+						var marker = new OutlineMarker(range, outline.kind, this._editor, helper, viewZoneChangeAccessor);
 						this._markers.push(marker);
 					}
 				}
-
-				this.renderOutlinesRecursive(outline.children, helper, viewZoneChangeAccessor);
 			});
 		}
 	}

@@ -22,7 +22,7 @@ import {CancellationToken} from 'vs/base/common/cancellation';
 
 // --- adapter
 
-class OutlineAdapter implements modes.IOutlineSupport {
+class OutlineAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentSymbolProvider;
@@ -32,7 +32,7 @@ class OutlineAdapter implements modes.IOutlineSupport {
 		this._provider = provider;
 	}
 
-	getOutline(resource: URI): TPromise<modes.IOutlineEntry[]> {
+	provideDocumentSymbols(resource: URI): TPromise<modes.SymbolInformation[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (Array.isArray(value)) {
@@ -643,8 +643,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$getOutline(handle: number, resource: URI): TPromise<modes.IOutlineEntry[]> {
-		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.getOutline(resource));
+	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]> {
+		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.provideDocumentSymbols(resource));
 	}
 
 	// --- code lens
@@ -847,9 +847,9 @@ export class MainThreadLanguageFeatures {
 	// --- outline
 
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.OutlineRegistry.register(selector, <modes.IOutlineSupport>{
-			getOutline: (resource: URI): TPromise<modes.IOutlineEntry[]> => {
-				return this._proxy.$getOutline(handle, resource);
+		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(selector, <modes.DocumentSymbolProvider>{
+			provideDocumentSymbols: (model:IReadOnlyModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> => {
+				return wireCancellationToken(token, this._proxy.$provideDocumentSymbols(handle, model.getAssociatedResource()));
 			}
 		});
 		return undefined;

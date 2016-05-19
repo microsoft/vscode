@@ -344,7 +344,7 @@ export class JSONWorker {
 	}
 
 
-	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	public provideDocumentSymbols(resource:URI):WinJS.TPromise<Modes.SymbolInformation[]> {
 		var modelMirror = this.resourceService.get(resource);
 
 		var parser = new Parser.JSONParser();
@@ -358,13 +358,20 @@ export class JSONWorker {
 		var resourceString = resource.toString();
 		if ((resourceString === 'vscode://defaultsettings/keybindings.json') || Strings.endsWith(resourceString.toLowerCase(), '/user/keybindings.json')) {
 			if (root.type === 'array') {
-				var result : Modes.IOutlineEntry[] = [];
+				var result : Modes.SymbolInformation[] = [];
 				(<Parser.ArrayASTNode> root).items.forEach((item) => {
 					if (item.type === 'object') {
 						var property = (<Parser.ObjectASTNode> item).getFirstProperty('key');
 						if (property && property.value) {
 							var range = modelMirror.getRangeFromOffsetAndLength(item.start, item.end - item.start);
-							result.push({ label: property.value.getValue(), icon: 'function', type: 'string', range: range, children: []});
+							result.push({
+								name: property.value.getValue(),
+								kind: Modes.SymbolKind.String,
+								location: {
+									uri: resource,
+									range: range
+								}
+							});
 						}
 					}
 				});
@@ -372,10 +379,10 @@ export class JSONWorker {
 			}
 		}
 
-		function collectOutlineEntries(result: Modes.IOutlineEntry[], node: Parser.ASTNode): Modes.IOutlineEntry[] {
+		function collectOutlineEntries(result: Modes.SymbolInformation[], node: Parser.ASTNode, containerName: string): Modes.SymbolInformation[] {
 			if (node.type === 'array') {
 				(<Parser.ArrayASTNode>node).items.forEach((node:Parser.ASTNode) => {
-					collectOutlineEntries(result, node);
+					collectOutlineEntries(result, node, containerName);
 				});
 			} else if (node.type === 'object') {
 				var objectNode = <Parser.ObjectASTNode>node;
@@ -384,20 +391,45 @@ export class JSONWorker {
 					var range = modelMirror.getRangeFromOffsetAndLength(property.start, property.end - property.start);
 					var valueNode = property.value;
 					if (valueNode) {
-						var children = collectOutlineEntries([], valueNode);
-						var icon = valueNode.type === 'object' ? 'module' : valueNode.type;
-						result.push({ label: property.key.getValue(), icon: icon, type: valueNode.type, range: range, children: children});
+						let childContainerName = containerName ? containerName + '.' + property.key.name : property.key.name;
+						result.push({
+							name: property.key.getValue(),
+							kind: getSymbolKind(valueNode.type),
+							location: {
+								uri: resource,
+								range: range,
+							},
+							containerName: containerName
+						});
+						collectOutlineEntries(result, valueNode, childContainerName);
 					}
 				});
 			}
 			return result;
 		}
-		var result = collectOutlineEntries([], root);
+		var result = collectOutlineEntries([], root, void 0);
 		return WinJS.TPromise.as(result);
 	}
 
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		var model = this.resourceService.get(resource);
 		return WinJS.TPromise.as(JSONFormatter.format(model, range, options));
+	}
+}
+
+function getSymbolKind(nodeType: string): Modes.SymbolKind {
+	switch (nodeType) {
+		case 'object':
+			return Modes.SymbolKind.Module;
+		case 'string':
+			return Modes.SymbolKind.String;
+		case 'number':
+			return Modes.SymbolKind.Number;
+		case 'array':
+			return Modes.SymbolKind.Array;
+		case 'boolean':
+			return Modes.SymbolKind.Boolean;
+		default: // 'null'
+			return Modes.SymbolKind.Variable;
 	}
 }

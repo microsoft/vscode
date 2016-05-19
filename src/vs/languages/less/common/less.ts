@@ -176,7 +176,7 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 	}
 };
 
-export class LESSMode extends AbstractMode implements modes.IOutlineSupport {
+export class LESSMode extends AbstractMode {
 
 	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
 	public configSupport:modes.IConfigurationSupport;
@@ -225,7 +225,11 @@ export class LESSMode extends AbstractMode implements modes.IOutlineSupport {
 			}
 		});
 
-		modes.OutlineRegistry.register(this.getId(), this);
+		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
+			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.getAssociatedResource()));
+			}
+		});
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
@@ -289,9 +293,9 @@ export class LESSMode extends AbstractMode implements modes.IOutlineSupport {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $getOutline = OneWorkerAttr(LESSMode, LESSMode.prototype.getOutline);
-	public getOutline(resource:URI):winjs.TPromise<modes.IOutlineEntry[]> {
-		return this._worker((w) => w.getOutline(resource));
+	static $_provideDocumentSymbols = OneWorkerAttr(LESSMode, LESSMode.prototype._provideDocumentSymbols);
+	private _provideDocumentSymbols(resource:URI):winjs.TPromise<modes.SymbolInformation[]> {
+		return this._worker((w) => w.provideDocumentSymbols(resource));
 	}
 
 	static $_provideDefinition = OneWorkerAttr(LESSMode, LESSMode.prototype._provideDefinition);

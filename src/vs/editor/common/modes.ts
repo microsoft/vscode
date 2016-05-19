@@ -427,21 +427,127 @@ export interface DefinitionProvider {
 	provideDefinition(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Definition | Thenable<Definition>;
 }
 
-
-/**
- * Interface used to compute an outline
- */
-export interface IOutlineEntry {
-	label: string;
-	containerLabel?: string;
-	type: string;
-	icon?: string; // icon class or null to use the default images based on the type
-	range: editorCommon.IRange;
-	children?: IOutlineEntry[];
+export enum SymbolKind {
+	File,
+	Module,
+	Namespace,
+	Package,
+	Class,
+	Method,
+	Property,
+	Field,
+	Constructor,
+	Enum,
+	Interface,
+	Function,
+	Variable,
+	Constant,
+	String,
+	Number,
+	Boolean,
+	Array,
+	Object,
+	Key,
+	Null
 }
+export namespace SymbolKind {
 
-export interface IOutlineSupport {
-	getOutline(resource:URI):TPromise<IOutlineEntry[]>;
+	export function from(kind: number | SymbolKind): string {
+		switch (kind) {
+			case SymbolKind.Method:
+				return 'method';
+			case SymbolKind.Function:
+				return 'function';
+			case SymbolKind.Constructor:
+				return 'constructor';
+			case SymbolKind.Variable:
+				return 'variable';
+			case SymbolKind.Class:
+				return 'class';
+			case SymbolKind.Interface:
+				return 'interface';
+			case SymbolKind.Namespace:
+				return 'namespace';
+			case SymbolKind.Package:
+				return 'package';
+			case SymbolKind.Module:
+				return 'module';
+			case SymbolKind.Property:
+				return 'property';
+			case SymbolKind.Enum:
+				return 'enum';
+			case SymbolKind.String:
+				return 'string';
+			case SymbolKind.File:
+				return 'file';
+			case SymbolKind.Array:
+				return 'array';
+			case SymbolKind.Number:
+				return 'number';
+			case SymbolKind.Boolean:
+				return 'boolean';
+			case SymbolKind.Object:
+				return 'object';
+			case SymbolKind.Key:
+				return 'key';
+			case SymbolKind.Null:
+				return 'null';
+		}
+		return 'property';
+	}
+
+	export function to(type: string): SymbolKind {
+		switch (type) {
+			case 'method':
+				return SymbolKind.Method;
+			case 'function':
+				return SymbolKind.Function;
+			case 'constructor':
+				return SymbolKind.Constructor;
+			case 'variable':
+				return SymbolKind.Variable;
+			case 'class':
+				return SymbolKind.Class;
+			case 'interface':
+				return SymbolKind.Interface;
+			case 'namespace':
+				return SymbolKind.Namespace;
+			case 'package':
+				return SymbolKind.Package;
+			case 'module':
+				return SymbolKind.Module;
+			case 'property':
+				return SymbolKind.Property;
+			case 'enum':
+				return SymbolKind.Enum;
+			case 'string':
+				return SymbolKind.String;
+			case 'file':
+				return SymbolKind.File;
+			case 'array':
+				return SymbolKind.Array;
+			case 'number':
+				return SymbolKind.Number;
+			case 'boolean':
+				return SymbolKind.Boolean;
+			case 'object':
+				return SymbolKind.Object;
+			case 'key':
+				return SymbolKind.Key;
+			case 'null':
+				return SymbolKind.Null;
+		}
+		return SymbolKind.Property;
+	}
+}
+export interface SymbolInformation {
+	name: string;
+	containerName?: string;
+	kind: SymbolKind;
+	location: Location;
+}
+export interface DocumentSymbolProvider {
+	provideDocumentSymbols(model:editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 }
 
 /**
@@ -691,7 +797,7 @@ export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<Signatu
 
 export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
 
-export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>();
+export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
 
 export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
 
