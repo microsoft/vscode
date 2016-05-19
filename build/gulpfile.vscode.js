@@ -75,6 +75,7 @@ var vscodeResources = [
 	'out-build/vs/workbench/parts/html/browser/webview.html',
 	'out-build/vs/workbench/parts/markdown/**/*.md',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
+	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'!**/test/**'
