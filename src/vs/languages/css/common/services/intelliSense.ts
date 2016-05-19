@@ -11,6 +11,7 @@ import service = require('vs/languages/css/common/services/cssLanguageService');
 import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
+import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
 
 export class CSSIntellisense {
@@ -76,8 +77,8 @@ export class CSSIntellisense {
 				this.getCompletionsForFunctionArguments(<nodes.FunctionArgument> node, result);
 			} else if (node instanceof nodes.FunctionDeclaration) {
 				this.getCompletionsForFunctionDeclaration(<nodes.FunctionDeclaration> node, result);
-			} else if (node instanceof nodes.VariableExpression) {
-				this.getVariableProposals(result, true);
+			} else if (nodes.NodeType.VariableExpression === node.type) {
+				this.getVariableProposalsForCssVariableExpression(result);
 			}
 			if (result.length > 0) {
 				return { currentWord: this.currentWord, suggestions: result, incomplete: this.isIncomplete };
@@ -195,12 +196,27 @@ export class CSSIntellisense {
 		return result;
 	}
 
-	public getVariableProposals(result:Modes.ISuggestion[], withoutVarSyntax?: boolean):Modes.ISuggestion[]{
+	public getVariableProposals(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
 		var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Variable);
 		symbols.forEach((symbol) => {
 			result.push({
 				label: symbol.name,
-				codeSnippet: withoutVarSyntax ? symbol.name : `var(${symbol.name})`,
+				codeSnippet: strings.startsWith(symbol.name, '--') ? `var(${symbol.name})` : symbol.name,
+				type: 'variable'
+			});
+		});
+		return result;
+	}
+
+	public getVariableProposalsForCssVariableExpression(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
+		var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Variable);
+		symbols= symbols.filter((symbol):boolean => {
+			return strings.startsWith(symbol.name, '--');
+		});
+		symbols.forEach((symbol) => {
+			result.push({
+				label: symbol.name,
+				codeSnippet: symbol.name,
 				type: 'variable'
 			});
 		});

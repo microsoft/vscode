@@ -34,7 +34,6 @@ export var ParseError = {
 	VariableNameExpected: new CSSIssueType('css-varnameexpected', nls.localize('expected.varname', "variable name expected")),
 	VariableValueExpected: new CSSIssueType('css-varvalueexpected', nls.localize('expected.varvalue', "variable value expected")),
 	PropertyValueExpected: new CSSIssueType('css-propertyvalueexpected', nls.localize('expected.propvalue', "property value expected")),
-	VariableExpressionExpected: new CSSIssueType('css-variableexpressionexpected', nls.localize('expected.propvalue', "variable expression expected")),
 	LeftCurlyExpected: new CSSIssueType('css-lcurlyexpected', nls.localize('expected.lcurly', "{ expected")),
 	RightCurlyExpected: new CSSIssueType('css-rcurlyexpected', nls.localize('expected.rcurly', "} expected")),
 	LeftSquareBracketExpected: new CSSIssueType('css-rbracketexpected', nls.localize('expected.lsquare', "[ expected")),
