@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {createTokenizationSupport2, Language} from 'vs/languages/typescript/common/tokenization';
-import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {createRichEditSupport} from 'vs/languages/typescript/common/mode';
 
 suite('TS/JS - syntax highlighting', () => {
