@@ -52,7 +52,7 @@ export function assertSymbolsInScope(p: parser.Parser, input:string, offset:numb
 
 	for (var i = 0; i < selections.length; i++) {
 		var selection =  selections[i];
-		var sym = scope.getSymbol(selection.name, selection.type);
+		var sym = scope.getSymbol(selection.name, selection.type) || global.getSymbol(selection.name, selection.type);
 		assert.ok(!!sym, getErrorMessage(selection.name));
 	}
 }
@@ -167,5 +167,20 @@ suite('CSS - symbols', () => {
 		var p = new parser.Parser();
 		assertOccurrences(p, '@keyframes id {}; #main { animation: /**/id 4s linear 0s infinite alternate; }', '/**/', 2, 1, nodes.ReferenceType.Keyframe);
 		assertOccurrences(p, '@keyframes id {}; #main { animation-name: /**/id; foo: id;}', '/**/', 2, 1, nodes.ReferenceType.Keyframe);
+	});
+
+	test('test variables in root scope', function() {
+		var p = new parser.Parser();
+		assertSymbolsInScope(p, ':root{ --var1: abc; --var2: def; }', 0, {name:'--var1', type:nodes.ReferenceType.Variable}, {name:'--var2', type:nodes.ReferenceType.Variable});
+	});
+
+	test('test variables in local scope', function() {
+		var p = new parser.Parser();
+		assertSymbolsInScope(p, '.a{ --var1: abc; --var2: def; }', 2, {name:'--var1', type:nodes.ReferenceType.Variable}, {name:'--var2', type:nodes.ReferenceType.Variable});
+	});
+
+	test('test variables in local scope get root variables too', function() {
+		var p = new parser.Parser();
+		assertSymbolsInScope(p, '.a{ --var1: abc; } :root{ --var2: abc;}', 2, {name:'--var1', type:nodes.ReferenceType.Variable}, {name:'--var2', type:nodes.ReferenceType.Variable});
 	});
 });
