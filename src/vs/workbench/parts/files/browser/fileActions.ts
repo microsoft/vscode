@@ -1794,9 +1794,9 @@ export class ReopenClosedFileAction extends Action {
 			return TPromise.as(true);
 		}
 
-		// If the current resource is the recently closed resource, run action again
-		let activeResource = getUntitledOrFileResource(this.editorService.getActiveEditorInput());
-		if (activeResource && activeResource.path === entry.resource.path) {
+		// If the recently closed resource is currently in the working files list, run action again
+		let workingFileEntries = workingFilesModel.getEntries();
+		if (workingFileEntries.some((f) => { return f.resource.path === entry.resource.path; })) {
 			return this.run();
 		}
 
