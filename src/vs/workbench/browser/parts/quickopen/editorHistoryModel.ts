@@ -86,12 +86,11 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	public run(mode: Mode, context: IContext): boolean {
 		if (mode === Mode.OPEN) {
 			let event = context.event;
-			let sideBySide = !context.quickNavigateConfiguration && (event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey))));
+			let ctrlMetaKeyPressed = event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey)));
+			let sideBySide = !context.quickNavigateConfiguration && ctrlMetaKeyPressed;
 			this.editorService.openEditor(this.input, null, sideBySide).done(() => {
-
-				// Automatically clean up stale history entries when the input can not be opened
 				if (!this.input.matches(this.editorService.getActiveEditorInput())) {
-					this.model.remove(this.input);
+					this.model.remove(this.input); // Automatically clean up stale history entries when the input can not be opened
 				}
 			});
 
@@ -108,6 +107,7 @@ interface ISerializedEditorInput {
 }
 
 export class EditorHistoryModel extends QuickOpenModel {
+	private registry: IEditorRegistry;
 
 	constructor(
 		private editorService: IWorkbenchEditorService,
@@ -115,24 +115,32 @@ export class EditorHistoryModel extends QuickOpenModel {
 		private contextService: IWorkspaceContextService
 	) {
 		super();
+
+		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 	}
 
-	public add(entry: EditorInput): void {
+	public add(input: EditorInput, index?: number): void {
 
 		// Ensure we have at least a name to show
-		if (!entry.getName()) {
+		if (!input.getName()) {
 			return;
 		}
 
-		// Remove on Dispose
-		let unbind = entry.addListener(EventType.DISPOSE, () => {
-			this.remove(entry);
-			unbind();
-		});
+		// Handle Dispose
+		input.addOneTimeListener(EventType.DISPOSE, () => this.onInputDispose(input));
 
-		// Remove any existing entry and add to the beginning
-		this.remove(entry);
-		this.entries.unshift(new EditorHistoryEntry(this.editorService, this.contextService, entry, null, null, this));
+		const entry = new EditorHistoryEntry(this.editorService, this.contextService, input, null, null, this);
+
+		// Remove any existing entry and add to the beginning if we do not get an index
+		if (typeof index !== 'number') {
+			this.remove(input);
+			this.entries.unshift(entry);
+		}
+
+		// Otherwise replace at index
+		else {
+			this.entries[index] = entry;
+		}
 
 		// Respect max entries setting
 		if (this.entries.length > MAX_ENTRIES) {
@@ -140,17 +148,38 @@ export class EditorHistoryModel extends QuickOpenModel {
 		}
 	}
 
-	public remove(entry: EditorInput): void {
-		let index = this.indexOf(entry);
+	private onInputDispose(input: EditorInput): void {
+		let index = this.indexOf(input);
+		if (index < 0) {
+			return;
+		}
+
+		// Using the factory we try to recreate the input
+		const factory = this.registry.getEditorInputFactory(input.getId());
+		if (factory) {
+			const inputRaw = factory.serialize(input);
+			if (inputRaw) {
+				this.add(factory.deserialize(this.instantiationService, inputRaw), index);
+
+				return;
+			}
+		}
+
+		// Factory failed, just remove entry then
+		this.remove(input);
+	}
+
+	public remove(input: EditorInput): void {
+		let index = this.indexOf(input);
 		if (index >= 0) {
 			this.entries.splice(index, 1);
 		}
 	}
 
-	private indexOf(entryToFind: EditorInput): number {
+	private indexOf(input: EditorInput): number {
 		for (let i = 0; i < this.entries.length; i++) {
 			let entry = this.entries[i];
-			if ((<EditorHistoryEntry>entry).matches(entryToFind)) {
+			if ((<EditorHistoryEntry>entry).matches(input)) {
 				return i;
 			}
 		}
@@ -159,13 +188,12 @@ export class EditorHistoryModel extends QuickOpenModel {
 	}
 
 	public saveTo(memento: any): void {
-		let registry = (<IEditorRegistry>Registry.as(Extensions.Editors));
 		let entries: ISerializedEditorInput[] = [];
 		for (let i = this.entries.length - 1; i >= 0; i--) {
 			let entry = this.entries[i];
 			let input = (<EditorHistoryEntry>entry).getInput();
 
-			let factory = registry.getEditorInputFactory(input.getId());
+			let factory = this.registry.getEditorInputFactory(input.getId());
 			if (factory) {
 				let value = factory.serialize(input);
 				if (types.isString(value)) {
@@ -183,13 +211,12 @@ export class EditorHistoryModel extends QuickOpenModel {
 	}
 
 	public loadFrom(memento: any): void {
-		let registry = (<IEditorRegistry>Registry.as(Extensions.Editors));
 		let entries: ISerializedEditorInput[] = memento.entries;
 		if (entries && entries.length > 0) {
 			for (let i = 0; i < entries.length; i++) {
 				let entry = entries[i];
 
-				let factory = registry.getEditorInputFactory(entry.id);
+				let factory = this.registry.getEditorInputFactory(entry.id);
 				if (factory && types.isString(entry.value)) {
 					let input = factory.deserialize(this.instantiationService, entry.value);
 					if (input) {
@@ -206,7 +233,7 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 	public getResults(searchValue: string): QuickOpenEntry[] {
 		searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
-		
+
 		const searchInPath = searchValue.indexOf(paths.nativeSep) >= 0;
 
 		let results: QuickOpenEntry[] = [];

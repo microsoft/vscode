@@ -440,9 +440,6 @@ export class FileTracker implements IWorkbenchContribution {
 		// Clean up inputs that match
 		inputsContainingPath.forEach((input) => {
 
-			// Editor History
-			this.quickOpenService.removeEditorHistoryEntry(input);
-
 			// Dispose
 			if (!input.isDisposed()) {
 				if (input instanceof FileEditorInput) {
@@ -451,6 +448,9 @@ export class FileTracker implements IWorkbenchContribution {
 					input.dispose();
 				}
 			}
+
+			// Editor History
+			this.quickOpenService.removeEditorHistoryEntry(input);
 		});
 	}
 

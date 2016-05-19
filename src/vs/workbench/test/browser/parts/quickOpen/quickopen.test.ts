@@ -201,7 +201,7 @@ suite('Workbench QuickOpen', () => {
 		prefixAction.run();
 	});
 
-	test('QuickOpenController adds to history on editor input change and removes on dispose', () => {
+	test('QuickOpenController adds to history on editor input change and can handle dispose', () => {
 		let editorService = new TestEditorService();
 
 		let eventService = new TestEventService();
@@ -219,7 +219,7 @@ suite('Workbench QuickOpen', () => {
 			null,
 			contextService,
 			new MockKeybindingService(),
-			null
+			inst
 		);
 
 		controller.create();
@@ -234,6 +234,6 @@ suite('Workbench QuickOpen', () => {
 
 		cinput1.dispose();
 
-		assert.equal(0, controller.getEditorHistoryModel().getEntries().length);
+		assert.equal(1, controller.getEditorHistoryModel().getEntries().length);
 	});
 });
