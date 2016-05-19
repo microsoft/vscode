@@ -43,7 +43,6 @@ export enum TokenType {
 	Resolution,
 	Comma,
 	Charset,
-
 	EscapedJavaScript,
 	BadEscapedJavaScript,
 	Comment,

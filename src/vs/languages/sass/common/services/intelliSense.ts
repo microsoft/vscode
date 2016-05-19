@@ -118,18 +118,6 @@ export class SASSIntellisense extends cssIntellisense.CSSIntellisense {
 		super('$');
 	}
 
-	public getVariableProposals(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
-		var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Variable);
-		symbols.forEach((symbol) => {
-			result.push({
-				label: symbol.name,
-				codeSnippet: symbol.name,
-				type: 'variable'
-			});
-		});
-		return result;
-	}
-
 	private createFunctionProposals(proposals: {func: string; desc: string; }[], result: Modes.ISuggestion[]): Modes.ISuggestion[] {
 		var replaceFunction = (match: string, p1: string) => p1 + ': {{' + (SASSIntellisense.variableDefaults[p1] || '') + '}}';
 		proposals.forEach((p) => {
