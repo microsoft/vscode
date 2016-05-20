@@ -262,7 +262,7 @@ export class Parser {
 	}
 
 	public _parseRuleSetDeclaration() : nodes.Node {
-		return this._parseDeclaration() || this._parseCssVariableDeclaration();
+		return this._parseCssVariableDeclaration() || this._parseDeclaration();
 	}
 
 	public _needsSemicolonAfter(node: nodes.Node) : boolean {
@@ -977,10 +977,14 @@ export class Parser {
 
 	public _parseCssVariable(): nodes.Variable {
 		var node = <nodes.Variable> this.create(nodes.CssVariable);
-		if (!this.accept(scanner.TokenType.CssVariableName)) {
-			return null;
+		if (this.isIdentifierIsCssVariable() && this.accept(scanner.TokenType.Ident)) {
+			return <nodes.Variable> node;
 		}
-		return <nodes.Variable> node;
+		return null;
+	}
+
+	private isIdentifierIsCssVariable():boolean {
+		return this.peekRegEx(scanner.TokenType.Ident, /^--/);
 	}
 
 	public _parseFunction(): nodes.Function {

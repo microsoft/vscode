@@ -48,7 +48,6 @@ export enum TokenType {
 	Comment,
 	SingleLineComment,
 	EOF,
-	CssVariableName,
 	CustomToken
 }
 
@@ -101,15 +100,6 @@ export class MultiLineStream {
 
 	public peekChar(n:number=0):number {
 		return this.source.charCodeAt(this.position + n) || 0;
-	}
-
-	public peekNextChar(ignore:number[]):number {
-		var index= 0;
-		var nextChar= this.peekChar(index);
-		while (ignore.indexOf(nextChar) !== -1) {
-			nextChar= this.peekChar(++index);
-		}
-		return nextChar;
 	}
 
 	public lookbackChar(n:number=0):number {
@@ -296,18 +286,6 @@ export class Scanner {
 		let tokenType = this._url();
 		if (tokenType !== null) {
 			return this.finishToken(offset, tokenType);
-		}
-
-		// css variable name --identifier followed by ':' or ')'
-		if (this.stream.advanceIfChars([_MIN, _MIN])) {
-			let content: string[] = ['-', '-'] ;
-			if (this.ident(content)) {
-				let nextChar= this.stream.peekNextChar([_WSP, _TAB, _NWL, _CAR]);
-				if (nextChar === _COL || nextChar === _RPA || nextChar === _CMA) {
-					return this.finishToken(offset, TokenType.CssVariableName, content.join(''));
-				}
-			}
-			this.stream.goBackTo(offset);
 		}
 
 		let content: string[] = [];
