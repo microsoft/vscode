@@ -479,12 +479,12 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	private doCloseEditor(position: Position, input: EditorInput): void {
+	private doCloseEditor(position: Position, input: EditorInput, focusNext = true): void {
 		const group = this.stacks.groupAt(position);
 
 		// Closing the active editor of the group is a bit more work
 		if (group.activeEditor && group.activeEditor.matches(input)) {
-			this.doCloseActiveEditor(position);
+			this.doCloseActiveEditor(position, focusNext);
 		}
 
 		// Closing inactive editor is just a model update
@@ -493,7 +493,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	private doCloseActiveEditor(position: Position): void {
+	private doCloseActiveEditor(position: Position, focusNext = true): void {
 
 		// Update visible inputs for position
 		this.visibleInputs[position] = null;
@@ -511,7 +511,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Otherwise open next active
-		this.openEditor(group.activeEditor, null, position).done(null, errors.onUnexpectedError);
+		this.openEditor(group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true} ) : null, position).done(null, errors.onUnexpectedError);
 	}
 
 	private doCloseInactiveEditor(input: EditorInput, position: Position): void {
@@ -779,7 +779,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private doMoveEditorAcrossGroups(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
 
 		// A move to another group is a close first and an open in the target group
-		this.doCloseEditor(from, input);
+		this.doCloseEditor(from, input, false /* do not activate next one behind if any */);
 
 		return this.openEditor(input, EditorOptions.create({ pinned: true, index }), to);
 	}
