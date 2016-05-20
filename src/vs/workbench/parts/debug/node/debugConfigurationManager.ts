@@ -173,7 +173,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 			extensions.forEach(extension => {
 				extension.value.forEach(rawAdapter => {
-					const adapter = new Adapter(rawAdapter, this.systemVariables, extension.description.extensionFolderPath);
+					const adapter = new Adapter(rawAdapter, this.systemVariables, extension.description);
 					const duplicate = this.adapters.filter(a => a.type === adapter.type)[0];
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
 						extension.collector.error(nls.localize('debugNoType', "Debug adapter 'type' can not be omitted and must be of type 'string'."));
@@ -184,7 +184,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 							if (adapter[attribute]) {
 								if (attribute === 'enableBreakpointsFor') {
 									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
-								} else if (duplicate[attribute] && attribute !== 'type') {
+								} else if (duplicate[attribute] && attribute !== 'type' && attribute !== 'extensionDescription') {
 									// give priority to the later registered extension.
 									duplicate[attribute] = adapter[attribute];
 									extension.collector.error(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
