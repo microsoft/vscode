@@ -1170,7 +1170,7 @@
 		<key>variable-name</key>
 		<dict>
 			<key>match</key>
-			<string>\-\-[^:\)]+</string>
+			<string>\-\-[^:\),]+</string>
 			<key>name</key>
 			<string>support.type.property-name.variable.css</string>
 		</dict>
