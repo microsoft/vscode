@@ -102,7 +102,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		const pos = range.getStartPosition();
 		const model = this.editor.getModel();
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
+		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== model.uri.toString())) {
 			return;
 		}
 

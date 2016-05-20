@@ -24,7 +24,7 @@ export class EditorState implements ICodeEditorState {
 			switch(flag) {
 				case CodeEditorStateFlag.Value:
 					var model = editor.getModel();
-					this.modelVersionId = model ? strings.format('{0}#{1}', model.getAssociatedResource().toString(), model.getVersionId()) : null;
+					this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
 					break;
 				case CodeEditorStateFlag.Position:
 					this.position = editor.getPosition();

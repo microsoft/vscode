@@ -70,7 +70,7 @@ export class OutputMode extends AbstractMode {
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
-				return wireCancellationToken(token, this._provideLinks(model.getAssociatedResource()));
+				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
 		});
 	}

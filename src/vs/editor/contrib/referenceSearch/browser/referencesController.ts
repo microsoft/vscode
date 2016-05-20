@@ -156,7 +156,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				this._widget.setMetaTitle(options.getMetaTitle(model));
 
 				// set 'best' selection
-				let uri = this._editor.getModel().getAssociatedResource();
+				let uri = this._editor.getModel().uri;
 				let pos = { lineNumber: range.startLineNumber, column: range.startColumn };
 				let selection = this._model.nearestReference(uri, pos);
 				return this._widget.setSelection(selection);

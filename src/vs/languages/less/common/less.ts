@@ -205,7 +205,7 @@ export class LESSMode extends AbstractMode {
 
 		modes.HoverProviderRegistry.register(this.getId(), {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
 		});
 
@@ -215,19 +215,19 @@ export class LESSMode extends AbstractMode {
 
 		modes.ReferenceProviderRegistry.register(this.getId(), {
 			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
-				return wireCancellationToken(token, this._provideReferences(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideReferences(model.uri, position));
 			}
 		});
 
 		modes.DefinitionProviderRegistry.register(this.getId(), {
 			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
-				return wireCancellationToken(token, this._provideDefinition(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideDefinition(model.uri, position));
 			}
 		});
 
 		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
 			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
-				return wireCancellationToken(token, this._provideDocumentSymbols(model.getAssociatedResource()));
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.uri));
 			}
 		});
 
@@ -235,7 +235,7 @@ export class LESSMode extends AbstractMode {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
-				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		});
 

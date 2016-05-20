@@ -840,7 +840,7 @@ export class MainThreadLanguageFeatures {
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(selector, <modes.DocumentSymbolProvider>{
 			provideDocumentSymbols: (model:IReadOnlyModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> => {
-				return wireCancellationToken(token, this._proxy.$provideDocumentSymbols(handle, model.getAssociatedResource()));
+				return wireCancellationToken(token, this._proxy.$provideDocumentSymbols(handle, model.uri));
 			}
 		});
 		return undefined;
@@ -851,10 +851,10 @@ export class MainThreadLanguageFeatures {
 	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.CodeLensProviderRegistry.register(selector, <modes.CodeLensProvider>{
 			provideCodeLenses: (model:IReadOnlyModel, token: CancellationToken): modes.ICodeLensSymbol[] | Thenable<modes.ICodeLensSymbol[]> => {
-				return wireCancellationToken(token, this._proxy.$provideCodeLenses(handle, model.getAssociatedResource()));
+				return wireCancellationToken(token, this._proxy.$provideCodeLenses(handle, model.uri));
 			},
 			resolveCodeLens: (model:IReadOnlyModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): modes.ICodeLensSymbol | Thenable<modes.ICodeLensSymbol> => {
-				return wireCancellationToken(token, this._proxy.$resolveCodeLens(handle, model.getAssociatedResource(), codeLens));
+				return wireCancellationToken(token, this._proxy.$resolveCodeLens(handle, model.uri, codeLens));
 			}
 		});
 		return undefined;
@@ -865,7 +865,7 @@ export class MainThreadLanguageFeatures {
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(selector, <modes.DefinitionProvider>{
 			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
-				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position));
 			}
 		});
 		return undefined;
@@ -876,7 +876,7 @@ export class MainThreadLanguageFeatures {
 	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
 			provideHover: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._proxy.$provideHover(handle, model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._proxy.$provideHover(handle, model.uri, position));
 			}
 		});
 		return undefined;
@@ -887,7 +887,7 @@ export class MainThreadLanguageFeatures {
 	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.DocumentHighlightProviderRegistry.register(selector, <modes.DocumentHighlightProvider>{
 			provideDocumentHighlights: (model: IReadOnlyModel, position: IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> => {
-				return wireCancellationToken(token, this._proxy.$provideDocumentHighlights(handle, model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._proxy.$provideDocumentHighlights(handle, model.uri, position));
 			}
 		});
 		return undefined;
@@ -898,7 +898,7 @@ export class MainThreadLanguageFeatures {
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.ReferenceProviderRegistry.register(selector, <modes.ReferenceProvider>{
 			provideReferences: (model:IReadOnlyModel, position:IEditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> => {
-				return wireCancellationToken(token, this._proxy.$provideReferences(handle, model.getAssociatedResource(), position, context));
+				return wireCancellationToken(token, this._proxy.$provideReferences(handle, model.uri, position, context));
 			}
 		});
 		return undefined;
@@ -909,7 +909,7 @@ export class MainThreadLanguageFeatures {
 	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
 			provideCodeActions: (model:IReadOnlyModel, range:IEditorRange, token: CancellationToken): Thenable<modes.IQuickFix[]> => {
-				return wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.getAssociatedResource(), range));
+				return wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range));
 			}
 		});
 		return undefined;
@@ -920,7 +920,7 @@ export class MainThreadLanguageFeatures {
 	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(selector, <modes.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits: (model: IReadOnlyModel, options: modes.IFormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
-				return wireCancellationToken(token, this._proxy.$provideDocumentFormattingEdits(handle, model.getAssociatedResource(), options));
+				return wireCancellationToken(token, this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options));
 			}
 		});
 		return undefined;
@@ -929,7 +929,7 @@ export class MainThreadLanguageFeatures {
 	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(selector, <modes.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits: (model: IReadOnlyModel, range: IEditorRange, options: modes.IFormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
-				return wireCancellationToken(token, this._proxy.$provideDocumentRangeFormattingEdits(handle, model.getAssociatedResource(), range, options));
+				return wireCancellationToken(token, this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options));
 			}
 		});
 		return undefined;
@@ -941,7 +941,7 @@ export class MainThreadLanguageFeatures {
 			autoFormatTriggerCharacters,
 
 			provideOnTypeFormattingEdits: (model: IReadOnlyModel, position: IEditorPosition, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
-				return wireCancellationToken(token, this._proxy.$provideOnTypeFormattingEdits(handle, model.getAssociatedResource(), position, ch, options));
+				return wireCancellationToken(token, this._proxy.$provideOnTypeFormattingEdits(handle, model.uri, position, ch, options));
 			}
 		});
 		return undefined;
@@ -963,7 +963,7 @@ export class MainThreadLanguageFeatures {
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
 			provideRenameEdits: (model:IReadOnlyModel, position:IEditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
-				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.getAssociatedResource(), position, newName));
+				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName));
 			}
 		});
 		return undefined;
@@ -976,10 +976,10 @@ export class MainThreadLanguageFeatures {
 			triggerCharacters: triggerCharacters,
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
-				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position));
 			},
 			resolveCompletionItem: (model:IReadOnlyModel, position:IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
-				return wireCancellationToken(token, this._proxy.$resolveCompletionItem(handle, model.getAssociatedResource(), position, suggestion));
+				return wireCancellationToken(token, this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion));
 			}
 		});
 		return undefined;
@@ -993,7 +993,7 @@ export class MainThreadLanguageFeatures {
 			signatureHelpTriggerCharacters: triggerCharacter,
 
 			provideSignatureHelp: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.SignatureHelp> => {
-				return wireCancellationToken(token, this._proxy.$provideSignatureHelp(handle, model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._proxy.$provideSignatureHelp(handle, model.uri, position));
 			}
 
 		});

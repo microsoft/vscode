@@ -452,14 +452,14 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
-		if (!changedResources.some(r => this._editor.getModel().getAssociatedResource().toString() === r.toString())) {
+		if (!changedResources.some(r => this._editor.getModel().uri.toString() === r.toString())) {
 			return;
 		}
 		this._model.setMarkers(this._getMarkers());
 	}
 
 	private _getMarkers(): IMarker[] {
-		var resource = this._editor.getModel().getAssociatedResource(),
+		var resource = this._editor.getModel().uri,
 			markers = this._markerService.read({ resource: resource });
 
 		return markers;

@@ -423,7 +423,7 @@ export class MainThreadEditorsTracker {
 		allModels = allModels.filter((model) => !model.isTooLargeForHavingARichMode());
 		let allModelsMap: { [modelUri:string]: EditorCommon.IModel; } = Object.create(null);
 		allModels.forEach((model) => {
-			allModelsMap[model.getAssociatedResource().toString()] = model;
+			allModelsMap[model.uri.toString()] = model;
 		});
 
 		// Remove text editors for models that no longer exist
@@ -475,7 +475,7 @@ export class MainThreadEditorsTracker {
 
 		// Handle all not visible models
 		allModels.forEach((model) => {
-			let modelUri = model.getAssociatedResource().toString();
+			let modelUri = model.uri.toString();
 
 			if (visibleModels[modelUri]) {
 				// model is visible, already handled above
@@ -584,7 +584,7 @@ export class MainThreadEditorsTracker {
 				return;
 			}
 
-			let modelUri = model.getAssociatedResource().toString();
+			let modelUri = model.uri.toString();
 			r[modelUri] = r[modelUri] || {
 				model: model,
 				codeEditors: []

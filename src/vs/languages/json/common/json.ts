@@ -65,7 +65,7 @@ export class JSONMode extends AbstractMode {
 
 		modes.HoverProviderRegistry.register(this.getId(), {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
 		});
 
@@ -76,19 +76,19 @@ export class JSONMode extends AbstractMode {
 		// Initialize Outline support
 		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
 			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
-				return wireCancellationToken(token, this._provideDocumentSymbols(model.getAssociatedResource()));
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.uri));
 			}
 		});
 
 		modes.DocumentFormattingEditProviderRegistry.register(this.getId(), {
 			provideDocumentFormattingEdits: (model, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
-				return wireCancellationToken(token, this._provideDocumentFormattingEdits(model.getAssociatedResource(), options));
+				return wireCancellationToken(token, this._provideDocumentFormattingEdits(model.uri, options));
 			}
 		});
 
 		modes.DocumentRangeFormattingEditProviderRegistry.register(this.getId(), {
 			provideDocumentRangeFormattingEdits: (model, range, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
-				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.getAssociatedResource(), range, options));
+				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.uri, range, options));
 			}
 		});
 
@@ -96,7 +96,7 @@ export class JSONMode extends AbstractMode {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
-				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		});
 	}

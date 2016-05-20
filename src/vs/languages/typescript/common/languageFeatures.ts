@@ -88,21 +88,21 @@ class DiagnostcsAdapter extends Adapter {
 		super(modelService, worker);
 
 		const onModelAdd = (model: editorCommon.IModel): void => {
-			if (!matches(_selector, model.getAssociatedResource(), model.getModeId())) {
+			if (!matches(_selector, model.uri, model.getModeId())) {
 				return;
 			}
 
 			let handle: number;
-			this._listener[model.getAssociatedResource().toString()] = model.addListener2(editorCommon.EventType.ModelContentChanged2, () => {
+			this._listener[model.uri.toString()] = model.addListener2(editorCommon.EventType.ModelContentChanged2, () => {
 				clearTimeout(handle);
-				handle = setTimeout(() => this._doValidate(model.getAssociatedResource()), 500);
+				handle = setTimeout(() => this._doValidate(model.uri), 500);
 			});
 
-			this._doValidate(model.getAssociatedResource());
+			this._doValidate(model.uri);
 		};
 
 		const onModelRemoved = (model: editorCommon.IModel): void => {
-			delete this._listener[model.getAssociatedResource().toString()];
+			delete this._listener[model.uri.toString()];
 		};
 
 		this._disposables.push(modelService.onModelAdded(onModelAdd));
@@ -176,7 +176,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 
 	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		const wordInfo = model.getWordUntilPosition(position);
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 		const offset = this._positionToOffset(resource, position);
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -201,7 +201,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 	}
 
 	resolveCompletionItem(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getCompletionEntryDetails(resource.toString(),
@@ -248,7 +248,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 	public signatureHelpTriggerCharacters = ['(', ','];
 
 	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
-		let resource = model.getAssociatedResource();
+		let resource = model.uri;
 		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
 			if (!info) {
@@ -297,7 +297,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
 	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
-		let resource = model.getAssociatedResource();
+		let resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getQuickInfoAtPosition(resource.toString(), this._positionToOffset(resource, position));
@@ -318,7 +318,7 @@ class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvider {
 
 	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getOccurrencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
@@ -341,7 +341,7 @@ class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvi
 class DefinitionAdapter extends Adapter {
 
 	public provideDefinition(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Definition> {
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));
@@ -369,7 +369,7 @@ class DefinitionAdapter extends Adapter {
 class ReferenceAdapter extends Adapter implements modes.ReferenceProvider {
 
 	provideReferences(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
@@ -397,7 +397,7 @@ class ReferenceAdapter extends Adapter implements modes.ReferenceProvider {
 class OutlineAdapter extends Adapter implements modes.DocumentSymbolProvider {
 
 	public provideDocumentSymbols(model:editorCommon.IReadOnlyModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> {
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getNavigationBarItems(resource.toString())).then(items => {
 			if (!items) {
@@ -512,7 +512,7 @@ abstract class FormatHelper extends Adapter {
 class FormatAdapter extends FormatHelper implements modes.DocumentRangeFormattingEditProvider {
 
 	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: editorCommon.IEditorRange, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getFormattingEditsForRange(resource.toString(),
@@ -534,7 +534,7 @@ class FormatOnTypeAdapter extends FormatHelper implements modes.OnTypeFormatting
 	}
 
 	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getFormattingEditsAfterKeystroke(resource.toString(),

@@ -126,7 +126,7 @@ export class CSSLanguageService implements ILanguageService {
 
 		this.resourceService.all().filter((element) => this._isMyMirrorModel(element)).forEach((model:EditorCommon.IMirrorModel) => {
 			// Reparse changes or new models
-			var url = model.getAssociatedResource().toString(),
+			var url = model.uri.toString(),
 				entry = this.entries[url],
 				hasEntry = typeof entry !== 'undefined';
 

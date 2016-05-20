@@ -73,7 +73,7 @@ class DecorationsManager implements IDisposable {
 		}
 
 		for(var i = 0, len = this.model.groups.length; i < len; i++) {
-			if(this.model.groups[i].uri.toString() === model.getAssociatedResource().toString()) {
+			if(this.model.groups[i].uri.toString() === model.uri.toString()) {
 				this._addDecorations(this.model.groups[i]);
 				return;
 			}

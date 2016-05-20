@@ -327,13 +327,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 
 		modes.HoverProviderRegistry.register(this.getId(), {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
 		});
 
 		modes.ReferenceProviderRegistry.register(this.getId(), {
 			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
-				return wireCancellationToken(token, this._provideReferences(model.getAssociatedResource(), position, context));
+				return wireCancellationToken(token, this._provideReferences(model.uri, position, context));
 			}
 		});
 
@@ -341,25 +341,25 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
-				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		});
 
 		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
 			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
-				return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideDocumentHighlights(model.uri, position));
 			}
 		});
 
 		modes.DocumentRangeFormattingEditProviderRegistry.register(this.getId(), {
 			provideDocumentRangeFormattingEdits: (model, range, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
-				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.getAssociatedResource(), range, options));
+				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.uri, range, options));
 			}
 		});
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
-				return wireCancellationToken(token, this._provideLinks(model.getAssociatedResource()));
+				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
 		});
 	}

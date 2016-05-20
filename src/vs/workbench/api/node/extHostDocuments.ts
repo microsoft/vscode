@@ -519,11 +519,11 @@ export class MainThreadDocuments {
 			// don't synchronize too large models
 			return null;
 		}
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener2((events) => this._onModelEvents(modelUrl, events));
 		this._proxy._acceptModelAdd({
-			url: model.getAssociatedResource(),
+			url: model.uri,
 			versionId: model.getVersionId(),
 			value: model.toRawText(),
 			modeId: model.getMode().getId(),
@@ -533,15 +533,15 @@ export class MainThreadDocuments {
 
 	private _onModelModeChanged(event: { model: EditorCommon.IModel; oldModeId: string; }): void {
 		let {model, oldModeId} = event;
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy._acceptModelModeChanged(model.getAssociatedResource().toString(), oldModeId, model.getMode().getId());
+		this._proxy._acceptModelModeChanged(model.uri.toString(), oldModeId, model.getMode().getId());
 	}
 
 	private _onModelRemoved(model: EditorCommon.IModel): void {
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}

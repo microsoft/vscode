@@ -241,7 +241,7 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: false,
 			provideCompletionItems: (model, position, token) => {
-				return wireCancellationToken(token, editorWorkerService.textualSuggest(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, editorWorkerService.textualSuggest(model.uri, position));
 			}
 		});
 	}

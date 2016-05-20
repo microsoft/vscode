@@ -336,7 +336,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public canSetBreakpointsIn(model: editor.IModel): boolean {
-		if (model.getAssociatedResource().scheme === Schemas.inMemory) {
+		if (model.uri.scheme === Schemas.inMemory) {
 			return false;
 		}
 

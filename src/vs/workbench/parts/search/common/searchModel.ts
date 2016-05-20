@@ -222,7 +222,7 @@ export class SearchResult extends EventEmitter {
 	}
 
 	private _onModelAdded(model: IModel): void {
-		let resource = model.getAssociatedResource(),
+		let resource = model.uri,
 			fileMatch = this._matches[resource.toString()];
 
 		if (fileMatch) {
@@ -235,7 +235,7 @@ export class SearchResult extends EventEmitter {
 
 	private _onModelRemoved(model: IModel): void {
 
-		let resource = model.getAssociatedResource(),
+		let resource = model.uri,
 			fileMatch = this._matches[resource.toString()];
 
 		if (fileMatch instanceof LiveFileMatch) {

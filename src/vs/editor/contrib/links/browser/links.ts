@@ -165,7 +165,7 @@ class LinkDetector {
 			modePromise = getLinks(this.editor.getModel());
 		}
 
-		let standardPromise:TPromise<ILink[]> = this.editorWorkerService.computeLinks(this.editor.getModel().getAssociatedResource());
+		let standardPromise:TPromise<ILink[]> = this.editorWorkerService.computeLinks(this.editor.getModel().uri);
 
 		this.computePromise = TPromise.join([modePromise, standardPromise]).then((r) => {
 			let a = r[0];

@@ -71,7 +71,7 @@ suite('ExtHostLanguageFeatures', function() {
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
-			url: model.getAssociatedResource(),
+			url: model.uri,
 			value: {
 				EOL: model.getEOL(),
 				lines: model.getValue().split(model.getEOL()),
@@ -243,7 +243,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				return [new types.Location(model.getAssociatedResource(), new types.Range(1, 2, 3, 4))];
+				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
 			}
 		}));
 
@@ -253,7 +253,7 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
-				assert.equal(entry.uri.toString(), model.getAssociatedResource().toString());
+				assert.equal(entry.uri.toString(), model.uri.toString());
 			});
 		});
 	});
@@ -262,12 +262,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				return [new types.Location(model.getAssociatedResource(), new types.Range(1, 1, 1, 1))];
+				return [new types.Location(model.uri, new types.Range(1, 1, 1, 1))];
 			}
 		}));
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				return new types.Location(model.getAssociatedResource(), new types.Range(1, 1, 1, 1));
+				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
 			}
 		}));
 
@@ -314,7 +314,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				return new types.Location(model.getAssociatedResource(), new types.Range(1, 1, 1, 1));
+				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
 			}
 		}));
 
@@ -535,7 +535,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
-				return [new types.Location(model.getAssociatedResource(), new types.Position(0, 0))];
+				return [new types.Location(model.uri, new types.Position(0, 0))];
 			}
 		}));
 
@@ -546,7 +546,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 				let [item] = value;
 				assert.deepEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
-				assert.equal(item.uri.toString(), model.getAssociatedResource().toString());
+				assert.equal(item.uri.toString(), model.uri.toString());
 			});
 
 		});
@@ -561,7 +561,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
-				return [new types.Location(model.getAssociatedResource(), new types.Range(0, 0, 0, 0))];
+				return [new types.Location(model.uri, new types.Range(0, 0, 0, 0))];
 			}
 		}));
 
@@ -675,7 +675,7 @@ suite('ExtHostLanguageFeatures', function() {
 		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				let edit = new types.WorkspaceEdit();
-				edit.replace(model.getAssociatedResource(), new types.Range(0, 0, 0, 0), 'testing');
+				edit.replace(model.uri, new types.Range(0, 0, 0, 0), 'testing');
 				return edit;
 			}
 		}));
@@ -693,8 +693,8 @@ suite('ExtHostLanguageFeatures', function() {
 		disposables.push(extHost.registerRenameProvider('*', <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				let edit = new types.WorkspaceEdit();
-				edit.replace(model.getAssociatedResource(), new types.Range(0, 0, 0, 0), 'testing');
-				edit.replace(model.getAssociatedResource(), new types.Range(1, 0, 1, 0), 'testing');
+				edit.replace(model.uri, new types.Range(0, 0, 0, 0), 'testing');
+				edit.replace(model.uri, new types.Range(1, 0, 1, 0), 'testing');
 				return edit;
 			}
 		}));

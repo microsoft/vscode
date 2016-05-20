@@ -106,7 +106,7 @@ class StandaloneEditor extends CodeEditorWidget {
 		if (model) {
 			let e: IModelChangedEvent = {
 				oldModelUrl: null,
-				newModelUrl: model.getAssociatedResource().toString()
+				newModelUrl: model.uri.toString()
 			};
 			this.emit(EventType.ModelChanged, e);
 		}

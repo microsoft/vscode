@@ -82,7 +82,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			}
 
 			const lineNumber = e.target.position.lineNumber;
-			const uri = this.editor.getModel().getAssociatedResource();
+			const uri = this.editor.getModel().uri;
 
 			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
 				const anchor = { x: e.event.posx + 1, y: e.event.posy };

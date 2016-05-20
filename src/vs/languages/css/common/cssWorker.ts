@@ -343,7 +343,7 @@ export class CSSWorker {
 
 			return nodes.map((occurrence) => {
 				return {
-					uri: model.getAssociatedResource(),
+					uri: model.uri,
 					range: this._range(occurrence.node, model)
 				};
 			});

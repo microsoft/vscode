@@ -119,7 +119,7 @@ export class QuickFixModel extends EventEmitter {
 		if (!model) {
 			return;
 		}
-		var associatedResource = model.getAssociatedResource();
+		var associatedResource = model.uri;
 		if (!changedResources.some(r => associatedResource.toString() === r.toString())) {
 			return;
 		}
@@ -223,7 +223,7 @@ export class QuickFixModel extends EventEmitter {
 		if (!model) {
 			return;
 		}
-		this.markers = this.markerService.read({ resource: model.getAssociatedResource() })
+		this.markers = this.markerService.read({ resource: model.uri })
 			.sort((e1, e2) => { return e1.startLineNumber - e2.startLineNumber; });
 
 		return this.markers;

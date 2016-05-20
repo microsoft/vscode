@@ -143,7 +143,7 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 				this._currentFindColorDeclarationsPromise.cancel();
 			}
 
-			this._currentFindColorDeclarationsPromise = rawMode['findColorDeclarations'](model.getAssociatedResource());
+			this._currentFindColorDeclarationsPromise = rawMode['findColorDeclarations'](model.uri);
 
 			var myModelVersion = this._editor.getModel().getVersionId();
 			this._currentFindColorDeclarationsPromise.then((result) => {

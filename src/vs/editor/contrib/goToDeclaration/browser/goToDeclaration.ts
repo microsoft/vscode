@@ -95,7 +95,7 @@ export class DefinitionAction extends EditorAction {
 				}
 				let {uri, range} = reference;
 				if (!this._configuration.filterCurrent
-					|| uri.toString() !== model.getAssociatedResource().toString()
+					|| uri.toString() !== model.uri.toString()
 					|| !Range.containsPosition(range, pos)) {
 
 					result.push({

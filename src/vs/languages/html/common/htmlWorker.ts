@@ -171,7 +171,7 @@ export class HTMLWorker {
 
 			allPromises = models
 				.filter((model) => (typeof model.getMode()['findColorDeclarations'] === 'function'))
-				.map((model) => model.getMode()['findColorDeclarations'](model.getAssociatedResource()));
+				.map((model) => model.getMode()['findColorDeclarations'](model.uri));
 
 			return winjs.TPromise.join(allPromises).then((results:IColorRange[][]) => {
 				let result:IColorRange[] = [];
@@ -584,7 +584,7 @@ export class HTMLWorker {
 		let lineCount = model.getLineCount(),
 			newLinks: modes.ILink[] = [],
 			state: LinkDetectionState = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC,
-			modelAbsoluteUrl = model.getAssociatedResource(),
+			modelAbsoluteUrl = model.uri,
 			lineNumber: number,
 			lineContent: string,
 			lineContentLength: number,

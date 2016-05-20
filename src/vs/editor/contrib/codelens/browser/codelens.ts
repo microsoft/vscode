@@ -158,7 +158,7 @@ function modelsVersionId(modelService: IModelService, modeId: string): number {
 		.filter(model => model.getMode().getId() === modeId)
 		.map((model) => {
 			return {
-				url: model.getAssociatedResource().toString(),
+				url: model.uri.toString(),
 				versionId: model.getVersionId()
 			};
 		})

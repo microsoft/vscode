@@ -739,7 +739,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		var currentOriginalModel = this.originalEditor.getModel();
 		var currentModifiedModel = this.modifiedEditor.getModel();
 
-		this._editorWorkerService.computeDiff(currentOriginalModel.getAssociatedResource(), currentModifiedModel.getAssociatedResource(), this._ignoreTrimWhitespace).then((result) => {
+		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._ignoreTrimWhitespace).then((result) => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this.originalEditor.getModel()
 				&& currentModifiedModel === this.modifiedEditor.getModel()

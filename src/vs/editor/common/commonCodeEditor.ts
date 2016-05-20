@@ -228,10 +228,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		var newModelUrl: string = null;
 
 		if (detachedModel) {
-			oldModelUrl = detachedModel.getAssociatedResource().toString();
+			oldModelUrl = detachedModel.uri.toString();
 		}
 		if (model) {
-			newModelUrl = model.getAssociatedResource().toString();
+			newModelUrl = model.uri.toString();
 		}
 		var e: editorCommon.IModelChangedEvent = {
 			oldModelUrl: oldModelUrl,

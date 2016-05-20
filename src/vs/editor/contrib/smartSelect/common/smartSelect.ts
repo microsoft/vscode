@@ -64,7 +64,7 @@ class SmartSelect extends EditorAction {
 
 		var promise:TPromise<void> = TPromise.as(null);
 		if (!state) {
-			promise = this._tokenSelectionSupport.getRangesToPosition(model.getAssociatedResource(), selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
+			promise = this._tokenSelectionSupport.getRangesToPosition(model.uri, selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
 
 				if (arrays.isFalsyOrEmpty(elements)) {
 					return;

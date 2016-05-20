@@ -135,7 +135,7 @@ export class TextFileEditor extends BaseTextEditor {
 			let mode = textFileModel.textEditorModel.getMode();
 			let setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
 				mode: mode && mode.getId(),
-				resource: textFileModel.textEditorModel.getAssociatedResource().toString(),
+				resource: textFileModel.textEditorModel.uri.toString(),
 			});
 
 			// Editor

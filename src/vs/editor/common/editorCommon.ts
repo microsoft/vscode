@@ -1611,7 +1611,7 @@ export interface IReadOnlyModel extends ITextModel {
 	/**
 	 * Gets the resource associated with this editor model.
 	 */
-	getAssociatedResource(): URI;
+	uri: URI;
 
 	getModeId(): string;
 
@@ -2067,7 +2067,7 @@ export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 	getEmbeddedAtPosition(position:IPosition): IMirrorModel;
 	getAllEmbedded(): IMirrorModel[];
 
-	getAssociatedResource(): URI;
+	uri: URI;
 
 	getOffsetFromPosition(position:IPosition): number;
 	getPositionFromOffset(offset:number): IPosition;
