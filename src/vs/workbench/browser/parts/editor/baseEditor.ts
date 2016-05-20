@@ -84,6 +84,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._options = null;
 	}
 
+	public create(parent: Builder): void; // create is sync for editors
+	public create(parent: Builder): TPromise<void>;
 	public create(parent: Builder): TPromise<void> {
 		let res = super.create(parent);
 

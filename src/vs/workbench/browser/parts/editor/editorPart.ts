@@ -81,7 +81,6 @@ export class EditorPart extends Part implements IEditorPart {
 	private instantiatedEditors: BaseEditor[][];
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
-	private mapEditorCreationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private editorSetInputErrorCounter: number[];
 	private pendingEditorInputsToClose: IEditorIdentifier[];
@@ -109,7 +108,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 		this.mapEditorToEditorContainers = arrays.fill(POSITIONS.length, () => Object.create(null));
 		this.mapEditorInstantiationPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
-		this.mapEditorCreationPromiseToEditor = arrays.fill(POSITIONS.length, () => Object.create(null));
 
 		this.pendingEditorInputsToClose = [];
 		this.pendingEditorInputCloseTimeout = null;
@@ -152,7 +150,6 @@ export class EditorPart extends Part implements IEditorPart {
 			!input ||																		// no input
 			position === null ||															// invalid position
 			Object.keys(this.mapEditorInstantiationPromiseToEditor[position]).length > 0 ||	// pending editor load
-			Object.keys(this.mapEditorCreationPromiseToEditor[position]).length > 0 ||		// pending editor create
 			this.sideBySideControl.isDragging()												// pending editor DND
 		) {
 			return TPromise.as<BaseEditor>(null);
@@ -216,7 +213,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Return early if the currently visible editor can handle the input
 		if (editorAtPosition && descriptor.describes(editorAtPosition)) {
-			return this.mapEditorCreationPromiseToEditor[position][descriptor.getId()] || TPromise.as(editorAtPosition);
+			return TPromise.as(editorAtPosition);
 		}
 
 		// If we have an active editor, hide it first
@@ -289,28 +286,12 @@ export class EditorPart extends Part implements IEditorPart {
 			// Register as Emitter to Workbench Bus
 			this.visibleEditorListeners[position].push(this.eventService.addEmitter(this.visibleEditors[position], this.visibleEditors[position].getId()));
 
-			// Editor already created or pending to be created, just return it
-			if (!newlyCreatedEditorContainerBuilder) {
-				return (this.mapEditorCreationPromiseToEditor[position][descriptor.getId()] || TPromise.as(null)).then(() => editor);
+			// Create editor as needed
+			if (newlyCreatedEditorContainerBuilder) {
+				editor.create(newlyCreatedEditorContainerBuilder);
 			}
 
-			// Otherwise Editor needs to be created()
-			let created = false;
-			let createEditorPromise = editor.create(newlyCreatedEditorContainerBuilder).then(() => {
-				created = true;
-				delete this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
-			}, (error) => {
-				created = true;
-				delete this.mapEditorCreationPromiseToEditor[position][descriptor.getId()];
-
-				return TPromise.wrapError(error);
-			});
-
-			if (!created) {
-				this.mapEditorCreationPromiseToEditor[position][descriptor.getId()] = createEditorPromise.then(() => editor);
-			}
-
-			return createEditorPromise.then(() => editor);
+			return editor;
 		});
 	}
 
@@ -736,7 +717,6 @@ export class EditorPart extends Part implements IEditorPart {
 		arrays.move(this.visibleEditorListeners, from, to);
 		arrays.move(this.editorOpenToken, from, to);
 		arrays.move(this.mapEditorInstantiationPromiseToEditor, from, to);
-		arrays.move(this.mapEditorCreationPromiseToEditor, from, to);
 		arrays.move(this.instantiatedEditors, from, to);
 		arrays.move(this.mapEditorToEditorContainers, from, to);
 
@@ -1269,7 +1249,6 @@ export class EditorPart extends Part implements IEditorPart {
 			this.doRochade(this.visibleEditors, from, to, null);
 			this.doRochade(this.editorOpenToken, from, to, null);
 			this.doRochade(this.mapEditorInstantiationPromiseToEditor, from, to, Object.create(null));
-			this.doRochade(this.mapEditorCreationPromiseToEditor, from, to, Object.create(null));
 			this.doRochade(this.visibleEditorListeners, from, to, []);
 			this.doRochade(this.instantiatedEditors, from, to, []);
 			this.doRochade(this.mapEditorToEditorContainers, from, to, Object.create(null));
