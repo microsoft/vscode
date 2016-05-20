@@ -222,11 +222,6 @@ export interface IMode {
 	configSupport?:IConfigurationSupport;
 
 	/**
-	 * Optional adapter to support task running
-	 */
-	taskSupport?: ITaskSupport;
-
-	/**
 	 * Optional adapter to support rich editing.
 	 */
 	richEditSupport?: IRichEditSupport;
@@ -646,18 +641,6 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model:editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 }
 
-
-export interface ITaskSummary {
-}
-
-/**
- * Interface to support building via a langauge service
- */
-export interface ITaskSupport {
-	build?():TPromise<ITaskSummary>;
-	rebuild?():TPromise<ITaskSummary>;
-	clean?():TPromise<void>;
-}
 
 export type CharacterPair = [string, string];
 
