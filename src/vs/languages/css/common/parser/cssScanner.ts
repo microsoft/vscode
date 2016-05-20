@@ -635,22 +635,6 @@ export class Scanner {
 		return false;
 	}
 
-	protected isVariable(result:string[]):boolean {
-		let pos = this.stream.pos();
-		let hasMinus = this._minus(result);
-		if (hasMinus && this._minus(result) /* -- */) {
-			let hasContent = false;
-			while (this._identChar(result) || this._escape(result)) {
-				hasContent = true;
-			}
-			if (hasContent) {
-				return true;
-			}
-		}
-		this.stream.goBackTo(pos);
-		return false;
-	}
-
 	private _identFirstChar(result:string[]):boolean {
 		let ch = this.stream.peekChar();
 		if (ch === _USC || // _

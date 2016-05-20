@@ -37,7 +37,7 @@ export class CSSIntellisense {
 	}
 
 
-	protected getSymbolContext() : cssSymbols.Symbols {
+	private getSymbolContext() : cssSymbols.Symbols {
 		if (!this.symbolContext) {
 			this.symbolContext = new cssSymbols.Symbols(this.styleSheet);
 		}
@@ -80,7 +80,7 @@ export class CSSIntellisense {
 			} else if (node instanceof nodes.Function) {
 				let functionNode: nodes.Function= <nodes.Function>node;
 				if (functionNode.getIdentifier().getText() === 'var') {
-					this.getVariableProposalsForCssVariableExpression(result);
+					this.getVariableProposalsForCssVarFunction(result);
 				}
 			}
 			if (result.length > 0) {
@@ -211,7 +211,7 @@ export class CSSIntellisense {
 		return result;
 	}
 
-	public getVariableProposalsForCssVariableExpression(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
+	public getVariableProposalsForCssVarFunction(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
 		var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Variable);
 		symbols= symbols.filter((symbol):boolean => {
 			return strings.startsWith(symbol.name, '--');
