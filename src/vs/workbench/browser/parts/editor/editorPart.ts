@@ -725,7 +725,7 @@ export class EditorPart extends Part implements IEditorPart {
 		arrays.move(this.mapEditorToEditorContainers, from, to);
 
 		// Restore focus
-		this.focusGroup(this.stacks.positionOfGroup(toGroup));
+		this.focusGroup(this.stacks.positionOfGroup(fromGroup));
 
 		// Update all title areas
 		this.doRecreateEditorTitleArea();
