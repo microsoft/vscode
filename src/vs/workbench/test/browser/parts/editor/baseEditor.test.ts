@@ -138,20 +138,18 @@ suite('Workbench BaseEditor', () => {
 			assert.strictEqual(input, e.getInput());
 			assert.strictEqual(options, e.getOptions());
 
-			return e.setVisible(true).then(function () {
-				assert(e.isVisible());
-				input.addListener('dispose', function () {
-					assert(false);
-				});
-				e.dispose();
-				e.clearInput();
-				return e.setVisible(false).then(function () {
-					assert(!e.isVisible());
-					assert(!e.getInput());
-					assert(!e.getOptions());
-					assert(!e.getControl());
-				});
+			e.setVisible(true)
+			assert(e.isVisible());
+			input.addListener('dispose', function () {
+				assert(false);
 			});
+			e.dispose();
+			e.clearInput();
+			e.setVisible(false)
+			assert(!e.isVisible());
+			assert(!e.getInput());
+			assert(!e.getOptions());
+			assert(!e.getControl());
 		}).done(() => done());
 	});
 

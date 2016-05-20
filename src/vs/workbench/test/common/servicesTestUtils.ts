@@ -339,12 +339,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.callback('activateGroup');
 	}
 
-	public groupAt(position: Position): IEditorGroup {
-		this.callback('groupAt');
-
-		return null;
-	}
-
 	public pinEditor(position: Position, input: IEditorInput): void {
 		this.callback('pinEditor');
 	}

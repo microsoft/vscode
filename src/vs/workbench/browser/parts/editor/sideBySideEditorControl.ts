@@ -1024,7 +1024,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.editorTitleToolbar[position] = toolbar;
 			this.editorTitleToolbar[position].setActions([this.closeEditorActions[position]])();
 
-			const group = this.editorService.groupAt(position);
+			const group = this.editorService.getStacksModel().groupAt(position);
 			this.editorTitleToolbar[position].context = { group };
 		});
 
@@ -1047,7 +1047,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const toolbar = this.doCreateToolbar(div, position);
 			this.editorActionsToolbar[position] = toolbar;
 
-			const group = this.editorService.groupAt(position);
+			const group = this.editorService.getStacksModel().groupAt(position);
 			this.editorActionsToolbar[position].context = { group };
 		});
 	}
@@ -1210,7 +1210,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const activePosition = this.lastActivePosition;
 
 		states.forEach(state => {
-			const group = this.editorService.groupAt(state.position);
+			const group = this.editorService.getStacksModel().groupAt(state.position);
 			this.editorTitleToolbar[state.position].context = { group };
 			this.editorActionsToolbar[state.position].context = { group };
 

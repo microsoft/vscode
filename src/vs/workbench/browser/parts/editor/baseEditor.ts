@@ -103,12 +103,19 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	/**
 	 * Overload this function to allow for passing in a position argument.
 	 */
+	public setVisible(visible: boolean, position?: Position): void; // setVisible is sync for editors
+	public setVisible(visible: boolean, position?: Position): TPromise<void>;
 	public setVisible(visible: boolean, position: Position = null): TPromise<void> {
 		let promise = super.setVisible(visible);
 
-		this._position = position;
+		// Propagate to Editor
+		this.setEditorVisible(visible, position);
 
 		return promise;
+	}
+
+	public setEditorVisible(visible, position: Position = null): void {
+		this._position = position;
 	}
 
 	/**

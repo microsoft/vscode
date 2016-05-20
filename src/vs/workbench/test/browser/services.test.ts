@@ -96,11 +96,6 @@ class TestEditorPart implements IEditorPart {
 		// Unsupported
 	}
 
-	public groupAt(position: Position): IEditorGroup {
-		// Unsupported
-		return null;
-	}
-
 	public focusGroup(position: Position): void {
 		// Unsupported
 	}

@@ -257,10 +257,10 @@ export class TextDiffEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	public setVisible(visible: boolean, position: Position): TPromise<void> {
+	public setEditorVisible(visible: boolean, position: Position): void {
 		this.textDiffEditorVisible.set(visible);
 
-		return super.setVisible(visible, position);
+		super.setEditorVisible(visible, position);
 	}
 
 	public getDiffNavigator(): DiffNavigator {

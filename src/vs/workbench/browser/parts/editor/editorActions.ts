@@ -419,7 +419,7 @@ export class CloseEditorAction extends Action {
 
 		let input = editorIdentifier ? editorIdentifier.editor : null;
 		if (!input) {
-			
+
 			// Get Top Editor at Position
 			let visibleEditors = this.editorService.getVisibleEditors();
 			if (visibleEditors[position]) {

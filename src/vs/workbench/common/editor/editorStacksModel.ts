@@ -62,6 +62,7 @@ export interface IEditorStacksModel {
 	getGroup(id: GroupIdentifier): IEditorGroup;
 
 	positionOfGroup(group: IEditorGroup): Position;
+	groupAt(position: Position): IEditorGroup;
 
 	next(): IEditorIdentifier;
 	previous(): IEditorIdentifier;
@@ -816,6 +817,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 	public positionOfGroup(group: EditorGroup);
 	public positionOfGroup(group: EditorGroup): Position {
 		return this.indexOf(group);
+	}
+
+	public groupAt(position: Position): EditorGroup {
+		return this._groups[position];
 	}
 
 	public next(): IEditorIdentifier {
