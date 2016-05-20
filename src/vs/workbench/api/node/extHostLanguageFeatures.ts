@@ -11,7 +11,7 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {Range, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
-import {IReadOnlyModel, IEditorPosition, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorPosition, IPosition, IEditorRange, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
@@ -275,7 +275,7 @@ class ReferenceAdapter {
 	}
 }
 
-class QuickFixAdapter implements modes.IQuickFixSupport {
+class QuickFixAdapter {
 
 	private _documents: ExtHostModelService;
 	private _commands: ExtHostCommands;
@@ -291,7 +291,7 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 		this._provider = provider;
 	}
 
-	getQuickFixes(resource: URI, range: IRange): TPromise<modes.IQuickFix[]> {
+	provideCodeActions(resource: URI, range: IRange): TPromise<modes.IQuickFix[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = TypeConverters.toRange(range);
@@ -320,11 +320,6 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 				};
 			});
 		});
-	}
-
-	runQuickFixAction(resource: URI, range: IRange, quickFix: modes.IQuickFix): any {
-		let command = TypeConverters.Command.to(quickFix.command);
-		return this._commands.executeCommand(command.command, ...command.arguments);
 	}
 }
 
@@ -725,12 +720,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$getQuickFixes(handle: number, resource: URI, range: IRange): TPromise<modes.IQuickFix[]> {
-		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.getQuickFixes(resource, range));
-	}
-
-	$runQuickFixAction(handle: number, resource: URI, range: IRange, quickFix: modes.IQuickFix): any {
-		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.runQuickFixAction(resource, range, quickFix));
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.IQuickFix[]> {
+		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.provideCodeActions(resource, range));
 	}
 
 	// --- formatting
@@ -916,12 +907,9 @@ export class MainThreadLanguageFeatures {
 	// --- quick fix
 
 	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.QuickFixRegistry.register(selector, <modes.IQuickFixSupport>{
-			getQuickFixes: (resource: URI, range: IRange): TPromise<modes.IQuickFix[]> => {
-				return this._proxy.$getQuickFixes(handle, resource, range);
-			},
-			runQuickFixAction: (resource: URI, range: IRange, quickFix: modes.IQuickFix) => {
-				return this._proxy.$runQuickFixAction(handle, resource, range, quickFix);
+		this._registrations[handle] = modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
+			provideCodeActions: (model:IReadOnlyModel, range:IEditorRange, token: CancellationToken): Thenable<modes.IQuickFix[]> => {
+				return wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.getAssociatedResource(), range));
 			}
 		});
 		return undefined;

@@ -16,8 +16,8 @@ import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {Range} from 'vs/editor/common/core/range';
 import {EventType, ICursorPositionChangedEvent, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {QuickFixRegistry} from 'vs/editor/common/modes';
-import {IQuickFix2, getQuickFixes} from '../common/quickFix';
+import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
+import {IQuickFix2, getCodeActions} from '../common/quickFix';
 import {LightBulpWidget} from './lightBulpWidget';
 
 enum QuickFixSuggestState {
@@ -80,7 +80,7 @@ export class QuickFixModel extends EventEmitter {
 
 		this.toDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.onModelChanged()));
 		this.toDispose.push(this.editor.addListener2(EventType.ModelModeChanged, () => this.onModelChanged()));
-		this.toDispose.push(QuickFixRegistry.onDidChange(this.onModelChanged, this));
+		this.toDispose.push(CodeActionProviderRegistry.onDidChange(this.onModelChanged, this));
 	}
 
 	private onModelChanged(): void {
@@ -91,7 +91,7 @@ export class QuickFixModel extends EventEmitter {
 		this.markers = null;
 		this.updateScheduler = null;
 
-		if (!QuickFixRegistry.has(this.editor.getModel()) || this.editor.getConfiguration().readOnly) {
+		if (!CodeActionProviderRegistry.has(this.editor.getModel()) || this.editor.getConfiguration().readOnly) {
 			this.setDecoration(null);
 			return;
 		}
@@ -194,7 +194,7 @@ export class QuickFixModel extends EventEmitter {
 
 	private computeFixes(range: IMarker | IRange): TPromise<IQuickFix2[]> {
 		let model = this.editor.getModel();
-		if (!QuickFixRegistry.has(model)) {
+		if (!CodeActionProviderRegistry.has(model)) {
 			return TPromise.as(null);
 		}
 
@@ -208,7 +208,7 @@ export class QuickFixModel extends EventEmitter {
 		}
 
 		this.quickFixRequestPromiseRange = range;
-		this.quickFixRequestPromise = getQuickFixes(model, range);
+		this.quickFixRequestPromise = getCodeActions(model, Range.lift(range));
 		return this.quickFixRequestPromise;
 	}
 

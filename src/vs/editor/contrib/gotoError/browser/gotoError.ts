@@ -29,7 +29,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IOptions, ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
+import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
 
 class MarkerModel {
 
@@ -294,7 +294,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._element.appendChild(renderHtml(marker.message));
 		this._quickFixSection.style.display = 'none';
 
-		getQuickFixes(this.editor.getModel(), marker).then(result => {
+		getCodeActions(this.editor.getModel(), Range.lift(marker)).then(result => {
 			dom.clearNode(this._quickFixSection);
 
 			if (result.length > 0) {

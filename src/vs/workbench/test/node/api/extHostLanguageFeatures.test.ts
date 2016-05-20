@@ -28,7 +28,7 @@ import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/commo
 import {provideHover} from 'vs/editor/contrib/hover/common/hover';
 import {getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
+import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
@@ -587,7 +587,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return getQuickFixes(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 2);
 
 				let [first, second] = value;
@@ -613,7 +613,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return getQuickFixes(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});

@@ -363,14 +363,8 @@ export interface IQuickFix {
 	command: ICommand;
 	score: number;
 }
-
-export interface IQuickFixResult {
-	edits?: IResourceEdit[];
-	message?: string;
-}
-
-export interface IQuickFixSupport {
-	getQuickFixes(resource: URI, range: editorCommon.IRange): TPromise<IQuickFix[]>;
+export interface CodeActionProvider {
+	provideCodeActions(model:editorCommon.IReadOnlyModel, range:editorCommon.IEditorRange, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
 }
 
 
@@ -802,7 +796,7 @@ export const DefinitionProviderRegistry = new LanguageFeatureRegistry<Definition
 
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
 
-export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>();
+export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
 export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>();
 

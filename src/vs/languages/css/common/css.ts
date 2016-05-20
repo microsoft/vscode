@@ -365,7 +365,11 @@ export class CSSMode extends AbstractMode {
 			}
 		});
 
-		modes.QuickFixRegistry.register(this.getId(), this);
+		modes.CodeActionProviderRegistry.register(this.getId(), {
+			provideCodeActions: (model, range, token): Thenable<modes.IQuickFix[]> => {
+				return wireCancellationToken(token, this._provideCodeActions(model.getAssociatedResource(), range));
+			}
+		});
 	}
 
 	public creationDone(): void {
@@ -437,8 +441,8 @@ export class CSSMode extends AbstractMode {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 
-	static getQuickFixes = OneWorkerAttr(CSSMode, CSSMode.prototype.getQuickFixes);
-	public getQuickFixes(resource: URI, marker: IMarker | editorCommon.IRange): WinJS.TPromise<modes.IQuickFix[]>{
-		return this._worker((w) => w.getQuickFixes(resource, marker));
+	static _provideCodeActions = OneWorkerAttr(CSSMode, CSSMode.prototype._provideCodeActions);
+	private _provideCodeActions(resource: URI, marker: IMarker | editorCommon.IRange): WinJS.TPromise<modes.IQuickFix[]>{
+		return this._worker((w) => w.provideCodeActions(resource, marker));
 	}
 }

@@ -10,22 +10,25 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
-import {IModel, IRange} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {QuickFixRegistry, IQuickFix, IQuickFixSupport} from 'vs/editor/common/modes';
+import {CodeActionProviderRegistry, IQuickFix, CodeActionProvider} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {asWinJsPromise} from 'vs/base/common/async';
 
 export interface IQuickFix2 extends IQuickFix {
-	support: IQuickFixSupport;
+	support: CodeActionProvider;
 	id: string;
 }
 
-export function getQuickFixes(model: IModel, range: IRange): TPromise<IQuickFix2[]> {
+export function getCodeActions(model: IReadOnlyModel, range: IEditorRange): TPromise<IQuickFix2[]> {
 
 	const quickFixes: IQuickFix2[] = [];
 	let ids = new IdGenerator('quickfix');
-	const promises = QuickFixRegistry.all(model).map(support => {
-		return support.getQuickFixes(model.getAssociatedResource(), range).then(result => {
+	const promises = CodeActionProviderRegistry.all(model).map(support => {
+		return asWinJsPromise((token) => {
+			return support.provideCodeActions(model, range, token);
+		}).then(result => {
 			if (!Array.isArray(result)) {
 				return;
 			}
@@ -57,5 +60,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', funct
 		throw illegalArgument();
 	}
 
-	return getQuickFixes(model, range);
+	const editorRange = Range.lift(range);
+
+	return getCodeActions(model, editorRange);
 });
