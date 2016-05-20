@@ -441,11 +441,13 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^\s*</string>
+			<string>^\s*+(?=[^/])</string>
 			<key>comment</key>
 			<string>All constructs that generally span a single line starting with any number of white-spaces.</string>
 			<key>end</key>
 			<string>$</string>
+			<key>name</key>
+			<string>tag.jade</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -848,38 +850,64 @@
 		</dict>
 		<key>flow_control</key>
 		<dict>
-			<key>begin</key>
-			<string>(for|if|else if|else|each|until|while|unless|case)(\s+|$)</string>
-			<key>captures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>storage.type.function.jade</string>
-				</dict>
-			</dict>
-			<key>comment</key>
-			<string>Jade control flow.</string>
-			<key>end</key>
-			<string>$</string>
-			<key>name</key>
-			<string>meta.control.flow.jade</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>begin</key>
-					<string></string>
+					<string>(for|if|else if|each|until|while|unless|case)(\s+|$)</string>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.function.jade</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Jade control flow.</string>
 					<key>end</key>
 					<string>$</string>
 					<key>name</key>
-					<string>js.embedded.control.flow.jade</string>
+					<string>meta.control.flow.jade</string>
 					<key>patterns</key>
 					<array>
 						<dict>
-							<key>include</key>
-							<string>source.js</string>
+							<key>begin</key>
+							<string></string>
+							<key>end</key>
+							<string>$</string>
+							<key>name</key>
+							<string>js.embedded.control.flow.jade</string>
+							<key>patterns</key>
+							<array>
+								<dict>
+									<key>include</key>
+									<string>source.js</string>
+								</dict>
+							</array>
 						</dict>
 					</array>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>(else)(?! if)\s*([^\s].*)?$</string>
+					<key>captures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>storage.type.function.jade</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>invalid.illegal.html_entity.text.jade</string>
+						</dict>
+					</dict>
+					<key>comment</key>
+					<string>Jade control flow.</string>
+					<key>name</key>
+					<string>meta.control.flow.jade</string>
 				</dict>
 			</array>
 		</dict>
