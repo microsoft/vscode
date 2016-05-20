@@ -380,7 +380,7 @@ suite('CSS - Parser', () => {
 		assertNoNode('--color', parser, parser._parseCssVariable.bind(parser));
 	});
 
-	test('Sass Parser - VariableDeclaration', function() {
+	test('Parser - VariableDeclaration', function() {
 		var parser = new _parser.Parser();
 		assertNode('--color: #F5F5F5', parser, parser._parseCssVariableDeclaration.bind(parser));
 		assertNode('--color: 0', parser, parser._parseCssVariableDeclaration.bind(parser));
