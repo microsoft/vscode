@@ -101,7 +101,9 @@ export class ExplorerViewlet extends Viewlet {
 
 		// With a Workspace
 		if (this.contextService.getWorkspace()) {
-			this.explorerView = explorerView = this.instantiationService.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings);
+			// If open editors are not visible set header size explicitly to 0, otherwise let it be computed by super class.
+			const headerSize = this.openEditorsVisible ? undefined : 0;
+			this.explorerView = explorerView = this.instantiationService.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
 		}
 
 		// No workspace
@@ -112,7 +114,7 @@ export class ExplorerViewlet extends Viewlet {
 		if (this.openEditorsVisible) {
 			this.splitView.addView(explorerView);
 		} else {
-			explorerView.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL, true);
+			explorerView.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 		}
 		this.views.push(explorerView);
 	}

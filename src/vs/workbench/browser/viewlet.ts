@@ -428,12 +428,14 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		private viewName: string,
 		protected messageService: IMessageService,
 		private keybindingService: IKeybindingService,
-		protected contextMenuService: IContextMenuService
+		protected contextMenuService: IContextMenuService,
+		headerSize?: number
 	) {
 		super({
 			minimumSize: 2 * 22,
 			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
-			ariaHeaderLabel: viewName
+			ariaHeaderLabel: viewName,
+			headerSize
 		});
 
 		this.actionRunner = actionRunner;

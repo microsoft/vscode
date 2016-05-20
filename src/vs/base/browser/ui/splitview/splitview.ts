@@ -113,11 +113,11 @@ export abstract class HeaderView extends View {
 
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);
-
+		
 		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
 	}
 
-	render(container: HTMLElement, orientation: Orientation, noHeader?: boolean): void {
+	render(container: HTMLElement, orientation: Orientation): void {
 		this.header = document.createElement('div');
 		this.header.className = 'header';
 
@@ -129,7 +129,7 @@ export abstract class HeaderView extends View {
 			this.header.style.height = headerSize;
 		}
 
-		if (!noHeader) {
+		if (this.headerSize > 0) {
 			this.renderHeader(this.header);
 			container.appendChild(this.header);
 		}
@@ -198,8 +198,8 @@ export abstract class AbstractCollapsibleView extends HeaderView {
 		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
 	}
 
-	render(container: HTMLElement, orientation: Orientation, noHeader?: boolean): void {
-		super.render(container, orientation, noHeader);
+	render(container: HTMLElement, orientation: Orientation): void {
+		super.render(container, orientation);
 
 		dom.addClass(this.header, 'collapsible');
 		dom.addClass(this.body, 'collapsible');

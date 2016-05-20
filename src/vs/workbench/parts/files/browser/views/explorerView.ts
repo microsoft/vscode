@@ -68,6 +68,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		viewletState: FileViewletState,
 		actionRunner: IActionRunner,
 		settings: any,
+		headerSize: number,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -81,7 +82,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.workspace = contextService.getWorkspace();
 
