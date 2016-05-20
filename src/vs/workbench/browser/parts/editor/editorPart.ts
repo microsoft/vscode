@@ -579,15 +579,31 @@ export class EditorPart extends Part implements IEditorPart {
 		this.emit(WorkbenchEventType.EDITOR_CLOSED, new EditorEvent(editor, editor.getId(), null, null, position));
 	}
 
-	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
+	public closeAllEditors(except?: Position): TPromise<void> {
+		let groups = this.stacks.groups.reverse(); // start from the end to prevent layout to happen through rochade
 
-		// Verify we actually have something to close at the given position
-		const editor = this.visibleEditors[position];
-		if (!editor) {
-			return TPromise.as<void>(null);
+		// Remove position to exclude if we have any
+		if (typeof except === 'number') {
+			groups = groups.filter(group => this.stacks.positionOfGroup(group) !== except);
 		}
 
+		// Check for dirty and veto
+		let editorsToClose = arrays.flatten(groups.map(group => group.getEditors()));
+
+		return this.handleDirty(editorsToClose).then(veto => {
+			if (veto) {
+				return;
+			}
+
+			groups.forEach(group => this.doCloseEditors(this.stacks.positionOfGroup(group)));
+		});
+	}
+
+	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
 		const group = this.stacks.groupAt(position);
+		if (!group) {
+			return TPromise.as<void>(null);
+		}
 
 		// Check for dirty and veto
 		let editorsToClose: EditorInput[];
@@ -602,43 +618,37 @@ export class EditorPart extends Part implements IEditorPart {
 				return;
 			}
 
-			// Close all editors in group
-			if (!except) {
-
-				// Update stacks model: remove all non active editors first to prevent opening the next editor in group
-				group.closeEditors(group.activeEditor);
-
-				// Now close active editor in group which will close the group
-				return this.doCloseActiveEditor(position);
-			}
-
-			// Close all editors in group except active one
-			if (except.matches(group.activeEditor)) {
-
-				// Update stacks model: close non active editors supporting the direction
-				group.closeEditors(group.activeEditor, direction);
-
-				// No UI update needed
-				return TPromise.as(null);
-			}
-
-			// Finally: we are asked to close editors around a non-active editor
-			// Thus we make the non-active one active and then close the others
-			return this.openEditor(except, null, position).then(() => {
-				return this.closeEditors(position, except, direction);
-			});
+			this.doCloseEditors(position, except, direction);
 		});
 	}
 
-	public closeAllEditors(except?: Position): TPromise<void> {
-		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
+	private doCloseEditors(position: Position, except?: EditorInput, direction?: Direction): void {
+		const group = this.stacks.groupAt(position);
 
-		// Remove position to exclude if we have any
-		if (typeof except === 'number') {
-			editors = editors.filter(e => e.position !== except);
+		// Close all editors in group
+		if (!except) {
+
+			// Update stacks model: remove all non active editors first to prevent opening the next editor in group
+			group.closeEditors(group.activeEditor);
+
+			// Now close active editor in group which will close the group
+			this.doCloseActiveEditor(position);
 		}
 
-		return TPromise.join(editors.map(e => this.closeEditors(e.position))).then(() => void 0);
+		// Close all editors in group except active one
+		else if (except.matches(group.activeEditor)) {
+
+			// Update stacks model: close non active editors supporting the direction
+			group.closeEditors(group.activeEditor, direction);
+		}
+
+		// Finally: we are asked to close editors around a non-active editor
+		// Thus we make the non-active one active and then close the others
+		else {
+			this.openEditor(except, null, position).done(() => {
+				this.doCloseEditors(position, except, direction);
+			}, errors.onUnexpectedError);
+		}
 	}
 
 	private handleDirty(inputs: EditorInput[]): TPromise<boolean /* veto */> {
