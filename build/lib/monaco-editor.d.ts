@@ -10,7 +10,7 @@ declare module Monaco.Editor {
     export function createCustomMode(description: IMonarchLanguage): TPromise<IMode>;
     export function colorize(text: string, modeId: string, options: IColorizerOptions): TPromise<string>;
     export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void>;
-    export function colorizeLine(line: string, tokens: Editor.ILineToken[], tabSize?: number): string;
+    export function colorizeLine(line: string, tokens: Editor.ViewLineToken[], tabSize?: number): string;
     export function colorizeModelLine(model: Editor.IModel, lineNumber: number, tabSize?: number): string;
     export function registerWorkerParticipant(modeId: string, moduleName: string, ctorName: string): void;
     export function configureMode(modeId: string, options: any): void;
@@ -239,9 +239,35 @@ declare module Monaco.Editor {
 
     }
 
+    export enum ScrollbarVisibility {
+        Auto = 1,
+        Hidden = 2,
+        Visible = 3
+    }
+
+    /**
+     * A token on a line.
+     */
+    export class ViewLineToken {
+        _viewLineTokenBrand: void;
+
+        public startIndex: number;
+        public type: string;
+
+        constructor(startIndex: number, type: string);
+
+        public equals(other: ViewLineToken): boolean;
+
+        public static findIndexInSegmentsArray(arr: ViewLineToken[], desiredIndex: number): number;
+
+        public static equalsArray(a: ViewLineToken[], b: ViewLineToken[]): boolean;
+    }
+
     // ========================================================================
     // vs/editor/common/ts
     // ========================================================================
+
+    // --- position & range
 
     /**
      * A position in the editor. This interface is suitable for serialization.
@@ -480,8 +506,6 @@ declare module Monaco.Editor {
         Indent = 2
     }
 
-    export function wrappingIndentFromString(wrappingIndent: string): WrappingIndent;
-
     /**
      * Configuration options for the editor.
      */
@@ -498,6 +522,11 @@ declare module Monaco.Editor {
          * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
          */
         wordSeparators?: string;
+        /**
+         * Enable Linux primary clipboard.
+         * Defaults to true.
+         */
+        selectionClipboard?: boolean;
         /**
          * Control the rendering of line numbers.
          * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
@@ -619,7 +648,6 @@ declare module Monaco.Editor {
          */
         wordWrapBreakObtrusiveCharacters?: string;
 
-        //  autoSize?:boolean;
         /**
          * Control what pressing Tab does.
          * If it is false, pressing Tab or Shift-Tab will be handled by the editor.
@@ -629,30 +657,11 @@ declare module Monaco.Editor {
         tabFocusMode?: boolean;
 
         /**
-         * Performance guard: Stop tokenizing a line after x characters.
-         * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
-         * Use -1 to never stop tokenization.
-         */
-        stopLineTokenizationAfter?: number;
-        /**
          * Performance guard: Stop rendering a line after x characters.
          * Defaults to 10000 if wrappingColumn is -1. Defaults to -1 if wrappingColumn is >= 0.
          * Use -1 to never stop rendering
          */
         stopRenderingLineAfter?: number;
-        /**
-         * Performance guard: Force viewport width wrapping if more than half of the
-         * characters in a model are on lines of length >= `longLineBoundary`.
-         * Defaults to 300.
-         */
-        longLineBoundary?: number;
-        /**
-         * Performance guard: Tokenize in the background if the [wrapped] lines count is above
-         * this number. If the [wrapped] lines count is below this number, then the view will
-         * always force tokenization before rendering.
-         * Defaults to 1000.
-         */
-        forcedTokenizationBoundary?: number;
         /**
          * Enable hover.
          * Defaults to true.
@@ -699,6 +708,11 @@ declare module Monaco.Editor {
          */
         suggestOnTriggerCharacters?: boolean;
         /**
+         * Accept suggestions on ENTER.
+         * Defaults to true.
+         */
+        acceptSuggestionOnEnter?: boolean;
+        /**
          * Enable selection highlight.
          * Defaults to true.
          */
@@ -724,17 +738,14 @@ declare module Monaco.Editor {
          */
         renderWhitespace?: boolean;
         /**
-         * Tab size in spaces. This is used for rendering and for editing.
-         * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
-         * Defaults to 4.
-         */
-        tabSize?: any;
-        /**
-         * Insert spaces instead of tabs when indenting or when auto-indenting.
-         * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
+         * Enable rendering of indent guides.
          * Defaults to true.
          */
-        insertSpaces?: any;
+        indentGuides?: boolean;
+        /**
+         * Inserting and deleting whitespace follows tab stops.
+         */
+        useTabStops?: boolean;
         /**
          * The font family
          */
@@ -768,26 +779,19 @@ declare module Monaco.Editor {
          * Defaults to true.
          */
         ignoreTrimWhitespace?: boolean;
+        /**
+         * Original model should be editable?
+         * Defaults to false.
+         */
+        originalEditable?: boolean;
     }
 
-    /**
-     * Internal indentation options (computed) for the editor.
-     */
-    export interface IInternalIndentationOptions {
-        /**
-         * Tab size in spaces. This is used for rendering and for editing.
-         */
-        tabSize: number;
-        /**
-         * Insert spaces instead of tabs when indenting or when auto-indenting.
-         */
-        insertSpaces: boolean;
-    }
+    export class InternalEditorScrollbarOptions {
+        _internalEditorScrollbarOptionsBrand: void;
 
-    export interface IInternalEditorScrollbarOptions {
         arrowSize: number;
-        vertical: string;
-        horizontal: string;
+        vertical: ScrollbarVisibility;
+        horizontal: ScrollbarVisibility;
         useShadows: boolean;
         verticalHasArrows: boolean;
         horizontalHasArrows: boolean;
@@ -797,163 +801,221 @@ declare module Monaco.Editor {
         verticalScrollbarSize: number;
         verticalSliderSize: number;
         mouseWheelScrollSensitivity: number;
+
+        constructor(source: {
+            arrowSize: number;
+            vertical: ScrollbarVisibility;
+            horizontal: ScrollbarVisibility;
+            useShadows: boolean;
+            verticalHasArrows: boolean;
+            horizontalHasArrows: boolean;
+            handleMouseWheel: boolean;
+            horizontalScrollbarSize: number;
+            horizontalSliderSize: number;
+            verticalScrollbarSize: number;
+            verticalSliderSize: number;
+            mouseWheelScrollSensitivity: number;
+        });
+
+        public equals(other: InternalEditorScrollbarOptions): boolean;
+
+        public clone(): InternalEditorScrollbarOptions;
     }
 
-    export interface IEditorWrappingInfo {
+    export class EditorWrappingInfo {
+        _editorWrappingInfoBrand: void;
+
         isViewportWrapping: boolean;
         wrappingColumn: number;
+        wrappingIndent: WrappingIndent;
+        wordWrapBreakBeforeCharacters: string;
+        wordWrapBreakAfterCharacters: string;
+        wordWrapBreakObtrusiveCharacters: string;
+
+        constructor(source: {
+            isViewportWrapping: boolean;
+            wrappingColumn: number;
+            wrappingIndent: WrappingIndent;
+            wordWrapBreakBeforeCharacters: string;
+            wordWrapBreakAfterCharacters: string;
+            wordWrapBreakObtrusiveCharacters: string;
+        });
+
+        public equals(other: EditorWrappingInfo): boolean;
+
+        public clone(): EditorWrappingInfo;
     }
 
-    /**
-     * Internal configuration options (transformed or computed) for the editor.
-     */
-    export interface IInternalEditorOptions {
+    export class InternalEditorViewOptions {
+        _internalEditorViewOptionsBrand: void;
+
+        theme: string;
+        canUseTranslate3d: boolean;
         experimentalScreenReader: boolean;
         rulers: number[];
-        wordSeparators: string;
         ariaLabel: string;
-
-        // ---- Options that are transparent - get no massaging
         lineNumbers: any;
         selectOnLineNumbers: boolean;
         glyphMargin: boolean;
         revealHorizontalRightPadding: number;
         roundedSelection: boolean;
-        theme: string;
-        readOnly: boolean;
-        scrollbar: IInternalEditorScrollbarOptions;
         overviewRulerLanes: number;
         cursorBlinking: string;
-        cursorStyle: string;
-        fontLigatures: boolean;
+        cursorStyle: TextEditorCursorStyle;
         hideCursorInOverviewRuler: boolean;
         scrollBeyondLastLine: boolean;
-        wrappingIndent: string;
-        wordWrapBreakBeforeCharacters: string;
-        wordWrapBreakAfterCharacters: string;
-        wordWrapBreakObtrusiveCharacters: string;
-        tabFocusMode: boolean;
-        stopLineTokenizationAfter: number;
+        editorClassName: string;
         stopRenderingLineAfter: number;
-        longLineBoundary: number;
-        forcedTokenizationBoundary: number;
+        renderWhitespace: boolean;
+        indentGuides: boolean;
+        scrollbar: InternalEditorScrollbarOptions;
 
-        // ---- Options that are transparent - get no massaging
+        constructor(source: {
+            theme: string;
+            canUseTranslate3d: boolean;
+            experimentalScreenReader: boolean;
+            rulers: number[];
+            ariaLabel: string;
+            lineNumbers: any;
+            selectOnLineNumbers: boolean;
+            glyphMargin: boolean;
+            revealHorizontalRightPadding: number;
+            roundedSelection: boolean;
+            overviewRulerLanes: number;
+            cursorBlinking: string;
+            cursorStyle: TextEditorCursorStyle;
+            hideCursorInOverviewRuler: boolean;
+            scrollBeyondLastLine: boolean;
+            editorClassName: string;
+            stopRenderingLineAfter: number;
+            renderWhitespace: boolean;
+            indentGuides: boolean;
+            scrollbar: InternalEditorScrollbarOptions;
+        });
+
+        public equals(other: InternalEditorViewOptions): boolean;
+
+        public createChangeEvent(newOpts: InternalEditorViewOptions): IViewConfigurationChangedEvent;
+
+        public clone(): InternalEditorViewOptions;
+    }
+
+    export interface IViewConfigurationChangedEvent {
+        theme: boolean;
+        canUseTranslate3d: boolean;
+        experimentalScreenReader: boolean;
+        rulers: boolean;
+        ariaLabel: boolean;
+        lineNumbers: boolean;
+        selectOnLineNumbers: boolean;
+        glyphMargin: boolean;
+        revealHorizontalRightPadding: boolean;
+        roundedSelection: boolean;
+        overviewRulerLanes: boolean;
+        cursorBlinking: boolean;
+        cursorStyle: boolean;
+        hideCursorInOverviewRuler: boolean;
+        scrollBeyondLastLine: boolean;
+        editorClassName: boolean;
+        stopRenderingLineAfter: boolean;
+        renderWhitespace: boolean;
+        indentGuides: boolean;
+        scrollbar: boolean;
+    }
+
+    export class EditorContribOptions {
+        selectionClipboard: boolean;
         hover: boolean;
         contextmenu: boolean;
         quickSuggestions: boolean;
         quickSuggestionsDelay: number;
         iconsInSuggestions: boolean;
-        autoClosingBrackets: boolean;
         formatOnType: boolean;
         suggestOnTriggerCharacters: boolean;
+        acceptSuggestionOnEnter: boolean;
         selectionHighlight: boolean;
         outlineMarkers: boolean;
         referenceInfos: boolean;
         folding: boolean;
-        renderWhitespace: boolean;
 
-        // ---- Options that are computed
+        constructor(source: {
+            selectionClipboard: boolean;
+            hover: boolean;
+            contextmenu: boolean;
+            quickSuggestions: boolean;
+            quickSuggestionsDelay: number;
+            iconsInSuggestions: boolean;
+            formatOnType: boolean;
+            suggestOnTriggerCharacters: boolean;
+            acceptSuggestionOnEnter: boolean;
+            selectionHighlight: boolean;
+            outlineMarkers: boolean;
+            referenceInfos: boolean;
+            folding: boolean;
+        });
 
-        layoutInfo: IEditorLayoutInfo;
+        public equals(other: EditorContribOptions): boolean;
 
-        stylingInfo: IEditorStyling;
+        public clone(): EditorContribOptions;
+    }
 
-        wrappingInfo: IEditorWrappingInfo;
+    /**
+     * Internal configuration options (transformed or computed) for the editor.
+     */
+    export class InternalEditorOptions {
+        _internalEditorOptionsBrand: void;
 
-        indentInfo: IInternalIndentationOptions;
+        lineHeight: number; // todo: move to fontInfo
 
-        /**
-         * Computed width of the container of the editor in px.
-         */
-        observedOuterWidth: number;
-        /**
-         * Computed height of the container of the editor in px.
-         */
-        observedOuterHeight: number;
-        /**
-         * Computed line height (deduced from theme and CSS) in px.
-         */
-        lineHeight: number;
-        /**
-         * Computed page size (deduced from editor size) in lines.
-         */
-        pageSize: number;
-        /**
-         * Computed width of 'm' (deduced from theme and CSS) in px.
-         */
-        typicalHalfwidthCharacterWidth: number;
-        /**
-         * Computed width of fullwidth 'm' (U+FF4D)
-         */
-        typicalFullwidthCharacterWidth: number;
-        /**
-         * Computed font size.
-         */
-        fontSize: number;
+        readOnly: boolean;
+        // ---- cursor options
+        wordSeparators: string;
+        autoClosingBrackets: boolean;
+        useTabStops: boolean;
+        tabFocusMode: boolean;
+        // ---- grouped options
+        layoutInfo: EditorLayoutInfo;
+        fontInfo: FontInfo;
+        viewInfo: InternalEditorViewOptions;
+        wrappingInfo: EditorWrappingInfo;
+        contribInfo: EditorContribOptions;
+
+        constructor(source: {
+            lineHeight: number;
+            readOnly: boolean;
+            wordSeparators: string;
+            autoClosingBrackets: boolean;
+            useTabStops: boolean;
+            tabFocusMode: boolean;
+            layoutInfo: EditorLayoutInfo;
+            fontInfo: FontInfo;
+            viewInfo: InternalEditorViewOptions;
+            wrappingInfo: EditorWrappingInfo;
+            contribInfo: EditorContribOptions;
+        });
+
+        public equals(other: InternalEditorOptions): boolean;
+
+        public createChangeEvent(newOpts: InternalEditorOptions): IConfigurationChangedEvent;
+
+        public clone(): InternalEditorOptions;
     }
 
     /**
      * An event describing that the configuration of the editor has changed.
      */
     export interface IConfigurationChangedEvent {
-        experimentalScreenReader: boolean;
-        rulers: boolean;
-        wordSeparators: boolean;
-        ariaLabel: boolean;
-
-        // ---- Options that are transparent - get no massaging
-        lineNumbers: boolean;
-        selectOnLineNumbers: boolean;
-        glyphMargin: boolean;
-        revealHorizontalRightPadding: boolean;
-        roundedSelection: boolean;
-        theme: boolean;
-        readOnly: boolean;
-        scrollbar: boolean;
-        overviewRulerLanes: boolean;
-        cursorBlinking: boolean;
-        cursorStyle: boolean;
-        fontLigatures: boolean;
-        hideCursorInOverviewRuler: boolean;
-        scrollBeyondLastLine: boolean;
-        wrappingIndent: boolean;
-        wordWrapBreakBeforeCharacters: boolean;
-        wordWrapBreakAfterCharacters: boolean;
-        wordWrapBreakObtrusiveCharacters: boolean;
-        tabFocusMode: boolean;
-        stopLineTokenizationAfter: boolean;
-        stopRenderingLineAfter: boolean;
-        longLineBoundary: boolean;
-        forcedTokenizationBoundary: boolean;
-
-        // ---- Options that are transparent - get no massaging
-        hover: boolean;
-        contextmenu: boolean;
-        quickSuggestions: boolean;
-        quickSuggestionsDelay: boolean;
-        iconsInSuggestions: boolean;
-        autoClosingBrackets: boolean;
-        formatOnType: boolean;
-        suggestOnTriggerCharacters: boolean;
-        selectionHighlight: boolean;
-        outlineMarkers: boolean;
-        referenceInfos: boolean;
-        folding: boolean;
-        renderWhitespace: boolean;
-
-        // ---- Options that are computed
-        layoutInfo: boolean;
-        stylingInfo: boolean;
-        wrappingInfo: boolean;
-        indentInfo: boolean;
-        observedOuterWidth: boolean;
-        observedOuterHeight: boolean;
         lineHeight: boolean;
-        pageSize: boolean;
-        typicalHalfwidthCharacterWidth: boolean;
-        typicalFullwidthCharacterWidth: boolean;
-        fontSize: boolean;
+        readOnly: boolean;
+        wordSeparators: boolean;
+        autoClosingBrackets: boolean;
+        useTabStops: boolean;
+        tabFocusMode: boolean;
+        layoutInfo: boolean;
+        fontInfo: boolean;
+        viewInfo: IViewConfigurationChangedEvent;
+        wrappingInfo: boolean;
+        contribInfo: boolean;
     }
 
     /**
@@ -961,23 +1023,6 @@ declare module Monaco.Editor {
      */
     export interface IModeSupportChangedEvent {
         tokenizationSupport: boolean;
-        occurrencesSupport: boolean;
-        declarationSupport: boolean;
-        typeDeclarationSupport: boolean;
-        navigateTypesSupport: boolean;
-        referenceSupport: boolean;
-        suggestSupport: boolean;
-        parameterHintsSupport: boolean;
-        extraInfoSupport: boolean;
-        outlineSupport: boolean;
-        logicalSelectionSupport: boolean;
-        formattingSupport: boolean;
-        inplaceReplaceSupport: boolean;
-        emitOutputSupport: boolean;
-        linkSupport: boolean;
-        configSupport: boolean;
-        quickFixSupport: boolean;
-        codeLensSupport: boolean;
         richEditSupport: boolean;
     }
 
@@ -1085,7 +1130,7 @@ declare module Monaco.Editor {
         /**
          * Range that this tracked range covers
          */
-        range: IRange;
+        range: IEditorRange;
     }
 
     /**
@@ -1103,7 +1148,7 @@ declare module Monaco.Editor {
         /**
          * Range that this decoration covers.
          */
-        range: IRange;
+        range: IEditorRange;
         /**
          * Options associated with this decoration.
          */
@@ -1173,11 +1218,11 @@ declare module Monaco.Editor {
      */
     export interface IWordRange {
         /**
-         * The column where the word starts.
+         * The index where the word starts.
          */
         start: number;
         /**
-         * The column where the word ends.
+         * The index where the word ends.
          */
         end: number;
     }
@@ -1240,21 +1285,6 @@ declare module Monaco.Editor {
          * Use carriage return and line feed (\r\n) as the end of line character.
          */
         CRLF = 1
-    }
-
-    /**
-     * The result of a matchBracket operation.
-     */
-    export interface IMatchBracketResult {
-        /**
-         * The two ranges describing matching brackets, or null
-         */
-        brackets: IEditorRange[];
-        /**
-         * Indicates that the bracket match result is not accurate because the search
-         * hit some untokenized lines.
-         */
-        isAccurate: boolean;
     }
 
     /**
@@ -1378,8 +1408,12 @@ declare module Monaco.Editor {
          * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
          */
         forceMoveMarkers: boolean;
+        /**
+         * This indicates that this operation is inserting automatic whitespace
+         * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
+         */
+        isAutoWhitespaceEdit?: boolean;
     }
-
 
     /**
      * A callback that can compute the cursor state after applying a series of edit operations.
@@ -1392,48 +1426,9 @@ declare module Monaco.Editor {
     }
 
     /**
-     * A token on a line.
-     */
-    export interface ILineToken {
-        startIndex: number;
-        type: string;
-    }
-
-    export interface ITokensInflatorMap {
-        _inflate: string[];
-        _deflate: { [token: string]: number; };
-    }
-
-    export interface ILineTokensBinaryEncoding {
-        START_INDEX_MASK: number;
-        TYPE_MASK: number;
-        START_INDEX_OFFSET: number;
-        TYPE_OFFSET: number;
-
-        deflateArr(map: ITokensInflatorMap, tokens: IToken[]): number[];
-        inflate(map: ITokensInflatorMap, binaryEncodedToken: number): IToken;
-        getStartIndex(binaryEncodedToken: number): number;
-        getType(map: ITokensInflatorMap, binaryEncodedToken: number): string;
-        inflateArr(map: ITokensInflatorMap, binaryEncodedTokens: number[]): IToken[];
-        findIndexOfOffset(binaryEncodedTokens: number[], offset: number): number;
-        sliceAndInflate(map: ITokensInflatorMap, binaryEncodedTokens: number[], startOffset: number, endOffset: number, deltaStartIndex: number): IToken[];
-    }
-    export var LineTokensBinaryEncoding: ILineTokensBinaryEncoding;
-
-    /**
      * A list of tokens on a line.
      */
     export interface ILineTokens {
-        /**
-         * Get the binary representation of tokens.
-         */
-        getBinaryEncodedTokens(): number[];
-
-        /**
-         * A map to help decoding the token type.
-         */
-        getBinaryEncodedTokensMap(): ITokensInflatorMap;
-
         getTokenCount(): number;
         getTokenStartIndex(tokenIndex: number): number;
         getTokenType(tokenIndex: number): string;
@@ -1455,26 +1450,45 @@ declare module Monaco.Editor {
          * @return The index of the token containing the offset.
          */
         findIndexOfOffset(offset: number): number;
+
+        sliceAndInflate(startOffset: number, endOffset: number, deltaStartIndex: number): ViewLineToken[];
+
+        inflate(): ViewLineToken[];
     }
 
-    /**
-     * Result for a ITextModel.guessIndentation
-     */
-    export interface IGuessedIndentation {
-        /**
-         * If indentation is based on spaces (`insertSpaces` = true), then what is the number of spaces that make an indent?
-         */
+    export interface ITextModelResolvedOptions {
         tabSize: number;
-        /**
-         * Is indentation based on spaces?
-         */
         insertSpaces: boolean;
+        defaultEOL: DefaultEndOfLine;
+        trimAutoWhitespace: boolean;
+    }
+
+    export interface ITextModelCreationOptions {
+        tabSize: number;
+        insertSpaces: boolean;
+        detectIndentation: boolean;
+        trimAutoWhitespace: boolean;
+        defaultEOL: DefaultEndOfLine;
+    }
+
+    export interface ITextModelUpdateOptions {
+        tabSize?: number;
+        insertSpaces?: boolean;
+        trimAutoWhitespace?: boolean;
+    }
+
+    export interface IModelOptionsChangedEvent {
+        tabSize: boolean;
+        insertSpaces: boolean;
+        trimAutoWhitespace: boolean;
     }
 
     /**
      * A textual read-only model.
      */
     export interface ITextModel {
+
+        getOptions(): ITextModelResolvedOptions;
 
         /**
          * Get the current version id of the model.
@@ -1507,6 +1521,8 @@ declare module Monaco.Editor {
 
         toRawText(): IRawText;
 
+        equals(other: IRawText): boolean;
+
         /**
          * Get the text in a certain range.
          * @param range The range describing what text to get.
@@ -1524,19 +1540,11 @@ declare module Monaco.Editor {
 
         /**
          * Splits characters in two buckets. First bucket (A) is of characters that
-         * sit in lines with length < `longLineBoundary`. Second bucket (B) is of
-         * characters that sit in lines with length >= `longLineBoundary`.
+         * sit in lines with length < `LONG_LINE_BOUNDARY`. Second bucket (B) is of
+         * characters that sit in lines with length >= `LONG_LINE_BOUNDARY`.
          * If count(B) > count(A) return true. Returns false otherwise.
          */
-        isDominatedByLongLines(longLineBoundary: number): boolean;
-
-        /**
-         * Guess the text indentation.
-         * @param defaultTabSize The tab size to use if `insertSpaces` is false.
-         * If `insertSpaces` is true, then `tabSize` is relevant.
-         * If `insertSpaces` is false, then `tabSize` is `defaultTabSize`.
-         */
-        guessIndentation(defaultTabSize: number): IGuessedIndentation;
+        isDominatedByLongLines(): boolean;
 
         /**
          * Get the number of lines in the model.
@@ -1614,6 +1622,43 @@ declare module Monaco.Editor {
          * Returns iff the model was disposed or not.
          */
         isDisposed(): boolean;
+
+        /**
+         * No mode supports allowed on this model because it is simply too large.
+         * (even tokenization would cause too much memory pressure)
+         */
+        isTooLargeForHavingAMode(): boolean;
+
+        /**
+         * Only basic mode supports allowed on this model because it is simply too large.
+         * (tokenization is allowed and other basic supports)
+         */
+        isTooLargeForHavingARichMode(): boolean;
+    }
+
+    export interface IReadOnlyModel extends ITextModel {
+        /**
+         * Gets the resource associated with this editor model.
+         */
+        uri: any;//URI;
+
+        getModeId(): string;
+
+        /**
+         * Get the word under or besides `position`.
+         * @param position The position to look for a word.
+         * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
+         * @return The word under or besides `position`. Might be null.
+         */
+        getWordAtPosition(position: IPosition): IWordAtPosition;
+
+        /**
+         * Get the word under or besides `position` trimmed to `position`.column
+         * @param position The position to look for a word.
+         * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
+         * @return The word under or besides `position`. Will never be null.
+         */
+        getWordUntilPosition(position: IPosition): IWordAtPosition;
     }
 
     export interface IRichEditBracket {
@@ -1637,12 +1682,6 @@ declare module Monaco.Editor {
     export interface ITokenizedModel extends ITextModel {
 
         /**
-         * Set the value at which to stop tokenization.
-         * The default is 10000.
-         */
-        setStopLineTokenizationAfter(stopLineTokenizationAfter: number): void;
-
-        /**
          * Tokenize if necessary and get the tokens for the line `lineNumber`.
          * @param lineNumber The line number
          * @param inaccurateTokensAcceptable Are inaccurate tokens acceptable? Defaults to false
@@ -1654,7 +1693,7 @@ declare module Monaco.Editor {
          */
         getLineContext(lineNumber: number): ILineContext;
 
-    /*package*/_getLineModeTransitions(lineNumber: number): IModeTransition[];
+	/*package*/_getLineModeTransitions(lineNumber: number): IModeTransition[];
 
         /**
          * Replace the entire text buffer value contained in this model.
@@ -1707,14 +1746,6 @@ declare module Monaco.Editor {
         getWordUntilPosition(position: IPosition): IWordAtPosition;
 
         /**
-         * Get the words on line `lineNumber`.
-         * @param lineNumber The lineNumber
-         * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
-         * @return All the words on the line.
-         */
-        getWords(lineNumber: number): IWordRange[];
-
-        /**
          * Returns an iterator that can be used to read
          * next and previous tokens from the provided position.
          * The iterator is made available through the callback
@@ -1730,50 +1761,38 @@ declare module Monaco.Editor {
          */
         findMatchingBracketUp(bracket: string, position: IPosition): IEditorRange;
 
-        /**
-         * Find the first bracket in the model before `position`.
-         * @param position The position at which to start the search.
-         * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-         */
-        findPrevBracket(position: IPosition): IFoundBracket;
+        // /**
+        //  * Find the first bracket in the model before `position`.
+        //  * @param position The position at which to start the search.
+        //  * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
+        //  */
+        // findPrevBracket(position:IPosition): IFoundBracket;
 
-        /**
-         * Find the first bracket in the model after `position`.
-         * @param position The position at which to start the search.
-         * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-         */
-        findNextBracket(position: IPosition): IFoundBracket;
+        // /**
+        //  * Find the first bracket in the model after `position`.
+        //  * @param position The position at which to start the search.
+        //  * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
+        //  */
+        // findNextBracket(position:IPosition): IFoundBracket;
 
         /**
          * Given a `position`, if the position is on top or near a bracket,
          * find the matching bracket of that bracket and return the ranges of both brackets.
          * @param position The position at which to look for a bracket.
          */
-        matchBracket(position: IPosition, inaccurateResultAcceptable?: boolean): IMatchBracketResult;
-
-        /**
-         * No mode supports allowed on this model because it is simply too large.
-         * (even tokenization would cause too much memory pressure)
-         */
-        isTooLargeForHavingAMode(): boolean;
-
-        /**
-         * Only basic mode supports allowed on this model because it is simply too large.
-         * (tokenization is allowed and other basic supports)
-         */
-        isTooLargeForHavingARichMode(): boolean;
+        matchBracket(position: IPosition): [IEditorRange, IEditorRange];
     }
 
     /**
      * A model that can track markers.
      */
     export interface ITextModelWithMarkers extends ITextModel {
-    /*package*/_addMarker(lineNumber: number, column: number, stickToPreviousCharacter: boolean): string;
-    /*package*/_changeMarker(id: string, newLineNumber: number, newColumn: number): void;
-    /*package*/_changeMarkerStickiness(id: string, newStickToPreviousCharacter: boolean): void;
-    /*package*/_getMarker(id: string): IEditorPosition;
-    /*package*/_removeMarker(id: string): void;
-    /*package*/_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[];
+	/*package*/_addMarker(lineNumber: number, column: number, stickToPreviousCharacter: boolean): string;
+	/*package*/_changeMarker(id: string, newLineNumber: number, newColumn: number): void;
+	/*package*/_changeMarkerStickiness(id: string, newStickToPreviousCharacter: boolean): void;
+	/*package*/_getMarker(id: string): IEditorPosition;
+	/*package*/_removeMarker(id: string): void;
+	/*package*/_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[];
     }
 
     /**
@@ -1923,6 +1942,15 @@ declare module Monaco.Editor {
      * An editable text model.
      */
     export interface IEditableTextModel extends ITextModelWithMarkers {
+
+        normalizeIndentation(str: string): string;
+
+        getOneIndent(): string;
+
+        updateOptions(newOpts: ITextModelUpdateOptions): void;
+
+        detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
+
         /**
          * Push a stack element onto the undo stack. This acts as an undo/redo point.
          * The idea is to use `pushEditOperations` to edit the model and then to
@@ -1979,7 +2007,7 @@ declare module Monaco.Editor {
     /**
      * A model.
      */
-    export interface IModel extends IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEventEmitter, IEditorModel {
+    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEventEmitter, IEditorModel {
         /**
          * A unique identifier associated with this model.
          */
@@ -1990,11 +2018,6 @@ declare module Monaco.Editor {
          * and make all necessary clean-up to release this object to the GC.
          */
         destroy(): void;
-
-        /**
-         * Gets the resource associated with this editor model.
-         */
-        getAssociatedResource(): any;//URI;
 
         /**
          * Search the model.
@@ -2051,11 +2074,12 @@ declare module Monaco.Editor {
         setValue(newValue: string, newMode?: IMode): void;
         setValue(newValue: string, newModePromise: TPromise<IMode>): void;
 
+        setValueFromRawText(newValue: IRawText, newMode?: IMode): void;
+        setValueFromRawText(newValue: IRawText, newModePromise: TPromise<IMode>): void;
+
         onBeforeAttached(): void;
 
         onBeforeDetached(): void;
-
-        getModeId(): string;
 
         /**
          * Returns iff this model is attached to an editor or not.
@@ -2072,7 +2096,7 @@ declare module Monaco.Editor {
         getEmbeddedAtPosition(position: IPosition): IMirrorModel;
         getAllEmbedded(): IMirrorModel[];
 
-        getAssociatedResource(): any;//URI;
+        uri: any;//URI;
 
         getOffsetFromPosition(position: IPosition): number;
         getPositionFromOffset(offset: number): IPosition;
@@ -2082,6 +2106,8 @@ declare module Monaco.Editor {
 
         getAllWordsWithRange(): IRangeWithText[];
         getAllUniqueWords(skipWordOnce?: string): string[];
+
+        getModeId(): string;
     }
 
     /**
@@ -2115,7 +2141,7 @@ declare module Monaco.Editor {
          */
         text: string;
         /**
-         * The end-of-line character.
+         * The (new) end-of-line character.
          */
         eol: string;
         /**
@@ -2137,10 +2163,10 @@ declare module Monaco.Editor {
     export interface IModelContentChangedEvent {
         /**
          * The event type. It can be used to detect the actual event type:
-         *      EventType.ModelContentChangedFlush => IModelContentChangedFlushEvent
-         *      EventType.ModelContentChangedLinesDeleted => IModelContentChangedLineChangedEvent
-         *      EventType.ModelContentChangedLinesInserted => IModelContentChangedLinesDeletedEvent
-         *      EventType.ModelContentChangedLineChanged => IModelContentChangedLinesInsertedEvent
+         * 		EventType.ModelContentChangedFlush => IModelContentChangedFlushEvent
+         * 		EventType.ModelContentChangedLinesDeleted => IModelContentChangedLineChangedEvent
+         * 		EventType.ModelContentChangedLinesInserted => IModelContentChangedLinesDeletedEvent
+         * 		EventType.ModelContentChangedLineChanged => IModelContentChangedLinesInsertedEvent
          */
         changeType: string;
         /**
@@ -2161,7 +2187,7 @@ declare module Monaco.Editor {
         lines: string[];
         BOM: string;
         EOL: string;
-        defaultEOL: DefaultEndOfLine;
+        options: ITextModelResolvedOptions;
     }
     /**
      * An event describing that a model has been reset to a new value.
@@ -2254,6 +2280,15 @@ declare module Monaco.Editor {
          */
         toLineNumber: number;
     }
+    export enum CursorChangeReason {
+        NotSet = 0,
+        ContentFlush = 1,
+        RecoverFromMarkers = 2,
+        Explicit = 3,
+        Paste = 4,
+        Undo = 5,
+        Redo = 6,
+    }
     /**
      * An event describing that the cursor position has changed.
      */
@@ -2277,7 +2312,7 @@ declare module Monaco.Editor {
         /**
          * Reason.
          */
-        reason: string;
+        reason: CursorChangeReason;
         /**
          * Source of the call that caused the event.
          */
@@ -2314,7 +2349,7 @@ declare module Monaco.Editor {
         /**
          * Reason.
          */
-        reason: string;
+        reason: CursorChangeReason;
     }
     export enum VerticalRevealType {
         Simple = 0,
@@ -2360,7 +2395,9 @@ declare module Monaco.Editor {
     /**
      * A description for the overview ruler position.
      */
-    export interface IOverviewRulerPosition {
+    export class OverviewRulerPosition {
+        _overviewRulerPositionBrand: void;
+
         /**
          * Width of the overview ruler
          */
@@ -2377,12 +2414,25 @@ declare module Monaco.Editor {
          * Right position for the overview ruler
          */
         right: number;
+
+        constructor(source: {
+            width: number;
+            height: number;
+            top: number;
+            right: number;
+        });
+
+        public equals(other: OverviewRulerPosition): boolean;
+
+        public clone(): OverviewRulerPosition;
     }
 
     /**
      * The internal layout details of the editor.
      */
-    export interface IEditorLayoutInfo {
+    export class EditorLayoutInfo {
+        _editorLayoutInfoBrand: void;
+
         /**
          * Full editor width.
          */
@@ -2456,7 +2506,31 @@ declare module Monaco.Editor {
         /**
          * The position of the overview ruler.
          */
-        overviewRuler: IOverviewRulerPosition;
+        overviewRuler: OverviewRulerPosition;
+
+        constructor(source: {
+            width: number;
+            height: number;
+            glyphMarginLeft: number;
+            glyphMarginWidth: number;
+            glyphMarginHeight: number;
+            lineNumbersLeft: number;
+            lineNumbersWidth: number;
+            lineNumbersHeight: number;
+            decorationsLeft: number;
+            decorationsWidth: number;
+            decorationsHeight: number;
+            contentLeft: number;
+            contentWidth: number;
+            contentHeight: number;
+            verticalScrollbarWidth: number;
+            horizontalScrollbarHeight: number;
+            overviewRuler: OverviewRulerPosition;
+        });
+
+        public equals(other: EditorLayoutInfo): boolean;
+
+        public clone(): EditorLayoutInfo;
     }
 
     /**
@@ -2654,115 +2728,54 @@ declare module Monaco.Editor {
     export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID: string;
     export const SHOW_ACCESSIBILITY_HELP_ACTION_ID: string;
 
-    export interface IDispatcherEvent {
-        getSource(): string;
-        getData(): any;
-    }
+    export class BareFontInfo {
+        _bareFontInfoBrand: void;
 
-    export interface IHandler {
-        (e: IDispatcherEvent): boolean;
-    }
-
-    export interface IHandlerDispatcher {
-        setHandler(handlerId: string, handlerCallback: IHandler): void;
-        clearHandlers(): void;
-        trigger(source: string, handlerId: string, payload: any): boolean;
-    }
-
-    export interface IEditorStyling {
-        editorClassName: string;
         fontFamily: string;
         fontSize: number;
         lineHeight: number;
+
+        constructor(opts: {
+            fontFamily: string;
+            fontSize: number;
+            lineHeight: number;
+        });
+
+        public getId(): string;
+    }
+
+    export class FontInfo extends BareFontInfo {
+        _editorStylingBrand: void;
+
+        typicalHalfwidthCharacterWidth: number;
+        typicalFullwidthCharacterWidth: number;
+        spaceWidth: number;
+        maxDigitWidth: number;
+
+        constructor(opts: {
+            fontFamily: string;
+            fontSize: number;
+            lineHeight: number;
+            typicalHalfwidthCharacterWidth: number;
+            typicalFullwidthCharacterWidth: number;
+            spaceWidth: number;
+            maxDigitWidth: number;
+        });
+
+        public equals(other: FontInfo): boolean;
+
+        public clone(): FontInfo;
     }
 
     export interface IConfiguration {
         onDidChange: Event<IConfigurationChangedEvent>;
 
-        editor: IInternalEditorOptions;
+        editor: InternalEditorOptions;
 
         setLineCount(lineCount: number): void;
-
-        handlerDispatcher: IHandlerDispatcher;
-
-        getIndentationOptions(): IInternalIndentationOptions;
-        getOneIndent(): string;
-        normalizeIndentation(str: string): string;
     }
 
     // --- view
-
-    export interface IViewLineTokens {
-        getTokens(): ILineToken[];
-        getFauxIndentLength(): number;
-        getTextLength(): number;
-        equals(other: IViewLineTokens): boolean;
-        findIndexOfOffset(offset: number): number;
-    }
-
-    export interface IViewModelDecorationsResolver {
-        getDecorations(): IModelDecoration[];
-        getInlineDecorations(lineNumber: number): IModelDecoration[];
-    }
-
-    export interface IViewEventBus {
-        emit(eventType: string, data?: any): void;
-    }
-
-    export interface IWhitespaceManager {
-        /**
-         * Reserve rendering space.
-         * @param height is specified in pixels.
-         * @return an identifier that can be later used to remove or change the whitespace.
-         */
-        addWhitespace(afterLineNumber: number, ordinal: number, height: number): number;
-
-        /**
-         * Change the properties of a whitespace.
-         * @param height is specified in pixels.
-         */
-        changeWhitespace(id: number, newAfterLineNumber: number, newHeight: number): boolean;
-
-        /**
-         * Remove rendering space
-         */
-        removeWhitespace(id: number): boolean;
-
-        /**
-         * Get the layout information for whitespaces currently in the viewport
-         */
-        getWhitespaceViewportData(): IViewWhitespaceViewportData[];
-
-        getWhitespaces(): IEditorWhitespace[];
-    }
-
-    export interface IViewModel extends IEventEmitter, IDisposable {
-
-        getLineCount(): number;
-        getLineContent(lineNumber: number): string;
-        getLineMinColumn(lineNumber: number): number;
-        getLineMaxColumn(lineNumber: number): number;
-        getLineFirstNonWhitespaceColumn(lineNumber: number): number;
-        getLineLastNonWhitespaceColumn(lineNumber: number): number;
-        getLineTokens(lineNumber: number): IViewLineTokens;
-        getDecorationsResolver(startLineNumber: number, endLineNumber: number): IViewModelDecorationsResolver;
-        getLineRenderLineNumber(lineNumber: number): string;
-        getAllDecorations(): IModelDecoration[];
-        getEOL(): string;
-        getValueInRange(range: IRange, eol: EndOfLinePreference): string;
-        dispose(): void;
-
-        getSelections(): IEditorSelection[];
-
-        getModelLineContent(modelLineNumber: number): string;
-        getModelLineMaxColumn(modelLineNumber: number): number;
-        validateModelPosition(position: IPosition): IEditorPosition;
-        convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): IEditorPosition;
-        convertViewRangeToModelRange(viewRange: IRange): IEditorRange;
-        convertModelPositionToViewPosition(modelLineNumber: number, modelColumn: number): IEditorPosition;
-        convertModelSelectionToViewSelection(modelSelection: IEditorSelection): IEditorSelection;
-        modelPositionIsVisible(position: IPosition): boolean;
-    }
 
     export interface IViewEventNames {
         ModelFlushedEvent: string;
@@ -2792,10 +2805,20 @@ declare module Monaco.Editor {
     };
 
     export interface IScrollEvent {
-        vertical: boolean;
-        horizontal: boolean;
         scrollTop: number;
         scrollLeft: number;
+        scrollWidth: number;
+        scrollHeight: number;
+
+        scrollTopChanged: boolean;
+        scrollLeftChanged: boolean;
+        scrollWidthChanged: boolean;
+        scrollHeightChanged: boolean;
+    }
+
+    export interface INewScrollPosition {
+        scrollLeft?: number;
+        scrollTop?: number;
     }
 
     export interface IViewLinesDeletedEvent {
@@ -2896,40 +2919,15 @@ declare module Monaco.Editor {
         height: number;
     }
 
-    export interface IViewLinesViewportData {
-        viewportTop: number;
-        viewportHeight: number;
+    export class Viewport {
+        _viewportBrand: void;
 
-        bigNumbersDelta: number;
-
-        visibleRangesDeltaTop: number;
-        /**
-         * The line number at which to start rendering (inclusive).
-         */
-        startLineNumber: number;
-        /**
-         * The line number at which to end rendering (inclusive).
-         */
-        endLineNumber: number;
-        /**
-         * relativeVerticalOffset[i] is the gap that must be left between line at
-         * i - 1 + `startLineNumber` and i + `startLineNumber`.
-         */
-        relativeVerticalOffset: number[];
-        /**
-         * The viewport as a range (`startLineNumber`,1) -> (`endLineNumber`,maxColumn(`endLineNumber`)).
-         */
-        visibleRange: IEditorRange;
-
-        getInlineDecorationsForLineInViewport(lineNumber: number): IModelDecoration[];
-        getDecorationsInViewport(): IModelDecoration[];
-    }
-
-    export interface IViewport {
         top: number;
         left: number;
         width: number;
         height: number;
+
+        constructor(top: number, left: number, width: number, height: number);
     }
 
     /**
@@ -2948,7 +2946,7 @@ declare module Monaco.Editor {
          * An array of keybindings for the action.
          */
         keybindings?: number[];
-        keybindingContext: string;
+        keybindingContext?: string;
         /**
          * A set of enablement conditions.
          */
@@ -2977,6 +2975,7 @@ declare module Monaco.Editor {
     export interface IEditorActionDescriptorData {
         id: string;
         label: string;
+        alias?: string;
     }
 
     export type IEditorActionContributionCtor = IConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
@@ -3002,8 +3001,8 @@ declare module Monaco.Editor {
 
         /**
          * Get the editor type. Current supported types:
-         *          EditorType.ICodeEditor => ICodeEditor;
-         *          EditorType.IDiffEditor => IDiffEditor;
+         * 			EditorType.ICodeEditor => ICodeEditor;
+         * 			EditorType.IDiffEditor => IDiffEditor;
          * This is to avoid an instanceof check
          */
         getEditorType(): string;
@@ -3040,7 +3039,7 @@ declare module Monaco.Editor {
         focus(): void;
 
         /**
-         * Returns true if this editor has keyboard focus.
+         * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
          */
         isFocused(): boolean;
 
@@ -3231,8 +3230,6 @@ declare module Monaco.Editor {
         restoreViewState?(state: any): void;
     }
 
-    export type MarkedString = string | { language: string; value: string };
-
     export interface IThemeDecorationRenderOptions {
         backgroundColor?: string;
 
@@ -3272,6 +3269,11 @@ declare module Monaco.Editor {
     export interface ICommonCodeEditor extends IEditor {
 
         /**
+         * Returns true if this editor or one of its widgets has keyboard focus.
+         */
+        hasWidgetFocus(): boolean;
+
+        /**
          * Get a contribution of this editor.
          * @id Unique identifier of the contribution.
          * @return The contribution or null if contribution not found.
@@ -3288,24 +3290,12 @@ declare module Monaco.Editor {
         /**
          * Returns the current editor's configuration
          */
-        getConfiguration(): IInternalEditorOptions;
+        getConfiguration(): InternalEditorOptions;
 
         /**
          * Returns the 'raw' editor's configuration, as it was applied over the defaults, but without any computed members.
          */
         getRawConfiguration(): IEditorOptions;
-
-        /**
-         * Computed indentation options.
-         * If either one of the `tabSize` and `insertSpaces` options is set to 'auto', this is computed based on the current attached model.
-         * Otherwise, they are equal to `tabSize` and `insertSpaces`.
-         */
-        getIndentationOptions(): IInternalIndentationOptions;
-
-        /**
-         * Normalize whitespace using the editor's whitespace specific settings
-         */
-        normalizeIndentation(str: string): string;
 
         /**
          * Get value of the current model attached to this editor.
@@ -3320,9 +3310,18 @@ declare module Monaco.Editor {
         setValue(newValue: string): void;
 
         /**
-         * Change the scrollTop of the editor's viewport.
+         * Get the scrollWidth of the editor's viewport.
          */
-        setScrollTop(newScrollTop: number): void;
+        getScrollWidth(): number;
+        /**
+         * Get the scrollLeft of the editor's viewport.
+         */
+        getScrollLeft(): number;
+
+        /**
+         * Get the scrollHeight of the editor's viewport.
+         */
+        getScrollHeight(): number;
         /**
          * Get the scrollTop of the editor's viewport.
          */
@@ -3333,19 +3332,13 @@ declare module Monaco.Editor {
          */
         setScrollLeft(newScrollLeft: number): void;
         /**
-         * Get the scrollLeft of the editor's viewport.
+         * Change the scrollTop of the editor's viewport.
          */
-        getScrollLeft(): number;
-
+        setScrollTop(newScrollTop: number): void;
         /**
-         * Get the scrollWidth of the editor's viewport.
+         * Change the scroll position of the editor's viewport.
          */
-        getScrollWidth(): number;
-
-        /**
-         * Get the scrollHeight of the editor's viewport.
-         */
-        getScrollHeight(): number;
+        setScrollPosition(position: INewScrollPosition): void;
 
         /**
          * Get an action that is a contribution to this editor.
@@ -3359,7 +3352,7 @@ declare module Monaco.Editor {
          * @param source The source of the call.
          * @param command The command to execute
          */
-        executeCommand(source: string, command: ICommand): boolean;
+        executeCommand(source: string, command: ICommand): void;
 
         /**
          * Execute a command on the editor.
@@ -3373,7 +3366,7 @@ declare module Monaco.Editor {
          * @param source The source of the call.
          * @param command The commands to execute
          */
-        executeCommands(source: string, commands: ICommand[]): boolean;
+        executeCommands(source: string, commands: ICommand[]): void;
 
         /**
          * Get all the decorations on a line (filtering out decorations from other editors).
@@ -3393,7 +3386,7 @@ declare module Monaco.Editor {
         /**
          * Get the layout info for the editor.
          */
-        getLayoutInfo(): IEditorLayoutInfo;
+        getLayoutInfo(): EditorLayoutInfo;
 
         /**
          * Prevent the editor from sending a widgetFocusLost event,
@@ -3476,6 +3469,7 @@ declare module Monaco.Editor {
         ModelTokensChanged: string;
         ModelModeChanged: string;
         ModelModeSupportChanged: string;
+        ModelOptionsChanged: string;
         ModelContentChanged: string;
         ModelContentChanged2: string;
         ModelContentChangedFlush: string;
@@ -3498,8 +3492,6 @@ declare module Monaco.Editor {
         ViewFocusGained: string;
         ViewFocusLost: string;
         ViewFocusChanged: string;
-        ViewScrollWidthChanged: string;
-        ViewScrollHeightChanged: string;
         ViewScrollChanged: string;
         ViewZonesChanged: string;
 
@@ -3524,13 +3516,25 @@ declare module Monaco.Editor {
 
         CursorLeft: string;
         CursorLeftSelect: string;
+
         CursorWordLeft: string;
+        CursorWordStartLeft: string;
+        CursorWordEndLeft: string;
+
         CursorWordLeftSelect: string;
+        CursorWordStartLeftSelect: string;
+        CursorWordEndLeftSelect: string;
 
         CursorRight: string;
         CursorRightSelect: string;
+
         CursorWordRight: string;
+        CursorWordStartRight: string;
+        CursorWordEndRight: string;
+
         CursorWordRightSelect: string;
+        CursorWordStartRightSelect: string;
+        CursorWordEndRightSelect: string;
 
         CursorUp: string;
         CursorUpSelect: string;
@@ -3555,6 +3559,13 @@ declare module Monaco.Editor {
         CursorBottom: string;
         CursorBottomSelect: string;
 
+        CursorColumnSelectLeft: string;
+        CursorColumnSelectRight: string;
+        CursorColumnSelectUp: string;
+        CursorColumnSelectPageUp: string;
+        CursorColumnSelectDown: string;
+        CursorColumnSelectPageDown: string;
+
         AddCursorDown: string;
         AddCursorUp: string;
         CursorUndo: string;
@@ -3576,12 +3587,18 @@ declare module Monaco.Editor {
 
         DeleteLeft: string;
         DeleteRight: string;
+
         DeleteWordLeft: string;
+        DeleteWordStartLeft: string;
+        DeleteWordEndLeft: string;
+
         DeleteWordRight: string;
+        DeleteWordStartRight: string;
+        DeleteWordEndRight: string;
+
         DeleteAllLeft: string;
         DeleteAllRight: string;
 
-        Enter: string;
         RemoveSecondaryCursors: string;
         CancelSelection: string;
 
@@ -3611,39 +3628,15 @@ declare module Monaco.Editor {
         ScrollPageDown: string;
     };
 
-    export class VisibleRange {
-
-        public top: number;
-        public left: number;
-        public width: number;
-
-        constructor(top: number, left: number, width: number);
+    export enum TextEditorCursorStyle {
+        Line = 1,
+        Block = 2,
+        Underline = 3
     }
 
-    export class HorizontalRange {
+    export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): string;
 
-        public left: number;
-        public width: number;
 
-        constructor(left: number, width: number);
-    }
-
-    export class LineVisibleRanges {
-
-        public lineNumber: number;
-        public ranges: HorizontalRange[];
-
-        constructor(lineNumber: number, ranges: HorizontalRange[]);
-    }
-
-    // ========================================================================
-    // vs/editor/browser/editorBrowser.ts
-    // ========================================================================
-
-    export interface IDynamicViewOverlay extends IDisposable {
-        shouldCallRender2(ctx: IRenderingContext): boolean;
-        render2(lineNumber: number): string[];
-    }
 
     export interface IContentWidgetData {
         widget: IContentWidget;
@@ -3656,48 +3649,17 @@ declare module Monaco.Editor {
     }
 
     export interface ICodeEditorHelper {
-        getScrollTop(): number;
-        setScrollTop(scrollTop: number): void;
-        getScrollLeft(): number;
-        setScrollLeft(scrollLeft: number): void;
-        getScrollHeight(): number;
         getScrollWidth(): number;
+        getScrollLeft(): number;
+
+        getScrollHeight(): number;
+        getScrollTop(): number;
+
+        setScrollPosition(position: INewScrollPosition): void;
+
         getVerticalOffsetForPosition(lineNumber: number, column: number): number;
         delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
         getOffsetForColumn(lineNumber: number, column: number): number;
-    }
-
-    export interface IKeyboardHandlerHelper {
-        viewDomNode: HTMLElement;
-        textArea: HTMLTextAreaElement;
-        visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): VisibleRange;
-    }
-
-    export interface IPointerHandlerHelper {
-        viewDomNode: HTMLElement;
-        linesContentDomNode: HTMLElement;
-
-        focusTextArea(): void;
-        isDirty(): boolean;
-
-        getScrollTop(): number;
-        setScrollTop(scrollTop: number): void;
-        getScrollLeft(): number;
-        setScrollLeft(scrollLeft: number): void;
-
-        isAfterLines(verticalOffset: number): boolean;
-        getLineNumberAtVerticalOffset(verticalOffset: number): number;
-        getVerticalOffsetForLineNumber(lineNumber: number): number;
-        getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData;
-        shouldSuppressMouseDownOnViewZone(viewZoneId: number): boolean;
-
-        /**
-         * Decode an Editor.IPosition from a rendered dom node
-         */
-        getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): IPosition;
-
-        visibleRangeForPosition2(lineNumber: number, column: number): VisibleRange;
-        getLineWidth(lineNumber: number): number;
     }
 
     export interface IView extends IDisposable {
@@ -3714,7 +3676,8 @@ declare module Monaco.Editor {
         getWhitespaces(): IEditorWhitespace[];
         renderOnce(callback: () => any): any;
 
-        render(now: boolean): void;
+        render(now: boolean, everything: boolean): void;
+        setAriaActiveDescendant(id: string): void;
 
         focus(): void;
         isFocused(): boolean;
@@ -3765,8 +3728,8 @@ declare module Monaco.Editor {
         replacePreviousChar(source: string, text: string, replaceCharCnt: number): void;
         cut(source: string): void;
 
-        // emitKeyDown(e:IKeyboardEvent): void;
-        // emitKeyUp(e:IKeyboardEvent): void;
+        // emitKeyDown(e: IKeyboardEvent): void;
+        // emitKeyUp(e: IKeyboardEvent): void;
         emitContextMenu(e: IEditorMouseEvent): void;
         emitMouseMove(e: IEditorMouseEvent): void;
         emitMouseLeave(e: IEditorMouseEvent): void;
@@ -3793,38 +3756,6 @@ declare module Monaco.Editor {
         VIEW_ZONES: string;
     };
 
-    export interface IRestrictedRenderingContext {
-        linesViewportData: IViewLinesViewportData;
-
-        scrollWidth: number;
-        scrollHeight: number;
-
-        visibleRange: IEditorRange;
-        bigNumbersDelta: number;
-
-        viewportTop: number;
-        viewportWidth: number;
-        viewportHeight: number;
-        viewportLeft: number;
-
-        getScrolledTopFromAbsoluteTop(absoluteTop: number): number;
-        getViewportVerticalOffsetForLineNumber(lineNumber: number): number;
-        lineIsVisible(lineNumber: number): boolean;
-
-        getDecorationsInViewport(): IModelDecoration[];
-    }
-
-    export interface IRenderingContext extends IRestrictedRenderingContext {
-
-        linesVisibleRangesForRange(range: IRange, includeNewLines: boolean): LineVisibleRanges[];
-
-        visibleRangeForPosition(position: IPosition): VisibleRange;
-    }
-
-    export interface IViewEventHandler {
-        handleEvents(events: IEmitterEvent[]): void;
-    }
-
     export interface IViewportInfo {
         visibleRange: IEditorRange;
         width: number;
@@ -3833,82 +3764,7 @@ declare module Monaco.Editor {
         deltaLeft: number;
     }
 
-    export interface IViewPart extends IDisposable {
-        onBeforeForcedLayout(): void;
-        onReadAfterForcedLayout(ctx: IRenderingContext): void;
-        onWriteAfterForcedLayout(): void;
-    }
-
     // --- end View Event Handlers & Parts
-
-    export interface IViewContext {
-
-        addEventHandler(eventHandler: IViewEventHandler): void;
-        removeEventHandler(eventHandler: IViewEventHandler): void;
-
-        configuration: IConfiguration;
-        model: IViewModel;
-        privateViewEventBus: IViewEventBus;
-    }
-
-    export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProvider {
-
-        dispose(): void;
-
-        getCenteredViewLineNumberInViewport(): number;
-
-        getCurrentViewport(): IViewport;
-
-        onMaxLineWidthChanged(width: number): void;
-
-        saveState(): IViewState;
-        restoreState(state: IViewState): void;
-    }
-
-    export interface IScrollingProvider {
-
-        getOverviewRulerInsertData(): { parent: HTMLElement; insertBefore: HTMLElement; };
-        getScrollbarContainerDomNode(): HTMLElement;
-        delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
-
-        // This is for the glyphs, line numbers, etc.
-        getScrolledTopFromAbsoluteTop(top: number): number;
-
-        getScrollHeight(): number;
-        getScrollWidth(): number;
-        getScrollLeft(): number;
-        setScrollLeft(scrollLeft: number): void;
-        getScrollTop(): number;
-        setScrollTop(scrollTop: number): void;
-    }
-
-    export interface IVerticalLayoutProvider {
-
-        /**
-         * Compute vertical offset (top) of line number
-         */
-        getVerticalOffsetForLineNumber(lineNumber: number): number;
-
-        /**
-         * Returns the height in pixels for `lineNumber`.
-         */
-        heightInPxForLine(lineNumber: number): number;
-
-        /**
-         * Return line number at `verticalOffset` or closest line number
-         */
-        getLineNumberAtVerticalOffset(verticalOffset: number): number;
-
-        /**
-         * Compute content height (including one extra scroll page if necessary)
-         */
-        getTotalHeight(): number;
-
-        /**
-         * Compute the lines that need to be rendered in the current viewport position.
-         */
-        getLinesViewportData(): IViewLinesViewportData;
-    }
 
     /**
      * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -4112,7 +3968,7 @@ declare module Monaco.Editor {
      * A mouse event originating from the editor.
      */
     export interface IEditorMouseEvent {
-        //event: IMouseEvent;
+        // event: IMouseEvent;
         target: IMouseTarget;
     }
 
@@ -4128,16 +3984,49 @@ declare module Monaco.Editor {
         createInstance(instantiationService: IInstantiationService, editor: ICodeEditor): IEditorContribution;
     }
 
+    export class ColorZone {
+        _colorZoneBrand: void;
+
+        from: number;
+        to: number;
+        colorId: number;
+        position: OverviewRulerLane;
+
+        constructor(from: number, to: number, colorId: number, position: OverviewRulerLane);
+    }
+
     /**
      * A zone in the overview ruler
      */
-    export interface IOverviewRulerZone {
+    export class OverviewRulerZone {
+        _overviewRulerZoneBrand: void;
+
         startLineNumber: number;
         endLineNumber: number;
-        forceHeight?: number;
-        color: string;
-        darkColor: string;
         position: OverviewRulerLane;
+        forceHeight: number;
+
+        private _color: string;
+        private _darkColor: string;
+
+        private _colorZones: ColorZone[];
+
+        constructor(
+            startLineNumber: number, endLineNumber: number,
+            position: OverviewRulerLane,
+            forceHeight: number,
+            color: string, darkColor: string
+        );
+
+        public getColor(useDarkColor: boolean): string;
+
+        public equals(other: OverviewRulerZone): boolean;
+
+        public compareTo(other: OverviewRulerZone): number;
+
+        public setColorZones(colorZones: ColorZone[]): void;
+
+        public getColorZones(): ColorZone[];
     }
     /**
      * An overview ruler
@@ -4145,8 +4034,8 @@ declare module Monaco.Editor {
     export interface IOverviewRuler {
         getDomNode(): HTMLElement;
         dispose(): void;
-        setZones(zones: IOverviewRulerZone[]): void;
-        setLayout(position: IOverviewRulerPosition): void;
+        setZones(zones: OverviewRulerZone[]): void;
+        setLayout(position: OverviewRulerPosition): void;
     }
     /**
      * A rich code editor.
@@ -4236,6 +4125,13 @@ declare module Monaco.Editor {
          * Set the model ranges that will be hidden in the view.
          */
         setHiddenAreas(ranges: IRange[]): void;
+
+        setAriaActiveDescendant(id: string): void;
+
+        /**
+         * Apply the same font settings as the editor to `target`.
+         */
+        applyFontInfo(target: HTMLElement): void;
     }
 
     /**
