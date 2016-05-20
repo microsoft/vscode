@@ -18,7 +18,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
+import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
@@ -28,7 +28,7 @@ import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorAct
 
 const $ = dom.emmet;
 
-export class OpenEditorsView extends CollapsibleViewletView {
+export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	private static MEMENTO_COLLAPSED = 'openEditors.memento.collapsed';
 	private static DEFAULT_MAX_VISIBLE_OPEN_EDITORS = 9;
@@ -54,7 +54,7 @@ export class OpenEditorsView extends CollapsibleViewletView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
-		super(actionRunner, !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorService.getStacksModel();
@@ -65,6 +65,8 @@ export class OpenEditorsView extends CollapsibleViewletView {
 			}
 
 			// View size
+			this.expandedBodySize = this.getExpandedBodySize(this.model);
+
 			if (this.tree) {
 				// Show groups only if there is more than 1 group
 				const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
@@ -180,6 +182,9 @@ export class OpenEditorsView extends CollapsibleViewletView {
 		} else {
 			this.dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
 		}
+
+		// Adjust expanded body size
+		this.expandedBodySize = this.getExpandedBodySize(this.model);
 	}
 
 	private onTextFileDirty(e: TextFileChangeEvent): void {
@@ -224,6 +229,27 @@ export class OpenEditorsView extends CollapsibleViewletView {
 			dom.removeClass(this.dirtyCountElement, 'hidden');
 		}
 		this.updateTreeScheduler.schedule();
+	}
+
+	private getExpandedBodySize(model: IEditorStacksModel): number {
+		return OpenEditorsView.computeExpandedBodySize(model, this.maxVisibleOpenEditors, this.dynamicHeight);
+	}
+
+	private static computeExpandedBodySize(model: IEditorStacksModel, maxVisibleOpenEditors = OpenEditorsView.DEFAULT_MAX_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
+		const entryCount = model.groups.reduce((sum, group) => sum + group.count, 0);
+
+		let itemsToShow: number;
+		if (dynamicHeight) {
+			itemsToShow = Math.min(Math.max(maxVisibleOpenEditors, 1), entryCount);
+		} else {
+			itemsToShow = Math.max(maxVisibleOpenEditors, 1);
+		}
+		// We only show the group labels if there is more than 1 group
+		if (model.groups.length > 1) {
+			itemsToShow += model.groups.length;
+		}
+
+		return itemsToShow * Renderer.ITEM_HEIGHT;
 	}
 
 	public getOptimalWidth():number {
