@@ -446,8 +446,6 @@
 			<string>All constructs that generally span a single line starting with any number of white-spaces.</string>
 			<key>end</key>
 			<string>$</string>
-			<key>name</key>
-			<string>tag.jade</string>
 			<key>patterns</key>
 			<array>
 				<dict>
