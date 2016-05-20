@@ -353,9 +353,11 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			}
 		});
 
-		modes.FormatRegistry.register(this.getId(), this);
-
-		modes.FormatOnTypeRegistry.register(this.getId(), this);
+		modes.DocumentRangeFormattingEditProviderRegistry.register(this.getId(), {
+			provideDocumentRangeFormattingEdits: (model, range, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
+				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.getAssociatedResource(), range, options));
+			}
+		});
 	}
 
 	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
@@ -487,9 +489,9 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w.computeLinks(resource));
 	}
 
-	static $formatRange = OneWorkerAttr(HTMLMode, HTMLMode.prototype.formatRange);
-	public formatRange(resource:URI, range:editorCommon.IRange, options:modes.IFormattingOptions):winjs.TPromise<editorCommon.ISingleEditOperation[]> {
-		return this._worker((w) => w.format(resource, range, options));
+	static $_provideDocumentRangeFormattingEdits = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentRangeFormattingEdits);
+	private _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.IFormattingOptions):winjs.TPromise<editorCommon.ISingleEditOperation[]> {
+		return this._worker((w) => w.provideDocumentRangeFormattingEdits(resource, range, options));
 	}
 
 	static $_provideHover = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideHover);

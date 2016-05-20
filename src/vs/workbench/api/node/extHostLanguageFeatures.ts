@@ -323,7 +323,7 @@ class QuickFixAdapter {
 	}
 }
 
-class DocumentFormattingAdapter implements modes.IFormattingSupport {
+class DocumentFormattingAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentFormattingEditProvider;
@@ -333,7 +333,7 @@ class DocumentFormattingAdapter implements modes.IFormattingSupport {
 		this._provider = provider;
 	}
 
-	formatDocument(resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+	provideDocumentFormattingEdits(resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 
@@ -345,7 +345,7 @@ class DocumentFormattingAdapter implements modes.IFormattingSupport {
 	}
 }
 
-class RangeFormattingAdapter implements modes.IFormattingSupport {
+class RangeFormattingAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.DocumentRangeFormattingEditProvider;
@@ -355,7 +355,7 @@ class RangeFormattingAdapter implements modes.IFormattingSupport {
 		this._provider = provider;
 	}
 
-	formatRange(resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let ran = TypeConverters.toRange(range);
@@ -368,7 +368,7 @@ class RangeFormattingAdapter implements modes.IFormattingSupport {
 	}
 }
 
-class OnTypeFormattingAdapter implements modes.IFormattingSupport {
+class OnTypeFormattingAdapter {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.OnTypeFormattingEditProvider;
@@ -380,7 +380,7 @@ class OnTypeFormattingAdapter implements modes.IFormattingSupport {
 
 	autoFormatTriggerCharacters: string[] = []; // not here
 
-	formatAfterKeystroke(resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
@@ -733,8 +733,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$formatDocument(handle: number, resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
-		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.formatDocument(resource, options));
+	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(resource, options));
 	}
 
 	registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
@@ -744,8 +744,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$formatRange(handle: number, resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
-		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.formatRange(resource, range, options));
+	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangeFormattingEdits(resource, range, options));
 	}
 
 	registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {
@@ -755,8 +755,8 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$formatAfterKeystroke(handle: number, resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
-		return this._withAdapter(handle, OnTypeFormattingAdapter, adapter => adapter.formatAfterKeystroke(resource, position, ch, options));
+	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> {
+		return this._withAdapter(handle, OnTypeFormattingAdapter, adapter => adapter.provideOnTypeFormattingEdits(resource, position, ch, options));
 	}
 
 	// --- navigate types
@@ -918,30 +918,30 @@ export class MainThreadLanguageFeatures {
 	// --- formatting
 
 	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.FormatRegistry.register(selector, <modes.IFormattingSupport>{
-			formatDocument: (resource: URI, options: modes.IFormattingOptions): TPromise <ISingleEditOperation[] > => {
-				return this._proxy.$formatDocument(handle, resource, options);
+		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(selector, <modes.DocumentFormattingEditProvider>{
+			provideDocumentFormattingEdits: (model: IReadOnlyModel, options: modes.IFormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
+				return wireCancellationToken(token, this._proxy.$provideDocumentFormattingEdits(handle, model.getAssociatedResource(), options));
 			}
 		});
 		return undefined;
 	}
 
 	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.FormatRegistry.register(selector, <modes.IFormattingSupport>{
-			formatRange: (resource: URI, range: IRange, options: modes.IFormattingOptions): TPromise <ISingleEditOperation[] > => {
-				return this._proxy.$formatRange(handle, resource, range, options);
+		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(selector, <modes.DocumentRangeFormattingEditProvider>{
+			provideDocumentRangeFormattingEdits: (model: IReadOnlyModel, range: IEditorRange, options: modes.IFormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
+				return wireCancellationToken(token, this._proxy.$provideDocumentRangeFormattingEdits(handle, model.getAssociatedResource(), range, options));
 			}
 		});
 		return undefined;
 	}
 
 	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any> {
-		this._registrations[handle] = modes.FormatOnTypeRegistry.register(selector, <modes.IFormattingSupport>{
+		this._registrations[handle] = modes.OnTypeFormattingEditProviderRegistry.register(selector, <modes.OnTypeFormattingEditProvider>{
 
 			autoFormatTriggerCharacters,
 
-			formatAfterKeystroke: (resource: URI, position: IPosition, ch: string, options: modes.IFormattingOptions): TPromise<ISingleEditOperation[]> => {
-				return this._proxy.$formatAfterKeystroke(handle, resource, position, ch, options);
+			provideOnTypeFormattingEdits: (model: IReadOnlyModel, position: IEditorPosition, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
+				return wireCancellationToken(token, this._proxy.$provideOnTypeFormattingEdits(handle, model.getAssociatedResource(), position, ch, options));
 			}
 		});
 		return undefined;

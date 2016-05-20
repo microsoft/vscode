@@ -29,8 +29,8 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker)));
 	disposables.push(modes.ReferenceProviderRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
 	disposables.push(modes.DocumentSymbolProviderRegistry.register(selector, new OutlineAdapter(modelService, worker)));
-	disposables.push(modes.FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
-	disposables.push(modes.FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
+	disposables.push(modes.DocumentRangeFormattingEditProviderRegistry.register(selector, new FormatAdapter(modelService, worker)));
+	disposables.push(modes.OnTypeFormattingEditProviderRegistry.register(selector, new FormatOnTypeAdapter(modelService, worker)));
 	disposables.push(new DiagnostcsAdapter(defaults, selector, markerService, modelService, worker));
 
 	return lifecycle.combinedDisposable(disposables);
@@ -480,45 +480,8 @@ outlineTypeTable[Kind.localFunction] = modes.SymbolKind.Function;
 
 // --- formatting ----
 
-class FormatAdapter extends Adapter implements modes.IFormattingSupport {
-
-	formatRange(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>{
-		return this._worker(resource).then(worker => {
-			return worker.getFormattingEditsForRange(resource.toString(),
-				this._positionToOffset(resource, { lineNumber: range.startLineNumber, column: range.startColumn }),
-				this._positionToOffset(resource, { lineNumber: range.endLineNumber, column: range.endColumn }),
-				FormatAdapter._convertOptions(options));
-		}).then(edits => {
-			if (edits) {
-				return edits.map(edit => this._convertTextChanges(resource, edit));
-			}
-		});
-	}
-
-	get autoFormatTriggerCharacters() {
-		return [';', '}', '\n'];
-	}
-
-	formatAfterKeystroke(resource: URI, position: editorCommon.IPosition, ch: string, options: modes.IFormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> {
-		return this._worker(resource).then(worker => {
-			return worker.getFormattingEditsAfterKeystroke(resource.toString(),
-				this._positionToOffset(resource, position),
-				ch, FormatAdapter._convertOptions(options));
-		}).then(edits => {
-			if (edits) {
-				return edits.map(edit => this._convertTextChanges(resource, edit));
-			}
-		});
-	}
-
-	private _convertTextChanges(resource: URI, change: ts.TextChange): editorCommon.ISingleEditOperation {
-		return <editorCommon.ISingleEditOperation>{
-			text: change.newText,
-			range: this._textSpanToRange(resource, change.span)
-		};
-	}
-
-	private static _convertOptions(options: modes.IFormattingOptions): ts.FormatCodeOptions {
+abstract class FormatHelper extends Adapter {
+	protected static _convertOptions(options: modes.IFormattingOptions): ts.FormatCodeOptions {
 		return {
 			ConvertTabsToSpaces: options.insertSpaces,
 			TabSize: options.tabSize,
@@ -536,5 +499,51 @@ class FormatAdapter extends Adapter implements modes.IFormattingSupport {
 			PlaceOpenBraceOnNewLineForControlBlocks: false,
 			PlaceOpenBraceOnNewLineForFunctions: false
 		};
+	}
+
+	protected _convertTextChanges(resource: URI, change: ts.TextChange): editorCommon.ISingleEditOperation {
+		return <editorCommon.ISingleEditOperation>{
+			text: change.newText,
+			range: this._textSpanToRange(resource, change.span)
+		};
+	}
+}
+
+class FormatAdapter extends FormatHelper implements modes.DocumentRangeFormattingEditProvider {
+
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: editorCommon.IEditorRange, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
+		const resource = model.getAssociatedResource();
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
+			return worker.getFormattingEditsForRange(resource.toString(),
+				this._positionToOffset(resource, { lineNumber: range.startLineNumber, column: range.startColumn }),
+				this._positionToOffset(resource, { lineNumber: range.endLineNumber, column: range.endColumn }),
+				FormatHelper._convertOptions(options));
+		}).then(edits => {
+			if (edits) {
+				return edits.map(edit => this._convertTextChanges(resource, edit));
+			}
+		}));
+	}
+}
+
+class FormatOnTypeAdapter extends FormatHelper implements modes.OnTypeFormattingEditProvider {
+
+	get autoFormatTriggerCharacters() {
+		return [';', '}', '\n'];
+	}
+
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
+		const resource = model.getAssociatedResource();
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
+			return worker.getFormattingEditsAfterKeystroke(resource.toString(),
+				this._positionToOffset(resource, position),
+				ch, FormatHelper._convertOptions(options));
+		}).then(edits => {
+			if (edits) {
+				return edits.map(edit => this._convertTextChanges(resource, edit));
+			}
+		}));
 	}
 }

@@ -552,23 +552,18 @@ export interface IFormattingOptions {
 	insertSpaces:boolean;
 }
 
-/**
- * Supports to format source code. There are three levels
- * on which formatting can be offered:
- * (1) format a document
- * (2) format a selectin
- * (3) format on keystroke
- */
-export interface IFormattingSupport {
 
-	formatDocument?: (resource: URI, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
-
-	formatRange?: (resource: URI, range: editorCommon.IRange, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
-
-	autoFormatTriggerCharacters?: string[];
-
-	formatAfterKeystroke?: (resource: URI, position: editorCommon.IPosition, ch: string, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
+export interface DocumentFormattingEditProvider {
+	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
+export interface DocumentRangeFormattingEditProvider {
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: editorCommon.IEditorRange, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+}
+export interface OnTypeFormattingEditProvider {
+	autoFormatTriggerCharacters: string[];
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, ch: string, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+}
+
 
 export interface IInplaceReplaceSupportResult {
 	value: string;
@@ -798,6 +793,8 @@ export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProv
 
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
-export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>();
+export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
 
-export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>();
+export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
+
+export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();

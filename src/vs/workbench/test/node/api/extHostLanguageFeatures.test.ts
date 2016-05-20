@@ -12,6 +12,7 @@ import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
 import {Position as EditorPosition} from 'vs/editor/common/core/position';
+import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {TestThreadService} from './testThreadService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -33,7 +34,7 @@ import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
-import {formatDocument, formatRange, formatAfterKeystroke} from 'vs/editor/contrib/format/common/format';
+import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
 import {asWinJsPromise} from 'vs/base/common/async';
 
 const defaultSelector = { scheme: 'far' };
@@ -856,7 +857,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return formatDocument(model, { insertSpaces: true, tabSize: 4 }).then(value => {
+			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'testing');
@@ -873,7 +874,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return formatDocument(model, { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error();}, err => {  });
+			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error();}, err => {  });
 		});
 	});
 
@@ -885,7 +886,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(value => {
+			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'testing');
@@ -906,7 +907,7 @@ suite('ExtHostLanguageFeatures', function() {
 			}
 		}));
 		return threadService.sync().then(() => {
-			return formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(value => {
+			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'range');
@@ -922,7 +923,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error(); }, err => { });
+			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error(); }, err => { });
 		});
 	});
 
@@ -935,7 +936,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}, [';']));
 
 		return threadService.sync().then(() => {
-			return formatAfterKeystroke(model, { lineNumber: 1, column: 1 }, ';', { insertSpaces: true, tabSize: 2 }).then(value => {
+			return getOnTypeFormattingEdits(model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 
