@@ -14,7 +14,6 @@ import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {EditorEvent, TextEditorSelectionEvent, EventType as WorkbenchEventType, EditorInputEvent} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
@@ -236,38 +235,20 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private static MAX_HISTORY_ITEMS = 200;
 
-	private _stack: IStackEntry[];
+	private stack: IStackEntry[];
 	private index: number;
 	private blockEditorEvent: boolean;
 	private currentFileEditorState: EditorState;
-	private quickOpenService: IQuickOpenService;
 
 	constructor(
 		eventService: IEventService,
 		editorService: IWorkbenchEditorService,
-		contextService: IWorkspaceContextService,
-		quickOpenService: IQuickOpenService
+		contextService: IWorkspaceContextService
 	) {
 		super(eventService, editorService, contextService);
 
-		this.quickOpenService = quickOpenService;
-
 		this.index = -1;
-	}
-
-	private get stack(): IStackEntry[] {
-
-		// Seed our stack from the persisted editor history
-		if (!this._stack) {
-			this._stack = [];
-			let history = this.quickOpenService.getEditorHistory();
-
-			for (let i = history.length - 1; i >= 0; i--) {
-				this.addToStack(history[i]);
-			}
-		}
-
-		return this._stack;
+		this.stack = [];
 	}
 
 	public forward(): void {

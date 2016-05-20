@@ -389,7 +389,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
 
 		// History
-		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService, this.quickOpen));
+		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService));
 
 		// Contributed services
 		let contributedServices = getServices();
