@@ -232,12 +232,6 @@ suite('CSS - Scanner', () => {
 			assertSingleToken(scanner, '--var-name{', 10, 0, '--var-name', Scanner.TokenType.Ident);
 			assertSingleToken(scanner, '--var-name', 10, 0, '--var-name', Scanner.TokenType.Ident);
 		});
-
-		test('Test var function Token', function() {
-			var scanner = new Scanner.Scanner();
-			assertSingleToken(scanner, 'var(', 3, 0, 'var', Scanner.TokenType.Var);
-			assertSingleToken(scanner, 'var', 3, 0, 'var', Scanner.TokenType.Ident);
-		});
 });
 
 suite('CSS - Token Sequences', () => {

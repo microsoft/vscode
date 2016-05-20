@@ -47,7 +47,6 @@ export enum NodeType {
 	HexColorValue,
 	MixinDeclaration,
 	MixinReference,
-	VariableExpression,
 	VariableName,
 	VariableDeclaration,
 	Prio,
@@ -1142,6 +1141,10 @@ export class VariableDeclaration extends Node {
 		return false;
 	}
 
+	public getVariable():Variable {
+		return this.variable;
+	}
+
 	public getName():string {
 		return this.variable ? this.variable.getName() : '';
 	}
@@ -1182,6 +1185,9 @@ export class Variable extends Node {
 		return this.getText();
 	}
 
+}
+
+export class CssVariable extends Variable {
 }
 
 export class ExtendsReference extends Node {

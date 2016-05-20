@@ -102,7 +102,6 @@ export class Symbol {
 export class ScopeBuilder implements nodes.IVisitor {
 
 	public scope:Scope;
-	private _isRootSelectorNode: boolean= false;
 
 	constructor(scope:Scope) {
 		this.scope = scope;
@@ -184,23 +183,16 @@ export class ScopeBuilder implements nodes.IVisitor {
 			}
 		});
 
-		this._isRootSelectorNode= this.isRootSelectorNode(node);
 		return true;
 	}
 
 	public visitVariableDeclarationNode(node:nodes.VariableDeclaration):boolean {
-		if (this._isRootSelectorNode) {
+		if (node.getVariable() instanceof nodes.CssVariable) {
 			this.addRootVariables(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
 		} else {
 			this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
 		}
 		return true;
-	}
-
-	private isRootSelectorNode(node:nodes.RuleSet):boolean {
-		var visitor= new RootSelectorVisitor();
-		node.accept(visitor);
-		return visitor.rootSelector !== null;
 	}
 
 	private addRootVariables(node:nodes.Node, name:string, type: nodes.ReferenceType) : void {
@@ -218,37 +210,6 @@ export class ScopeBuilder implements nodes.IVisitor {
 		return current;
 	}
 }
-
-class RootSelectorVisitor implements nodes.IVisitor {
-
-	public rootSelector: nodes.Node= null;
-
-	public visitNode(node:nodes.Node):boolean {
-		switch (node.type) {
-			case nodes.NodeType.PseudoSelector:
-				if (this.isRootSelector(node)) {
-					this.rootSelector= node;
-				}
-				break;
-			default:
-				break;
-		}
-		return true;
-	}
-
-	private isRootSelector(pseudoSelector:nodes.Node):boolean {
-		let selectorName= this.getSelectorName(pseudoSelector);
-		return 'root' === selectorName;
-	}
-
-	private getSelectorName(pseudoSelector:nodes.Node):string {
-		if (pseudoSelector.getChildren().length > 0) {
-			return pseudoSelector.getChildren()[0].getText();
-		}
-		return null;
-	}
-}
-
 
 export class Symbols {
 

@@ -77,8 +77,11 @@ export class CSSIntellisense {
 				this.getCompletionsForFunctionArguments(<nodes.FunctionArgument> node, result);
 			} else if (node instanceof nodes.FunctionDeclaration) {
 				this.getCompletionsForFunctionDeclaration(<nodes.FunctionDeclaration> node, result);
-			} else if (nodes.NodeType.VariableExpression === node.type) {
-				this.getVariableProposalsForCssVariableExpression(result);
+			} else if (node instanceof nodes.Function) {
+				let functionNode: nodes.Function= <nodes.Function>node;
+				if (functionNode.getIdentifier().getText() === 'var') {
+					this.getVariableProposalsForCssVariableExpression(result);
+				}
 			}
 			if (result.length > 0) {
 				return { currentWord: this.currentWord, suggestions: result, incomplete: this.isIncomplete };

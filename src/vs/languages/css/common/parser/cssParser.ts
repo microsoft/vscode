@@ -909,8 +909,7 @@ export class Parser {
 			node.setExpression(this._parseStringLiteral()) ||
 			node.setExpression(this._parseNumeric()) ||
 			node.setExpression(this._parseHexColor()) ||
-			node.setExpression(this._parseOperation()) ||
-			node.setExpression(this._parseVariableExpression())
+			node.setExpression(this._parseOperation())
 		) {
 			return <nodes.Term> this.finish(node);
 		}
@@ -977,49 +976,37 @@ export class Parser {
 	}
 
 	public _parseCssVariable(): nodes.Variable {
-		var node = <nodes.Variable> this.create(nodes.Variable);
+		var node = <nodes.Variable> this.create(nodes.CssVariable);
 		if (!this.accept(scanner.TokenType.CssVariableName)) {
 			return null;
 		}
 		return <nodes.Variable> node;
 	}
 
-	public _parseVariableExpression(): nodes.Node {
-		if (!this.accept(scanner.TokenType.Var)) {
-			return null;
-		}
-
-		var node= this.createNode(nodes.NodeType.VariableExpression);
-		if (!this.accept(scanner.TokenType.ParenthesisL)) {
-			return this.finish(node, errors.ParseError.LeftParenthesisExpected);
-		}
-
-		if (!node.addChild(this._parseCssVariable())) {
-			return this.finish(node, errors.ParseError.VariableValueExpected);
-		}
-
-		if (!this.accept(scanner.TokenType.ParenthesisR)) {
-			return this.finish(node, errors.ParseError.RightParenthesisExpected);
-		}
-
-		return node;
-	}
-
 	public _parseFunction(): nodes.Function {
 
 		var pos = this.mark();
 		var node = <nodes.Function> this.create(nodes.Function);
+		var isVarFunc= this.peek(scanner.TokenType.Ident, 'var');
 
 		if (!node.setIdentifier(this._parseFunctionIdentifier())) {
 			return null;
 		}
+
 		if (this.hasWhitespace() || !this.accept(scanner.TokenType.ParenthesisL)) {
 			this.restoreAtMark(pos);
 			return null;
 		}
 
-		// arguments
-		if (node.getArguments().addChild(this._parseFunctionArgument())) {
+		let parseMoreArguments= true;
+		if (isVarFunc) {
+			if (!node.getArguments().addChild(this._parseCssVariable())) {
+				return this.finish(node, errors.ParseError.VariableValueExpected);
+			}
+		} else {
+			parseMoreArguments= node.getArguments().addChild(this._parseFunctionArgument());
+		}
+		if (parseMoreArguments) {
 			while (this.accept(scanner.TokenType.Comma)) {
 				if (!node.getArguments().addChild(this._parseFunctionArgument())) {
 					return this.finish(node, errors.ParseError.ExpressionExpected);
@@ -1036,6 +1023,7 @@ export class Parser {
 	public _parseFunctionIdentifier(): nodes.Identifier {
 		var node = <nodes.Identifier> this.create(nodes.Identifier);
 		node.referenceTypes = [ nodes.ReferenceType.Function ];
+
 		if (this.accept(scanner.TokenType.Ident, 'progid')) {
 			// support for IE7 specific filters: 'progid:DXImageTransform.Microsoft.MotionBlur(strength=13, direction=310)'
 			if (this.accept(scanner.TokenType.Colon)) {

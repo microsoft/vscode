@@ -10,7 +10,8 @@ import _parser = require('vs/languages/css/common/parser/cssParser');
 import scanner = require('vs/languages/css/common/parser/cssScanner');
 import nodes = require ('vs/languages/css/common/parser/cssNodes');
 import errors = require('vs/languages/css/common/parser/cssErrors');
-export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.Node, expectEOF:boolean=true):void {
+
+export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.Node, expectEOF:boolean=true):nodes.Node {
 	var node = parser.internalParse(text, f);
 	assert.ok(node !== null, 'no node returned');
 	var markers = nodes.ParseErrorCollector.entries(node);
@@ -18,6 +19,17 @@ export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.No
 		assert.ok(false, 'node has errors: ' + markers[0].getMessage() + ', offset: ' +  markers[0].getNode().offset);
 	}
 	assert.equal(parser.accept(scanner.TokenType.EOF), expectEOF, 'Expect scanner at EOF');
+	return node;
+}
+
+export function assertFunction(text: string, parser: _parser.Parser, f: ()=>nodes.Node, expectEOF:boolean=true, ... expectedArguments: nodes.NodeType[]):void {
+	let functionNode:nodes.Function= <nodes.Function>assertNode(text, parser, f, expectEOF);
+	let actualArguments= functionNode.getArguments().getChildren();
+	assert.equal(actualArguments.length, expectedArguments.length);
+	expectedArguments.forEach((expectedArgument, index) => {
+		let actualArgument= actualArguments[index];
+		assert.equal(actualArgument.type, expectedArgument);
+	})
 }
 
 export function assertNoNode(text: string, parser: _parser.Parser, f: ()=>nodes.Node):void {
@@ -391,6 +403,12 @@ suite('CSS - Parser', () => {
 		assertNode('--primary-font: "wf_SegoeUI","Segoe UI","Segoe","Segoe WP"', parser, parser._parseCssVariableDeclaration.bind(parser));
 		assertError('--color : ', parser, parser._parseCssVariableDeclaration.bind(parser), errors.ParseError.VariableValueExpected);
 		assertNoNode('--color value', parser, parser._parseCssVariableDeclaration.bind(parser));
+	});
+
+	test('Parser - Variable Function', function() {
+		var parser = new _parser.Parser();
+		assertFunction('var(--color)', parser, parser._parseFunction.bind(parser), true, nodes.NodeType.VariableName);
+		assertFunction('var(--color, somevalue)', parser, parser._parseFunction.bind(parser), true, nodes.NodeType.VariableName, nodes.NodeType.FunctionArgument);
 	});
 });
 
