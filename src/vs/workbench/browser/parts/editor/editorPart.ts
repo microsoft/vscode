@@ -82,7 +82,6 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
-	private editorSetInputErrorCounter: number[];
 	private pendingEditorInputsToClose: IEditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
 
@@ -101,7 +100,6 @@ export class EditorPart extends Part implements IEditorPart {
 		this.visibleEditors = [];
 
 		this.editorOpenToken = arrays.fill(POSITIONS.length, () => 0);
-		this.editorSetInputErrorCounter = arrays.fill(POSITIONS.length, () => 0);
 
 		this.visibleEditorListeners = arrays.fill(POSITIONS.length, () => []);
 		this.instantiatedEditors = arrays.fill(POSITIONS.length, () => []);
@@ -339,22 +337,16 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doSetInput(editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): TPromise<BaseEditor> {
 
-		// Emit Input-/Options-Changed Event as appropiate
-		let oldInput = editor.getInput();
-		let oldOptions = editor.getOptions();
-		let inputChanged = (!oldInput || !oldInput.matches(input) || (options && options.forceOpen));
+		// Emit Input-Changed Event as appropiate
+		const previousInput = editor.getInput();
+		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
 		if (inputChanged) {
 			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(editor, editor.getId(), input, options, position));
-		} else if (!oldOptions || !oldOptions.matches(options)) {
-			this.emit(WorkbenchEventType.EDITOR_OPTIONS_CHANGING, new EditorEvent(editor, editor.getId(), input, options, position));
 		}
 
 		// Call into Editor
 		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Set Editor Input: {0}', input.getName()));
 		return editor.setInput(input, options).then(() => {
-
-			// Reset counter
-			this.editorSetInputErrorCounter[position] = 0;
 
 			// Stop loading promise if any
 			monitor.cancel();
@@ -412,13 +404,10 @@ export class EditorPart extends Part implements IEditorPart {
 			// Fullfill promise with Editor that is being used
 			return editor;
 
-		}, (e: any) => this.doHandleSetInputError(e, editor, input, oldInput, options, position, monitor));
+		}, (e: any) => this.doHandleSetInputError(e, editor, input, options, position, monitor));
 	}
 
-	private doHandleSetInputError(e: Error | IMessageWithAction, editor: BaseEditor, input: EditorInput, oldInput: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): void {
-
-		// Keep counter
-		this.editorSetInputErrorCounter[position]++;
+	private doHandleSetInputError(e: Error | IMessageWithAction, editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): void {
 
 		// Stop loading promise if any
 		monitor.cancel();
@@ -442,29 +431,35 @@ export class EditorPart extends Part implements IEditorPart {
 		// Event
 		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
 
-		// Recover from this error by closing the editor if the attempt of setInput failed and we are not having any previous input
-		if (!oldInput && this.visibleInputs[position] === input && input) {
-			this.doCloseActiveEditor(position);
+		// Recover
+		this.doRecoverFromSetInputError(position, input);
+	}
+
+	private doRecoverFromSetInputError(position: Position, input: EditorInput): void {
+		if (this.visibleInputs[position] !== input) {
+			return; // user opened another input meanwhile
 		}
 
-		// We need to check our error counter here to prevent reentrant setInput() calls. If the workbench is in error state
-		// to the disk, opening a file would fail and we would try to open the previous file which would fail too. So we
-		// stop trying to open a previous file if we detect that we failed more than once already
-		else if (this.editorSetInputErrorCounter[position] > 1) {
-			this.doCloseActiveEditor(position);
+		// Restore active editor from group if this was not the one causing the problem
+		const group = this.stacks.groupAt(position);
+		if (group && !input.matches(group.activeEditor)) {
+			this.openEditor(group.activeEditor, null, position).done(null, errors.onUnexpectedError);
 		}
 
-		// Otherwise if we had oldInput, properly restore it so that the active input points to the previous one
-		else if (oldInput) {
-			this.openEditor(oldInput, null, position).done(null, errors.onUnexpectedError);
+		// Otherwise if we have a group, close the active editor that fails to open
+		else if (group) {
+			this.doCloseActiveEditor(group);
+		}
+
+		// Otherwise we are in a state where our first editor failed to open and we do not even have a group yet
+		else {
+			this.doCloseGroup(position);
 		}
 	}
 
 	public closeEditor(position: Position, input: EditorInput): TPromise<void> {
-
-		// Verify we actually have something to close at the given position
-		const editor = this.visibleEditors[position];
-		if (!editor) {
+		const group = this.stacks.groupAt(position);
+		if (!group) {
 			return TPromise.as<void>(null);
 		}
 
@@ -475,49 +470,51 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			// Do close
-			this.doCloseEditor(position, input);
+			this.doCloseEditor(group, input);
 		});
 	}
 
-	private doCloseEditor(position: Position, input: EditorInput, focusNext = true): void {
-		const group = this.stacks.groupAt(position);
+	private doCloseEditor(group: EditorGroup, input: EditorInput, focusNext = true): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (group.activeEditor && group.activeEditor.matches(input)) {
-			this.doCloseActiveEditor(position, focusNext);
+			this.doCloseActiveEditor(group, focusNext);
 		}
 
 		// Closing inactive editor is just a model update
 		else {
-			this.doCloseInactiveEditor(input, position);
+			this.doCloseInactiveEditor(group, input);
 		}
 	}
 
-	private doCloseActiveEditor(position: Position, focusNext = true): void {
+	private doCloseActiveEditor(group: EditorGroup, focusNext = true): void {
+		const position = this.stacks.positionOfGroup(group);
 
 		// Update visible inputs for position
 		this.visibleInputs[position] = null;
 
-		// Reset counter
-		this.editorSetInputErrorCounter[position] = 0;
-
 		// Update stacks model
-		const group = this.stacks.groupAt(position);
 		group.closeEditor(group.activeEditor);
 
 		// Close group is this is the last editor in group
 		if (group.count === 0) {
-			return this.doCloseGroup(position);
+
+			// Update stacks model
+			this.modifyGroups(() => this.stacks.closeGroup(group));
+
+			// Update UI
+			this.doCloseGroup(position);
 		}
 
 		// Otherwise open next active
-		this.openEditor(group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true} ) : null, position).done(null, errors.onUnexpectedError);
+		else {
+			this.openEditor(group.activeEditor, !focusNext ? EditorOptions.create({ preserveFocus: true }) : null, position).done(null, errors.onUnexpectedError);
+		}
 	}
 
-	private doCloseInactiveEditor(input: EditorInput, position: Position): void {
+	private doCloseInactiveEditor(group: EditorGroup, input: EditorInput): void {
 
 		// Closing inactive editor is just a model update
-		const group = this.stacks.groupAt(position);
 		group.closeEditor(input);
 	}
 
@@ -528,10 +525,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Hide Editor
 		this.doHideEditor(position, true);
-
-		// Update stacks model
-		const group = this.stacks.groupAt(position);
-		this.modifyGroups(() => this.stacks.closeGroup(group));
 
 		// Emit Input-Changed Event
 		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
@@ -595,7 +588,7 @@ export class EditorPart extends Part implements IEditorPart {
 				return;
 			}
 
-			groups.forEach(group => this.doCloseEditors(this.stacks.positionOfGroup(group)));
+			groups.forEach(group => this.doCloseEditors(group));
 		});
 	}
 
@@ -618,12 +611,11 @@ export class EditorPart extends Part implements IEditorPart {
 				return;
 			}
 
-			this.doCloseEditors(position, except, direction);
+			this.doCloseEditors(group, except, direction);
 		});
 	}
 
-	private doCloseEditors(position: Position, except?: EditorInput, direction?: Direction): void {
-		const group = this.stacks.groupAt(position);
+	private doCloseEditors(group: EditorGroup, except?: EditorInput, direction?: Direction): void {
 
 		// Close all editors in group
 		if (!except) {
@@ -632,7 +624,7 @@ export class EditorPart extends Part implements IEditorPart {
 			group.closeEditors(group.activeEditor);
 
 			// Now close active editor in group which will close the group
-			this.doCloseActiveEditor(position);
+			this.doCloseActiveEditor(group);
 		}
 
 		// Close all editors in group except active one
@@ -645,8 +637,8 @@ export class EditorPart extends Part implements IEditorPart {
 		// Finally: we are asked to close editors around a non-active editor
 		// Thus we make the non-active one active and then close the others
 		else {
-			this.openEditor(except, null, position).done(() => {
-				this.doCloseEditors(position, except, direction);
+			this.openEditor(except, null, this.stacks.positionOfGroup(group)).done(() => {
+				this.doCloseEditors(group, except, direction);
 			}, errors.onUnexpectedError);
 		}
 	}
@@ -733,39 +725,39 @@ export class EditorPart extends Part implements IEditorPart {
 		arrays.move(this.mapEditorToEditorContainers, from, to);
 
 		// Restore focus
-		let position = this.sideBySideControl.getActivePosition();
-		this.focusGroup(position);
+		this.focusGroup(this.stacks.positionOfGroup(toGroup));
 
 		// Update all title areas
 		this.doRecreateEditorTitleArea();
 	}
 
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
+	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
 		const fromGroup = this.stacks.groupAt(from);
 		const toGroup = this.stacks.groupAt(to);
 
 		if (!fromGroup || !toGroup) {
-			return TPromise.as<BaseEditor>(null);
+			return;
 		}
 
 		// Move within group
 		if (from === to) {
-			return this.doMoveEditorInsideGroups(input, from, index);
+			this.doMoveEditorInsideGroups(input, fromGroup, index);
 		}
 
 		// Move across groups
-		return this.doMoveEditorAcrossGroups(input, from, to, index);
+		else {
+			this.doMoveEditorAcrossGroups(input, fromGroup, toGroup, index);
+		}
 	}
 
-	private doMoveEditorInsideGroups(input: EditorInput, position: Position, toIndex: number): TPromise<BaseEditor> {
+	private doMoveEditorInsideGroups(input: EditorInput, group: EditorGroup, toIndex: number): void {
 		if (typeof toIndex !== 'number') {
-			return TPromise.as<BaseEditor>(null); // do nothing if we move into same group without index
+			return; // do nothing if we move into same group without index
 		}
 
-		const group = this.stacks.groupAt(position);
 		const currentIndex = group.indexOf(input);
 		if (currentIndex === toIndex) {
-			return TPromise.as<BaseEditor>(null); // do nothing if editor is already at the given index
+			return; // do nothing if editor is already at the given index
 		}
 
 		// Update stacks model
@@ -776,12 +768,13 @@ export class EditorPart extends Part implements IEditorPart {
 		this.doRecreateEditorTitleArea();
 	}
 
-	private doMoveEditorAcrossGroups(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
+	private doMoveEditorAcrossGroups(input: EditorInput, from: EditorGroup, to: EditorGroup, index?: number): void {
 
-		// A move to another group is a close first and an open in the target group
+		// A move to another group is a close first...
 		this.doCloseEditor(from, input, false /* do not activate next one behind if any */);
 
-		return this.openEditor(input, EditorOptions.create({ pinned: true, index }), to);
+		// ...and an open in the target group
+		this.openEditor(input, EditorOptions.create({ pinned: true, index }), this.stacks.positionOfGroup(to)).done(null, errors.onUnexpectedError);
 	}
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
@@ -993,7 +986,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// another editor the preview editor. So we need to take care of closing
 				// the active editor first
 				if (group.isPreview(group.activeEditor) && !group.activeEditor.matches(input)) {
-					this.doCloseActiveEditor(position);
+					this.doCloseActiveEditor(group);
 				}
 
 				// Update stacks model
@@ -1006,19 +999,17 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private doRecreateEditorTitleArea(): void {
-		if (this.sideBySideControl) {
-			const titleAreaState: ITitleAreaState[] = this.getVisibleEditors().map((e, index) => {
-				const group = this.stacks.groupAt(index);
+		const titleAreaState: ITitleAreaState[] = this.getVisibleEditors().map((e, index) => {
+			const group = this.stacks.groupAt(index);
 
-				return {
-					position: e.position,
-					preview: group && group.previewEditor,
-					editorCount: group ? group.count : 0
-				};
-			});
+			return {
+				position: e.position,
+				preview: group && group.previewEditor,
+				editorCount: group ? group.count : 0
+			};
+		});
 
-			this.sideBySideControl.recreateTitleArea(titleAreaState);
-		}
+		this.sideBySideControl.recreateTitleArea(titleAreaState);
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
@@ -1211,12 +1202,12 @@ export class EditorPart extends Part implements IEditorPart {
 				});
 
 				// Close all hidden first
-				hiddenEditors.forEach(hidden => this.doCloseEditor(this.stacks.positionOfGroup(hidden.group), hidden.editor));
+				hiddenEditors.forEach(hidden => this.doCloseEditor(<EditorGroup>hidden.group, hidden.editor));
 
 				// Close visible ones second
 				visibleEditors
 					.sort((a1, a2) => this.stacks.positionOfGroup(a2.group) - this.stacks.positionOfGroup(a1.group))	// reduce layout work by starting right first
-					.forEach(visible => this.doCloseEditor(this.stacks.positionOfGroup(visible.group), visible.editor));
+					.forEach(visible => this.doCloseEditor(<EditorGroup>visible.group, visible.editor));
 
 				// Reset
 				this.pendingEditorInputCloseTimeout = null;

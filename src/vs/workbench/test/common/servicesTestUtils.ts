@@ -29,7 +29,7 @@ import {IMessageService, IConfirmation} from 'vs/platform/message/common/message
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
-import {EditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 
@@ -347,10 +347,8 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.callback('unpinEditor');
 	}
 
-	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): TPromise<IEditor> {
+	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void {
 		this.callback('moveEditor');
-
-		return TPromise.as(null);
 	}
 
 	public moveGroup(from: Position, to: Position): void {

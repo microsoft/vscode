@@ -106,7 +106,7 @@ export interface IWorkbenchEditorService extends IEditorService {
 	/**
 	 * Moves an editor from one group to another. The index in the group is optional.
 	 */
-	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): TPromise<IEditor>;
+	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
 
 	/**
 	 * Allows to move the editor group from one position to another.

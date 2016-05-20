@@ -163,10 +163,4 @@ export interface ITextEditorOptions extends IEditorOptionsBag {
 	};
 }
 
-export interface IEditorOptions extends IEditorOptionsBag {
-
-	/**
-	 * Returns if the other object matches this options.
-	 */
-	matches(other: any): boolean;
-}
+export interface IEditorOptions extends IEditorOptionsBag {}

@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import objects = require('vs/base/common/objects');
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
 import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -342,13 +341,6 @@ export class EditorOptions implements IEditorOptions {
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	public index: number;
-
-	/**
-	 * Returns true if this options is identical to the otherOptions.
-	 */
-	public matches(otherOptions: any): boolean {
-		return this === otherOptions;
-	}
 }
 
 /**
@@ -488,25 +480,6 @@ export class TextEditorOptions extends EditorOptions {
 		}
 
 		return gotApplied;
-	}
-
-	public matches(otherOptions: any): boolean {
-		if (super.matches(otherOptions) === true) {
-			return true;
-		}
-
-		if (otherOptions) {
-			return otherOptions instanceof TextEditorOptions &&
-				(<TextEditorOptions>otherOptions).startLineNumber === this.startLineNumber &&
-				(<TextEditorOptions>otherOptions).startColumn === this.startColumn &&
-				(<TextEditorOptions>otherOptions).endLineNumber === this.endLineNumber &&
-				(<TextEditorOptions>otherOptions).endColumn === this.endColumn &&
-				(<TextEditorOptions>otherOptions).preserveFocus === this.preserveFocus &&
-				(<TextEditorOptions>otherOptions).forceOpen === this.forceOpen &&
-				objects.equals((<TextEditorOptions>otherOptions).editorViewState, this.editorViewState);
-		}
-
-		return false;
 	}
 }
 

@@ -44,11 +44,6 @@ export class EventType {
 	static EDITOR_INPUT_CHANGING = 'editorInputChanging';
 
 	/**
-	 * Event type to indicate that the editor options of the current active editor are changing.
-	 */
-	static EDITOR_OPTIONS_CHANGING = 'editorOptionsChanging';
-
-	/**
 	 * Event type for when the editor input has been changed in the currently active editor. This event is being sent after
 	 * the input has been set and displayed by the editor.
 	 *

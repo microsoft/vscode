@@ -813,8 +813,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups.indexOf(group);
 	}
 
-	public positionOfGroup(group: IEditorGroup);
-	public positionOfGroup(group: EditorGroup);
+	public positionOfGroup(group: IEditorGroup): Position;
+	public positionOfGroup(group: EditorGroup): Position;
 	public positionOfGroup(group: EditorGroup): Position {
 		return this.indexOf(group);
 	}

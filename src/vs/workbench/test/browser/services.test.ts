@@ -42,7 +42,7 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
-import {IEditorStacksModel, IEditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
+import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -124,8 +124,8 @@ class TestEditorPart implements IEditorPart {
 		return [activeEditor];
 	}
 
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
-		return TPromise.as(null);
+	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
+		// Unsupported
 	}
 
 	public moveGroup(from: Position, to: Position) {
