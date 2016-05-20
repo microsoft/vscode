@@ -91,7 +91,7 @@ export class ExplorerViewlet extends Viewlet {
 
 	private addOpenEditorsView(): void {
 		this.openEditorsView = this.instantiationService.createInstance(OpenEditorsView, this.getActionRunner(), this.viewletSettings);
-		this.splitView.addView(this.openEditorsView);
+		this.splitView.addView(this.openEditorsView, 1);
 
 		this.views.push(this.openEditorsView);
 	}
@@ -112,7 +112,7 @@ export class ExplorerViewlet extends Viewlet {
 		}
 
 		if (this.openEditorsVisible) {
-			this.splitView.addView(explorerView);
+			this.splitView.addView(explorerView, 3);
 		} else {
 			explorerView.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 		}
