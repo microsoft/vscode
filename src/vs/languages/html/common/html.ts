@@ -357,7 +357,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			}
 		});
 
-		modes.LinksProviderRegistry.register(this.getId(), {
+		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
 				return wireCancellationToken(token, this._provideLinks(model.getAssociatedResource()));
 			}

@@ -22,7 +22,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {ILink, LinksProviderRegistry} from 'vs/editor/common/modes';
+import {ILink, LinkProviderRegistry} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {getLinks} from 'vs/editor/contrib/links/common/links';
@@ -161,7 +161,7 @@ class LinkDetector {
 		}
 
 		let modePromise:TPromise<ILink[]> = TPromise.as(null);
-		if (LinksProviderRegistry.has(this.editor.getModel())) {
+		if (LinkProviderRegistry.has(this.editor.getModel())) {
 			modePromise = getLinks(this.editor.getModel());
 		}
 

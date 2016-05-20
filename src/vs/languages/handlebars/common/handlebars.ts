@@ -143,7 +143,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 			}
 		});
 
-		modes.LinksProviderRegistry.register(this.getId(), {
+		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
 				return wireCancellationToken(token, this._provideLinks(model.getAssociatedResource()));
 			}

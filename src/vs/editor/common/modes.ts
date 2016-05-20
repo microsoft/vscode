@@ -584,7 +584,7 @@ export interface ILink {
 	range: editorCommon.IRange;
 	url: string;
 }
-export interface ILinkSupport {
+export interface LinkProvider {
 	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 }
 
@@ -767,4 +767,4 @@ export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRe
 
 export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
 
-export const LinksProviderRegistry = new LanguageFeatureRegistry<ILinkSupport>();
+export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();

@@ -8,12 +8,12 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
-import {ILink, LinksProviderRegistry} from 'vs/editor/common/modes';
+import {ILink, LinkProviderRegistry} from 'vs/editor/common/modes';
 import {asWinJsPromise} from 'vs/base/common/async';
 
 export function getLinks(model: IReadOnlyModel): TPromise<ILink[]> {
 
-	const promises = LinksProviderRegistry.ordered(model).map((support) => {
+	const promises = LinkProviderRegistry.ordered(model).map((support) => {
 		return asWinJsPromise((token) => {
 			return support.provideLinks(model, token);
 		}).then((result) => {
