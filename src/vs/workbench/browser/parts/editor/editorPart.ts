@@ -536,15 +536,14 @@ export class EditorPart extends Part implements IEditorPart {
 		// Emit Input-Changed Event
 		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
 
-		// Focus next editor if there is still an active one left
-		let currentActiveEditor = this.sideBySideControl.getActiveEditor();
-		if (currentActiveEditor) { // TODO@Ben fix me to not require a full open call
-			this.openEditor(currentActiveEditor.input, null, currentActiveEditor.position).then(() => {
+		// Focus next group if we have an active one left
+		const currentActiveGroup = this.stacks.activeGroup;
+		if (currentActiveGroup) {
+			this.focusGroup(this.stacks.positionOfGroup(currentActiveGroup));
 
-				// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
-				// the user is actively changing focus with the mouse from left to right.
-				this.onGroupFocusChanged();
-			}).done(null, errors.onUnexpectedError);
+			// Explicitly trigger the focus changed handler because the side by side control will not trigger it unless
+			// the user is actively changing focus with the mouse from left to right.
+			this.onGroupFocusChanged();
 		}
 	}
 
@@ -574,7 +573,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.rochade(rochade);
 
 		// Clear Title Area for Position
-		this.sideBySideControl.clearTitle(position);
+		this.sideBySideControl.clearTitleArea(position);
 
 		// Emit Editor Closed Event
 		this.emit(WorkbenchEventType.EDITOR_CLOSED, new EditorEvent(editor, editor.getId(), null, null, position));
@@ -701,12 +700,15 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public moveGroup(from: Position, to: Position): void {
-		if (!this.visibleEditors[from] || !this.visibleEditors[to] || from === to) {
+		const fromGroup = this.stacks.groupAt(from);
+		const toGroup = this.stacks.groupAt(to);
+
+		if (!fromGroup || !toGroup || from === to) {
 			return; // Ignore if we cannot move
 		}
 
 		// Update stacks model
-		this.modifyGroups(() => this.stacks.moveGroup(this.stacks.groupAt(from), to));
+		this.modifyGroups(() => this.stacks.moveGroup(fromGroup, to));
 
 		// Move widgets
 		this.sideBySideControl.move(from, to);
@@ -729,11 +731,10 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
-		const editor = this.visibleEditors[from];
 		const fromGroup = this.stacks.groupAt(from);
 		const toGroup = this.stacks.groupAt(to);
 
-		if (!editor || !fromGroup || !toGroup) {
+		if (!fromGroup || !toGroup) {
 			return TPromise.as<BaseEditor>(null);
 		}
 
@@ -844,7 +845,6 @@ export class EditorPart extends Part implements IEditorPart {
 		if (!editors.length) {
 			return TPromise.as<BaseEditor[]>([]);
 		}
-
 
 		let activePosition: Position;
 		if (this.stacks.groups.length) {

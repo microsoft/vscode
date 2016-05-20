@@ -86,8 +86,7 @@ export interface ISideBySideEditorControl {
 	setTitleLoading(position: Position, input: EditorInput, isActive?: boolean): void;
 	updateTitleArea(state: ITitleAreaState): void;
 	updateTitleArea(input: EditorInput): void;
-
-	clearTitle(position: Position): void;
+	clearTitleArea(position: Position): void;
 
 	arrangeGroups(arrangement: GroupArrangement): void;
 
@@ -471,7 +470,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				if (position === Position.LEFT) {
 					this.rochade(Position.CENTER, Position.LEFT);
 					result = Rochade.CENTER_TO_LEFT;
-					this.clearTitle(Position.CENTER); // center closes so clear title
+					this.clearTitleArea(Position.CENTER); // center closes so clear title
 				}
 
 				this.layoutContainers();
@@ -490,7 +489,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				if (position === Position.CENTER) {
 					this.rochade(Position.RIGHT, Position.CENTER);
 					result = Rochade.RIGHT_TO_CENTER;
-					this.clearTitle(Position.RIGHT); // right closes so clear title
+					this.clearTitleArea(Position.RIGHT); // right closes so clear title
 				}
 
 				// Move RIGHT to CENTER and CENTER to LEFT ([x]|[]|[] -> [ ]|[ ])
@@ -498,7 +497,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 					this.rochade(Position.CENTER, Position.LEFT);
 					this.rochade(Position.RIGHT, Position.CENTER);
 					result = Rochade.CENTER_AND_RIGHT_TO_LEFT;
-					this.clearTitle(Position.RIGHT); // right closes so clear title
+					this.clearTitleArea(Position.RIGHT); // right closes so clear title
 				}
 
 				this.layoutContainers();
@@ -1370,7 +1369,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		POSITIONS.map((position) => this.closeEditorsInOtherGroupsActions[position].enabled = this.getVisibleEditorCount() > 1);
 	}
 
-	public clearTitle(position: Position): void {
+	public clearTitleArea(position: Position): void {
 
 		// Editor Title
 		this.titleLabel[position].safeInnerHtml('');
