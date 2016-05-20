@@ -789,7 +789,7 @@ function __separator__(): Electron.MenuItem {
 
 function mnemonicLabel(label: string): string {
 	if (platform.isMacintosh) {
-		return label.replace(/&&/g, ''); // no mnemonic support on mac
+		return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
 	}
 
 	return label.replace(/&&/g, '&');
