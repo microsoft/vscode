@@ -31,7 +31,6 @@ function code() {
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	echo $@
 	"$ELECTRON" "$CLI" . "$@"
 }
 
