@@ -1282,15 +1282,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.titleContainer[position].removeClass('pinned');
 		}
 
-		// Activity state
-		if (isActive) {
-			this.containers[position].removeClass('inactive');
-			this.containers[position].addClass('active');
-		} else {
-			this.containers[position].addClass('inactive');
-			this.containers[position].removeClass('active');
-		}
-
 		// Editor Title (Status + Label + Description)
 		this.setTitleLabel(position, input, isActive);
 
@@ -1326,6 +1317,15 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	private setTitleLabel(position: Position, input: EditorInput, isActive?: boolean): void {
+
+		// Activity state
+		if (isActive) {
+			this.containers[position].removeClass('inactive');
+			this.containers[position].addClass('active');
+		} else {
+			this.containers[position].addClass('inactive');
+			this.containers[position].removeClass('active');
+		}
 
 		// Editor Title (Status + Label + Description)
 		let name = input.getName() || '';

@@ -186,7 +186,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Indicate we are about to load the input
-		this.sideBySideControl.setTitleLoading(position, input, true);
+		this.sideBySideControl.setTitleLoading(position, input, !options || !options.preserveFocus);
 
 		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
