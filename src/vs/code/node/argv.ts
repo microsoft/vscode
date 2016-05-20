@@ -94,6 +94,7 @@ ${ indent }-r, --reuse-window    Force opening a file or folder in the last acti
 ${ indent }                      window.
 ${ indent }--user-data-dir <dir> Specifies the directory that user data is kept in,
 ${ indent }                      useful when running as root.
+${ indent }--verbose             Print verbose output (implies --wait).
 ${ indent }-v, --version         Print version.
 ${ indent }-w, --wait            Wait for the window to be closed before returning.
 ${ indent }--list-extensions     List the installed extensions.
