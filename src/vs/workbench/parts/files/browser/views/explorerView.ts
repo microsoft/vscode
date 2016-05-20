@@ -11,7 +11,7 @@ import URI from 'vs/base/common/uri';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
-import {Action, IActionRunner} from 'vs/base/common/actions';
+import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
@@ -107,12 +107,13 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		this.tree = this.createViewer($(this.treeContainer));
 
-		this.fillToolBar();
+		if (this.toolBar) {
+			this.toolBar.setActions(prepareActions(this.getActions()), [])();
+		}
 	}
 
-	private fillToolBar(): void {
-		let actions: Action[] = [];
-
+	public getActions(): IAction[] {
+		const actions: Action[] = [];
 		// New File
 		actions.push(this.instantiationService.createInstance(NewFileAction, this.getViewer(), null));
 
@@ -131,7 +132,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			action.order = 10 * (i + 1);
 		}
 
-		this.toolBar.setActions(prepareActions(actions), [])();
+		return actions;
 	}
 
 	public create(): TPromise<void> {
