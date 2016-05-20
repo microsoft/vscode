@@ -36,13 +36,6 @@ var baseModules = [
 	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib', 'minimist'
 ];
 
-// Until code signing issue with pty.js pre-built binaries is sorted out, just remove it from the
-// build on Windows.
-if (process.platform === 'win32') {
-	baseModules.splice(baseModules.indexOf('pty.js'), 1);
-	baseModules.splice(baseModules.indexOf('term.js'), 1);
-}
-
 // Build
 
 var vscodeEntryPoints = _.flatten([
