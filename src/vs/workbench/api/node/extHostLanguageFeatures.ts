@@ -48,7 +48,7 @@ interface CachedCodeLens {
 	disposables: IDisposable[];
 }
 
-class CodeLensAdapter implements modes.ICodeLensSupport {
+class CodeLensAdapter {
 
 	private _documents: ExtHostModelService;
 	private _commands: ExtHostCommands;
@@ -62,7 +62,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 		this._provider = provider;
 	}
 
-	findCodeLensSymbols(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
+	provideCodeLenses(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		const version = doc.version;
 		const key = resource.toString();
@@ -110,7 +110,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 
 	}
 
-	resolveCodeLensSymbol(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
+	resolveCodeLens(resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
 
 		const entry = this._cache[resource.toString()];
 		if (!entry) {
@@ -656,12 +656,12 @@ export class ExtHostLanguageFeatures {
 		return this._createDisposable(handle);
 	}
 
-	$findCodeLensSymbols(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.findCodeLensSymbols(resource));
+	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.provideCodeLenses(resource));
 	}
 
-	$resolveCodeLensSymbol(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
-		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLensSymbol(resource, symbol));
+	$resolveCodeLens(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> {
+		return this._withAdapter(handle, CodeLensAdapter, adapter => adapter.resolveCodeLens(resource, symbol));
 	}
 
 	// --- declaration
@@ -858,12 +858,12 @@ export class MainThreadLanguageFeatures {
 	// --- code lens
 
 	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
-		this._registrations[handle] = modes.CodeLensRegistry.register(selector, <modes.ICodeLensSupport>{
-			findCodeLensSymbols: (resource: URI): TPromise<modes.ICodeLensSymbol[]> => {
-				return this._proxy.$findCodeLensSymbols(handle, resource);
+		this._registrations[handle] = modes.CodeLensProviderRegistry.register(selector, <modes.CodeLensProvider>{
+			provideCodeLenses: (model:IReadOnlyModel, token: CancellationToken): modes.ICodeLensSymbol[] | Thenable<modes.ICodeLensSymbol[]> => {
+				return wireCancellationToken(token, this._proxy.$provideCodeLenses(handle, model.getAssociatedResource()));
 			},
-			resolveCodeLensSymbol: (resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> => {
-				return this._proxy.$resolveCodeLensSymbol(handle, resource, symbol);
+			resolveCodeLens: (model:IReadOnlyModel, codeLens: modes.ICodeLensSymbol, token: CancellationToken): modes.ICodeLensSymbol | Thenable<modes.ICodeLensSymbol> => {
+				return wireCancellationToken(token, this._proxy.$resolveCodeLens(handle, model.getAssociatedResource(), codeLens));
 			}
 		});
 		return undefined;

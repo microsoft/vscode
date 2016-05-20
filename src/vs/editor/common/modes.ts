@@ -641,25 +641,22 @@ export interface RenameProvider {
 	provideRenameEdits(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 }
 
+
 export interface ICommand {
 	id: string;
 	title: string;
 	arguments?: any[];
 }
-
 export interface ICodeLensSymbol {
 	range: editorCommon.IRange;
 	id?: string;
 	command?: ICommand;
 }
-
-/**
- * Interface used for the code lense support
- */
-export interface ICodeLensSupport {
-	findCodeLensSymbols(resource: URI): TPromise<ICodeLensSymbol[]>;
-	resolveCodeLensSymbol(resource: URI, symbol: ICodeLensSymbol): TPromise<ICodeLensSymbol>;
+export interface CodeLensProvider {
+	provideCodeLenses(model:editorCommon.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
+	resolveCodeLens?(model:editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 }
+
 
 export interface ITaskSummary {
 }
@@ -803,7 +800,7 @@ export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<Doc
 
 export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
 
-export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>();
+export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
 
 export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>();
 

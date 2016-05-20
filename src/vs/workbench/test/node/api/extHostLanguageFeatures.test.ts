@@ -34,6 +34,7 @@ import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 import {formatDocument, formatRange, formatAfterKeystroke} from 'vs/editor/contrib/format/common/format';
+import {asWinJsPromise} from 'vs/base/common/async';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -200,7 +201,9 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let data = value[0];
 
-				return data.support.resolveCodeLensSymbol(model.getAssociatedResource(), data.symbol).then(symbol => {
+				return asWinJsPromise((token) => {
+					return data.support.resolveCodeLens(model, data.symbol, token);
+				}).then(symbol => {
 					assert.equal(symbol.command.id, 'id');
 					assert.equal(symbol.command.title, 'Title');
 				});
@@ -222,7 +225,9 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 
 				let data = value[0];
-				return data.support.resolveCodeLensSymbol(model.getAssociatedResource(), data.symbol).then(symbol => {
+				return asWinJsPromise((token) => {
+					return data.support.resolveCodeLens(model, data.symbol, token);
+				}).then(symbol => {
 
 					assert.equal(symbol.command.id, 'missing');
 					assert.equal(symbol.command.title, '<<MISSING COMMAND>>');

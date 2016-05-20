@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./codelens';
-import {RunOnceScheduler} from 'vs/base/common/async';
+import {RunOnceScheduler, asWinJsPromise} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -17,7 +17,7 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CodeLensRegistry, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
+import {CodeLensProviderRegistry, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -371,7 +371,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				this.onModelChange();
 			}
 		}));
-		this._globalToDispose.push(CodeLensRegistry.onDidChange(this.onModelChange, this));
+		this._globalToDispose.push(CodeLensProviderRegistry.onDidChange(this.onModelChange, this));
 		this.onModelChange();
 	}
 
@@ -410,7 +410,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		if (!CodeLensRegistry.has(model)) {
+		if (!CodeLensProviderRegistry.has(model)) {
 			return;
 		}
 
@@ -604,12 +604,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		const resource = model.getAssociatedResource();
 		const promises = toResolve.map((request, i) => {
 
 			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
 			const promises = request.map((request, i) => {
-				return request.support.resolveCodeLensSymbol(resource, request.symbol).then(symbol => {
+				return asWinJsPromise((token) => {
+					return request.support.resolveCodeLens(model, request.symbol, token);
+				}).then(symbol => {
 					resolvedSymbols[i] = symbol;
 				});
 			});
