@@ -120,13 +120,13 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputStateChanged(event)));
+		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputDirtyStateChanged(event)));
 
 		const unbind = this.stacks.onEditorDisposed(editor => this.onEditorDisposed(editor));
 		this.toUnbind.push(() => unbind.dispose());
 	}
 
-	private onEditorInputStateChanged(event: EditorInputEvent): void {
+	private onEditorInputDirtyStateChanged(event: EditorInputEvent): void {
 		if (this.sideBySideControl) {
 			this.sideBySideControl.updateTitleArea(event.editorInput);
 		}

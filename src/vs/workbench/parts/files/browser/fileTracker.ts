@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
+import arrays = require('vs/base/common/arrays');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -64,7 +65,6 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledEditorDeleted(e)));
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledEditorDirty(e)));
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVING, (e: TextFileChangeEvent) => this.onTextFileSaving(e)));
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
@@ -75,7 +75,7 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private onTextFileDirty(e: TextFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.resource);
+		this.emitInputDirtyStateChangeEvent(e.resource, true);
 
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
@@ -84,17 +84,13 @@ export class FileTracker implements IWorkbenchContribution {
 		this.updateActiveEditor(e.resource);
 	}
 
-	private onTextFileSaving(e: TextFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.resource);
-	}
-
 	private onTextFileSaveError(e: TextFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.resource);
+		this.emitInputDirtyStateChangeEvent(e.resource, true);
 		this.updateActivityBadge();
 	}
 
 	private onTextFileSaved(e: TextFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.resource);
+		this.emitInputDirtyStateChangeEvent(e.resource, false);
 
 		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
@@ -102,7 +98,7 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private onTextFileReverted(e: TextFileChangeEvent): void {
-		this.emitInputStateChangeEvent(e.resource);
+		this.emitInputDirtyStateChangeEvent(e.resource, false);
 
 		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
@@ -112,7 +108,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private onUntitledEditorDirty(e: UntitledEditorEvent): void {
 		let input = this.untitledEditorService.get(e.resource);
 		if (input) {
-			this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, new EditorInputEvent(input));
+			this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, new EditorInputEvent(input));
 		}
 
 		this.updateActivityBadge();
@@ -122,7 +118,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private onUntitledEditorDeleted(e: UntitledEditorEvent): void {
 		let input = this.untitledEditorService.get(e.resource);
 		if (input) {
-			this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, new EditorInputEvent(input));
+			this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, new EditorInputEvent(input));
 		}
 
 		if (this.lastDirtyCount > 0) {
@@ -156,14 +152,15 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private emitInputStateChangeEvent(resource: URI): void {
+	private emitInputDirtyStateChangeEvent(resource: URI, gotDirty: boolean): void {
 
 		// Find all file editor inputs that are open from the given file resource and emit a editor input state change event.
 		// We could do all of this within the file editor input but having all the file change listeners in
 		// one place is more elegant and keeps the logic together at once place.
-		let editors = this.editorService.getVisibleEditors();
-		editors.forEach((editor) => {
-			let input = editor.input;
+		let editors = arrays.flatten(this.editorService.getStacksModel().groups.map(g => g.getEditors()));
+		editors.forEach(input => {
+
+			// Diff Editor Input
 			if (input instanceof DiffEditorInput) {
 				input = (<DiffEditorInput>input).getModifiedInput();
 			}
@@ -172,9 +169,9 @@ export class FileTracker implements IWorkbenchContribution {
 			if (input instanceof FileEditorInput) {
 				let fileInput = <FileEditorInput>input;
 				if (fileInput.getResource().toString() === resource.toString()) {
-					let inputEvent = editor.input instanceof DiffEditorInput ? <DiffEditorInput>editor.input : fileInput; // make sure to still send around the input from the diff editor if given
+					let inputEvent = input instanceof DiffEditorInput ? input : fileInput; // make sure to still send around the input from the diff editor if given
 
-					this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, new EditorInputEvent(inputEvent));
+					this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, new EditorInputEvent(inputEvent));
 				}
 			}
 		});

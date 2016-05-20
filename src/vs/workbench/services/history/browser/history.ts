@@ -84,13 +84,13 @@ export abstract class BaseHistoryService {
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
 
 		// Editor Input State Changes
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (e: EditorInputEvent) => this.onEditorInputStateChanged(e.editorInput)));
+		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (e: EditorInputEvent) => this.onEditorInputDirtyStateChanged(e.editorInput)));
 
 		// Text Editor Selection Changes
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, (event: TextEditorSelectionEvent) => this.onTextEditorSelectionChanged(event)));
 	}
 
-	private onEditorInputStateChanged(input: IEditorInput): void {
+	private onEditorInputDirtyStateChanged(input: IEditorInput): void {
 
 		// If an active editor is set, but is different from the one from the event, prevent update because the editor is not active.
 		let activeEditor = this.editorService.getActiveEditor();

@@ -115,7 +115,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private titleContainer: Builder[];
 	private titleLabel: Builder[];
 	private titleDescription: Builder[];
-	private editorInputStateDescription: Builder[];
 	private progressBar: ProgressBar[];
 
 	private editorTitleToolbar: ToolBar[];
@@ -168,7 +167,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.titleContainer = [];
 		this.titleLabel = [];
 		this.titleDescription = [];
-		this.editorInputStateDescription = [];
 		this.editorTitleToolbar = [];
 		this.editorActionsToolbar = [];
 		this.progressBar = [];

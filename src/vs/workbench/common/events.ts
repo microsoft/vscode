@@ -58,9 +58,9 @@ export class EventType {
 	static EDITOR_INPUT_CHANGED = 'editorInputChanged';
 
 	/**
-	 * Event type for when the editor input state changed.
+	 * Event type for when the editor input dirty state changed.
 	 */
-	static EDITOR_INPUT_STATE_CHANGED = 'editorInputStateChanged';
+	static EDITOR_INPUT_DIRTY_STATE_CHANGED = 'editorInputDirtyStateChanged';
 
 	/**
 	 * Event type for when the editor input failed to be set to the editor.

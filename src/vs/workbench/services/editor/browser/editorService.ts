@@ -202,35 +202,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		this.editorPart.unpinEditor(position, input);
 	}
 
-	private findEditor(editor?: IEditor): BaseEditor;
-	private findEditor(position?: Position): BaseEditor;
-	private findEditor(arg?: any): BaseEditor {
-
-		// Editor provided
-		if (arg instanceof BaseEditor) {
-			return <BaseEditor>arg;
-		}
-
-		// Find active editor
-		if (types.isUndefinedOrNull(arg)) {
-			return this.editorPart.getActiveEditor();
-		}
-
-		// Target position provided
-		if (types.isNumber(arg)) {
-			let position = <Position>arg;
-			let visibleEditors = this.editorPart.getVisibleEditors();
-			for (let i = 0; i < visibleEditors.length; i++) {
-				let editor = <BaseEditor>visibleEditors[i];
-				if (editor.position === position) {
-					return editor;
-				}
-			}
-		}
-
-		return null;
-	}
-
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
