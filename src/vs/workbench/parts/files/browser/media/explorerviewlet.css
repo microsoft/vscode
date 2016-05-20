@@ -35,10 +35,13 @@
 	visibility: visible;
 }
 
+.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-label {
+	display: block;
+}
+
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .close-editor-action {
 	width: 8px;
 	height: 22px;
-	display: block;
 }
 
 .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row > .content .monaco-action-bar .action-close-all-files,
