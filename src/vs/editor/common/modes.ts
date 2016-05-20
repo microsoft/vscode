@@ -212,11 +212,6 @@ export interface IMode {
 	emitOutputSupport?:IEmitOutputSupport;
 
 	/**
-	 * Optional adapter to support detecting links.
-	 */
-	linkSupport?:ILinkSupport;
-
-	/**
 	 * Optional adapter to support configuring this mode.
 	 */
 	configSupport?:IConfigurationSupport;
@@ -584,25 +579,15 @@ export interface IEmitOutput {
 	content:string;
 }
 
-/**
- * Interface used to detect links.
- */
+
 export interface ILink {
-
 	range: editorCommon.IRange;
-
-	/**
-	 * The url of the link.
-	 * The url should be absolute and will not get any special treatment.
-	 */
 	url: string;
-
-	extraInlineClassName?: string;
 }
-
 export interface ILinkSupport {
-	computeLinks(resource:URI):TPromise<ILink[]>;
+	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 }
+
 
 /**
  * Interface used to define a configurable editor mode.
@@ -781,3 +766,5 @@ export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistr
 export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
 
 export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
+
+export const LinksProviderRegistry = new LanguageFeatureRegistry<ILinkSupport>();

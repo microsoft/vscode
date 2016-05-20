@@ -13,7 +13,7 @@ import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Hover, HoverProviderRegistry} from 'vs/editor/common/modes';
 import {asWinJsPromise} from 'vs/base/common/async';
 
-export function provideHover(model: IReadOnlyModel, position: IEditorPosition): TPromise<Hover[]> {
+export function getHover(model: IReadOnlyModel, position: IEditorPosition): TPromise<Hover[]> {
 
 	const supports = HoverProviderRegistry.ordered(model);
 	const values: Hover[] = [];
@@ -37,4 +37,4 @@ export function provideHover(model: IReadOnlyModel, position: IEditorPosition): 
 	return TPromise.join(promises).then(() => coalesce(values));
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeHoverProvider', provideHover);
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeHoverProvider', getHover);

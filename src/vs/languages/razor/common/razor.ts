@@ -91,6 +91,12 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 				return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
 			}
 		});
+
+		modes.LinksProviderRegistry.register(this.getId(), {
+			provideLinks: (model, token): Thenable<modes.ILink[]> => {
+				return wireCancellationToken(token, this._provideLinks(model.getAssociatedResource()));
+			}
+		});
 	}
 
 	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {

@@ -142,6 +142,12 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 				return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
 			}
 		});
+
+		modes.LinksProviderRegistry.register(this.getId(), {
+			provideLinks: (model, token): Thenable<modes.ILink[]> => {
+				return wireCancellationToken(token, this._provideLinks(model.getAssociatedResource()));
+			}
+		});
 	}
 
 	protected _createRichEditSupport(): modes.IRichEditSupport {

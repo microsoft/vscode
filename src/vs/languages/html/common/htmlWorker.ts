@@ -21,7 +21,7 @@ import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} 
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
-import {provideHover} from 'vs/editor/contrib/hover/common/hover';
+import {getHover} from 'vs/editor/contrib/hover/common/hover';
 import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 
@@ -150,7 +150,7 @@ export class HTMLWorker {
 	public provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
-				return provideHover(model, Position.lift(position)).then((r) => {
+				return getHover(model, Position.lift(position)).then((r) => {
 					return (r.length > 0 ? r[0] : null);
 				});
 			}
@@ -659,7 +659,7 @@ export class HTMLWorker {
 		return newLinks;
 	}
 
-	public computeLinks(resource: URI): winjs.TPromise<modes.ILink[]> {
+	public provideLinks(resource: URI): winjs.TPromise<modes.ILink[]> {
 		let model = this.resourceService.get(resource);
 		return winjs.TPromise.as(this._computeHTMLLinks(model));
 	}

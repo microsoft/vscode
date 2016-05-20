@@ -16,7 +16,7 @@ import {IEditorRange, IRange} from 'vs/editor/common/editorCommon';
 import {HoverProviderRegistry, Hover, IMode} from 'vs/editor/common/modes';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {provideHover} from '../common/hover';
+import {getHover} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
 
@@ -47,7 +47,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			return TPromise.as(null);
 		}
 
-		return provideHover(model, new Position(
+		return getHover(model, new Position(
 			this._range.startLineNumber,
 			this._range.startColumn
 		));

@@ -26,7 +26,7 @@ import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {DocumentSymbolProviderRegistry, DocumentHighlightKind} from 'vs/editor/common/modes';
 import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {provideHover} from 'vs/editor/contrib/hover/common/hover';
+import {getHover} from 'vs/editor/contrib/hover/common/hover';
 import {getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
@@ -337,7 +337,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			provideHover(model, new EditorPosition(1, 1)).then(value => {
+			getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -356,7 +356,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			provideHover(model, new EditorPosition(1, 1)).then(value => {
+			getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -380,7 +380,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return provideHover(model, new EditorPosition(1, 1)).then(value => {
+			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value;
 				assert.equal(first.htmlContent[0].markdown, 'registered second');
@@ -405,7 +405,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			provideHover(model, new EditorPosition(1, 1)).then(value => {
+			getHover(model, new EditorPosition(1, 1)).then(value => {
 
 				assert.equal(value.length, 1);
 			});
