@@ -865,15 +865,15 @@ export class EditorPart extends Part implements IEditorPart {
 			return TPromise.as<BaseEditor[]>([]);
 		}
 
-		let editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
-		let widthRatios = editorState.widthRatio;
 
 		let activePosition: Position;
 		if (this.stacks.groups.length) {
 			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
 		}
 
-		return this.doOpenEditors(editors, activePosition, widthRatios);
+		let editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+
+		return this.doOpenEditors(editors, activePosition, editorState && editorState.widthRatio);
 	}
 
 	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, widthRatios?: number[]): TPromise<BaseEditor[]> {
