@@ -11,6 +11,7 @@ import filters = require('vs/base/common/filters');
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import labels = require('vs/base/common/labels');
 import {EventType} from 'vs/base/common/events';
 import {Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
@@ -28,6 +29,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private input: EditorInput;
 	private model: EditorHistoryModel;
 	private resource: URI;
+	private toUnbind: IDisposable;
 
 	constructor(
 		editorService: IWorkbenchEditorService,
@@ -44,6 +46,16 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		this.resource = getUntitledOrFileResource(input);
 
 		this.setHighlights(labelHighlights, descriptionHighlights);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind = this.input.addOneTimeDisposableListener(EventType.DISPOSE, () => this.onInputDispose());
+	}
+
+	private onInputDispose(): void {
+		this.model.restore(this.input); // handle the case of input getting disposed by restoring it from factory
 	}
 
 	public clone(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[]): EditorHistoryEntry {
@@ -94,6 +106,13 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 		return false;
 	}
+
+	public dispose(): void {
+		if (this.toUnbind) {
+			this.toUnbind.dispose();
+			this.toUnbind = null;
+		}
+	}
 }
 
 interface ISerializedEditorInput {
@@ -121,9 +140,6 @@ export class EditorHistoryModel extends QuickOpenModel {
 			return;
 		}
 
-		// Handle Dispose
-		input.addOneTimeListener(EventType.DISPOSE, () => this.onInputDispose(input));
-
 		const entry = new EditorHistoryEntry(this.editorService, this.contextService, input, null, null, this);
 
 		// Remove any existing entry and add to the beginning if we do not get an index
@@ -134,16 +150,25 @@ export class EditorHistoryModel extends QuickOpenModel {
 
 		// Otherwise replace at index
 		else {
+			const previousEntry = this.entries[index];
+			if (previousEntry) {
+				(<EditorHistoryEntry>previousEntry).dispose();
+			}
+
 			this.entries[index] = entry;
 		}
 
 		// Respect max entries setting
 		if (this.entries.length > MAX_ENTRIES) {
+			for (let i = MAX_ENTRIES; i < this.entries.length; i++) {
+				(<EditorHistoryEntry>this.entries[i]).dispose();
+			}
+
 			this.entries = this.entries.slice(0, MAX_ENTRIES);
 		}
 	}
 
-	private onInputDispose(input: EditorInput): void {
+	public restore(input: EditorInput): void {
 		let index = this.indexOf(input);
 		if (index < 0) {
 			return;
@@ -163,10 +188,14 @@ export class EditorHistoryModel extends QuickOpenModel {
 		// Factory failed, just remove entry then
 		this.remove(input);
 	}
-
 	public remove(input: EditorInput): void {
 		let index = this.indexOf(input);
 		if (index >= 0) {
+			const entry = <EditorHistoryEntry>this.entries[index];
+			if (entry) {
+				entry.dispose();
+			}
+
 			this.entries.splice(index, 1);
 		}
 	}
