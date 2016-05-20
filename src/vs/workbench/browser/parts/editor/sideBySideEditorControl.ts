@@ -76,7 +76,6 @@ export interface ISideBySideEditorControl {
 
 	isDragging(): boolean;
 
-	setLoading(position: Position, input: EditorInput): void;
 	getProgressBar(position: Position): ProgressBar;
 	updateProgress(position: Position, state: ProgressState): void;
 
@@ -84,6 +83,7 @@ export interface ISideBySideEditorControl {
 	layout(position: Position): void;
 
 	recreateTitleArea(states: ITitleAreaState[]): void;
+	setTitleLoading(position: Position, input: EditorInput, isActive?: boolean): void;
 	updateTitleArea(state: ITitleAreaState): void;
 	updateTitleArea(input: EditorInput): void;
 
@@ -1293,18 +1293,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Editor Title (Status + Label + Description)
-		let name = input.getName() || '';
-		let description = isActive ? (input.getDescription() || '') : '';
-		let verboseDescription = isActive ? (input.getDescription(true) || '') : '';
-		if (description === verboseDescription) {
-			verboseDescription = ''; // dont repeat what is already shown
-		}
-
-		this.titleLabel[position].safeInnerHtml(name);
-		this.titleLabel[position].title(verboseDescription);
-
-		this.titleDescription[position].safeInnerHtml(description);
-		this.titleDescription[position].title(verboseDescription);
+		this.setTitleLabel(position, input, isActive);
 
 		// Support split editor action if visible editor count is < 3 and editor supports it
 		if (isActive && this.getVisibleEditorCount() < 3 && this.lastActiveEditor.supportsSplitEditor()) {
@@ -1326,7 +1315,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		secondaryActions.push(...this.getSecondaryActions(position));
 
-
 		// Set Primary/Secondary Actions
 		this.editorActionsToolbar[position].setActions(primaryActions, secondaryActions)();
 
@@ -1334,14 +1322,25 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.closeEditorActions[position].class = input.isDirty() ? 'close-editor-dirty-action' : 'close-editor-action';
 	}
 
-	public setLoading(position: Position, input: EditorInput): void {
+	public setTitleLoading(position: Position, input: EditorInput, isActive?: boolean): void {
+		this.setTitleLabel(position, input, isActive);
+	}
 
-		// Editor Title and Description
-		this.titleLabel[position].safeInnerHtml(input.getName() || '');
-		this.titleDescription[position].safeInnerHtml(nls.localize('loadingLabel', "Loading..."));
+	private setTitleLabel(position: Position, input: EditorInput, isActive?: boolean): void {
 
-		// Clear Primary/Secondary Actions
-		this.editorActionsToolbar[position].setActions([], this.getSecondaryActions(position))();
+		// Editor Title (Status + Label + Description)
+		let name = input.getName() || '';
+		let description = isActive ? (input.getDescription() || '') : '';
+		let verboseDescription = isActive ? (input.getDescription(true) || '') : '';
+		if (description === verboseDescription) {
+			verboseDescription = ''; // dont repeat what is already shown
+		}
+
+		this.titleLabel[position].safeInnerHtml(name);
+		this.titleLabel[position].title(verboseDescription);
+
+		this.titleDescription[position].safeInnerHtml(description);
+		this.titleDescription[position].title(verboseDescription);
 	}
 
 	private getSecondaryActions(position: Position): Action[] {

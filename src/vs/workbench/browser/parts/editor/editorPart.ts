@@ -187,13 +187,15 @@ export class EditorPart extends Part implements IEditorPart {
 			options = this.findSideOptions(input, options, position);
 		}
 
+		// Indicate we are about to load the input
+		this.sideBySideControl.setTitleLoading(position, input, true);
+
 		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
 		const editorOpenToken = this.editorOpenToken[position];
 		const monitor = new ProgressMonitor(editorOpenToken, TPromise.timeout(this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */).then(() => {
 			if (editorOpenToken === this.editorOpenToken[position]) {
 				this.sideBySideControl.updateProgress(position, ProgressState.INFINITE);
-				this.sideBySideControl.setLoading(position, input);
 			}
 		}));
 
@@ -369,7 +371,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// in that case notify others about the input change event as well as to make sure that the
 				// editor title area is up to date.
 				if (this.visibleInputs[position] && this.visibleInputs[position].matches(input)) {
-					this.doUpdateEditorTitleArea();
+					this.doRecreateEditorTitleArea();
 					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), this.visibleInputs[position], options, position));
 				}
 
@@ -399,7 +401,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Update Title Area
 			if (inputChanged) {
-				this.doUpdateEditorTitleArea(); // full title update
+				this.doRecreateEditorTitleArea(); // full title update
 			} else {
 				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count }); // little update for position
 			}
@@ -725,7 +727,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.focusGroup(position);
 
 		// Update all title areas
-		this.doUpdateEditorTitleArea();
+		this.doRecreateEditorTitleArea();
 	}
 
 	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
@@ -762,7 +764,7 @@ export class EditorPart extends Part implements IEditorPart {
 		group.pin(input);
 
 		// Update UI
-		this.doUpdateEditorTitleArea();
+		this.doRecreateEditorTitleArea();
 	}
 
 	private doMoveEditorAcrossGroups(input: EditorInput, from: Position, to: Position, index?: number): TPromise<BaseEditor> {
@@ -815,7 +817,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Update Title Area
-		this.doUpdateEditorTitleArea();
+		this.doRecreateEditorTitleArea();
 	}
 
 	private onEditorTitleDoubleclick(position: Position): void {
@@ -1002,7 +1004,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	private doUpdateEditorTitleArea(): void {
+	private doRecreateEditorTitleArea(): void {
 		if (this.sideBySideControl) {
 			const titleAreaState: ITitleAreaState[] = this.getVisibleEditors().map((e, index) => {
 				const group = this.groupAt(index);
