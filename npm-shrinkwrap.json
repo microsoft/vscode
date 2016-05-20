@@ -342,8 +342,8 @@
     },
     "pty.js": {
       "version": "0.3.0",
-      "from": "https://github.com/platformio/pty.js/tarball/22e84bd6ef177c7c211a767564ffe64426cb8a69",
-      "resolved": "https://github.com/platformio/pty.js/tarball/22e84bd6ef177c7c211a767564ffe64426cb8a69"
+      "from": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
+      "resolved": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d"
     },
     "randomatic": {
       "version": "1.1.5",
