@@ -122,7 +122,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private registerListeners(): void {
 		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputDirtyStateChanged(event)));
 
-		const unbind = this.stacks.onEditorDisposed(editor => this.onEditorDisposed(editor));
+		const unbind = this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier));
 		this.toUnbind.push(() => unbind.dispose());
 	}
 
@@ -1216,24 +1216,24 @@ export class EditorPart extends Part implements IEditorPart {
 		if (this.pendingEditorInputCloseTimeout === null) {
 			this.pendingEditorInputCloseTimeout = setTimeout(() => {
 
-				// Split between active and inactive editors
-				const activeEditors: IEditorIdentifier[] = [];
-				const inactiveEditors: IEditorIdentifier[] = [];
+				// Split between visible and hidden editors
+				const visibleEditors: IEditorIdentifier[] = [];
+				const hiddenEditors: IEditorIdentifier[] = [];
 				this.pendingEditorInputsToClose.forEach(identifier => {
 					if (identifier.group.isActive(identifier.editor)) {
-						activeEditors.push(identifier);
+						visibleEditors.push(identifier);
 					} else {
-						inactiveEditors.push(identifier);
+						hiddenEditors.push(identifier);
 					}
 				});
 
-				// Close all inactive first
-				TPromise.join(inactiveEditors.map(inactive => this.closeEditor(this.stacks.positionOfGroup(inactive.group), inactive.editor))).done(() => {
+				// Close all hidden first
+				TPromise.join(hiddenEditors.map(hidden => this.closeEditor(this.stacks.positionOfGroup(hidden.group), hidden.editor))).done(() => {
 
-					// Close active ones second
-					TPromise.join(activeEditors
+					// Close visible ones second
+					TPromise.join(visibleEditors
 						.sort((a1, a2) => this.stacks.positionOfGroup(a2.group) - this.stacks.positionOfGroup(a1.group))	// reduce layout work by starting right first
-						.map(active => this.closeEditor(this.stacks.positionOfGroup(active.group), active.editor))
+						.map(visible => this.closeEditor(this.stacks.positionOfGroup(visible.group), visible.editor))
 					).done(null, errors.onUnexpectedError);
 
 				}, errors.onUnexpectedError);
