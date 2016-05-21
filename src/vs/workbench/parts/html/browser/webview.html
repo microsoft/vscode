@@ -40,7 +40,7 @@
 
 			// webview
 			let defaultStyles = document.getElementById('_defaultStyles');
-			defaultStyles.innerHTML = value;
+			defaultStyles.innerHTML = initData.styles + initData.autoThemeRules;
 
 			let body = target.contentDocument.getElementsByTagName('body');
 			styleBody(body[0]);
@@ -48,7 +48,7 @@
 			// iframe
 			defaultStyles = target.contentDocument.getElementById('_defaultStyles');
 			if(defaultStyles) {
-				defaultStyles.innerHTML = value + (isThemeAware(body[0]) ? '' : initData.autoThemeRules);
+				defaultStyles.innerHTML = initData.styles + (isThemeAware(body[0]) ? '' : initData.autoThemeRules);
 			}
 		});
 
