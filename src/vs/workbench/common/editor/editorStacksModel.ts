@@ -35,6 +35,7 @@ export interface IEditorGroup {
 
 	getEditor(index: number): EditorInput;
 	indexOf(editor: EditorInput): number;
+	contains(editor: EditorInput): boolean;
 
 	getEditors(mru?: boolean): EditorInput[];
 	isActive(editor: EditorInput): boolean;
@@ -513,6 +514,10 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		return -1;
+	}
+
+	public contains(candidate: EditorInput): boolean {
+		return this.indexOf(candidate) >= 0;
 	}
 
 	private setMostRecentlyUsed(editor: EditorInput): void {

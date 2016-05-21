@@ -21,7 +21,6 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {State, TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
-import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -80,8 +79,6 @@ export class FileTracker implements IWorkbenchContribution {
 		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
 			this.updateActivityBadge(); // no indication needed when auto save is enabled for short delay
 		}
-
-		this.updateActiveEditor(e.resource);
 	}
 
 	private onTextFileSaveError(e: TextFileChangeEvent): void {
@@ -112,7 +109,6 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		this.updateActivityBadge();
-		this.updateActiveEditor(e.resource);
 	}
 
 	private onUntitledEditorDeleted(e: UntitledEditorEvent): void {
@@ -123,22 +119,6 @@ export class FileTracker implements IWorkbenchContribution {
 
 		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
-		}
-	}
-
-	private updateActiveEditor(resource: URI): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			const input = activeEditor.input;
-			let inputResource: URI;
-			if (input instanceof UntitledEditorInput || input instanceof FileEditorInput) {
-				inputResource = input.getResource();
-			}
-
-			// Pin the active editor because the user has made changes to the file within
-			if (inputResource && inputResource.toString() === resource.toString()) {
-				this.editorService.pinEditor(activeEditor.position, activeEditor.input);
-			}
 		}
 	}
 
@@ -157,24 +137,22 @@ export class FileTracker implements IWorkbenchContribution {
 		// Find all file editor inputs that are open from the given file resource and emit a editor input state change event.
 		// We could do all of this within the file editor input but having all the file change listeners in
 		// one place is more elegant and keeps the logic together at once place.
-		let editors = arrays.flatten(this.editorService.getStacksModel().groups.map(g => g.getEditors()));
+		const editors = arrays.flatten(this.editorService.getStacksModel().groups.map(g => g.getEditors()));
 		editors.forEach(input => {
-
-			// Diff Editor Input
-			if (input instanceof DiffEditorInput) {
-				input = (<DiffEditorInput>input).getModifiedInput();
-			}
-
-			// File Editor Input
-			if (input instanceof FileEditorInput) {
-				let fileInput = <FileEditorInput>input;
-				if (fileInput.getResource().toString() === resource.toString()) {
-					let inputEvent = input instanceof DiffEditorInput ? input : fileInput; // make sure to still send around the input from the diff editor if given
-
-					this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, new EditorInputEvent(inputEvent));
-				}
+			if (this.matchesResource(input, resource)) {
+				this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, new EditorInputEvent(input));
 			}
 		});
+	}
+
+	private matchesResource(input: EditorInput, resource: URI): boolean {
+
+		// Diff Editor Input
+		if (input instanceof DiffEditorInput) {
+			input = (<DiffEditorInput>input).getModifiedInput();
+		}
+
+		return input instanceof FileEditorInput && input.getResource().toString() === resource.toString();
 	}
 
 	// Note: there is some duplication with the other file event handler below. Since we cannot always rely on the disk events
