@@ -92,6 +92,52 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
     result = result.replace(/export declare/g, 'export');
     return result;
 }
+function format(text) {
+    var options = getDefaultOptions();
+    // Parse the source text
+    var sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
+    // Get the formatting edits on the input sources
+    var edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(options), options);
+    // Apply the edits on the input code
+    return applyEdits(text, edits);
+    function getRuleProvider(options) {
+        // Share this between multiple formatters using the same options.
+        // This represents the bulk of the space the formatter uses.
+        var ruleProvider = new ts.formatting.RulesProvider();
+        ruleProvider.ensureUpToDate(options);
+        return ruleProvider;
+    }
+    function applyEdits(text, edits) {
+        // Apply edits in reverse on the existing text
+        var result = text;
+        for (var i = edits.length - 1; i >= 0; i--) {
+            var change = edits[i];
+            var head = result.slice(0, change.span.start);
+            var tail = result.slice(change.span.start + change.span.length);
+            result = head + change.newText + tail;
+        }
+        return result;
+    }
+    function getDefaultOptions() {
+        return {
+            IndentSize: 4,
+            TabSize: 4,
+            NewLineCharacter: '\r\n',
+            ConvertTabsToSpaces: true,
+            IndentStyle: ts.IndentStyle.Block,
+            InsertSpaceAfterCommaDelimiter: true,
+            InsertSpaceAfterSemicolonInForStatements: true,
+            InsertSpaceBeforeAndAfterBinaryOperators: true,
+            InsertSpaceAfterKeywordsInControlFlowStatements: true,
+            InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
+            InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
+            InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
+            InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
+            PlaceOpenBraceOnNewLineForFunctions: false,
+            PlaceOpenBraceOnNewLineForControlBlocks: false,
+        };
+    }
+}
 var recipe = fs.readFileSync(path.join(__dirname, './monaco-editor.d.ts.recipe')).toString();
 var lines = recipe.split(/\r\n|\n|\r/);
 var result = [];
@@ -131,4 +177,10 @@ lines.forEach(function (line) {
     }
     result.push(line);
 });
-fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), result.join('\n').replace(/\beditorCommon\./g, '').replace(/\bEvent</g, 'IEvent<'));
+var resultTxt = result.join('\n');
+resultTxt = resultTxt.replace(/\beditorCommon\./g, '');
+resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
+resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
+resultTxt = format(resultTxt);
+resultTxt = resultTxt.replace(/\r\n/g, '\n');
+fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), resultTxt);
