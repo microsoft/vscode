@@ -387,7 +387,7 @@ export class ActionProvider implements IActionProvider {
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const result = [];
-		const autoSaveEnabled = this.textFileService.getAutoSaveMode() !== AutoSaveMode.OFF;
+		const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
 		const multipleGroups = this.model.groups.length > 1;
 		const closeActions = [];
 
