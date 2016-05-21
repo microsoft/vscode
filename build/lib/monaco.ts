@@ -38,10 +38,15 @@ function getSourceFile(moduleId:string): ts.SourceFile {
 }
 
 
-type TypeScriptTypeDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration;
+type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration | ts.TypeAliasDeclaration | ts.FunctionDeclaration;
+type TSTopLevelDeclare = TSTopLevelDeclaration | ts.VariableStatement;
 
+function isDeclaration(a:TSTopLevelDeclare): a is TSTopLevelDeclaration {
+	let tmp = <TSTopLevelDeclaration>a;
+	return tmp.name && typeof tmp.name.text === 'string';
+}
 
-function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TypeScriptTypeDeclaration)=>boolean): void {
+function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TSTopLevelDeclare)=>boolean): void {
 	let stop = false;
 
 	let visit = (node: ts.Node): void => {
@@ -53,8 +58,18 @@ function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TypeS
 			case ts.SyntaxKind.InterfaceDeclaration:
 			case ts.SyntaxKind.EnumDeclaration:
 			case ts.SyntaxKind.ClassDeclaration:
-				stop = visitor(<TypeScriptTypeDeclaration>node);
+			case ts.SyntaxKind.VariableStatement:
+			case ts.SyntaxKind.TypeAliasDeclaration:
+			case ts.SyntaxKind.FunctionDeclaration:
+				stop = visitor(<TSTopLevelDeclare>node);
 				break;
+		}
+
+		if (node.kind !== ts.SyntaxKind.SourceFile) {
+			if (getNodeText(sourceFile, node).indexOf('cursorStyleToString') >= 0) {
+				console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
+				console.log(getNodeText(sourceFile, node));
+			}
 		}
 
 		if (stop) {
@@ -67,8 +82,8 @@ function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TypeS
 }
 
 
-function getAllTopLevelDeclarations(sourceFile:ts.SourceFile): TypeScriptTypeDeclaration[] {
-	let all:TypeScriptTypeDeclaration[] = [];
+function getAllTopLevelDeclarations(sourceFile:ts.SourceFile): TSTopLevelDeclare[] {
+	let all:TSTopLevelDeclare[] = [];
 	visitTopLevelDeclarations(sourceFile, (node) => {
 		all.push(node);
 		return false /*continue*/;
@@ -77,14 +92,18 @@ function getAllTopLevelDeclarations(sourceFile:ts.SourceFile): TypeScriptTypeDec
 }
 
 
-function getTopLevelDeclaration(sourceFile:ts.SourceFile, typeName:string): TypeScriptTypeDeclaration {
-	let result:TypeScriptTypeDeclaration = null;
+function getTopLevelDeclaration(sourceFile:ts.SourceFile, typeName:string): TSTopLevelDeclare {
+	let result:TSTopLevelDeclare = null;
 	visitTopLevelDeclarations(sourceFile, (node) => {
-		if (node.name.text === typeName) {
-			result = node;
-			return true /*stop*/;
+		if (isDeclaration(node)) {
+			if (node.name.text === typeName) {
+				result = node;
+				return true /*stop*/;
+			}
+			return false /*continue*/;
 		}
-		return false /*continue*/;
+		// node is ts.VariableStatement
+		return (getNodeText(sourceFile, node).indexOf(typeName) >= 0);
 	});
 	return result;
 }
@@ -95,7 +114,7 @@ function getNodeText(sourceFile:ts.SourceFile, node:ts.Node): string {
 }
 
 
-function getMassagedTopLevelDeclarationText(sourceFile:ts.SourceFile, declaration: TypeScriptTypeDeclaration): string {
+function getMassagedTopLevelDeclarationText(sourceFile:ts.SourceFile, declaration: TSTopLevelDeclare): string {
 	let result = getNodeText(sourceFile, declaration);
 	result = result.replace(/export default/g, 'export');
 	result = result.replace(/export declare/g, 'export');
@@ -150,4 +169,4 @@ lines.forEach(line => {
 	result.push(line);
 });
 
-fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), result.join('\n'));
+fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), result.join('\n').replace(/\beditorCommon\./g, '').replace(/\bEvent</g, 'IEvent<'));

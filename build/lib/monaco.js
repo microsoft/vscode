@@ -27,6 +27,10 @@ function getSourceFile(moduleId) {
     }
     return SOURCE_FILE_MAP[moduleId];
 }
+function isDeclaration(a) {
+    var tmp = a;
+    return tmp.name && typeof tmp.name.text === 'string';
+}
 function visitTopLevelDeclarations(sourceFile, visitor) {
     var stop = false;
     var visit = function (node) {
@@ -37,8 +41,17 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
             case ts.SyntaxKind.InterfaceDeclaration:
             case ts.SyntaxKind.EnumDeclaration:
             case ts.SyntaxKind.ClassDeclaration:
+            case ts.SyntaxKind.VariableStatement:
+            case ts.SyntaxKind.TypeAliasDeclaration:
+            case ts.SyntaxKind.FunctionDeclaration:
                 stop = visitor(node);
                 break;
+        }
+        if (node.kind !== ts.SyntaxKind.SourceFile) {
+            if (getNodeText(sourceFile, node).indexOf('cursorStyleToString') >= 0) {
+                console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
+                console.log(getNodeText(sourceFile, node));
+            }
         }
         if (stop) {
             return;
@@ -58,11 +71,15 @@ function getAllTopLevelDeclarations(sourceFile) {
 function getTopLevelDeclaration(sourceFile, typeName) {
     var result = null;
     visitTopLevelDeclarations(sourceFile, function (node) {
-        if (node.name.text === typeName) {
-            result = node;
-            return true /*stop*/;
+        if (isDeclaration(node)) {
+            if (node.name.text === typeName) {
+                result = node;
+                return true /*stop*/;
+            }
+            return false /*continue*/;
         }
-        return false /*continue*/;
+        // node is ts.VariableStatement
+        return (getNodeText(sourceFile, node).indexOf(typeName) >= 0);
     });
     return result;
 }
@@ -114,4 +131,4 @@ lines.forEach(function (line) {
     }
     result.push(line);
 });
-fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), result.join('\n'));
+fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), result.join('\n').replace(/\beditorCommon\./g, '').replace(/\bEvent</g, 'IEvent<'));

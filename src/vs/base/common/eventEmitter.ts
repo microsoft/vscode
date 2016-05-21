@@ -5,7 +5,7 @@
 'use strict';
 
 import Errors = require('vs/base/common/errors');
-import Lifecycle = require('vs/base/common/lifecycle');
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 export interface IEmitterEvent {
 	getType():string;
@@ -49,16 +49,16 @@ export interface ListenerUnbind {
 	():void;
 }
 
-export interface IEventEmitter extends Lifecycle.IDisposable {
+export interface IEventEmitter extends IDisposable {
 	addListener(eventType:string, listener:ListenerCallback):ListenerUnbind;
-	addListener2(eventType:string, listener:ListenerCallback):Lifecycle.IDisposable;
+	addListener2(eventType:string, listener:ListenerCallback):IDisposable;
 	addOneTimeListener(eventType:string, listener:ListenerCallback):ListenerUnbind;
 
 	addBulkListener(listener:IBulkListenerCallback):ListenerUnbind;
-	addBulkListener2(listener:IBulkListenerCallback):Lifecycle.IDisposable;
+	addBulkListener2(listener:IBulkListenerCallback):IDisposable;
 
 	addEmitter(eventEmitter:IEventEmitter, emitterType?:string):ListenerUnbind;
-	addEmitter2(eventEmitter:IEventEmitter, emitterType?:string):Lifecycle.IDisposable;
+	addEmitter2(eventEmitter:IEventEmitter, emitterType?:string):IDisposable;
 
 	addEmitterTypeListener(eventType:string, emitterType:string, listener:ListenerCallback):ListenerUnbind;
 	emit(eventType:string, data?:any):void;
@@ -129,7 +129,7 @@ export class EventEmitter implements IEventEmitter {
 		};
 	}
 
-	public addListener2(eventType:string, listener:ListenerCallback):Lifecycle.IDisposable {
+	public addListener2(eventType:string, listener:ListenerCallback):IDisposable {
 		var dispose = this.addListener(eventType, listener);
 		return {
 			dispose: dispose
@@ -148,7 +148,7 @@ export class EventEmitter implements IEventEmitter {
 		return unbind;
 	}
 
-	public addOneTimeDisposableListener(eventType:string, listener:ListenerCallback):Lifecycle.IDisposable {
+	public addOneTimeDisposableListener(eventType:string, listener:ListenerCallback):IDisposable {
 		var dispose = this.addOneTimeListener(eventType, listener);
 		return {
 			dispose: dispose
@@ -164,7 +164,7 @@ export class EventEmitter implements IEventEmitter {
 		};
 	}
 
-	public addBulkListener2(listener:IBulkListenerCallback):Lifecycle.IDisposable {
+	public addBulkListener2(listener:IBulkListenerCallback):IDisposable {
 		var dispose = this.addBulkListener(listener);
 		return {
 			dispose: dispose
@@ -192,7 +192,7 @@ export class EventEmitter implements IEventEmitter {
 		});
 	}
 
-	public addEmitter2(eventEmitter:IEventEmitter, emitterType?:string):Lifecycle.IDisposable {
+	public addEmitter2(eventEmitter:IEventEmitter, emitterType?:string):IDisposable {
 		var dispose = this.addEmitter(eventEmitter, emitterType);
 		return {
 			dispose: dispose
