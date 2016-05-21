@@ -167,7 +167,7 @@ export class ToggleDevToolsAction extends Action {
 export class ZoomInAction extends Action {
 
 	public static ID = 'workbench.action.zoomIn';
-	public static LABEL = nls.localize('zoomIn', "Zoom in");
+	public static LABEL = nls.localize('zoomIn', "Zoom In");
 
 	constructor(id: string, label: string) {
 		super(id, label);
@@ -184,7 +184,7 @@ export class ZoomInAction extends Action {
 export class ZoomOutAction extends Action {
 
 	public static ID = 'workbench.action.zoomOut';
-	public static LABEL = nls.localize('zoomOut', "Zoom out");
+	public static LABEL = nls.localize('zoomOut', "Zoom Out");
 
 	constructor(
 		id: string,
