@@ -33,7 +33,7 @@ export interface IActionItem extends IEventEmitter {
 export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public builder: Builder;
-	public _callOnDispose: Function[];
+	public _callOnDispose: lifecycle.IDisposable[];
 	public _context: any;
 	public _action: IAction;
 
@@ -48,7 +48,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this._action = action;
 
 		if (action instanceof Action) {
-			let l = (<Action>action).addBulkListener((events: IEmitterEvent[]) => {
+			let l = (<Action>action).addBulkListener2((events: IEmitterEvent[]) => {
 
 				if (!this.builder) {
 					// we have not been rendered yet, so there
@@ -187,7 +187,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 			this.gesture = null;
 		}
 
-		lifecycle.cAll(this._callOnDispose);
+		this._callOnDispose = lifecycle.dispose(this._callOnDispose);
 	}
 }
 
@@ -333,13 +333,13 @@ export class ProgressItem extends BaseActionItem {
 		error.textContent = '!';
 		$(error).addClass('tag', 'error');
 
-		this.callOnDispose.push(this.addListener(CommonEventType.BEFORE_RUN, () => {
+		this.callOnDispose.push(this.addListener2(CommonEventType.BEFORE_RUN, () => {
 			$(progress).addClass('active');
 			$(done).removeClass('active');
 			$(error).removeClass('active');
 		}));
 
-		this.callOnDispose.push(this.addListener(CommonEventType.RUN, (result) => {
+		this.callOnDispose.push(this.addListener2(CommonEventType.RUN, (result) => {
 			$(progress).removeClass('active');
 			if (result.error) {
 				$(done).removeClass('active');
@@ -358,7 +358,6 @@ export class ProgressItem extends BaseActionItem {
 	}
 
 	public dispose(): void {
-		lifecycle.cAll(this.callOnDispose);
 		super.dispose();
 	}
 }

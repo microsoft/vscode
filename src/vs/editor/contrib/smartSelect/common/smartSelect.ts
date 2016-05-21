@@ -98,12 +98,12 @@ class SmartSelect extends EditorAction {
 				state = editorState;
 
 				// listen to caret move and forget about state
-				var unhook: () => void = this.editor.addListener(EventType.CursorPositionChanged,(e: ICursorPositionChangedEvent) => {
+				var unhook = this.editor.addListener2(EventType.CursorPositionChanged,(e: ICursorPositionChangedEvent) => {
 					if (ignoreSelection) {
 						return;
 					}
 					state = null;
-					unhook();
+					unhook.dispose();
 				});
 			});
 		}

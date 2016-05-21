@@ -56,10 +56,10 @@ export class ActivitybarPart extends Part implements IActivityService {
 	private registerListeners(): void {
 
 		// Activate viewlet action on opening of a viewlet
-		this.toUnbind.push(this.eventService.addListener(EventType.COMPOSITE_OPENING, (e: CompositeEvent) => this.onCompositeOpening(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.COMPOSITE_OPENING, (e: CompositeEvent) => this.onCompositeOpening(e)));
 
 		// Deactivate viewlet action on close
-		this.toUnbind.push(this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => this.onCompositeClosed(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => this.onCompositeClosed(e)));
 	}
 
 	private onCompositeOpening(e: CompositeEvent): void {

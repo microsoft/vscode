@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {Emitter} from 'vs/base/common/event';
 import {CommonKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -36,7 +36,7 @@ class MarkerModel {
 	private _editor: ICodeEditor;
 	private _markers: IMarker[];
 	private _nextIdx: number;
-	private _toUnbind: Function[];
+	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
 	private _onCurrentMarkerChanged: Emitter<IMarker>;
 	private _onMarkerSetChanged: Emitter<MarkerModel>;
@@ -52,8 +52,8 @@ class MarkerModel {
 		this.setMarkers(markers);
 
 		// listen on editor
-		this._toUnbind.push(this._editor.addListener(editorCommon.EventType.Disposed, () => this.dispose()));
-		this._toUnbind.push(this._editor.addListener(editorCommon.EventType.CursorPositionChanged, () => {
+		this._toUnbind.push(this._editor.addListener2(editorCommon.EventType.Disposed, () => this.dispose()));
+		this._toUnbind.push(this._editor.addListener2(editorCommon.EventType.CursorPositionChanged, () => {
 			if (!this._ignoreSelectionChange) {
 				this._nextIdx = -1;
 			}
@@ -177,7 +177,7 @@ class MarkerModel {
 	}
 
 	public dispose(): void {
-		this._toUnbind = cAll(this._toUnbind);
+		this._toUnbind = dispose(this._toUnbind);
 	}
 }
 

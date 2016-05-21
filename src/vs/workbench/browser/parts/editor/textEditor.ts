@@ -54,10 +54,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 	) {
 		super(id, telemetryService);
 
-		this.toUnbind.push(this._eventService.addListener(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e)));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.applyConfiguration(e.config)).dispose);
+		this.toUnbind.push(this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.applyConfiguration(e.config)));
 
-		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.onThemeChanged()).dispose);
+		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.onThemeChanged()));
 }
 
 	public get instantiationService(): IInstantiationService {
@@ -133,28 +133,28 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.editorControl = this.createEditorControl(parent);
 
 		// Hook Listener for Selection changes
-		this.toUnbind.push(this.editorControl.addListener(EventType.CursorPositionChanged, (event: ICursorPositionChangedEvent) => {
+		this.toUnbind.push(this.editorControl.addListener2(EventType.CursorPositionChanged, (event: ICursorPositionChangedEvent) => {
 			let selection = this.editorControl.getSelection();
 			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, new TextEditorSelectionEvent(selection, this, this.getId(), this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for mode changes
-		this.toUnbind.push(this.editorControl.addListener(EventType.ModelModeChanged, (event: IModelModeChangedEvent) => {
+		this.toUnbind.push(this.editorControl.addListener2(EventType.ModelModeChanged, (event: IModelModeChangedEvent) => {
 			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_MODE_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for content changes
-		this.toUnbind.push(this.editorControl.addListener(EventType.ModelContentChanged, (event: IModelContentChangedEvent) => {
+		this.toUnbind.push(this.editorControl.addListener2(EventType.ModelContentChanged, (event: IModelContentChangedEvent) => {
 			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for content options changes
-		this.toUnbind.push(this.editorControl.addListener(EventType.ModelOptionsChanged, (event: IModelOptionsChangedEvent) => {
+		this.toUnbind.push(this.editorControl.addListener2(EventType.ModelOptionsChanged, (event: IModelOptionsChangedEvent) => {
 			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for options changes
-		this.toUnbind.push(this.editorControl.addListener(EventType.ConfigurationChanged, (event: IConfigurationChangedEvent) => {
+		this.toUnbind.push(this.editorControl.addListener2(EventType.ConfigurationChanged, (event: IConfigurationChangedEvent) => {
 			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONFIGURATION_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
 		}));
 

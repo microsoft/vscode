@@ -168,18 +168,18 @@ class InternalEnablementState extends CachingEnablementState {
  */
 class DescentEnablementState extends CachingEnablementState {
 
-	private _callOnDispose:Function[] = [];
+	private _callOnDispose:IDisposable[] = [];
 
 	constructor(behaviour:Behaviour, private editor:ICommonCodeEditor, private _action:IEditorAction) {
 		super();
 
 		if (behaviour & Behaviour.UpdateOnModelChange) {
-			this._callOnDispose.push(this.editor.addListener(EventType.ModelChanged, () => this.reset()));
-			this._callOnDispose.push(this.editor.addListener(EventType.ModelModeChanged, () => this.reset()));
-			this._callOnDispose.push(this.editor.addListener(EventType.ModelModeSupportChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.addListener2(EventType.ModelModeChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.addListener2(EventType.ModelModeSupportChanged, () => this.reset()));
 		}
 		if (behaviour & Behaviour.UpdateOnCursorPositionChange) {
-			this._callOnDispose.push(this.editor.addListener(EventType.CursorPositionChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.addListener2(EventType.CursorPositionChanged, () => this.reset()));
 		}
 	}
 

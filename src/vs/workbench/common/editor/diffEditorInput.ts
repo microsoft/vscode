@@ -15,6 +15,7 @@ import {EditorModel, IFileEditorInput, EditorInput, IInputStatus, BaseDiffEditor
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -24,7 +25,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 
 	public static ID = 'workbench.editors.diffEditorInput';
 
-	private _toUnbind: { (): void; }[];
+	private _toUnbind: IDisposable[];
 	private name: string;
 	private description: string;
 	private cachedModel: DiffEditorModel;
@@ -45,13 +46,13 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	private registerListeners(): void {
 
 		// When the original or modified input gets disposed, dispose this diff editor input
-		this._toUnbind.push(this.originalInput.addListener(EventType.DISPOSE, () => {
+		this._toUnbind.push(this.originalInput.addListener2(EventType.DISPOSE, () => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		this._toUnbind.push(this.modifiedInput.addListener(EventType.DISPOSE, () => {
+		this._toUnbind.push(this.modifiedInput.addListener2(EventType.DISPOSE, () => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
@@ -187,9 +188,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 	}
 
 	public dispose(): void {
-		while (this._toUnbind.length) {
-			this._toUnbind.pop()();
-		}
+		this._toUnbind = dispose(this._toUnbind);
 
 		// Dispose Model
 		if (this.cachedModel) {

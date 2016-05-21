@@ -78,10 +78,10 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	}
 
 	protected registerListeners(): void {
-		let unbind = this.eventService.addListener(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
+		let unbind = this.eventService.addListener2(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
 		let subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration());
 		this.callOnDispose = () => {
-			unbind();
+			unbind.dispose();
 			subscription.dispose();
 		};
 	}

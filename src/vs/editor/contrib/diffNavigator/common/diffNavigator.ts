@@ -5,10 +5,11 @@
 'use strict';
 
 import * as assert from 'vs/base/common/assert';
-import {EventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
 import * as objects from 'vs/base/common/objects';
 import {Range} from 'vs/editor/common/core/range';
 import {EventType, ICommonDiffEditor, ICursorPositionChangedEvent, IEditorRange, ILineChange} from 'vs/editor/common/editorCommon';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 interface IDiffRange {
 	rhs:boolean;
@@ -39,7 +40,7 @@ export class DiffNavigator extends EventEmitter {
 	private editor:ICommonDiffEditor;
 	private options:Options;
 	private disposed:boolean;
-	private toUnbind:ListenerUnbind[];
+	private toUnbind:IDisposable[];
 
 	private nextIdx:number;
 	private ranges:IDiffRange[];
@@ -62,11 +63,11 @@ export class DiffNavigator extends EventEmitter {
 		this.revealFirst = this.options.alwaysRevealFirst;
 
 		// hook up to diff editor for diff, disposal, and caret move
-		this.toUnbind.push(this.editor.addListener(EventType.Disposed, () => this.dispose() ));
-		this.toUnbind.push(this.editor.addListener(EventType.DiffUpdated, () => this.onDiffUpdated() ));
+		this.toUnbind.push(this.editor.addListener2(EventType.Disposed, () => this.dispose() ));
+		this.toUnbind.push(this.editor.addListener2(EventType.DiffUpdated, () => this.onDiffUpdated() ));
 
 		if(this.options.followsCaret) {
-			this.toUnbind.push(this.editor.getModifiedEditor().addListener(EventType.CursorPositionChanged, (e:ICursorPositionChangedEvent) => {
+			this.toUnbind.push(this.editor.getModifiedEditor().addListener2(EventType.CursorPositionChanged, (e:ICursorPositionChangedEvent) => {
 				if(this.ignoreSelectionChange) {
 					return;
 				}
@@ -74,7 +75,7 @@ export class DiffNavigator extends EventEmitter {
 			}));
 		}
 		if(this.options.alwaysRevealFirst) {
-			this.toUnbind.push(this.editor.getModifiedEditor().addListener(EventType.ModelChanged, (e) => {
+			this.toUnbind.push(this.editor.getModifiedEditor().addListener2(EventType.ModelChanged, (e) => {
 				this.revealFirst = true;
 			}));
 		}
@@ -214,9 +215,7 @@ export class DiffNavigator extends EventEmitter {
 	}
 
 	public dispose():void {
-		while(this.toUnbind.length > 0) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = dispose(this.toUnbind);
 		this.ranges = null;
 		this.disposed = true;
 

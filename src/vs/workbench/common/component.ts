@@ -5,7 +5,7 @@
 'use strict';
 
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Scope, Memento} from 'vs/workbench/common/memento';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 
@@ -56,7 +56,7 @@ export interface IWorkbenchComponent extends IDisposable, IEventEmitter {
 }
 
 export class WorkbenchComponent extends EventEmitter implements IWorkbenchComponent {
-	private _toUnbind: { (): void; }[];
+	private _toUnbind: IDisposable[];
 	private id: string;
 	private componentMemento: Memento;
 
@@ -91,9 +91,7 @@ export class WorkbenchComponent extends EventEmitter implements IWorkbenchCompon
 	}
 
 	public dispose(): void {
-		while (this._toUnbind.length) {
-			this._toUnbind.pop()();
-		}
+		this._toUnbind = dispose(this._toUnbind);
 
 		super.dispose();
 	}

@@ -84,7 +84,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. Iff so, we won't
 		// apply the format edits
-		var unbind = this.editor.addListener(editorCommon.EventType.ModelContentChanged,(e: editorCommon.IModelContentChangedEvent) => {
+		var unbind = this.editor.addListener2(editorCommon.EventType.ModelContentChanged,(e: editorCommon.IModelContentChangedEvent) => {
 			if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
 				// a model.setValue() was called
 				canceled = true;
@@ -103,7 +103,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 			if (canceled) {
 				// cancel only once
-				unbind();
+				unbind.dispose();
 			}
 		});
 
@@ -114,7 +114,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			insertSpaces: modelOpts.insertSpaces
 		}).then(edits => {
 
-			unbind();
+			unbind.dispose();
 
 			if (canceled || arrays.isFalsyOrEmpty(edits)) {
 				return;
@@ -123,7 +123,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			this.editor.executeCommand(this.getId(), new EditOperationsCommand(edits, this.editor.getSelection()));
 
 		},(err) => {
-			unbind();
+			unbind.dispose();
 			throw err;
 		});
 	}

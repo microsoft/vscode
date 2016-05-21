@@ -8,7 +8,7 @@
 import 'vs/css!./color';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -73,7 +73,7 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 	private _decorationsChangedScheduler:RunOnceScheduler;
 
 	private _callOnDispose:IDisposable[];
-	private _callOnModelChange:IFunction[];
+	private _callOnModelChange:IDisposable[];
 
 	private _currentFindColorDeclarationsPromise:TPromise<{range:editorCommon.IRange; value:string; }[]>;
 	private _currentDecorations:ColorDecoration[];
@@ -126,7 +126,7 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 	}
 
 	private onModelChange(): void {
-		cAll(this._callOnModelChange);
+		this._callOnModelChange = dispose(this._callOnModelChange);
 
 		var model = <editorCommon.IModel> this._editor.getModel();
 		if(!model) {
@@ -158,18 +158,22 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 		this._contentChangedScheduler.schedule();
 
 
-		this._callOnModelChange.push(() => {
-			this._contentChangedScheduler.cancel();
-			this._decorationsChangedScheduler.cancel();
-		});
-		this._callOnModelChange.push(() => {
-			if (this._currentFindColorDeclarationsPromise) {
-				this._currentFindColorDeclarationsPromise.cancel();
+		this._callOnModelChange.push({
+			dispose: () => {
+				this._contentChangedScheduler.cancel();
+				this._decorationsChangedScheduler.cancel();
 			}
-			this._currentFindColorDeclarationsPromise = null;
 		});
-		this._callOnModelChange.push(this._editor.addListener(editorCommon.EventType.ModelContentChanged, (event) => this._contentChangedScheduler.schedule()));
-		this._callOnModelChange.push(model.addListener(editorCommon.EventType.ModelDecorationsChanged, (event) => this._decorationsChangedScheduler.schedule()));
+		this._callOnModelChange.push({
+			dispose: () => {
+				if (this._currentFindColorDeclarationsPromise) {
+					this._currentFindColorDeclarationsPromise.cancel();
+				}
+				this._currentFindColorDeclarationsPromise = null;
+			}
+		});
+		this._callOnModelChange.push(this._editor.addListener2(editorCommon.EventType.ModelContentChanged, (event) => this._contentChangedScheduler.schedule()));
+		this._callOnModelChange.push(model.addListener2(editorCommon.EventType.ModelDecorationsChanged, (event) => this._decorationsChangedScheduler.schedule()));
 	}
 
 	private renderAndTrackColors(colors:{range:editorCommon.IRange; value:string; }[]): void {

@@ -1370,7 +1370,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addListener(EventType.ModelContentChanged2, (e:IModelContentChangedEvent2) => {
+			model.addListener2(EventType.ModelContentChanged2, (e:IModelContentChangedEvent2) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1393,7 +1393,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		let mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
-		model.addListener(EventType.ModelContentChanged2, (e:IModelContentChangedEvent2) => {
+		model.addListener2(EventType.ModelContentChanged2, (e:IModelContentChangedEvent2) => {
 			let versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');

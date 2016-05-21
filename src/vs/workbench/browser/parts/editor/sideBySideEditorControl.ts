@@ -35,6 +35,7 @@ import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 export enum Rochade {
 	NONE,
@@ -86,7 +87,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private lastActivePosition: Position;
 
 	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
-	private editorInputStateChangeListener: () => void;
+	private editorInputStateChangeListener: IDisposable;
 
 	constructor(
 		parent: Builder,
@@ -134,7 +135,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private registerListeners(): void {
 
 		// Update editor input state indicators on state changes
-		this.editorInputStateChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => {
+		this.editorInputStateChangeListener = this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (event: EditorInputEvent) => {
 			this.updateEditorInputStateIndicator(event);
 		});
 	}
@@ -725,10 +726,10 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 
 		// Left Sash
 		this.leftSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
-		this.leftSash.addListener('start', () => this.onLeftSashDragStart());
-		this.leftSash.addListener('change', (e: ISashEvent) => this.onLeftSashDrag(e));
-		this.leftSash.addListener('end', () => this.onLeftSashDragEnd());
-		this.leftSash.addListener('reset', () => this.onLeftSashReset());
+		this.leftSash.addListener2('start', () => this.onLeftSashDragStart());
+		this.leftSash.addListener2('change', (e: ISashEvent) => this.onLeftSashDrag(e));
+		this.leftSash.addListener2('end', () => this.onLeftSashDragEnd());
+		this.leftSash.addListener2('reset', () => this.onLeftSashReset());
 		this.leftSash.hide();
 
 		// Center Container
@@ -736,10 +737,10 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 
 		// Right Sash
 		this.rightSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
-		this.rightSash.addListener('start', () => this.onRightSashDragStart());
-		this.rightSash.addListener('change', (e: ISashEvent) => this.onRightSashDrag(e));
-		this.rightSash.addListener('end', () => this.onRightSashDragEnd());
-		this.rightSash.addListener('reset', () => this.onRightSashReset());
+		this.rightSash.addListener2('start', () => this.onRightSashDragStart());
+		this.rightSash.addListener2('change', (e: ISashEvent) => this.onRightSashDrag(e));
+		this.rightSash.addListener2('end', () => this.onRightSashDragEnd());
+		this.rightSash.addListener2('reset', () => this.onRightSashReset());
 		this.rightSash.hide();
 
 		// Right Container
@@ -1044,7 +1045,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 			});
 
 			// Action Run Handling
-			this.editorActionsToolbar[position].actionRunner.addListener(BaseEventType.RUN, (e: any) => {
+			this.editorActionsToolbar[position].actionRunner.addListener2(BaseEventType.RUN, (e: any) => {
 
 				// Check for Error
 				if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -1560,7 +1561,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		});
 
 		if (this.editorInputStateChangeListener) {
-			this.editorInputStateChangeListener();
+			this.editorInputStateChangeListener.dispose();
 		}
 
 		this.lastActiveEditor = null;

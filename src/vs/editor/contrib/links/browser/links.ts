@@ -8,7 +8,6 @@
 import 'vs/css!./links';
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {KeyCode} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -26,6 +25,7 @@ import {ILink, LinkProviderRegistry} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {getLinks} from 'vs/editor/contrib/links/common/links';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 class LinkOccurence {
 
@@ -93,7 +93,7 @@ class LinkDetector {
 	static CLASS_NAME_ACTIVE = 'detected-link-active';
 
 	private editor:editorCommon.ICommonCodeEditor;
-	private listenersToRemove:ListenerUnbind[];
+	private listenersToRemove:IDisposable[];
 	private timeoutPromise:TPromise<void>;
 	private computePromise:TPromise<ILink[]>;
 	private activeLinkDecorationId:string;
@@ -114,13 +114,13 @@ class LinkDetector {
 		this.messageService = messageService;
 		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(editor.addListener('change', (e:editorCommon.IModelContentChangedEvent) => this.onChange()));
-		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelChanged, (e:editorCommon.IModelContentChangedEvent) => this.onModelChanged()));
-		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => this.onModelModeChanged()));
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.MouseUp, (e:IEditorMouseEvent) => this.onEditorMouseUp(e)));
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.MouseMove, (e:IEditorMouseEvent) => this.onEditorMouseMove(e)));
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.KeyDown, (e:IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.KeyUp, (e:IKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.listenersToRemove.push(editor.addListener2('change', (e:editorCommon.IModelContentChangedEvent) => this.onChange()));
+		this.listenersToRemove.push(editor.addListener2(editorCommon.EventType.ModelChanged, (e:editorCommon.IModelContentChangedEvent) => this.onModelChanged()));
+		this.listenersToRemove.push(editor.addListener2(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => this.onModelModeChanged()));
+		this.listenersToRemove.push(this.editor.addListener2(editorCommon.EventType.MouseUp, (e:IEditorMouseEvent) => this.onEditorMouseUp(e)));
+		this.listenersToRemove.push(this.editor.addListener2(editorCommon.EventType.MouseMove, (e:IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.listenersToRemove.push(this.editor.addListener2(editorCommon.EventType.KeyDown, (e:IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this.listenersToRemove.push(this.editor.addListener2(editorCommon.EventType.KeyUp, (e:IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this.timeoutPromise = null;
 		this.computePromise = null;
 		this.currentOccurences = {};
@@ -397,10 +397,7 @@ class LinkDetector {
 	}
 
 	public dispose():void {
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.listenersToRemove = dispose(this.listenersToRemove);
 		this.stop();
 	}
 }

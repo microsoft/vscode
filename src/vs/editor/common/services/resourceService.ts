@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent, ListenerCallback, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IEmitterEvent, ListenerCallback} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
@@ -42,10 +42,6 @@ export interface IResourceService {
 	all(): IMirrorModel[];
 	contains(url: URI): boolean;
 	remove(url: URI): void;
-	addListener_(eventType: 'resource.added', listener: (event: IResourceAddedEvent) => void): ListenerUnbind;
-	addListener_(eventType: 'resource.removed', listener: (event: IResourceRemovedEvent) => void): ListenerUnbind;
-	addListener_(eventType: 'resource.changed', listener: (event: IResourceChangedEvent) => void): ListenerUnbind;
-	addListener_(eventType: string, listener: ListenerCallback): ListenerUnbind;
 	addListener2_(eventType: 'resource.added', listener: (event: IResourceAddedEvent) => void): IDisposable;
 	addListener2_(eventType: 'resource.removed', listener: (event: IResourceRemovedEvent) => void): IDisposable;
 	addListener2_(eventType: 'resource.changed', listener: (event: IResourceChangedEvent) => void): IDisposable;

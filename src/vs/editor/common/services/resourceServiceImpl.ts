@@ -21,10 +21,6 @@ export class ResourceService extends EventEmitter implements IResourceService {
 		this.unbinds = {};
 	}
 
-	public addListener_(eventType: string, listener: ListenerCallback): ListenerUnbind {
-		return super.addListener(eventType, listener);
-	}
-
 	public addListener2_(eventType: string, listener: ListenerCallback): IDisposable {
 		return super.addListener2(eventType, listener);
 	}

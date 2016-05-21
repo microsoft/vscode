@@ -50,7 +50,6 @@ export interface ListenerUnbind {
 }
 
 export interface IEventEmitter extends IDisposable {
-	addListener(eventType:string, listener:ListenerCallback):ListenerUnbind;
 	addListener2(eventType:string, listener:ListenerCallback):IDisposable;
 	addOneTimeListener(eventType:string, listener:ListenerCallback):ListenerUnbind;
 
@@ -60,7 +59,6 @@ export interface IEventEmitter extends IDisposable {
 	addEmitter(eventEmitter:IEventEmitter, emitterType?:string):ListenerUnbind;
 	addEmitter2(eventEmitter:IEventEmitter, emitterType?:string):IDisposable;
 
-	addEmitterTypeListener(eventType:string, emitterType:string, listener:ListenerCallback):ListenerUnbind;
 	emit(eventType:string, data?:any):void;
 }
 
@@ -99,7 +97,7 @@ export class EventEmitter implements IEventEmitter {
 		this._allowedEventTypes = null;
 	}
 
-	public addListener(eventType:string, listener:ListenerCallback):ListenerUnbind {
+	private addListener(eventType:string, listener:ListenerCallback):ListenerUnbind {
 		if (eventType === '*') {
 			throw new Error('Use addBulkListener(listener) to register your listener!');
 		}
@@ -197,18 +195,6 @@ export class EventEmitter implements IEventEmitter {
 		return {
 			dispose: dispose
 		};
-	}
-
-	public addEmitterTypeListener(eventType:string, emitterType:string, listener:ListenerCallback):ListenerUnbind {
-		if (emitterType) {
-			if (eventType === '*') {
-				throw new Error('Bulk listeners cannot specify an emitter type');
-			}
-
-			return this.addListener(eventType + '/' + emitterType, listener);
-		} else {
-			return this.addListener(eventType, listener);
-		}
 	}
 
 	private _removeListener(eventType:string, listener:ListenerCallback): void {
