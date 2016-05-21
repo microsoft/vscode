@@ -383,7 +383,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		// Take out on dispose
-		input.addOneTimeListener(EventType.DISPOSE, () => {
+		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
 			this.stack.forEach((e, i) => {
 				if (e.input.matches(input)) {
 					this.stack.splice(i, 1);

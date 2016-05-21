@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class ViewEventHandler {
@@ -80,7 +80,7 @@ export class ViewEventHandler {
 
 	// --- end event handlers
 
-	public handleEvents(events:IEmitterEvent[]): void {
+	public handleEvents(events:EmitterEvent[]): void {
 
 		let shouldRender = false;
 

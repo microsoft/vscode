@@ -1340,7 +1340,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addBulkListener((events) => {
+			model.addBulkListener2((events) => {
 				if (!isFirstTime) {
 					return;
 				}

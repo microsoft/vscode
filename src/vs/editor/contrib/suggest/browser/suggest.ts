@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
@@ -33,7 +33,7 @@ export class SuggestController implements IEditorContribution {
 
 	private model: SuggestModel;
 	private widget: SuggestWidget;
-	private triggerCharacterListeners: Function[];
+	private triggerCharacterListeners: IDisposable[];
 	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
 	private toDispose: IDisposable[];
 
@@ -66,7 +66,7 @@ export class SuggestController implements IEditorContribution {
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
-		this.triggerCharacterListeners = cAll(this.triggerCharacterListeners);
+		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
 
 		if (this.widget) {
 			this.widget.dispose();
@@ -80,7 +80,7 @@ export class SuggestController implements IEditorContribution {
 
 	private update(): void {
 
-		this.triggerCharacterListeners = cAll(this.triggerCharacterListeners);
+		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
 
 		if (this.editor.getConfiguration().readOnly
 			|| !this.editor.getModel()

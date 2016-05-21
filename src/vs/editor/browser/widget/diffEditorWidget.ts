@@ -8,7 +8,7 @@
 import 'vs/css!./media/diffEditor';
 import {IAction} from 'vs/base/common/actions';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {EventEmitter, IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EventEmitter, EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
@@ -327,13 +327,13 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _createLeftHandSideEditor(options:editorCommon.IDiffEditorOptions, instantiationService:IInstantiationService): void {
 		this.originalEditor = instantiationService.createInstance(CodeEditorWidget, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
 		this._toDispose.push(this.originalEditor.addBulkListener2((events: any) => this._onOriginalEditorEvents(events)));
-		this._toDispose.push(this.addEmitter2(this.originalEditor, 'leftHandSide'));
+		this._toDispose.push(this.addEmitter2(this.originalEditor));
 	}
 
 	private _createRightHandSideEditor(options:editorCommon.IDiffEditorOptions, instantiationService:IInstantiationService): void {
 		this.modifiedEditor = instantiationService.createInstance(CodeEditorWidget, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
 		this._toDispose.push(this.modifiedEditor.addBulkListener2((events: any) => this._onModifiedEditorEvents(events)));
-		this._toDispose.push(this.addEmitter2(this.modifiedEditor, 'rightHandSide'));
+		this._toDispose.push(this.addEmitter2(this.modifiedEditor));
 	}
 
 	public destroy(): void {
@@ -670,7 +670,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	//------------ end layouting methods
 
-	private _recomputeIfNecessary(events:IEmitterEvent[]): void {
+	private _recomputeIfNecessary(events:EmitterEvent[]): void {
 		var changed = false;
 		for (var i = 0; !changed && i < events.length; i++) {
 			var type = events[i].getType();
@@ -686,7 +686,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		}
 	}
 
-	private _onOriginalEditorEvents(events:IEmitterEvent[]): void {
+	private _onOriginalEditorEvents(events:EmitterEvent[]): void {
 		for (var i = 0; i < events.length; i++) {
 			if (events[i].getType() === 'scroll') {
 				this._onOriginalEditorScroll(events[i].getData());
@@ -698,7 +698,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this._recomputeIfNecessary(events);
 	}
 
-	private _onModifiedEditorEvents(events:IEmitterEvent[]): void {
+	private _onModifiedEditorEvents(events:EmitterEvent[]): void {
 		for (var i = 0; i < events.length; i++) {
 			if (events[i].getType() === 'scroll') {
 				this._onModifiedEditorScroll(events[i].getData());
@@ -1329,10 +1329,10 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			this._sash.disable();
 		}
 
-		this._sash.on('start', () => this.onSashDragStart());
-		this._sash.on('change', (e: ISashEvent) => this.onSashDrag(e));
-		this._sash.on('end', () => this.onSashDragEnd());
-		this._sash.on('reset', () => this.onSashReset());
+		this._sash.addListener2('start', () => this.onSashDragStart());
+		this._sash.addListener2('change', (e: ISashEvent) => this.onSashDrag(e));
+		this._sash.addListener2('end', () => this.onSashDragEnd());
+		this._sash.addListener2('reset', () => this.onSashReset());
 	}
 
 	public dispose(): void {

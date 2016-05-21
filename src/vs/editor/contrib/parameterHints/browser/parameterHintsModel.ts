@@ -107,11 +107,9 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		this.triggerCharactersListeners = support.signatureHelpTriggerCharacters.map((ch) => {
-			let listener = this.editor.addTypingListener(ch, () => {
+			return this.editor.addTypingListener(ch, () => {
 				this.trigger();
 			});
-
-			return { dispose: listener };
 		});
 	}
 

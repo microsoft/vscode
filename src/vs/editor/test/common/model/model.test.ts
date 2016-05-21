@@ -324,7 +324,7 @@ suite('Editor Model - Model', () => {
 	// --------- setValue
 	test('setValue eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addOneTimeListener(EventType.ModelContentChanged, (e:IModelContentChangedEvent) => {
+		thisModel.addOneTimeDisposableListener(EventType.ModelContentChanged, (e:IModelContentChangedEvent) => {
 			listenerCalls++;
 
 			assert.equal(e.changeType, EventType.ModelContentChangedFlush);

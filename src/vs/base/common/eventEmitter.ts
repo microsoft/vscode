@@ -7,21 +7,14 @@
 import Errors = require('vs/base/common/errors');
 import {IDisposable} from 'vs/base/common/lifecycle';
 
-export interface IEmitterEvent {
-	getType():string;
-	getData():any;
-}
-
-export class EmitterEvent implements IEmitterEvent {
+export class EmitterEvent {
 
 	private _type:string;
 	private _data:any;
-	private _emitterType:string;
 
-	constructor(eventType:string=null, data:any=null, emitterType:string=null) {
+	constructor(eventType:string=null, data:any=null) {
 		this._type = eventType;
 		this._data = data;
-		this._emitterType = emitterType;
 	}
 
 	public getType():string {
@@ -31,33 +24,21 @@ export class EmitterEvent implements IEmitterEvent {
 	public getData():any {
 		return this._data;
 	}
-
-	public getEmitterType():string {
-		return this._emitterType;
-	}
 }
 
 export interface ListenerCallback {
 	(value:any):void;
 }
 
-export interface IBulkListenerCallback {
-	(value:IEmitterEvent[]):void;
-}
-
-export interface ListenerUnbind {
-	():void;
+export interface BulkListenerCallback {
+	(value:EmitterEvent[]):void;
 }
 
 export interface IEventEmitter extends IDisposable {
 	addListener2(eventType:string, listener:ListenerCallback):IDisposable;
-	addOneTimeListener(eventType:string, listener:ListenerCallback):ListenerUnbind;
-
-	addBulkListener(listener:IBulkListenerCallback):ListenerUnbind;
-	addBulkListener2(listener:IBulkListenerCallback):IDisposable;
-
-	addEmitter(eventEmitter:IEventEmitter, emitterType?:string):ListenerUnbind;
-	addEmitter2(eventEmitter:IEventEmitter, emitterType?:string):IDisposable;
+	addOneTimeDisposableListener(eventType:string, listener:ListenerCallback):IDisposable;
+	addBulkListener2(listener:BulkListenerCallback):IDisposable;
+	addEmitter2(eventEmitter:IEventEmitter):IDisposable;
 
 	emit(eventType:string, data?:any):void;
 }
@@ -97,7 +78,7 @@ export class EventEmitter implements IEventEmitter {
 		this._allowedEventTypes = null;
 	}
 
-	private addListener(eventType:string, listener:ListenerCallback):ListenerUnbind {
+	private addListener(eventType:string, listener:ListenerCallback):IDisposable {
 		if (eventType === '*') {
 			throw new Error('Use addBulkListener(listener) to register your listener!');
 		}
@@ -113,73 +94,56 @@ export class EventEmitter implements IEventEmitter {
 		}
 
 		var bound = this;
-		return () => {
-			if (!bound) {
-				// Already called
-				return;
+		return {
+			dispose: () => {
+				if (!bound) {
+					// Already called
+					return;
+				}
+
+				bound._removeListener(eventType, listener);
+
+				// Prevent leakers from holding on to the event emitter
+				bound = null;
+				listener = null;
 			}
-
-			bound._removeListener(eventType, listener);
-
-			// Prevent leakers from holding on to the event emitter
-			bound = null;
-			listener = null;
 		};
 	}
 
 	public addListener2(eventType:string, listener:ListenerCallback):IDisposable {
-		var dispose = this.addListener(eventType, listener);
-		return {
-			dispose: dispose
-		};
-	}
-
-	public on(eventType:string, listener:ListenerCallback):ListenerUnbind {
 		return this.addListener(eventType, listener);
 	}
 
-	public addOneTimeListener(eventType:string, listener:ListenerCallback):ListenerUnbind {
-		var unbind:ListenerUnbind = this.addListener(eventType, function(value:any) {
-			unbind();
+	private addOneTimeListener(eventType:string, listener:ListenerCallback):IDisposable {
+		var unbind = this.addListener(eventType, (value:any) => {
+			unbind.dispose();
 			listener(value);
 		});
 		return unbind;
 	}
 
 	public addOneTimeDisposableListener(eventType:string, listener:ListenerCallback):IDisposable {
-		var dispose = this.addOneTimeListener(eventType, listener);
-		return {
-			dispose: dispose
-		};
+		return this.addOneTimeListener(eventType, listener);
 	}
 
-	public addBulkListener(listener:IBulkListenerCallback):ListenerUnbind {
+	private addBulkListener(listener:BulkListenerCallback):IDisposable {
 
 		this._bulkListeners.push(listener);
 
-		return () => {
-			this._removeBulkListener(listener);
-		};
-	}
-
-	public addBulkListener2(listener:IBulkListenerCallback):IDisposable {
-		var dispose = this.addBulkListener(listener);
 		return {
-			dispose: dispose
+			dispose: () => {
+				this._removeBulkListener(listener);
+			}
 		};
 	}
 
-	public addEmitter(eventEmitter:IEventEmitter, emitterType:string=null):ListenerUnbind {
-		return eventEmitter.addBulkListener((events:IEmitterEvent[]):void => {
-			var newEvents = events;
+	public addBulkListener2(listener:BulkListenerCallback):IDisposable {
+		return this.addBulkListener(listener);
+	}
 
-			if (emitterType) {
-				// If the emitter has an emitterType, recreate events
-				newEvents = [];
-				for (var i = 0, len = events.length; i < len; i++) {
-					newEvents.push(new EmitterEvent(events[i].getType(), events[i].getData(), emitterType));
-				}
-			}
+	private addEmitter(eventEmitter:IEventEmitter):IDisposable {
+		return eventEmitter.addBulkListener2((events:EmitterEvent[]):void => {
+			var newEvents = events;
 
 			if (this._deferredCnt === 0) {
 				this._emitEvents(<EmitterEvent[]>newEvents);
@@ -190,11 +154,8 @@ export class EventEmitter implements IEventEmitter {
 		});
 	}
 
-	public addEmitter2(eventEmitter:IEventEmitter, emitterType?:string):IDisposable {
-		var dispose = this.addEmitter(eventEmitter, emitterType);
-		return {
-			dispose: dispose
-		};
+	public addEmitter2(eventEmitter:IEventEmitter):IDisposable {
+		return this.addEmitter(eventEmitter);
 	}
 
 	private _removeListener(eventType:string, listener:ListenerCallback): void {
@@ -210,7 +171,7 @@ export class EventEmitter implements IEventEmitter {
 		}
 	}
 
-	private _removeBulkListener(listener:IBulkListenerCallback): void {
+	private _removeBulkListener(listener:BulkListenerCallback): void {
 		for (var i = 0, len = this._bulkListeners.length; i < len; i++) {
 			if (this._bulkListeners[i] === listener) {
 				this._bulkListeners.splice(i, 1);
@@ -243,9 +204,6 @@ export class EventEmitter implements IEventEmitter {
 			var e = events[i];
 
 			this._emitToSpecificTypeListeners(e.getType(), e.getData());
-			if (e.getEmitterType()) {
-				this._emitToSpecificTypeListeners(e.getType() + '/' + e.getEmitterType(), e.getData());
-			}
 		}
 	}
 

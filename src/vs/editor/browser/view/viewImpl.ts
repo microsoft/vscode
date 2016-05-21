@@ -5,7 +5,7 @@
 'use strict';
 
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {EventEmitter, IEmitterEvent, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {EventEmitter, EmitterEvent, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
 import * as browser from 'vs/base/browser/browser';
@@ -49,7 +49,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 	private eventDispatcher:ViewEventDispatcher;
 
-	private listenersToRemove:ListenerUnbind[];
+	private listenersToRemove:IDisposable[];
 	private listenersToDispose:IDisposable[];
 
 	private layoutProvider: LayoutProvider;
@@ -82,7 +82,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private _isDisposed: boolean;
 
 	private handleAccumulatedModelEventsTimeout:number;
-	private accumulatedModelEvents: IEmitterEvent[];
+	private accumulatedModelEvents: EmitterEvent[];
 	private _renderAnimationFrame: IDisposable;
 
 	private _keybindingService: IKeybindingService;
@@ -148,7 +148,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		// This delayed processing of incoming model events acts as a guard against undesired/unexpected recursion.
 		this.handleAccumulatedModelEventsTimeout = -1;
 		this.accumulatedModelEvents = [];
-		this.listenersToRemove.push(model.addBulkListener((events:IEmitterEvent[]) => {
+		this.listenersToRemove.push(model.addBulkListener2((events:EmitterEvent[]) => {
 			this.accumulatedModelEvents = this.accumulatedModelEvents.concat(events);
 			if (this.handleAccumulatedModelEventsTimeout === -1) {
 				this.handleAccumulatedModelEventsTimeout = setTimeout(() => {
@@ -494,11 +494,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		this.eventDispatcher.removeEventHandler(this);
 		this.outgoingEventBus.dispose();
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
-
+		this.listenersToRemove = dispose(this.listenersToRemove);
 		this.listenersToDispose = dispose(this.listenersToDispose);
 
 		this.keyboardHandler.dispose();

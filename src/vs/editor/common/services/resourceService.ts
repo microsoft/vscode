@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent, ListenerCallback} from 'vs/base/common/eventEmitter';
+import {EmitterEvent, ListenerCallback} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +30,7 @@ export interface IResourceRemovedEvent {
 
 export interface IResourceChangedEvent {
 	url: URI;
-	originalEvents: IEmitterEvent[];
+	originalEvents: EmitterEvent[];
 }
 
 export var IResourceService = createDecorator<IResourceService>('resourceService');

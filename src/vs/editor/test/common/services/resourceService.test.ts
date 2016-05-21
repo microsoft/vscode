@@ -64,7 +64,7 @@ suite('Editor Services - ResourceService', () => {
 		var service = new ResourceService();
 		service.insert(url, element);
 
-		service.addBulkListener((events) => {
+		service.addBulkListener2((events) => {
 			eventCnt++;
 			assert.equal(events.length, 1);
 			assert.equal(events[0].getData().originalEvents.length, 1);

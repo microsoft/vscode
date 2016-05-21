@@ -5,7 +5,7 @@
 'use strict';
 
 import {toErrorMessage, onUnexpectedError} from 'vs/base/common/errors';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
@@ -551,7 +551,7 @@ export class MainThreadDocuments {
 		this._proxy._acceptModelRemoved(modelUrl.toString());
 	}
 
-	private _onModelEvents(modelUrl: URI, events: IEmitterEvent[]): void {
+	private _onModelEvents(modelUrl: URI, events: EmitterEvent[]): void {
 		let changedEvents: EditorCommon.IModelContentChangedEvent2[] = [];
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EmitterEvent, EventEmitter, IEmitterEvent, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {EmitterEvent, EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import {Position} from 'vs/editor/common/core/position';
@@ -43,7 +43,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private configuration:editorCommon.IConfiguration;
 	private model:editorCommon.IModel;
 
-	private listenersToRemove:ListenerUnbind[];
+	private listenersToRemove:IDisposable[];
 	private _toDispose: IDisposable[];
 	private lines:ILinesCollection;
 	private decorations:ViewModelDecorations;
@@ -75,7 +75,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 		this.listenersToRemove = [];
 		this._toDispose = [];
-		this.listenersToRemove.push(this.model.addBulkListener((events:IEmitterEvent[]) => this.onEvents(events)));
+		this.listenersToRemove.push(this.model.addBulkListener2((events:EmitterEvent[]) => this.onEvents(events)));
 		this._toDispose.push(this.configuration.onDidChange((e) => {
 			this.onEvents([new EmitterEvent(editorCommon.EventType.ConfigurationChanged, e)]);
 		}));
@@ -93,11 +93,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public dispose(): void {
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
+		this.listenersToRemove = dispose(this.listenersToRemove);
 		this._toDispose = dispose(this._toDispose);
-		this.listenersToRemove = [];
 		this.decorations.dispose();
 		this.decorations = null;
 		this.lines.dispose();
@@ -150,10 +147,10 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	}
 
 	public addEventSource(eventSource:IEventEmitter): void {
-		this.listenersToRemove.push(eventSource.addBulkListener((events:IEmitterEvent[]) => this.onEvents(events)));
+		this.listenersToRemove.push(eventSource.addBulkListener2((events:EmitterEvent[]) => this.onEvents(events)));
 	}
 
-	private onEvents(events:IEmitterEvent[]): void {
+	private onEvents(events:EmitterEvent[]): void {
 		this.deferredEmit(() => {
 
 			let hasContentChange = events.some((e) => e.getType() === editorCommon.EventType.ModelContentChanged),
@@ -165,7 +162,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 			let i:number,
 				len:number,
-				e: IEmitterEvent,
+				e: EmitterEvent,
 				data:any,
 				modelContentChangedEvent:editorCommon.IModelContentChangedEvent,
 				hadOtherModelChange = false,

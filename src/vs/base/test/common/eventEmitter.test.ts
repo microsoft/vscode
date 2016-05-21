@@ -120,7 +120,7 @@ suite('EventEmitter', () => {
 
 	test('deferred emit maintains events order for bulk listeners', function () {
 		var count = 0;
-		eventEmitter.addBulkListener(function (events) {
+		eventEmitter.addBulkListener2(function (events) {
 			assert.equal(events[0].getType(), 'eventType2');
 			assert.equal(events[1].getType(), 'eventType1');
 			count++;
@@ -134,7 +134,7 @@ suite('EventEmitter', () => {
 
 	test('emit notifies bulk listeners', function () {
 		var count = 0;
-		eventEmitter.addBulkListener(function (events) {
+		eventEmitter.addBulkListener2(function (events) {
 			count++;
 		});
 		eventEmitter.emit('eventType', {});
@@ -145,13 +145,13 @@ suite('EventEmitter', () => {
 		var emitter = new EventEmitter();
 		var eventBus = new EventEmitter();
 
-		eventBus.addEmitter(emitter, 'emitter1');
+		eventBus.addEmitter2(emitter);
 		var didCallFirst = false;
 		eventBus.addListener2('eventType', function (e) {
 			didCallFirst = true;
 		});
 		var didCallSecond = false;
-		eventBus.addListener2('eventType/emitter1', function (e) {
+		eventBus.addListener2('eventType', function (e) {
 			didCallSecond = true;
 		});
 
@@ -166,13 +166,13 @@ suite('EventEmitter', () => {
 		var emitter2 = new EventEmitter();
 		var eventBus = new EventEmitter();
 
-		eventBus.addEmitter(emitter1, 'emitter1');
-		eventBus.addEmitter(emitter2, 'emitter2');
+		eventBus.addEmitter2(emitter1);
+		eventBus.addEmitter2(emitter2);
 		eventBus.addListener2('eventType1', function (e) {
 			assert(true);
 			callCnt++;
 		});
-		eventBus.addListener2('eventType1/emitter1', function (e) {
+		eventBus.addListener2('eventType1', function (e) {
 			assert(true);
 			callCnt++;
 		});
@@ -183,7 +183,7 @@ suite('EventEmitter', () => {
 			emitter2.emit('eventType1', {});
 			assert.equal(callCnt, 0);
 		});
-		assert.equal(callCnt, 3);
+		assert.equal(callCnt, 4);
 	});
 
 	test('cascading emitters', function () {
@@ -192,9 +192,9 @@ suite('EventEmitter', () => {
 		var emitter3 = new EventEmitter();
 		var emitter4 = new EventEmitter();
 
-		emitter2.addEmitter(emitter1);
-		emitter3.addEmitter(emitter2);
-		emitter4.addEmitter(emitter3);
+		emitter2.addEmitter2(emitter1);
+		emitter3.addEmitter2(emitter2);
+		emitter4.addEmitter2(emitter3);
 
 		var didCall = false;
 		emitter4.addListener2('eventType', function (e) {

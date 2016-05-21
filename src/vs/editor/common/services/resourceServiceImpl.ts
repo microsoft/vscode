@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter, IEmitterEvent, ListenerCallback, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {EventEmitter, EmitterEvent, ListenerCallback} from 'vs/base/common/eventEmitter';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {IMirrorModel} from 'vs/editor/common/editorCommon';
 import {IResourceAddedEvent, IResourceChangedEvent, IResourceRemovedEvent, IResourceService, ResourceEvents} from 'vs/editor/common/services/resourceService';
@@ -13,7 +13,7 @@ import {IResourceAddedEvent, IResourceChangedEvent, IResourceRemovedEvent, IReso
 export class ResourceService extends EventEmitter implements IResourceService {
 	public serviceId = IResourceService;
 	private data:{[url:string]:IMirrorModel;};
-	private unbinds:{[url:string]:ListenerUnbind[];};
+	private unbinds:{[url:string]:IDisposable[];};
 
 	constructor() {
 		super();
@@ -57,7 +57,7 @@ export class ResourceService extends EventEmitter implements IResourceService {
 		var key = url.toString();
 		this.data[key] = element;
 		this.unbinds[key] = [];
-		this.unbinds[key].push(element.addBulkListener((value:IEmitterEvent[]) => {
+		this.unbinds[key].push(element.addBulkListener2((value:EmitterEvent[]) => {
 			this.emit(ResourceEvents.CHANGED, <IResourceChangedEvent>{ url: url, originalEvents: value });
 		}));
 
@@ -92,7 +92,7 @@ export class ResourceService extends EventEmitter implements IResourceService {
 			element = this.data[key];
 
 		// stop listen
-		while(this.unbinds[key].length > 0) { this.unbinds[key].pop()(); }
+		this.unbinds[key] = dispose(this.unbinds[key]);
 
 		// removal
 		delete this.unbinds[key];

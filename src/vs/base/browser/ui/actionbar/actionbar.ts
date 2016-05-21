@@ -15,7 +15,7 @@ import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actio
 import DOM = require('vs/base/browser/dom');
 import {EventType as CommonEventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
-import {IEventEmitter, EventEmitter, IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {IEventEmitter, EventEmitter, EmitterEvent} from 'vs/base/common/eventEmitter';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
@@ -48,7 +48,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this._action = action;
 
 		if (action instanceof Action) {
-			let l = (<Action>action).addBulkListener2((events: IEmitterEvent[]) => {
+			let l = (<Action>action).addBulkListener2((events: EmitterEvent[]) => {
 
 				if (!this.builder) {
 					// we have not been rendered yet, so there
@@ -56,7 +56,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 					return;
 				}
 
-				events.forEach((event: IEmitterEvent) => {
+				events.forEach((event: EmitterEvent) => {
 
 					switch (event.getType()) {
 						case Action.ENABLED:
@@ -170,7 +170,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		// implement in subclass
 	}
 
-	public _updateUnknown(event: IEmitterEvent): void {
+	public _updateUnknown(event: EmitterEvent): void {
 		// can implement in subclass
 	}
 
@@ -569,7 +569,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			this.addEmitter(item);
+			this.addEmitter2(item);
 			item.render(actionItemElement);
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {

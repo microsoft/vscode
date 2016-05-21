@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -47,7 +47,7 @@ class ModelData implements IDisposable {
 	private _markerDecorations: string[];
 	private _modelEventsListener: IDisposable;
 
-	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: IEmitterEvent[]) => void) {
+	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: EmitterEvent[]) => void) {
 		this.model = model;
 		this.isSyncedToWorkers = false;
 
@@ -493,7 +493,7 @@ export class ModelServiceImpl implements IModelService {
 		};
 	}
 
-	private _onModelEvents(modelData: ModelData, events: IEmitterEvent[]): void {
+	private _onModelEvents(modelData: ModelData, events: EmitterEvent[]): void {
 
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {

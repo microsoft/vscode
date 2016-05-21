@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {IAction, IActionProvider, isAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {EventEmitter, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as timer from 'vs/base/common/timer';
@@ -49,7 +49,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 	// --- Members logically associated to a model
 	protected model:editorCommon.IModel;
-	protected listenersToRemove:ListenerUnbind[];
+	protected listenersToRemove:IDisposable[];
 	protected hasView: boolean;
 
 	protected viewModel:ViewModel;
@@ -642,16 +642,20 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		}
 	}
 
-	public addTypingListener(character:string, callback: () => void): ListenerUnbind {
+	public addTypingListener(character:string, callback: () => void): IDisposable {
 		if (!this.cursor) {
-			return () => {
-				// no-op
+			return {
+				dispose: () => {
+					// no-op
+				}
 			};
 		}
 		this.cursor.addTypingListener(character, callback);
-		return () => {
-			if (this.cursor) {
-				this.cursor.removeTypingListener(character, callback);
+		return {
+			dispose: () => {
+				if (this.cursor) {
+					this.cursor.removeTypingListener(character, callback);
+				}
 			}
 		};
 	}
@@ -730,7 +734,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 			this._createView();
 
-			this.listenersToRemove.push(this._getViewInternalEventBus().addBulkListener((events) => {
+			this.listenersToRemove.push(this._getViewInternalEventBus().addBulkListener2((events) => {
 				for (var i = 0, len = events.length; i < len; i++) {
 					var eventType = events[i].getType();
 					var e = events[i].getData();
@@ -792,7 +796,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				}
 			}));
 
-			this.listenersToRemove.push(this.model.addBulkListener((events) => {
+			this.listenersToRemove.push(this.model.addBulkListener2((events) => {
 				for (var i = 0, len = events.length; i < len; i++) {
 					var eventType = events[i].getType();
 					var e = events[i].getData();
@@ -838,7 +842,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				return allSelections.some(s => !s.isEmpty());
 			};
 
-			this.listenersToRemove.push(this.cursor.addBulkListener((events) => {
+			this.listenersToRemove.push(this.cursor.addBulkListener2((events) => {
 				var updateHasMultipleCursors = false,
 					hasMultipleCursors = false,
 					updateHasNonEmptySelection = false,
@@ -910,10 +914,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 		this.hasView = false;
 
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.listenersToRemove = dispose(this.listenersToRemove);
 
 		if (this.cursor) {
 			this.cursor.dispose();

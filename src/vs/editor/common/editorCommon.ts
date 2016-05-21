@@ -6,7 +6,7 @@
 
 import {IAction} from 'vs/base/common/actions';
 import Event from 'vs/base/common/event';
-import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -14,6 +14,7 @@ import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} f
 import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 // --- position & range
 
@@ -3456,7 +3457,7 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @param character Character to listen to.
 	 * @param callback Function to call when `character` is typed.
 	 */
-	addTypingListener(character: string, callback: () => void): ListenerUnbind;
+	addTypingListener(character: string, callback: () => void): IDisposable;
 
 }
 
