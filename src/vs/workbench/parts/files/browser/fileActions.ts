@@ -41,7 +41,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {Position, IEditor} from 'vs/platform/editor/common/editor';
+import {Position} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
@@ -1463,15 +1463,13 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 							options.selection(selectionOfSource.startLineNumber, selectionOfSource.startColumn, selectionOfSource.endLineNumber, selectionOfSource.endColumn);
 						}
 
-						reopenPromise = this.editorService.openEditor(targetInput, options, positionsOfSource[0]).then(() => {
-							if (positionsOfSource.length > 1) {
-								return this.editorService.openEditor(targetInput, options, positionsOfSource[1]).then(() => {
-									if (positionsOfSource.length > 2) {
-										return this.editorService.openEditor(targetInput, options, positionsOfSource[2]);
-									}
-								});
-							}
-						});
+						reopenPromise = this.editorService.openEditors(positionsOfSource.map(p => {
+							return {
+								position: p,
+								input: targetInput,
+								options
+							};
+						}));
 					}
 
 					return reopenPromise;
@@ -1570,7 +1568,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 			// all saved - now try to reopen saved untitled ones
 			if (this.includeUntitled()) {
 				let untitledResults = result.results.filter((res) => res.source.scheme === 'untitled');
-				let reopenPromises: { (): TPromise<IEditor> }[] = [];
+				let reopenPromise = TPromise.as(null);
 
 				// Create a promise function for each editor open call to reopen
 				untitledResults.forEach((res) => {
@@ -1588,27 +1586,15 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, res.target, mimeOfSource, encodingOfSource);
 						let options = EditorOptions.create({ preserveFocus: true, pinned: true });
 
-						positions.forEach((position) => {
-							reopenPromises.push(() => {
-								return this.editorService.openEditor(targetInput, options, position);
-							});
-						});
+						reopenPromise = this.editorService.openEditors(positions.map(p => {
+							return {
+								position: p,
+								input: targetInput,
+								options
+							};
+						}));
 					}
 				});
-
-				// Build a promise that completes when reopen is done
-				let reopenPromise = TPromise.as(null);
-				if (reopenPromises.length) {
-					reopenPromise = reopenPromises[0]().then(() => {
-						if (reopenPromises.length > 1) {
-							return reopenPromises[1]().then(() => {
-								if (reopenPromises.length > 2) {
-									return reopenPromises[2]();
-								}
-							});
-						}
-					});
-				}
 
 				return reopenPromise;
 			}

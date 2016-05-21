@@ -15,11 +15,11 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
-import {State, TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
+import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -228,7 +228,7 @@ export class FileTracker implements IWorkbenchContribution {
 						let state = textModel.getState();
 
 						// We only ever update models that are in good saved state
-						if (state === State.SAVED) {
+						if (state === ModelState.SAVED) {
 							let lastDirtyTime = textModel.getLastDirtyTime();
 
 							// Force a reopen of the input if this change came in later than our wait interval before we consider it
@@ -459,7 +459,7 @@ export class FileTracker implements IWorkbenchContribution {
 			return false; // never dispose when attached to editor
 		}
 
-		if (textModel.getState() !== State.SAVED) {
+		if (textModel.getState() !== ModelState.SAVED) {
 			return false; // never dispose unsaved models
 		}
 
