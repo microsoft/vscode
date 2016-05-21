@@ -469,7 +469,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty([input]).then(veto => {
+		return this.handleDirty([{ group, editor: input }]).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -586,7 +586,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Check for dirty and veto
-		let editorsToClose = arrays.flatten(groups.map(group => group.getEditors()));
+		let editorsToClose = arrays.flatten(groups.map(group => group.getEditors().map(editor => { return { group, editor }; })));
 
 		return this.handleDirty(editorsToClose).then(veto => {
 			if (veto) {
@@ -611,7 +611,7 @@ export class EditorPart extends Part implements IEditorPart {
 			editorsToClose = (direction === Direction.LEFT) ? group.getEditors().slice(0, group.indexOf(except)) : group.getEditors().slice(group.indexOf(except) + 1);
 		}
 
-		return this.handleDirty(editorsToClose).then(veto => {
+		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; })).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -648,32 +648,34 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	private handleDirty(inputs: EditorInput[]): TPromise<boolean /* veto */> {
-		if (!inputs.length) {
+	private handleDirty(identifiers: IEditorIdentifier[]): TPromise<boolean /* veto */> {
+		if (!identifiers.length) {
 			return TPromise.as(false); // no veto
 		}
 
-		return this.doHandleDirty(inputs.shift()).then(veto => {
+		return this.doHandleDirty(identifiers.shift()).then(veto => {
 			if (veto) {
 				return veto;
 			}
 
-			return this.handleDirty(inputs);
+			return this.handleDirty(identifiers);
 		});
 	}
 
-	private doHandleDirty(input: EditorInput): TPromise<boolean /* veto */> {
-		if (!input || !input.isDirty()) {
+	private doHandleDirty(identifier: IEditorIdentifier): TPromise<boolean /* veto */> {
+		if (!identifier || !identifier.editor || !identifier.editor.isDirty()) {
 			return TPromise.as(false); // no veto
 		}
 
-		const res = input.confirmSave();
+		const {editor} = identifier;
+
+		const res = editor.confirmSave();
 		switch (res) {
 			case ConfirmResult.SAVE:
-				return input.save().then(ok => !ok);
+				return editor.save().then(ok => !ok);
 
 			case ConfirmResult.DONT_SAVE:
-				return input.revert().then(ok => !ok);
+				return editor.revert().then(ok => !ok);
 
 			case ConfirmResult.CANCEL:
 				return TPromise.as(true); // veto
@@ -980,7 +982,7 @@ export class EditorPart extends Part implements IEditorPart {
 			// Unpinning an editor closes the preview editor if we have any
 			let handlePreviewEditor: TPromise<boolean> = TPromise.as(false);
 			if (group.previewEditor) {
-				handlePreviewEditor = this.handleDirty([group.previewEditor]);
+				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }]);
 			}
 
 			handlePreviewEditor.done(veto => {

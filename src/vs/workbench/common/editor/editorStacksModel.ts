@@ -59,6 +59,7 @@ export interface IEditorStacksModel {
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
+	isActive(IEditorGroup): boolean;
 
 	getGroup(id: GroupIdentifier): IEditorGroup;
 
@@ -683,6 +684,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.ensureLoaded();
 
 		return this._activeGroup;
+	}
+
+	public isActive(group: EditorGroup): boolean {
+		return this.activeGroup === group;
 	}
 
 	public getGroup(id: GroupIdentifier): EditorGroup {
