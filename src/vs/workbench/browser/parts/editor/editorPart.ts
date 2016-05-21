@@ -185,8 +185,10 @@ export class EditorPart extends Part implements IEditorPart {
 			options = this.findSideOptions(input, options, position);
 		}
 
-		// Indicate we are about to load the input
-		this.sideBySideControl.setTitleLoading(position, input, !options || !options.preserveFocus);
+		// Set the title early enough
+		const pinned = options && (options.pinned || typeof options.index === 'number');
+		const inactive = options && options.preserveFocus;
+		this.sideBySideControl.setTitleLabel(position, input, pinned, !inactive);
 
 		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
@@ -841,7 +843,8 @@ export class EditorPart extends Part implements IEditorPart {
 		const editors = this.stacks.groups.map((group, index) => {
 			return {
 				input: group.activeEditor,
-				position: index
+				position: index,
+				options: group.isPinned(group.activeEditor) ? EditorOptions.create({ pinned: true }) : void 0
 			};
 		});
 

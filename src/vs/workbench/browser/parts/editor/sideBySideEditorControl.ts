@@ -83,10 +83,10 @@ export interface ISideBySideEditorControl {
 	layout(position: Position): void;
 
 	recreateTitleArea(states: ITitleAreaState[]): void;
-	setTitleLoading(position: Position, input: EditorInput, isActive?: boolean): void;
 	updateTitleArea(state: ITitleAreaState): void;
 	updateTitleArea(input: EditorInput): void;
 	clearTitleArea(position: Position): void;
+	setTitleLabel(position: Position, input: EditorInput, isPinned: boolean, isActive: boolean): void;
 
 	arrangeGroups(arrangement: GroupArrangement): void;
 
@@ -1275,15 +1275,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private setTitle(position: Position, input: EditorInput, primaryActions: IAction[], secondaryActions: IAction[], isPinned: boolean, isActive: boolean, isOverflowing: boolean): void {
 
-		// Pinned state
-		if (isPinned) {
-			this.titleContainer[position].addClass('pinned');
-		} else {
-			this.titleContainer[position].removeClass('pinned');
-		}
-
 		// Editor Title (Status + Label + Description)
-		this.setTitleLabel(position, input, isActive);
+		this.setTitleLabel(position, input, isPinned, isActive);
 
 		// Support split editor action if visible editor count is < 3 and editor supports it
 		if (isActive && this.getVisibleEditorCount() < 3 && this.lastActiveEditor.supportsSplitEditor()) {
@@ -1312,11 +1305,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.closeEditorActions[position].class = input.isDirty() ? 'close-editor-dirty-action' : 'close-editor-action';
 	}
 
-	public setTitleLoading(position: Position, input: EditorInput, isActive?: boolean): void {
-		this.setTitleLabel(position, input, isActive);
-	}
+	public setTitleLabel(position: Position, input: EditorInput, isPinned: boolean, isActive: boolean): void {
 
-	private setTitleLabel(position: Position, input: EditorInput, isActive?: boolean): void {
+		// Pinned state
+		if (isPinned) {
+			this.titleContainer[position].addClass('pinned');
+		} else {
+			this.titleContainer[position].removeClass('pinned');
+		}
 
 		// Activity state
 		if (isActive) {
