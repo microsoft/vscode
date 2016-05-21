@@ -500,7 +500,10 @@
 						</dict>
 					</array>
 					<key>while</key>
-					<string>(^|\G)(?!\s*$|#|[ ]{0,3}([-*_][ ]{2,}){3,}[ \t]*$\n?|\s*\[.+?\]:|&gt;)</string>
+					<!-- seperator    [ ]{0,3}([-*_][ ]{0,2}\2){2,}[ \t]*$\n? -->
+					<!-- list         [ ]{0,3}[*+-]([ ]{1,3}|\t) -->
+					<!-- both are folded together in the expression below -->
+					<string>(^|\G)(?!\s*$|#|[ ]{0,3}((([-*_][ ]{0,2}\2){2,}[ \t]*$\n?)|([*+-]([ ]{1,3}|\t)))|\s*\[.+?\]:|&gt;)</string>
 				</dict>
 				<key>raw_block</key>
 				<dict>
@@ -1179,7 +1182,7 @@
 																			# Raw
 									  | \\[\\`*_{}\[\]()#.!+\-&gt;]?+			# Escapes
 									  | \[
-										(				
+										(
 										        (?&lt;square&gt;					# Named group
 													[^\[\]\\]				# Match most chars
 										          | \\.						# Escaped chars
@@ -1392,7 +1395,7 @@
 					<key>match</key>
 					<string>(?x:
 						\!							# Images start with !
-						(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])	
+						(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
 													# Match the link text.
 						([ ])?						# Space not allowed
 						(\()						# Opening paren for url
@@ -1460,7 +1463,7 @@
 																			# Raw
 									  | \\[\\`*_{}\[\]()#.!+\-&gt;]?+			# Escapes
 									  | \[
-										(				
+										(
 										        (?&lt;square&gt;					# Named group
 													[^\[\]\\]				# Match most chars
 										          | \\.						# Escaped chars
@@ -1704,7 +1707,7 @@
 					</dict>
 					<key>match</key>
 					<string>(?x:
-						(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])	
+						(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
 													# Match the link text.
 						([ ])?						# Space not allowed
 						(\()						# Opening paren for url
