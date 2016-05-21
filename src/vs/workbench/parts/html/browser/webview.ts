@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {addDisposableListener, addClass} from 'vs/base/browser/dom';
-import {isLightTheme} from 'vs/platform/theme/common/themes';
+import {isLightTheme, isDarkTheme} from 'vs/platform/theme/common/themes';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 declare interface WebviewElement extends HTMLElement {
@@ -117,7 +117,7 @@ export default class Webview {
 	style(themeId: string): void {
 		const {color, backgroundColor, fontFamily, fontSize} = window.getComputedStyle(this._styleElement);
 
-		let value = `
+		let autoThemeRules = `
 		:root {
 			--background-color: ${backgroundColor};
 			--color: ${color};
@@ -125,11 +125,23 @@ export default class Webview {
 			--font-size: ${fontSize};
 		}
 		body {
-			margin: 0;
 			background-color: var(--background-color);
 			color: var(--color);
 			font-family: var(--font-family);
 			font-size: var(--font-size);
+		}`;
+
+		// let autoThemeRules = `
+		// * {
+		// 	color: ${color};
+		// 	background-color: ${backgroundColor};
+		// 	font-family: ${fontFamily};
+		// 	font-size: ${fontSize};
+		// }`;
+
+		let value = `
+		body {
+			margin: 0;
 		}
 		img {
 			max-width: 100%;
@@ -145,29 +157,55 @@ export default class Webview {
 		::-webkit-scrollbar {
 			width: 14px;
 			height: 10px;
-		}
-		::-webkit-scrollbar-thumb:hover {
-			background-color: rgba(100, 100, 100, 0.7);
 		}`;
+
+		let bodyClasses = {
+			remove: ['monaco-editor', 'vs', 'vs-dark', 'hc-black']
+		};
 
 		if (isLightTheme(themeId)) {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(100, 100, 100, 0.4);
 			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(100, 100, 100, 0.7);
+			}
 			::-webkit-scrollbar-thumb:active {
 				background-color: rgba(0, 0, 0, 0.6);
 			}`;
-		} else {
+
+			bodyClasses['add'] = 'monaco-editor vs';
+
+		} else if (isDarkTheme(themeId)){
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(121, 121, 121, 0.4);
 			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(100, 100, 100, 0.7);
+			}
 			::-webkit-scrollbar-thumb:active {
 				background-color: rgba(85, 85, 85, 0.8);
 			}`;
+
+			bodyClasses['add'] = 'monaco-editor vs-dark';
+
+		} else {
+			value += `
+			::-webkit-scrollbar-thumb {
+				background-color: rgba(111, 195, 223, 0.3);
+		  	}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: rgba(111, 195, 223, 0.8);
+			}
+			::-webkit-scrollbar-thumb:active {
+				background-color: rgba(111, 195, 223, 0.8);
+			}`;
+
+			bodyClasses['add'] = 'monaco-editor hc-black';
 		}
 
-		this._send('styles', value);
+		this._send('styles', value, bodyClasses, autoThemeRules);
 	}
 }
