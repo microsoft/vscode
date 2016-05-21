@@ -54,6 +54,8 @@ define([
 
 	'vs/workbench/parts/output/browser/output.contribution',
 
+	'vs/workbench/parts/terminal/electron-browser/terminal.contribution',
+
 	'vs/workbench/parts/markdown/browser/markdown.contribution',
 	'vs/workbench/parts/markdown/browser/markdownActions.contribution',
 
@@ -70,13 +72,11 @@ define([
 
 	'vs/workbench/parts/contentprovider/common/contentprovider.contribution',
 
-	'vs/workbench/parts/telemetry/node/appInsights.telemetry.contribution',
-
 	'vs/workbench/parts/themes/electron-browser/themes.contribution',
 
 	'vs/workbench/parts/feedback/electron-browser/feedback.contribution',
 
-	'vs/workbench/parts/gettingStarted/electron-browser/electronGettingStarted.contribution',
+	'vs/workbench/parts/welcome/electron-browser/electronGettingStarted.contribution',
 
 	'vs/workbench/parts/update/electron-browser/update.contribution',
 

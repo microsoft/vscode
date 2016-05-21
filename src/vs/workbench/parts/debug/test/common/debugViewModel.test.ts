@@ -5,7 +5,7 @@
 
 import assert = require('assert');
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
-import { StackFrame, Expression } from 'vs/workbench/parts/debug/common/debugModel';
+import { StackFrame, Expression, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 
 suite('Debug - View Model', () => {
 	var model: ViewModel;
@@ -22,7 +22,7 @@ suite('Debug - View Model', () => {
 		assert.equal(model.getFocusedStackFrame(), null);
 		assert.equal(model.getFocusedThreadId(), 0);
 		const frame = new StackFrame(1, 1, null, 'app.js', 1, 1);
-		model.setFocusedStackFrame(frame);
+		model.setFocusedStackFrame(frame, new Thread('myThread', 1));
 
 		assert.equal(model.getFocusedStackFrame(), frame);
 		assert.equal(model.getFocusedThreadId(), 1);

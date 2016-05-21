@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .integrated-terminal {
+	align-items: flex-end;
+	display: flex;
+}
+
+.monaco-workbench .integrated-terminal {
+	background-color: transparent!important;
+	color: #333;
+	-webkit-user-select: initial;
+	overflow: hidden; /* prevents the terminal output being incorrectly placed over the title */
+	padding: 0 20px;
+}
+
+.monaco-workbench .integrated-terminal .terminal {
+	background-color: transparent!important;
+}
+
+.monaco-workbench .integrated-terminal .terminal span {
+	display: inline-block; /* make terminal characters cover height of line */
+}
+
+.monaco-workbench .integrated-terminal .terminal-cursor {
+	background-color: #333;
+}
+
+.monaco-workbench .integrated-terminal .reverse-video {
+	color: #1e1e1e;
+}
+
+.vs-dark .monaco-workbench .integrated-terminal {
+	color: #CCC;
+}
+
+.vs-dark .monaco-workbench .integrated-terminal .terminal-cursor {
+	background-color: #CCC;
+}
+
+.vs-dark .monaco-workbench .integrated-terminal .reverse-video {
+	color: #CCC;
+}
+
+/* High Contrast Theming */
+
+.hc-black .monaco-workbench .integrated-terminal {
+	color: #FFF;
+}
+
+.hc-black .monaco-workbench .integrated-terminal .terminal-cursor {
+	background-color: #FFF;
+}
+
+.hc-black .monaco-workbench .integrated-terminal .reverse-video {
+	color: #FFF;
+}

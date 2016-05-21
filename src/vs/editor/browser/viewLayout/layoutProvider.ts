@@ -267,7 +267,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getTotalHeight(): number {
 		var reserveHorizontalScrollbarHeight = 0;
 		if (this.scrollManager.getScrollWidth() > this.scrollManager.getWidth()) {
-			reserveHorizontalScrollbarHeight = this.configuration.editor.scrollbar.horizontalScrollbarSize;
+			reserveHorizontalScrollbarHeight = this.configuration.editor.viewInfo.scrollbar.horizontalScrollbarSize;
 		}
 		return this.linesLayout.getTotalHeight(this.getCurrentViewport(), reserveHorizontalScrollbarHeight);
 	}

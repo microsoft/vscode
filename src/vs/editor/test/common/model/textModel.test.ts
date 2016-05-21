@@ -435,12 +435,36 @@ suite('Editor Model - TextModel', () => {
 		], 'mixed whitespace 2');
 	});
 
+	test('validatePosition', () => {
+
+		var m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
+
+		assert.deepEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
+
+		assert.deepEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
+		assert.deepEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
+		assert.deepEqual(m.validatePosition(new Position(1, 30)), new Position(1, 9));
+
+		assert.deepEqual(m.validatePosition(new Position(2, 0)), new Position(2, 1));
+		assert.deepEqual(m.validatePosition(new Position(2, 1)), new Position(2, 1));
+		assert.deepEqual(m.validatePosition(new Position(2, 2)), new Position(2, 2));
+		assert.deepEqual(m.validatePosition(new Position(2, 30)), new Position(2, 9));
+
+		assert.deepEqual(m.validatePosition(new Position(3, 0)), new Position(2, 9));
+		assert.deepEqual(m.validatePosition(new Position(3, 1)), new Position(2, 9));
+		assert.deepEqual(m.validatePosition(new Position(3, 30)), new Position(2, 9));
+
+		assert.deepEqual(m.validatePosition(new Position(30, 30)), new Position(2, 9));
+
+	});
+
 	test('modifyPosition', () => {
 
 		var m = new TextModel([], TextModel.toRawText('line one\nline two', TextModel.DEFAULT_CREATION_OPTIONS));
 		assert.deepEqual(m.modifyPosition(new Position(1,1), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(0,0), 0), new Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 1));
+		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
 
 		assert.deepEqual(m.modifyPosition(new Position(1,1), 17), new Position(2, 9));
 		assert.deepEqual(m.modifyPosition(new Position(1,1), 1), new Position(1, 2));

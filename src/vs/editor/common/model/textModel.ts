@@ -11,18 +11,21 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
-import {DEFAULT_INDENTATION, DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
 
 var LIMIT_FIND_COUNT = 999;
+export const LONG_LINE_BOUNDARY = 1000;
 
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
+	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
+	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 
 	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
 		tabSize: DEFAULT_INDENTATION.tabSize,
 		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
 		detectIndentation: false,
-		trimAutoWhitespace: DefaultConfig.editor.trimAutoWhitespace,
-		defaultEOL: editorCommon.DefaultEndOfLine.LF
+		defaultEOL: editorCommon.DefaultEndOfLine.LF,
+		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
 	};
 
 	_lines:ModelLine[];
@@ -38,15 +41,29 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _alternativeVersionId: number;
 	private _BOM:string;
 
+	private _shouldSimplifyMode: boolean;
+	private _shouldDenyMode: boolean;
+
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText) {
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged, editorCommon.EventType.ModelOptionsChanged);
 		super(allowedEventTypes);
+
+		this._shouldSimplifyMode = (rawText.length > TextModel.MODEL_SYNC_LIMIT);
+		this._shouldDenyMode = (rawText.length > TextModel.MODEL_TOKENIZATION_LIMIT);
 
 		this._options = rawText.options;
 		this._constructLines(rawText);
 		this._setVersionId(1);
 		this._isDisposed = false;
 		this._isDisposing = false;
+	}
+
+	public isTooLargeForHavingAMode(): boolean {
+		return this._shouldDenyMode;
+	}
+
+	public isTooLargeForHavingARichMode(): boolean {
+		return this._shouldSimplifyMode;
 	}
 
 	public getOptions(): editorCommon.ITextModelResolvedOptions {
@@ -382,7 +399,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	public isDominatedByLongLines(longLineBoundary:number): boolean {
+	public isDominatedByLongLines(): boolean {
 		var smallLineCharCount = 0,
 			longLineCharCount = 0,
 			i: number,
@@ -392,7 +409,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		for (i = 0, len = this._lines.length; i < len; i++) {
 			lineLength = lines[i].text.length;
-			if (lineLength >= longLineBoundary) {
+			if (lineLength >= LONG_LINE_BOUNDARY) {
 				longLineCharCount += lineLength;
 			} else {
 				smallLineCharCount += lineLength;
@@ -501,17 +518,20 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		if (lineNumber < 1) {
 			lineNumber = 1;
-		}
-		if (lineNumber > this._lines.length) {
-			lineNumber = this._lines.length;
-		}
-
-		if (column < 1) {
 			column = 1;
 		}
-		var maxColumn = this.getLineMaxColumn(lineNumber);
-		if (column > maxColumn) {
-			column = maxColumn;
+		else if (lineNumber > this._lines.length) {
+			lineNumber = this._lines.length;
+			column = this.getLineMaxColumn(lineNumber);
+		}
+		else {
+			var maxColumn = this.getLineMaxColumn(lineNumber);
+			if (column < 1) {
+				column = 1;
+			}
+			else if (column > maxColumn) {
+				column = maxColumn;
+			}
 		}
 
 		return new Position(lineNumber, column);

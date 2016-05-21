@@ -671,7 +671,7 @@ exports.data ={
 				"browsers": "E13,C,O15,S6"
 			},
 			{
-				"name": "::-webkit-ouer-spin-button",
+				"name": "::-webkit-outer-spin-button",
 				"browsers": "C,O,S6"
 			},
 			{

@@ -10,7 +10,7 @@ import {Disposables} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import {Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent} from 'vs/base/browser/ui/sash/sash';
-import {EventType, IEditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {EventType, EditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
@@ -33,7 +33,7 @@ var defaultOptions: IOptions = {
 
 var WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
-class ViewZoneDelegate implements IViewZone {
+export class ViewZoneDelegate implements IViewZone {
 
 	public domNode: HTMLElement;
 	public id: number;
@@ -65,7 +65,7 @@ class ViewZoneDelegate implements IViewZone {
 	}
 }
 
-class OverlayWidgetDelegate implements IOverlayWidget {
+export class OverlayWidgetDelegate implements IOverlayWidget {
 
 	private _id: string;
 	private _domNode: HTMLElement;
@@ -89,12 +89,12 @@ class OverlayWidgetDelegate implements IOverlayWidget {
 
 }
 
-export class ZoneWidget implements IHorizontalSashLayoutProvider {
+export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
-	private _viewZone: ViewZoneDelegate = null;
-	private _overlayWidget: OverlayWidgetDelegate = null;
-	private _resizeSash: Sash;
-	private _disposables = new Disposables();
+	protected _viewZone: ViewZoneDelegate = null;
+	protected _overlayWidget: OverlayWidgetDelegate = null;
+	protected _resizeSash: Sash;
+	protected _disposables = new Disposables();
 
 	public container: HTMLElement = null;
 	public domNode: HTMLElement;
@@ -111,10 +111,10 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this.domNode.setAttribute('role', 'presentation');
 		}
 
-		this._disposables.add(this.editor.addListener2(EventType.EditorLayout, (info: IEditorLayoutInfo) => {
+		this._disposables.add(this.editor.addListener2(EventType.EditorLayout, (info: EditorLayoutInfo) => {
 			var width = this._getWidth(info);
 			this.domNode.style.width = width + 'px';
-			this.onWidth(width);
+			this._onWidth(width);
 		}));
 	}
 
@@ -126,12 +126,12 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this.container = document.createElement('div');
 		dom.addClass(this.container, 'zone-widget-container');
 		this.domNode.appendChild(this.container);
-		this.fillContainer(this.container);
+		this._fillContainer(this.container);
 
 		this._initSash();
 	}
 
-	private _getWidth(info: IEditorLayoutInfo = this.editor.getLayoutInfo()): number {
+	private _getWidth(info: EditorLayoutInfo = this.editor.getLayoutInfo()): number {
 		return info.width - info.verticalScrollbarWidth;
 	}
 
@@ -144,7 +144,7 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		let containerHeight = height - this._decoratingElementsHeight();
 		this.container.style.height = `${containerHeight}px`;
-		this.doLayout(containerHeight, this._getWidth());
+		this._doLayout(containerHeight, this._getWidth());
 
 		this._resizeSash.layout();
 	}
@@ -248,7 +248,7 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this.container.style.overflow = 'hidden';
 
 
-		this.doLayout(containerHeight, width);
+		this._doLayout(containerHeight, width);
 
 		this.editor.setSelection(where);
 
@@ -276,15 +276,13 @@ export class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 	}
 
-	public fillContainer(container: HTMLElement): void {
+	protected abstract _fillContainer(container: HTMLElement): void;
+
+	protected _onWidth(widthInPixel: number): void {
 		// implement in subclass
 	}
 
-	public onWidth(widthInPixel: number): void {
-		// implement in subclass
-	}
-
-	public doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
 		// implement in subclass
 	}
 

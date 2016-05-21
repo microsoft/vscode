@@ -6,13 +6,13 @@
 
 import 'vs/css!./media/scrollbars';
 
+import * as Browser from 'vs/base/browser/browser';
 import * as DomUtils from 'vs/base/browser/dom';
 import * as Platform from 'vs/base/common/platform';
 import {StandardMouseWheelEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
-import {ScrollableElementCreationOptions, ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import {visibilityFromString} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
+import {ScrollbarVisibility, ScrollableElementCreationOptions, ScrollableElementChangeOptions, ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Scrollable, ScrollEvent, INewScrollState} from 'vs/base/common/scrollable';
 import {Widget} from 'vs/base/browser/ui/widget';
@@ -181,12 +181,18 @@ export class ScrollableElement extends Widget {
 	 * Really this is Editor.IEditorScrollbarOptions, but base shouldn't
 	 * depend on Editor.
 	 */
-	public updateOptions(newOptions: ScrollableElementCreationOptions): void {
-		// only support handleMouseWheel changes for now
+	public updateOptions(newOptions: ScrollableElementChangeOptions): void {
 		let massagedOptions = resolveOptions(newOptions);
 		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
 		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
+
+		this._shouldRender = this._horizontalScrollbar.setCanUseTranslate3d(massagedOptions.canUseTranslate3d) || this._shouldRender;
+		this._shouldRender = this._verticalScrollbar.setCanUseTranslate3d(massagedOptions.canUseTranslate3d) || this._shouldRender;
+
+		if (!this._options.lazyRender) {
+			this._render();
+		}
 	}
 
 	// -------------------- mouse wheel scrolling --------------------
@@ -400,7 +406,7 @@ export class DomScrollableElement extends ScrollableElement {
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
 	let result: ScrollableElementResolvedOptions = {
-		forbidTranslate3dUse: (typeof opts.forbidTranslate3dUse !== 'undefined' ? opts.forbidTranslate3dUse : false),
+		canUseTranslate3d: opts.canUseTranslate3d && Browser.canUseTranslate3d,
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
@@ -411,12 +417,12 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 
 		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),
 
-		horizontal: visibilityFromString(typeof opts.horizontal !== 'undefined' ? opts.horizontal : 'auto'),
+		horizontal: (typeof opts.horizontal !== 'undefined' ? opts.horizontal : ScrollbarVisibility.Auto),
 		horizontalScrollbarSize: (typeof opts.horizontalScrollbarSize !== 'undefined' ? opts.horizontalScrollbarSize : 10),
 		horizontalSliderSize: (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : 0),
 		horizontalHasArrows: (typeof opts.horizontalHasArrows !== 'undefined' ? opts.horizontalHasArrows : false),
 
-		vertical: visibilityFromString(typeof opts.vertical !== 'undefined' ? opts.vertical : 'auto'),
+		vertical: (typeof opts.vertical !== 'undefined' ? opts.vertical : ScrollbarVisibility.Auto),
 		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : 10),
 		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
 		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),

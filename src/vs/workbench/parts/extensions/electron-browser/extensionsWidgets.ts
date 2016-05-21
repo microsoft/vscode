@@ -15,9 +15,9 @@ import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IExtensionService, IMessage } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsService, ExtensionsLabel, ExtensionsChannelId, IExtension, IExtensionManifest } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionManagementService, IExtensionGalleryService, ExtensionsLabel, ExtensionsChannelId, IExtension, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { getOutdatedExtensions } from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import { getOutdatedExtensions } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface IState {
@@ -47,7 +47,8 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 	constructor(
 		@IExtensionService private extensionService: IExtensionService,
 		@IOutputService private outputService: IOutputService,
-		@IExtensionsService protected extensionsService: IExtensionsService,
+		@IExtensionManagementService protected extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService protected extensionGalleryService: IExtensionGalleryService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
 		@ITelemetryService protected telemetrService: ITelemetryService
@@ -62,9 +63,9 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 		this.checkOutdated();
 
 		const disposables = [];
-		this.extensionsService.onInstallExtension(this.onInstallExtension, this, disposables);
-		this.extensionsService.onDidInstallExtension(this.onDidInstallExtension, this, disposables);
-		this.extensionsService.onDidUninstallExtension(this.onDidUninstallExtension, this, disposables);
+		this.extensionManagementService.onInstallExtension(this.onInstallExtension, this, disposables);
+		this.extensionManagementService.onDidInstallExtension(this.onDidInstallExtension, this, disposables);
+		this.extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, disposables);
 
 		return combinedDisposable(disposables);
 	}
@@ -113,7 +114,7 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 	}
 
 	private showErrors(errors: IMessage[]): void {
-		const promise = onUnexpectedPromiseError(this.extensionsService.getInstalled());
+		const promise = onUnexpectedPromiseError(this.extensionManagementService.getInstalled());
 		promise.done(installed => {
 			errors.forEach(m => {
 				const extension = installed.filter(ext => ext.path === m.source).pop();
@@ -157,7 +158,7 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 	}
 
 	private checkOutdated(): TPromise<void> {
-		return this.instantiationService.invokeFunction(getOutdatedExtensions)
+		return getOutdatedExtensions(this.extensionManagementService, this.extensionGalleryService)
 			.then(null, _ => []) // ignore errors
 			.then(outdated => {
 				this.updateState({ outdated });

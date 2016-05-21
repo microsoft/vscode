@@ -123,7 +123,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			return;
 		}
 
-		let url = model.getAssociatedResource().toString();
+		let url = model.uri.toString();
 		if (!INTERESTING_FILE.test(url)) {
 			return;
 		}
@@ -479,7 +479,7 @@ function isInterestingEditorModel(editor:editorCommon.ICommonCodeEditor): boolea
 	if (!model) {
 		return false;
 	}
-	let url = model.getAssociatedResource().toString();
+	let url = model.uri.toString();
 	return INTERESTING_FILE.test(url);
 }
 

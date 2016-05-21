@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Browser from 'vs/base/browser/browser';
 import * as Platform from 'vs/base/common/platform';
 import * as DomUtils from 'vs/base/browser/dom';
 import {IMouseEvent, StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
@@ -13,8 +12,9 @@ import {Widget} from 'vs/base/browser/ui/widget';
 import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ScrollbarArrow, ScrollbarArrowOptions} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import {Visibility, ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
+import {ScrollbarVisibilityController} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 import {Scrollable} from 'vs/base/common/scrollable';
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -34,18 +34,18 @@ export interface ScrollbarHost {
 }
 
 export interface AbstractScrollbarOptions {
-	forbidTranslate3dUse: boolean;
+	canUseTranslate3d: boolean;
 	lazyRender:boolean;
 	host: ScrollbarHost;
 	scrollbarState: ScrollbarState;
-	visibility: Visibility;
+	visibility: ScrollbarVisibility;
 	extraScrollbarClassName: string;
 	scrollable: Scrollable;
 }
 
 export abstract class AbstractScrollbar extends Widget {
 
-	protected _forbidTranslate3dUse: boolean;
+	protected _canUseTranslate3d: boolean;
 	protected _host: ScrollbarHost;
 	protected _scrollable: Scrollable;
 	private _lazyRender: boolean;
@@ -60,7 +60,7 @@ export abstract class AbstractScrollbar extends Widget {
 
 	constructor(opts:AbstractScrollbarOptions) {
 		super();
-		this._forbidTranslate3dUse = opts.forbidTranslate3dUse;
+		this._canUseTranslate3d = opts.canUseTranslate3d;
 		this._lazyRender = opts.lazyRender;
 		this._host = opts.host;
 		this._scrollable = opts.scrollable;
@@ -69,10 +69,6 @@ export abstract class AbstractScrollbar extends Widget {
 		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		this._shouldRender = true;
 		this.domNode = createFastDomNode(document.createElement('div'));
-		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
-			// Put the scrollbar in its own layer
-			this.domNode.setTransform('translate3d(0px, 0px, 0px)');
-		}
 
 		this._visibilityController.setDomNode(this.domNode);
 		this.domNode.setPosition('absolute');
@@ -109,6 +105,11 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	// ----------------- Update state
+
+	public setCanUseTranslate3d(canUseTranslate3d: boolean): boolean {
+		this._canUseTranslate3d = canUseTranslate3d;
+		return true;
+	}
 
 	protected _onElementSize(visibleSize: number): boolean {
 		if (this._scrollbarState.setVisibleSize(visibleSize)) {
@@ -158,6 +159,13 @@ export abstract class AbstractScrollbar extends Widget {
 			return;
 		}
 		this._shouldRender = false;
+
+		if (this._canUseTranslate3d) {
+			// Put the scrollbar in its own layer
+			this.domNode.setTransform('translate3d(0px, 0px, 0px)');
+		} else {
+			this.domNode.setTransform('');
+		}
 
 		this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());
 		this._updateSlider(this._scrollbarState.getSliderSize(), this._scrollbarState.getArrowSize() + this._scrollbarState.getSliderPosition());

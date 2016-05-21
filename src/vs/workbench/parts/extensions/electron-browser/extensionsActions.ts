@@ -12,8 +12,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-import { IExtensionsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
-import { extensionEquals, getTelemetryData } from 'vs/workbench/parts/extensions/common/extensionsUtil';
+import { IExtensionManagementService, IExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { extensionEquals, getTelemetryData } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 const CloseAction = new Action('action.close', nls.localize('close', "Close"));
@@ -26,7 +26,7 @@ export class ListExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IExtensionsService private extensionsService: IExtensionsService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label, null, true);
@@ -49,7 +49,7 @@ export class InstallExtensionAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IExtensionsService private extensionsService: IExtensionsService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label, null, true);
@@ -72,7 +72,7 @@ export class ListOutdatedExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IExtensionsService private extensionsService: IExtensionsService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label, null, true);
@@ -95,7 +95,7 @@ export class ListSuggestedExtensionsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IExtensionsService private extensionsService: IExtensionsService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label, null, true);
@@ -115,7 +115,7 @@ export class InstallAction extends Action {
 	constructor(
 		label: string,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@IExtensionsService protected extensionsService: IExtensionsService,
+		@IExtensionManagementService protected extensionManagementService: IExtensionManagementService,
 		@IMessageService protected messageService: IMessageService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -126,10 +126,10 @@ export class InstallAction extends Action {
 	public run(extension: IExtension): TPromise<any> {
 		this.enabled = false;
 
-		return this.extensionsService.getInstalled()
+		return this.extensionManagementService.getInstalled()
 			.then(installed => installed.some(e => extensionEquals(e, extension)))
 			.then(isUpdate => {
-				return this.extensionsService
+				return this.extensionManagementService
 					.install(extension)
 					.then(() => this.onSuccess(extension, isUpdate), err => this.onError(err, extension, isUpdate))
 					.then(() => this.enabled = true)
@@ -165,7 +165,7 @@ export class UninstallAction extends Action {
 
 	constructor(
 		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@IExtensionsService protected extensionsService: IExtensionsService,
+		@IExtensionManagementService protected extensionManagementService: IExtensionManagementService,
 		@IMessageService protected messageService: IMessageService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -180,14 +180,14 @@ export class UninstallAction extends Action {
 
 		this.enabled = false;
 
-		return this.extensionsService.getInstalled().then(localExtensions => {
+		return this.extensionManagementService.getInstalled().then(localExtensions => {
 			const [local] = localExtensions.filter(local => extensionEquals(local, extension));
 
 			if (!local) {
 				return TPromise.wrapError(nls.localize('notFound', "Extension '{0}' not installed.", extension.displayName));
 			}
 
-			return this.extensionsService.uninstall(local)
+			return this.extensionManagementService.uninstall(local)
 				.then(() => this.onSuccess(local), err => this.onError(err, local))
 				.then(() => this.enabled = true)
 				.then(() => null);

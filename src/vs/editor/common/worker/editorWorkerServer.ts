@@ -21,8 +21,7 @@ import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IRequestService} from 'vs/platform/request/common/request';
-import {RemoteTelemetryService} from 'vs/platform/telemetry/common/remoteTelemetryService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
@@ -101,11 +100,10 @@ export class EditorWorkerServer {
 		const contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
 		this.threadService.setInstantiationService(new InstantiationService(new ServiceCollection([IThreadService, this.threadService])));
-		const telemetryServiceInstance = new RemoteTelemetryService('workerTelemetry', this.threadService);
 		const resourceService = new ResourceService();
 		const markerService = new SecondaryMarkerService(this.threadService);
 		const modeService = new ModeServiceImpl(this.threadService, extensionService);
-		const requestService = new BaseRequestService(contextService, telemetryServiceInstance);
+		const requestService = new BaseRequestService(contextService, NullTelemetryService);
 
 		services.set(IExtensionService, extensionService);
 		services.set(IThreadService, this.threadService);
@@ -114,7 +112,6 @@ export class EditorWorkerServer {
 		services.set(IEventService, new EventService());
 		services.set(IResourceService, resourceService);
 		services.set(IMarkerService, markerService);
-		services.set(ITelemetryService, telemetryServiceInstance);
 		services.set(IRequestService, requestService);
 
 		const instantiationService = new InstantiationService(services);

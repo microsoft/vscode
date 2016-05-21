@@ -207,15 +207,15 @@ class CSSBasedConfiguration extends Disposable {
 			maxDigitWidth = Math.max(maxDigitWidth, digits[i].width);
 		}
 
-		return new FontInfo(
-			bareFontInfo.fontFamily,
-			bareFontInfo.fontSize,
-			bareFontInfo.lineHeight,
-			typicalHalfwidthCharacter.width,
-			typicalFullwidthCharacter.width,
-			space.width,
-			maxDigitWidth
-		);
+		return new FontInfo({
+			fontFamily: bareFontInfo.fontFamily,
+			fontSize: bareFontInfo.fontSize,
+			lineHeight: bareFontInfo.lineHeight,
+			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
+			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
+			spaceWidth: space.width,
+			maxDigitWidth: maxDigitWidth
+		});
 	}
 }
 
@@ -241,6 +241,8 @@ export class Configuration extends CommonEditorConfiguration {
 		if (this._configWithDefaults.getEditorOptions().automaticLayout) {
 			this._elementSizeObserver.startObserving();
 		}
+
+		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 	}
 
 	private _onReferenceDomElementSizeChanged(): void {
@@ -285,6 +287,10 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected getOuterHeight(): number {
 		return this._elementSizeObserver.getHeight();
+	}
+
+	protected _getCanUseTranslate3d(): boolean {
+		return browser.canUseTranslate3d && browser.getZoomLevel() === 0;
 	}
 
 	protected readConfiguration(bareFontInfo:BareFontInfo): FontInfo {

@@ -12,7 +12,7 @@ import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
-import pkg from 'vs/code/node/package';
+import pkg from 'vs/platform/package';
 import { EventEmitter } from 'events';
 import { IStorageService } from 'vs/code/electron-main/storage';
 import { IPath, VSCodeWindow, ReadyState, IWindowConfiguration, IWindowState as ISingleWindowState, defaultWindowState } from 'vs/code/electron-main/window';
@@ -788,10 +788,6 @@ export class WindowsManager implements IWindowsService {
 		// Clear those dupes
 		files = arrays.distinct(files);
 		folders = arrays.distinct(folders);
-
-		if (platform.isMacintosh && files.length > 0) {
-			files = files.filter(f => folders.indexOf(f) < 0); // TODO@Ben migration (remove in the future)
-		}
 
 		// Make sure it is bounded
 		files = files.slice(0, 10);

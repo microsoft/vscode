@@ -19,35 +19,29 @@ suite('Browsers', () => {
 		var isChrome = browser.isChrome;
 		var isSafari = browser.isSafari;
 
-		var canPushState = browser.canPushState();
 		var hasCSSAnimations = browser.hasCSSAnimationSupport();
 
 		var browserCount = 0;
 		if (isOpera) {
 			browserCount++;
-			assert(canPushState);
 		}
 		if (isIE11orEarlier) {
 			browserCount++;
 		}
 		if (isFirefox) {
 			browserCount++;
-			assert(canPushState);
 			assert(hasCSSAnimations);
 		}
 		if (isWebKit) {
 			browserCount++;
-			assert(canPushState);
 			assert(hasCSSAnimations);
 		}
 		if (isChrome) {
 			browserCount++;
-			assert(canPushState);
 			assert(hasCSSAnimations);
 		}
 		if (isSafari) {
 			browserCount++;
-			assert(canPushState);
 			assert(hasCSSAnimations);
 		}
 	});

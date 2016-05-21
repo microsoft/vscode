@@ -13,8 +13,8 @@ import languageService = require('vs/languages/css/common/services/cssLanguageSe
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
 import occurrences = require('./services/occurrences');
 import cssIntellisense = require('vs/languages/css/common/services/intelliSense');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import editorCommon = require('vs/editor/common/editorCommon');
+import modes = require('vs/editor/common/modes');
 import nodes = require('vs/languages/css/common/parser/cssNodes');
 import _level = require('vs/languages/css/common/level');
 import parser = require('vs/languages/css/common/parser/cssParser');
@@ -23,6 +23,7 @@ import lint = require('vs/languages/css/common/services/lint');
 import lintRules = require('vs/languages/css/common/services/lintRules');
 import {IMarker, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
+import {Range} from 'vs/editor/common/core/range';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
@@ -58,7 +59,7 @@ export class CSSWorker {
 		this.validationEnabled = true;
 	}
 
-	public navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, range:editorCommon.IRange, up:boolean):winjs.TPromise<modes.IInplaceReplaceSupportResult> {
 		return this.languageService.join().then(() => {
 
 			let model = this.resourceService.get(resource);
@@ -98,7 +99,7 @@ export class CSSWorker {
 							nextIdx = len - 1;
 						}
 					}
-					let result:Modes.IInplaceReplaceSupportResult = {
+					let result:modes.IInplaceReplaceSupportResult = {
 						value: values[nextIdx],
 						range: this._range(node, model)
 					};
@@ -107,7 +108,7 @@ export class CSSWorker {
 			}
 			// if none matches, take the first one
 			if (values.length > 0) {
-				let result:Modes.IInplaceReplaceSupportResult = {
+				let result:modes.IInplaceReplaceSupportResult = {
 					value: values[0],
 					range: this._range(node, model)
 				};
@@ -174,7 +175,7 @@ export class CSSWorker {
 		});
 	}
 
-	private _createMarkerData(model: EditorCommon.IMirrorModel, marker: nodes.IMarker): IMarkerData {
+	private _createMarkerData(model: editorCommon.IMirrorModel, marker: nodes.IMarker): IMarkerData {
 		let range = model.getRangeFromOffsetAndLength(marker.getOffset(), marker.getLength());
 		return <IMarkerData> {
 			code: marker.getRule().id,
@@ -195,11 +196,11 @@ export class CSSWorker {
 		return new cssIntellisense.CSSIntellisense();
 	}
 
-	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+	public provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
 		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 
-	private doSuggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult> {
+	private doSuggest(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult> {
 
 		return this.languageService.join().then(() => {
 
@@ -210,70 +211,44 @@ export class CSSWorker {
 
 	}
 
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
-
-		return this.languageService.join().then(() => {
-
-			let model = this.resourceService.get(resource),
-				offset = model.getOffsetFromPosition(position),
-				styleSheet = this.languageService.getStylesheet(resource),
-				path = nodes.getNodePath(styleSheet, offset),
-				result: Modes.ILogicalSelectionEntry[] = [];
-
-			for (let i = 0; i < path.length; i++) {
-				let node = path[i];
-				if(node.offset === -1 || node.length === -1) {
-					continue;
-				}
-				if(node.parent && node.parent.offset === node.offset && node.parent.length === node.length) {
-					continue;
-				}
-				result.push({
-					type: 'node',
-					range: this._range(node, model)
-				});
-			}
-
-			return result;
-		});
-	}
-
-	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
+	public provideDocumentSymbols(resource:URI):winjs.TPromise<modes.SymbolInformation[]> {
 
 		return this.languageService.join().then(() => {
 
 			let model = this.resourceService.get(resource),
 				stylesheet = this.languageService.getStylesheet(resource),
-				result:Modes.IOutlineEntry[] = [];
+				result:modes.SymbolInformation[] = [];
 
 			stylesheet.accept((node) => {
 
-				let entry:Modes.IOutlineEntry = {
-					label: null,
-					type: 'rule',
-					range: null,
-					children: []
+				let entry:modes.SymbolInformation = {
+					name: null,
+					kind: modes.SymbolKind.Class, // TODO@Martin: find a good SymbolKind
+					location: null
 				};
 
 				if(node instanceof nodes.Selector) {
-					entry.label = node.getText();
+					entry.name = node.getText();
 				} else if(node instanceof nodes.VariableDeclaration) {
-					entry.label = (<nodes.VariableDeclaration> node).getName();
-					entry.type = 'letiable';
+					entry.name = (<nodes.VariableDeclaration> node).getName();
+					entry.kind = modes.SymbolKind.Variable;
 				} else if(node instanceof nodes.MixinDeclaration) {
-					entry.label = (<nodes.MixinDeclaration> node).getName();
-					entry.type = 'method';
+					entry.name = (<nodes.MixinDeclaration> node).getName();
+					entry.kind = modes.SymbolKind.Method;
 				} else if(node instanceof nodes.FunctionDeclaration) {
-					entry.label = (<nodes.FunctionDeclaration> node).getName();
-					entry.type = 'function';
+					entry.name = (<nodes.FunctionDeclaration> node).getName();
+					entry.kind = modes.SymbolKind.Function;
 				} else if(node instanceof nodes.Keyframe) {
-					entry.label = nls.localize('literal.keyframes', "@keyframes {0}", (<nodes.Keyframe> node).getName());
+					entry.name = nls.localize('literal.keyframes', "@keyframes {0}", (<nodes.Keyframe> node).getName());
 				} else if(node instanceof nodes.FontFace) {
-					entry.label = nls.localize('literal.fontface', "@font-face");
+					entry.name = nls.localize('literal.fontface', "@font-face");
 				}
 
-				if(entry.label) {
-					entry.range = this._range(node, model, true);
+				if(entry.name) {
+					entry.location = {
+						uri: resource,
+						range: this._range(node, model, true)
+					};
 					result.push(entry);
 				}
 
@@ -284,7 +259,7 @@ export class CSSWorker {
 		});
 	}
 
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
 
 		return this.languageService.join().then(() => {
 
@@ -323,7 +298,7 @@ export class CSSWorker {
 		});
 	}
 
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
+	public provideDefinition(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location> {
 
 		return this.languageService.join().then(() => {
 
@@ -335,14 +310,14 @@ export class CSSWorker {
 				return null;
 			}
 
-			return <Modes.IReference> {
-				resource: resource,
+			return {
+				uri: resource,
 				range: this._range(node, model, true)
 			};
 		});
 	}
 
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
+	public provideDocumentHighlights(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.DocumentHighlight[]> {
 
 		return this.languageService.join().then(() => {
 
@@ -359,7 +334,7 @@ export class CSSWorker {
 		});
 	}
 
-	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
+	public provideReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
 
 		return this.languageService.join().then(() => {
 			let model = this.resourceService.get(resource),
@@ -367,8 +342,8 @@ export class CSSWorker {
 				nodes = occurrences.findOccurrences(this.languageService.getStylesheet(resource), offset);
 
 			return nodes.map((occurrence) => {
-				return <Modes.IReference> {
-					resource: model.getAssociatedResource(),
+				return {
+					uri: model.uri,
 					range: this._range(occurrence.node, model)
 				};
 			});
@@ -381,7 +356,7 @@ export class CSSWorker {
 
 			let model = this.resourceService.get(resource),
 				styleSheet = this.languageService.getStylesheet(resource),
-				result:{range:EditorCommon.IRange; value:string; }[] = [];
+				result:{range:editorCommon.IRange; value:string; }[] = [];
 
 			styleSheet.accept((node) => {
 				if (languageFacts.isColorValue(node)) {
@@ -397,7 +372,7 @@ export class CSSWorker {
 		});
 	}
 
-	_range(node:{offset:number; length:number;}, model:EditorCommon.IMirrorModel, empty:boolean = false):EditorCommon.IRange {
+	_range(node:{offset:number; length:number;}, model:editorCommon.IMirrorModel, empty:boolean = false):editorCommon.IRange {
 		if (empty) {
 			let position = model.getPositionFromOffset(node.offset);
 			return {
@@ -411,18 +386,18 @@ export class CSSWorker {
 		}
 	}
 
-	private getFixesForUnknownProperty(property: nodes.Property) : Modes.IQuickFix[] {
+	private getFixesForUnknownProperty(property: nodes.Property, marker: IMarker) : modes.IQuickFix[] {
 
 		let propertyName = property.getName();
-		let result: Modes.IQuickFix[] = [];
+		let result: modes.IQuickFix[] = [];
 		for (let p in languageFacts.getProperties()) {
 			let score = strings.difference(propertyName, p);
 			if (score >= propertyName.length / 2 /*score_lim*/) {
 				result.push({
 					command: {
-						id: 'css.renameProptery',
+						id: '_css.replaceText',
 						title: nls.localize('css.quickfix.rename', "Rename to '{0}'", p),
-						arguments: [{ type: 'rename', name: p }]
+						arguments: [{ range: Range.lift(marker), newText: p }]
 					},
 					score
 				});
@@ -437,40 +412,39 @@ export class CSSWorker {
 		return result.slice(0, 3 /*max_result*/);
 	}
 
-	public getQuickFixes(resource: URI, marker: IMarker | EditorCommon.IRange): winjs.TPromise<Modes.IQuickFix[]> {
-		if ((<IMarker> marker).code !== lintRules.Rules.UnknownProperty.id) {
-			return winjs.TPromise.as([]);
+	private appendFixesForMarker(bucket: modes.IQuickFix[], marker: IMarker): void {
+
+		if ((<IMarker>marker).code !== lintRules.Rules.UnknownProperty.id) {
+			return;
 		}
+		let model = this.resourceService.get(marker.resource),
+			offset = model.getOffsetFromPosition({ column: marker.startColumn, lineNumber: marker.startLineNumber }),
+			stylesheet = this.languageService.getStylesheet(marker.resource),
+			nodepath = nodes.getNodePath(stylesheet, offset);
 
-		return this.languageService.join().then(() => {
-
-			let model = this.resourceService.get(resource),
-				offset = model.getOffsetFromPosition({ column: marker.startColumn, lineNumber: marker.startLineNumber }),
-				stylesheet = this.languageService.getStylesheet(resource),
-				nodepath = nodes.getNodePath(stylesheet, offset);
-
-			for (let i = nodepath.length - 1; i >= 0; i--) {
-				let node = nodepath[i];
-				if (node instanceof nodes.Declaration) {
-					let property = (<nodes.Declaration> node).getProperty();
-					if (property && property.offset === offset && property.length === marker.endColumn - marker.startColumn) {
-						return this.getFixesForUnknownProperty(property);
-					}
+		for (let i = nodepath.length - 1; i >= 0; i--) {
+			let node = nodepath[i];
+			if (node instanceof nodes.Declaration) {
+				let property = (<nodes.Declaration> node).getProperty();
+				if (property && property.offset === offset && property.length === marker.endColumn - marker.startColumn) {
+					bucket.push(...this.getFixesForUnknownProperty(property, marker));
+					return;
 				}
 			}
-			return [];
+		}
+	}
+
+	public provideCodeActions(resource: URI, range: editorCommon.IRange): winjs.TPromise<modes.IQuickFix[]> {
+
+		return this.languageService.join().then(() => {
+			const result: modes.IQuickFix[] = [];
+
+			this.markerService.read({ resource })
+				.filter(marker => Range.containsRange(range, marker))
+				.forEach(marker => this.appendFixesForMarker(result, marker));
+
+			return result;
 		});
 	}
 
-	public runQuickFixAction(resource: URI, range: EditorCommon.IRange, quickFix: Modes.IQuickFix): winjs.TPromise<Modes.IQuickFixResult>{
-		let [{type, name}] = quickFix.command.arguments;
-		switch (type) {
-			case 'rename': {
-				return winjs.TPromise.as({
-					edits: [{ resource, range, newText: name }]
-				});
-			}
-		}
-		return null;
-	}
 }

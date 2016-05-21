@@ -181,7 +181,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		}
 	}
 
-	public getConfiguration(): editorCommon.IInternalEditorOptions {
+	public getConfiguration(): editorCommon.InternalEditorOptions {
 		return this._configuration.editorClone;
 	}
 
@@ -228,10 +228,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		var newModelUrl: string = null;
 
 		if (detachedModel) {
-			oldModelUrl = detachedModel.getAssociatedResource().toString();
+			oldModelUrl = detachedModel.uri.toString();
 		}
 		if (model) {
-			newModelUrl = model.getAssociatedResource().toString();
+			newModelUrl = model.uri.toString();
 		}
 		var e: editorCommon.IModelChangedEvent = {
 			oldModelUrl: oldModelUrl,
@@ -656,7 +656,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		};
 	}
 
-	public getLayoutInfo(): editorCommon.IEditorLayoutInfo {
+	public getLayoutInfo(): editorCommon.EditorLayoutInfo {
 		return this._configuration.editor.layoutInfo;
 	}
 
@@ -669,15 +669,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		if (this.model) {
 			this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
 			this._langIdKey.set(this.model.getMode().getId());
-			this.model.setStopLineTokenizationAfter(this._configuration.editor.stopLineTokenizationAfter);
-			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines(this._configuration.editor.longLineBoundary));
+			this._configuration.setIsDominatedByLongLines(this.model.isDominatedByLongLines());
 
 			this.model.onBeforeAttached();
 
 			var hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				this._configuration.editor.wordWrapBreakBeforeCharacters,
-				this._configuration.editor.wordWrapBreakAfterCharacters,
-				this._configuration.editor.wordWrapBreakObtrusiveCharacters
+				this._configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
+				this._configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
+				this._configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
 			);
 
 			var linesCollection = new SplitLinesCollection(
@@ -686,7 +685,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				this.model.getOptions().tabSize,
 				this._configuration.editor.wrappingInfo.wrappingColumn,
 				this._configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
-				this._configuration.editor.wrappingIndent
+				this._configuration.editor.wrappingInfo.wrappingIndent
 			);
 
 			this.viewModel = new ViewModel(

@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { isMacintosh } from 'vs/base/common/platform';
 import dom = require('vs/base/browser/dom');
-import mouse = require('vs/base/browser/mouseEvent');
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import labels = require('vs/base/common/labels');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
@@ -35,9 +35,9 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
-const MAX_VALUE_RENDER_LENGTH = 5000;
+const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
-export function renderExpressionValue(expressionOrValue: debug.IExpression|string, container: HTMLElement, showChanged: boolean): void {
+export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, showChanged: boolean, maxValueRenderLength?: number): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
@@ -61,8 +61,8 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression|strin
 		container.className = 'value changed';
 	}
 
-	if (value.length > MAX_VALUE_RENDER_LENGTH) {
-		value = value.substr(0, MAX_VALUE_RENDER_LENGTH) + '...';
+	if (maxValueRenderLength && value.length > maxValueRenderLength) {
+		value = value.substr(0, maxValueRenderLength) + '...';
 	}
 	container.textContent = value;
 	container.title = value;
@@ -74,7 +74,7 @@ export function renderVariable(tree: tree.ITree, variable: model.Variable, data:
 	}
 
 	if (variable.value) {
-		renderExpressionValue(variable, data.value, showChanged);
+		renderExpressionValue(variable, data.value, showChanged, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
 		data.expression.title = variable.value;
 	} else {
 		data.value.textContent = '';
@@ -193,9 +193,54 @@ export class BaseDebugController extends treedefaults.DefaultController {
 
 // call stack
 
+export class CallStackController extends BaseDebugController {
+
+	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
+		if (typeof element === 'number') {
+			return this.showMoreStackFrames(tree, element);
+		}
+		if (element instanceof model.StackFrame) {
+			this.focusStackFrame(element, event, true);
+		}
+
+		return super.onLeftClick(tree, element, event);
+	}
+
+	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
+		if (typeof element === 'number') {
+			return this.showMoreStackFrames(tree, element);
+		}
+		if (element instanceof model.StackFrame) {
+			this.focusStackFrame(element, event, false);
+		}
+
+		return super.onEnter(tree, event);
+	}
+
+	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
+	private showMoreStackFrames(tree: tree.ITree, threadId: number): boolean {
+		const thread = this.debugService.getModel().getThreads()[threadId];
+		if (thread) {
+			thread.getCallStack(this.debugService, true)
+				.done(() => tree.refresh(), errors.onUnexpectedError);
+		}
+
+		return true;
+	}
+
+	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent|IMouseEvent, preserveFocus: boolean): void {
+		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
+
+		const sideBySide = (event && (event.ctrlKey || event.metaKey));
+		this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+	}
+}
+
+
 export class CallStackActionProvider implements renderer.IActionProvider {
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		// noop
 	}
 
@@ -233,13 +278,16 @@ export class CallStackActionProvider implements renderer.IActionProvider {
 
 export class CallStackDataSource implements tree.IDataSource {
 
-	constructor(@debug.IDebugService private debugService: debug.IDebugService) {
+	constructor( @debug.IDebugService private debugService: debug.IDebugService) {
 		// noop
 	}
 
 	public getId(tree: tree.ITree, element: any): string {
 		if (typeof element === 'number') {
 			return element.toString();
+		}
+		if (typeof element === 'string') {
+			return element;
 		}
 
 		return element.getId();
@@ -260,6 +308,9 @@ export class CallStackDataSource implements tree.IDataSource {
 
 	private getThreadChildren(thread: debug.IThread): TPromise<any> {
 		return thread.getCallStack(this.debugService).then((callStack: any[]) => {
+			if (thread.stoppedDetails.framesErrorMessage) {
+				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+			}
 			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
 				return callStack.concat([thread.threadId]);
 			}
@@ -280,29 +331,34 @@ interface IThreadTemplateData {
 	stateLabel: HTMLSpanElement;
 }
 
+interface IErrorTemplateData {
+	label: HTMLElement;
+}
+
 interface ILoadMoreTemplateData {
 	label: HTMLElement;
 }
 
 interface IStackFrameTemplateData {
 	stackFrame: HTMLElement;
-	label : HTMLElement;
-	file : HTMLElement;
-	fileName : HTMLElement;
-	lineNumber : HTMLElement;
+	label: HTMLElement;
+	file: HTMLElement;
+	fileName: HTMLElement;
+	lineNumber: HTMLElement;
 }
 
 export class CallStackRenderer implements tree.IRenderer {
 
 	private static THREAD_TEMPLATE_ID = 'thread';
 	private static STACK_FRAME_TEMPLATE_ID = 'stackFrame';
+	private static ERROR_TEMPLATE_ID = 'error';
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
-	public getHeight(tree:tree.ITree, element:any): number {
+	public getHeight(tree: tree.ITree, element: any): number {
 		return 22;
 	}
 
@@ -313,6 +369,9 @@ export class CallStackRenderer implements tree.IRenderer {
 		if (element instanceof model.StackFrame) {
 			return CallStackRenderer.STACK_FRAME_TEMPLATE_ID;
 		}
+		if (typeof element === 'string') {
+			return CallStackRenderer.ERROR_TEMPLATE_ID;
+		}
 
 		return CallStackRenderer.LOAD_MORE_TEMPLATE_ID;
 	}
@@ -321,6 +380,12 @@ export class CallStackRenderer implements tree.IRenderer {
 		if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
 			let data: ILoadMoreTemplateData = Object.create(null);
 			data.label = dom.append(container, $('.load-more'));
+
+			return data;
+		}
+		if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
+			let data: ILoadMoreTemplateData = Object.create(null);
+			data.label = dom.append(container, $('.error'));
 
 			return data;
 		}
@@ -349,14 +414,22 @@ export class CallStackRenderer implements tree.IRenderer {
 			this.renderThread(element, templateData);
 		} else if (templateId === CallStackRenderer.STACK_FRAME_TEMPLATE_ID) {
 			this.renderStackFrame(element, templateData);
+		} else if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
+			this.renderError(element, templateData);
 		} else {
 			this.renderLoadMore(element, templateData);
 		}
 	}
 
 	private renderThread(thread: debug.IThread, data: IThreadTemplateData): void {
+		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 		data.stateLabel.textContent = thread.stopped ? nls.localize('paused', "paused") : nls.localize('running', "running");
+	}
+
+	private renderError(element: string, data: IErrorTemplateData) {
+		data.label.textContent = element;
+		data.label.title = nls.localize('stackFrameError', "An error occurred while requesting the stack trace");
 	}
 
 	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {
@@ -370,7 +443,7 @@ export class CallStackRenderer implements tree.IRenderer {
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
 		if (stackFrame.source.available && stackFrame.lineNumber !== undefined) {
-			data.lineNumber.textContent = `${ stackFrame.lineNumber }`;
+			data.lineNumber.textContent = `${stackFrame.lineNumber}`;
 			dom.removeClass(data.lineNumber, 'unavailable');
 		} else {
 			dom.addClass(data.lineNumber, 'unavailable');
@@ -384,7 +457,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 export class CallstackAccessibilityProvider implements tree.IAccessibilityProvider {
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
@@ -422,7 +495,7 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		let actions: actions.Action[] = [];
-		const variable = <model.Variable> element;
+		const variable = <model.Variable>element;
 		actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, variable));
 		if (variable.reference === 0) {
 			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable));
@@ -451,17 +524,17 @@ export class VariablesDataSource implements tree.IDataSource {
 			return true;
 		}
 
-		let variable = <model.Variable> element;
+		let variable = <model.Variable>element;
 		return variable.reference !== 0 && !strings.equalsIgnoreCase(variable.value, 'null');
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof viewmodel.ViewModel) {
-			let focusedStackFrame = (<viewmodel.ViewModel> element).getFocusedStackFrame();
+			let focusedStackFrame = (<viewmodel.ViewModel>element).getFocusedStackFrame();
 			return focusedStackFrame ? focusedStackFrame.getScopes(this.debugService) : TPromise.as([]);
 		}
 
-		let scope = <model.Scope> element;
+		let scope = <model.Scope>element;
 		return scope.getChildren(this.debugService);
 	}
 
@@ -576,7 +649,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		const actions: actions.Action[] = [];
 		if (element instanceof model.Expression) {
-			const expression = <model.Expression> element;
+			const expression = <model.Expression>element;
 			actions.push(this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL));
 			actions.push(this.instantiationService.createInstance(debugactions.RenameWatchExpressionAction, debugactions.RenameWatchExpressionAction.ID, debugactions.RenameWatchExpressionAction.LABEL, expression));
 			if (expression.reference === 0) {
@@ -589,7 +662,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 		} else {
 			actions.push(this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL));
 			if (element instanceof model.Variable) {
-				const variable = <model.Variable> element;
+				const variable = <model.Variable>element;
 				if (variable.reference === 0) {
 					actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable.value));
 				}
@@ -621,16 +694,16 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 			return true;
 		}
 
-		const watchExpression = <model.Expression> element;
+		const watchExpression = <model.Expression>element;
 		return watchExpression.reference !== 0 && !strings.equalsIgnoreCase(watchExpression.value, 'null');
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Model) {
-			return TPromise.as((<model.Model> element).getWatchExpressions());
+			return TPromise.as((<model.Model>element).getWatchExpressions());
 		}
 
-		let expression = <model.Expression> element;
+		let expression = <model.Expression>element;
 		return expression.getChildren(this.debugService);
 	}
 
@@ -656,10 +729,10 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		@IContextViewService private contextViewService: IContextViewService
 	) {
 		this.toDispose = [];
-		this.actionProvider = <WatchExpressionsActionProvider> actionProvider;
+		this.actionProvider = <WatchExpressionsActionProvider>actionProvider;
 	}
 
-	public getHeight(tree:tree.ITree, element:any): number {
+	public getHeight(tree: tree.ITree, element: any): number {
 		return 22;
 	}
 
@@ -675,7 +748,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		let data: IWatchExpressionTemplateData = Object.create(null);
 		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
 			data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
-			data.actionBar.push(this.actionProvider.getExpressionActions() , { icon: true, label: false });
+			data.actionBar.push(this.actionProvider.getExpressionActions(), { icon: true, label: false });
 		}
 
 		data.expression = dom.append(container, $(isMacintosh ? '.expression.mac' : '.expression.win-linux'));
@@ -702,7 +775,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 
 		data.name.textContent = `${watchExpression.name}:`;
 		if (watchExpression.value) {
-			renderExpressionValue(watchExpression, data.value, true);
+			renderExpressionValue(watchExpression, data.value, true, MAX_VALUE_RENDER_LENGTH_IN_VIEWLET);
 			data.expression.title = watchExpression.value;
 		}
 	}
@@ -744,10 +817,10 @@ export class WatchExpressionsController extends BaseDebugController {
 		}
 	}
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof model.Expression && event.detail === 2) {
-			const expression = <debug.IExpression> element;
+			const expression = <debug.IExpression>element;
 			if (expression.reference === 0) {
 				this.debugService.getViewModel().setSelectedExpression(expression);
 			}
@@ -760,7 +833,7 @@ export class WatchExpressionsController extends BaseDebugController {
 	protected onRename(tree: tree.ITree, event: KeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Expression) {
-			const watchExpression = <model.Expression> element;
+			const watchExpression = <model.Expression>element;
 			if (watchExpression.reference === 0) {
 				this.debugService.getViewModel().setSelectedExpression(watchExpression);
 			}
@@ -773,7 +846,7 @@ export class WatchExpressionsController extends BaseDebugController {
 	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Expression) {
-			const we = <model.Expression> element;
+			const we = <model.Expression>element;
 			this.debugService.removeWatchExpressions(we.getId());
 
 			return true;
@@ -855,8 +928,8 @@ export class BreakpointsDataSource implements tree.IDataSource {
 	}
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
-		const model = <model.Model> element;
-		const exBreakpoints = <debug.IEnablement[]> model.getExceptionBreakpoints();
+		const model = <model.Model>element;
+		const exBreakpoints = <debug.IEnablement[]>model.getExceptionBreakpoints();
 
 		return TPromise.as(exBreakpoints.concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints()));
 	}
@@ -900,7 +973,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 		// noop
 	}
 
-	public getHeight(tree:tree.ITree, element:any): number {
+	public getHeight(tree: tree.ITree, element: any): number {
 		return 22;
 	}
 
@@ -928,7 +1001,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 		data.toDisposeBeforeRender = [];
 
-		data.checkbox = <HTMLInputElement> $('input');
+		data.checkbox = <HTMLInputElement>$('input');
 		data.checkbox.type = 'checkbox';
 		if (!isMacintosh) {
 			data.checkbox.className = 'checkbox-win-linux';
@@ -962,7 +1035,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
-		data.name.textContent = exceptionBreakpoint.label || `${ exceptionBreakpoint.filter } exceptions`;;
+		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
 
@@ -987,7 +1060,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 		data.checkbox.checked = breakpoint.enabled;
 		data.actionBar.context = breakpoint;
 
-		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped;
+		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
 		if (debugActive && !breakpoint.verified) {
 			tree.addTraits('disabled', [breakpoint]);
 			if (breakpoint.message) {
@@ -1007,7 +1080,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 
 export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProvider {
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
 	}
 
@@ -1028,13 +1101,29 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 export class BreakpointsController extends BaseDebugController {
 
-	protected onLeftClick(tree:tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		if (element instanceof model.FunctionBreakpoint && event.detail === 2) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
+		if (element instanceof model.Breakpoint) {
+			this.openBreakpointSource(element, event, true);
+		}
 
 		return super.onLeftClick(tree, element, event);
+	}
+
+	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
+		if (element instanceof model.FunctionBreakpoint) {
+			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+			return true;
+		}
+		if (element instanceof model.Breakpoint) {
+			this.openBreakpointSource(element, event, false);
+		}
+
+		return super.onEnter(tree, event);
 	}
 
 	protected onSpace(tree: tree.ITree, event: IKeyboardEvent): boolean {
@@ -1045,19 +1134,25 @@ export class BreakpointsController extends BaseDebugController {
 		return true;
 	}
 
-
 	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Breakpoint) {
-			this.debugService.removeBreakpoints((<model.Breakpoint> element).getId()).done(null, errors.onUnexpectedError);
+			this.debugService.removeBreakpoints((<model.Breakpoint>element).getId()).done(null, errors.onUnexpectedError);
 			return true;
 		} else if (element instanceof model.FunctionBreakpoint) {
-			const fbp = <model.FunctionBreakpoint> element;
+			const fbp = <model.FunctionBreakpoint>element;
 			this.debugService.removeFunctionBreakpoints(fbp.getId()).done(null, errors.onUnexpectedError);
 
 			return true;
 		}
 
 		return false;
+	}
+
+	private openBreakpointSource(breakpoint: debug.IBreakpoint, event: IKeyboardEvent|IMouseEvent, preserveFocus: boolean): void {
+		if (!breakpoint.source.inMemory) {
+			const sideBySide = (event && (event.ctrlKey || event.metaKey));
+			this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		}
 	}
 }

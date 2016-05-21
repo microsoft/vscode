@@ -91,9 +91,9 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 	}
 
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
-		let oldTheme = this._configuration.editor.theme;
+		let oldTheme = this._configuration.editor.viewInfo.theme;
 		super.updateOptions(newOptions);
-		let newTheme = this._configuration.editor.theme;
+		let newTheme = this._configuration.editor.viewInfo.theme;
 
 		if (oldTheme !== newTheme) {
 			this.render();

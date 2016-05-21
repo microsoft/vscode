@@ -122,7 +122,7 @@ export class MergeDecorator implements common.IEditorContribution {
 			return;
 		}
 
-		var resource = model.getAssociatedResource();
+		var resource = model.uri;
 		if (!resource) {
 			return;
 		}

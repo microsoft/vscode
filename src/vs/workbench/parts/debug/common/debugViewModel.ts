@@ -9,6 +9,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 export class ViewModel implements debug.IViewModel {
 
 	private focusedStackFrame: debug.IStackFrame;
+	private focusedThread: debug.IThread;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
 	private _onDidFocusStackFrame: Emitter<debug.IStackFrame>;
@@ -31,8 +32,9 @@ export class ViewModel implements debug.IViewModel {
 		return this.focusedStackFrame;
 	}
 
-	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame): void {
+	public setFocusedStackFrame(focusedStackFrame: debug.IStackFrame, focusedThread: debug.IThread): void {
 		this.focusedStackFrame = focusedStackFrame;
+		this.focusedThread = focusedThread;
 		this._onDidFocusStackFrame.fire(focusedStackFrame);
 	}
 
@@ -41,7 +43,7 @@ export class ViewModel implements debug.IViewModel {
 	}
 
 	public getFocusedThreadId(): number {
-		return this.focusedStackFrame ? this.focusedStackFrame.threadId : 0;
+		return this.focusedThread ? this.focusedThread.threadId : 0;
 	}
 
 	public getSelectedExpression(): debug.IExpression {

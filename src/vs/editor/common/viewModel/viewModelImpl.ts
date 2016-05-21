@@ -259,7 +259,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 						break;
 
 					case editorCommon.EventType.ConfigurationChanged:
-						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingIndent) || revealPreviousCenteredModelRange;
+						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
 						if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
 							// Must read again all decorations due to readOnly filtering
@@ -419,8 +419,8 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		}
 		var modelLineNumber = modelPosition.lineNumber;
 
-		if (typeof this.configuration.editor.lineNumbers === 'function') {
-			return this.configuration.editor.lineNumbers(modelLineNumber);
+		if (typeof this.configuration.editor.viewInfo.lineNumbers === 'function') {
+			return this.configuration.editor.viewInfo.lineNumbers(modelLineNumber);
 		}
 
 		return modelLineNumber.toString();

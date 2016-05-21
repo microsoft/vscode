@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IdGenerator} from 'vs/editor/common/core/idGenerator';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
@@ -140,7 +140,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		var startMarkerId = this._addMarker(textRange.startLineNumber, textRange.startColumn, startMarkerSticksToPreviousCharacter);
 		var endMarkerId = this._addMarker(textRange.endLineNumber, textRange.endColumn, endMarkerSticksToPreviousCharacter);
 
-		var range = new TrackedRange(this._rangeIdGenerator.generate(), startMarkerId, endMarkerId);
+		var range = new TrackedRange(this._rangeIdGenerator.nextId(), startMarkerId, endMarkerId);
 		this._ranges[range.id] = range;
 		this._markerIdToRangeId[startMarkerId] = range.id;
 		this._markerIdToRangeId[endMarkerId] = range.id;
@@ -176,7 +176,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 			let startMarkerId = markerIds[2 * i];
 			let endMarkerId = markerIds[2 * i + 1];
 
-			let range = new TrackedRange(this._rangeIdGenerator.generate(), startMarkerId, endMarkerId);
+			let range = new TrackedRange(this._rangeIdGenerator.nextId(), startMarkerId, endMarkerId);
 			this._ranges[range.id] = range;
 			this._markerIdToRangeId[startMarkerId] = range.id;
 			this._markerIdToRangeId[endMarkerId] = range.id;

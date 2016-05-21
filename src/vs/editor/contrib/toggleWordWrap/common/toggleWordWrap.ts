@@ -24,12 +24,16 @@ class ToggleWordWrapAction extends EditorAction {
 
 		let wrappingInfo = this.editor.getConfiguration().wrappingInfo;
 
+		let newWrappingColumn: number;
 		if (!wrappingInfo.isViewportWrapping) {
-			wrappingInfo.wrappingColumn = 0;
+			newWrappingColumn = 0;
 		} else {
-			wrappingInfo.wrappingColumn = -1;
+			newWrappingColumn = -1;
 		}
-		this.editor.updateOptions(wrappingInfo);
+
+		this.editor.updateOptions({
+			wrappingColumn: newWrappingColumn
+		});
 
 		return TPromise.as(true);
 	}

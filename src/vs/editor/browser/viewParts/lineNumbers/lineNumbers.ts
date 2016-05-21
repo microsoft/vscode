@@ -26,7 +26,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._lineNumbers = this._context.configuration.editor.lineNumbers;
+		this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
 		this._lineNumbersLeft = 0;
 		this._lineNumbersWidth = 0;
 		this._renderResult = null;
@@ -69,12 +69,12 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.lineNumbers) {
-			this._lineNumbers = this._context.configuration.editor.lineNumbers;
+		if (e.viewInfo.lineNumbers) {
+			this._lineNumbers = this._context.configuration.editor.viewInfo.lineNumbers;
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
 		return true;

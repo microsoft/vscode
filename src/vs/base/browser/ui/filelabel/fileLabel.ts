@@ -61,11 +61,12 @@ export class FileLabel {
 		let parent = paths.dirname(this.path);
 		if (parent && parent !== '.') {
 			let pathLabel = getPathLabel(parent, this.basepath);
-			htmlContent.push('<span class="file-path" title="' + pathLabel + '">');
+			htmlContent.push('<span class="file-path">');
 			htmlContent.push(pathLabel);
 			htmlContent.push('</span>');
 		}
 
+		this.domNode.title = this.path;
 		this.domNode.innerHTML = htmlContent.join('');
 	}
 }

@@ -15,6 +15,11 @@ export interface IClipboardEvent {
 	getTextData(): string;
 }
 
+export interface ICompositionEvent {
+	data: string;
+	locale: string;
+}
+
 export interface IKeyboardEventWrapper {
 	_actual: any;
 	equals(keybinding:number): boolean;
@@ -26,8 +31,9 @@ export interface ITextAreaWrapper {
 	onKeyDown: Event<IKeyboardEventWrapper>;
 	onKeyUp: Event<IKeyboardEventWrapper>;
 	onKeyPress: Event<IKeyboardEventWrapper>;
-	onCompositionStart: Event<void>;
-	onCompositionEnd: Event<void>;
+	onCompositionStart: Event<ICompositionEvent>;
+	onCompositionUpdate: Event<ICompositionEvent>;
+	onCompositionEnd: Event<ICompositionEvent>;
 	onInput: Event<void>;
 	onCut: Event<IClipboardEvent>;
 	onCopy: Event<IClipboardEvent>;
@@ -104,6 +110,21 @@ export abstract class TextAreaState {
 	public abstract fromEditorSelection(model:ISimpleModel, selection:IEditorRange);
 
 	public abstract fromText(text:string): TextAreaState;
+
+	public updateComposition(): ITypeData {
+		if (!this.previousState) {
+			// This is the EMPTY state
+			return {
+				text: '',
+				replaceCharCnt: 0
+			};
+		}
+
+		return {
+			text: this.value,
+			replaceCharCnt: this.previousState.selectionEnd - this.previousState.selectionStart
+		};
+	}
 
 	public abstract resetSelection(): TextAreaState;
 

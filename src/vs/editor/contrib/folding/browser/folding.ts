@@ -140,6 +140,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 	}
 
 	private editor: ICodeEditor;
+	private _isEnabled: boolean;
 	private globalToDispose: IDisposable[];
 
 	private computeToken: number;
@@ -151,6 +152,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 	constructor(editor:ICodeEditor) {
 		this.editor = editor;
+		this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
 
 		this.globalToDispose = [];
 		this.localToDispose = [];
@@ -159,7 +161,9 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChanged()));
 		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
-			if (e.folding) {
+			let oldIsEnabled = this._isEnabled;
+			this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
+			if (oldIsEnabled !== this._isEnabled) {
 				this.onModelChanged();
 			}
 		}));
@@ -204,7 +208,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		if (!model) {
 			return;
 		}
-		if (!this.editor.getConfiguration().folding) {
+		if (!this._isEnabled) {
 			return;
 		}
 		if (!state || !Array.isArray(state.collapsedRegions) || state.collapsedRegions.length === 0 || state.lineCount !== model.getLineCount()) {
@@ -287,7 +291,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		this.cleanState();
 
 		let model = this.editor.getModel();
-		if (!this.editor.getConfiguration().folding || !model) {
+		if (!this._isEnabled || !model) {
 			return;
 		}
 

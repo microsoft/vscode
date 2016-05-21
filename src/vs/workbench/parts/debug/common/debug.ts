@@ -34,6 +34,7 @@ export interface IRawStoppedDetails {
 	threadId?: number;
 	text?: string;
 	totalFrames?: number;
+	framesErrorMessage?: string;
 }
 
 // model
@@ -206,6 +207,7 @@ export interface IConfig {
 	sourceMaps?: boolean;
 	outDir?: string;
 	address?: string;
+	internalConsoleOptions?: string;
 	port?: number;
 	preLaunchTask?: string;
 	externalConsole?: boolean;
@@ -370,7 +372,7 @@ export interface IDebugService {
 	/**
 	 * Creates a new debug session. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createSession(noDebug: boolean): TPromise<any>;
+	createSession(noDebug: boolean, configuration?: IConfig): TPromise<any>;
 
 	/**
 	 * Restarts an active debug session or creates a new one if there is no active session.
@@ -443,8 +445,8 @@ export var DebugViewRegistry = <IDebugViewRegistry>new DebugViewRegistryImpl();
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
-export function formatPII(value:string, excludePII: boolean, args: {[key: string]: string}): string {
-	return value.replace(_formatPIIRegexp, function(match, group) {
+export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
+	return value.replace(_formatPIIRegexp, function (match, group) {
 		if (excludePII && group.length > 0 && group[0] !== '_') {
 			return match;
 		}

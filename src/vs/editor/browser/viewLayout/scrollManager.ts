@@ -6,7 +6,7 @@
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import {ScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollableElementCreationOptions, ScrollableElementChangeOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IOverviewRulerLayoutInfo, ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, INewScrollPosition} from 'vs/editor/common/editorCommon';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
@@ -33,13 +33,14 @@ export class ScrollManager implements IDisposable {
 		this.privateViewEventBus = privateViewEventBus;
 		this.linesContent = linesContent;
 
-		var configScrollbarOpts = this.configuration.editor.scrollbar;
+		var configScrollbarOpts = this.configuration.editor.viewInfo.scrollbar;
 
 		var scrollbarOptions:ScrollableElementCreationOptions = {
+			canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
 			horizontal: configScrollbarOpts.horizontal,
-			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.theme,
+			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme,
 			useShadows: false,
 			lazyRender: true,
 			saveLastScrollTimeOnClassName: ClassNames.VIEW_LINE
@@ -62,9 +63,14 @@ export class ScrollManager implements IDisposable {
 		}));
 
 		this.toDispose.push(this.configuration.onDidChange((e:IConfigurationChangedEvent) => {
-			this.scrollbar.updateClassName(this.configuration.editor.theme);
-			if (e.scrollbar) {
-				this.scrollbar.updateOptions(this.configuration.editor.scrollbar);
+			this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.viewInfo.theme);
+			if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
+				let newOpts:ScrollableElementChangeOptions = {
+					canUseTranslate3d: this.configuration.editor.viewInfo.canUseTranslate3d,
+					handleMouseWheel: this.configuration.editor.viewInfo.scrollbar.handleMouseWheel,
+					mouseWheelScrollSensitivity: this.configuration.editor.viewInfo.scrollbar.mouseWheelScrollSensitivity
+				};
+				this.scrollbar.updateOptions(newOpts);
 			}
 		}));
 

@@ -87,7 +87,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._glyphMargin = this._context.configuration.editor.glyphMargin;
+		this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		this._glyphMarginLeft = 0;
 		this._glyphMarginWidth = 0;
 		this._renderResult = null;
@@ -130,12 +130,12 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.glyphMargin) {
-			this._glyphMargin = this._context.configuration.editor.glyphMargin;
+		if (e.viewInfo.glyphMargin) {
+			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		return true;

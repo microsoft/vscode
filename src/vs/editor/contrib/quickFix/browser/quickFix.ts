@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -18,9 +17,8 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {bulkEdit} from 'vs/editor/common/services/bulkEdit';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {QuickFixRegistry} from 'vs/editor/common/modes';
+import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IQuickFix2} from '../common/quickFix';
 import {QuickFixModel} from './quickFixModel';
@@ -34,30 +32,23 @@ export class QuickFixController implements IEditorContribution {
 		return <QuickFixController>editor.getContribution(QuickFixController.ID);
 	}
 
-	private eventService: IEventService;
-	private editorService: IEditorService;
-	private messageService: IMessageService;
-
 	private editor:ICodeEditor;
 	private model:QuickFixModel;
 	private suggestWidget: QuickFixSelectionWidget;
 	private quickFixWidgetVisible: IKeybindingContextKey<boolean>;
 
 	constructor(editor: ICodeEditor,
-		@IMarkerService markerService: IMarkerService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IMarkerService private _markerService: IMarkerService,
+		@IKeybindingService private _keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEventService eventService: IEventService,
+		@IEventService private _eventService: IEventService,
 		@IEditorService editorService: IEditorService,
 		@IMessageService messageService: IMessageService
 	) {
 		this.editor = editor;
-		this.model = new QuickFixModel(this.editor, markerService, this.onAccept.bind(this));
-		this.eventService = eventService;
-		this.editorService = editorService;
-		this.messageService = messageService;
+		this.model = new QuickFixModel(this.editor, this._markerService, this.onAccept.bind(this));
 
-		this.quickFixWidgetVisible = keybindingService.createKey(CONTEXT_QUICK_FIX_WIDGET_VISIBLE, false);
+		this.quickFixWidgetVisible = this._keybindingService.createKey(CONTEXT_QUICK_FIX_WIDGET_VISIBLE, false);
 		this.suggestWidget = new QuickFixSelectionWidget(this.editor, telemetryService,() => {
 			this.quickFixWidgetVisible.set(true);
 		},() => {
@@ -72,29 +63,15 @@ export class QuickFixController implements IEditorContribution {
 
 	private onAccept(fix: IQuickFix2, range: IRange): void {
 		var model = this.editor.getModel();
-		if (!model) {
-			return;
+		if (model) {
+			let {command} = fix;
+			return this._keybindingService.executeCommand(command.id, ...command.arguments).done(void 0, onUnexpectedError);
 		}
-
-		fix.support.runQuickFixAction(this.editor.getModel().getAssociatedResource(), range, { command: fix.command, score: fix.score }).then(result => {
-			if (result) {
-				if (result.message) {
-					this.messageService.show(Severity.Info, result.message);
-				}
-				if (result.edits) {
-					return bulkEdit(this.eventService, this.editorService, this.editor, result.edits);
-				}
-			}
-			return TPromise.as(0);
-		}).done(undefined, err => {
-			onUnexpectedError(err);
-		});
 	}
 
 	public run():TPromise<boolean> {
 		this.model.triggerDialog(false, this.editor.getPosition());
 		this.editor.focus();
-
 		return TPromise.as(false);
 	}
 
@@ -151,7 +128,7 @@ export class QuickFixAction extends EditorAction {
 
 	public isSupported(): boolean {
 		var model = this.editor.getModel();
-		return QuickFixRegistry.has(model) && !this.editor.getConfiguration().readOnly;
+		return CodeActionProviderRegistry.has(model) && !this.editor.getConfiguration().readOnly;
 	}
 
 	public run():TPromise<boolean> {

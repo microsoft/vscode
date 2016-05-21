@@ -17,9 +17,9 @@ import * as platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import * as types from 'vs/base/common/types';
 import { ServiceIdentifier, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import product, { IProductConfiguration } from 'vs/code/node/product';
+import product, { IProductConfiguration } from 'vs/platform/product';
 import { parseArgs } from 'vs/code/node/argv';
-import pkg from 'vs/code/node/package';
+import pkg from 'vs/platform/package';
 
 export interface IProcessEnvironment {
 	[key: string]: string;
@@ -46,7 +46,7 @@ export interface ICommandLineArguments {
 	waitForWindowClose?: boolean;
 }
 
-export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+export const IEnvironmentService = createDecorator<IEnvironmentService>('mainEnvironmentService');
 
 export interface IEnvironmentService {
 	serviceId: ServiceIdentifier<any>;

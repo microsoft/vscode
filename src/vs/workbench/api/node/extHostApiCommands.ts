@@ -188,6 +188,26 @@ class ExtHostApiCommands {
 				{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
 			]
 		});
+
+		this._register('vscode.startDebug', (configuration?: any) => {
+			return this._commands.executeCommand('_workbench.startDebug', configuration);
+		}, {
+			description: 'Start a debugging session.',
+			args: [
+				{ name: 'configuration', description: '(optional) Name of the debug configuration from \'launch.json\' to use. Or a configuration json object to use.' }
+			]
+		});
+
+		this._register('vscode.diff', (left: URI, right: URI, label: string) => {
+			return this._commands.executeCommand('_workbench.diff', [left, right, label]);
+		}, {
+			description: 'Opens the provided resources in the diff editor to compare their contents.',
+			args: [
+				{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
+				{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
+				{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' }
+			]
+		});
 	}
 
 	// --- command impl
@@ -216,7 +236,7 @@ class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.IReference[]>('_executeDefinitionProvider', args).then(value => {
+		return this._commands.executeCommand<modes.Location[]>('_executeDefinitionProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}
@@ -228,7 +248,7 @@ class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.IComputeExtraInfoResult[]>('_executeHoverProvider', args).then(value => {
+		return this._commands.executeCommand<modes.Hover[]>('_executeHoverProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toHover);
 			}
@@ -240,7 +260,7 @@ class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.IOccurence[]>('_executeDocumentHighlights', args).then(value => {
+		return this._commands.executeCommand<modes.DocumentHighlight[]>('_executeDocumentHighlights', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.toDocumentHighlight);
 			}
@@ -252,7 +272,7 @@ class ExtHostApiCommands {
 			resource,
 			position: position && typeConverters.fromPosition(position)
 		};
-		return this._commands.executeCommand<modes.IReference[]>('_executeReferenceProvider', args).then(value => {
+		return this._commands.executeCommand<modes.Location[]>('_executeReferenceProvider', args).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConverters.location.to);
 			}
@@ -265,7 +285,7 @@ class ExtHostApiCommands {
 			position: position && typeConverters.fromPosition(position),
 			newName
 		};
-		return this._commands.executeCommand<modes.IRenameResult>('_executeDocumentRenameProvider', args).then(value => {
+		return this._commands.executeCommand<modes.WorkspaceEdit>('_executeDocumentRenameProvider', args).then(value => {
 			if (!value) {
 				return;
 			}
@@ -286,7 +306,7 @@ class ExtHostApiCommands {
 			position: position && typeConverters.fromPosition(position),
 			triggerCharacter
 		};
-		return this._commands.executeCommand<modes.IParameterHints>('_executeSignatureHelpProvider', args).then(value => {
+		return this._commands.executeCommand<modes.SignatureHelp>('_executeSignatureHelpProvider', args).then(value => {
 			if (value) {
 				return typeConverters.SignatureHelp.to(value);
 			}

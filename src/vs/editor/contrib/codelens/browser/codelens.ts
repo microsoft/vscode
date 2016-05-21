@@ -6,19 +6,18 @@
 'use strict';
 
 import 'vs/css!./codelens';
-import {RunOnceScheduler} from 'vs/base/common/async';
+import {RunOnceScheduler, asWinJsPromise} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {format} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {CodeLensRegistry, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
+import {CodeLensProviderRegistry, ICodeLensSymbol, ICommand} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -159,7 +158,7 @@ function modelsVersionId(modelService: IModelService, modeId: string): number {
 		.filter(model => model.getMode().getId() === modeId)
 		.map((model) => {
 			return {
-				url: model.getAssociatedResource().toString(),
+				url: model.uri.toString(),
 				versionId: model.getVersionId()
 			};
 		})
@@ -340,57 +339,39 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	public static ID: string = 'css.editor.codeLens';
 
-	private static INSTANCE_COUNT: number = 0;
-
-	private _instanceCount: number;
-	private _editor: editorBrowser.ICodeEditor;
-	private _modelService: IModelService;
+	private _isEnabled: boolean;
 
 	private _globalToDispose: IDisposable[];
-
 	private _localToDispose: IDisposable[];
 	private _lenses: CodeLens[];
 	private _currentFindCodeLensSymbolsPromise: TPromise<ICodeLensData[]>;
 	private _modelChangeCounter: number;
-	private _configurationService: IConfigurationService;
-	private _keybindingService: IKeybindingService;
-	private _messageService: IMessageService;
-	private _codeLenseDisabledByMode: boolean;
-
 	private _currentFindOccPromise: TPromise<any>;
 
-	constructor(editor: editorBrowser.ICodeEditor, @IModelService modelService: IModelService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IMessageService messageService: IMessageService) {
-
-		this._instanceCount = (++CodeLensContribution.INSTANCE_COUNT);
-		this._editor = editor;
-		this._modelService = modelService;
-		this._configurationService = configurationService;
-		this._keybindingService = keybindingService;
-		this._messageService = messageService;
+	constructor(
+		private _editor: editorBrowser.ICodeEditor,
+		@IModelService private _modelService: IModelService,
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IMessageService private _messageService: IMessageService
+	) {
+		this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
 
 		this._globalToDispose = [];
 		this._localToDispose = [];
 		this._lenses = [];
 		this._currentFindCodeLensSymbolsPromise = null;
 		this._modelChangeCounter = 0;
-		this._codeLenseDisabledByMode = true;
 
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChange()));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onModelChange()));
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
-			if (e.codeLensSupport) {
-				this.onModelChange();
-			}
-		}));
 		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
-			if (e.referenceInfos) {
+			let prevIsEnabled = this._isEnabled;
+			this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
+			if (prevIsEnabled !== this._isEnabled) {
 				this.onModelChange();
 			}
 		}));
-		this._globalToDispose.push(CodeLensRegistry.onDidChange(this.onModelChange, this));
+		this._globalToDispose.push(CodeLensProviderRegistry.onDidChange(this.onModelChange, this));
 		this.onModelChange();
 	}
 
@@ -425,11 +406,11 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		if (!this._editor.getConfiguration().referenceInfos) {
+		if (!this._isEnabled) {
 			return;
 		}
 
-		if (!CodeLensRegistry.has(model)) {
+		if (!CodeLensProviderRegistry.has(model)) {
 			return;
 		}
 
@@ -623,12 +604,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		const resource = model.getAssociatedResource();
 		const promises = toResolve.map((request, i) => {
 
 			const resolvedSymbols = new Array<ICodeLensSymbol>(request.length);
 			const promises = request.map((request, i) => {
-				return request.support.resolveCodeLensSymbol(resource, request.symbol).then(symbol => {
+				return asWinJsPromise((token) => {
+					return request.support.resolveCodeLens(model, request.symbol, token);
+				}).then(symbol => {
 					resolvedSymbols[i] = symbol;
 				});
 			});

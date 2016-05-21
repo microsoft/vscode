@@ -32,7 +32,7 @@ var baseModules = [
 	'applicationinsights', 'assert', 'child_process', 'chokidar', 'crypto', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
-	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
+	'os', 'path', 'pty.js', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url', 'term.js',
 	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib', 'minimist'
 ];
 
@@ -52,6 +52,7 @@ var vscodeResources = [
 	'out-build/cli.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-amd.js',
+	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur}',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
@@ -67,6 +68,7 @@ var vscodeResources = [
 	'out-build/vs/workbench/parts/html/browser/webview.html',
 	'out-build/vs/workbench/parts/markdown/**/*.md',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
+	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'!**/test/**'
@@ -295,6 +297,10 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/prerm'))
 
+		var postrm = gulp.src('resources/linux/debian/postrm.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('DEBIAN/postrm'))
+
 		var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ARCHITECTURE@@', debArch))
@@ -302,7 +308,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'))
 
-		var all = es.merge(control, postinst, prerm, desktop, icon, code);
+		var all = es.merge(control, postinst, postrm, prerm, desktop, icon, code);
 
 		return all.pipe(symdest(destination));
 	};

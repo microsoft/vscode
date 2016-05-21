@@ -191,10 +191,15 @@
 	text-align: center;
 }
 
+.debug-viewlet .debug-call-stack .error {
+	font-style: italic;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
 /* Variables & Expression view */
 
 .debug-viewlet .scope {
-	text-transform: capitalize;
 	font-weight: bold;
 	font-size: 11px;
 }

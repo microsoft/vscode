@@ -22,9 +22,10 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {ILink} from 'vs/editor/common/modes';
+import {ILink, LinkProviderRegistry} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
+import {getLinks} from 'vs/editor/contrib/links/common/links';
 
 class LinkOccurence {
 
@@ -42,9 +43,6 @@ class LinkOccurence {
 
 	private static _getOptions(link:ILink, isActive:boolean):editorCommon.IModelDecorationOptions {
 		var result = '';
-		if (link.extraInlineClassName) {
-			result = link.extraInlineClassName + ' ';
-		}
 
 		if (isActive) {
 			result += LinkDetector.CLASS_NAME_ACTIVE;
@@ -79,12 +77,10 @@ class LinkOccurence {
 class Link {
 	range: editorCommon.IEditorRange;
 	url: string;
-	extraInlineClassName: string;
 
 	constructor(source:ILink) {
 		this.range = new Range(source.range.startLineNumber, source.range.startColumn, source.range.endLineNumber, source.range.endColumn);
 		this.url = source.url;
-		this.extraInlineClassName = source.extraInlineClassName || null;
 	}
 }
 
@@ -121,11 +117,6 @@ class LinkDetector {
 		this.listenersToRemove.push(editor.addListener('change', (e:editorCommon.IModelContentChangedEvent) => this.onChange()));
 		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelChanged, (e:editorCommon.IModelContentChangedEvent) => this.onModelChanged()));
 		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => this.onModelModeChanged()));
-		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
-			if (e.linkSupport) {
-				this.onModelModeChanged();
-			}
-		}));
 		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.MouseUp, (e:IEditorMouseEvent) => this.onEditorMouseUp(e)));
 		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.MouseMove, (e:IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.KeyDown, (e:IKeyboardEvent) => this.onEditorKeyDown(e)));
@@ -170,12 +161,11 @@ class LinkDetector {
 		}
 
 		let modePromise:TPromise<ILink[]> = TPromise.as(null);
-		let mode = this.editor.getModel().getMode();
-		if (mode.linkSupport) {
-			modePromise = mode.linkSupport.computeLinks(this.editor.getModel().getAssociatedResource());
+		if (LinkProviderRegistry.has(this.editor.getModel())) {
+			modePromise = getLinks(this.editor.getModel());
 		}
 
-		let standardPromise:TPromise<ILink[]> = this.editorWorkerService.computeLinks(this.editor.getModel().getAssociatedResource());
+		let standardPromise:TPromise<ILink[]> = this.editorWorkerService.computeLinks(this.editor.getModel().uri);
 
 		this.computePromise = TPromise.join([modePromise, standardPromise]).then((r) => {
 			let a = r[0];

@@ -525,7 +525,7 @@ export class MainThreadEditors {
 		}));
 		this._proxy._acceptTextEditorAdd({
 			id: id,
-			document: textEditor.getModel().getAssociatedResource(),
+			document: textEditor.getModel().uri,
 			options: textEditor.getConfiguration(),
 			selections: textEditor.getSelections(),
 			editorPosition: this._findEditorPosition(textEditor)
@@ -669,7 +669,7 @@ export class MainThreadEditors {
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
 			return this._workbenchEditorService.openEditor({
-				resource: model.getAssociatedResource(),
+				resource: model.uri,
 				options: { preserveFocus: false }
 			}, position).then(() => { return; });
 		}

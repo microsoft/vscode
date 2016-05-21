@@ -36,7 +36,7 @@ suite('SASS - Worker', () => {
 
 		var idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
 		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.suggest(url, position).then(result => result[0]);
+		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
@@ -49,13 +49,13 @@ suite('SASS - Worker', () => {
 		return env.worker.navigateValueSet(url, range, up);
 	};
 
-	var testOccurrences = function(value:string, tokenBefore:string):WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel }> {
+	var testOccurrences = function(value:string, tokenBefore:string):WinJS.TPromise<{ occurrences: Modes.DocumentHighlight[]; model: mm.MirrorModel }> {
 		var url = URI.parse('test://1');
 		var env = mockSASSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);
 
-		return env.worker.findOccurrences(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
+		return env.worker.provideDocumentHighlights(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
 	};
 
 	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, type?:string) {
@@ -71,7 +71,7 @@ suite('SASS - Worker', () => {
 		assert.equal(result.value, expected);
 	};
 
-	var assertOccurrences= function(occurrences: Modes.IOccurence[], model: mm.MirrorModel , expectedNumber:number, expectedContent:string) {
+	var assertOccurrences= function(occurrences: Modes.DocumentHighlight[], model: mm.MirrorModel , expectedNumber:number, expectedContent:string) {
 		assert.equal(occurrences.length, expectedNumber);
 		occurrences.forEach((occurrence) => {
 			assert.equal(model.getValueInRange(occurrence.range), expectedContent);

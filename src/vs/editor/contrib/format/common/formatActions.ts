@@ -13,8 +13,8 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {FormatOnTypeRegistry, FormatRegistry} from 'vs/editor/common/modes';
-import {formatAfterKeystroke, formatDocument, formatRange} from '../common/format';
+import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
+import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
 
 interface IFormatOnTypeResult {
@@ -39,12 +39,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ConfigurationChanged, () => this.update()));
 		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelChanged, () => this.update()));
 		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.update()));
-		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelModeSupportChanged,(e: editorCommon.IModeSupportChangedEvent) => {
-			if (e.formattingSupport) {
-				this.update();
-			}
-		}));
-		this.callOnDispose.push(FormatOnTypeRegistry.onDidChange(this.update, this));
+		this.callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
 	}
 
 	private update(): void {
@@ -53,7 +48,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this.callOnModel = cAll(this.callOnModel);
 
 		// we are disabled
-		if (!this.editor.getConfiguration().formatOnType) {
+		if (!this.editor.getConfiguration().contribInfo.formatOnType) {
 			return;
 		}
 
@@ -65,7 +60,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		var model = this.editor.getModel();
 
 		// no support
-		var [support] = FormatOnTypeRegistry.ordered(model);
+		var [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 		if (!support || !support.autoFormatTriggerCharacters) {
 			return;
 		}
@@ -114,7 +109,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 		let modelOpts = model.getOptions();
 
-		formatAfterKeystroke(model, position, ch, {
+		getOnTypeFormattingEdits(model, position, ch, {
 			tabSize: modelOpts.tabSize,
 			insertSpaces: modelOpts.insertSpaces
 		}).then(edits => {
@@ -149,16 +144,19 @@ export class FormatAction extends EditorAction {
 
 	public static ID = 'editor.action.format';
 
-	private _disposable: IDisposable;
+	private _disposables: IDisposable[];
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange | Behaviour.ShowInContextMenu);
-		this._disposable = FormatRegistry.onDidChange(() => this.resetEnablementState());
+		this._disposables = [
+			DocumentFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState()),
+			DocumentRangeFormattingEditProviderRegistry.onDidChange(() => this.resetEnablementState())
+		];
 	}
 
 	public dispose() {
 		super.dispose();
-		this._disposable.dispose();
+		this._disposables = dispose(this._disposables);
 	}
 
 	public getGroupId(): string {
@@ -166,7 +164,13 @@ export class FormatAction extends EditorAction {
 	}
 
 	public isSupported(): boolean {
-		return FormatRegistry.has(this.editor.getModel()) && super.isSupported();
+		return (
+			(
+				DocumentFormattingEditProviderRegistry.has(this.editor.getModel())
+				|| DocumentRangeFormattingEditProviderRegistry.has(this.editor.getModel())
+			)
+			&& super.isSupported()
+		);
 	}
 
 	public run(): TPromise<boolean> {
@@ -182,9 +186,9 @@ export class FormatAction extends EditorAction {
 		let formattingPromise: TPromise<editorCommon.ISingleEditOperation[]>;
 
 		if (editorSelection.isEmpty()) {
-			formattingPromise = formatDocument(model, options);
+			formattingPromise = getDocumentFormattingEdits(model, options);
 		} else {
-			formattingPromise = formatRange(model, editorSelection, options);
+			formattingPromise = getDocumentRangeFormattingEdits(model, editorSelection, options);
 		}
 
 		if (!formattingPromise) {

@@ -6,6 +6,14 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 
+const _typeof = {
+	number: 'number',
+	string: 'string',
+	undefined: 'undefined',
+	object: 'object',
+	function: 'function'
+};
+
 /**
  * @returns whether the provided parameter is a JavaScript Array or not.
  */
@@ -14,7 +22,7 @@ export function isArray(array: any): array is any[] {
 		return Array.isArray(array);
 	}
 
-	if (array && typeof (array.length) === 'number' && array.constructor === Array) {
+	if (array && typeof (array.length) === _typeof.number && array.constructor === Array) {
 		return true;
 	}
 
@@ -25,7 +33,7 @@ export function isArray(array: any): array is any[] {
  * @returns whether the provided parameter is a JavaScript String or not.
  */
 export function isString(str: any): str is string {
-	if (typeof (str) === 'string' || str instanceof String) {
+	if (typeof (str) === _typeof.string|| str instanceof String) {
 		return true;
 	}
 
@@ -40,23 +48,24 @@ export function isStringArray(value: any): value is string[] {
 }
 
 /**
- * @returns whether the provided parameter is a JavaScript Object or not.
+ *
+ * @returns whether the provided parameter is of type `object` but **not**
+ *	`null`, an `array`, a `regexp`, nor a `date`.
  */
 export function isObject(obj: any): obj is any {
-
-	// Needed for IE8
-	if (typeof obj === 'undefined' || obj === null) {
-		return false;
-	}
-
-	return Object.prototype.toString.call(obj) === '[object Object]';
+	return typeof obj === _typeof.object
+		&& obj !== null
+		&& !Array.isArray(obj)
+		&& !(obj instanceof RegExp)
+		&& !(obj instanceof Date);
 }
 
 /**
+ * In **contrast** to just checking `typeof` this will return `false` for `NaN`.
  * @returns whether the provided parameter is a JavaScript Number or not.
  */
 export function isNumber(obj: any): obj is number {
-	if ((typeof (obj) === 'number' || obj instanceof Number) && !isNaN(obj)) {
+	if ((typeof (obj) === _typeof.number || obj instanceof Number) && !isNaN(obj)) {
 		return true;
 	}
 
@@ -74,7 +83,7 @@ export function isBoolean(obj: any): obj is boolean {
  * @returns whether the provided parameter is undefined.
  */
 export function isUndefined(obj: any): boolean {
-	return typeof (obj) === 'undefined';
+	return typeof (obj) === _typeof.undefined;
 }
 
 /**
@@ -108,14 +117,14 @@ export function isEmptyObject(obj: any): obj is any {
  * @returns whether the provided parameter is a JavaScript Function or not.
  */
 export function isFunction(obj: any): obj is Function {
-	return Object.prototype.toString.call(obj) === '[object Function]';
+	return typeof obj === _typeof.function;
 }
 
 /**
  * @returns whether the provided parameters is are JavaScript Function or not.
  */
 export function areFunctions(...objects: any[]): boolean {
-	return objects && objects.length > 0 && objects.every((object) => isFunction(object));
+	return objects && objects.length > 0 && objects.every(isFunction);
 }
 
 export type TypeConstraint = string | Function;
@@ -129,11 +138,11 @@ export function validateConstraints(args: any[], constraints: TypeConstraint[]):
 
 export function validateConstraint(arg: any, constraint: TypeConstraint): void {
 
-	if (typeof constraint === 'string') {
+	if (isString(constraint)) {
 		if (typeof arg !== constraint) {
 			throw new Error(`argument does not match constraint: typeof ${constraint}`);
 		}
-	} else if (typeof constraint === 'function') {
+	} else if (isFunction(constraint)) {
 		if (arg instanceof constraint) {
 			return;
 		}

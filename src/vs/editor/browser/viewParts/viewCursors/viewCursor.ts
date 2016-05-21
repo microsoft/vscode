@@ -25,7 +25,7 @@ export class ViewCursor {
 
 	constructor(context:ViewContext, isSecondary:boolean) {
 		this._context = context;
-		this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._lastRenderedContent = '';
 
@@ -105,8 +105,8 @@ export class ViewCursor {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.cursorStyle) {
-			this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		if (e.viewInfo.cursorStyle) {
+			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		}
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);

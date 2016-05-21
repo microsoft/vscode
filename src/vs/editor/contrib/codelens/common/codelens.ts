@@ -10,19 +10,22 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {CodeLensRegistry, ICodeLensSupport, ICodeLensSymbol} from 'vs/editor/common/modes';
+import {CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {asWinJsPromise} from 'vs/base/common/async';
 
 export interface ICodeLensData {
 	symbol: ICodeLensSymbol;
-	support: ICodeLensSupport;
+	support: CodeLensProvider;
 }
 
 export function getCodeLensData(model: IModel): TPromise<ICodeLensData[]> {
 
 	const symbols: ICodeLensData[] = [];
-	const promises = CodeLensRegistry.all(model).map(support => {
-		return support.findCodeLensSymbols(model.getAssociatedResource()).then(result => {
+	const promises = CodeLensProviderRegistry.all(model).map(support => {
+		return asWinJsPromise((token) => {
+			return support.provideCodeLenses(model, token);
+		}).then(result => {
 			if (!Array.isArray(result)) {
 				return;
 			}

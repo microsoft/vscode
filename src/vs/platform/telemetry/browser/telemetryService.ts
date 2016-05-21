@@ -5,26 +5,27 @@
 
 'use strict';
 
-import * as Platform from 'vs/base/common/platform';
-import * as uuid from 'vs/base/common/uuid';
+import {localize} from 'vs/nls';
+import {escapeRegExpCharacters} from 'vs/base/common/strings';
 import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {optional} from 'vs/platform/instantiation/common/instantiation';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
 import ErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
-import {withDefaults, cloneAndChange} from 'vs/base/common/objects';
+import {cloneAndChange, mixin} from 'vs/base/common/objects';
+import {Registry} from 'vs/platform/platform';
 
 export interface ITelemetryServiceConfig {
+	appender: ITelemetryAppender[];
+	commonProperties?: TPromise<{ [name: string]: any }>;
+	piiPaths?: string[];
 	userOptIn?: boolean;
-
 	enableHardIdle?: boolean;
 	enableSoftIdle?: boolean;
-	sessionID?: string;
-	commitHash?: string;
-	version?: string;
-
-	cleanupPatterns?: [RegExp,string][];
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -33,48 +34,42 @@ export class TelemetryService implements ITelemetryService {
 	public static SOFT_IDLE_TIME = 2 * 60 * 1000;
 	public static IDLE_START_EVENT_NAME = 'UserIdleStart';
 	public static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
-
 	public static ERROR_FLUSH_TIMEOUT: number = 5 * 1000;
 
 	public serviceId = ITelemetryService;
 
-	protected _telemetryInfo: ITelemetryInfo;
-	protected _configuration: ITelemetryServiceConfig;
-	protected _appenders: ITelemetryAppender[] = [];
-	protected _disposables: IDisposable[] = [];
-
+	private _configuration: ITelemetryServiceConfig;
+	private _disposables: IDisposable[] = [];
 	private _timeKeeper: TimeKeeper;
 	private _hardIdleMonitor: IdleMonitor;
 	private _softIdleMonitor: IdleMonitor;
-	private _eventCount = 0;
-	private _startTime = new Date();
-	private _optInFriendly = ['optInStatus']; //holds a cache of predefined events that can be sent regardress of user optin status
-	private _userIdHash: string;
+	private _cleanupPatterns: [RegExp, string][] = [];
 
-	constructor(config?: ITelemetryServiceConfig) {
-		this._configuration = withDefaults(config, <ITelemetryServiceConfig>{
-			cleanupPatterns: [],
-			sessionID: uuid.generateUuid() + Date.now(),
+	constructor(
+		config: ITelemetryServiceConfig,
+		@optional(IConfigurationService) private _configurationService: IConfigurationService
+	) {
+		this._configuration = mixin(config, <ITelemetryServiceConfig>{
+			appender: [],
+			commonProperties: TPromise.as({}),
+			piiPaths: [],
 			enableHardIdle: true,
 			enableSoftIdle: true,
-			userOptIn: true,
-		});
+			userOptIn: true
+		}, false);
 
 		// static cleanup patterns for:
 		// #1 `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		// #2 // Any other file path that doesn't match the approved form above should be cleaned.
 		// #3 "Error: ENOENT; no such file or directory" is often followed with PII, clean it
-		this._configuration.cleanupPatterns.push(
+		for (let piiPath of this._configuration.piiPaths) {
+			this._cleanupPatterns.push([new RegExp(escapeRegExpCharacters(piiPath), 'gi'), '']);
+		}
+		this._cleanupPatterns.push(
 			[/file:\/\/\/.*?\/resources\/app\//gi, ''],
 			[/file:\/\/\/.*/gi, ''],
 			[/ENOENT: no such file or directory.*?\'([^\']+)\'/gi, 'ENOENT: no such file or directory']
 		);
-
-		this._telemetryInfo = {
-			sessionId: this._configuration.sessionID,
-			instanceId: undefined,
-			machineId: undefined
-		};
 
 		this._timeKeeper = new TimeKeeper();
 		this._disposables.push(this._timeKeeper);
@@ -93,6 +88,17 @@ export class TelemetryService implements ITelemetryService {
 			this._softIdleMonitor.addOneTimeIdleListener(() => this._onUserIdle());
 			this._disposables.push(this._softIdleMonitor);
 		}
+
+		if (this._configurationService) {
+			this._updateUserOptIn();
+			this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
+			this.publicLog('optInStatus', { optIn: this._configuration.userOptIn });
+		}
+	}
+
+	private _updateUserOptIn(): void {
+		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
+		this._configuration.userOptIn = config ? config.enableTelemetry : this._configuration.userOptIn;
 	}
 
 	private _onUserIdle(): void {
@@ -114,15 +120,23 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
+	get isOptedIn(): boolean {
+		return this._configuration.userOptIn;
+	}
+
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as(this._telemetryInfo);
+		return this._configuration.commonProperties.then(values => {
+			// well known properties
+			let sessionId = values['sessionID'];
+			let instanceId = values['common.instanceId'];
+			let machineId = values['common.machineId'];
+
+			return { sessionId, instanceId, machineId };
+		});
 	}
 
 	public dispose(): void {
 		this._disposables = dispose(this._disposables);
-		for (let appender of this._appenders) {
-			appender.dispose();
-		}
 	}
 
 	public timedPublicLog(name: string, data?: any): ITimerEvent {
@@ -134,72 +148,64 @@ export class TelemetryService implements ITelemetryService {
 		return event;
 	}
 
-	public publicLog(eventName: string, data?: any): void {
-		this._handleEvent(eventName, data);
-	}
+	public publicLog(eventName: string, data?: any): TPromise<any> {
 
-	private _handleEvent(eventName: string, data?: any): void {
 		if (this._hardIdleMonitor && this._hardIdleMonitor.getStatus() === UserStatus.Idle) {
-			return;
+			return TPromise.as(undefined);
 		}
 
-		// don't send events when the user is optout unless the event is flaged as optin friendly
-		if (!this._configuration.userOptIn && this._optInFriendly.indexOf(eventName) === -1) {
-			return;
+		// don't send events when the user is optout unless the event is the opt{in|out} signal
+		if (!this._configuration.userOptIn && eventName !== 'optInStatus') {
+			return TPromise.as(undefined);
 		}
 
-		this._eventCount++;
+		return this._configuration.commonProperties.then(values => {
 
-		if (!data) {
-			data = Object.create(null);
-		}
+			// (first) add common properties
+			data = mixin(data, values);
 
-		// (first) add common properties
-		let eventDate: Date = new Date();
-		data['sessionID'] = this._telemetryInfo.sessionId;
-		data['timestamp'] = eventDate;
-		data['version'] = this._configuration.version;
-		data['userId'] = this._userIdHash;
-		data['commitHash'] = this._configuration.commitHash;
-		data['common.platform'] = Platform.Platform[Platform.platform];
-		data['common.timesincesessionstart'] = (eventDate.getTime() - this._startTime.getTime());
-		data['common.sequence'] = this._eventCount;
-		data['common.instanceId'] = this._telemetryInfo.instanceId;
-		data['common.machineId'] = this._telemetryInfo.machineId;
+			// (last) remove all PII from data
+			data = cloneAndChange(data, value => {
+				if (typeof value === 'string') {
+					return this._cleanupInfo(value);
+				}
+			});
 
-		// (last) remove all PII from data
-		data = cloneAndChange(data, value => {
-			if (typeof value === 'string') {
-				return this._cleanupInfo(value);
+			for (let appender of this._configuration.appender) {
+				appender.log(eventName, data);
 			}
-		});
 
-		for (let appender of this._appenders) {
-			appender.log(eventName, data);
-		}
+		}, err => {
+			// unsure what to do now...
+			console.error(err);
+		});
 	}
 
 	private _cleanupInfo(stack: string): string {
 
 		// sanitize with configured cleanup patterns
-		for (let tuple of this._configuration.cleanupPatterns) {
+		for (let tuple of this._cleanupPatterns) {
 			let [regexp, replaceValue] = tuple;
 			stack = stack.replace(regexp, replaceValue);
 		}
 
 		return stack;
 	}
-
-	public addTelemetryAppender(appender: ITelemetryAppender): IDisposable {
-		this._appenders.push(appender);
-		return {
-			dispose: () => {
-				let index = this._appenders.indexOf(appender);
-				if (index > -1) {
-					this._appenders.splice(index, 1);
-				}
-			}
-		};
-	}
 }
 
+
+const TELEMETRY_SECTION_ID = 'telemetry';
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	'id': TELEMETRY_SECTION_ID,
+	'order': 20,
+	'type': 'object',
+	'title': localize('telemetryConfigurationTitle', "Telemetry configuration"),
+	'properties': {
+		'telemetry.enableTelemetry': {
+			'type': 'boolean',
+			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to Microsoft."),
+			'default': true
+		}
+	}
+});

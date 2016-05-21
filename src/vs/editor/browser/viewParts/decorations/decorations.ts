@@ -64,7 +64,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {

@@ -8,7 +8,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {IHTMLContentElement, htmlContentElementArrEquals} from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IdGenerator} from 'vs/editor/common/core/idGenerator';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {TextModelWithTrackedRanges} from 'vs/editor/common/model/textModelWithTrackedRanges';
@@ -415,7 +415,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	private _addDecorationImpl(eventBuilder:DeferredEventsBuilder, ownerId:number, range:editorCommon.IEditorRange, options:ModelDecorationOptions): string {
 		var rangeId = this.addTrackedRange(range, options.stickiness);
 
-		var decoration = new ModelInternalDecoration(this._decorationIdGenerator.generate(), ownerId, rangeId, options);
+		var decoration = new ModelInternalDecoration(this._decorationIdGenerator.nextId(), ownerId, rangeId, options);
 
 		this.decorations[decoration.id] = decoration;
 		this.rangeIdToDecorationId[rangeId] = decoration.id;
@@ -432,7 +432,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		for (let i = 0, len = newDecorations.length; i < len; i++) {
 			let rangeId = rangeIds[i];
 
-			var decoration = new ModelInternalDecoration(this._decorationIdGenerator.generate(), ownerId, rangeId, newDecorations[i].options);
+			var decoration = new ModelInternalDecoration(this._decorationIdGenerator.nextId(), ownerId, rangeId, newDecorations[i].options);
 
 			this.decorations[decoration.id] = decoration;
 			this.rangeIdToDecorationId[rangeId] = decoration.id;

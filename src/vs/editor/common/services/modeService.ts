@@ -75,5 +75,6 @@ export interface IModeService {
 
 	registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable;
 	registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable;
+	registerTokenizationSupport2(modeId: string, support: modes.ITokenizationSupport2): IDisposable;
 	registerMonarchDefinition(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, language:ILanguage): IDisposable;
 }

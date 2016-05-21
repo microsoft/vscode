@@ -1,0 +1,57 @@
+
+declare module monaco {
+
+	interface Thenable<R> {
+		/**
+		 * Attaches callbacks for the resolution and/or rejection of the Promise.
+		 * @param onfulfilled The callback to execute when the Promise is resolved.
+		 * @param onrejected The callback to execute when the Promise is rejected.
+		 * @returns A Promise for the completion of which ever callback is executed.
+		 */
+		then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
+		then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+	}
+
+	export interface Event<T> {
+		(listener: (e: T) => any): IDisposable;
+	}
+
+	export class Emitter<T> {
+		constructor();
+		event: Event<T>;
+		fire(event?: T): void;
+		dispose(): void;
+	}
+
+	export interface IDisposable {
+		dispose(): void;
+	}
+
+	#include(vs/base/common/uri): URI
+
+	#include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, TPromise
+
+}
+
+declare module monaco.editor {
+
+	export function create(domElement: HTMLElement, options: IEditorConstructionOptions, services?: any): ICodeEditor;
+	export function createDiffEditor(domElement: HTMLElement, options: IDiffEditorConstructionOptions, services?: any): IDiffEditor;
+	export function createModel(value:string, mode:string|IMonarchLanguage|IMode, associatedResource?:any|string): IModel;
+	export function getOrCreateMode(modeId: string): TPromise<IMode>;
+	export function createCustomMode(description:IMonarchLanguage): TPromise<IMode>;
+	export function colorize(text: string, modeId: string, options: IColorizerOptions): TPromise<string>;
+	export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void>;
+	export function colorizeLine(line: string, tokens: Editor.ILineToken[], tabSize?: number): string;
+	export function colorizeModelLine(model: Editor.IModel, lineNumber: number, tabSize?: number): string;
+	export function registerWorkerParticipant(modeId:string, moduleName:string, ctorName:string): void;
+	export function configureMode(modeId: string, options: any): void;
+
+	#include(vs/base/browser/ui/scrollbar/scrollableElementOptions): ScrollbarVisibility
+	#include(vs/base/common/htmlContent): IHTMLContentElementCode, IHTMLContentElement
+	#include(vs/editor/common/modes): ILineContext, IMode, IModeTransition, IToken
+
+	#includeAll(vs/editor/common/editorCommon):
+	#includeAll(vs/editor/browser/editorBrowser):
+
+}

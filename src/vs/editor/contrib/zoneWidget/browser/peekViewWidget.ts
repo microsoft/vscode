@@ -14,7 +14,6 @@ import Event, {Emitter} from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
@@ -27,7 +26,6 @@ export interface IPeekViewService {
 	serviceId: ServiceIdentifier<any>;
 	isActive: boolean;
 	contextKey: string;
-	getActiveWidget(): PeekViewWidget;
 }
 
 export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCodeEditor {
@@ -53,7 +51,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 	protected _actionbarWidget: ActionBar;
 	protected _bodyElement: HTMLDivElement;
 
-	constructor(editor: ICodeEditor, keybindingService: IKeybindingService, contextKey: string, options: IOptions = {}) {
+	constructor(editor: ICodeEditor, contextKey: string, options: IOptions = {}) {
 		super(editor, options);
 		this.contextKey = contextKey;
 	}
@@ -61,6 +59,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 	public dispose(): void {
 		this._isActive = false;
 		super.dispose();
+		this._onDidClose.fire(this);
 	}
 
 	public get onDidClose(): Event<PeekViewWidget> {
@@ -71,16 +70,12 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 		return this._isActive;
 	}
 
-	public getActiveWidget(): PeekViewWidget {
-		return this;
-	}
-
 	public show(where: any, heightInLines: number): void {
 		this._isActive = true;
 		super.show(where, heightInLines);
 	}
 
-	public fillContainer(container: HTMLElement): void {
+	protected _fillContainer(container: HTMLElement): void {
 		$(container).addClass('peekview-widget');
 
 		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
@@ -110,7 +105,6 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
 		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
 			this.dispose();
-			this._onDidClose.fire(this);
 			return null;
 		}), { label: false, icon: true });
 	}
@@ -140,7 +134,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 		// implement me
 	}
 
-	public doLayout(heightInPixel: number, widthInPixel: number): void {
+	public _doLayout(heightInPixel: number, widthInPixel: number): void {
 
 		if (heightInPixel < 0) {
 			// Looks like the view zone got folded away!

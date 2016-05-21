@@ -87,7 +87,7 @@ export class ViewZones extends ViewPart {
 		return this._recomputeWhitespacesProps();
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 
@@ -219,7 +219,7 @@ export class ViewZones extends ViewPart {
 			// TODO@Alex: change `newOrdinal` too
 
 			if (changed) {
-				zone.delegate.onComputedHeight(props.heightInPx);
+				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
 				this.setShouldRender();
 			}
 		}

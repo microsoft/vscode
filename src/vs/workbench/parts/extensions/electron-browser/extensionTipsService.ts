@@ -8,7 +8,7 @@ import {forEach} from 'vs/base/common/collections';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {match} from 'vs/base/common/glob';
-import {IGalleryService, IExtensionTipsService, IExtension} from 'vs/workbench/parts/extensions/common/extensions';
+import {IExtensionGalleryService, IExtensionTipsService, IExtension} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -22,7 +22,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	private _disposables: IDisposable[] = [];
 
 	constructor(
-		@IGalleryService private _galleryService: IGalleryService,
+		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
 		@IModelService private _modelService: IModelService,
 		@IStorageService private _storageService: IStorageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
@@ -55,10 +55,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		});
 
 		this._disposables.push(this._modelService.onModelAdded(model => {
-			this._suggest(model.getAssociatedResource());
+			this._suggest(model.uri);
 		}));
 		for (let model of this._modelService.getModels()) {
-			this._suggest(model.getAssociatedResource());
+			this._suggest(model.uri);
 		}
 	}
 

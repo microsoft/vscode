@@ -116,9 +116,9 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			for (let arg of description.args) {
 				constraints.push(arg.constraint);
 			}
-			handler = function(accesor, args) {
+			handler = function (accesor, ...args: any[]) {
 				validateConstraints(args, constraints);
-				return desc.handler(accesor, args);
+				return desc.handler(accesor, ...args);
 			};
 		}
 

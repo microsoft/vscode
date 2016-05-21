@@ -210,6 +210,12 @@ function updateConfiguration() {
 
 
 function validateTextDocument(textDocument: ITextDocument): void {
+	if (textDocument.getText().length === 0) {
+		// ignore empty documents
+		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
+		return;
+	}
+
 	let jsonDocument = getJSONDocument(textDocument);
 	jsonSchemaService.getSchemaForResource(textDocument.uri, jsonDocument).then(schema => {
 		if (schema) {

@@ -3,8 +3,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
-ARGS=$@
-
 # If root, ensure that --user-data-dir is specified
 if [ "$(id -u)" = "0" ]; then
 	while test $# -gt 0
@@ -35,5 +33,5 @@ fi
 
 ELECTRON="$VSCODE_PATH/@@NAME@@"
 CLI="$VSCODE_PATH/resources/app/out/cli.js"
-ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 "$ELECTRON" "$CLI" $ARGS
+ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
 exit $?

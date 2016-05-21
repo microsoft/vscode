@@ -4,26 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Browser from 'vs/base/browser/browser';
 import {AbstractScrollbar, ScrollbarHost, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {IDomNodePosition} from 'vs/base/browser/dom';
-import {ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {ScrollbarVisibility, ScrollableElementResolvedOptions} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {Scrollable, ScrollEvent} from 'vs/base/common/scrollable';
 import {ScrollbarState} from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import {ARROW_IMG_SIZE} from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
 		super({
-			forbidTranslate3dUse: options.forbidTranslate3dUse,
+			canUseTranslate3d: options.canUseTranslate3d,
 			lazyRender: options.lazyRender,
 			host: host,
 			scrollbarState: new ScrollbarState(
 				(options.verticalHasArrows ? options.arrowSize : 0),
-				(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize),
+				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize),
 				// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
 				0
 			),
@@ -64,9 +62,11 @@ export class VerticalScrollbar extends AbstractScrollbar {
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
 		this.slider.setHeight(sliderSize);
-		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
+		if (this._canUseTranslate3d) {
 			this.slider.setTransform('translate3d(0px, ' + sliderPosition + 'px, 0px)');
+			this.slider.setTop(0);
 		} else {
+			this.slider.setTransform('');
 			this.slider.setTop(sliderPosition);
 		}
 	}

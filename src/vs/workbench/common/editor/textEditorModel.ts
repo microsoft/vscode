@@ -63,7 +63,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 			let model = this.modelService.createModel(value, this.getOrCreateMode(this.modeService, mime, firstLineText), resource);
 			this.createdEditorModel = true;
 
-			this.textEditorModelHandle = model.getAssociatedResource();
+			this.textEditorModelHandle = model.uri;
 
 			return this;
 		});

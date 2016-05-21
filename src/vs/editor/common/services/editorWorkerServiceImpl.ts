@@ -174,7 +174,7 @@ export class EditorModelManager extends Disposable {
 		}
 
 		this._proxy.acceptNewModel({
-			url: model.getAssociatedResource().toString(),
+			url: model.uri.toString(),
 			value: model.toRawText(),
 			versionId: model.getVersionId()
 		});

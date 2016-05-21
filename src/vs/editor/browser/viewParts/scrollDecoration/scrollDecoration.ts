@@ -8,7 +8,7 @@
 import 'vs/css!./scrollDecoration';
 import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {IConfigurationChangedEvent, IEditorLayoutInfo, IScrollEvent} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, EditorLayoutInfo, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {ClassNames} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
@@ -28,7 +28,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._scrollTop = 0;
 		this._width = 0;
 		this._shouldShow = false;
-		this._useShadows = this._context.configuration.editor.scrollbar.useShadows;
+		this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
 		this._domNode = document.createElement('div');
 	}
 
@@ -48,12 +48,12 @@ export class ScrollDecorationViewPart extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
-		if (e.scrollbar) {
-			this._useShadows = this._context.configuration.editor.scrollbar.useShadows;
+		if (e.viewInfo.scrollbar) {
+			this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
 		}
 		return this._updateShouldShow();
 	}
-	public onLayoutChanged(layoutInfo: IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: EditorLayoutInfo): boolean {
 		if (this._width !== layoutInfo.width) {
 			this._width = layoutInfo.width;
 			return true;

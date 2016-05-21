@@ -7,26 +7,10 @@
 import {Disposable} from 'vs/base/common/lifecycle';
 import {TimeoutTimer} from 'vs/base/common/async';
 import {FastDomNode} from 'vs/base/browser/styleMutator';
-
-export enum Visibility {
-	Auto,
-	Hidden,
-	Visible
-}
-
-export function visibilityFromString(visibility: string): Visibility {
-	switch (visibility) {
-		case 'hidden':
-			return Visibility.Hidden;
-		case 'visible':
-			return Visibility.Visible;
-		default:
-			return Visibility.Auto;
-	}
-}
+import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 export class ScrollbarVisibilityController extends Disposable {
-	private _visibility: Visibility;
+	private _visibility: ScrollbarVisibility;
 	private _visibleClassName: string;
 	private _invisibleClassName: string;
 	private _domNode: FastDomNode;
@@ -35,7 +19,7 @@ export class ScrollbarVisibilityController extends Disposable {
 	private _isVisible: boolean;
 	private _revealTimer: TimeoutTimer;
 
-	constructor(visibility: Visibility, visibleClassName: string, invisibleClassName: string) {
+	constructor(visibility: ScrollbarVisibility, visibleClassName: string, invisibleClassName: string) {
 		super();
 		this._visibility = visibility;
 		this._visibleClassName = visibleClassName;
@@ -50,10 +34,10 @@ export class ScrollbarVisibilityController extends Disposable {
 	// ----------------- Hide / Reveal
 
 	private applyVisibilitySetting(shouldBeVisible: boolean): boolean {
-		if (this._visibility === Visibility.Hidden) {
+		if (this._visibility === ScrollbarVisibility.Hidden) {
 			return false;
 		}
-		if (this._visibility === Visibility.Visible) {
+		if (this._visibility === ScrollbarVisibility.Visible) {
 			return true;
 		}
 		return shouldBeVisible;

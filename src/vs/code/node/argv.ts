@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as minimist from 'minimist';
-import pkg from 'vs/code/node/package';
+import pkg from 'vs/platform/package';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
 	help: boolean;
@@ -28,6 +28,9 @@ export interface ParsedArgs extends minimist.ParsedArgs {
 	timestamp: string;
 	debugBrkPluginHost: string;
 	debugPluginHost: string;
+	'list-extensions': boolean;
+	'install-extension': string | string[];
+	'uninstall-extension': string | string[];
 }
 
 const options: minimist.Opts = {
@@ -37,7 +40,9 @@ const options: minimist.Opts = {
 		'extensionHomePath',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
-		'timestamp'
+		'timestamp',
+		'install-extension',
+		'uninstall-extension'
 	],
 	boolean: [
 		'help',
@@ -50,7 +55,8 @@ const options: minimist.Opts = {
 		'performance',
 		'verbose',
 		'logExtensionHostCommunication',
-		'disable-extensions'
+		'disable-extensions',
+		'list-extensions'
 	],
 	alias: {
 		help: 'h',
@@ -89,4 +95,9 @@ ${ indent }                      window.
 ${ indent }--user-data-dir <dir> Specifies the directory that user data is kept in,
 ${ indent }                      useful when running as root.
 ${ indent }-v, --version         Print version.
-${ indent }-w, --wait            Wait for the window to be closed before returning.`;
+${ indent }-w, --wait            Wait for the window to be closed before returning.
+${ indent }--list-extensions     List the installed extensions.
+${ indent }--install-extension <extension>
+${ indent }                      Installs an extension.
+${ indent }--uninstall-extension <extension>
+${ indent }                      Uninstalls an extension.`;

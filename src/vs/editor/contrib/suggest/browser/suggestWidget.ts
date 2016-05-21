@@ -221,7 +221,7 @@ class SuggestionDetails {
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
 
-		this.scrollbar = new DomScrollableElement(this.body, {});
+		this.scrollbar = new DomScrollableElement(this.body, { canUseTranslate3d: false });
 		append(this.el, this.scrollbar.getDomNode());
 		this.disposables.push(this.scrollbar);
 
@@ -355,7 +355,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.element.style.top = '0';
 		this.element.style.left = '0';
 
-		if (!this.editor.getConfiguration().iconsInSuggestions) {
+		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
 			addClass(this.element, 'no-icons');
 		}
 
@@ -488,10 +488,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.updateWidgetHeight();
 		this.list.reveal(index);
 
-		const resource = this.editor.getModel().getAssociatedResource();
 		const position = this.model.getRequestPosition() || this.editor.getPosition();
 
-		this.currentSuggestionDetails = item.resolveDetails(resource, position)
+		this.currentSuggestionDetails = item.resolveDetails(this.editor.getModel(), position)
 			.then(details => {
 				item.updateDetails(details);
 				this.list.setFocus(index);

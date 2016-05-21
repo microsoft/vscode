@@ -111,7 +111,7 @@ export class Model extends EditableTextModel implements IModel {
 		return this._attachedEditorCount > 0;
 	}
 
-	public getAssociatedResource(): URI {
+	public get uri(): URI {
 		return this._associatedResource;
 	}
 }

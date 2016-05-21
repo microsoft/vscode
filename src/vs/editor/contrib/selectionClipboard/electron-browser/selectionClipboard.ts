@@ -23,11 +23,11 @@ class SelectionClipboard extends Disposable implements IEditorContribution {
 		super();
 
 		if (platform.isLinux) {
-			var isEnabled = editor.getConfiguration().selectionClipboard;
+			var isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
 
 			this._register(editor.addListener2(EventType.ConfigurationChanged, (e:IConfigurationChangedEvent) => {
-				if (e.selectionClipboard) {
-					isEnabled = editor.getConfiguration().selectionClipboard;
+				if (e.contribInfo) {
+					isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
 				}
 			}));
 

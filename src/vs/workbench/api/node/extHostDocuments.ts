@@ -395,23 +395,24 @@ export class ExtHostDocumentData extends MirrorModel2 {
 
 		if (line < 0) {
 			line = 0;
-			hasChanged = true;
-		}
-
-		if (line >= this._lines.length) {
-			line = this._lines.length - 1;
-			hasChanged = true;
-		}
-
-		if (character < 0) {
 			character = 0;
 			hasChanged = true;
 		}
-
-		let maxCharacter = this._lines[line].length;
-		if (character > maxCharacter) {
-			character = maxCharacter;
+		else if (line >= this._lines.length) {
+			line = this._lines.length - 1;
+			character = this._lines[line].length;
 			hasChanged = true;
+		}
+		else {
+			let maxCharacter = this._lines[line].length;
+			if (character < 0) {
+				character = 0;
+				hasChanged = true;
+			}
+			else if (character > maxCharacter) {
+				character = maxCharacter;
+				hasChanged = true;
+			}
 		}
 
 		if (!hasChanged) {
@@ -518,11 +519,11 @@ export class MainThreadDocuments {
 			// don't synchronize too large models
 			return null;
 		}
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener2((events) => this._onModelEvents(modelUrl, events));
 		this._proxy._acceptModelAdd({
-			url: model.getAssociatedResource(),
+			url: model.uri,
 			versionId: model.getVersionId(),
 			value: model.toRawText(),
 			modeId: model.getMode().getId(),
@@ -532,15 +533,15 @@ export class MainThreadDocuments {
 
 	private _onModelModeChanged(event: { model: EditorCommon.IModel; oldModeId: string; }): void {
 		let {model, oldModeId} = event;
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy._acceptModelModeChanged(model.getAssociatedResource().toString(), oldModeId, model.getMode().getId());
+		this._proxy._acceptModelModeChanged(model.uri.toString(), oldModeId, model.getMode().getId());
 	}
 
 	private _onModelRemoved(model: EditorCommon.IModel): void {
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
@@ -630,7 +631,7 @@ export class MainThreadDocuments {
 		this._resourceContentProvider[handle] = ResourceEditorInput.registerResourceContentProvider(scheme, {
 			provideTextContent: (uri: URI): TPromise<EditorCommon.IModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
-					if (value) {
+					if (typeof value === 'string') {
 						this._virtualDocumentSet[uri.toString()] = true;
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
 						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);

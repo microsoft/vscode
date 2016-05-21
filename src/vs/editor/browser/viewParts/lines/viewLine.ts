@@ -23,7 +23,6 @@ export class ViewLine implements IVisibleLineData {
 	private _spaceWidth: number;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
-	protected _fontLigatures: boolean;
 
 	private _domNode: FastDomNode;
 
@@ -38,12 +37,11 @@ export class ViewLine implements IVisibleLineData {
 
 	constructor(context:ViewContext) {
 		this._context = context;
-		this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
-		this._indentGuides = this._context.configuration.editor.indentGuides;
+		this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
+		this._indentGuides = this._context.configuration.editor.viewInfo.indentGuides;
 		this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
-		this._fontLigatures = this._context.configuration.editor.fontLigatures;
+		this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
 
 		this._domNode = null;
 		this._isInvalid = true;
@@ -84,11 +82,11 @@ export class ViewLine implements IVisibleLineData {
 		this._isMaybeInvalid = true;
 	}
 	public onConfigurationChanged(e:IConfigurationChangedEvent): void {
-		if (e.renderWhitespace) {
-			this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
+		if (e.viewInfo.renderWhitespace) {
+			this._renderWhitespace = this._context.configuration.editor.viewInfo.renderWhitespace;
 		}
-		if (e.indentGuides) {
-			this._indentGuides = this._context.configuration.editor.indentGuides;
+		if (e.viewInfo.indentGuides) {
+			this._indentGuides = this._context.configuration.editor.viewInfo.indentGuides;
 		}
 		if (e.fontInfo) {
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
@@ -96,11 +94,8 @@ export class ViewLine implements IVisibleLineData {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.stopRenderingLineAfter) {
-			this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
-		}
-		if (e.fontLigatures) {
-			this._fontLigatures = this._context.configuration.editor.fontLigatures;
+		if (e.viewInfo.stopRenderingLineAfter) {
+			this._stopRenderingLineAfter = this._context.configuration.editor.viewInfo.stopRenderingLineAfter;
 		}
 		this._isInvalid = true;
 	}
@@ -311,18 +306,6 @@ class WebKitViewLine extends ViewLine {
 
 	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 		let output = super._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
-
-		if (this._fontLigatures && output.length === 1 && endColumn > 1 && endColumn === this._charOffsetInPart.length) {
-			let lastSpanBoundingClientRect = (<HTMLElement>this._getReadingTarget().lastChild).getBoundingClientRect();
-			let lastSpanBoundingClientRectRight = lastSpanBoundingClientRect.right - clientRectDeltaLeft;
-			if (startColumn === endColumn) {
-				output[0].left = lastSpanBoundingClientRectRight;
-				output[0].width = 0;
-			} else {
-				output[0].width = lastSpanBoundingClientRectRight - output[0].left;
-			}
-			return output;
-		}
 
 		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._charOffsetInPart.length)) {
 			return output;

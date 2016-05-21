@@ -14,7 +14,7 @@ function code() {
 	test -d node_modules || ./scripts/npm.sh install
 
 	# Get electron
-	./node_modules/.bin/gulp electron
+	test -d .build/electron || ./node_modules/.bin/gulp electron
 
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile
@@ -31,7 +31,7 @@ function code() {
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$ELECTRON" "$CLI" . $@
+	"$ELECTRON" "$CLI" . "$@"
 }
 
 code "$@"

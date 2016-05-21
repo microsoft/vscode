@@ -85,7 +85,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._roundedSelection = this._context.configuration.editor.roundedSelection;
+		this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
 		this._selections = [];
 		this._renderResult = null;
 		this._context.addEventHandler(this);
@@ -131,12 +131,12 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.roundedSelection) {
-			this._roundedSelection = this._context.configuration.editor.roundedSelection;
+		if (e.viewInfo.roundedSelection) {
+			this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		return true;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {

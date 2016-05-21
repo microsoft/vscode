@@ -10,6 +10,7 @@ import nodes = require('vs/languages/css/common/parser/cssNodes');
 import parser = require('vs/languages/css/common/parser/cssParser');
 import occurrences = require('vs/languages/css/common/services/occurrences');
 import workerTests = require('./css-worker.test');
+import * as modes from 'vs/editor/common/modes';
 
 export function assertScopesAndSymbols(p: parser.Parser, input:string, expected:string):void {
 	var global = createScope(p, input);
@@ -29,7 +30,7 @@ export function assertOccurrences(p: parser.Parser, input:string, marker:string,
 
 	var nWrites = 0;
 	for (var index = 0; index < os.length; index++) {
-		if (os[index].kind === 'write') {
+		if (os[index].kind === modes.DocumentHighlightKind.Write) {
 			nWrites++;
 		}
 	}

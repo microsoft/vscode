@@ -13,11 +13,12 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
-import {OccurrencesRegistry} from 'vs/editor/common/modes';
+import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {RunOnceScheduler} from 'vs/base/common/async';
 
 export enum FindStartFocusAction {
@@ -161,7 +162,11 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		if (opts.seedSearchStringFromSelection) {
 			let selectionSearchString = this.getSelectionSearchString();
 			if (selectionSearchString) {
-				stateChanges.searchString = selectionSearchString;
+				if (this._state.isRegex) {
+					stateChanges.searchString = strings.escapeRegExpCharacters(selectionSearchString);
+				} else {
+					stateChanges.searchString = selectionSearchString;
+				}
 			}
 		}
 
@@ -216,6 +221,15 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	public replaceAll(): boolean {
 		if (this._model) {
 			this._model.replaceAll();
+			return true;
+		}
+		return false;
+	}
+
+	public selectAllMatches(): boolean {
+		if (this._model) {
+			this._model.selectAllMatches();
+			this._editor.focus();
 			return true;
 		}
 		return false;
@@ -551,7 +565,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		}
 
 		this.lastWordUnderCursor = null;
-		if (!this.editor.getConfiguration().selectionHighlight) {
+		if (!this.editor.getConfiguration().contribInfo.selectionHighlight) {
 			return;
 		}
 
@@ -561,7 +575,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return;
 		}
 
-		let hasFindOccurences = OccurrencesRegistry.has(model);
+		let hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
 		if (r.nextMatch) {
 			// This is an empty selection
 			if (hasFindOccurences) {
@@ -725,4 +739,7 @@ registerFindCommand(FIND_IDS.ReplaceOneAction, x => x.replace(), {
 });
 registerFindCommand(FIND_IDS.ReplaceAllAction, x => x.replaceAll(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+});
+registerFindCommand(FIND_IDS.SelectAllMatchesAction, x => x.selectAllMatches(), {
+	primary: KeyMod.Alt | KeyCode.Enter
 });

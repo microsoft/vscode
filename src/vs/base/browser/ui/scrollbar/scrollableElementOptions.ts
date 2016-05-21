@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Visibility} from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
+export enum ScrollbarVisibility {
+	Auto = 1,
+	Hidden = 2,
+	Visible = 3
+}
 
 export interface ScrollableElementCreationOptions {
 	/**
-	 * Prevent the scrollbar rendering from using translate3d. Defaults to false.
+	 * Allow scrollbar rendering to use translate3d.
 	 */
-	forbidTranslate3dUse?: boolean;
+	canUseTranslate3d: boolean;
 	/**
 	 * The scrollable element should not do any DOM mutations until renderNow() is called.
 	 * Defaults to false.
@@ -55,7 +59,7 @@ export interface ScrollableElementCreationOptions {
 	 * Accepted values: 'auto' (on mouse over), 'visible' (always visible), 'hidden' (never visible)
 	 * Defaults to 'auto'.
 	 */
-	horizontal?: string;
+	horizontal?: ScrollbarVisibility;
 	/**
 	 * Height (in px) of the horizontal scrollbar.
 	 * Defaults to 10.
@@ -76,7 +80,7 @@ export interface ScrollableElementCreationOptions {
 	 * Accepted values: 'auto' (on mouse over), 'visible' (always visible), 'hidden' (never visible)
 	 * Defaults to 'auto'.
 	 */
-	vertical?: string;
+	vertical?: ScrollbarVisibility;
 	/**
 	 * Width (in px) of the vertical scrollbar.
 	 * Defaults to 10.
@@ -98,8 +102,14 @@ export interface ScrollableElementCreationOptions {
 	saveLastScrollTimeOnClassName?: string;
 }
 
+export interface ScrollableElementChangeOptions {
+	canUseTranslate3d: boolean;
+	handleMouseWheel?: boolean;
+	mouseWheelScrollSensitivity?: number;
+}
+
 export interface ScrollableElementResolvedOptions {
-	forbidTranslate3dUse: boolean;
+	canUseTranslate3d: boolean;
 	lazyRender: boolean;
 	className: string;
 	useShadows: boolean;
@@ -108,11 +118,11 @@ export interface ScrollableElementResolvedOptions {
 	mouseWheelScrollSensitivity: number;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement;
-	horizontal: Visibility;
+	horizontal: ScrollbarVisibility;
 	horizontalScrollbarSize: number;
 	horizontalSliderSize: number;
 	horizontalHasArrows: boolean;
-	vertical: Visibility;
+	vertical: ScrollbarVisibility;
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;

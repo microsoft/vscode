@@ -307,10 +307,12 @@ export class SecondaryMarkerService extends MarkerService {
 	}
 
 	public changeOne(owner: string, resource: URI, markers: IMarkerData[]): void {
+		super.changeOne(owner, resource, markers);
 		this._proxy.changeOne(owner, resource, markers);
 	}
 
 	public changeAll(owner: string, data: IResourceMarker[]): void {
+		super.changeAll(owner, data);
 		this._proxy.changeAll(owner, data);
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {CharacterPair, IAutoClosingPairConditional, ISuggestion} from 'vs/editor/common/modes';
+import {CharacterPair, IAutoClosingPairConditional} from 'vs/editor/common/modes';
 
 /*
  * This module exports common types and functionality shared between
@@ -41,12 +41,6 @@ export interface ILexer extends ILexerMin {
 	blockCommentStart: string;
 	blockCommentEnd: string;
 	tokenPostfix: string;
-	suggestSupport: {
-		textualCompletions: boolean;
-		disableAutoTrigger: boolean;
-		triggerCharacters: string[];
-		snippets: ISuggestion[];
-	};
 
 	tokenizer: IRule[][];
 	brackets: IBracket[];

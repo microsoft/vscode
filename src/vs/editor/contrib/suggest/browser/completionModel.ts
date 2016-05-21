@@ -7,12 +7,12 @@
 
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {assign} from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
 import {ISuggestResult2} from '../common/suggest';
+import {asWinJsPromise} from 'vs/base/common/async';
 
 export class CompletionItem {
 
@@ -30,12 +30,14 @@ export class CompletionItem {
 		this.filter = container.support && container.support.filter || fuzzyContiguousFilter;
 	}
 
-	resolveDetails(resource: URI, position: IPosition): TPromise<ISuggestion> {
-		if (!this._support || typeof this._support.getSuggestionDetails !== 'function') {
+	resolveDetails(model:IReadOnlyModel, position:IEditorPosition): TPromise<ISuggestion> {
+		if (!this._support || typeof this._support.resolveCompletionItem !== 'function') {
 			return TPromise.as(this.suggestion);
 		}
 
-		return this._support.getSuggestionDetails(resource, position, this.suggestion);
+		return asWinJsPromise((token) => {
+			return this._support.resolveCompletionItem(model, position, this.suggestion, token);
+		});
 	}
 
 	updateDetails(value: ISuggestion): void {
@@ -120,11 +122,6 @@ export class CompletionModel {
 			// compute highlights based on 'label'
 			item.highlights = filter(word, suggestion.label);
 			match = item.highlights !== null;
-
-			// no match on label -> check on codeSnippet
-			if (!match && suggestion.codeSnippet !== suggestion.label) {
-				match = !isFalsyOrEmpty((filter(word, suggestion.codeSnippet.replace(/{{.+?}}/g, '')))); // filters {{text}}-snippet syntax
-			}
 
 			// no match on label nor codeSnippet -> check on filterText
 			if(!match && typeof suggestion.filterText === 'string') {

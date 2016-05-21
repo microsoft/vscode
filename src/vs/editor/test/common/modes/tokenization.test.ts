@@ -104,14 +104,11 @@ export class SwitchingMode extends MockMode {
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
 	}
 
-	public addSupportChangedListener(callback: (e: IModeSupportChangedEvent) => void): IDisposable {
+	registerSupport<T>(support:modes.MutableSupport, callback:(mode:modes.IMode)=>T): IDisposable {
 		return EmptyDisposable;
 	}
 
-	/**
-	 * Register a support by name. Only optional.
-	 */
-	public registerSupport<T>(support:string, callback:(mode:modes.IMode)=>T): IDisposable {
+	public addSupportChangedListener(callback: (e: IModeSupportChangedEvent) => void): IDisposable {
 		return EmptyDisposable;
 	}
 

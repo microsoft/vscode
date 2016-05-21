@@ -6,23 +6,23 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import Monarch = require('vs/editor/common/modes/monarch/monarch');
+import editorCommon = require('vs/editor/common/editorCommon');
+import modes = require('vs/editor/common/modes');
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import lessWorker = require('vs/languages/less/common/lessWorker');
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
-import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {ModeWorkerManager, AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
-import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {wireCancellationToken} from 'vs/base/common/async';
+import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
+import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export var language: Types.ILanguage = <Types.ILanguage> {
 	displayName: 'LESS',
@@ -176,51 +176,72 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 	}
 };
 
-export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
+export class LESSMode extends AbstractMode {
 
-	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public configSupport:Modes.IConfigurationSupport;
-	public referenceSupport: Modes.IReferenceSupport;
-	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
-	public extraInfoSupport: Modes.IExtraInfoSupport;
-	public declarationSupport: Modes.IDeclarationSupport;
-	public outlineSupport: Modes.IOutlineSupport;
-	public suggestSupport: Modes.ISuggestSupport;
+	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
+	public configSupport:modes.IConfigurationSupport;
+	public tokenizationSupport: modes.ITokenizationSupport;
+	public richEditSupport: modes.IRichEditSupport;
 
 	private modeService: IModeService;
 	private _modeWorkerManager: ModeWorkerManager<lessWorker.LessWorker>;
 	private _threadService:IThreadService;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
+		super(descriptor.id);
+		let lexer = Compile.compile(language);
+
 		this._modeWorkerManager = new ModeWorkerManager<lessWorker.LessWorker>(descriptor, 'vs/languages/less/common/lessWorker', 'LessWorker', 'vs/languages/css/common/cssWorker', instantiationService);
 		this._threadService = threadService;
 
 		this.modeService = modeService;
 
-		this.extraInfoSupport = this;
-		this.inplaceReplaceSupport = this;
-		this.configSupport = this;
-		this.referenceSupport = new ReferenceSupport(this.getId(), {
-			tokens: [lessTokenTypes.TOKEN_PROPERTY + '.less', lessTokenTypes.TOKEN_VALUE + '.less', 'variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
-			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
-		this.logicalSelectionSupport = this;
-		this.declarationSupport = new DeclarationSupport(this.getId(), {
-			tokens: ['variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
-			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
-		this.outlineSupport = this;
+		modes.HoverProviderRegistry.register(this.getId(), {
+			provideHover: (model, position, token): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
+			}
+		});
 
-		this.suggestSupport = new SuggestSupport(this.getId(), {
+		this.inplaceReplaceSupport = this;
+
+		this.configSupport = this;
+
+		modes.ReferenceProviderRegistry.register(this.getId(), {
+			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._provideReferences(model.uri, position));
+			}
+		});
+
+		modes.DefinitionProviderRegistry.register(this.getId(), {
+			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._provideDefinition(model.uri, position));
+			}
+		});
+
+		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
+			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.uri));
+			}
+		});
+
+		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
-			excludeTokens: ['comment.less', 'string.less'],
-			suggest: (resource, position) => this.suggest(resource, position)});
+			shouldAutotriggerSuggest: true,
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
+			}
+		});
+
+		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
+
+		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 	}
 
 	public creationDone(): void {
@@ -248,7 +269,7 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 	}
 
 	static $navigateValueSet = OneWorkerAttr(LESSMode, LESSMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, position:editorCommon.IRange, up:boolean):winjs.TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
@@ -257,38 +278,33 @@ export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 		return this._worker((w) => w.enableValidator());
 	}
 
-	static $findReferences = OneWorkerAttr(LESSMode, LESSMode.prototype.findReferences);
-	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
-		return this._worker((w) => w.findReferences(resource, position));
+	static $_provideReferences = OneWorkerAttr(LESSMode, LESSMode.prototype._provideReferences);
+	private _provideReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
+		return this._worker((w) => w.provideReferences(resource, position));
 	}
 
-	static $suggest = OneWorkerAttr(LESSMode, LESSMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
+	static $_provideCompletionItems = OneWorkerAttr(LESSMode, LESSMode.prototype._provideCompletionItems);
+	private _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
+		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
-	static $getRangesToPosition = OneWorkerAttr(LESSMode, LESSMode.prototype.getRangesToPosition);
-	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._worker((w) => w.getRangesToPosition(resource, position));
+	static $_provideHover = OneWorkerAttr(LESSMode, LESSMode.prototype._provideHover);
+	private _provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
+		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $computeInfo = OneWorkerAttr(LESSMode, LESSMode.prototype.computeInfo);
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
-		return this._worker((w) => w.computeInfo(resource, position));
+	static $_provideDocumentSymbols = OneWorkerAttr(LESSMode, LESSMode.prototype._provideDocumentSymbols);
+	private _provideDocumentSymbols(resource:URI):winjs.TPromise<modes.SymbolInformation[]> {
+		return this._worker((w) => w.provideDocumentSymbols(resource));
 	}
 
-	static $getOutline = OneWorkerAttr(LESSMode, LESSMode.prototype.getOutline);
-	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
-		return this._worker((w) => w.getOutline(resource));
-	}
-
-	static $findDeclaration = OneWorkerAttr(LESSMode, LESSMode.prototype.findDeclaration);
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
-		return this._worker((w) => w.findDeclaration(resource, position));
+	static $_provideDefinition = OneWorkerAttr(LESSMode, LESSMode.prototype._provideDefinition);
+	private _provideDefinition(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Definition> {
+		return this._worker((w) => w.provideDefinition(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(LESSMode, LESSMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:editorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 }

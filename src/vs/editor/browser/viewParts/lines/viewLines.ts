@@ -6,7 +6,6 @@
 
 import 'vs/css!./viewLines';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -65,6 +64,7 @@ export class ViewLines extends ViewLayer {
 	private _lineHeight: number;
 	private _isViewportWrapping: boolean;
 	private _revealHorizontalRightPadding: number;
+	private _canUseTranslate3d: boolean;
 
 	// --- width
 	private _maxLineWidth: number;
@@ -77,7 +77,8 @@ export class ViewLines extends ViewLayer {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
-		this._revealHorizontalRightPadding = this._context.configuration.editor.revealHorizontalRightPadding;
+		this._revealHorizontalRightPadding = this._context.configuration.editor.viewInfo.revealHorizontalRightPadding;
+		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
 		this._layoutProvider = layoutProvider;
 		this.domNode.setClassName(ClassNames.VIEW_LINES);
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
@@ -119,8 +120,11 @@ export class ViewLines extends ViewLayer {
 		if (e.wrappingInfo) {
 			this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
 		}
-		if (e.revealHorizontalRightPadding) {
-			this._revealHorizontalRightPadding = this._context.configuration.editor.revealHorizontalRightPadding;
+		if (e.viewInfo.revealHorizontalRightPadding) {
+			this._revealHorizontalRightPadding = this._context.configuration.editor.viewInfo.revealHorizontalRightPadding;
+		}
+		if (e.viewInfo.canUseTranslate3d) {
+			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 		}
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
@@ -129,7 +133,7 @@ export class ViewLines extends ViewLayer {
 		return shouldRender;
 	}
 
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.EditorLayoutInfo): boolean {
 		var shouldRender = super.onLayoutChanged(layoutInfo);
 		this._maxLineWidth = 0;
 		return shouldRender;
@@ -407,10 +411,13 @@ export class ViewLines extends ViewLayer {
 		}
 
 		// (4) handle scrolling
-		if (browser.canUseTranslate3d) {
-			var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
+		if (this._canUseTranslate3d) {
+			let transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
 			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform);
+			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
+			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, 0); // TODO@Alex
 		} else {
+			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, '');
 			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
 			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
 		}

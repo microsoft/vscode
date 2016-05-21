@@ -14,7 +14,7 @@ function code() {
 	test -d node_modules || ./scripts/npm.sh install
 
 	# Get electron
-	./node_modules/.bin/gulp electron
+	test -d .build/electron || ./node_modules/.bin/gulp electron
 
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile

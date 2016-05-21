@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IConfigurationChangedEvent, IOverviewRulerPosition, IScrollEvent} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, OverviewRulerPosition, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {IOverviewRuler, OverviewRulerZone} from 'vs/editor/browser/editorBrowser';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
@@ -19,7 +19,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		super();
 		this._context = context;
 		this._overviewRuler = new OverviewRulerImpl(0, cssClassName, scrollHeight, this._context.configuration.editor.lineHeight,
-					minimumHeight, maximumHeight, getVerticalOffsetForLine);
+					this._context.configuration.editor.viewInfo.canUseTranslate3d, minimumHeight, maximumHeight, getVerticalOffsetForLine);
 
 		this._context.addEventHandler(this);
 	}
@@ -38,6 +38,12 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, true);
 			return true;
 		}
+
+		if (e.viewInfo.canUseTranslate3d) {
+			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.viewInfo.canUseTranslate3d, true);
+			return true;
+		}
+
 		return false;
 	}
 
@@ -58,7 +64,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		return this._overviewRuler.getDomNode();
 	}
 
-	public setLayout(position:IOverviewRulerPosition): void {
+	public setLayout(position:OverviewRulerPosition): void {
 		this._overviewRuler.setLayout(position, true);
 	}
 

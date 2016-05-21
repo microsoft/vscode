@@ -171,7 +171,7 @@
 
 .monaco-shell .part.editor .iframe-container,
 .monaco-shell .part.editor .binary-container {
-	outline: 0 !important; /* TODO@Ben we need focus indication for those too */
+	outline: 0 !important;
 }
 
 /* END Keyboard Focus Indication Styles */

@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as browser from 'vs/base/browser/browser';
 import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IScrollEvent, IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
@@ -224,6 +223,7 @@ export class MarginViewOverlays extends ViewOverlays {
 	private _glyphMarginWidth:number;
 	private _scrollHeight:number;
 	private _contentLeft: number;
+	private _canUseTranslate3d: boolean;
 
 	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
 		super(context, layoutProvider);
@@ -232,6 +232,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._glyphMarginWidth = context.configuration.editor.layoutInfo.glyphMarginWidth;
 		this._scrollHeight = layoutProvider.getScrollHeight();
 		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
+		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
 		this.domNode.setWidth(1);
@@ -262,7 +263,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
-	public onLayoutChanged(layoutInfo:IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:EditorLayoutInfo): boolean {
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		this._scrollHeight = this._layoutProvider.getScrollHeight();
@@ -274,16 +275,21 @@ export class MarginViewOverlays extends ViewOverlays {
 		if (e.fontInfo) {
 			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 		}
+		if (e.viewInfo.canUseTranslate3d) {
+			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
+		}
 		return super.onConfigurationChanged(e);
 	}
 
 
 	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		if (browser.canUseTranslate3d) {
+		if (this._canUseTranslate3d) {
 			var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
 			this.domNode.setTransform(transform);
+			this.domNode.setTop(0);
 		} else {
+			this.domNode.setTransform('');
 			this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
 		}
 		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);

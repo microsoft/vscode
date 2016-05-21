@@ -450,6 +450,11 @@ export class OneCursor {
 
 	// -------------------- START reading API
 
+	public getPageSize(): number {
+		let c = this.configuration.editor;
+		return Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
+	}
+
 	public getSelectionStart(): editorCommon.IEditorRange {
 		return this.selectionStart;
 	}
@@ -675,7 +680,7 @@ export class OneCursorOp {
 	}
 
 	public static columnSelectUp(isPaged:boolean, cursor:OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		var linesCount = isPaged ? cursor.configuration.editor.pageSize : 1;
+		var linesCount = isPaged ? cursor.getPageSize() : 1;
 
 		toViewLineNumber -= linesCount;
 		if (toViewLineNumber < 1) {
@@ -686,7 +691,7 @@ export class OneCursorOp {
 	}
 
 	public static columnSelectDown(isPaged:boolean, cursor:OneCursor, toViewLineNumber: number, toViewVisualColumn: number): IColumnSelectResult {
-		var linesCount = isPaged ? cursor.configuration.editor.pageSize : 1;
+		var linesCount = isPaged ? cursor.getPageSize() : 1;
 
 		toViewLineNumber += linesCount;
 		if (toViewLineNumber > cursor.getViewLineCount()) {
@@ -812,8 +817,8 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveDown(cursor:OneCursor, inSelectionMode: boolean, isPaged: boolean, ctx: IOneCursorOperationContext): boolean {
-		var linesCount = isPaged ? cursor.configuration.editor.pageSize : 1;
+	public static moveDown(cursor:OneCursor, inSelectionMode: boolean, isPaged: boolean, usePageSize: number, ctx: IOneCursorOperationContext): boolean {
+		var linesCount = isPaged ? (usePageSize || cursor.getPageSize()) : 1;
 
 		var viewLineNumber:number,
 			viewColumn:number;
@@ -853,8 +858,8 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveUp(cursor:OneCursor, inSelectionMode: boolean, isPaged: boolean, ctx: IOneCursorOperationContext): boolean {
-		var linesCount = isPaged ? cursor.configuration.editor.pageSize : 1;
+	public static moveUp(cursor:OneCursor, inSelectionMode: boolean, isPaged: boolean, usePageSize: number, ctx: IOneCursorOperationContext): boolean {
+		var linesCount = isPaged ? (usePageSize || cursor.getPageSize()) : 1;
 
 		var viewLineNumber:number,
 			viewColumn:number;

@@ -71,7 +71,7 @@ suite('HTML - worker', () => {
 		var env = mockHtmlWorkerEnv(url, content);
 
 		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.suggest(url, position).then(result => result[0]);
+		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
 	var assertSuggestion = function(completion: Modes.ISuggestResult, label: string, type?: string, codeSnippet?: string) {

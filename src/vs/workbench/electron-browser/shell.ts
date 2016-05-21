@@ -11,17 +11,18 @@ import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {escapeRegExpCharacters} from 'vs/base/common/strings';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
+import {dispose, IDisposable, Disposables} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {ElectronTelemetryService} from  'vs/platform/telemetry/electron-browser/electronTelemetryService';
+import {TelemetryService} from  'vs/platform/telemetry/browser/telemetryService';
+import {createAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
+import {resolveCommonProperties} from 'vs/platform/telemetry/node/commonProperties';
 import {ElectronIntegration} from 'vs/workbench/electron-browser/integration';
 import {Update} from 'vs/workbench/electron-browser/update';
 import {WorkspaceStats} from 'vs/platform/telemetry/common/workspaceStats';
@@ -65,8 +66,8 @@ import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/electron-browser/themeService';
 import {getDelayedChannel} from 'vs/base/parts/ipc/common/ipc';
 import {connect} from 'vs/base/parts/ipc/node/ipc.net';
-import {IExtensionsChannel, ExtensionsChannelClient} from 'vs/workbench/parts/extensions/common/extensionsIpc';
-import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
+import {IExtensionManagementChannel, ExtensionManagementChannelClient} from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import {IExtensionManagementService} from 'vs/platform/extensionManagement/common/extensionManagement';
 import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 import 'vs/platform/opener/electron-browser/opener.contribution'; // self registering service
 
@@ -197,6 +198,7 @@ export class WorkbenchShell {
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
 		let serviceCollection = new ServiceCollection();
 		let instantiationService = new InstantiationService(serviceCollection, true);
+		let disposables = new Disposables();
 
 		this.windowService = new WindowService();
 
@@ -204,42 +206,41 @@ export class WorkbenchShell {
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
-			this.telemetryService = new ElectronTelemetryService(this.configurationService, this.storageService, {
-				cleanupPatterns: [
-					[new RegExp(escapeRegExpCharacters(this.configuration.env.appRoot), 'gi'), ''],
-					[new RegExp(escapeRegExpCharacters(this.configuration.env.userExtensionsHome), 'gi'), '']
-				],
-				version: this.configuration.env.version,
-				commitHash: this.configuration.env.commitHash
-			});
+			const config = {
+				appender: createAppender(this.configuration.env),
+				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
+				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
+			};
+			let telemetryService = new TelemetryService(config, this.configurationService);
+			this.telemetryService = telemetryService;
+			disposables.add(telemetryService, ...config.appender);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService);
 
-		let fileService = new FileService(
+		let fileService = disposables.add(new FileService(
 			this.configurationService,
 			this.eventService,
 			this.contextService,
 			this.messageService
-		);
+		));
+
 
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
-		this.toUnbind.push(lifecycleService.onShutdown(() => fileService.dispose()));
-
+		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
 
-		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
+		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService);
 
 		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
 
-		let requestService = new RequestService(
+		let requestService = disposables.add(new RequestService(
 			this.contextService,
 			this.configurationService,
 			this.telemetryService
-		);
-		this.toUnbind.push(lifecycleService.onShutdown(() => requestService.dispose()));
+		));
 
 		let markerService = new MainProcessMarkerService(this.threadService);
 
@@ -249,6 +250,7 @@ export class WorkbenchShell {
 
 		let untitledEditorService = instantiationService.createInstance(UntitledEditorService);
 		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService);
+
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		serviceCollection.set(IEventService, this.eventService);
@@ -271,12 +273,12 @@ export class WorkbenchShell {
 		serviceCollection.set(ICodeEditorService, new CodeEditorServiceImpl());
 		serviceCollection.set(IEditorWorkerService, editorWorkerService);
 		serviceCollection.set(IThemeService, this.themeService);
-		serviceCollection.set(IExtensionsService, new ExtensionsChannelClient(this.initSharedProcessChannel(instantiationService, this.messageService)));
+		serviceCollection.set(IExtensionManagementService, new ExtensionManagementChannelClient(this.initSharedProcessChannel(instantiationService, this.messageService)));
 
 		return [instantiationService, serviceCollection];
 	}
 
-	private initSharedProcessChannel(instantiationService: IInstantiationService, messageService: IMessageService): IExtensionsChannel {
+	private initSharedProcessChannel(instantiationService: IInstantiationService, messageService: IMessageService): IExtensionManagementChannel {
 		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
 
 		sharedProcessClientPromise.done(service => {
@@ -288,10 +290,10 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		const extensionsChannelPromise = sharedProcessClientPromise
-			.then(client => client.getChannel<IExtensionsChannel>('extensions'));
+		const extensionManagementChannelPromise = sharedProcessClientPromise
+			.then(client => client.getChannel<IExtensionManagementChannel>('extensions'));
 
-		return getDelayedChannel<IExtensionsChannel>(extensionsChannelPromise);
+		return getDelayedChannel<IExtensionManagementChannel>(extensionManagementChannelPromise);
 	}
 
 	public open(): void {

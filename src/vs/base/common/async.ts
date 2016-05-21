@@ -14,6 +14,14 @@ function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
 }
 
+export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
+	if (isThenable(arg)) {
+		return arg;
+	} else {
+		return TPromise.as(arg);
+	}
+}
+
 export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
 	return new TPromise<T>((resolve, reject) => {
@@ -26,6 +34,14 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Th
 	}, () => {
 		source.cancel();
 	});
+}
+
+/**
+ * Hook a cancellation token to a WinJS Promise
+ */
+export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>): Thenable<T> {
+	token.onCancellationRequested(() => promise.cancel());
+	return promise;
 }
 
 export interface ITask<T> {
@@ -539,16 +555,9 @@ export class RunOnceScheduler {
 	}
 
 	/**
-	 * Set timeout. This change will only impact new schedule calls.
-	 */
-	public setTimeout(timeout: number): void {
-		this.timeout = timeout;
-	}
-
-	/**
 	 * Cancel previous runner (if any) & schedule a new runner.
 	 */
-	public schedule(): void {
+	public schedule(delay = this.timeout): void {
 		this.cancel();
 		this.timeoutToken = platform.setTimeout(this.timeoutHandler, this.timeout);
 	}
