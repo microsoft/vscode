@@ -49,6 +49,7 @@ export function activate(context: ExtensionContext) {
     });
 }
 
+// copy from src/vs/base/common/strings.ts
 function endsWith(haystack: string, needle: string): boolean {
 	let diff = haystack.length - needle.length;
 	if (diff > 0) {
