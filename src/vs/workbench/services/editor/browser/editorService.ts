@@ -160,7 +160,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			const typedInputs: { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
 				return {
 					input,
-					options: editors[index] instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input),
+					options: editors[index].input instanceof EditorInput ? editors[index].options : TextEditorOptions.from(editors[index].input),
 					position: editors[index].position
 				};
 			});
