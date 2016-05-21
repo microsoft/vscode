@@ -222,15 +222,19 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.editor = editor;
 		this.throttler = new Throttler();
 
-		this.toUnhook.push(this.editor.addListener2(editorCommon.EventType.MouseDown, (e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
-		this.toUnhook.push(this.editor.addListener2(editorCommon.EventType.MouseUp, (e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
-		this.toUnhook.push(this.editor.addListener2(editorCommon.EventType.MouseMove, (e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
-		this.toUnhook.push(this.editor.addListener2(editorCommon.EventType.KeyDown, (e: IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.toUnhook.push(this.editor.addListener2(editorCommon.EventType.KeyUp, (e: IKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.toUnhook.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
+		this.toUnhook.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
+		this.toUnhook.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 
-		this.toUnhook.push(this.editor.addListener2(editorCommon.EventType.ModelChanged, (e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
-		this.toUnhook.push(this.editor.addListener2('change', (e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
-		this.toUnhook.push(this.editor.addListener2('scroll', () => this.resetHandler()));
+		this.toUnhook.push(this.editor.onDidModelChange((e) => this.resetHandler()));
+		this.toUnhook.push(this.editor.onDidModelContentChange((e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
+		this.toUnhook.push(this.editor.onDidScrollChange((e) => {
+			if (e.scrollTopChanged || e.scrollLeftChanged) {
+				this.resetHandler();
+			}
+		}));
 	}
 
 	private onEditorMouseMove(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): void {

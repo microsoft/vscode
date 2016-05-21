@@ -129,9 +129,9 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 		this._markers = [];
 		this._currentOutlinePromise = null;
 
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onChange(true)));
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onChange(false)));
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged,(e: editorCommon.IConfigurationChangedEvent) => {
+		this._globalToDispose.push(this._editor.onDidModelChange(() => this.onChange(true)));
+		this._globalToDispose.push(this._editor.onDidModelModeChange(() => this.onChange(false)));
+		this._globalToDispose.push(this._editor.onDidConfigurationChange((e: editorCommon.IConfigurationChangedEvent) => {
 			let oldIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.outlineMarkers;
 			if (oldIsEnabled !== this._isEnabled) {
@@ -193,7 +193,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 			});
 		}, 250);
 		this._localToDispose.push(scheduler);
-		this._localToDispose.push(this._editor.addListener2('change',() => {
+		this._localToDispose.push(this._editor.onDidModelContentChange(() => {
 
 			// Synchronously move markers
 			this._editor.changeViewZones((viewAccessor) => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -20,13 +20,13 @@ export class ViewController implements IViewController {
 
 	private viewModel:IViewModel;
 	private triggerCursorHandler:TriggerCursorHandler;
-	private outgoingEventBus:IEventEmitter;
+	private outgoingEventBus:EventEmitter;
 	private keybindingService:IKeybindingService;
 
 	constructor(
 		viewModel:IViewModel,
 		triggerCursorHandler:TriggerCursorHandler,
-		outgoingEventBus:IEventEmitter,
+		outgoingEventBus:EventEmitter,
 		keybindingService:IKeybindingService
 	) {
 		this.viewModel = viewModel;

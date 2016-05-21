@@ -39,8 +39,6 @@ export interface IEventEmitter extends IDisposable {
 	addOneTimeDisposableListener(eventType:string, listener:ListenerCallback):IDisposable;
 	addBulkListener2(listener:BulkListenerCallback):IDisposable;
 	addEmitter2(eventEmitter:IEventEmitter):IDisposable;
-
-	emit(eventType:string, data?:any):void;
 }
 
 export interface IListenersMap {

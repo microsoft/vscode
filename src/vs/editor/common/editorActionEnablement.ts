@@ -5,7 +5,7 @@
 'use strict';
 
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {EventType, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 
 export enum Behaviour {
 	TextFocus = 1 << 0,
@@ -115,15 +115,15 @@ class InternalEnablementState extends CachingEnablementState {
 
 		this._callOnDispose = [];
 		if (this._behaviour & Behaviour.TextFocus) {
-			this._callOnDispose.push(this.editor.addListener2(EventType.EditorTextFocus, () => this._updateTextFocus(true)));
-			this._callOnDispose.push(this.editor.addListener2(EventType.EditorTextBlur, () => this._updateTextFocus(false)));
+			this._callOnDispose.push(this.editor.onDidEditorTextFocus(() => this._updateTextFocus(true)));
+			this._callOnDispose.push(this.editor.onDidEditorTextBlur(() => this._updateTextFocus(false)));
 		}
 		if (this._behaviour & Behaviour.WidgetFocus) {
-			this._callOnDispose.push(this.editor.addListener2(EventType.EditorFocus, () => this._updateWidgetFocus(true)));
-			this._callOnDispose.push(this.editor.addListener2(EventType.EditorBlur, () => this._updateWidgetFocus(false)));
+			this._callOnDispose.push(this.editor.onDidEditorFocus(() => this._updateWidgetFocus(true)));
+			this._callOnDispose.push(this.editor.onDidEditorBlur(() => this._updateWidgetFocus(false)));
 		}
 		if (this._behaviour & Behaviour.Writeable) {
-			this._callOnDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, (e) => this._update()));
+			this._callOnDispose.push(this.editor.onDidConfigurationChange((e) => this._update()));
 		}
 	}
 
@@ -174,12 +174,12 @@ class DescentEnablementState extends CachingEnablementState {
 		super();
 
 		if (behaviour & Behaviour.UpdateOnModelChange) {
-			this._callOnDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.reset()));
-			this._callOnDispose.push(this.editor.addListener2(EventType.ModelModeChanged, () => this.reset()));
-			this._callOnDispose.push(this.editor.addListener2(EventType.ModelModeSupportChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.onDidModelChange(() => this.reset()));
+			this._callOnDispose.push(this.editor.onDidModelModeChange(() => this.reset()));
+			this._callOnDispose.push(this.editor.onDidModelModeSupportChange(() => this.reset()));
 		}
 		if (behaviour & Behaviour.UpdateOnCursorPositionChange) {
-			this._callOnDispose.push(this.editor.addListener2(EventType.CursorPositionChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.onDidCursorPositionChange(() => this.reset()));
 		}
 	}
 

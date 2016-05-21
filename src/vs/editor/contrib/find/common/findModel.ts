@@ -57,7 +57,7 @@ export class FindModelBoundToEditorModel {
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.push(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.addListener2(editorCommon.EventType.CursorPositionChanged, (e:editorCommon.ICursorPositionChangedEvent) => {
+		this._toDispose.push(this._editor.onDidCursorPositionChange((e:editorCommon.ICursorPositionChangedEvent) => {
 			if (
 				e.reason === editorCommon.CursorChangeReason.Explicit
 				|| e.reason === editorCommon.CursorChangeReason.Undo
@@ -68,7 +68,7 @@ export class FindModelBoundToEditorModel {
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.addListener2(editorCommon.EventType.ModelContentChanged, (e:editorCommon.IModelContentChangedEvent) => {
+		this._toDispose.push(this._editor.onDidModelContentChange((e:editorCommon.IModelContentChangedEvent) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}

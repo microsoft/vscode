@@ -98,7 +98,7 @@ export class MergeDecorator implements common.IEditorContribution {
 		this.gitService = gitService;
 		this.contextService = contextService;
 		this.editor = editor;
-		this.toUnbind = [ this.editor.addListener2(common.EventType.ModelChanged, () => this.onModelChanged()) ];
+		this.toUnbind = [ this.editor.onDidModelChange(() => this.onModelChanged()) ];
 		this.mergeDecorator = null;
 	}
 

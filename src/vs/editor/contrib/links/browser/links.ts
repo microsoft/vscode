@@ -23,9 +23,10 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ILink, LinkProviderRegistry} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
+import {IEditorMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {getLinks} from 'vs/editor/contrib/links/common/links';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
 class LinkOccurence {
 
@@ -84,7 +85,13 @@ class Link {
 	}
 }
 
-class LinkDetector {
+class LinkDetector implements editorCommon.IEditorContribution {
+
+	public static ID: string = 'editor.linkDetector';
+	public static get(editor:editorCommon.ICommonCodeEditor): LinkDetector {
+		return <LinkDetector>editor.getContribution(LinkDetector.ID);
+	}
+
 	static RECOMPUTE_TIME = 1000; // ms
 	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 	static TRIGGER_MODIFIER = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
@@ -92,7 +99,7 @@ class LinkDetector {
 	static CLASS_NAME = 'detected-link';
 	static CLASS_NAME_ACTIVE = 'detected-link-active';
 
-	private editor:editorCommon.ICommonCodeEditor;
+	private editor:ICodeEditor;
 	private listenersToRemove:IDisposable[];
 	private timeoutPromise:TPromise<void>;
 	private computePromise:TPromise<ILink[]>;
@@ -104,28 +111,32 @@ class LinkDetector {
 	private currentOccurences:{ [decorationId:string]:LinkOccurence; };
 
 	constructor(
-		editor:editorCommon.ICommonCodeEditor,
-		editorService:IEditorService,
-		messageService:IMessageService,
-		editorWorkerService: IEditorWorkerService
+		editor:ICodeEditor,
+		@IEditorService editorService:IEditorService,
+		@IMessageService messageService:IMessageService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		this.editor = editor;
 		this.editorService = editorService;
 		this.messageService = messageService;
 		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(editor.addListener2('change', (e:editorCommon.IModelContentChangedEvent) => this.onChange()));
-		this.listenersToRemove.push(editor.addListener2(editorCommon.EventType.ModelChanged, (e:editorCommon.IModelContentChangedEvent) => this.onModelChanged()));
-		this.listenersToRemove.push(editor.addListener2(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => this.onModelModeChanged()));
-		this.listenersToRemove.push(this.editor.addListener2(editorCommon.EventType.MouseUp, (e:IEditorMouseEvent) => this.onEditorMouseUp(e)));
-		this.listenersToRemove.push(this.editor.addListener2(editorCommon.EventType.MouseMove, (e:IEditorMouseEvent) => this.onEditorMouseMove(e)));
-		this.listenersToRemove.push(this.editor.addListener2(editorCommon.EventType.KeyDown, (e:IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.listenersToRemove.push(this.editor.addListener2(editorCommon.EventType.KeyUp, (e:IKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.listenersToRemove.push(editor.onDidModelContentChange((e:editorCommon.IModelContentChangedEvent) => this.onChange()));
+		this.listenersToRemove.push(editor.onDidModelChange((e) => this.onModelChanged()));
+		this.listenersToRemove.push(editor.onDidModelModeChange((e) => this.onModelModeChanged()));
+		this.listenersToRemove.push(this.editor.onMouseUp((e:IEditorMouseEvent) => this.onEditorMouseUp(e)));
+		this.listenersToRemove.push(this.editor.onMouseMove((e:IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.listenersToRemove.push(this.editor.onKeyDown((e:IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this.listenersToRemove.push(this.editor.onKeyUp((e:IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this.timeoutPromise = null;
 		this.computePromise = null;
 		this.currentOccurences = {};
 		this.activeLinkDecorationId = null;
 		this.beginCompute();
+	}
+
+	public getId(): string {
+		return LinkDetector.ID;
 	}
 
 	public isComputing(): boolean {
@@ -406,40 +417,33 @@ class OpenLinkAction extends EditorAction {
 
 	static ID = 'editor.action.openLink';
 
-	private _linkDetector: LinkDetector;
-
 	constructor(
 		descriptor:editorCommon.IEditorActionDescriptorData,
-		editor:editorCommon.ICommonCodeEditor,
-		@IEditorService editorService:IEditorService,
-		@IMessageService messageService:IMessageService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		editor:editorCommon.ICommonCodeEditor
 	) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
-
-		this._linkDetector = new LinkDetector(editor, editorService, messageService, editorWorkerService);
 	}
 
 	public dispose(): void {
-		this._linkDetector.dispose();
 		super.dispose();
 	}
 
 	public getEnablementState(): boolean {
-		if(this._linkDetector.isComputing()) {
+		if (LinkDetector.get(this.editor).isComputing()) {
 			// optimistic enablement while state is being computed
 			return true;
 		}
-		return !!this._linkDetector.getLinkOccurence(this.editor.getPosition());
+		return !!LinkDetector.get(this.editor).getLinkOccurence(this.editor.getPosition());
 	}
 
 	public run():TPromise<any> {
-		var link = this._linkDetector.getLinkOccurence(this.editor.getPosition());
+		var link = LinkDetector.get(this.editor).getLinkOccurence(this.editor.getPosition());
 		if(link) {
-			this._linkDetector.openLinkOccurence(link, false);
+			LinkDetector.get(this.editor).openLinkOccurence(link, false);
 		}
 		return TPromise.as(null);
 	}
 }
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(OpenLinkAction, OpenLinkAction.ID, nls.localize('label', "Open Link"), void 0, 'Open Link'));
+EditorBrowserRegistry.registerEditorContribution(LinkDetector);

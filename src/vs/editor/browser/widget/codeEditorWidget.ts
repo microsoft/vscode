@@ -25,10 +25,39 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import {View} from 'vs/editor/browser/view/viewImpl';
-import {Disposable} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
+
+	public onMouseUp(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.MouseUp, listener);
+	}
+	public onMouseDown(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.MouseDown, listener);
+	}
+	public onContextMenu(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ContextMenu, listener);
+	}
+	public onMouseMove(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.MouseMove, listener);
+	}
+	public onMouseLeave(listener: (e:editorBrowser.IEditorMouseEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.MouseLeave, listener);
+	}
+	public onKeyUp(listener: (e:IKeyboardEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.KeyUp, listener);
+	}
+	public onKeyDown(listener: (e:IKeyboardEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.KeyDown, listener);
+	}
+	public onDidLayoutChange(listener: (e:editorCommon.EditorLayoutInfo)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.EditorLayout, listener);
+	}
+	public onDidScrollChange(listener: (e:editorCommon.IScrollEvent)=>void): IDisposable {
+		return this.addListener2('scroll', listener);
+	}
 
 	protected domElement:HTMLElement;
 	private _focusTracker: CodeEditorWidgetFocusTracker;

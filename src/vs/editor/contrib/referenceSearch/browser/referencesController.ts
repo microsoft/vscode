@@ -89,8 +89,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._disposables.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => { this.closeWidget(); }));
-		this._disposables.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => {
+		this._disposables.push(this._editor.onDidModelModeChange(() => { this.closeWidget(); }));
+		this._disposables.push(this._editor.onDidModelChange(() => {
 			if(!this._ignoreModelChangeEvent) {
 				this.closeWidget();
 			}

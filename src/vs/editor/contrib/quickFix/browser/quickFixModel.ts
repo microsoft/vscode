@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {Range} from 'vs/editor/common/core/range';
-import {EventType, ICursorPositionChangedEvent, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {ICursorPositionChangedEvent, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
 import {IQuickFix2, getCodeActions} from '../common/quickFix';
@@ -78,8 +78,8 @@ export class QuickFixModel extends EventEmitter {
 			this.autoSuggestDelay = 300;
 		}
 
-		this.toDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.onModelChanged()));
-		this.toDispose.push(this.editor.addListener2(EventType.ModelModeChanged, () => this.onModelChanged()));
+		this.toDispose.push(this.editor.onDidModelChange(() => this.onModelChanged()));
+		this.toDispose.push(this.editor.onDidModelModeChange(() => this.onModelChanged()));
 		this.toDispose.push(CodeActionProviderRegistry.onDidChange(this.onModelChanged, this));
 	}
 
@@ -98,7 +98,7 @@ export class QuickFixModel extends EventEmitter {
 
 		this.markerService.onMarkerChanged(this.onMarkerChanged, this, this.toLocalDispose);
 
-		this.toLocalDispose.push(this.editor.addListener2(EventType.CursorPositionChanged, (e: ICursorPositionChangedEvent) => {
+		this.toLocalDispose.push(this.editor.onDidCursorPositionChange((e: ICursorPositionChangedEvent) => {
 			this.onCursorPositionChanged();
 		}));
 	}

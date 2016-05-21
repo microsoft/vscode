@@ -127,7 +127,7 @@ export class MainThreadTextEditor {
 		if (this._codeEditor) {
 
 			// Catch early the case that this code editor gets a different model set and disassociate from this model
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.ModelChanged, () => {
+			this._codeEditorListeners.push(this._codeEditor.onDidModelChange(() => {
 				this.setCodeEditor(null);
 			}));
 
@@ -135,17 +135,17 @@ export class MainThreadTextEditor {
 				this._lastSelection = this._codeEditor.getSelections();
 				this._onSelectionChanged.fire(this._lastSelection);
 			};
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.CursorSelectionChanged, forwardSelection));
+			this._codeEditorListeners.push(this._codeEditor.onDidCursorSelectionChange(forwardSelection));
 			if (!Selection.selectionsArrEqual(this._lastSelection, this._codeEditor.getSelections())) {
 				forwardSelection();
 			}
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.EditorFocus, () => {
+			this._codeEditorListeners.push(this._codeEditor.onDidEditorFocus(() => {
 				this._focusTracker.onGainedFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.EditorBlur, () => {
+			this._codeEditorListeners.push(this._codeEditor.onDidEditorBlur(() => {
 				this._focusTracker.onLostFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => {
+			this._codeEditorListeners.push(this._codeEditor.onDidConfigurationChange(() => {
 				this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 			}));
 			this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
@@ -407,7 +407,7 @@ export class MainThreadEditorsTracker {
 	}
 
 	private _onCodeEditorAdd(codeEditor: EditorCommon.ICommonCodeEditor): void {
-		this._editorModelChangeListeners[codeEditor.getId()] = codeEditor.addListener2(EditorCommon.EventType.ModelChanged, _ => this._updateMapping.schedule());
+		this._editorModelChangeListeners[codeEditor.getId()] = codeEditor.onDidModelChange(_ => this._updateMapping.schedule());
 		this._updateMapping.schedule();
 	}
 

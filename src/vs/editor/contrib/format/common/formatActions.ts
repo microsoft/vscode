@@ -36,9 +36,9 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		this.callOnDispose = [];
 		this.callOnModel = [];
 
-		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ConfigurationChanged, () => this.update()));
-		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelChanged, () => this.update()));
-		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.update()));
+		this.callOnDispose.push(editor.onDidConfigurationChange(() => this.update()));
+		this.callOnDispose.push(editor.onDidModelChange(() => this.update()));
+		this.callOnDispose.push(editor.onDidModelModeChange(() => this.update()));
 		this.callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
 	}
 
@@ -84,7 +84,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. Iff so, we won't
 		// apply the format edits
-		var unbind = this.editor.addListener2(editorCommon.EventType.ModelContentChanged,(e: editorCommon.IModelContentChangedEvent) => {
+		var unbind = this.editor.onDidModelContentChange((e: editorCommon.IModelContentChangedEvent) => {
 			if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
 				// a model.setValue() was called
 				canceled = true;

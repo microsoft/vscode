@@ -16,7 +16,7 @@ import {IDataSource, IFocusEvent, IRenderer, ISelectionEvent, ITree, IAccessibil
 import {DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {EventType, ICursorSelectionChangedEvent, IRange} from 'vs/editor/common/editorCommon';
+import {ICursorSelectionChangedEvent, IRange} from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {IQuickFix2} from '../common/quickFix';
 import {QuickFixModel} from './quickFixModel';
@@ -313,7 +313,7 @@ export class QuickFixSelectionWidget implements IContentWidget {
 
 		this.editor.addContentWidget(this);
 
-		this.listenersToRemove.push(this.editor.addListener2(EventType.CursorSelectionChanged, (e: ICursorSelectionChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidCursorSelectionChange((e: ICursorSelectionChangedEvent) => {
 			if (this.isActive) {
 				this.editor.layoutContentWidget(this);
 			}

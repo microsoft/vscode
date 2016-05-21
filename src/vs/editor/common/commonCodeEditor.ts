@@ -36,6 +36,49 @@ var EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements IActionProvider, editorCommon.ICommonCodeEditor {
 
+	public onDidModelContentChange(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelContentChanged, listener);
+	}
+	public onDidModelModeChange(listener: (e:editorCommon.IModelModeChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
+	}
+	public onDidModelOptionsChange(listener: (e:editorCommon.IModelOptionsChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
+	}
+	public onDidModelModeSupportChange(listener: (e:editorCommon.IModeSupportChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelModeSupportChanged, listener);
+	}
+	public onDidModelDecorationsChange(listener: (e:editorCommon.IModelDecorationsChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelDecorationsChanged, listener);
+	}
+	public onDidConfigurationChange(listener: (e:editorCommon.IConfigurationChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ConfigurationChanged, listener);
+	}
+	public onDidModelChange(listener: (e:editorCommon.IModelChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelChanged, listener);
+	}
+	public onDidCursorPositionChange(listener: (e:editorCommon.ICursorPositionChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.CursorPositionChanged, listener);
+	}
+	public onDidCursorSelectionChange(listener: (e:editorCommon.ICursorSelectionChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.CursorSelectionChanged, listener);
+	}
+	public onDidEditorTextFocus(listener: ()=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.EditorTextFocus, listener);
+	}
+	public onDidEditorTextBlur(listener: ()=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.EditorTextBlur, listener);
+	}
+	public onDidEditorFocus(listener: ()=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.EditorFocus, listener);
+	}
+	public onDidEditorBlur(listener: ()=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.EditorBlur, listener);
+	}
+	public onDidDispose(listener: ()=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.Disposed, listener);
+	}
+
 	protected domElement: IKeybindingScopeLocation;
 
 	protected id:number;
@@ -153,7 +196,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this._postDetachModelCleanup(this._detachModel());
 		this._configuration.dispose();
 		this._keybindingService.dispose();
-		this.emit(editorCommon.EventType.Disposed, {});
+		this.emit(editorCommon.EventType.Disposed);
 		super.dispose();
 	}
 
@@ -750,10 +793,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 							this.emit('scroll', e);
 							break;
 
-						case 'scrollSize':
-							this.emit('scrollSize', e);
-							break;
-
 						case editorCommon.EventType.ViewFocusLost:
 							this.emit(editorCommon.EventType.EditorTextBlur);
 							break;
@@ -817,9 +856,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 							break;
 
 						case editorCommon.EventType.ModelContentChanged:
-							// TODO@Alex
 							this.emit(editorCommon.EventType.ModelContentChanged, e);
-							this.emit('change', {});
 							break;
 
 						case editorCommon.EventType.ModelOptionsChanged:

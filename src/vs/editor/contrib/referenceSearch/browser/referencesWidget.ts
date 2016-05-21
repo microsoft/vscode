@@ -34,7 +34,7 @@ import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import {ICodeEditor, IMouseTarget} from 'vs/editor/browser/editorBrowser';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import {PeekViewWidget, IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {FileReferences, OneReference, ReferencesModel} from './referencesModel';
@@ -52,7 +52,7 @@ class DecorationsManager implements IDisposable {
 	private _callOnModelChange:IDisposable[] = [];
 
 	constructor(private editor:ICodeEditor, private model:ReferencesModel) {
-		this._callOnDispose.push(this.editor.addListener2(editorCommon.EventType.ModelChanged, () => this._onModelChanged()));
+		this._callOnDispose.push(this.editor.onDidModelChange(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
 
@@ -649,7 +649,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		}));
 
 		// listen on editor
-		this._disposeOnNewModel.push(this._preview.addListener2(editorCommon.EventType.MouseDown, (e: { event: MouseEvent; target: IMouseTarget; }) => {
+		this._disposeOnNewModel.push(this._preview.onMouseDown((e) => {
 			if (e.event.detail === 2) {
 				this._onDidSelectReference.fire({
 					element: this._getFocusedReference(),

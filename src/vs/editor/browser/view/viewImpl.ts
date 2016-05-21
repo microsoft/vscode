@@ -457,14 +457,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return false;
 	}
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		this.outgoingEventBus.emit('scroll', {
-			scrollTop: this.layoutProvider.getScrollTop(),
-			scrollLeft: this.layoutProvider.getScrollLeft()
-		});
-		this.outgoingEventBus.emit('scrollSize', {
-			scrollWidth: this.layoutProvider.getScrollWidth(),
-			scrollHeight: this.layoutProvider.getScrollHeight()
-		});
+		this.outgoingEventBus.emit('scroll', e);
 		return false;
 	}
 	public onViewFocusChanged(isFocused:boolean): boolean {

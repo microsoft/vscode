@@ -46,13 +46,17 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 		this._toUnhook = [];
 
 		if (editor.getConfiguration().contribInfo.hover) {
-			this._toUnhook.push(this._editor.addListener2(editorCommon.EventType.MouseDown, (e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
-			this._toUnhook.push(this._editor.addListener2(editorCommon.EventType.MouseMove, (e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
-			this._toUnhook.push(this._editor.addListener2(editorCommon.EventType.MouseLeave, (e: IEditorMouseEvent) => this._hideWidgets()));
-			this._toUnhook.push(this._editor.addListener2(editorCommon.EventType.KeyDown, (e:IKeyboardEvent) => this._onKeyDown(e)));
-			this._toUnhook.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this._hideWidgets()));
-			this._toUnhook.push(this._editor.addListener2(editorCommon.EventType.ModelDecorationsChanged, () => this._onModelDecorationsChanged()));
-			this._toUnhook.push(this._editor.addListener2('scroll', () => this._hideWidgets()));
+			this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+			this._toUnhook.push(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
+			this._toUnhook.push(this._editor.onMouseLeave((e: IEditorMouseEvent) => this._hideWidgets()));
+			this._toUnhook.push(this._editor.onKeyDown((e:IKeyboardEvent) => this._onKeyDown(e)));
+			this._toUnhook.push(this._editor.onDidModelChange(() => this._hideWidgets()));
+			this._toUnhook.push(this._editor.onDidModelDecorationsChange(() => this._onModelDecorationsChanged()));
+			this._toUnhook.push(this._editor.onDidScrollChange((e) => {
+				if (e.scrollTopChanged || e.scrollLeftChanged) {
+					this._hideWidgets();
+				}
+			}));
 
 			this._contentWidget = new ModesContentHoverWidget(editor, openerService);
 			this._glyphWidget = new ModesGlyphHoverWidget(editor);

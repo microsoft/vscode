@@ -8,7 +8,7 @@ import * as assert from 'vs/base/common/assert';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import * as objects from 'vs/base/common/objects';
 import {Range} from 'vs/editor/common/core/range';
-import {EventType, ICommonDiffEditor, ICursorPositionChangedEvent, IEditorRange, ILineChange} from 'vs/editor/common/editorCommon';
+import {ICommonDiffEditor, ICursorPositionChangedEvent, IEditorRange, ILineChange} from 'vs/editor/common/editorCommon';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 interface IDiffRange {
@@ -63,11 +63,11 @@ export class DiffNavigator extends EventEmitter {
 		this.revealFirst = this.options.alwaysRevealFirst;
 
 		// hook up to diff editor for diff, disposal, and caret move
-		this.toUnbind.push(this.editor.addListener2(EventType.Disposed, () => this.dispose() ));
-		this.toUnbind.push(this.editor.addListener2(EventType.DiffUpdated, () => this.onDiffUpdated() ));
+		this.toUnbind.push(this.editor.onDidDispose(() => this.dispose() ));
+		this.toUnbind.push(this.editor.onDidUpdateDiff(() => this.onDiffUpdated() ));
 
 		if(this.options.followsCaret) {
-			this.toUnbind.push(this.editor.getModifiedEditor().addListener2(EventType.CursorPositionChanged, (e:ICursorPositionChangedEvent) => {
+			this.toUnbind.push(this.editor.getModifiedEditor().onDidCursorPositionChange((e:ICursorPositionChangedEvent) => {
 				if(this.ignoreSelectionChange) {
 					return;
 				}
@@ -75,7 +75,7 @@ export class DiffNavigator extends EventEmitter {
 			}));
 		}
 		if(this.options.alwaysRevealFirst) {
-			this.toUnbind.push(this.editor.getModifiedEditor().addListener2(EventType.ModelChanged, (e) => {
+			this.toUnbind.push(this.editor.getModifiedEditor().onDidModelChange((e) => {
 				this.revealFirst = true;
 			}));
 		}
