@@ -60,14 +60,8 @@ export class OpenEditor {
 		return this.editor instanceof UntitledEditorInput;
 	}
 
-	public isDirty(textFileService: ITextFileService, untitledEditorService: IUntitledEditorService): boolean {
-		if (this.editor instanceof FileEditorInput) {
-			return textFileService.isDirty((<FileEditorInput>this.editor).getResource());
-		} else if (this.editor instanceof UntitledEditorInput) {
-			return untitledEditorService.isDirty((<UntitledEditorInput>this.editor).getResource());
-		}
-
-		return false;
+	public isDirty(): boolean {
+		return this.editor.isDirty();
 	}
 
 	public getResource(): uri {
@@ -190,7 +184,7 @@ export class Renderer implements IRenderer {
 
 	private renderOpenEditor(tree: ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isPreview() ? dom.addClass(templateData.root, 'preview') : dom.removeClass(templateData.root, 'preview');
-		editor.isDirty(this.textFileService, this.untitledEditorService) ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
+		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		const resource = editor.getResource();
 		templateData.root.title = resource ? resource.fsPath : '';
 		templateData.name.textContent = editor.editorInput.getName();
@@ -415,7 +409,7 @@ export class ActionProvider implements IActionProvider {
 					result.push(this.instantiationService.createInstance(CopyPathAction, resource));
 
 					// Files: Save / Revert
-					if (!autoSaveEnabled && openEditor.isDirty(this.textFileService, this.untitledEditorService)) {
+					if (!autoSaveEnabled && openEditor.isDirty()) {
 						result.push(new Separator());
 
 						const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
@@ -425,7 +419,7 @@ export class ActionProvider implements IActionProvider {
 
 						const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
 						revertAction.setResource(resource);
-						revertAction.enabled = openEditor.isDirty(this.textFileService, this.untitledEditorService);
+						revertAction.enabled = openEditor.isDirty();
 						result.push(revertAction);
 					}
 

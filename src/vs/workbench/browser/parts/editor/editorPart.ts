@@ -125,9 +125,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private onEditorInputDirtyStateChanged(event: EditorInputEvent): void {
 
 		// we pin every editor that becomes dirty across all groups
-		if (event.editorInput.isDirty()) {
-			this.stacks.groups.forEach(group => group.contains(event.editorInput) && this.pinEditor(this.stacks.positionOfGroup(group), event.editorInput));
-		}
+		this.stacks.groups.forEach(group => group.contains(event.editorInput) && this.pinEditor(this.stacks.positionOfGroup(group), event.editorInput));
 
 		// Update UI
 		this.sideBySideControl.updateTitleArea(event.editorInput);

@@ -123,6 +123,17 @@ export const EventType = {
 };
 
 /**
+ * States the text text file editor model can be in.
+ */
+export enum ModelState {
+	SAVED,
+	DIRTY,
+	PENDING_SAVE,
+	CONFLICT,
+	ERROR
+}
+
+/**
  * Local file change events are being emitted when a file is added, removed, moved or its contents got updated. These events
  * are being emitted from within the workbench and are not reflecting the truth on the disk file system. For that, please
  * use FileChangesEvent instead.

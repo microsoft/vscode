@@ -18,7 +18,7 @@ import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browse
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -136,11 +136,21 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public isDirty(): boolean {
-		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return false; // auto save enabled
+		const model = CACHE.get(this.resource);
+		if (!model) {
+			return false;
 		}
 
-		return this.textFileService.isDirty(this.resource);
+		const state = model.getState();
+		if (state === ModelState.CONFLICT || state === ModelState.ERROR) {
+			return true; // always indicate dirty state if we are in conflict or error state
+		}
+
+		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return false; // fast auto save enabled so we do not declare dirty
+		}
+
+		return model.isDirty();
 	}
 
 	public confirmSave(): ConfirmResult {
