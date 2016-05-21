@@ -88,10 +88,9 @@
 					let node = event.target;
 					while (node) {
 						if (node.tagName === 'A' && node.href) {
-							console.log(node.href);
 							if (${isLocal}) {
 								let scrollTarget = window.document.getElementById(node.hash.substr(1, node.hash.length - 1));
-								if (scrollTagret) {
+								if (scrollTarget) {
 									scrollTarget.scrollIntoView();
 								}
 							} else {
