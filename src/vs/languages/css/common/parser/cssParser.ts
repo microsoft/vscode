@@ -49,7 +49,7 @@ export class Parser {
 		return true;
 	}
 
-	public peekRegEx(type:scanner.TokenType, regEx: RegExp): boolean {
+	public peekRegExp(type:scanner.TokenType, regEx: RegExp): boolean {
 		if (type !== this.token.type) {
 			return false;
 		}
@@ -88,7 +88,6 @@ export class Parser {
 		}
 		return false;
 	}
-
 
 	public accept(type: scanner.TokenType, text?: string, ignoreCase:boolean=true): boolean {
 		if(this.peek(type, text, ignoreCase)) {
@@ -976,15 +975,12 @@ export class Parser {
 	}
 
 	public _parseCssVariable(): nodes.Variable {
-		var node = <nodes.Variable> this.create(nodes.CssVariable);
-		if (this.isIdentifierIsCssVariable() && this.accept(scanner.TokenType.Ident)) {
-			return <nodes.Variable> node;
+		if (this.peekRegExp(scanner.TokenType.Ident, /^--/)) {
+			var node = <nodes.Variable> this.create(nodes.CssVariable);
+			this.consumeToken();
+			return this.finish(node);
 		}
 		return null;
-	}
-
-	private isIdentifierIsCssVariable():boolean {
-		return this.peekRegEx(scanner.TokenType.Ident, /^--/);
 	}
 
 	public _parseFunction(): nodes.Function {
@@ -1051,8 +1047,8 @@ export class Parser {
 	}
 
 	public _parseHexColor(): nodes.Node {
-		var node = this.create(nodes.HexColorValue);
-		if (this.peekRegEx(scanner.TokenType.Hash, /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/g)) {
+		if (this.peekRegExp(scanner.TokenType.Hash, /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/g)) {
+			var node = this.create(nodes.HexColorValue);
 			this.consumeToken();
 			return this.finish(node);
 		} else {
