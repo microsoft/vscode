@@ -102,7 +102,6 @@ export class WorkbenchShell {
 	private previousErrorTime: number;
 	private content: HTMLElement;
 	private contentsContainer: Builder;
-	private currentTheme: string;
 
 	private configuration: IConfiguration;
 	private workspace: IWorkspace;
@@ -183,7 +182,7 @@ export class WorkbenchShell {
 				windowSize: windowSize,
 				emptyWorkbench: !this.contextService.getWorkspace(),
 				customKeybindingsCount,
-				theme: this.currentTheme,
+				theme: this.themeService.getTheme(),
 				language: platform.language
 			});
 
@@ -249,7 +248,7 @@ export class WorkbenchShell {
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = instantiationService.createInstance(UntitledEditorService);
-		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService);
+		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService, this.telemetryService);
 
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
