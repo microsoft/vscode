@@ -272,6 +272,11 @@
           "default": true,
           "description": "Whether to lint Python files."
         },
+        "python.linting.prospectorEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to lint Python files using prospector."
+        },
         "python.linting.pylintEnabled": {
           "type": "boolean",
           "default": true,
@@ -361,6 +366,21 @@
             "Information",
             "Warning"
           ]
+        },
+        "python.linting.prospectorPath": {
+          "type": "string",
+          "default": "prospector",
+          "description": "Path to Prospector, you can use a custom version of prospector by modifying this setting to include the full path."
+        },
+        "python.linting.prospectorSourcePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to python source (relative to workspace)."
+        },
+        "python.linting.prospectorExtraCommands": {
+          "type": "string",
+          "default": "",
+          "description": "Extra command line options to be passed to (ex: path to profile to be used)."
         },
         "python.linting.pylintPath": {
           "type": "string",

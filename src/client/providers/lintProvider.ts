@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as linter from '../linters/baseLinter';
+import * as prospector from './../linters/prospector';
 import * as pylint from './../linters/pylint';
 import * as pep8 from './../linters/pep8Linter';
 import * as flake8 from './../linters/flake8';
@@ -32,7 +33,7 @@ function createDiagnostics(message: linter.ILintMessage, txtDocumentLines: strin
     var sourceLine = txtDocumentLines[message.line - 1];
     var sourceStart = sourceLine.substring(message.column - 1);
     var endCol = txtDocumentLines[message.line - 1].length;
-                                         
+
     //try to get the first word from the startig position
     if (message.possibleWord === "string" && message.possibleWord.length > 0) {
         endCol = message.column + message.possibleWord.length;
@@ -65,6 +66,7 @@ export class LintProvider extends vscode.Disposable {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection("python");
         var disposables = [];
 
+        this.linters.push(new prospector.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
         this.linters.push(new pylint.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
         this.linters.push(new pep8.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
         this.linters.push(new flake8.Linter(this.context.asAbsolutePath("."), this.settings, this.outputChannel));
@@ -131,7 +133,7 @@ export class LintProvider extends vscode.Disposable {
             var messages = [];
             //Limit the number of messages to the max value
             consolidatedMessages = consolidatedMessages.filter((value, index) => index <= this.settings.linting.maxNumberOfProblems);
-                
+
             //Build the message and suffix the message with the name of the linter used
             consolidatedMessages.forEach(d=> {
                 d.message = `${d.message} (${d.provider})`;
