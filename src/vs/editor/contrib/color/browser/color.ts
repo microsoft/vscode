@@ -14,6 +14,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {Range} from 'vs/editor/common/core/range';
 
 class ColorDecoration {
 	public static createRenderingDecoration(range:editorCommon.IRange, inlineClassName:string): editorCommon.IModelDeltaDecoration {
@@ -210,8 +211,8 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 		var model = this._editor.getModel(),
 			i:number,
 			len:number,
-			range:editorCommon.IEditorRange,
-			renderingRange:editorCommon.IEditorRange,
+			range:Range,
+			renderingRange:Range,
 			desiredRenderingRange:editorCommon.IRange,
 			decoration: ColorDecoration,
 			desiredColors: string[] = [];

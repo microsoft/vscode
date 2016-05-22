@@ -7,6 +7,7 @@
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
 import {Range} from 'vs/editor/common/core/range';
+import {Selection} from 'vs/editor/common/core/selection';
 
 function sortChanges(changes:editorcommon.IChange[]):void {
 	changes.sort((left, right)=>{
@@ -21,7 +22,7 @@ function sortChanges(changes:editorcommon.IChange[]):void {
 	});
 }
 
-function sortSelections(selections:editorcommon.IEditorSelection[]):void {
+function sortSelections(selections:Selection[]):void {
 	selections.sort((left, right)=>{
 		if (left.getStartPosition().lineNumber < right.getStartPosition().lineNumber) {
 			return -1;
@@ -51,7 +52,7 @@ export function stageRanges(diff:editorbrowser.IDiffEditor): string {
  * Returns an intersection between a change and a selection.
  * Returns null if intersection does not exist.
  */
-export function intersectChangeAndSelection(change:editorcommon.IChange, selection:editorcommon.IEditorSelection):editorcommon.IChange {
+export function intersectChangeAndSelection(change:editorcommon.IChange, selection:Selection):editorcommon.IChange {
 	var result:editorcommon.IChange = {
 		modifiedStartLineNumber : Math.max(change.modifiedStartLineNumber, selection.startLineNumber),
 		modifiedEndLineNumber : Math.min(change.modifiedEndLineNumber, selection.endLineNumber),
@@ -72,7 +73,7 @@ export function intersectChangeAndSelection(change:editorcommon.IChange, selecti
  * Returns all selected changes (there can be multiple selections due to multiple cursors).
  * If a change is partially selected, the selected part of the change will be returned.
  */
-export function getSelectedChanges(changes:editorcommon.IChange[], selections:editorcommon.IEditorSelection[]):editorcommon.IChange[] {
+export function getSelectedChanges(changes:editorcommon.IChange[], selections:Selection[]):editorcommon.IChange[] {
 	sortChanges(changes);
 	sortSelections(selections);
 	var result: editorcommon.IChange[] = [];
@@ -106,7 +107,7 @@ export function getSelectedChanges(changes:editorcommon.IChange[], selections:ed
 	return result;
 }
 
-export function appendValueFromRange(base:string, model:editorcommon.IModel, range:editorcommon.IEditorRange):string {
+export function appendValueFromRange(base:string, model:editorcommon.IModel, range:Range):string {
 	var result = base;
 	if (result !== '') {
 		result += model.getEOL();

@@ -14,6 +14,7 @@ import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface ITokenizationResult {
 	type?:string;
@@ -355,7 +356,7 @@ export interface IQuickFix {
 	score: number;
 }
 export interface CodeActionProvider {
-	provideCodeActions(model:editorCommon.IReadOnlyModel, range:editorCommon.IEditorRange, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
+	provideCodeActions(model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
 }
 
 
@@ -548,7 +549,7 @@ export interface DocumentFormattingEditProvider {
 	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
 export interface DocumentRangeFormattingEditProvider {
-	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: editorCommon.IEditorRange, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
 export interface OnTypeFormattingEditProvider {
 	autoFormatTriggerCharacters: string[];

@@ -122,7 +122,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 		this._contentWidget.hide();
 	}
 
-	public showContentHover(range: editorCommon.IEditorRange, focus: boolean): void {
+	public showContentHover(range: Range, focus: boolean): void {
 		this._contentWidget.startShowingAt(range, focus);
 	}
 

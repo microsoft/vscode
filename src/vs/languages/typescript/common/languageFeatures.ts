@@ -18,6 +18,7 @@ import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export function register(modelService: IModelService, markerService: IMarkerService,
 	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
@@ -512,7 +513,7 @@ abstract class FormatHelper extends Adapter {
 
 class FormatAdapter extends FormatHelper implements modes.DocumentRangeFormattingEditProvider {
 
-	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: editorCommon.IEditorRange, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
 		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {

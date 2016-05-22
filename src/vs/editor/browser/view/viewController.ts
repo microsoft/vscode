@@ -11,6 +11,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IEditorMouseEvent, IViewController, IMouseDispatchData} from 'vs/editor/browser/editorBrowser';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface TriggerCursorHandler {
 	(source:string, handlerId:string, payload:any): void;
@@ -238,7 +239,7 @@ export class ViewController implements IViewController {
 		return this.viewModel.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
 	}
 
-	private convertViewToModelRange(viewRange:editorCommon.IRange): editorCommon.IEditorRange {
+	private convertViewToModelRange(viewRange:editorCommon.IRange): Range {
 		return this.viewModel.convertViewRangeToModelRange(viewRange);
 	}
 

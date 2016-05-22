@@ -6,7 +6,6 @@
 
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {IEditorRange} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 
@@ -362,7 +361,7 @@ class Stack {
 }
 
 export interface ILineDecoration {
-	range: IEditorRange;
+	range: Range;
 	options: {
 		inlineClassName?: string;
 	};

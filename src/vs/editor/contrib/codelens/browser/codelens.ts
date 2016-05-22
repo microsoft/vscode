@@ -54,12 +54,12 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	private _domNode: HTMLElement;
 	private _subscription: IDisposable;
-	private _symbolRange: editorCommon.IEditorRange;
+	private _symbolRange: Range;
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
 	private _editor: editorBrowser.ICodeEditor;
 	private _commands: { [id: string]: ICommand } = Object.create(null);
 
-	public constructor(editor: editorBrowser.ICodeEditor, symbolRange: editorCommon.IEditorRange,
+	public constructor(editor: editorBrowser.ICodeEditor, symbolRange: Range,
 		keybindingService: IKeybindingService, messageService: IMessageService) {
 
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget.ID);
@@ -132,7 +132,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		return this._domNode;
 	}
 
-	public setSymbolRange(range: editorCommon.IEditorRange): void {
+	public setSymbolRange(range: Range): void {
 		this._symbolRange = range;
 
 		const lineNumber = range.startLineNumber;

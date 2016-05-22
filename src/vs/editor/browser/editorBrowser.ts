@@ -11,6 +11,7 @@ import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService, IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface IContentWidgetData {
 	widget: IContentWidget;
@@ -44,7 +45,7 @@ export interface IView extends IDisposable {
 	createOverviewRuler(cssClassName:string, minimumHeight:number, maximumHeight:number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
 
-	getCenteredRangeInViewport(): editorCommon.IEditorRange;
+	getCenteredRangeInViewport(): Range;
 
 	change(callback:(changeAccessor:IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
@@ -131,7 +132,7 @@ export var ClassNames = {
 };
 
 export interface IViewportInfo {
-	visibleRange: editorCommon.IEditorRange;
+	visibleRange: Range;
 	width:number;
 	height:number;
 	deltaTop:number;
@@ -332,7 +333,7 @@ export interface IMouseTarget {
 	/**
 	 * The 'approximate' editor range
 	 */
-	range: editorCommon.IEditorRange;
+	range: Range;
 	/**
 	 * Some extra detail.
 	 */
@@ -518,7 +519,7 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	/**
 	 * Returns the range that is currently centered in the view port.
 	 */
-	getCenteredRangeInViewport(): editorCommon.IEditorRange;
+	getCenteredRangeInViewport(): Range;
 
 	/**
 	 * Get the view zones.

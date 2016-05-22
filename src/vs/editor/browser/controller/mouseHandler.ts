@@ -316,7 +316,7 @@ class MouseDownOperation extends Disposable {
 	private _mouseMoveMonitor:GlobalMouseMoveMonitor<IMouseEvent>;
 	private _mouseDownThenMoveEventHandler: EventGateKeeper<IMouseEvent>;
 
-	private _currentSelection: editorCommon.IEditorSelection;
+	private _currentSelection: Selection;
 	private _mouseState: MouseDownState;
 
 	private _onScrollTimeout: TimeoutTimer;

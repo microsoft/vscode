@@ -7,6 +7,7 @@
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export class FindDecorations implements IDisposable {
 
@@ -44,7 +45,7 @@ export class FindDecorations implements IDisposable {
 		return this._decorations.length;
 	}
 
-	public getFindScope(): editorCommon.IEditorRange {
+	public getFindScope(): Range {
 		if (this._findScopeDecorationId) {
 			return this._editor.getModel().getDecorationRange(this._findScopeDecorationId);
 		}
@@ -60,7 +61,7 @@ export class FindDecorations implements IDisposable {
 		this.setCurrentFindMatch(null);
 	}
 
-	public getCurrentMatchesPosition(desiredRange:editorCommon.IEditorRange): number {
+	public getCurrentMatchesPosition(desiredRange:Range): number {
 		for (let i = 0, len = this._decorations.length; i < len; i++) {
 			let range = this._editor.getModel().getDecorationRange(this._decorations[i]);
 			if (desiredRange.equalsRange(range)) {
@@ -70,7 +71,7 @@ export class FindDecorations implements IDisposable {
 		return 1;
 	}
 
-	public setCurrentFindMatch(nextMatch:editorCommon.IEditorRange): number {
+	public setCurrentFindMatch(nextMatch:Range): number {
 		let newCurrentDecorationId: string = null;
 		let matchPosition = 0;
 		if (nextMatch) {
@@ -100,7 +101,7 @@ export class FindDecorations implements IDisposable {
 		return matchPosition;
 	}
 
-	public set(matches:editorCommon.IEditorRange[], findScope:editorCommon.IEditorRange): void {
+	public set(matches:Range[], findScope:Range): void {
 		let newDecorations: editorCommon.IModelDeltaDecoration[] = matches.map((match) => {
 			return {
 				range: match,

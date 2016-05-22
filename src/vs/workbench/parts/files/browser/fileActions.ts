@@ -29,7 +29,6 @@ import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -49,6 +48,7 @@ import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instant
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
+import {Selection} from 'vs/editor/common/core/selection';
 
 import ITextFileService = Files.ITextFileService;
 
@@ -1433,11 +1433,11 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
-				let selectionOfSource: IEditorSelection;
+				let selectionOfSource: Selection;
 				if (positionsOfSource.length) {
 					const activeEditor = this.editorService.getActiveEditor();
 					if (activeEditor instanceof BaseTextEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
-						selectionOfSource = <IEditorSelection>activeEditor.getSelection();
+						selectionOfSource = <Selection>activeEditor.getSelection();
 					}
 				}
 

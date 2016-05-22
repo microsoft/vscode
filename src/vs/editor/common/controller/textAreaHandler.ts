@@ -11,7 +11,7 @@ import {Disposable} from 'vs/base/common/lifecycle';
 import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorRange} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference} from 'vs/editor/common/editorCommon';
 
 enum ReadFromTextArea {
 	Type,
@@ -67,8 +67,8 @@ export class TextAreaHandler extends Disposable {
 	private model:ISimpleModel;
 	private flushAnyAccumulatedEvents:()=>void;
 
-	private selection:IEditorRange;
-	private selections:IEditorRange[];
+	private selection:Range;
+	private selections:Range[];
 	private hasFocus:boolean;
 
 	private asyncTriggerCut: RunOnceScheduler;
@@ -243,7 +243,7 @@ export class TextAreaHandler extends Disposable {
 		}
 	}
 
-	public setCursorSelections(primary: IEditorRange, secondary: IEditorRange[]): void {
+	public setCursorSelections(primary: Range, secondary: Range[]): void {
 		this.selection = primary;
 		this.selections = [primary].concat(secondary);
 		this._writePlaceholderAndSelectTextArea('selection changed');
@@ -342,7 +342,7 @@ export class TextAreaHandler extends Disposable {
 		let selections = this.selections;
 
 		if (selections.length === 1) {
-			let range:IEditorRange = selections[0];
+			let range:Range = selections[0];
 			if (range.isEmpty()) {
 				if (this.Browser.enableEmptySelectionClipboard) {
 					let modelLineNumber = this.model.convertViewPositionToModelPosition(range.startLineNumber, 1).lineNumber;

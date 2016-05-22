@@ -24,6 +24,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export class SimpleEditor implements IEditor {
 
@@ -39,7 +40,7 @@ export class SimpleEditor implements IEditor {
 
 	public getId():string { return 'editor'; }
 	public getControl():editorCommon.IEditor { return this._widget; }
-	public getSelection():editorCommon.IEditorSelection { return this._widget.getSelection(); }
+	public getSelection():Selection { return this._widget.getSelection(); }
 	public focus():void { this._widget.focus(); }
 
 	public withTypedEditor<T>(codeEditorCallback:(editor:ICodeEditor)=>T, diffEditorCallback:(editor:IDiffEditor)=>T): T {

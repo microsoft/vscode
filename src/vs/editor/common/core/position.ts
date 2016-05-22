@@ -6,6 +6,9 @@
 
 import {IPosition, IRange} from 'vs/editor/common/editorCommon';
 
+/**
+ * A position in the editor.
+ */
 export class Position {
 
 	public lineNumber: number;
@@ -16,6 +19,9 @@ export class Position {
 		this.column = column;
 	}
 
+	/**
+	 * Test if this position equals other position
+	 */
 	public equals(other:IPosition): boolean {
 		return Position.equals(this, other);
 	}
@@ -31,6 +37,9 @@ export class Position {
 		);
 	}
 
+	/**
+	 * Test if this position is before other position. If the two positions are equal, the result will be false.
+	 */
 	public isBefore(other:IPosition): boolean {
 		return Position.isBefore(this, other);
 	}
@@ -44,6 +53,9 @@ export class Position {
 		return a.column < b.column;
 	}
 
+	/**
+	 * Test if this position is before other position. If the two positions are equal, the result will be true.
+	 */
 	public isBeforeOrEqual(other:IPosition): boolean {
 		return Position.isBeforeOrEqual(this, other);
 	}
@@ -57,6 +69,9 @@ export class Position {
 		return a.column <= b.column;
 	}
 
+	/**
+	 * Clone this position.
+	 */
 	public clone(): Position {
 		return new Position(this.lineNumber, this.column);
 	}

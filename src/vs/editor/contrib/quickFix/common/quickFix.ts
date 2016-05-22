@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
-import {IReadOnlyModel, IEditorRange} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {CodeActionProviderRegistry, IQuickFix, CodeActionProvider} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -21,7 +21,7 @@ export interface IQuickFix2 extends IQuickFix {
 	id: string;
 }
 
-export function getCodeActions(model: IReadOnlyModel, range: IEditorRange): TPromise<IQuickFix2[]> {
+export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<IQuickFix2[]> {
 
 	const quickFixes: IQuickFix2[] = [];
 	let ids = new IdGenerator('quickfix');

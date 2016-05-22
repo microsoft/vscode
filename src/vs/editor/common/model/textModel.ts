@@ -539,7 +539,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Position(lineNumber, column);
 	}
 
-	public validateRange(range:editorCommon.IRange): editorCommon.IEditorRange {
+	public validateRange(range:editorCommon.IRange): Range {
 		var start = this.validatePosition(new Position(range.startLineNumber, range.startColumn));
 		var end = this.validatePosition(new Position(range.endLineNumber, range.endColumn));
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
@@ -608,7 +608,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return position;
 	}
 
-	public getFullModelRange(): editorCommon.IEditorRange {
+	public getFullModelRange(): Range {
 		var lineCount = this.getLineCount();
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
@@ -703,13 +703,13 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	public findMatches(searchString:string, rawSearchScope:any, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount:number = LIMIT_FIND_COUNT): editorCommon.IEditorRange[] {
+	public findMatches(searchString:string, rawSearchScope:any, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount:number = LIMIT_FIND_COUNT): Range[] {
 		var regex = strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return [];
 		}
 
-		var searchRange:editorCommon.IEditorRange;
+		var searchRange:Range;
 		if (Range.isIRange(rawSearchScope)) {
 			searchRange = rawSearchScope;
 		} else {
@@ -719,7 +719,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._doFindMatches(searchRange, regex, limitResultCount);
 	}
 
-	public findNextMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): editorCommon.IEditorRange {
+	public findNextMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range {
 		var regex = strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
@@ -729,7 +729,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			lineCount = this.getLineCount(),
 			startLineNumber = searchStart.lineNumber,
 			text: string,
-			r: editorCommon.IEditorRange;
+			r: Range;
 
 		// Look in first line
 		text = this._lines[startLineNumber - 1].text.substring(searchStart.column - 1);
@@ -750,7 +750,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return null;
 	}
 
-	public findPreviousMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): editorCommon.IEditorRange {
+	public findPreviousMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range {
 		var regex = strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
@@ -760,7 +760,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			lineCount = this.getLineCount(),
 			startLineNumber = searchStart.lineNumber,
 			text: string,
-			r: editorCommon.IEditorRange;
+			r: Range;
 
 		// Look in first line
 		text = this._lines[startLineNumber - 1].text.substring(0, searchStart.column - 1);
@@ -781,8 +781,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return null;
 	}
 
-	private _doFindMatches(searchRange:editorCommon.IEditorRange, searchRegex:RegExp, limitResultCount:number): editorCommon.IEditorRange[] {
-		var result:editorCommon.IEditorRange[] = [],
+	private _doFindMatches(searchRange:Range, searchRegex:RegExp, limitResultCount:number): Range[] {
+		var result:Range[] = [],
 			text: string,
 			counter = 0;
 
@@ -811,7 +811,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return result;
 	}
 
-	private _findMatchInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number): editorCommon.IEditorRange {
+	private _findMatchInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number): Range {
 		var m = searchRegex.exec(text);
 		if (!m) {
 			return null;
@@ -819,8 +819,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset);
 	}
 
-	private _findLastMatchInLine(searchRegex:RegExp, text:string, lineNumber:number): editorCommon.IEditorRange {
-		let bestResult: editorCommon.IEditorRange = null;
+	private _findLastMatchInLine(searchRegex:RegExp, text:string, lineNumber:number): Range {
+		let bestResult: Range = null;
 		let m:RegExpExecArray;
 		while ((m = searchRegex.exec(text))) {
 			let result = new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length);
@@ -832,7 +832,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return bestResult;
 	}
 
-	private _findMatchesInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number, counter:number, result:editorCommon.IEditorRange[], limitResultCount:number): number {
+	private _findMatchesInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number, counter:number, result:Range[], limitResultCount:number): number {
 		var m:RegExpExecArray;
 		// Reset regex to search from the beginning
 		searchRegex.lastIndex = 0;

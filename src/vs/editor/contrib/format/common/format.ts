@@ -9,14 +9,14 @@ import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {IReadOnlyModel, IEditorRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, IFormattingOptions} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {asWinJsPromise} from 'vs/base/common/async';
 import {Position} from 'vs/editor/common/core/position';
 
-export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: IEditorRange, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
 	if (!support) {

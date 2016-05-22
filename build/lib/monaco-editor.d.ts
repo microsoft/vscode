@@ -511,61 +511,6 @@ declare module monaco {
     }
 
     /**
-     * A range in the editor.
-     */
-    export interface IEditorRange extends IRange {
-        /**
-         * Test if this range is empty.
-         */
-        isEmpty(): boolean;
-        collapseToStart(): IEditorRange;
-        /**
-         * Test if position is in this range. If the position is at the edges, will return true.
-         */
-        containsPosition(position: IPosition): boolean;
-        /**
-         * Test if range is in this range. If the range is equal to this range, will return true.
-         */
-        containsRange(range: IRange): boolean;
-        /**
-         * A reunion of the two ranges. The smallest position will be used as the start point, and the largest one as the end point.
-         */
-        plusRange(range: IRange): IEditorRange;
-        /**
-         * A intersection of the two ranges.
-         */
-        intersectRanges(range: IRange): IEditorRange;
-        /**
-         * Test if this range equals other.
-         */
-        equalsRange(other: IRange): boolean;
-        /**
-         * Return the end position (which will be after or equal to the start position)
-         */
-        getEndPosition(): Position;
-        /**
-         * Create a new range using this range's start position, and using endLineNumber and endColumn as the end position.
-         */
-        setEndPosition(endLineNumber: number, endColumn: number): IEditorRange;
-        /**
-         * Return the start position (which will be before or equal to the end position)
-         */
-        getStartPosition(): Position;
-        /**
-         * Create a new range using this range's end position, and using startLineNumber and startColumn as the start position.
-         */
-        setStartPosition(startLineNumber: number, startColumn: number): IEditorRange;
-        /**
-         * Clone this range.
-         */
-        cloneRange(): IEditorRange;
-        /**
-         * Transform to a user presentable string representation.
-         */
-        toString(): string;
-    }
-
-    /**
      * The direction of a selection.
      */
     export enum SelectionDirection {
@@ -603,41 +548,30 @@ declare module monaco {
     }
 
     /**
-     * A selection in the editor.
+     * A position in the editor.
      */
-    export interface IEditorSelection extends ISelection, IEditorRange {
-        /**
-         * Test if equals other selection.
-         */
-        equalsSelection(other: ISelection): boolean;
-        /**
-         * Clone this selection.
-         */
-        clone(): IEditorSelection;
-        /**
-         * Get directions (LTR or RTL).
-         */
-        getDirection(): SelectionDirection;
-        /**
-         * Create a new selection with a different `positionLineNumber` and `positionColumn`.
-         */
-        setEndPosition(endLineNumber: number, endColumn: number): IEditorSelection;
-        /**
-         * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
-         */
-        setStartPosition(startLineNumber: number, startColumn: number): IEditorSelection;
-    }
-
     export class Position {
         lineNumber: number;
         column: number;
         constructor(lineNumber: number, column: number);
+        /**
+         * Test if this position equals other position
+         */
         equals(other: IPosition): boolean;
         static equals(a: IPosition, b: IPosition): boolean;
+        /**
+         * Test if this position is before other position. If the two positions are equal, the result will be false.
+         */
         isBefore(other: IPosition): boolean;
         static isBefore(a: IPosition, b: IPosition): boolean;
+        /**
+         * Test if this position is before other position. If the two positions are equal, the result will be true.
+         */
         isBeforeOrEqual(other: IPosition): boolean;
         static isBeforeOrEqual(a: IPosition, b: IPosition): boolean;
+        /**
+         * Clone this position.
+         */
         clone(): Position;
         toString(): string;
         static lift(pos: IPosition): Position;
@@ -647,26 +581,65 @@ declare module monaco {
         static endPosition(range: IRange): IPosition;
     }
 
-    export class Range implements IEditorRange {
+    /**
+     * A range in the editor.
+     */
+    export class Range {
         startLineNumber: number;
         startColumn: number;
         endLineNumber: number;
         endColumn: number;
         constructor(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number);
+        /**
+         * Test if this range is empty.
+         */
         isEmpty(): boolean;
+        /**
+         * Test if position is in this range. If the position is at the edges, will return true.
+         */
         containsPosition(position: IPosition): boolean;
+        /**
+         * Test if range is in this range. If the range is equal to this range, will return true.
+         */
         containsRange(range: IRange): boolean;
+        /**
+         * A reunion of the two ranges. The smallest position will be used as the start point, and the largest one as the end point.
+         */
         plusRange(range: IRange): Range;
+        /**
+         * A intersection of the two ranges.
+         */
         intersectRanges(range: IRange): Range;
+        /**
+         * Test if this range equals other.
+         */
         equalsRange(other: IRange): boolean;
+        /**
+         * Return the end position (which will be after or equal to the start position)
+         */
         getEndPosition(): Position;
+        /**
+         * Return the start position (which will be before or equal to the end position)
+         */
         getStartPosition(): Position;
+        /**
+         * Clone this range.
+         */
         cloneRange(): Range;
+        /**
+         * Transform to a user presentable string representation.
+         */
         toString(): string;
-        setEndPosition(endLineNumber: number, endColumn: number): IEditorRange;
-        setStartPosition(startLineNumber: number, startColumn: number): IEditorRange;
+        /**
+         * Create a new range using this range's start position, and using endLineNumber and endColumn as the end position.
+         */
+        setEndPosition(endLineNumber: number, endColumn: number): Range;
+        /**
+         * Create a new range using this range's end position, and using startLineNumber and startColumn as the start position.
+         */
+        setStartPosition(startLineNumber: number, startColumn: number): Range;
         collapseToStart(): Range;
-        static lift(range: IRange): IEditorRange;
+        static lift(range: IRange): Range;
         static isIRange(obj: any): obj is IRange;
         static isEmpty(range: IRange): boolean;
         static containsPosition(range: IRange, position: IPosition): boolean;
@@ -689,24 +662,42 @@ declare module monaco {
         static collapseToStart(range: IRange): IRange;
     }
 
-    export class Selection extends Range implements IEditorSelection {
+    /**
+     * A selection in the editor.
+     */
+    export class Selection extends Range {
         selectionStartLineNumber: number;
         selectionStartColumn: number;
         positionLineNumber: number;
         positionColumn: number;
         constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number);
-        clone(): IEditorSelection;
+        /**
+         * Clone this selection.
+         */
+        clone(): Selection;
         toString(): string;
+        /**
+         * Test if equals other selection.
+         */
         equalsSelection(other: ISelection): boolean;
+        /**
+         * Get directions (LTR or RTL).
+         */
         getDirection(): SelectionDirection;
-        setEndPosition(endLineNumber: number, endColumn: number): IEditorSelection;
-        setStartPosition(startLineNumber: number, startColumn: number): IEditorSelection;
-        static createSelection(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number): IEditorSelection;
-        static liftSelection(sel: ISelection): IEditorSelection;
+        /**
+         * Create a new selection with a different `positionLineNumber` and `positionColumn`.
+         */
+        setEndPosition(endLineNumber: number, endColumn: number): Selection;
+        /**
+         * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
+         */
+        setStartPosition(startLineNumber: number, startColumn: number): Selection;
+        static createSelection(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number): Selection;
+        static liftSelection(sel: ISelection): Selection;
         static selectionsEqual(a: ISelection, b: ISelection): boolean;
         static selectionsArrEqual(a: ISelection[], b: ISelection[]): boolean;
         static isISelection(obj: any): boolean;
-        static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction: SelectionDirection): IEditorSelection;
+        static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction: SelectionDirection): Selection;
     }
 }
 
@@ -1517,7 +1508,7 @@ declare module monaco.editor {
         /**
          * Range that this tracked range covers
          */
-        range: IEditorRange;
+        range: Range;
     }
 
     /**
@@ -1535,7 +1526,7 @@ declare module monaco.editor {
         /**
          * Range that this decoration covers.
          */
-        range: IEditorRange;
+        range: Range;
         /**
          * Options associated with this decoration.
          */
@@ -1705,7 +1696,7 @@ declare module monaco.editor {
          * @param range The range to replace (delete). May be empty to represent a simple insert.
          * @param text The text to replace with. May be null to represent a simple delete.
          */
-        addEditOperation(range: IEditorRange, text: string): void;
+        addEditOperation(range: Range, text: string): void;
         /**
          * Track `selection` when applying edit operations.
          * A best effort will be made to not grow/expand the selection.
@@ -1715,7 +1706,7 @@ declare module monaco.editor {
          *           should clamp to the previous or the next character.
          * @return A unique identifer.
          */
-        trackSelection(selection: IEditorSelection, trackPreviousOnEmpty?: boolean): string;
+        trackSelection(selection: Selection, trackPreviousOnEmpty?: boolean): string;
     }
 
     /**
@@ -1731,7 +1722,7 @@ declare module monaco.editor {
          * @param id The unique identifier returned by `trackSelection`.
          * @return The selection.
          */
-        getTrackedSelection(id: string): IEditorSelection;
+        getTrackedSelection(id: string): Selection;
     }
 
     /**
@@ -1750,7 +1741,7 @@ declare module monaco.editor {
          * @param helper A helper to get inverse edit operations and to get previously tracked selections.
          * @return The cursor state after the command executed.
          */
-        computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): IEditorSelection;
+        computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection;
     }
 
     /**
@@ -1784,7 +1775,7 @@ declare module monaco.editor {
         /**
          * The range to replace. This can be empty to emulate a simple insert.
          */
-        range: IEditorRange;
+        range: Range;
         /**
          * The text to replace with. This can be null to emulate a simple delete.
          */
@@ -1808,7 +1799,7 @@ declare module monaco.editor {
         /**
          * A callback that can compute the resulting cursors state after some edit operations have been executed.
          */
-        (inverseEditOperations: IIdentifiedSingleEditOperation[]): IEditorSelection[];
+        (inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[];
     }
 
     /**
@@ -1974,11 +1965,11 @@ declare module monaco.editor {
         /**
          * Create a valid range.
          */
-        validateRange(range: IRange): IEditorRange;
+        validateRange(range: IRange): Range;
         /**
          * Get a range covering the entire model
          */
-        getFullModelRange(): IEditorRange;
+        getFullModelRange(): Range;
         /**
          * Returns iff the model was disposed or not.
          */
@@ -2086,13 +2077,13 @@ declare module monaco.editor {
          * @param position The position at which to start the search.
          * @return The range of the matching bracket, or null if the bracket match was not found.
          */
-        findMatchingBracketUp(bracket: string, position: IPosition): IEditorRange;
+        findMatchingBracketUp(bracket: string, position: IPosition): Range;
         /**
          * Given a `position`, if the position is on top or near a bracket,
          * find the matching bracket of that bracket and return the ranges of both brackets.
          * @param position The position at which to look for a bracket.
          */
-        matchBracket(position: IPosition): [IEditorRange, IEditorRange];
+        matchBracket(position: IPosition): [Range, Range];
     }
 
     /**
@@ -2153,7 +2144,7 @@ declare module monaco.editor {
          * Get the range of a tracked range.
          * @param id The id of the tracked range, as returned by a `addTrackedRaneg` call.
          */
-        getTrackedRange(id: string): IEditorRange;
+        getTrackedRange(id: string): Range;
         /**
          * Gets all the tracked ranges for the lines between `startLineNumber` and `endLineNumber` as an array.
          * @param startLineNumber The start line number
@@ -2202,7 +2193,7 @@ declare module monaco.editor {
          * @param id The decoration id.
          * @return The decoration range or null if the decoration was not found.
          */
-        getDecorationRange(id: string): IEditorRange;
+        getDecorationRange(id: string): Range;
         /**
          * Gets all the decorations for the line `lineNumber` as an array.
          * @param lineNumber The line number
@@ -2259,7 +2250,7 @@ declare module monaco.editor {
          * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
          * @return The cursor state returned by the `cursorStateComputer`.
          */
-        pushEditOperations(beforeCursorState: IEditorSelection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): IEditorSelection[];
+        pushEditOperations(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[];
         /**
          * Edit the model without adding the edits to the undo stack.
          * This can have dire consequences on the undo stack! See @pushEditOperations for the preferred way.
@@ -2271,12 +2262,12 @@ declare module monaco.editor {
          * Undo edit operations until the first previous stop point created by `pushStackElement`.
          * The inverse edit operations will be pushed on the redo stack.
          */
-        undo(): IEditorSelection[];
+        undo(): Selection[];
         /**
          * Redo edit operations until the next stop point created by `pushStackElement`.
          * The inverse edit operations will be pushed on the undo stack.
          */
-        redo(): IEditorSelection[];
+        redo(): Selection[];
         /**
          * Set an editable range on the model.
          */
@@ -2288,7 +2279,7 @@ declare module monaco.editor {
         /**
          * Get the editable range on the model.
          */
-        getEditableRange(): IEditorRange;
+        getEditableRange(): Range;
     }
 
     /**
@@ -2314,7 +2305,7 @@ declare module monaco.editor {
          * @param limitResultCount Limit the number of results
          * @return The ranges where the matches are. It is empty if not matches have been found.
          */
-        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): IEditorRange[];
+        findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
         /**
          * Search the model.
          * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2325,7 +2316,7 @@ declare module monaco.editor {
          * @param limitResultCount Limit the number of results
          * @return The ranges where the matches are. It is empty if no matches have been found.
          */
-        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): IEditorRange[];
+        findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wholeWord: boolean, limitResultCount?: number): Range[];
         /**
          * Search the model for the next match. Loops to the beginning of the model if needed.
          * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2335,7 +2326,7 @@ declare module monaco.editor {
          * @param wholeWord Force the matching to match entire words only.
          * @return The range where the next match is. It is null if no next match has been found.
          */
-        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): IEditorRange;
+        findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
         /**
          * Search the model for the previous match. Loops to the end of the model if needed.
          * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2345,7 +2336,7 @@ declare module monaco.editor {
          * @param wholeWord Force the matching to match entire words only.
          * @return The range where the previous match is. It is null if no previous match has been found.
          */
-        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): IEditorRange;
+        findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean): Range;
         onBeforeAttached(): void;
         onBeforeDetached(): void;
         /**
@@ -2611,19 +2602,19 @@ declare module monaco.editor {
         /**
          * The primary selection.
          */
-        selection: IEditorSelection;
+        selection: Selection;
         /**
          * The primary selection in view coordinates.
          */
-        viewSelection: IEditorSelection;
+        viewSelection: Selection;
         /**
          * The secondary selections.
          */
-        secondarySelections: IEditorSelection[];
+        secondarySelections: Selection[];
         /**
          * The secondary selections in view coordinates.
          */
-        secondaryViewSelections: IEditorSelection[];
+        secondaryViewSelections: Selection[];
         /**
          * Source of the call that caused the event.
          */
@@ -2647,11 +2638,11 @@ declare module monaco.editor {
         /**
          * Range to be reavealed.
          */
-        range: IEditorRange;
+        range: Range;
         /**
          * View range to be reavealed.
          */
-        viewRange: IEditorRange;
+        viewRange: Range;
         verticalType: VerticalRevealType;
         /**
          * If true: there should be a horizontal & vertical revealing
@@ -3162,18 +3153,18 @@ declare module monaco.editor {
         /**
          * The primary selection.
          */
-        selection: IEditorSelection;
+        selection: Selection;
         /**
          * The secondary selections.
          */
-        secondarySelections: IEditorSelection[];
+        secondarySelections: Selection[];
     }
 
     export interface IViewRevealRangeEvent {
         /**
          * Range to be reavealed.
          */
-        range: IEditorRange;
+        range: Range;
         verticalType: VerticalRevealType;
         /**
          * If true: there should be a horizontal & vertical revealing
@@ -3369,19 +3360,19 @@ declare module monaco.editor {
         /**
          * Returns the primary selection of the editor.
          */
-        getSelection(): IEditorSelection;
+        getSelection(): Selection;
         /**
          * Returns all the selections of the editor.
          */
-        getSelections(): IEditorSelection[];
+        getSelections(): Selection[];
         /**
          * Set the primary selection of the editor. This will remove any secondary cursors.
          * @param selection The new selection
          */
         setSelection(selection: IRange): void;
-        setSelection(selection: IEditorRange): void;
+        setSelection(selection: Range): void;
         setSelection(selection: ISelection): void;
-        setSelection(selection: IEditorSelection): void;
+        setSelection(selection: Selection): void;
         /**
          * Set the selections for all the cursors of the editor.
          * Cursors will be removed or added, as necessary.
@@ -3844,7 +3835,7 @@ declare module monaco.editor {
         getInternalEventBus(): IEventEmitter;
         createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
         getCodeEditorHelper(): ICodeEditorHelper;
-        getCenteredRangeInViewport(): IEditorRange;
+        getCenteredRangeInViewport(): Range;
         change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean;
         getWhitespaces(): IEditorWhitespace[];
         renderOnce(callback: () => any): any;
@@ -3921,7 +3912,7 @@ declare module monaco.editor {
     };
 
     export interface IViewportInfo {
-        visibleRange: IEditorRange;
+        visibleRange: Range;
         width: number;
         height: number;
         deltaTop: number;
@@ -4123,7 +4114,7 @@ declare module monaco.editor {
         /**
          * The 'approximate' editor range
          */
-        range: IEditorRange;
+        range: Range;
         /**
          * Some extra detail.
          */
@@ -4239,7 +4230,7 @@ declare module monaco.editor {
         /**
          * Returns the range that is currently centered in the view port.
          */
-        getCenteredRangeInViewport(): IEditorRange;
+        getCenteredRangeInViewport(): Range;
         /**
          * Get the view zones.
          */

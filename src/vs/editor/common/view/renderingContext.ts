@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IModelDecoration, IRange, IEditorRange, IPosition} from 'vs/editor/common/editorCommon';
+import {IModelDecoration, IRange, IPosition} from 'vs/editor/common/editorCommon';
 import {ViewLinesViewportData} from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface IRestrictedRenderingContext {
 	linesViewportData:ViewLinesViewportData;
@@ -13,7 +14,7 @@ export interface IRestrictedRenderingContext {
 	scrollWidth:number;
 	scrollHeight:number;
 
-	visibleRange:IEditorRange;
+	visibleRange:Range;
 	bigNumbersDelta:number;
 
 	viewportTop:number;

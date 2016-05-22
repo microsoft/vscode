@@ -5,9 +5,11 @@
 'use strict';
 
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
-import {IModelDecoration, IRange, IEditorRange, EndOfLinePreference, IEditorSelection, IPosition} from 'vs/editor/common/editorCommon';
+import {IModelDecoration, IRange, EndOfLinePreference, IPosition} from 'vs/editor/common/editorCommon';
 import {ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IDecorationsViewportData {
 	decorations: IModelDecoration[];
@@ -31,15 +33,15 @@ export interface IViewModel extends IEventEmitter {
 	getEOL(): string;
 	getValueInRange(range:IRange, eol:EndOfLinePreference): string;
 
-	getSelections(): IEditorSelection[];
+	getSelections(): Selection[];
 
 	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): Position;
-	convertViewRangeToModelRange(viewRange:IRange): IEditorRange;
+	convertViewRangeToModelRange(viewRange:IRange): Range;
 
 	getModelLineContent(lineNumber:number): string;
 	getModelLineMaxColumn(modelLineNumber:number): number;
 	validateModelPosition(position:IPosition): Position;
 	convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): Position;
-	convertModelSelectionToViewSelection(modelSelection:IEditorSelection): IEditorSelection;
+	convertModelSelectionToViewSelection(modelSelection:Selection): Selection;
 	modelPositionIsVisible(position:IPosition): boolean;
 }

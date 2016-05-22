@@ -48,7 +48,7 @@ class WordHighlighter {
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private model: editorCommon.IModel;
-	private _lastWordRange: editorCommon.IEditorRange;
+	private _lastWordRange: Range;
 	private _decorationIds: string[];
 	private toUnhook: IDisposable[];
 

@@ -20,6 +20,7 @@ import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
 import {computeRanges, limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
+import {Selection} from 'vs/editor/common/core/selection';
 
 class CollapsibleRegion {
 
@@ -57,7 +58,7 @@ class CollapsibleRegion {
 		}
 	}
 
-	public getDecorationRange(model:editorCommon.IModel): editorCommon.IEditorRange {
+	public getDecorationRange(model:editorCommon.IModel): Range {
 		if (this.decorationIds.length > 0) {
 			return model.getDecorationRange(this.decorationIds[1]);
 		}
@@ -444,7 +445,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 	private updateHiddenAreas(focusLine: number): void {
 		let model = this.editor.getModel();
-		var selections : editorCommon.IEditorSelection[] = this.editor.getSelections();
+		var selections : Selection[] = this.editor.getSelections();
 		var updateSelections = false;
 		let hiddenAreas: editorCommon.IRange[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
@@ -486,7 +487,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		let selectionsHasChanged = false;
 		selections.forEach((selection, index) => {
 			let lineNumber = selection.startLineNumber;
-			let surroundingUnfolded: editorCommon.IEditorRange;
+			let surroundingUnfolded: Range;
 			for (let i = 0, len = this.decorations.length; i < len; i++) {
 				let dec = this.decorations[i];
 				let decRange = dec.getDecorationRange(model);
@@ -583,7 +584,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 	public foldLevel(foldLevel: number, selectedLineNumbers: number[]): void {
 		let model = this.editor.getModel();
-		let foldingRegionStack: editorCommon.IEditorRange[] = [ model.getFullModelRange() ]; // sentinel
+		let foldingRegionStack: Range[] = [ model.getFullModelRange() ]; // sentinel
 
 		let hasChanges = false;
 		this.editor.changeDecorations(changeAccessor => {

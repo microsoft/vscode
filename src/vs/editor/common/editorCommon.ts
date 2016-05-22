@@ -15,6 +15,8 @@ import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export interface Event<T> {
 	(listener: (e: T) => any, thisArg?: any): IDisposable;
@@ -59,61 +61,6 @@ export interface IRange {
 }
 
 /**
- * A range in the editor.
- */
-export interface IEditorRange extends IRange {
-	/**
-	 * Test if this range is empty.
-	 */
-	isEmpty(): boolean;
-	collapseToStart():IEditorRange;
-	/**
-	 * Test if position is in this range. If the position is at the edges, will return true.
-	 */
-	containsPosition(position:IPosition): boolean;
-	/**
-	 * Test if range is in this range. If the range is equal to this range, will return true.
-	 */
-	containsRange(range:IRange): boolean;
-	/**
-	 * A reunion of the two ranges. The smallest position will be used as the start point, and the largest one as the end point.
-	 */
-	plusRange(range:IRange): IEditorRange;
-	/**
-	 * A intersection of the two ranges.
-	 */
-	intersectRanges(range:IRange): IEditorRange;
-	/**
-	 * Test if this range equals other.
-	 */
-	equalsRange(other:IRange): boolean;
-	/**
-	 * Return the end position (which will be after or equal to the start position)
-	 */
-	getEndPosition(): Position;
-	/**
-	 * Create a new range using this range's start position, and using endLineNumber and endColumn as the end position.
-	 */
-	setEndPosition(endLineNumber: number, endColumn: number): IEditorRange;
-	/**
-	 * Return the start position (which will be before or equal to the end position)
-	 */
-	getStartPosition(): Position;
-	/**
-	 * Create a new range using this range's end position, and using startLineNumber and startColumn as the start position.
-	 */
-	setStartPosition(startLineNumber: number, startColumn: number): IEditorRange;
-	/**
-	 * Clone this range.
-	 */
-	cloneRange(): IEditorRange;
-	/**
-	 * Transform to a user presentable string representation.
-	 */
-	toString(): string;
-}
-
-/**
  * A selection in the editor.
  * The selection is a range that has an orientation.
  */
@@ -148,32 +95,6 @@ export enum SelectionDirection {
 	 * The selection starts below where it ends.
 	 */
 	RTL
-}
-
-/**
- * A selection in the editor.
- */
-export interface IEditorSelection extends ISelection, IEditorRange {
-	/**
-	 * Test if equals other selection.
-	 */
-	equalsSelection(other:ISelection): boolean;
-	/**
-	 * Clone this selection.
-	 */
-	clone(): IEditorSelection;
-	/**
-	 * Get directions (LTR or RTL).
-	 */
-	getDirection(): SelectionDirection;
-	/**
-	 * Create a new selection with a different `positionLineNumber` and `positionColumn`.
-	 */
-	setEndPosition(endLineNumber: number, endColumn: number): IEditorSelection;
-	/**
-	 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
-	 */
-	setStartPosition(startLineNumber: number, startColumn: number): IEditorSelection;
 }
 
 /**
@@ -1080,7 +1001,7 @@ export interface IModelTrackedRange {
 	/**
 	 * Range that this tracked range covers
 	 */
-	range: IEditorRange;
+	range: Range;
 }
 
 /**
@@ -1098,7 +1019,7 @@ export interface IModelDecoration {
 	/**
 	 * Range that this decoration covers.
 	 */
-	range: IEditorRange;
+	range: Range;
 	/**
 	 * Options associated with this decoration.
 	 */
@@ -1268,7 +1189,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addEditOperation(range:IEditorRange, text:string): void;
+	addEditOperation(range:Range, text:string): void;
 
 	/**
 	 * Track `selection` when applying edit operations.
@@ -1279,7 +1200,7 @@ export interface IEditOperationBuilder {
 	 *           should clamp to the previous or the next character.
 	 * @return A unique identifer.
 	 */
-	trackSelection(selection:IEditorSelection, trackPreviousOnEmpty?:boolean): string;
+	trackSelection(selection:Selection, trackPreviousOnEmpty?:boolean): string;
 }
 
 /**
@@ -1295,7 +1216,7 @@ export interface ICursorStateComputerData {
 	 * @param id The unique identifier returned by `trackSelection`.
 	 * @return The selection.
 	 */
-	getTrackedSelection(id:string): IEditorSelection;
+	getTrackedSelection(id:string): Selection;
 }
 
 /**
@@ -1314,7 +1235,7 @@ export interface ICommand {
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */
-	computeCursorState(model:ITokenizedModel, helper:ICursorStateComputerData): IEditorSelection;
+	computeCursorState(model:ITokenizedModel, helper:ICursorStateComputerData): Selection;
 }
 
 /**
@@ -1348,7 +1269,7 @@ export interface IIdentifiedSingleEditOperation {
 	/**
 	 * The range to replace. This can be empty to emulate a simple insert.
 	 */
-	range: IEditorRange;
+	range: Range;
 	/**
 	 * The text to replace with. This can be null to emulate a simple delete.
 	 */
@@ -1372,7 +1293,7 @@ export interface ICursorStateComputer {
 	/**
 	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
 	 */
-	(inverseEditOperations:IIdentifiedSingleEditOperation[]): IEditorSelection[];
+	(inverseEditOperations:IIdentifiedSingleEditOperation[]): Selection[];
 }
 
 /**
@@ -1566,12 +1487,12 @@ export interface ITextModel {
 	/**
 	 * Create a valid range.
 	 */
-	validateRange(range:IRange): IEditorRange;
+	validateRange(range:IRange): Range;
 
 	/**
 	 * Get a range covering the entire model
 	 */
-	getFullModelRange(): IEditorRange;
+	getFullModelRange(): Range;
 
 	/**
 	 * Returns iff the model was disposed or not.
@@ -1625,7 +1546,7 @@ export interface IRichEditBracket {
 }
 
 export interface IFoundBracket {
-	range: IEditorRange;
+	range: Range;
 	open: string;
 	close: string;
 	isOpen: boolean;
@@ -1703,7 +1624,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
 	 */
-	findMatchingBracketUp(bracket:string, position:IPosition): IEditorRange;
+	findMatchingBracketUp(bracket:string, position:IPosition): Range;
 
 	// /**
 	//  * Find the first bracket in the model before `position`.
@@ -1724,7 +1645,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * find the matching bracket of that bracket and return the ranges of both brackets.
 	 * @param position The position at which to look for a bracket.
 	 */
-	matchBracket(position:IPosition): [IEditorRange,IEditorRange];
+	matchBracket(position:IPosition): [Range,Range];
 }
 
 /**
@@ -1789,7 +1710,7 @@ export interface ITextModelWithTrackedRanges extends ITextModel {
 	 * Get the range of a tracked range.
 	 * @param id The id of the tracked range, as returned by a `addTrackedRaneg` call.
 	 */
-	getTrackedRange(id:string): IEditorRange;
+	getTrackedRange(id:string): Range;
 
 	/**
 	 * Gets all the tracked ranges for the lines between `startLineNumber` and `endLineNumber` as an array.
@@ -1843,7 +1764,7 @@ export interface ITextModelWithDecorations {
 	 * @param id The decoration id.
 	 * @return The decoration range or null if the decoration was not found.
 	 */
-	getDecorationRange(id:string): IEditorRange;
+	getDecorationRange(id:string): Range;
 
 	/**
 	 * Gets all the decorations for the line `lineNumber` as an array.
@@ -1910,7 +1831,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.
 	 */
-	pushEditOperations(beforeCursorState:IEditorSelection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): IEditorSelection[];
+	pushEditOperations(beforeCursorState:Selection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): Selection[];
 
 	/**
 	 * Edit the model without adding the edits to the undo stack.
@@ -1924,13 +1845,13 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
 	 * The inverse edit operations will be pushed on the redo stack.
 	 */
-	undo(): IEditorSelection[];
+	undo(): Selection[];
 
 	/**
 	 * Redo edit operations until the next stop point created by `pushStackElement`.
 	 * The inverse edit operations will be pushed on the undo stack.
 	 */
-	redo(): IEditorSelection[];
+	redo(): Selection[];
 
 	/**
 	 * Set an editable range on the model.
@@ -1945,7 +1866,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 	/**
 	 * Get the editable range on the model.
 	 */
-	getEditableRange(): IEditorRange;
+	getEditableRange(): Range;
 }
 
 /**
@@ -1973,7 +1894,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if not matches have been found.
 	 */
-	findMatches(searchString:string, searchOnlyEditableRange:boolean, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): IEditorRange[];
+	findMatches(searchString:string, searchOnlyEditableRange:boolean, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): Range[];
 	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1984,7 +1905,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if no matches have been found.
 	 */
-	findMatches(searchString:string, searchScope:IRange, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): IEditorRange[];
+	findMatches(searchString:string, searchScope:IRange, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): Range[];
 	/**
 	 * Search the model for the next match. Loops to the beginning of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -1994,7 +1915,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @param wholeWord Force the matching to match entire words only.
 	 * @return The range where the next match is. It is null if no next match has been found.
 	 */
-	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
+	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range;
 	/**
 	 * Search the model for the previous match. Loops to the end of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2004,7 +1925,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @param wholeWord Force the matching to match entire words only.
 	 * @return The range where the previous match is. It is null if no previous match has been found.
 	 */
-	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
+	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range;
 
 	onBeforeAttached(): void;
 
@@ -2258,19 +2179,19 @@ export interface ICursorSelectionChangedEvent {
 	/**
 	 * The primary selection.
 	 */
-	selection:IEditorSelection;
+	selection:Selection;
 	/**
 	 * The primary selection in view coordinates.
 	 */
-	viewSelection:IEditorSelection;
+	viewSelection:Selection;
 	/**
 	 * The secondary selections.
 	 */
-	secondarySelections:IEditorSelection[];
+	secondarySelections:Selection[];
 	/**
 	 * The secondary selections in view coordinates.
 	 */
-	secondaryViewSelections:IEditorSelection[];
+	secondaryViewSelections:Selection[];
 	/**
 	 * Source of the call that caused the event.
 	 */
@@ -2292,11 +2213,11 @@ export interface ICursorRevealRangeEvent {
 	/**
 	 * Range to be reavealed.
 	 */
-	range:IEditorRange;
+	range:Range;
 	/**
 	 * View range to be reavealed.
 	 */
-	viewRange:IEditorRange;
+	viewRange:Range;
 
 	verticalType: VerticalRevealType;
 	/**
@@ -2894,18 +2815,18 @@ export interface IViewCursorSelectionChangedEvent {
 	/**
 	 * The primary selection.
 	 */
-	selection: IEditorSelection;
+	selection: Selection;
 	/**
 	 * The secondary selections.
 	 */
-	secondarySelections: IEditorSelection[];
+	secondarySelections: Selection[];
 }
 
 export interface IViewRevealRangeEvent {
 	/**
 	 * Range to be reavealed.
 	 */
-	range: IEditorRange;
+	range: Range;
 
 	verticalType: VerticalRevealType;
 	/**
@@ -3134,21 +3055,21 @@ export interface IEditor {
 	/**
 	 * Returns the primary selection of the editor.
 	 */
-	getSelection(): IEditorSelection;
+	getSelection(): Selection;
 
 	/**
 	 * Returns all the selections of the editor.
 	 */
-	getSelections(): IEditorSelection[];
+	getSelections(): Selection[];
 
 	/**
 	 * Set the primary selection of the editor. This will remove any secondary cursors.
 	 * @param selection The new selection
 	 */
 	setSelection(selection:IRange): void;
-	setSelection(selection:IEditorRange): void;
+	setSelection(selection:Range): void;
 	setSelection(selection:ISelection): void;
-	setSelection(selection:IEditorSelection): void;
+	setSelection(selection:Selection): void;
 
 	/**
 	 * Set the selections for all the cursors of the editor.

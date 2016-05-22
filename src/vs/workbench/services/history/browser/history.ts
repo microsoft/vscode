@@ -8,7 +8,6 @@ import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import {EventType} from 'vs/base/common/events';
-import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -29,7 +28,7 @@ export class EditorState {
 
 	private static EDITOR_SELECTION_THRESHOLD = 5; // number of lines to move in editor to justify for new state
 
-	constructor(private _editorInput: IEditorInput, private _selection: IEditorSelection) {
+	constructor(private _editorInput: IEditorInput, private _selection: Selection) {
 		//
 	}
 
@@ -37,7 +36,7 @@ export class EditorState {
 		return this._editorInput;
 	}
 
-	public get selection(): IEditorSelection {
+	public get selection(): Selection {
 		return this._selection;
 	}
 

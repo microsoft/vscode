@@ -27,7 +27,7 @@ import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
+import {EndOfLineSequence, ITokenizedModel, EditorType, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
 import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -40,6 +40,7 @@ import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {Selection} from 'vs/editor/common/core/selection';
 
 function getCodeEditor(e: IBaseEditor): ICommonCodeEditor {
 	if (e instanceof BaseTextEditor) {
@@ -81,7 +82,7 @@ function asFileOrUntitledEditorInput(input: any): UntitledEditorInput | IFileEdi
 }
 
 interface IEditorSelectionStatus {
-	selections?: IEditorSelection[];
+	selections?: Selection[];
 	charactersSelected?: number;
 }
 

@@ -325,13 +325,13 @@ export class SplitLinesCollection implements ILinesCollection {
 		this.prefixSumComputer = new PrefixSumComputer(values);
 	}
 
-	private getHiddenAreas(): editorCommon.IEditorRange[] {
+	private getHiddenAreas(): Range[] {
 		return this.hiddenAreasIds.map((decId) => {
 			return this.model.getDecorationRange(decId);
 		}).sort(Range.compareRangesUsingStarts);
 	}
 
-	private _reduceRanges(_ranges:editorCommon.IRange[]): editorCommon.IEditorRange[] {
+	private _reduceRanges(_ranges:editorCommon.IRange[]): Range[] {
 		if (_ranges.length === 0) {
 			return [];
 		}

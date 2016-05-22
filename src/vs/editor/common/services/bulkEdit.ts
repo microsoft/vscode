@@ -15,7 +15,7 @@ import {EventType as FileEventType, FileChangesEvent, IFileChange} from 'vs/plat
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IEditorSelection, IIdentifiedSingleEditOperation, IModel, IRange, ISelection} from 'vs/editor/common/editorCommon';
+import {IIdentifiedSingleEditOperation, IModel, IRange, ISelection} from 'vs/editor/common/editorCommon';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 
 export interface IResourceEdit {
@@ -66,8 +66,8 @@ class ChangeRecorder {
 
 class EditTask {
 
-	private _initialSelections: IEditorSelection[];
-	private _endCursorSelection: IEditorSelection;
+	private _initialSelections: Selection[];
+	private _endCursorSelection: Selection;
 	private _model: IModel;
 	private _edits: IIdentifiedSingleEditOperation[];
 
@@ -97,7 +97,7 @@ class EditTask {
 		this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
 	}
 
-	protected _getInitialSelections(): IEditorSelection[] {
+	protected _getInitialSelections(): Selection[] {
 		var firstRange = this._edits[0].range;
 		var initialSelection = Selection.createSelection(
 			firstRange.startLineNumber,
@@ -108,7 +108,7 @@ class EditTask {
 		return [initialSelection];
 	}
 
-	private _getEndCursorSelections(inverseEditOperations:IIdentifiedSingleEditOperation[]): IEditorSelection[] {
+	private _getEndCursorSelections(inverseEditOperations:IIdentifiedSingleEditOperation[]): Selection[] {
 		var relevantEditIndex = 0;
 		for (var i = 0; i < inverseEditOperations.length; i++) {
 			var editRange = inverseEditOperations[i].range;
@@ -131,7 +131,7 @@ class EditTask {
 		return [this._endCursorSelection];
 	}
 
-	public getEndCursorSelection(): IEditorSelection {
+	public getEndCursorSelection(): Selection {
 		return this._endCursorSelection;
 	}
 
@@ -142,14 +142,14 @@ class EditTask {
 
 class SourceModelEditTask extends EditTask {
 
-	private _knownInitialSelections:IEditorSelection[];
+	private _knownInitialSelections:Selection[];
 
-	constructor(model: IModel, initialSelections:IEditorSelection[]) {
+	constructor(model: IModel, initialSelections:Selection[]) {
 		super(model);
 		this._knownInitialSelections = initialSelections;
 	}
 
-	protected _getInitialSelections(): IEditorSelection[] {
+	protected _getInitialSelections(): Selection[] {
 		return this._knownInitialSelections;
 	}
 }
@@ -162,10 +162,10 @@ class BulkEditModel {
 	private _edits: IStringDictionary<IResourceEdit[]> = Object.create(null);
 	private _tasks: EditTask[];
 	private _sourceModel: URI;
-	private _sourceSelections: IEditorSelection[];
+	private _sourceSelections: Selection[];
 	private _sourceModelTask: SourceModelEditTask;
 
-	constructor(editorService: IEditorService, sourceModel: URI, sourceSelections: IEditorSelection[], edits: IResourceEdit[]) {
+	constructor(editorService: IEditorService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[]) {
 		this._editorService = editorService;
 		this._sourceModel = sourceModel;
 		this._sourceSelections = sourceSelections;
@@ -228,9 +228,9 @@ class BulkEditModel {
 		return TPromise.join(promises).then(_ => this);
 	}
 
-	public apply(): IEditorSelection {
+	public apply(): Selection {
 		this._tasks.forEach(task => task.apply());
-		var r: IEditorSelection = null;
+		var r: Selection = null;
 		if (this._sourceModelTask) {
 			r = this._sourceModelTask.getEndCursorSelection();
 		}
@@ -285,7 +285,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 		}
 
 		let uri: URI;
-		let selections: IEditorSelection[];
+		let selections: Selection[];
 
 		if (editor && editor.getModel()) {
 			uri = editor.getModel().uri;

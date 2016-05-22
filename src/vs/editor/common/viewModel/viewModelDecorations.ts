@@ -10,7 +10,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IDecorationsViewportData} from 'vs/editor/common/viewModel/viewModel';
 
 export interface IModelRangeToViewRangeConverter {
-	convertModelRangeToViewRange(modelRange:editorCommon.IRange, isWholeLine:boolean): editorCommon.IEditorRange;
+	convertModelRangeToViewRange(modelRange:editorCommon.IRange, isWholeLine:boolean): Range;
 }
 
 interface IViewModelDecoration extends editorCommon.IModelDecoration {
@@ -27,11 +27,11 @@ interface IViewModelDecorationSource {
 class ViewModelDecoration implements IViewModelDecoration {
 	id: string;
 	ownerId: number;
-	range: editorCommon.IEditorRange;
+	range: Range;
 	options: editorCommon.IModelDecorationOptions;
 	modelRange: editorCommon.IRange;
 
-	constructor(source:IViewModelDecorationSource, range:editorCommon.IEditorRange) {
+	constructor(source:IViewModelDecorationSource, range:Range) {
 		this.id = source.id;
 		this.options = source.options;
 		this.ownerId = source.ownerId;
@@ -187,7 +187,7 @@ export class ViewModelDecorations implements IDisposable {
 		var decorations = this.decorations,
 			d:IViewModelDecoration,
 			i:number,
-			newRange:editorCommon.IEditorRange,
+			newRange:Range,
 			somethingChanged:boolean = false,
 			inlineDecorationsChanged = false,
 			len:number;

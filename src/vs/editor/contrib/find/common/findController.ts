@@ -353,14 +353,14 @@ export interface IMultiCursorFindResult {
 	matchCase:boolean;
 	wholeWord:boolean;
 
-	nextMatch: editorCommon.IEditorSelection;
+	nextMatch: Selection;
 }
 
 function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearchString:boolean): IMultiCursorFindResult {
 	let controller = CommonFindController.getFindController(editor);
 	let state = controller.getState();
 	let searchText: string,
-		nextMatch: editorCommon.IEditorSelection;
+		nextMatch: Selection;
 
 	// In any case, if the find widget was ever opened, the options are taken from it
 	let wholeWord = state.wholeWord;
@@ -411,7 +411,7 @@ export class SelectNextFindMatchAction extends EditorAction {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
 
-	protected _getNextMatch(): editorCommon.IEditorSelection {
+	protected _getNextMatch(): Selection {
 		let r = multiCursorFind(this.editor, true);
 		if (!r) {
 			return null;
@@ -514,7 +514,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	private editor: editorCommon.ICommonCodeEditor;
 	private decorations: string[];
 	private updateSoon: RunOnceScheduler;
-	private lastWordUnderCursor: editorCommon.IEditorRange;
+	private lastWordUnderCursor: Range;
 
 	constructor(editor:editorCommon.ICommonCodeEditor) {
 		super();
@@ -614,7 +614,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		selections.sort(Range.compareRangesUsingStarts);
 
 		// do not overlap with selection (issue #64 and #512)
-		let matches: editorCommon.IEditorRange[] = [];
+		let matches: Range[] = [];
 		for (let i = 0, j = 0, len = allMatches.length, lenJ = selections.length; i < len; ) {
 			let match = allMatches[i];
 

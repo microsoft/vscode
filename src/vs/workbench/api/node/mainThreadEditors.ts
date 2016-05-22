@@ -64,10 +64,10 @@ export class MainThreadTextEditor {
 	private _focusTracker: IFocusTracker;
 	private _codeEditorListeners: IDisposable[];
 
-	private _lastSelection: EditorCommon.IEditorSelection[];
+	private _lastSelection: Selection[];
 	private _configuration: IResolvedTextEditorConfiguration;
 
-	private _onSelectionChanged: Emitter<EditorCommon.IEditorSelection[]>;
+	private _onSelectionChanged: Emitter<Selection[]>;
 	private _onConfigurationChanged: Emitter<IResolvedTextEditorConfiguration>;
 
 	constructor(
@@ -84,7 +84,7 @@ export class MainThreadTextEditor {
 		this._modelService = modelService;
 		this._codeEditorListeners = [];
 
-		this._onSelectionChanged = new Emitter<EditorCommon.IEditorSelection[]>();
+		this._onSelectionChanged = new Emitter<Selection[]>();
 		this._onConfigurationChanged = new Emitter<IResolvedTextEditorConfiguration>();
 
 		this._lastSelection = [ new Selection(1,1,1,1) ];
@@ -156,7 +156,7 @@ export class MainThreadTextEditor {
 		return !!this._codeEditor;
 	}
 
-	public get onSelectionChanged(): Event<EditorCommon.IEditorSelection[]> {
+	public get onSelectionChanged(): Event<Selection[]> {
 		return this._onSelectionChanged.event;
 	}
 
@@ -164,7 +164,7 @@ export class MainThreadTextEditor {
 		return this._onConfigurationChanged.event;
 	}
 
-	public getSelections(): EditorCommon.IEditorSelection[] {
+	public getSelections(): Selection[] {
 		if (this._codeEditor) {
 			return this._codeEditor.getSelections();
 		}

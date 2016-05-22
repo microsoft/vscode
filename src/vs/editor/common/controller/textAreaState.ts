@@ -7,7 +7,7 @@
 import Event from 'vs/base/common/event';
 import {commonPrefixLength, commonSuffixLength} from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorRange, IRange} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IRange} from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 
 export interface IClipboardEvent {
@@ -108,7 +108,7 @@ export abstract class TextAreaState {
 
 	public abstract fromTextArea(textArea:ITextAreaWrapper): TextAreaState;
 
-	public abstract fromEditorSelection(model:ISimpleModel, selection:IEditorRange);
+	public abstract fromEditorSelection(model:ISimpleModel, selection:Range);
 
 	public abstract fromText(text:string): TextAreaState;
 
@@ -271,7 +271,7 @@ export class IENarratorTextAreaState extends TextAreaState {
 		return new IENarratorTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode(), this.selectionToken);
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:Range): TextAreaState {
 		let LIMIT_CHARS = 100;
 		let PADDING_LINES_COUNT = 0;
 
@@ -383,7 +383,7 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		return new Range(startLineNumber, 1, endLineNumber, Number.MAX_VALUE);
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:Range): TextAreaState {
 
 		let selectionStartPage = NVDAPagedTextAreaState._getPageOfLine(selection.startLineNumber);
 		let selectionStartPageRange = NVDAPagedTextAreaState._getRangeForPage(selectionStartPage);
@@ -468,7 +468,7 @@ export class NVDAFullTextAreaState extends TextAreaState {
 		return new NVDAFullTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:Range): TextAreaState {
 		let pretext = model.getValueInRange(new Range(1, 1, selection.startLineNumber, selection.startColumn), EndOfLinePreference.LF);
 		let text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		let lastLine = model.getLineCount();
