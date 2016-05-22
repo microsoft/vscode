@@ -10,7 +10,8 @@ import _parser = require('vs/languages/css/common/parser/cssParser');
 import scanner = require('vs/languages/css/common/parser/cssScanner');
 import nodes = require ('vs/languages/css/common/parser/cssNodes');
 import errors = require('vs/languages/css/common/parser/cssErrors');
-export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.Node):void {
+
+export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.Node):nodes.Node {
 	var node = parser.internalParse(text, f);
 	assert.ok(node !== null, 'no node returned');
 	var markers = nodes.ParseErrorCollector.entries(node);
@@ -18,6 +19,17 @@ export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.No
 		assert.ok(false, 'node has errors: ' + markers[0].getMessage() + ', offset: ' +  markers[0].getNode().offset);
 	}
 	assert.ok(parser.accept(scanner.TokenType.EOF), 'Expect scanner at EOF');
+	return node;
+}
+
+export function assertFunction(text: string, parser: _parser.Parser, f: ()=>nodes.Node, ... expectedArguments: nodes.NodeType[]):void {
+	let functionNode:nodes.Function= <nodes.Function>assertNode(text, parser, f);
+	let actualArguments= functionNode.getArguments().getChildren();
+	assert.equal(actualArguments.length, expectedArguments.length);
+	expectedArguments.forEach((expectedArgument, index) => {
+		let actualArgument= actualArguments[index];
+		assert.equal(actualArgument.type, expectedArgument);
+	})
 }
 
 export function assertNoNode(text: string, parser: _parser.Parser, f: ()=>nodes.Node):void {
@@ -335,6 +347,11 @@ suite('CSS - Parser', () => {
 		assertNoNode('%()', parser, parser._parseFunction.bind(parser));
 		assertNoNode('% ()', parser, parser._parseFunction.bind(parser));
 
+		assertFunction('var(--color)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName);
+		assertFunction('var(--color, somevalue)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName, nodes.NodeType.FunctionArgument);
+		assertFunction('fun(value1, value2)', parser, parser._parseFunction.bind(parser), nodes.NodeType.FunctionArgument, nodes.NodeType.FunctionArgument);
+
+		assertError('var(value1, value2)', parser, parser._parseFunction.bind(parser), errors.ParseError.VariableValueExpected);
 	});
 
 	test('Test Token prio', function() {
@@ -371,6 +388,29 @@ suite('CSS - Parser', () => {
 		assertNode(' 45 , 5px ', parser, parser._parseExpr.bind(parser));
 		assertNode('5/6', parser, parser._parseExpr.bind(parser));
 		assertNode('36mm, -webkit-calc(100%-10px)', parser, parser._parseExpr.bind(parser));
+	});
+
+	test('Parser - Variable', function () {
+		var parser = new _parser.Parser();
+		assertNode('--color', parser, parser._parseCSSVariable.bind(parser));
+		assertNode('--primary-font', parser, parser._parseCSSVariable.bind(parser));
+		assertNoNode('-color', parser, parser._parseCSSVariable.bind(parser));
+		assertNoNode('somevar', parser, parser._parseCSSVariable.bind(parser));
+		assertNoNode('some--var', parser, parser._parseCSSVariable.bind(parser));
+		assertNoNode('somevar--', parser, parser._parseCSSVariable.bind(parser));
+	});
+
+	test('Parser - VariableDeclaration', function() {
+		var parser = new _parser.Parser();
+		assertNode('--color: #F5F5F5', parser, parser._parseCSSVariableDeclaration.bind(parser));
+		assertNode('--color: 0', parser, parser._parseCSSVariableDeclaration.bind(parser));
+		assertNode('--color: 255', parser, parser._parseCSSVariableDeclaration.bind(parser));
+		assertNode('--color: 25.5', parser, parser._parseCSSVariableDeclaration.bind(parser));
+		assertNode('--color: 25px', parser, parser._parseCSSVariableDeclaration.bind(parser));
+		assertNode('--color: 25.5px', parser, parser._parseCSSVariableDeclaration.bind(parser));
+		assertNode('--primary-font: "wf_SegoeUI","Segoe UI","Segoe","Segoe WP"', parser, parser._parseCSSVariableDeclaration.bind(parser));
+		assertError('--color : ', parser, parser._parseCSSVariableDeclaration.bind(parser), errors.ParseError.VariableValueExpected);
+		assertError('--color value', parser, parser._parseCSSVariableDeclaration.bind(parser), errors.ParseError.ColonExpected);
 	});
 });
 

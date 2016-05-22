@@ -87,7 +87,7 @@ export class SassScanner extends scanner.Scanner {
 		// ellipis
 		if (this.stream.advanceIfChars([_DOT, _DOT, _DOT])) {
 			return this.finishToken(offset, Ellipsis);
-		}
+	}
 
 		return super.scan();
 	}

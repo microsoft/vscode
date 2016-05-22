@@ -327,11 +327,11 @@ export class CSSMode extends AbstractMode {
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 
-		// modes.DocumentHighlightProviderRegistry.register(this.getId(), {
-		// 	provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
-		// 		return wireCancellationToken(token, this._provideDocumentHighlights(model.uri, position));
-		// 	}
-		// });
+		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
+			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
+				return wireCancellationToken(token, this._provideDocumentHighlights(model.uri, position));
+			}
+		});
 
 		modes.HoverProviderRegistry.register(this.getId(), {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
@@ -339,11 +339,11 @@ export class CSSMode extends AbstractMode {
 			}
 		});
 
-		// modes.ReferenceProviderRegistry.register(this.getId(), {
-		// 	provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
-		// 		return wireCancellationToken(token, this._provideReferences(model.uri, position));
-		// 	}
-		// });
+		modes.ReferenceProviderRegistry.register(this.getId(), {
+			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._provideReferences(model.uri, position));
+			}
+		});
 
 		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
 			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
@@ -351,11 +351,11 @@ export class CSSMode extends AbstractMode {
 			}
 		});
 
-		// modes.DefinitionProviderRegistry.register(this.getId(), {
-		// 	provideDefinition: (model, position, token): Thenable<modes.Definition> => {
-		// 		return wireCancellationToken(token, this._provideDefinition(model.uri, position));
-		// 	}
-		// });
+		modes.DefinitionProviderRegistry.register(this.getId(), {
+			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._provideDefinition(model.uri, position));
+			}
+		});
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [' ', ':'],

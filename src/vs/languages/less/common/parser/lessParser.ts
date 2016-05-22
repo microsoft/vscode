@@ -158,7 +158,7 @@ export class LessParser extends cssParser.Parser {
 			|| this._tryParseRuleset(true)  // nested ruleset
 			|| this._parseMixinReference() // less mixin reference
 			|| this._parseExtend() // less extend declaration
-			|| this._parseDeclaration(); // try declaration as the last option
+			|| super._parseRuleSetDeclaration(); // try css ruleset declaration as the last option
 	}
 
 	public _parseSimpleSelectorBody(): nodes.Node {
