@@ -5,19 +5,19 @@
 'use strict';
 
 import {IAction} from 'vs/base/common/actions';
-import Event from 'vs/base/common/event';
-import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
-export type KeyCode = KeyCode;
-export type KeyMod = KeyMod;
+export interface Event<T> {
+	(listener: (e: T) => any, thisArg?: any): IDisposable;
+}
 
 // --- position & range
 
@@ -3049,7 +3049,17 @@ export interface ICommonEditorContributionDescriptor {
 /**
  * An editor.
  */
-export interface IEditor extends IEventEmitter {
+export interface IEditor {
+
+	onDidModelContentChange(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	onDidModelModeChange(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
+	onDidModelOptionsChange(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
+	onDidConfigurationChange(listener: (e:IConfigurationChangedEvent)=>void): IDisposable;
+	onDidCursorPositionChange(listener: (e:ICursorPositionChangedEvent)=>void): IDisposable;
+	onDidCursorSelectionChange(listener: (e:ICursorSelectionChangedEvent)=>void): IDisposable;
+	onDidDispose(listener: ()=>void): IDisposable;
+
+	dispose(): void;
 
 	getId(): string;
 
@@ -3322,6 +3332,16 @@ export interface IRangeWithMessage {
 
 export interface ICommonCodeEditor extends IEditor {
 
+	onDidModelChange(listener: (e:IModelChangedEvent)=>void): IDisposable;
+	onDidModelModeSupportChange(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
+	onDidModelDecorationsChange(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
+
+	onDidEditorTextFocus(listener: ()=>void): IDisposable;
+	onDidEditorTextBlur(listener: ()=>void): IDisposable;
+
+	onDidEditorFocus(listener: ()=>void): IDisposable;
+	onDidEditorBlur(listener: ()=>void): IDisposable;
+
 	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.
 	 */
@@ -3460,11 +3480,13 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @param character Character to listen to.
 	 * @param callback Function to call when `character` is typed.
 	 */
-	addTypingListener(character: string, callback: () => void): ListenerUnbind;
+	addTypingListener(character: string, callback: () => void): IDisposable;
 
 }
 
 export interface ICommonDiffEditor extends IEditor {
+	onDidUpdateDiff(listener: ()=>void): IDisposable;
+
 	/**
 	 * Type the getModel() of IEditor.
 	 */

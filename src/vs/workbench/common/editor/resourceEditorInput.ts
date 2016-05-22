@@ -155,9 +155,9 @@ export class ResourceEditorInput extends EditorInput {
 		// Otherwise Create Model and handle dispose event
 		return ResourceEditorInput.getOrCreateModel(this.modelService, this.resource).then(() => {
 			let model = this.instantiationService.createInstance(ResourceEditorModel, this.resource);
-			const unbind = model.addListener(EventType.DISPOSE, () => {
+			const unbind = model.addListener2(EventType.DISPOSE, () => {
 				this.cachedModel = null; // make sure we do not dispose model again
-				unbind();
+				unbind.dispose();
 				this.dispose();
 			});
 

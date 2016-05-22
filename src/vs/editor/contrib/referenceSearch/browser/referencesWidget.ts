@@ -10,7 +10,7 @@ import * as collections from 'vs/base/common/collections';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {getPathLabel} from 'vs/base/common/labels';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, cAll, dispose, Disposables} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose, Disposables} from 'vs/base/common/lifecycle';
 import {Schemas} from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -34,7 +34,7 @@ import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import {ICodeEditor, IMouseTarget} from 'vs/editor/browser/editorBrowser';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import {PeekViewWidget, IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {FileReferences, OneReference, ReferencesModel} from './referencesModel';
@@ -48,24 +48,24 @@ class DecorationsManager implements IDisposable {
 
 	private _decorationSet = collections.createStringDictionary<OneReference>();
 	private _decorationIgnoreSet = collections.createStringDictionary<OneReference>();
-	private _callOnDispose:Function[] = [];
-	private _callOnModelChange:Function[] = [];
+	private _callOnDispose:IDisposable[] = [];
+	private _callOnModelChange:IDisposable[] = [];
 
 	constructor(private editor:ICodeEditor, private model:ReferencesModel) {
-		this._callOnDispose.push(this.editor.addListener(editorCommon.EventType.ModelChanged, () => this._onModelChanged()));
+		this._callOnDispose.push(this.editor.onDidModelChange(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
 
 	public dispose(): void {
-		this._callOnModelChange = cAll(this._callOnModelChange);
-		this._callOnDispose = cAll(this._callOnDispose);
+		this._callOnModelChange = dispose(this._callOnModelChange);
+		this._callOnDispose = dispose(this._callOnDispose);
 		this.removeDecorations();
 	}
 
 	private _onModelChanged():void {
 
 		this.removeDecorations();
-		this._callOnModelChange = cAll(this._callOnModelChange);
+		this._callOnModelChange = dispose(this._callOnModelChange);
 
 		var model = this.editor.getModel();
 		if(!model) {
@@ -81,7 +81,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _addDecorations(reference:FileReferences):void {
-		this._callOnModelChange.push(this.editor.getModel().addListener(editorCommon.EventType.ModelDecorationsChanged, (event) => this._onDecorationChanged(event)));
+		this._callOnModelChange.push(this.editor.getModel().addListener2(editorCommon.EventType.ModelDecorationsChanged, (event) => this._onDecorationChanged(event)));
 
 		this.editor.getModel().changeDecorations((accessor) => {
 			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
@@ -649,7 +649,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		}));
 
 		// listen on editor
-		this._disposeOnNewModel.push(this._preview.addListener2(editorCommon.EventType.MouseDown, (e: { event: MouseEvent; target: IMouseTarget; }) => {
+		this._disposeOnNewModel.push(this._preview.onMouseDown((e) => {
 			if (e.event.detail === 2) {
 				this._onDidSelectReference.fire({
 					element: this._getFocusedReference(),

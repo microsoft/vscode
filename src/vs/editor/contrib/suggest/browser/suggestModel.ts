@@ -9,7 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IEditorPosition, CursorChangeReason} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorSelectionChangedEvent, IEditorPosition, CursorChangeReason} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ISuggestResult2, provideCompletionItems} from '../common/suggest';
@@ -196,9 +196,9 @@ export class SuggestModel implements IDisposable {
 		this.context = null;
 
 		this.toDispose = [];
-		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
-		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
-		this.toDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.cancel()));
+		this.toDispose.push(this.editor.onDidConfigurationChange(() => this.onEditorConfigurationChange()));
+		this.toDispose.push(this.editor.onDidCursorSelectionChange(e => this.onCursorChange(e)));
+		this.toDispose.push(this.editor.onDidModelChange(() => this.cancel()));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.onSuggestRegistryChange, this));
 		this.onEditorConfigurationChange();
 	}

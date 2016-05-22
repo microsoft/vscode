@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -29,23 +29,23 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private callOnDispose: IDisposable[];
-	private callOnModel: Function[];
+	private callOnModel: IDisposable[];
 
 	constructor(editor: editorCommon.ICommonCodeEditor) {
 		this.editor = editor;
 		this.callOnDispose = [];
 		this.callOnModel = [];
 
-		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ConfigurationChanged, () => this.update()));
-		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelChanged, () => this.update()));
-		this.callOnDispose.push(editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.update()));
+		this.callOnDispose.push(editor.onDidConfigurationChange(() => this.update()));
+		this.callOnDispose.push(editor.onDidModelChange(() => this.update()));
+		this.callOnDispose.push(editor.onDidModelModeChange(() => this.update()));
 		this.callOnDispose.push(OnTypeFormattingEditProviderRegistry.onDidChange(this.update, this));
 	}
 
 	private update(): void {
 
 		// clean up
-		this.callOnModel = cAll(this.callOnModel);
+		this.callOnModel = dispose(this.callOnModel);
 
 		// we are disabled
 		if (!this.editor.getConfiguration().contribInfo.formatOnType) {
@@ -84,7 +84,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. Iff so, we won't
 		// apply the format edits
-		var unbind = this.editor.addListener(editorCommon.EventType.ModelContentChanged,(e: editorCommon.IModelContentChangedEvent) => {
+		var unbind = this.editor.onDidModelContentChange((e: editorCommon.IModelContentChangedEvent) => {
 			if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
 				// a model.setValue() was called
 				canceled = true;
@@ -103,7 +103,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 			if (canceled) {
 				// cancel only once
-				unbind();
+				unbind.dispose();
 			}
 		});
 
@@ -114,7 +114,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			insertSpaces: modelOpts.insertSpaces
 		}).then(edits => {
 
-			unbind();
+			unbind.dispose();
 
 			if (canceled || arrays.isFalsyOrEmpty(edits)) {
 				return;
@@ -123,7 +123,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			this.editor.executeCommand(this.getId(), new EditOperationsCommand(edits, this.editor.getSelection()));
 
 		},(err) => {
-			unbind();
+			unbind.dispose();
 			throw err;
 		});
 	}
@@ -134,9 +134,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 	public dispose(): void {
 		this.callOnDispose = dispose(this.callOnDispose);
-		while (this.callOnModel.length > 0) {
-			this.callOnModel.pop()();
-		}
+		this.callOnModel = dispose(this.callOnModel);
 	}
 }
 

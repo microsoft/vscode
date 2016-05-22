@@ -12,7 +12,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {EventType, ICommonCodeEditor, ICursorPositionChangedEvent, IEditorActionDescriptorData, IEditorRange} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorPositionChangedEvent, IEditorActionDescriptorData, IEditorRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
@@ -98,12 +98,12 @@ class SmartSelect extends EditorAction {
 				state = editorState;
 
 				// listen to caret move and forget about state
-				var unhook: () => void = this.editor.addListener(EventType.CursorPositionChanged,(e: ICursorPositionChangedEvent) => {
+				var unhook = this.editor.onDidCursorPositionChange((e: ICursorPositionChangedEvent) => {
 					if (ignoreSelection) {
 						return;
 					}
 					state = null;
-					unhook();
+					unhook.dispose();
 				});
 			});
 		}

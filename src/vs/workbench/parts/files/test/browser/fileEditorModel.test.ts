@@ -104,15 +104,15 @@ suite('Files - TextFileEditorModel', () => {
 	test('Load does not trigger save', function (done) {
 		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
 
-		eventService.addListener('files:internalFileChanged', () => {
+		eventService.addListener2('files:internalFileChanged', () => {
 			assert.ok(false);
 		});
 
-		eventService.addListener(EventType.FILE_DIRTY, () => {
+		eventService.addListener2(EventType.FILE_DIRTY, () => {
 			assert.ok(false);
 		});
 
-		eventService.addListener(EventType.FILE_SAVED, () => {
+		eventService.addListener2(EventType.FILE_SAVED, () => {
 			assert.ok(false);
 		});
 
@@ -145,7 +145,7 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', function (done) {
 		let eventCounter = 0;
 
-		eventService.addListener('files:fileReverted', () => {
+		eventService.addListener2('files:fileReverted', () => {
 			eventCounter++;
 		});
 
@@ -200,11 +200,11 @@ suite('Files - TextFileEditorModel', () => {
 		(<any>m1).autoSaveAfterMillies = 10;
 		(<any>m1).autoSaveAfterMilliesEnabled = true;
 
-		eventService.addListener(EventType.FILE_DIRTY, () => {
+		eventService.addListener2(EventType.FILE_DIRTY, () => {
 			eventCounter++;
 		});
 
-		eventService.addListener(EventType.FILE_SAVED, () => {
+		eventService.addListener2(EventType.FILE_SAVED, () => {
 			eventCounter++;
 		});
 
@@ -285,13 +285,13 @@ suite('Files - TextFileEditorModel', () => {
 		let eventCounter = 0;
 		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource('/path/index_async.txt'), 'utf8');
 
-		eventService.addListener(EventType.FILE_SAVED, (e) => {
+		eventService.addListener2(EventType.FILE_SAVED, (e) => {
 			assert.equal(m1.getValue(), 'bar');
 			assert.ok(!m1.isDirty());
 			eventCounter++;
 		});
 
-		eventService.addListener(EventType.FILE_SAVING, (e) => {
+		eventService.addListener2(EventType.FILE_SAVING, (e) => {
 			assert.ok(m1.isDirty());
 			m1.textEditorModel.setValue('bar');
 			assert.ok(m1.isDirty());

@@ -8,7 +8,7 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
-import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorSelectionChangedEvent} from 'vs/editor/common/editorCommon';
 import {SignatureHelpProviderRegistry, SignatureHelp} from 'vs/editor/common/modes';
 import {provideSignatureHelp} from '../common/parameterHints';
 
@@ -42,9 +42,9 @@ export class ParameterHintsModel extends Disposable {
 
 		this.active = false;
 
-		this._register(this.editor.addListener2(EventType.ModelChanged, e => this.onModelChanged()));
-		this._register(this.editor.addListener2(EventType.ModelModeChanged, _ => this.onModelChanged()));
-		this._register(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
+		this._register(this.editor.onDidModelChange(e => this.onModelChanged()));
+		this._register(this.editor.onDidModelModeChange(_ => this.onModelChanged()));
+		this._register(this.editor.onDidCursorSelectionChange(e => this.onCursorChange(e)));
 		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 		this.onModelChanged();
 	}
@@ -107,11 +107,9 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		this.triggerCharactersListeners = support.signatureHelpTriggerCharacters.map((ch) => {
-			let listener = this.editor.addTypingListener(ch, () => {
+			return this.editor.addTypingListener(ch, () => {
 				this.trigger();
 			});
-
-			return { dispose: listener };
 		});
 	}
 

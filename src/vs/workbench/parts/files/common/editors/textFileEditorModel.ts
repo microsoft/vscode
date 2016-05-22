@@ -66,7 +66,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	private resource: URI;
 	private contentEncoding: string; 			// encoding as reported from disk
 	private preferredEncoding: string;			// encoding as chosen by the user
-	private textModelChangeListener: () => void;
+	private textModelChangeListener: IDisposable;
 	private textFileServiceListener: IDisposable;
 	private dirty: boolean;
 	private versionId: number;
@@ -272,7 +272,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 					this.createTextEditorModelPromise = null;
 
 					this.setDirty(false); // Ensure we are not tracking a stale state
-					this.textModelChangeListener = this.textEditorModel.addListener(EditorEventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
+					this.textModelChangeListener = this.textEditorModel.addListener2(EditorEventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
 
 					return this;
 				}, (error) => {
@@ -715,7 +715,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.createTextEditorModelPromise = null;
 
 		if (this.textModelChangeListener) {
-			this.textModelChangeListener();
+			this.textModelChangeListener.dispose();
 			this.textModelChangeListener = null;
 		}
 

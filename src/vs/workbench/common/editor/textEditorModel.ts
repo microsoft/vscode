@@ -40,9 +40,9 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 
 			// Since we did not create the model, we need to listen to it disposing
 			// and properly trigger our dispose function so that events get emitted
-			const unbind = model.addListener(EventType.ModelDispose, () => {
+			const unbind = model.addListener2(EventType.ModelDispose, () => {
 				this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
-				unbind();
+				unbind.dispose();
 				this.dispose();
 			});
 		}

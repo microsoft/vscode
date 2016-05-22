@@ -27,6 +27,10 @@ function getSourceFile(moduleId) {
     }
     return SOURCE_FILE_MAP[moduleId];
 }
+function isDeclaration(a) {
+    var tmp = a;
+    return tmp.name && typeof tmp.name.text === 'string';
+}
 function visitTopLevelDeclarations(sourceFile, visitor) {
     var stop = false;
     var visit = function (node) {
@@ -37,8 +41,17 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
             case ts.SyntaxKind.InterfaceDeclaration:
             case ts.SyntaxKind.EnumDeclaration:
             case ts.SyntaxKind.ClassDeclaration:
+            case ts.SyntaxKind.VariableStatement:
+            case ts.SyntaxKind.TypeAliasDeclaration:
+            case ts.SyntaxKind.FunctionDeclaration:
                 stop = visitor(node);
                 break;
+        }
+        if (node.kind !== ts.SyntaxKind.SourceFile) {
+            if (getNodeText(sourceFile, node).indexOf('cursorStyleToString') >= 0) {
+                console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
+                console.log(getNodeText(sourceFile, node));
+            }
         }
         if (stop) {
             return;
@@ -58,11 +71,15 @@ function getAllTopLevelDeclarations(sourceFile) {
 function getTopLevelDeclaration(sourceFile, typeName) {
     var result = null;
     visitTopLevelDeclarations(sourceFile, function (node) {
-        if (node.name.text === typeName) {
-            result = node;
-            return true /*stop*/;
+        if (isDeclaration(node)) {
+            if (node.name.text === typeName) {
+                result = node;
+                return true /*stop*/;
+            }
+            return false /*continue*/;
         }
-        return false /*continue*/;
+        // node is ts.VariableStatement
+        return (getNodeText(sourceFile, node).indexOf(typeName) >= 0);
     });
     return result;
 }
@@ -74,6 +91,52 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
     result = result.replace(/export default/g, 'export');
     result = result.replace(/export declare/g, 'export');
     return result;
+}
+function format(text) {
+    var options = getDefaultOptions();
+    // Parse the source text
+    var sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
+    // Get the formatting edits on the input sources
+    var edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(options), options);
+    // Apply the edits on the input code
+    return applyEdits(text, edits);
+    function getRuleProvider(options) {
+        // Share this between multiple formatters using the same options.
+        // This represents the bulk of the space the formatter uses.
+        var ruleProvider = new ts.formatting.RulesProvider();
+        ruleProvider.ensureUpToDate(options);
+        return ruleProvider;
+    }
+    function applyEdits(text, edits) {
+        // Apply edits in reverse on the existing text
+        var result = text;
+        for (var i = edits.length - 1; i >= 0; i--) {
+            var change = edits[i];
+            var head = result.slice(0, change.span.start);
+            var tail = result.slice(change.span.start + change.span.length);
+            result = head + change.newText + tail;
+        }
+        return result;
+    }
+    function getDefaultOptions() {
+        return {
+            IndentSize: 4,
+            TabSize: 4,
+            NewLineCharacter: '\r\n',
+            ConvertTabsToSpaces: true,
+            IndentStyle: ts.IndentStyle.Block,
+            InsertSpaceAfterCommaDelimiter: true,
+            InsertSpaceAfterSemicolonInForStatements: true,
+            InsertSpaceBeforeAndAfterBinaryOperators: true,
+            InsertSpaceAfterKeywordsInControlFlowStatements: true,
+            InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
+            InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
+            InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
+            InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
+            PlaceOpenBraceOnNewLineForFunctions: false,
+            PlaceOpenBraceOnNewLineForControlBlocks: false,
+        };
+    }
 }
 var recipe = fs.readFileSync(path.join(__dirname, './monaco-editor.d.ts.recipe')).toString();
 var lines = recipe.split(/\r\n|\n|\r/);
@@ -114,4 +177,10 @@ lines.forEach(function (line) {
     }
     result.push(line);
 });
-fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), result.join('\n'));
+var resultTxt = result.join('\n');
+resultTxt = resultTxt.replace(/\beditorCommon\./g, '');
+resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
+resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
+resultTxt = format(resultTxt);
+resultTxt = resultTxt.replace(/\r\n/g, '\n');
+fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), resultTxt);

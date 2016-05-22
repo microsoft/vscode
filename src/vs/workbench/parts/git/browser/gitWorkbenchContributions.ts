@@ -368,7 +368,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 
 		// If there is no repository root, just wait until that changes
 		if (typeof repositoryRoot !== 'string') {
-			this.gitService.addOneTimeListener(git.ServiceEvents.STATE_CHANGED, () => this.onEditorInputChange());
+			this.gitService.addOneTimeDisposableListener(git.ServiceEvents.STATE_CHANGED, () => this.onEditorInputChange());
 
 			this.models.forEach(m => this.onModelInvisible(m));
 			this.models = [];

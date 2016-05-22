@@ -17,7 +17,7 @@ import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -49,8 +49,8 @@ class ContextMenuController implements IEditorContribution {
 
 		this._contextMenuIsBeingShownCount = 0;
 
-		this._toDispose.push(this._editor.addListener2(EventType.ContextMenu, (e:IEditorMouseEvent)=>this._onContextMenu(e)));
-		this._toDispose.push(this._editor.addListener2(EventType.KeyDown, (e:IKeyboardEvent)=> {
+		this._toDispose.push(this._editor.onContextMenu((e:IEditorMouseEvent)=>this._onContextMenu(e)));
+		this._toDispose.push(this._editor.onKeyDown((e:IKeyboardEvent)=> {
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
 				e.preventDefault();

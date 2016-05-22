@@ -377,7 +377,7 @@ export class GitService extends ee.EventEmitter
 		git.IGitService {
 
 	public serviceId = git.IGitService;
-	
+
 	private eventService: IEventService;
 	private contextService: IWorkspaceContextService;
 	private messageService: IMessageService;
@@ -391,7 +391,6 @@ export class GitService extends ee.EventEmitter
 	private operations: git.IGitOperation[];
 	private model: git.IModel;
 	private inputCache: EditorInputCache;
-	private remoteListenerUnbind:ee.ListenerUnbind;
 	private toDispose: lifecycle.IDisposable[];
 	private needsRefresh: boolean;
 	private refreshDelayer: async.ThrottledDelayer<void>;
@@ -812,11 +811,6 @@ export class GitService extends ee.EventEmitter
 		if (this.model) {
 			this.model.dispose();
 			this.model = null;
-		}
-
-		if (this.remoteListenerUnbind) {
-			this.remoteListenerUnbind();
-			this.remoteListenerUnbind = null;
 		}
 
 		super.dispose();

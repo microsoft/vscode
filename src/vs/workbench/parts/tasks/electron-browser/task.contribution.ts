@@ -17,7 +17,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as Builder from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -560,11 +560,11 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
-	private taskSystemListeners: ListenerUnbind[];
+	private taskSystemListeners: IDisposable[];
 	private clearTaskSystemPromise: boolean;
 	private outputChannel: IOutputChannel;
 
-	private fileChangesListener: ListenerUnbind;
+	private fileChangesListener: IDisposable;
 
 	constructor(@IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
 		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
@@ -609,13 +609,12 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private disposeTaskSystemListeners(): void {
-		this.taskSystemListeners.forEach(unbind => unbind());
-		this.taskSystemListeners = [];
+		this.taskSystemListeners = dispose(this.taskSystemListeners);
 	}
 
 	private disposeFileChangesListener(): void {
 		if (this.fileChangesListener) {
-			this.fileChangesListener();
+			this.fileChangesListener.dispose();
 			this.fileChangesListener = null;
 		}
 	}
@@ -694,8 +693,8 @@ class TaskService extends EventEmitter implements ITaskService {
 							this._taskSystemPromise = null;
 							throw new TaskError(Severity.Info, nls.localize('TaskSystem.noBuildType', "No valid task runner configured. Supported task runners are 'service' and 'program'."), TaskErrors.NoValidTaskRunner);
 						}
-						this.taskSystemListeners.push(result.addListener(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
-						this.taskSystemListeners.push(result.addListener(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
+						this.taskSystemListeners.push(result.addListener2(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
+						this.taskSystemListeners.push(result.addListener2(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
 						this._taskSystem = result;
 						return result;
 					}, (err: any) => {
@@ -773,7 +772,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					then((runResult: ITaskRunResult) => {
 						if (runResult.restartOnFileChanges) {
 							let pattern = runResult.restartOnFileChanges;
-							this.fileChangesListener = this.eventService.addListener(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
+							this.fileChangesListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (event: FileChangesEvent) => {
 								let needsRestart = event.changes.some((change) => {
 									return (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) && !!match(pattern, change.resource.fsPath);
 								});

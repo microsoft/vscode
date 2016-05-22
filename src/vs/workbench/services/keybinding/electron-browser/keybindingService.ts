@@ -26,6 +26,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -119,7 +120,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	private contextService: IWorkspaceContextService;
 	private eventService: IEventService;
 	private telemetryService: ITelemetryService;
-	private toDispose: Function;
+	private toDispose: IDisposable;
 	private _extensionService: IExtensionService;
 	private _eventService: IEventService;
 
@@ -129,7 +130,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
 		this._extensionService = extensionService;
-		this.toDispose = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
+		this.toDispose = this.eventService.addListener2(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
 		this._eventService = eventService;
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;
@@ -181,7 +182,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	}
 
 	public dispose(): void {
-		this.toDispose();
+		this.toDispose.dispose();
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {

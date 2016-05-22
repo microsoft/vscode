@@ -19,6 +19,7 @@ import {IResourceService, ResourceEvents, IResourceChangedEvent} from 'vs/editor
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export interface IJSONSchemaService {
 
@@ -213,7 +214,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 
 	private requestService: IRequestService;
 	private contextService : IWorkspaceContextService;
-	private callOnDispose:Function[];
+	private callOnDispose:IDisposable[];
 
 	constructor(@IRequestService requestService: IRequestService,
 		@IWorkspaceContextService contextService?: IWorkspaceContextService,
@@ -223,7 +224,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 		this.callOnDispose = [];
 
 		if (resourceService) {
-			this.callOnDispose.push(resourceService.addListener_(ResourceEvents.CHANGED, (e: IResourceChangedEvent) => this.onResourceChange(e)));
+			this.callOnDispose.push(resourceService.addListener2_(ResourceEvents.CHANGED, (e: IResourceChangedEvent) => this.onResourceChange(e)));
 		}
 
 		this.contributionSchemas = {};
@@ -234,9 +235,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	public dispose(): void {
-		while(this.callOnDispose.length > 0) {
-			this.callOnDispose.pop()();
-		}
+		this.callOnDispose = dispose(this.callOnDispose);
 	}
 
 	private onResourceChange(e: IResourceChangedEvent): void {

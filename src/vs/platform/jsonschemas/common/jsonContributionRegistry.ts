@@ -7,7 +7,7 @@
 import nls = require('vs/nls');
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import platform = require('vs/platform/platform');
-import {IEventEmitter, EventEmitter} from 'vs/base/common/eventEmitter';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 
 export const Extensions = {
@@ -52,7 +52,7 @@ function normalizeId(id: string) {
 
 class JSONContributionRegistry implements IJSONContributionRegistry {
 	private schemasById: { [id: string]: IJSONSchema };
-	private eventEmitter: IEventEmitter;
+	private eventEmitter: EventEmitter;
 
 	constructor() {
 		this.schemasById = {};

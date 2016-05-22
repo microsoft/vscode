@@ -65,10 +65,10 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 
 		// Sash
 		this.sash = new Sash(parent.getHTMLElement(), this);
-		this.sash.addListener('start', () => this.onSashDragStart());
-		this.sash.addListener('change', (e: ISashEvent) => this.onSashDrag(e));
-		this.sash.addListener('end', () => this.onSashDragEnd());
-		this.sash.addListener('reset', () => this.onSashReset());
+		this.sash.addListener2('start', () => this.onSashDragStart());
+		this.sash.addListener2('change', (e: ISashEvent) => this.onSashDrag(e));
+		this.sash.addListener2('end', () => this.onSashDragEnd());
+		this.sash.addListener2('reset', () => this.onSashReset());
 
 		// Right Container for Binary
 		let rightBinaryContainerElement = document.createElement('div');

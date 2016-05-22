@@ -81,13 +81,13 @@ export class Lock {
 		var lock = this.getLock(item);
 
 		if (lock) {
-			var unbindListener: Events.ListenerUnbind;
+			var unbindListener: IDisposable;
 
 			return new WinJS.Promise((c, e) => {
-				unbindListener = lock.addOneTimeListener('unlock', () => {
+				unbindListener = lock.addOneTimeDisposableListener('unlock', () => {
 					return this.run(item, fn).then(c, e);
 				});
-			}, () => unbindListener());
+			}, () => { unbindListener.dispose(); });
 		}
 
 		var result: WinJS.Promise;

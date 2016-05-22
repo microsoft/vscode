@@ -6,7 +6,6 @@
 'use strict';
 
 import * as collections from 'vs/base/common/collections';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as strings from 'vs/base/common/strings';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -15,6 +14,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 interface IParsedLinePlaceHolderInfo {
 	id: string;
@@ -384,7 +384,7 @@ class InsertSnippetController {
 	private model: editorCommon.IModel;
 	private finishPlaceHolderIndex:number;
 
-	private listenersToRemove:ListenerUnbind[];
+	private listenersToRemove:IDisposable[];
 	private trackedPlaceHolders:ITrackedPlaceHolder[];
 	private placeHolderDecorations: string[];
 	private currentPlaceHolderIndex:number;
@@ -460,7 +460,7 @@ class InsertSnippetController {
 		});
 
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.ModelContentChanged, (e:editorCommon.IModelContentChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidModelContentChange((e:editorCommon.IModelContentChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
@@ -502,7 +502,7 @@ class InsertSnippetController {
 			}
 		}));
 
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.CursorPositionChanged, (e:editorCommon.ICursorPositionChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidCursorPositionChange((e:editorCommon.ICursorPositionChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
@@ -513,19 +513,19 @@ class InsertSnippetController {
 			}
 		}));
 
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.ModelChanged, () => {
+		this.listenersToRemove.push(this.editor.onDidModelChange(() => {
 			this.stopAll();
 		}));
 
 		var blurTimeout = -1;
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.EditorBlur, () => {
+		this.listenersToRemove.push(this.editor.onDidEditorBlur(() => {
 			// Blur if within 100ms we do not focus back
 			blurTimeout = setTimeout(() => {
 				this.stopAll();
 			}, 100);
 		}));
 
-		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.EditorFocus, () => {
+		this.listenersToRemove.push(this.editor.onDidEditorFocus(() => {
 			// Cancel the blur timeout (if any)
 			if (blurTimeout !== -1) {
 				clearTimeout(blurTimeout);
@@ -533,7 +533,7 @@ class InsertSnippetController {
 			}
 		}));
 
-		this.listenersToRemove.push(this.model.addListener(editorCommon.EventType.ModelDecorationsChanged, (e: editorCommon.IModelDecorationsChangedEvent) => {
+		this.listenersToRemove.push(this.model.addListener2(editorCommon.EventType.ModelDecorationsChanged, (e: editorCommon.IModelDecorationsChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
@@ -676,10 +676,7 @@ class InsertSnippetController {
 
 		this.isFinished = true;
 
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.listenersToRemove = dispose(this.listenersToRemove);
 
 		for (var i = 0; i < this.trackedPlaceHolders.length; i++) {
 			var ranges = this.trackedPlaceHolders[i].ranges;

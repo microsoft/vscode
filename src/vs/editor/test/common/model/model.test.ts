@@ -109,7 +109,7 @@ suite('Editor Model - Model', () => {
 	// --------- insert text eventing
 
 	test('model insert empty text does not trigger eventing', () => {
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.addListener2(EventType.ModelContentChanged, (e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
@@ -117,7 +117,7 @@ suite('Editor Model - Model', () => {
 
 	test('model insert text without newline eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.addListener2(EventType.ModelContentChanged, (e) => {
 			listenerCalls++;
 			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
 			assert.equal(e.lineNumber, 1);
@@ -130,7 +130,7 @@ suite('Editor Model - Model', () => {
 		var listenerCalls = 0;
 		var order = 0;
 
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.addListener2(EventType.ModelContentChanged, (e) => {
 			listenerCalls++;
 
 			if (e.changeType === EventType.ModelContentChangedLineChanged) {
@@ -206,7 +206,7 @@ suite('Editor Model - Model', () => {
 	// --------- delete text eventing
 
 	test('model delete empty text does not trigger eventing', () => {
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.addListener2(EventType.ModelContentChanged, (e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
@@ -214,7 +214,7 @@ suite('Editor Model - Model', () => {
 
 	test('model delete text from one line eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.addListener2(EventType.ModelContentChanged, (e) => {
 			listenerCalls++;
 			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
 			assert.equal(e.lineNumber, 1);
@@ -225,7 +225,7 @@ suite('Editor Model - Model', () => {
 
 	test('model delete all text from a line eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.addListener2(EventType.ModelContentChanged, (e) => {
 			listenerCalls++;
 			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
 			assert.equal(e.lineNumber, 1);
@@ -237,7 +237,7 @@ suite('Editor Model - Model', () => {
 	test('model delete text from two lines eventing', () => {
 		var listenerCalls = 0;
 		var order = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.addListener2(EventType.ModelContentChanged, (e) => {
 			listenerCalls++;
 
 			if (e.changeType === EventType.ModelContentChangedLineChanged) {
@@ -265,7 +265,7 @@ suite('Editor Model - Model', () => {
 		var listenerCalls = 0;
 		var order = 0;
 
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.addListener2(EventType.ModelContentChanged, (e) => {
 			listenerCalls++;
 
 			if (e.changeType === EventType.ModelContentChangedLineChanged) {
@@ -324,7 +324,7 @@ suite('Editor Model - Model', () => {
 	// --------- setValue
 	test('setValue eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addOneTimeListener(EventType.ModelContentChanged, (e:IModelContentChangedEvent) => {
+		thisModel.addOneTimeDisposableListener(EventType.ModelContentChanged, (e:IModelContentChangedEvent) => {
 			listenerCalls++;
 
 			assert.equal(e.changeType, EventType.ModelContentChangedFlush);

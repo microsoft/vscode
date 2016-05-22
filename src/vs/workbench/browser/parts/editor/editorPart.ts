@@ -39,6 +39,7 @@ import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {EditorStacksModel, EditorGroup, IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 class ProgressMonitor {
 
@@ -77,7 +78,7 @@ export class EditorPart extends Part implements IEditorPart {
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleInputs: EditorInput[];
 	private visibleEditors: BaseEditor[];
-	private visibleEditorListeners: Function[][];
+	private visibleEditorListeners: IDisposable[][];
 	private instantiatedEditors: BaseEditor[][];
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
@@ -116,10 +117,8 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputDirtyStateChanged(event)));
-
-		const unbind = this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier));
-		this.toUnbind.push(() => unbind.dispose());
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputDirtyStateChanged(event)));
+		this.toUnbind.push(this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier)));
 	}
 
 	private onEditorInputDirtyStateChanged(event: EditorInputEvent): void {
@@ -290,7 +289,7 @@ export class EditorPart extends Part implements IEditorPart {
 			this.visibleEditors[position] = editor;
 
 			// Register as Emitter to Workbench Bus
-			this.visibleEditorListeners[position].push(this.eventService.addEmitter(this.visibleEditors[position], this.visibleEditors[position].getId()));
+			this.visibleEditorListeners[position].push(this.eventService.addEmitter2(this.visibleEditors[position], this.visibleEditors[position].getId()));
 
 			// Create editor as needed
 			if (newlyCreatedEditorContainerBuilder) {
@@ -556,9 +555,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.updateProgress(position, ProgressState.STOP);
 
 		// Clear Listeners
-		while (this.visibleEditorListeners[position].length) {
-			this.visibleEditorListeners[position].pop()();
-		}
+		this.visibleEditorListeners[position] = dispose(this.visibleEditorListeners[position]);
 
 		// Indicate to Editor
 		editor.clearInput();
@@ -798,11 +795,8 @@ export class EditorPart extends Part implements IEditorPart {
 		// Side by Side Control
 		this.sideBySideControl = this.instantiationService.createInstance(SideBySideEditorControl, contentArea);
 
-		const focusListener = this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged());
-		this.toUnbind.push(() => focusListener.dispose());
-
-		const titleClickListener = this.sideBySideControl.onEditorTitleDoubleclick((position) => this.onEditorTitleDoubleclick(position));
-		this.toUnbind.push(() => titleClickListener.dispose());
+		this.toUnbind.push(this.sideBySideControl.onGroupFocusChanged(() => this.onGroupFocusChanged()));
+		this.toUnbind.push(this.sideBySideControl.onEditorTitleDoubleclick((position) => this.onEditorTitleDoubleclick(position)));
 
 		// get settings
 		this.memento = this.getMemento(this.storageService, MementoScope.WORKSPACE);
@@ -1063,9 +1057,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Editor listeners
 		for (let i = 0; i < this.visibleEditorListeners.length; i++) {
-			while (this.visibleEditorListeners[i].length) {
-				this.visibleEditorListeners[i].pop()();
-			}
+			this.visibleEditorListeners[i] = dispose(this.visibleEditorListeners[i]);
 		}
 
 		// Pass to active editors

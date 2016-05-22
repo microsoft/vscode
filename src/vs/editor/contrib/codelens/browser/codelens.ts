@@ -362,9 +362,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._currentFindCodeLensSymbolsPromise = null;
 		this._modelChangeCounter = 0;
 
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChange()));
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onModelChange()));
-		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
+		this._globalToDispose.push(this._editor.onDidModelChange(() => this.onModelChange()));
+		this._globalToDispose.push(this._editor.onDidModelModeChange(() => this.onModelChange()));
+		this._globalToDispose.push(this._editor.onDidConfigurationChange((e: editorCommon.IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.referenceInfos;
 			if (prevIsEnabled !== this._isEnabled) {
@@ -472,8 +472,10 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 				scheduler.schedule();
 			}
 		}));
-		this._localToDispose.push(this._editor.addListener2('scroll', (e) => {
-			detectVisible.schedule();
+		this._localToDispose.push(this._editor.onDidScrollChange((e) => {
+			if (e.scrollTopChanged) {
+				detectVisible.schedule();
+			}
 		}));
 		this._localToDispose.push({
 			dispose: () => {

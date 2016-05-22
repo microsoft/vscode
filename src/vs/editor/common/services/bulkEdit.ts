@@ -42,7 +42,7 @@ class ChangeRecorder {
 
 		var changes: IStringDictionary<IFileChange[]> = Object.create(null);
 
-		var stop = this._eventService.addListener(FileEventType.FILE_CHANGES,(event: FileChangesEvent) => {
+		var stop = this._eventService.addListener2(FileEventType.FILE_CHANGES,(event: FileChangesEvent) => {
 			event.changes.forEach(change => {
 
 				var key = String(change.resource),
@@ -57,7 +57,7 @@ class ChangeRecorder {
 		});
 
 		return {
-			stop,
+			stop: () => { stop.dispose(); },
 			hasChanged: (resource: URI) => !!changes[resource.toString()],
 			allChanges: () => merge(values(changes))
 		};

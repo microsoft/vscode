@@ -34,6 +34,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ShowEditorsInGroupAction, CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export enum Rochade {
 	NONE,
@@ -147,6 +148,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private _onGroupFocusChanged: Emitter<void>;
 	private _onEditorTitleDoubleclick: Emitter<Position>;
 
+	private toDispose: IDisposable[];
+
 	constructor(
 		parent: Builder,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -178,6 +181,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		this._onGroupFocusChanged = new Emitter<void>();
 		this._onEditorTitleDoubleclick = new Emitter<Position>();
+
+		this.toDispose = [];
 
 		this.initActions();
 		this.initStyles();
@@ -770,10 +775,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Left Sash
 		this.leftSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
-		this.leftSash.addListener('start', () => this.onLeftSashDragStart());
-		this.leftSash.addListener('change', (e: ISashEvent) => this.onLeftSashDrag(e));
-		this.leftSash.addListener('end', () => this.onLeftSashDragEnd());
-		this.leftSash.addListener('reset', () => this.onLeftSashReset());
+		this.toDispose.push(this.leftSash.addListener2('start', () => this.onLeftSashDragStart()));
+		this.toDispose.push(this.leftSash.addListener2('change', (e: ISashEvent) => this.onLeftSashDrag(e)));
+		this.toDispose.push(this.leftSash.addListener2('end', () => this.onLeftSashDragEnd()));
+		this.toDispose.push(this.leftSash.addListener2('reset', () => this.onLeftSashReset()));
 		this.leftSash.hide();
 
 		// Center Container
@@ -781,10 +786,10 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Right Sash
 		this.rightSash = new Sash(parent.getHTMLElement(), this, { baseSize: 5 });
-		this.rightSash.addListener('start', () => this.onRightSashDragStart());
-		this.rightSash.addListener('change', (e: ISashEvent) => this.onRightSashDrag(e));
-		this.rightSash.addListener('end', () => this.onRightSashDragEnd());
-		this.rightSash.addListener('reset', () => this.onRightSashReset());
+		this.toDispose.push(this.rightSash.addListener2('start', () => this.onRightSashDragStart()));
+		this.toDispose.push(this.rightSash.addListener2('change', (e: ISashEvent) => this.onRightSashDrag(e)));
+		this.toDispose.push(this.rightSash.addListener2('end', () => this.onRightSashDragEnd()));
+		this.toDispose.push(this.rightSash.addListener2('reset', () => this.onRightSashReset()));
 		this.rightSash.hide();
 
 		// Right Container
@@ -1071,7 +1076,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 
 		// Action Run Handling
-		toolbar.actionRunner.addListener(BaseEventType.RUN, (e: any) => {
+		this.toDispose.push(toolbar.actionRunner.addListener2(BaseEventType.RUN, (e: any) => {
 
 			// Check for Error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -1082,7 +1087,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			if (this.telemetryService) {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
 			}
-		});
+		}));
 
 		return toolbar;
 	}
@@ -1704,6 +1709,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	}
 
 	public dispose(): void {
+		dispose(this.toDispose);
 
 		// Positions
 		POSITIONS.forEach((position) => {

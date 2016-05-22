@@ -12,7 +12,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as Async from 'vs/base/common/async';
 import Severity from 'vs/base/common/severity';
 import * as Strings from 'vs/base/common/strings';
-import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 
 import { TerminateResponse, SuccessData, ErrorData } from 'vs/base/common/processes';
 import { LineProcess, LineData } from 'vs/base/node/processes';
@@ -29,6 +29,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, CommandOptions, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
 import * as FileConfig from './processRunnerConfiguration';
+
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
@@ -224,14 +226,14 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		}
 		if (task.isWatching) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
-			let toUnbind: ListenerUnbind[] = [];
+			let toUnbind: IDisposable[] = [];
 			let event: TaskEvent = { taskId: task.id, taskName: task.name, type: TaskType.Watching };
 			let eventCounter: number = 0;
-			toUnbind.push(watchingProblemMatcher.on(ProblemCollectorEvents.WatchingBeginDetected, () => {
+			toUnbind.push(watchingProblemMatcher.addListener2(ProblemCollectorEvents.WatchingBeginDetected, () => {
 				eventCounter++;
 				this.emit(TaskSystemEvents.Active, event);
 			}));
-			toUnbind.push(watchingProblemMatcher.on(ProblemCollectorEvents.WatchingEndDetected, () => {
+			toUnbind.push(watchingProblemMatcher.addListener2(ProblemCollectorEvents.WatchingEndDetected, () => {
 				eventCounter--;
 				this.emit(TaskSystemEvents.Inactive, event);
 			}));
@@ -241,7 +243,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 			let promise = this.childProcess.start().then((success): ITaskSummary => {
 				this.childProcessEnded();
 				watchingProblemMatcher.dispose();
-				toUnbind.forEach(unbind => unbind());
+				toUnbind = dispose(toUnbind);
 				toUnbind = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this.emit(TaskSystemEvents.Inactive, event);
@@ -258,7 +260,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 			}, (error: ErrorData) => {
 				this.childProcessEnded();
 				watchingProblemMatcher.dispose();
-				toUnbind.forEach(unbind => unbind());
+				toUnbind = dispose(toUnbind);
 				toUnbind = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this.emit(TaskSystemEvents.Inactive, event);

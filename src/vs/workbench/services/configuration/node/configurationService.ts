@@ -18,6 +18,7 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 import fs = require('fs');
 
@@ -26,7 +27,7 @@ export class ConfigurationService extends CommonConfigurationService {
 	public serviceId = IConfigurationService;
 
 	protected contextService: IWorkspaceContextService;
-	private toDispose: Function;
+	private toDispose: IDisposable;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService) {
 		super(contextService, eventService);
@@ -37,7 +38,7 @@ export class ConfigurationService extends CommonConfigurationService {
 	protected registerListeners(): void {
 		super.registerListeners();
 
-		this.toDispose = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
+		this.toDispose = this.eventService.addListener2(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
 	}
 
 	private onOptionsChanged(e: OptionsChangeEvent): void {
@@ -129,6 +130,6 @@ export class ConfigurationService extends CommonConfigurationService {
 	public dispose(): void {
 		super.dispose();
 
-		this.toDispose();
+		this.toDispose.dispose();
 	}
 }

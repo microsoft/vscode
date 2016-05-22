@@ -14,7 +14,6 @@ import types = require('vs/base/common/types');
 import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {ActionBar, ActionsOrientation, IActionItemProvider, BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextMenuProvider, DropdownMenu, IActionProvider, ILabelRenderer, IDropdownMenuOptions} from 'vs/base/browser/ui/dropdown/dropdown';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {Keybinding} from 'vs/base/common/keyCodes';
 
 export const CONTEXT = 'context.toolbar';
@@ -170,7 +169,7 @@ class ToggleMenuAction extends Action {
 export class DropdownMenuActionItem extends BaseActionItem {
 	private menuActionsOrProvider: any;
 	private dropdownMenu: DropdownMenu;
-	private toUnbind: ListenerUnbind;
+	private toUnbind: IDisposable;
 	private contextMenuProvider: IContextMenuProvider;
 	private actionItemProvider: IActionItemProvider;
 	private keybindings: (action: IAction) => Keybinding;
@@ -226,7 +225,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 		};
 
 		// Reemit events for running actions
-		this.toUnbind = this.addEmitter(this.dropdownMenu);
+		this.toUnbind = this.addEmitter2(this.dropdownMenu);
 	}
 
 	public show(): void {
@@ -236,7 +235,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 	}
 
 	public dispose(): void {
-		this.toUnbind();
+		this.toUnbind.dispose();
 		this.dropdownMenu.dispose();
 
 		super.dispose();

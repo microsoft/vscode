@@ -52,7 +52,7 @@ export class ElectronWindow {
 
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
-			this.eventService.addListener(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => {
+			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => {
 				let fileInput = workbenchEditorCommon.asFileEditorInput(e.editorInput, true);
 				let representedFilename = '';
 				if (fileInput) {

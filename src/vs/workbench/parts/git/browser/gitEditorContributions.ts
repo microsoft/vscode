@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import ee = require('vs/base/common/eventEmitter');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import common = require('vs/editor/common/editorCommon');
 import git = require('vs/workbench/parts/git/common/git');
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Disposable} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {RunOnceScheduler} from 'vs/base/common/async';
 
 import IGitService = git.IGitService;
@@ -91,7 +90,7 @@ export class MergeDecorator implements common.IEditorContribution {
 	private editor: editorbrowser.ICodeEditor;
 	private gitService: git.IGitService;
 	private contextService: IWorkspaceContextService;
-	private toUnbind: ee.ListenerUnbind[];
+	private toUnbind: IDisposable[];
 
 	private mergeDecorator: MergeDecoratorBoundToModel;
 
@@ -99,7 +98,7 @@ export class MergeDecorator implements common.IEditorContribution {
 		this.gitService = gitService;
 		this.contextService = contextService;
 		this.editor = editor;
-		this.toUnbind = [ this.editor.addListener(common.EventType.ModelChanged, this.onModelChanged.bind(this)) ];
+		this.toUnbind = [ this.editor.onDidModelChange(() => this.onModelChanged()) ];
 		this.mergeDecorator = null;
 	}
 
@@ -140,8 +139,6 @@ export class MergeDecorator implements common.IEditorContribution {
 			this.mergeDecorator.dispose();
 			this.mergeDecorator = null;
 		}
-		while(this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }

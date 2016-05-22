@@ -139,7 +139,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 	private _query: Search.IPatternInfo;
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
-	private _unbind: Function[] = [];
+	private _unbind: lifecycle.IDisposable[] = [];
 	_diskFileMatch: FileMatch;
 
 	constructor(parent: SearchResult, resource: URI, query: Search.IPatternInfo, model: IModel, fileMatch: FileMatch) {
@@ -149,12 +149,12 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		this._model = model;
 		this._diskFileMatch = fileMatch;
 		this._updateScheduler = new RunOnceScheduler(this._updateMatches.bind(this), 250);
-		this._unbind.push(this._model.addListener(EventType.ModelContentChanged, _ => this._updateScheduler.schedule()));
+		this._unbind.push(this._model.addListener2(EventType.ModelContentChanged, _ => this._updateScheduler.schedule()));
 		this._updateMatches();
 	}
 
 	public dispose(): void {
-		this._unbind = lifecycle.cAll(this._unbind);
+		this._unbind = lifecycle.dispose(this._unbind);
 		if (!this._isTextModelDisposed()) {
 			this._model.deltaDecorations(this._modelDecorations, []);
 		}

@@ -159,8 +159,8 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		this.decorations = [];
 		this.computeToken = 0;
 
-		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChanged()));
-		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
+		this.globalToDispose.push(this.editor.onDidModelChange(() => this.onModelChanged()));
+		this.globalToDispose.push(this.editor.onDidConfigurationChange((e: editorCommon.IConfigurationChangedEvent) => {
 			let oldIsEnabled = this._isEnabled;
 			this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
 			if (oldIsEnabled !== this._isEnabled) {
@@ -311,7 +311,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 		this.localToDispose.push(this.contentChangedScheduler);
 		this.localToDispose.push(this.cursorChangedScheduler);
-		this.localToDispose.push(this.editor.addListener2('change', () => {
+		this.localToDispose.push(this.editor.onDidModelContentChange(() => {
 			this.contentChangedScheduler.schedule();
 		}));
 		this.localToDispose.push({ dispose: () => {
@@ -323,9 +323,9 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			this.decorations = [];
 			this.editor.setHiddenAreas([]);
 		}});
-		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseDown, e => this.onEditorMouseDown(e)));
-		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseUp, e => this.onEditorMouseUp(e)));
-		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.CursorPositionChanged, e => {
+		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this.localToDispose.push(this.editor.onDidCursorPositionChange(e => {
 			this.cursorChangedScheduler.schedule();
 		}));
 
