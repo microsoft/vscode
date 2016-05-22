@@ -7,7 +7,7 @@ Once installed, do remember to [configure the path](https://github.com/DonJayama
 If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you can reference the `python` interpreter from your virtualenv (ie `~/.virtualenvs/XXX/bin/python`).
 
 ##Features
-* Linting (PyLint, Pep8, Flake8, pydocstyle with config files and plugins)
+* Linting (Prospector, PyLint, Pep8, Flake8, pydocstyle with config files and plugins)
 * Intellisense and autocompletion
 * Auto indenting
 * Code formatting (autopep8, yapf, with config files)
@@ -54,6 +54,7 @@ If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you ca
  + pep8 can be turned on/off (default is off), supports standard configuaration files
  + flake8 can be turned on/off (default is on), supports standard configuaration files
  + pydocstyle can be turned on/off (default is on), supports standard configuaration files
+ + prospector can be turned on/off (default is on)
  + Different categories of errors reported by pylint can be configured as warnings, errors, information or hits
  + Path to pylint, pep8 and flake8 and pep8 can be configured
  + Custom plugins such as pylint plugin for Django can be easily used by modifying the settings as follows:
@@ -101,6 +102,8 @@ If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you ca
  + pip install flake8
 * pydocstyle is installed for linting (optional)
  + pip install pydocstyle
+* prospector is installed for linting (optional)
+ + pip install prospector
 * Autopep8 is installed for code formatting (optional) 
  + pip install pep8
  + pip install --upgrade autopep8
@@ -110,6 +113,10 @@ If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you ca
  + pip install nose
 
 ## Change Log
+
+### Version 0.3.8
+* Added support for linting using prospector [#130](https://github.com/DonJayamanne/pythonVSCode/pull/130)
+* Fixed issue where environment variables weren't being inherited by the debugger [#109](https://github.com/DonJayamanne/pythonVSCode/issues/109) and [#77](https://github.com/DonJayamanne/pythonVSCode/issues/77)
 
 ### Version 0.3.7
 * Added support for auto indenting of some keywords [#83](https://github.com/DonJayamanne/pythonVSCode/issues/83)

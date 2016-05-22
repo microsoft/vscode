@@ -140,8 +140,15 @@ export class LocalDebugClient extends DebugClient {
             if (typeof this.args.pythonPath === "string" && this.args.pythonPath.trim().length > 0) {
                 pythonPath = this.args.pythonPath;
             }
-            var environmentVariables = this.args.env ? this.args.env : {};
-            //GUID is hardcoded for now, will have to be fixed  
+            var environmentVariables = this.args.env ? this.args.env : null;
+            if (environmentVariables) {
+                for (let setting in process.env) {
+                    if (!environmentVariables[setting]) {
+                        environmentVariables[setting] = process.env[setting];
+                    }
+                }
+            }
+  
             var currentFileName = module.filename;
             //var ptVSToolsFilePath = path.join(path.dirname(currentFileName), "..", "..", "..", "..", "pythonFiles", "PythonTools", "visualstudio_py_launcher.py");
 
