@@ -187,15 +187,15 @@ export class ScopeBuilder implements nodes.IVisitor {
 	}
 
 	public visitVariableDeclarationNode(node:nodes.VariableDeclaration):boolean {
-		if (node.getVariable() instanceof nodes.CssVariable) {
-			this.addCssVariable(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
+		if (node.getVariable() instanceof nodes.CSSVariable) {
+			this.addCSSVariable(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
 		} else {
 			this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
 		}
 		return true;
 	}
 
-	private addCssVariable(node:nodes.Node, name:string, type: nodes.ReferenceType) : void {
+	private addCSSVariable(node:nodes.Node, name:string, type: nodes.ReferenceType) : void {
 		if (node.offset !== -1) {
 			var globalScope = this.getGlobalScope(node, name, type);
 			globalScope.addSymbol(new Symbol(name, node, type));

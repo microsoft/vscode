@@ -261,7 +261,7 @@ export class Parser {
 	}
 
 	public _parseRuleSetDeclaration() : nodes.Node {
-		return this._parseCssVariableDeclaration() || this._parseDeclaration();
+		return this._parseCSSVariableDeclaration() || this._parseDeclaration();
 	}
 
 	public _needsSemicolonAfter(node: nodes.Node) : boolean {
@@ -320,11 +320,11 @@ export class Parser {
 		return this.finish(node);
 	}
 
-	// Css variables: --font-size: 12px;
-	public _parseCssVariableDeclaration(panic:scanner.TokenType[]=[]): nodes.VariableDeclaration {
+	// CSS variables: --font-size: 12px;
+	public _parseCSSVariableDeclaration(panic:scanner.TokenType[]=[]): nodes.VariableDeclaration {
 		var node = <nodes.VariableDeclaration> this.create(nodes.VariableDeclaration);
 
-		if (!node.setVariable(this._parseCssVariable())) {
+		if (!node.setVariable(this._parseCSSVariable())) {
 			return null;
 		}
 
@@ -974,9 +974,9 @@ export class Parser {
 		return null;
 	}
 
-	public _parseCssVariable(): nodes.Variable {
+	public _parseCSSVariable(): nodes.Variable {
 		if (this.peekRegExp(scanner.TokenType.Ident, /^--/)) {
-			var node = <nodes.Variable> this.create(nodes.CssVariable);
+			var node = <nodes.Variable> this.create(nodes.CSSVariable);
 			this.consumeToken();
 			return this.finish(node);
 		}
@@ -1000,7 +1000,7 @@ export class Parser {
 
 		let parseMoreArguments= true;
 		if (isVarFunc) {
-			if (!node.getArguments().addChild(this._parseCssVariable())) {
+			if (!node.getArguments().addChild(this._parseCSSVariable())) {
 				return this.finish(node, errors.ParseError.VariableValueExpected);
 			}
 		} else {

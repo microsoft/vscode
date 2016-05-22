@@ -1187,7 +1187,7 @@ export class Variable extends Node {
 
 }
 
-export class CssVariable extends Variable {
+export class CSSVariable extends Variable {
 }
 
 export class ExtendsReference extends Node {

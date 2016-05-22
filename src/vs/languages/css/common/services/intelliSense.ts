@@ -80,7 +80,7 @@ export class CSSIntellisense {
 			} else if (node instanceof nodes.Function) {
 				let functionNode: nodes.Function= <nodes.Function>node;
 				if (functionNode.getIdentifier().getText() === 'var') {
-					this.getVariableProposalsForCssVarFunction(result);
+					this.getVariableProposalsForCSSVarFunction(result);
 				}
 			}
 			if (result.length > 0) {
@@ -211,7 +211,7 @@ export class CSSIntellisense {
 		return result;
 	}
 
-	public getVariableProposalsForCssVarFunction(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
+	public getVariableProposalsForCSSVarFunction(result:Modes.ISuggestion[]):Modes.ISuggestion[]{
 		var symbols = this.getSymbolContext().findSymbolsAtOffset(this.offset, nodes.ReferenceType.Variable);
 		symbols= symbols.filter((symbol):boolean => {
 			return strings.startsWith(symbol.name, '--');

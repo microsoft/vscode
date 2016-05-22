@@ -342,10 +342,10 @@ suite('Sass - Sass Parser', () => {
 		assertNode('a%float', parser, parser._parseSimpleSelector.bind(parser));
 	});
 
-	test('Sass Parser - Css Variable Declaration', function() {
+	test('Sass Parser - CSS Variable Declaration', function() {
 		var parser = new _parser.SassParser();
 		var ruleSetNode= assertNode(':root{--variable: red}', parser, parser._parseRuleset.bind(parser));
 		var actualNode= (<nodes.VariableDeclaration>ruleSetNode.getChild(1).getChild(0)).getVariable();
-		assert.ok(actualNode instanceof nodes.CssVariable);
+		assert.ok(actualNode instanceof nodes.CSSVariable);
 	});
 });
