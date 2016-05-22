@@ -11,7 +11,7 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import {Range, Disposable, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
-import {IReadOnlyModel, IEditorPosition, IPosition, IEditorRange, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition, IEditorRange, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
@@ -19,6 +19,7 @@ import {ExtHostDiagnostics} from 'vs/workbench/api/node/extHostDiagnostics';
 import {NavigateTypesSupportRegistry, INavigateTypesSupport, ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import {asWinJsPromise, ShallowCancelThenPromise, wireCancellationToken} from 'vs/base/common/async';
 import {CancellationToken} from 'vs/base/common/cancellation';
+import {Position as EditorPosition} from 'vs/editor/common/core/position';
 
 // --- adapter
 
@@ -875,7 +876,7 @@ export class MainThreadLanguageFeatures {
 
 	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
-			provideHover: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.Hover> => {
+			provideHover: (model:IReadOnlyModel, position:EditorPosition, token:CancellationToken): Thenable<modes.Hover> => {
 				return wireCancellationToken(token, this._proxy.$provideHover(handle, model.uri, position));
 			}
 		});
@@ -886,7 +887,7 @@ export class MainThreadLanguageFeatures {
 
 	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.DocumentHighlightProviderRegistry.register(selector, <modes.DocumentHighlightProvider>{
-			provideDocumentHighlights: (model: IReadOnlyModel, position: IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> => {
+			provideDocumentHighlights: (model: IReadOnlyModel, position: EditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentHighlights(handle, model.uri, position));
 			}
 		});
@@ -897,7 +898,7 @@ export class MainThreadLanguageFeatures {
 
 	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.ReferenceProviderRegistry.register(selector, <modes.ReferenceProvider>{
-			provideReferences: (model:IReadOnlyModel, position:IEditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> => {
+			provideReferences: (model:IReadOnlyModel, position:EditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> => {
 				return wireCancellationToken(token, this._proxy.$provideReferences(handle, model.uri, position, context));
 			}
 		});
@@ -940,7 +941,7 @@ export class MainThreadLanguageFeatures {
 
 			autoFormatTriggerCharacters,
 
-			provideOnTypeFormattingEdits: (model: IReadOnlyModel, position: IEditorPosition, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
+			provideOnTypeFormattingEdits: (model: IReadOnlyModel, position: EditorPosition, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._proxy.$provideOnTypeFormattingEdits(handle, model.uri, position, ch, options));
 			}
 		});
@@ -962,7 +963,7 @@ export class MainThreadLanguageFeatures {
 
 	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.RenameProviderRegistry.register(selector, <modes.RenameProvider>{
-			provideRenameEdits: (model:IReadOnlyModel, position:IEditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
+			provideRenameEdits: (model:IReadOnlyModel, position:EditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
 				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName));
 			}
 		});
@@ -975,10 +976,10 @@ export class MainThreadLanguageFeatures {
 		this._registrations[handle] = modes.SuggestRegistry.register(selector, <modes.ISuggestSupport>{
 			triggerCharacters: triggerCharacters,
 			shouldAutotriggerSuggest: true,
-			provideCompletionItems: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
+			provideCompletionItems: (model:IReadOnlyModel, position:EditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> => {
 				return wireCancellationToken(token, this._proxy.$provideCompletionItems(handle, model.uri, position));
 			},
-			resolveCompletionItem: (model:IReadOnlyModel, position:IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
+			resolveCompletionItem: (model:IReadOnlyModel, position:EditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
 				return wireCancellationToken(token, this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion));
 			}
 		});
@@ -992,7 +993,7 @@ export class MainThreadLanguageFeatures {
 
 			signatureHelpTriggerCharacters: triggerCharacter,
 
-			provideSignatureHelp: (model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): Thenable<modes.SignatureHelp> => {
+			provideSignatureHelp: (model:IReadOnlyModel, position:EditorPosition, token:CancellationToken): Thenable<modes.SignatureHelp> => {
 				return wireCancellationToken(token, this._proxy.$provideSignatureHelp(handle, model.uri, position));
 			}
 

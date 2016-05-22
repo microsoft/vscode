@@ -30,8 +30,8 @@ export interface ILinesCollection {
 	getOutputLineMinColumn(outputLineNumber:number): number;
 	getOutputLineMaxColumn(outputLineNumber:number): number;
 	getOutputLineTokens(outputLineNumber:number): ViewLineTokens;
-	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition;
-	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): editorCommon.IEditorPosition;
+	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): Position;
+	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): Position;
 	setHiddenAreas(ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void;
 	inputPositionIsVisible(inputLineNumber:number, inputColumn:number): boolean;
 	dispose(): void;
@@ -322,7 +322,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
 	}
 
-	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition {
+	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:Position): Position {
 		if (viewLineNumber < 1) {
 			viewLineNumber = 1;
 		}
@@ -446,7 +446,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 	// View -> Model conversion and related methods
 
-	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition {
+	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): Position {
 		return this.lines.convertOutputPositionToInputPosition(viewLineNumber, viewColumn);
 	}
 
@@ -472,11 +472,11 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.model.getLineMaxColumn(modelLineNumber);
 	}
 
-	public validateModelPosition(position:editorCommon.IPosition): editorCommon.IEditorPosition {
+	public validateModelPosition(position:editorCommon.IPosition): Position {
 		return this.model.validatePosition(position);
 	}
 
-	public convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): editorCommon.IEditorPosition {
+	public convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): Position {
 		return this.lines.convertInputPositionToOutputPosition(modelLineNumber, modelColumn);
 	}
 

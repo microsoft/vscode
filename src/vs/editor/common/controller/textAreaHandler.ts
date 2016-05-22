@@ -11,7 +11,7 @@ import {Disposable} from 'vs/base/common/lifecycle';
 import {IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorPosition, IEditorRange} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IEditorRange} from 'vs/editor/common/editorCommon';
 
 enum ReadFromTextArea {
 	Type,
@@ -74,7 +74,7 @@ export class TextAreaHandler extends Disposable {
 	private asyncTriggerCut: RunOnceScheduler;
 
 	private lastCompositionEndTime:number;
-	private cursorPosition:IEditorPosition;
+	private cursorPosition:Position;
 
 	private textAreaState:TextAreaState;
 	private textareaIsShownAtCursor: boolean;
@@ -249,7 +249,7 @@ export class TextAreaHandler extends Disposable {
 		this._writePlaceholderAndSelectTextArea('selection changed');
 	}
 
-	public setCursorPosition(primary: IEditorPosition): void {
+	public setCursorPosition(primary: Position): void {
 		this.cursorPosition = primary;
 	}
 

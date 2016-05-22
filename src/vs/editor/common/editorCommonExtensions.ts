@@ -102,7 +102,7 @@ export module CommonEditorRegistry {
 		});
 	}
 
-	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: editorCommon.IEditorPosition, args: { [n: string]: any }) => any) {
+	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: Position, args: { [n: string]: any }) => any) {
 		registerLanguageCommand(id, function(accessor, args) {
 
 			const {resource, position} = args;

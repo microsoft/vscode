@@ -5,13 +5,14 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {CodeEditorStateFlag, ICodeEditorState, ICommonCodeEditor, IEditorPosition, IEditorRange} from 'vs/editor/common/editorCommon';
+import {CodeEditorStateFlag, ICodeEditorState, ICommonCodeEditor, IEditorRange} from 'vs/editor/common/editorCommon';
+import {Position} from 'vs/editor/common/core/position';
 
 export class EditorState implements ICodeEditorState {
 
 	private flags:CodeEditorStateFlag[];
 
-	private position:IEditorPosition;
+	private position:Position;
 	private selection:IEditorRange;
 	private modelVersionId:string;
 	private scrollLeft:number;

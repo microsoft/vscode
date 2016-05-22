@@ -17,6 +17,7 @@ import {TypeScriptWorkerProtocol, LanguageServiceDefaults} from 'vs/languages/ty
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
 export function register(modelService: IModelService, markerService: IMarkerService,
 	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
@@ -174,7 +175,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return true;
 	}
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		const wordInfo = model.getWordUntilPosition(position);
 		const resource = model.uri;
 		const offset = this._positionToOffset(resource, position);
@@ -200,7 +201,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		}));
 	}
 
-	resolveCompletionItem(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(model:editorCommon.IReadOnlyModel, position:Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
 		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -247,7 +248,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 	public signatureHelpTriggerCharacters = ['(', ','];
 
-	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
+	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.SignatureHelp> {
 		let resource = model.uri;
 		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
@@ -296,7 +297,7 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
-	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
+	provideHover(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.Hover> {
 		let resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -317,7 +318,7 @@ class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
 class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvider {
 
-	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
+	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
 		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -340,7 +341,7 @@ class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvi
 
 class DefinitionAdapter extends Adapter {
 
-	public provideDefinition(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Definition> {
+	public provideDefinition(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.Definition> {
 		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -368,7 +369,7 @@ class DefinitionAdapter extends Adapter {
 
 class ReferenceAdapter extends Adapter implements modes.ReferenceProvider {
 
-	provideReferences(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
+	provideReferences(model:editorCommon.IReadOnlyModel, position:Position, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
 		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -533,7 +534,7 @@ class FormatOnTypeAdapter extends FormatHelper implements modes.OnTypeFormatting
 		return [';', '}', '\n'];
 	}
 
-	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
 		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {

@@ -12,13 +12,14 @@ import * as nls from 'vs/nls';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IConfigurationChangedEvent, IEditorPosition, IEditorRange } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent, IEditorRange } from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {Position} from 'vs/editor/common/core/position';
 
 const $ = dom.emmet;
 const debugTreeOptions = {
@@ -38,7 +39,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private domNode: HTMLElement;
 	public isVisible: boolean;
 	private tree: ITree;
-	private showAtPosition: IEditorPosition;
+	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
 	private valueContainer: HTMLElement;
@@ -175,7 +176,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}).then(() => variables.length === 1 ? TPromise.as(variables[0]) : TPromise.as(null));
 	}
 
-	private doShow(position: IEditorPosition, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
+	private doShow(position: Position, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
 		this.showAtPosition = position;
 		this.isVisible = true;
 		this.stoleFocus = focus;

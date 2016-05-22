@@ -265,16 +265,18 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public setValue(value:string): void {
-		let rawText: editorCommon.IRawText = null;
-		if (value !== null) {
-			rawText = TextModel.toRawText(value, {
-				tabSize: this._options.tabSize,
-				insertSpaces: this._options.insertSpaces,
-				trimAutoWhitespace: this._options.trimAutoWhitespace,
-				detectIndentation: false,
-				defaultEOL: this._options.defaultEOL
-			});
+		if (value === null) {
+			// There's nothing to do
+			return;
 		}
+		let rawText: editorCommon.IRawText = null;
+		rawText = TextModel.toRawText(value, {
+			tabSize: this._options.tabSize,
+			insertSpaces: this._options.insertSpaces,
+			trimAutoWhitespace: this._options.trimAutoWhitespace,
+			detectIndentation: false,
+			defaultEOL: this._options.defaultEOL
+		});
 		this.setValueFromRawText(rawText);
 	}
 
@@ -512,7 +514,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return lineNumber;
 	}
 
-	public validatePosition(position:editorCommon.IPosition): editorCommon.IEditorPosition {
+	public validatePosition(position:editorCommon.IPosition): Position {
 		var lineNumber = position.lineNumber ? position.lineNumber : 1;
 		var column = position.column ? position.column : 1;
 
@@ -543,7 +545,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number) : editorCommon.IEditorPosition {
+	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number) : Position {
 		var position = this.validatePosition(rawPosition);
 
 		// Handle positive offsets, one line at a time

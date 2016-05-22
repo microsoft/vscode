@@ -6,7 +6,7 @@
 'use strict';
 
 import {Position} from 'vs/editor/common/core/position';
-import {IEditorPosition, IEditorRange, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IEditorRange, IPosition, IRange} from 'vs/editor/common/editorCommon';
 
 export class Range implements IEditorRange {
 
@@ -53,11 +53,11 @@ export class Range implements IEditorRange {
 		return Range.equalsRange(this, other);
 	}
 
-	public getEndPosition(): IEditorPosition {
+	public getEndPosition(): Position {
 		return new Position(this.endLineNumber, this.endColumn);
 	}
 
-	public getStartPosition(): IEditorPosition {
+	public getStartPosition(): Position {
 		return new Position(this.startLineNumber, this.startColumn);
 	}
 

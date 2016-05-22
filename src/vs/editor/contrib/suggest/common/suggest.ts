@@ -8,10 +8,11 @@ import {sequence, asWinJsPromise} from 'vs/base/common/async';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {ISuggestResult, ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
+import {Position} from 'vs/editor/common/core/position';
 
 export var CONTEXT_SUGGEST_WIDGET_VISIBLE = 'suggestWidgetVisible';
 export var CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY = 'suggestionSupportsAcceptOnKey';
@@ -21,7 +22,7 @@ export interface ISuggestResult2 extends ISuggestResult {
 	support?: ISuggestSupport;
 }
 
-export function provideCompletionItems(model: IReadOnlyModel, position: IEditorPosition, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
+export function provideCompletionItems(model: IReadOnlyModel, position: Position, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
 
 	if (!groups) {
 		groups = SuggestRegistry.orderedGroups(model);

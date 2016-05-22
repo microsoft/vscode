@@ -8,7 +8,7 @@ import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Position} from 'vs/editor/common/core/position';
-import {IEditorPosition, IPosition, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {IPosition, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {Widget} from 'vs/base/browser/ui/widget';
 
@@ -19,7 +19,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	protected _isVisible: boolean;
 	private _containerDomNode: HTMLElement;
 	protected _domNode: HTMLElement;
-	protected _showAtPosition: IEditorPosition;
+	protected _showAtPosition: Position;
 	private _stoleFocus: boolean;
 
 	// Editor.IContentWidget.allowEditorOverflow

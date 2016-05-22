@@ -9,11 +9,12 @@ import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {IReadOnlyModel, IEditorPosition, IEditorRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IEditorRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, IFormattingOptions} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {asWinJsPromise} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
 export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: IEditorRange, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
@@ -38,7 +39,7 @@ export function getDocumentFormattingEdits(model: IReadOnlyModel, options: IForm
 	});
 }
 
-export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: IEditorPosition, ch: string, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
 	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
 		return TPromise.as(undefined);

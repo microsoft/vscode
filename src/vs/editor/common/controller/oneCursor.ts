@@ -57,21 +57,21 @@ export interface IViewModelHelper {
 
 	viewModel:ICursorMoveHelperModel;
 
-	convertModelPositionToViewPosition(lineNumber:number, column:number): editorCommon.IEditorPosition;
+	convertModelPositionToViewPosition(lineNumber:number, column:number): Position;
 	convertModelRangeToViewRange(modelRange:editorCommon.IEditorRange): editorCommon.IEditorRange;
 
-	convertViewToModelPosition(lineNumber:number, column:number): editorCommon.IEditorPosition;
+	convertViewToModelPosition(lineNumber:number, column:number): Position;
 	convertViewSelectionToModelSelection(viewSelection:editorCommon.IEditorSelection): editorCommon.IEditorSelection;
 
-	validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition;
+	validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:Position): Position;
 	validateViewRange(viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:editorCommon.IEditorRange): editorCommon.IEditorRange;
 }
 
 export interface IOneCursorState {
 	selectionStart: editorCommon.IEditorRange;
 	viewSelectionStart: editorCommon.IEditorRange;
-	position: editorCommon.IEditorPosition;
-	viewPosition: editorCommon.IEditorPosition;
+	position: Position;
+	viewPosition: Position;
 	leftoverVisibleColumns: number;
 	selectionStartLeftoverVisibleColumns: number;
 }
@@ -132,8 +132,8 @@ export class OneCursor {
 	private selectionStartLeftoverVisibleColumns: number;
 
 	// --- position
-	private position: editorCommon.IEditorPosition;
-	private viewPosition: editorCommon.IEditorPosition;
+	private position: Position;
+	private viewPosition: Position;
 	private leftoverVisibleColumns: number;
 
 	// --- bracket match decorations
@@ -171,8 +171,8 @@ export class OneCursor {
 
 	private _set(
 		selectionStart: editorCommon.IEditorRange, selectionStartLeftoverVisibleColumns: number,
-		position: editorCommon.IEditorPosition, leftoverVisibleColumns:number,
-		viewSelectionStart: editorCommon.IEditorRange, viewPosition: editorCommon.IEditorPosition
+		position: Position, leftoverVisibleColumns:number,
+		viewSelectionStart: editorCommon.IEditorRange, viewPosition: Position
 	): void {
 		this.selectionStart = selectionStart;
 		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
@@ -276,7 +276,7 @@ export class OneCursor {
 		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, newDecorations, this.editorId);
 	}
 
-	private static computeSelection(selectionStart:editorCommon.IEditorRange, position:editorCommon.IEditorPosition): Selection {
+	private static computeSelection(selectionStart:editorCommon.IEditorRange, position:Position): Selection {
 		let startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
 		if (selectionStart.isEmpty()) {
 			startLineNumber = selectionStart.startLineNumber;
@@ -458,20 +458,20 @@ export class OneCursor {
 	public getSelectionStart(): editorCommon.IEditorRange {
 		return this.selectionStart;
 	}
-	public getPosition(): editorCommon.IEditorPosition {
+	public getPosition(): Position {
 		return this.position;
 	}
 	public getSelection(): editorCommon.IEditorSelection {
 		return this._cachedSelection;
 	}
 
-	public getViewPosition(): editorCommon.IEditorPosition {
+	public getViewPosition(): Position {
 		return this.viewPosition;
 	}
 	public getViewSelection(): editorCommon.IEditorSelection {
 		return this._cachedViewSelection;
 	}
-	public getValidViewPosition(): editorCommon.IEditorPosition {
+	public getValidViewPosition(): Position {
 		return this.viewModelHelper.validateViewPosition(this.viewPosition.lineNumber, this.viewPosition.column, this.position);
 	}
 
@@ -492,10 +492,10 @@ export class OneCursor {
 	}
 
 	// -- utils
-	public validatePosition(position:editorCommon.IPosition): editorCommon.IEditorPosition {
+	public validatePosition(position:editorCommon.IPosition): Position {
 		return this.model.validatePosition(position);
 	}
-	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition {
+	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:Position): Position {
 		return this.viewModelHelper.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
 	}
 	public convertViewToModelPosition(lineNumber:number, column:number): editorCommon.IPosition {
@@ -512,10 +512,10 @@ export class OneCursor {
 	public getLineContent(lineNumber:number): string {
 		return this.model.getLineContent(lineNumber);
 	}
-	public findPreviousWordOnLine(position:editorCommon.IEditorPosition): IFindWordResult {
+	public findPreviousWordOnLine(position:Position): IFindWordResult {
 		return this.helper.findPreviousWordOnLine(position);
 	}
-	public findNextWordOnLine(position:editorCommon.IEditorPosition): IFindWordResult {
+	public findNextWordOnLine(position:Position): IFindWordResult {
 		return this.helper.findNextWordOnLine(position);
 	}
 	public getLeftOfPosition(lineNumber:number, column:number): editorCommon.IPosition {
@@ -1187,7 +1187,7 @@ export class OneCursorOp {
 		return this._enter(cursor, true, ctx);
 	}
 
-	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position?: editorCommon.IEditorPosition, range?: editorCommon.IEditorRange): boolean {
+	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position?: Position, range?: editorCommon.IEditorRange): boolean {
 		if (typeof position === 'undefined') {
 			position = cursor.getPosition();
 		}
@@ -2020,7 +2020,7 @@ class CursorHelper {
 		return { start: start, end: end, wordType: wordType };
 	}
 
-	public findPreviousWordOnLine(_position:editorCommon.IEditorPosition): IFindWordResult {
+	public findPreviousWordOnLine(_position:Position): IFindWordResult {
 		let position = this.model.validatePosition(_position);
 		let wordSeparators = getMapForWordSeparators(this.configuration.editor.wordSeparators);
 		let lineContent = this.model.getLineContent(position.lineNumber);
@@ -2072,7 +2072,7 @@ class CursorHelper {
 		return len;
 	}
 
-	public findNextWordOnLine(_position:editorCommon.IEditorPosition): IFindWordResult {
+	public findNextWordOnLine(_position:Position): IFindWordResult {
 		let position = this.model.validatePosition(_position);
 		let wordSeparators = getMapForWordSeparators(this.configuration.editor.wordSeparators);
 		let lineContent = this.model.getLineContent(position.lineNumber);

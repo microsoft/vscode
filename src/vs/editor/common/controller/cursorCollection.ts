@@ -7,8 +7,9 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {IModeConfiguration, IOneCursorState, IViewModelHelper, OneCursor} from 'vs/editor/common/controller/oneCursor';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IConfiguration, IEditorPosition, IEditorSelection, IModel, ISelection} from 'vs/editor/common/editorCommon';
+import {IConfiguration, IEditorSelection, IModel, ISelection} from 'vs/editor/common/editorCommon';
 import {IAutoClosingPair} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface ICursorCollectionState {
 	primary: IOneCursorState;
@@ -78,7 +79,7 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getPosition(index: number): IEditorPosition {
+	public getPosition(index: number): Position {
 		if (index === 0) {
 			return this.primaryCursor.getPosition();
 		} else {
@@ -86,7 +87,7 @@ export class CursorCollection {
 		}
 	}
 
-	public getViewPosition(index: number): IEditorPosition {
+	public getViewPosition(index: number): Position {
 		if (index === 0) {
 			return this.primaryCursor.getViewPosition();
 		} else {
@@ -94,8 +95,8 @@ export class CursorCollection {
 		}
 	}
 
-	public getPositions(): IEditorPosition[] {
-		var result: IEditorPosition[] = [];
+	public getPositions(): Position[] {
+		var result: Position[] = [];
 		result.push(this.primaryCursor.getPosition());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getPosition());
@@ -103,8 +104,8 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getViewPositions(): IEditorPosition[] {
-		var result: IEditorPosition[] = [];
+	public getViewPositions(): Position[] {
+		var result: Position[] = [];
 		result.push(this.primaryCursor.getViewPosition());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getViewPosition());

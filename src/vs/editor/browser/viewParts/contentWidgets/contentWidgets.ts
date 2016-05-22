@@ -13,6 +13,7 @@ import {ClassNames, ContentWidgetPositionPreference, IContentWidget} from 'vs/ed
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {Position} from 'vs/editor/common/core/position';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
@@ -184,7 +185,7 @@ export class ViewContentWidgets extends ViewPart {
 		}
 	}
 
-	private _layoutBoxInViewport(position:editorCommon.IEditorPosition, domNode:HTMLElement, ctx:IRenderingContext): IBoxLayoutResult {
+	private _layoutBoxInViewport(position:Position, domNode:HTMLElement, ctx:IRenderingContext): IBoxLayoutResult {
 
 		let visibleRange = ctx.visibleRangeForPosition(position);
 
@@ -228,7 +229,7 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _layoutBoxInPage(position: editorCommon.IEditorPosition, domNode: HTMLElement, ctx: IRenderingContext): IBoxLayoutResult {
+	private _layoutBoxInPage(position: Position, domNode: HTMLElement, ctx: IRenderingContext): IBoxLayoutResult {
 		let visibleRange = ctx.visibleRangeForPosition(position);
 
 		if (!visibleRange) {
@@ -282,7 +283,7 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _prepareRenderWidgetAtExactPosition(position:editorCommon.IEditorPosition, ctx:IRenderingContext): IMyWidgetRenderData {
+	private _prepareRenderWidgetAtExactPosition(position:Position, ctx:IRenderingContext): IMyWidgetRenderData {
 		let visibleRange = ctx.visibleRangeForPosition(position);
 
 		if (!visibleRange) {

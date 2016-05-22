@@ -116,7 +116,7 @@ export class Cursor extends EventEmitter {
 				convertViewSelectionToModelSelection: (viewSelection:editorCommon.IEditorSelection) => {
 					return viewSelection;
 				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition) => {
+				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:Position) => {
 					return modelPosition;
 				},
 				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:editorCommon.IEditorRange) => {
@@ -289,7 +289,7 @@ export class Cursor extends EventEmitter {
 		return this.cursors.getSelections();
 	}
 
-	public getPosition(): editorCommon.IEditorPosition {
+	public getPosition(): Position {
 		return this.cursors.getPosition(0);
 	}
 

@@ -14,6 +14,7 @@ import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/mod
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface Event<T> {
 	(listener: (e: T) => any, thisArg?: any): IDisposable;
@@ -33,28 +34,6 @@ export interface IPosition {
 	 * column (the first character in a line is between column 1 and column 2)
 	 */
 	column:number;
-}
-
-/**
- * A position in the editor.
- */
-export interface IEditorPosition extends IPosition {
-	/**
-	 * Test if this position equals other position
-	 */
-	equals(other:IPosition): boolean;
-	/**
-	 * Test if this position is before other position. If the two positions are equal, the result will be false.
-	 */
-	isBefore(other:IPosition): boolean;
-	/**
-	 * Test if this position is before other position. If the two positions are equal, the result will be true.
-	 */
-	isBeforeOrEqual(other:IPosition): boolean;
-	/**
-	 * Clone this position.
-	 */
-	clone(): IEditorPosition;
 }
 
 /**
@@ -111,7 +90,7 @@ export interface IEditorRange extends IRange {
 	/**
 	 * Return the end position (which will be after or equal to the start position)
 	 */
-	getEndPosition(): IEditorPosition;
+	getEndPosition(): Position;
 	/**
 	 * Create a new range using this range's start position, and using endLineNumber and endColumn as the end position.
 	 */
@@ -119,7 +98,7 @@ export interface IEditorRange extends IRange {
 	/**
 	 * Return the start position (which will be before or equal to the end position)
 	 */
-	getStartPosition(): IEditorPosition;
+	getStartPosition(): Position;
 	/**
 	 * Create a new range using this range's end position, and using startLineNumber and startColumn as the start position.
 	 */
@@ -1481,6 +1460,11 @@ export interface ITextModel {
 	setValue(newValue:string): void;
 
 	/**
+	 * Replace the entire text buffer value contained in this model.
+	 */
+	setValueFromRawText(newValue:IRawText): void;
+
+	/**
 	 * Get the text stored in this model.
 	 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
 	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -1565,7 +1549,7 @@ export interface ITextModel {
 	/**
 	 * Create a valid position,
 	 */
-	validatePosition(position:IPosition): IEditorPosition;
+	validatePosition(position:IPosition): Position;
 
 	/**
 	 * Advances the given position by the given offest (negative offsets are also accepted)
@@ -1577,7 +1561,7 @@ export interface ITextModel {
 	 * If the ofsset is such that the new position would be in the middle of a multi-byte
 	 * line terminator, throws an exception.
 	 */
-	modifyPosition(position: IPosition, offset: number): IEditorPosition;
+	modifyPosition(position: IPosition, offset: number): Position;
 
 	/**
 	 * Create a valid range.
@@ -1667,17 +1651,6 @@ export interface ITokenizedModel extends ITextModel {
 	/*package*/_getLineModeTransitions(lineNumber:number): IModeTransition[];
 
 	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * Optionally, the language mode of the model can be changed.
-	 * This call clears all of the undo / redo stack,
-	 * removes all decorations or tracked ranges, emits a
-	 * ModelContentChanged(ModelContentChangedFlush) event and
-	 * unbinds the mirror model from the previous mode to the new
-	 * one if the mode has changed.
-	 */
-	setValue(newValue:string, newMode?:IMode): void;
-
-	/**
 	 * Get the current language mode associated with the model.
 	 */
 	getMode(): IMode;
@@ -1685,8 +1658,8 @@ export interface ITokenizedModel extends ITextModel {
 	/**
 	 * Set the current language mode associated with the model.
 	 */
-	setMode(newMode:IMode): void;
-	setMode(newModePromise:TPromise<IMode>): void;
+	setMode(newMode:IMode|TPromise<IMode>): void;
+
 	/**
 	 * A mode can be currently pending loading if a promise is used when constructing a model or calling setMode().
 	 *
@@ -1761,7 +1734,7 @@ export interface ITextModelWithMarkers extends ITextModel {
 	/*package*/_addMarker(lineNumber:number, column:number, stickToPreviousCharacter:boolean): string;
 	/*package*/_changeMarker(id:string, newLineNumber:number, newColumn:number): void;
 	/*package*/_changeMarkerStickiness(id:string, newStickToPreviousCharacter:boolean): void;
-	/*package*/_getMarker(id:string): IEditorPosition;
+	/*package*/_getMarker(id:string): Position;
 	/*package*/_removeMarker(id:string): void;
 	/*package*/_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[];
 }
@@ -2033,21 +2006,6 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 */
 	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
 
-	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * Optionally, the language mode of the model can be changed.
-	 * This call clears all of the undo / redo stack,
-	 * removes all decorations or tracked ranges, emits a
-	 * ModelContentChanged(ModelContentChangedFlush) event and
-	 * unbinds the mirror model from the previous mode to the new
-	 * one if the mode has changed.
-	 */
-	setValue(newValue:string, newMode?:IMode): void;
-	setValue(newValue:string, newModePromise:TPromise<IMode>): void;
-
-	setValueFromRawText(newValue:IRawText, newMode?:IMode): void;
-	setValueFromRawText(newValue:IRawText, newModePromise:TPromise<IMode>): void;
-
 	onBeforeAttached(): void;
 
 	onBeforeDetached(): void;
@@ -2267,19 +2225,19 @@ export interface ICursorPositionChangedEvent {
 	/**
 	 * Primary cursor's position.
 	 */
-	position:IEditorPosition;
+	position:Position;
 	/**
 	 * Primary cursor's view position
 	 */
-	viewPosition:IEditorPosition;
+	viewPosition:Position;
 	/**
 	 * Secondary cursors' position.
 	 */
-	secondaryPositions:IEditorPosition[];
+	secondaryPositions:Position[];
 	/**
 	 * Secondary cursors' view position.
 	 */
-	secondaryViewPositions:IEditorPosition[];
+	secondaryViewPositions:Position[];
 	/**
 	 * Reason.
 	 */
@@ -2921,11 +2879,11 @@ export interface IViewCursorPositionChangedEvent {
 	/**
 	 * Primary cursor's position.
 	 */
-	position: IEditorPosition;
+	position: Position;
 	/**
 	 * Secondary cursors' position.
 	 */
-	secondaryPositions: IEditorPosition[];
+	secondaryPositions: Position[];
 	/**
 	 * Is the primary cursor in the editable range?
 	 */
@@ -3135,7 +3093,7 @@ export interface IEditor {
 	/**
 	 * Returns the primary position of the cursor.
 	 */
-	getPosition(): IEditorPosition;
+	getPosition(): Position;
 
 	/**
 	 * Set the primary position of the cursor. This will remove any secondary cursors.

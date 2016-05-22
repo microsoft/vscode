@@ -9,11 +9,12 @@ import {localize} from 'vs/nls';
 import {sequence, asWinJsPromise} from 'vs/base/common/async';
 import {illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {WorkspaceEdit, RenameProviderRegistry} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
 
-export function rename(model: IReadOnlyModel, position: IEditorPosition, newName: string): TPromise<WorkspaceEdit> {
+export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
 
 	const supports = RenameProviderRegistry.ordered(model);
 	const rejects: string[] = [];

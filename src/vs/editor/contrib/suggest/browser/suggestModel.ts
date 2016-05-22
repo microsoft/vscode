@@ -9,7 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ICommonCodeEditor, ICursorSelectionChangedEvent, IEditorPosition, CursorChangeReason} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
 import {ISuggestResult2, provideCompletionItems} from '../common/suggest';
@@ -229,7 +229,7 @@ export class SuggestModel implements IDisposable {
 		return actuallyCanceled;
 	}
 
-	public getRequestPosition(): IEditorPosition {
+	public getRequestPosition(): Position {
 		if (!this.context) {
 			return null;
 		}

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorPosition, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IPosition, IRange} from 'vs/editor/common/editorCommon';
 
-export class Position implements IEditorPosition {
+export class Position {
 
 	public lineNumber: number;
 	public column: number;
@@ -67,7 +67,7 @@ export class Position implements IEditorPosition {
 
 	// ---
 
-	public static lift(pos:IPosition): IEditorPosition {
+	public static lift(pos:IPosition): Position {
 		return new Position(pos.lineNumber, pos.column);
 	}
 

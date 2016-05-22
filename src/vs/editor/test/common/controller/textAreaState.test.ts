@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import {IENarratorTextAreaState, ISimpleModel, TextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorPosition, IRange} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IRange} from 'vs/editor/common/editorCommon';
 import {MockTextAreaWrapper} from 'vs/editor/test/common/mocks/mockTextAreaWrapper';
 
 suite('TextAreaState', () => {
@@ -467,7 +467,7 @@ class SimpleModel implements ISimpleModel {
 		return this._lines.length;
 	}
 
-	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): IEditorPosition {
+	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): Position {
 		return new Position(viewLineNumber, viewColumn);
 	}
 }

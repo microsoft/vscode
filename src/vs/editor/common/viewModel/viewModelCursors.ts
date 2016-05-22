@@ -7,9 +7,10 @@
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface IConverter {
-	validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition;
+	validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:Position): Position;
 	validateViewSelection(viewSelection:editorCommon.IEditorSelection, modelSelection:editorCommon.IEditorSelection): editorCommon.IEditorSelection;
 	convertModelSelectionToViewSelection(modelSelection:editorCommon.IEditorSelection): editorCommon.IEditorSelection;
 	convertModelRangeToViewRange(modelRange:editorCommon.IRange): editorCommon.IEditorRange;
@@ -54,7 +55,7 @@ export class ViewModelCursors {
 			position = position.clone();
 			position.column = stopRenderingLineAfter;
 		}
-		var secondaryPositions: editorCommon.IEditorPosition[] = [];
+		var secondaryPositions: Position[] = [];
 		for (var i = 0, len = e.secondaryPositions.length; i < len; i++) {
 			secondaryPositions[i] = this.converter.validateViewPosition(e.secondaryViewPositions[i].lineNumber, e.secondaryViewPositions[i].column, e.secondaryPositions[i]);
 			// Limit position to be somewhere where it can actually be rendered

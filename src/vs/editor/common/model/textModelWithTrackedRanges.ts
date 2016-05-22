@@ -12,6 +12,7 @@ import {ILineMarker} from 'vs/editor/common/model/modelLine';
 import {INewMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';
 import {FullModelRetokenizer, IRetokenizeRequest} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
 
 interface ITrackedRange {
 	id:string;
@@ -256,7 +257,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		}
 	}
 
-	private _newEditorRange(startPosition: editorCommon.IEditorPosition, endPosition: editorCommon.IEditorPosition): editorCommon.IEditorRange {
+	private _newEditorRange(startPosition: Position, endPosition: Position): editorCommon.IEditorRange {
 		if (endPosition.isBefore(startPosition)) {
 			// This tracked range has turned in on itself (end marker before start marker)
 			// This can happen in extreme editing conditions where lots of text is removed and lots is added
@@ -314,8 +315,8 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 			i: number,
 			len: number,
 			lineNumber: number,
-			startMarker: editorCommon.IEditorPosition,
-			endMarker: editorCommon.IEditorPosition;
+			startMarker: Position,
+			endMarker: Position;
 
 		for (i = 0, len = result.length; i < len; i++) {
 			resultMap[result[i].id] = true;

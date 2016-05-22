@@ -25,6 +25,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {ViewLineToken, ViewLineTokens} from 'vs/editor/common/core/viewLineToken';
 import {Configuration} from 'vs/editor/browser/config/configuration';
+import {Position} from 'vs/editor/common/core/position';
 
 interface IEditorDiffDecorations {
 	decorations:editorCommon.IModelDeltaDecoration[];
@@ -503,7 +504,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		return this.modifiedEditor.getVisibleColumnFromPosition(position);
 	}
 
-	public getPosition(): editorCommon.IEditorPosition {
+	public getPosition(): Position {
 		return this.modifiedEditor.getPosition();
 	}
 

@@ -153,7 +153,7 @@ export class FindModelBoundToEditorModel {
 		return false;
 	}
 
-	private _moveToPrevMatch(before:editorCommon.IEditorPosition, isRecursed:boolean = false): void {
+	private _moveToPrevMatch(before:Position, isRecursed:boolean = false): void {
 		if (this._cannotFind()) {
 			return;
 		}
@@ -220,7 +220,7 @@ export class FindModelBoundToEditorModel {
 		this._moveToPrevMatch(this._editor.getSelection().getStartPosition());
 	}
 
-	public _moveToNextMatch(after:editorCommon.IEditorPosition, isRecursed:boolean = false): void {
+	public _moveToNextMatch(after:Position, isRecursed:boolean = false): void {
 		if (this._cannotFind()) {
 			return;
 		}

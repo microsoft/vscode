@@ -6,6 +6,7 @@
 
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Position} from 'vs/editor/common/core/position';
 
 export class FindDecorations implements IDisposable {
 
@@ -13,7 +14,7 @@ export class FindDecorations implements IDisposable {
 	private _decorations:string[];
 	private _findScopeDecorationId:string;
 	private _highlightedDecorationId:string;
-	private _startPosition:editorCommon.IEditorPosition;
+	private _startPosition:Position;
 
 	constructor(editor:editorCommon.ICommonCodeEditor) {
 		this._editor = editor;
@@ -50,11 +51,11 @@ export class FindDecorations implements IDisposable {
 		return null;
 	}
 
-	public getStartPosition(): editorCommon.IEditorPosition {
+	public getStartPosition(): Position {
 		return this._startPosition;
 	}
 
-	public setStartPosition(newStartPosition:editorCommon.IEditorPosition): void {
+	public setStartPosition(newStartPosition:Position): void {
 		this._startPosition = newStartPosition;
 		this.setCurrentFindMatch(null);
 	}

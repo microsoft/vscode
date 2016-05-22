@@ -7,7 +7,8 @@
 import Event from 'vs/base/common/event';
 import {commonPrefixLength, commonSuffixLength} from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorPosition, IEditorRange, IRange} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IEditorRange, IRange} from 'vs/editor/common/editorCommon';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
@@ -54,7 +55,7 @@ export interface ISimpleModel {
 	getValueInRange(range:IRange, eol:EndOfLinePreference): string;
 	getModelLineContent(lineNumber:number): string;
 	getLineCount(): number;
-	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): IEditorPosition;
+	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): Position;
 }
 
 export interface ITypeData {
