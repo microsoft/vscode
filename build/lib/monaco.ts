@@ -214,6 +214,15 @@ lines.forEach(line => {
 		});
 
 		getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
+			if (isDeclaration(declaration)) {
+				if (typesToExclude[declaration.name.text]) {
+					return;
+				}
+			} else {
+				// todo
+				// node is ts.VariableStatement
+				// return (getNodeText(sourceFile, declaration).indexOf(typeName) >= 0);
+			}
 			result.push(getMassagedTopLevelDeclarationText(sourceFile, declaration));
 		});
 		return;

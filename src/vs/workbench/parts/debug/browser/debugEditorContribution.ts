@@ -20,6 +20,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import {Range} from 'vs/editor/common/core/range';
 
 const HOVER_DELAY = 300;
 
@@ -30,7 +31,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 	private hoverWidget: DebugHoverWidget;
 	private showHoverScheduler: RunOnceScheduler;
 	private hideHoverScheduler: RunOnceScheduler;
-	private hoverRange: editorcommon.IEditorRange;
+	private hoverRange: Range;
 	private hoveringOver: string;
 
 	static getDebugEditorContribution(editor: editorcommon.ICommonCodeEditor): DebugEditorContribution {
@@ -133,7 +134,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		return debug.EDITOR_CONTRIBUTION_ID;
 	}
 
-	public showHover(range: editorcommon.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void> {
+	public showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		return this.hoverWidget.showAt(range, hoveringOver, focus);
 	}
 

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorPosition, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IPosition, IRange} from 'vs/editor/common/editorCommon';
 
-export class Position implements IEditorPosition {
+/**
+ * A position in the editor.
+ */
+export class Position {
 
 	public lineNumber: number;
 	public column: number;
@@ -16,6 +19,9 @@ export class Position implements IEditorPosition {
 		this.column = column;
 	}
 
+	/**
+	 * Test if this position equals other position
+	 */
 	public equals(other:IPosition): boolean {
 		return Position.equals(this, other);
 	}
@@ -31,6 +37,9 @@ export class Position implements IEditorPosition {
 		);
 	}
 
+	/**
+	 * Test if this position is before other position. If the two positions are equal, the result will be false.
+	 */
 	public isBefore(other:IPosition): boolean {
 		return Position.isBefore(this, other);
 	}
@@ -44,6 +53,9 @@ export class Position implements IEditorPosition {
 		return a.column < b.column;
 	}
 
+	/**
+	 * Test if this position is before other position. If the two positions are equal, the result will be true.
+	 */
 	public isBeforeOrEqual(other:IPosition): boolean {
 		return Position.isBeforeOrEqual(this, other);
 	}
@@ -57,6 +69,9 @@ export class Position implements IEditorPosition {
 		return a.column <= b.column;
 	}
 
+	/**
+	 * Clone this position.
+	 */
 	public clone(): Position {
 		return new Position(this.lineNumber, this.column);
 	}
@@ -67,7 +82,7 @@ export class Position implements IEditorPosition {
 
 	// ---
 
-	public static lift(pos:IPosition): IEditorPosition {
+	public static lift(pos:IPosition): Position {
 		return new Position(pos.lineNumber, pos.column);
 	}
 

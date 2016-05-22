@@ -15,7 +15,7 @@ import {Scope} from 'vs/workbench/common/memento';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {IEditorSelection, IEditor, EventType, IConfigurationChangedEvent, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
+import {IEditor, EventType, IConfigurationChangedEvent, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {Position} from 'vs/platform/editor/common/editor';
@@ -28,6 +28,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {Selection} from 'vs/editor/common/core/selection';
 
 const EDITOR_VIEW_STATE_PREFERENCE_KEY = 'editorViewState';
 
@@ -202,7 +203,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return this.editorControl;
 	}
 
-	public getSelection(): IEditorSelection {
+	public getSelection(): Selection {
 		return this.editorControl.getSelection();
 	}
 

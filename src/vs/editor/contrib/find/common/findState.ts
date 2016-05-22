@@ -7,7 +7,6 @@
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Range} from 'vs/editor/common/core/range';
-import {IEditorRange} from 'vs/editor/common/editorCommon';
 
 export interface FindReplaceStateChangedEvent {
 	moveCursor: boolean;
@@ -32,7 +31,7 @@ export interface INewFindReplaceState {
 	isRegex?: boolean;
 	wholeWord?: boolean;
 	matchCase?: boolean;
-	searchScope?: IEditorRange;
+	searchScope?: Range;
 	// matchesPosition?: number;
 	// matchesCount?: number;
 }
@@ -48,7 +47,7 @@ export class FindReplaceState implements IDisposable {
 	private _isRegex: boolean;
 	private _wholeWord: boolean;
 	private _matchCase: boolean;
-	private _searchScope: IEditorRange;
+	private _searchScope: Range;
 	private _matchesPosition: number;
 	private _matchesCount: number;
 	private _eventEmitter: EventEmitter;
@@ -60,7 +59,7 @@ export class FindReplaceState implements IDisposable {
 	public get isRegex(): boolean { return this._isRegex; }
 	public get wholeWord(): boolean { return this._wholeWord; }
 	public get matchCase(): boolean { return this._matchCase; }
-	public get searchScope(): IEditorRange { return this._searchScope; }
+	public get searchScope(): Range { return this._searchScope; }
 	public get matchesPosition(): number { return this._matchesPosition; }
 	public get matchesCount(): number { return this._matchesCount; }
 

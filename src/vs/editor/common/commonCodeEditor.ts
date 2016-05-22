@@ -287,7 +287,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this._postDetachModelCleanup(detachedModel);
 	}
 
-	public abstract getCenteredRangeInViewport(): editorCommon.IEditorRange;
+	public abstract getCenteredRangeInViewport(): Range;
 
 	public getVisibleColumnFromPosition(rawPosition:editorCommon.IPosition): number {
 		if (!this.model) {
@@ -300,7 +300,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		return CursorMoveHelper.visibleColumnFromColumn(this.model, position.lineNumber, position.column, tabSize) + 1;
 	}
 
-	public getPosition(): editorCommon.IEditorPosition {
+	public getPosition(): Position {
 		if (!this.cursor) {
 			return null;
 		}
@@ -406,19 +406,19 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		}, editorCommon.VerticalRevealType.CenterIfOutsideViewport, true);
 	}
 
-	public getSelection(): editorCommon.IEditorSelection {
+	public getSelection(): Selection {
 		if (!this.cursor) {
 			return null;
 		}
 		return this.cursor.getSelection().clone();
 	}
 
-	public getSelections(): editorCommon.IEditorSelection[] {
+	public getSelections(): Selection[] {
 		if (!this.cursor) {
 			return null;
 		}
 		var selections = this.cursor.getSelections();
-		var result:editorCommon.IEditorSelection[] = [];
+		var result:Selection[] = [];
 		for (var i = 0, len = selections.length; i < len; i++) {
 			result[i] = selections[i].clone();
 		}
@@ -426,9 +426,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	}
 
 	public setSelection(range:editorCommon.IRange, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
-	public setSelection(editorRange:editorCommon.IEditorRange, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
+	public setSelection(editorRange:Range, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
 	public setSelection(selection:editorCommon.ISelection, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
-	public setSelection(editorSelection:editorCommon.IEditorSelection, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
+	public setSelection(editorSelection:Selection, reveal?:boolean, revealVerticalInCenter?:boolean, revealHorizontal?:boolean): void;
 	public setSelection(something:any, reveal:boolean = false, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = false): void {
 		var isSelection = Selection.isISelection(something);
 		var isRange = Range.isIRange(something);
@@ -748,7 +748,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
 					return this.viewModel.convertModelPositionToViewPosition(lineNumber, column);
 				},
-				convertModelRangeToViewRange: (modelRange:editorCommon.IEditorRange) => {
+				convertModelRangeToViewRange: (modelRange:Range) => {
 					return this.viewModel.convertModelRangeToViewRange(modelRange);
 				},
 				convertViewToModelPosition: (lineNumber:number, column:number) => {
@@ -757,10 +757,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				convertViewSelectionToModelSelection: (viewSelection:editorCommon.ISelection) => {
 					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
 				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition) => {
+				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:Position) => {
 					return this.viewModel.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
 				},
-				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:editorCommon.IEditorRange) => {
+				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:Range) => {
 					return this.viewModel.validateViewRange(viewStartLineNumber, viewStartColumn, viewEndLineNumber, viewEndColumn, modelRange);
 				}
 			};

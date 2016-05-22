@@ -76,7 +76,7 @@ class LinkOccurence {
 }
 
 class Link {
-	range: editorCommon.IEditorRange;
+	range: Range;
 	url: string;
 
 	constructor(source:ILink) {

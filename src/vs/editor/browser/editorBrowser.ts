@@ -10,6 +10,8 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService, IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface IContentWidgetData {
 	widget: IContentWidget;
@@ -43,7 +45,7 @@ export interface IView extends IDisposable {
 	createOverviewRuler(cssClassName:string, minimumHeight:number, maximumHeight:number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
 
-	getCenteredRangeInViewport(): editorCommon.IEditorRange;
+	getCenteredRangeInViewport(): Range;
 
 	change(callback:(changeAccessor:IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
@@ -69,14 +71,14 @@ export interface IView extends IDisposable {
 
 export interface IViewZoneData {
 	viewZoneId: number;
-	positionBefore:editorCommon.IEditorPosition;
-	positionAfter:editorCommon.IEditorPosition;
-	position: editorCommon.IEditorPosition;
+	positionBefore:Position;
+	positionAfter:Position;
+	position: Position;
 	afterLineNumber: number;
 }
 
 export interface IMouseDispatchData {
-	position: editorCommon.IEditorPosition;
+	position: Position;
 	/**
 	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 	 */
@@ -94,7 +96,7 @@ export interface IMouseDispatchData {
 export interface IViewController {
 	dispatchMouse(data:IMouseDispatchData);
 
-	moveTo(source:string, position:editorCommon.IEditorPosition): void;
+	moveTo(source:string, position:Position): void;
 
 	paste(source:string, text:string, pasteOnNewLine:boolean): void;
 	type(source: string, text: string): void;
@@ -130,7 +132,7 @@ export var ClassNames = {
 };
 
 export interface IViewportInfo {
-	visibleRange: editorCommon.IEditorRange;
+	visibleRange: Range;
 	width:number;
 	height:number;
 	deltaTop:number;
@@ -323,7 +325,7 @@ export interface IMouseTarget {
 	/**
 	 * The 'approximate' editor position
 	 */
-	position: editorCommon.IEditorPosition;
+	position: Position;
 	/**
 	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
 	 */
@@ -331,7 +333,7 @@ export interface IMouseTarget {
 	/**
 	 * The 'approximate' editor range
 	 */
-	range: editorCommon.IEditorRange;
+	range: Range;
 	/**
 	 * Some extra detail.
 	 */
@@ -517,7 +519,7 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	/**
 	 * Returns the range that is currently centered in the view port.
 	 */
-	getCenteredRangeInViewport(): editorCommon.IEditorRange;
+	getCenteredRangeInViewport(): Range;
 
 	/**
 	 * Get the view zones.

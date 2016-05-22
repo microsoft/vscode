@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import lifecycle = require('vs/base/common/lifecycle');
 import collections = require('vs/base/common/collections');
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IModel, ITextModel, IModelDeltaDecoration, EventType, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions, IEditorRange} from 'vs/editor/common/editorCommon';
+import {IModel, ITextModel, IModelDeltaDecoration, EventType, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as Search from 'vs/platform/search/common/search';
@@ -21,7 +21,7 @@ export class Match {
 	private _parent: FileMatch;
 	private _lineText: string;
 	private _id: string;
-	private _range: IEditorRange;
+	private _range: Range;
 
 	constructor(parent: FileMatch, text: string, lineNumber: number, offset: number, length: number) {
 		this._parent = parent;
@@ -42,7 +42,7 @@ export class Match {
 		return this._lineText;
 	}
 
-	public range(): IEditorRange {
+	public range(): Range {
 		return this._range;
 	}
 

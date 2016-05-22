@@ -289,9 +289,7 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 		this._embeddedModels = {};
 	}
 
-	public setMode(newMode:IMode): void;
-	public setMode(newModePromise:TPromise<IMode>): void;
-	public setMode(newModeOrPromise:any): void {
+	public setMode(newModeOrPromise:IMode|TPromise<IMode>): void {
 		super.setMode(newModeOrPromise);
 		this._updateEmbeddedModels();
 	}

@@ -582,7 +582,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return this.codeEditorHelper;
 	}
 
-	public getCenteredRangeInViewport(): editorCommon.IEditorRange {
+	public getCenteredRangeInViewport(): Range {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.getCenteredRangeInViewport: View is disposed');
 		}

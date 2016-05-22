@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {Range} from 'vs/editor/common/core/range';
-import {ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorSelection, ITokenizedModel} from 'vs/editor/common/editorCommon';
+import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
+import {Selection} from 'vs/editor/common/core/selection';
 
 function getIndentationEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
@@ -36,14 +37,14 @@ export class IndentationToSpacesCommand implements ICommand {
 
 	private selectionId: string;
 
-	constructor(private selection: IEditorSelection, private tabSize: number) { }
+	constructor(private selection: Selection, private tabSize: number) { }
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
 		getIndentationEditOperations(model, builder, this.tabSize, true);
 	}
 
-	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): IEditorSelection {
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }
@@ -52,14 +53,14 @@ export class IndentationToTabsCommand implements ICommand {
 
 	private selectionId: string;
 
-	constructor(private selection: IEditorSelection, private tabSize: number) { }
+	constructor(private selection: Selection, private tabSize: number) { }
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
 		getIndentationEditOperations(model, builder, this.tabSize, false);
 	}
 
-	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): IEditorSelection {
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }

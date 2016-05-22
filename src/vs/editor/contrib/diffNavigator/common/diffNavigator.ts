@@ -8,12 +8,12 @@ import * as assert from 'vs/base/common/assert';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import * as objects from 'vs/base/common/objects';
 import {Range} from 'vs/editor/common/core/range';
-import {ICommonDiffEditor, ICursorPositionChangedEvent, IEditorRange, ILineChange} from 'vs/editor/common/editorCommon';
+import {ICommonDiffEditor, ICursorPositionChangedEvent, ILineChange} from 'vs/editor/common/editorCommon';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 interface IDiffRange {
 	rhs:boolean;
-	range:IEditorRange;
+	range:Range;
 }
 
 export interface Options {

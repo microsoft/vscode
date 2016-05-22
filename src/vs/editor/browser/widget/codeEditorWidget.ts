@@ -150,7 +150,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		return this._view.domNode;
 	}
 
-	public getCenteredRangeInViewport(): editorCommon.IEditorRange {
+	public getCenteredRangeInViewport(): Range {
 		if (!this.hasView) {
 			return null;
 		}
@@ -613,7 +613,7 @@ export enum EditCursorState {
 
 class SingleEditOperation {
 
-	range: editorCommon.IEditorRange;
+	range: Range;
 	text: string;
 	forceMoveMarkers: boolean;
 
@@ -665,7 +665,7 @@ export class CommandRunner implements editorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[inverseEditOperations.length - 1].range;
 		return Selection.createSelection(

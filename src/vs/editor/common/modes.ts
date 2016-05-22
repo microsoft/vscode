@@ -13,6 +13,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CancellationToken} from 'vs/base/common/cancellation';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface ITokenizationResult {
 	type?:string;
@@ -291,7 +293,7 @@ export interface Hover {
 }
 
 export interface HoverProvider {
-	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Hover | Thenable<Hover>;
+	provideHover(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Hover | Thenable<Hover>;
 }
 
 export type SuggestionType = 'method'
@@ -341,9 +343,9 @@ export interface ISuggestSupport {
 
 	filter?: IFilter;
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
 
-	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
+	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
 /**
@@ -354,7 +356,7 @@ export interface IQuickFix {
 	score: number;
 }
 export interface CodeActionProvider {
-	provideCodeActions(model:editorCommon.IReadOnlyModel, range:editorCommon.IEditorRange, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
+	provideCodeActions(model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
 }
 
 
@@ -376,7 +378,7 @@ export interface SignatureHelpProvider {
 
 	signatureHelpTriggerCharacters: string[];
 
-	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
+	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 }
 
 
@@ -390,7 +392,7 @@ export interface DocumentHighlight {
 	kind: DocumentHighlightKind;
 }
 export interface DocumentHighlightProvider {
-	provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
+	provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
 }
 
 
@@ -398,7 +400,7 @@ export interface ReferenceContext {
 	includeDeclaration: boolean;
 }
 export interface ReferenceProvider {
-	provideReferences(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+	provideReferences(model:editorCommon.IReadOnlyModel, position:Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
 }
 
 
@@ -408,7 +410,7 @@ export class Location {
 }
 export type Definition = Location | Location[];
 export interface DefinitionProvider {
-	provideDefinition(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Definition | Thenable<Definition>;
+	provideDefinition(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Definition | Thenable<Definition>;
 }
 
 export enum SymbolKind {
@@ -547,11 +549,11 @@ export interface DocumentFormattingEditProvider {
 	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
 export interface DocumentRangeFormattingEditProvider {
-	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: editorCommon.IEditorRange, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
 export interface OnTypeFormattingEditProvider {
 	autoFormatTriggerCharacters: string[];
-	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, ch: string, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
 
 
@@ -607,7 +609,7 @@ export interface WorkspaceEdit {
 	rejectReason?: string;
 }
 export interface RenameProvider {
-	provideRenameEdits(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+	provideRenameEdits(model:editorCommon.IReadOnlyModel, position:Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 }
 
 

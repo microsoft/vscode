@@ -12,7 +12,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {Range} from 'vs/editor/common/core/range';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import {ICommonCodeEditor, ICursorPositionChangedEvent, IEditorActionDescriptorData, IEditorRange} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorPositionChangedEvent, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {TokenSelectionSupport, ILogicalSelectionEntry} from './tokenSelectionSupport';
 
@@ -23,7 +23,7 @@ class State {
 	public editor:ICommonCodeEditor;
 	public next:State;
 	public previous:State;
-	public selection:IEditorRange;
+	public selection:Range;
 
 	constructor(editor:ICommonCodeEditor) {
 		this.editor = editor;

@@ -9,16 +9,16 @@ import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
 interface IEditOperation {
-	range:editorCommon.IEditorRange;
+	range:Range;
 	text:string;
 }
 
 export class ReplaceAllCommand implements editorCommon.ICommand {
 
-	private _ranges: editorCommon.IEditorRange[];
+	private _ranges: Range[];
 	private _replaceStrings: string[];
 
-	constructor(ranges: editorCommon.IEditorRange[], replaceStrings:string[]) {
+	constructor(ranges: Range[], replaceStrings:string[]) {
 		this._ranges = ranges;
 		this._replaceStrings = replaceStrings;
 	}
@@ -60,7 +60,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[inverseEditOperations.length - 1].range;
 		return Selection.createSelection(

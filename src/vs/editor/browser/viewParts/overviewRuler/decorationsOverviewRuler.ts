@@ -11,6 +11,7 @@ import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {Position} from 'vs/editor/common/core/position';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -25,7 +26,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _shouldUpdateCursorPosition:boolean;
 
 	private _hideCursor:boolean;
-	private _cursorPositions: editorCommon.IEditorPosition[];
+	private _cursorPositions: Position[];
 
 	private _zonesFromDecorations: OverviewRulerZone[];
 	private _zonesFromCursors: OverviewRulerZone[];

@@ -12,8 +12,9 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {Position} from 'vs/editor/common/core/position';
 
-export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition):TPromise<DocumentHighlight[]> {
+export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position):TPromise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
 	let foundResult = false;
@@ -47,7 +48,7 @@ class WordHighlighter {
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private model: editorCommon.IModel;
-	private _lastWordRange: editorCommon.IEditorRange;
+	private _lastWordRange: Range;
 	private _decorationIds: string[];
 	private toUnhook: IDisposable[];
 

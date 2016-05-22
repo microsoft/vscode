@@ -30,8 +30,8 @@ export interface ILinesCollection {
 	getOutputLineMinColumn(outputLineNumber:number): number;
 	getOutputLineMaxColumn(outputLineNumber:number): number;
 	getOutputLineTokens(outputLineNumber:number): ViewLineTokens;
-	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition;
-	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): editorCommon.IEditorPosition;
+	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): Position;
+	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): Position;
 	setHiddenAreas(ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void;
 	inputPositionIsVisible(inputLineNumber:number, inputColumn:number): boolean;
 	dispose(): void;
@@ -49,9 +49,9 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private decorations:ViewModelDecorations;
 	private cursors:ViewModelCursors;
 
-	private getCurrentCenteredModelRange:()=>editorCommon.IEditorRange;
+	private getCurrentCenteredModelRange:()=>Range;
 
-	constructor(lines:ILinesCollection, editorId:number, configuration:editorCommon.IConfiguration, model:editorCommon.IModel, getCurrentCenteredModelRange:()=>editorCommon.IEditorRange) {
+	constructor(lines:ILinesCollection, editorId:number, configuration:editorCommon.IConfiguration, model:editorCommon.IModel, getCurrentCenteredModelRange:()=>Range) {
 		super();
 		this.lines = lines;
 
@@ -123,7 +123,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return lineMappingChanged;
 	}
 
-	private _restoreCenteredModelRange(range:editorCommon.IEditorRange): void {
+	private _restoreCenteredModelRange(range:Range): void {
 		// modelLine -> viewLine
 		var newCenteredViewRange = this.convertModelRangeToViewRange(range);
 
@@ -154,7 +154,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.deferredEmit(() => {
 
 			let hasContentChange = events.some((e) => e.getType() === editorCommon.EventType.ModelContentChanged),
-				previousCenteredModelRange:editorCommon.IEditorRange;
+				previousCenteredModelRange:Range;
 			if (!hasContentChange) {
 				// We can only convert the current centered view range to the current centered model range if the model has no changes.
 				previousCenteredModelRange = this.getCurrentCenteredModelRange();
@@ -316,13 +316,13 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		this.lines.onModelLinesInserted(e.versionId, e.fromLineNumber, e.toLineNumber, e.detail.split('\n'), (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
 
-	public validateViewRange(viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:editorCommon.IEditorRange): editorCommon.IEditorRange {
+	public validateViewRange(viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:Range): Range {
 		var validViewStart = this.validateViewPosition(viewStartColumn, viewStartColumn, modelRange.getStartPosition());
 		var validViewEnd = this.validateViewPosition(viewEndLineNumber, viewEndColumn, modelRange.getEndPosition());
 		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
 	}
 
-	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition {
+	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:Position): Position {
 		if (viewLineNumber < 1) {
 			viewLineNumber = 1;
 		}
@@ -345,7 +345,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 	}
 
-	public validateViewSelection(viewSelection:editorCommon.IEditorSelection, modelSelection:editorCommon.IEditorSelection): editorCommon.IEditorSelection {
+	public validateViewSelection(viewSelection:Selection, modelSelection:Selection): Selection {
 		let modelSelectionStart = new Position(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
 		let modelPosition = new Position(modelSelection.positionLineNumber, modelSelection.positionColumn);
 
@@ -440,23 +440,23 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.model.getValueInRange(modelRange, eol);
 	}
 
-	public getSelections(): editorCommon.IEditorSelection[] {
+	public getSelections(): Selection[] {
 		return this.cursors.getSelections();
 	}
 
 	// View -> Model conversion and related methods
 
-	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition {
+	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): Position {
 		return this.lines.convertOutputPositionToInputPosition(viewLineNumber, viewColumn);
 	}
 
-	public convertViewRangeToModelRange(viewRange:editorCommon.IRange): editorCommon.IEditorRange {
+	public convertViewRangeToModelRange(viewRange:editorCommon.IRange): Range {
 		var start = this.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
 		var end = this.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertViewSelectionToModelSelection(viewSelection:editorCommon.ISelection): editorCommon.IEditorSelection {
+	public convertViewSelectionToModelSelection(viewSelection:editorCommon.ISelection): Selection {
 		let selectionStart = this.convertViewPositionToModelPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn);
 		let position = this.convertViewPositionToModelPosition(viewSelection.positionLineNumber, viewSelection.positionColumn);
 		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
@@ -472,27 +472,27 @@ export class ViewModel extends EventEmitter implements IViewModel {
 		return this.model.getLineMaxColumn(modelLineNumber);
 	}
 
-	public validateModelPosition(position:editorCommon.IPosition): editorCommon.IEditorPosition {
+	public validateModelPosition(position:editorCommon.IPosition): Position {
 		return this.model.validatePosition(position);
 	}
 
-	public convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): editorCommon.IEditorPosition {
+	public convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): Position {
 		return this.lines.convertInputPositionToOutputPosition(modelLineNumber, modelColumn);
 	}
 
-	public convertModelRangeToViewRange(modelRange:editorCommon.IRange): editorCommon.IEditorRange {
+	public convertModelRangeToViewRange(modelRange:editorCommon.IRange): Range {
 		var start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn);
 		var end = this.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertWholeLineModelRangeToViewRange(modelRange:editorCommon.IRange): editorCommon.IEditorRange {
+	public convertWholeLineModelRangeToViewRange(modelRange:editorCommon.IRange): Range {
 		var start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, 1);
 		var end = this.convertModelPositionToViewPosition(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber));
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertModelSelectionToViewSelection(modelSelection:editorCommon.IEditorSelection): editorCommon.IEditorSelection {
+	public convertModelSelectionToViewSelection(modelSelection:Selection): Selection {
 		var selectionStart = this.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
 		var position = this.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
 		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);

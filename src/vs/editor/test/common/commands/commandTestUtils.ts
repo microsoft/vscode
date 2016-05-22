@@ -47,7 +47,7 @@ export function testCommand(
 export function getEditOperation(model: editorCommon.IModel, command: editorCommon.ICommand): editorCommon.IIdentifiedSingleEditOperation[] {
 	var operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 	var editOperationBuilder: editorCommon.IEditOperationBuilder = {
-		addEditOperation: (range: editorCommon.IEditorRange, text: string) => {
+		addEditOperation: (range: Range, text: string) => {
 			operations.push({
 				identifier: null,
 				range: range,
@@ -56,7 +56,7 @@ export function getEditOperation(model: editorCommon.IModel, command: editorComm
 			});
 		},
 
-		trackSelection: (selection: editorCommon.IEditorSelection) => {
+		trackSelection: (selection: Selection) => {
 			return null;
 		}
 	};

@@ -539,7 +539,7 @@ class InsertSnippetController {
 			}
 
 			var modelEditableRange = this.model.getEditableRange(),
-				previousRange: editorCommon.IEditorRange = null,
+				previousRange: Range = null,
 				allCollapsed = true,
 				allEqualToEditableRange = true;
 
@@ -758,8 +758,8 @@ class SnippetController implements ISnippetController {
 		}
 	}
 
-	private static _getTypeRangeForSelection(model:editorCommon.IModel, selection:editorCommon.IEditorSelection, overwriteBefore:number, overwriteAfter:number): editorCommon.IEditorRange {
-		var typeRange:editorCommon.IEditorRange;
+	private static _getTypeRangeForSelection(model:editorCommon.IModel, selection:Selection, overwriteBefore:number, overwriteAfter:number): Range {
+		var typeRange:Range;
 		if (overwriteBefore || overwriteAfter) {
 			typeRange = model.validateRange(Range.plusRange(selection, {
 				startLineNumber: selection.positionLineNumber,
@@ -773,11 +773,11 @@ class SnippetController implements ISnippetController {
 		return typeRange;
 	}
 
-	private static _getAdaptedSnippet(model:editorCommon.IModel, snippet:CodeSnippet, typeRange:editorCommon.IEditorRange): ICodeSnippet {
+	private static _getAdaptedSnippet(model:editorCommon.IModel, snippet:CodeSnippet, typeRange:Range): ICodeSnippet {
 		return snippet.bind(model.getLineContent(typeRange.startLineNumber), typeRange.startLineNumber - 1, typeRange.startColumn - 1, model);
 	}
 
-	private static _addCommandForSnippet(model:editorCommon.ITextModel, adaptedSnippet:ICodeSnippet, typeRange:editorCommon.IEditorRange, out:editorCommon.IIdentifiedSingleEditOperation[]): void {
+	private static _addCommandForSnippet(model:editorCommon.ITextModel, adaptedSnippet:ICodeSnippet, typeRange:Range, out:editorCommon.IIdentifiedSingleEditOperation[]): void {
 		let insertText = adaptedSnippet.lines.join('\n');
 		let currentText = model.getValueInRange(typeRange, editorCommon.EndOfLinePreference.LF);
 		if (insertText !== currentText) {
@@ -826,7 +826,7 @@ class SnippetController implements ISnippetController {
 		}
 	}
 
-	private static _prepareSnippet(editor:editorCommon.ICommonCodeEditor, selection:editorCommon.IEditorSelection, snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number): { typeRange: editorCommon.IEditorRange; adaptedSnippet: ICodeSnippet; } {
+	private static _prepareSnippet(editor:editorCommon.ICommonCodeEditor, selection:Selection, snippet:CodeSnippet, overwriteBefore:number, overwriteAfter:number): { typeRange: Range; adaptedSnippet: ICodeSnippet; } {
 		var model = editor.getModel();
 
 		var typeRange = SnippetController._getTypeRangeForSelection(model, selection, overwriteBefore, overwriteAfter);

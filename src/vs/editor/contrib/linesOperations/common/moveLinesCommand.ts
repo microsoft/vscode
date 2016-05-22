@@ -6,17 +6,17 @@
 
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorSelection, ITokenizedModel} from 'vs/editor/common/editorCommon';
+import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
 
 export class MoveLinesCommand implements ICommand {
 
-	private _selection: IEditorSelection;
+	private _selection: Selection;
 	private _isMovingDown: boolean;
 
 	private _selectionId: string;
 	private _moveEndPositionDown: boolean;
 
-	constructor(selection: IEditorSelection, isMovingDown: boolean) {
+	constructor(selection: Selection, isMovingDown: boolean) {
 		this._selection = selection;
 		this._isMovingDown = isMovingDown;
 	}
@@ -88,7 +88,7 @@ export class MoveLinesCommand implements ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	public computeCursorState(model:ITokenizedModel, helper: ICursorStateComputerData):IEditorSelection {
+	public computeCursorState(model:ITokenizedModel, helper: ICursorStateComputerData):Selection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._moveEndPositionDown) {

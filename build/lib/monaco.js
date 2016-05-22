@@ -171,6 +171,13 @@ lines.forEach(function (line) {
             typesToExclude_1[typeName] = true;
         });
         getAllTopLevelDeclarations(sourceFile_2).forEach(function (declaration) {
+            if (isDeclaration(declaration)) {
+                if (typesToExclude_1[declaration.name.text]) {
+                    return;
+                }
+            }
+            else {
+            }
             result.push(getMassagedTopLevelDeclarationText(sourceFile_2, declaration));
         });
         return;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPosition, IEditorSelection} from 'vs/editor/common/editorCommon';
+import {IPosition} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IMoveResult {
@@ -14,11 +14,11 @@ export interface IMoveResult {
 }
 
 export interface IViewColumnSelectResult {
-	viewSelections: IEditorSelection[];
+	viewSelections: Selection[];
 	reversed: boolean;
 }
 export interface IColumnSelectResult extends IViewColumnSelectResult {
-	selections: IEditorSelection[];
+	selections: Selection[];
 	toLineNumber: number;
 	toVisualColumn: number;
 }
@@ -152,7 +152,7 @@ export class CursorMoveHelper {
 		let isRTL = (fromVisibleColumn > toVisibleColumn);
 		let isLTR = (fromVisibleColumn < toVisibleColumn);
 
-		let result: IEditorSelection[] = [];
+		let result: Selection[] = [];
 
 		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
 

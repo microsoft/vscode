@@ -16,12 +16,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry} from 'vs/editor/common/modes';
 import {getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits} from '../common/format';
 import {EditOperationsCommand} from './formatCommand';
-
-interface IFormatOnTypeResult {
-	range: editorCommon.IEditorRange;
-	id: string;
-	lineText: string;
-}
+import {Selection} from 'vs/editor/common/core/selection';
 
 class FormatOnType implements editorCommon.IEditorContribution {
 
@@ -213,7 +208,7 @@ export class FormatAction extends EditorAction {
 		});
 	}
 
-	public apply(editor: editorCommon.ICommonCodeEditor, editorSelection: editorCommon.IEditorSelection, value: editorCommon.ISingleEditOperation[]): void {
+	public apply(editor: editorCommon.ICommonCodeEditor, editorSelection: Selection, value: editorCommon.ISingleEditOperation[]): void {
 		var state: editorCommon.IEditorViewState = null;
 
 		if (editorSelection.isEmpty()) {

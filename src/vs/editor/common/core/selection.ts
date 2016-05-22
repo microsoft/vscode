@@ -5,9 +5,12 @@
 'use strict';
 
 import {Range} from 'vs/editor/common/core/range';
-import {IEditorSelection, ISelection, SelectionDirection} from 'vs/editor/common/editorCommon';
+import {ISelection, SelectionDirection} from 'vs/editor/common/editorCommon';
 
-export class Selection extends Range implements IEditorSelection {
+/**
+ * A selection in the editor.
+ */
+export class Selection extends Range {
 	public selectionStartLineNumber: number;
 	public selectionStartColumn: number;
 	public positionLineNumber: number;
@@ -21,7 +24,10 @@ export class Selection extends Range implements IEditorSelection {
 		this.positionColumn = positionColumn;
 	}
 
-	public clone(): IEditorSelection {
+	/**
+	 * Clone this selection.
+	 */
+	public clone(): Selection {
 		return new Selection(this.selectionStartLineNumber, this.selectionStartColumn, this.positionLineNumber, this.positionColumn);
 	}
 
@@ -29,12 +35,18 @@ export class Selection extends Range implements IEditorSelection {
 		return '[' + this.selectionStartLineNumber + ',' + this.selectionStartColumn + ' -> ' + this.positionLineNumber + ',' + this.positionColumn + ']';
 	}
 
+	/**
+	 * Test if equals other selection.
+	 */
 	public equalsSelection(other: ISelection): boolean {
 		return (
 			Selection.selectionsEqual(this, other)
 		);
 	}
 
+	/**
+	 * Get directions (LTR or RTL).
+	 */
 	public getDirection(): SelectionDirection {
 		if (this.selectionStartLineNumber === this.startLineNumber && this.selectionStartColumn === this.startColumn) {
 			return SelectionDirection.LTR;
@@ -42,14 +54,20 @@ export class Selection extends Range implements IEditorSelection {
 		return SelectionDirection.RTL;
 	}
 
-	public setEndPosition(endLineNumber: number, endColumn: number): IEditorSelection {
+	/**
+	 * Create a new selection with a different `positionLineNumber` and `positionColumn`.
+	 */
+	public setEndPosition(endLineNumber: number, endColumn: number): Selection {
 		if (this.getDirection() === SelectionDirection.LTR) {
 			return new Selection(this.startLineNumber, this.startColumn, endLineNumber, endColumn);
 		}
 		return new Selection(endLineNumber, endColumn, this.startLineNumber, this.startColumn);
 	}
 
-	public setStartPosition(startLineNumber: number, startColumn: number): IEditorSelection {
+	/**
+	 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
+	 */
+	public setStartPosition(startLineNumber: number, startColumn: number): Selection {
 		if (this.getDirection() === SelectionDirection.LTR) {
 			return new Selection(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
 		}
@@ -58,11 +76,11 @@ export class Selection extends Range implements IEditorSelection {
 
 	// ----
 
-	public static createSelection(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number): IEditorSelection {
+	public static createSelection(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number): Selection {
 		return new Selection(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn);
 	}
 
-	public static liftSelection(sel:ISelection): IEditorSelection {
+	public static liftSelection(sel:ISelection): Selection {
 		return new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
 	}
 
@@ -103,7 +121,7 @@ export class Selection extends Range implements IEditorSelection {
 		);
 	}
 
-	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction:SelectionDirection): IEditorSelection {
+	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction:SelectionDirection): Selection {
 
 		if (direction === SelectionDirection.LTR) {
 			return new Selection(startLineNumber, startColumn, endLineNumber, endColumn);
