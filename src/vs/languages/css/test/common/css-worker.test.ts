@@ -105,7 +105,7 @@ suite('Validation - CSS', () => {
 		var markers = env.markers.filter((m) => m.startColumn === pos.column && m.startLineNumber === pos.lineNumber);
 		assert.equal(1, markers.length, 'No marker at pos: ' + JSON.stringify({ pos: pos, markers: env.markers }));
 
-		return env.worker.getQuickFixes(url, markers[0]).then((fixes) => { return { fixes: fixes, model: env.model}; });
+		return env.worker.provideCodeActions(url, markers[0]).then((fixes) => { return { fixes: fixes, model: env.model}; });
 	};
 
 	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, type?:string) {

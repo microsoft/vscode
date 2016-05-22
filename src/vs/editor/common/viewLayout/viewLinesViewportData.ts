@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IModelDecoration, IEditorRange} from 'vs/editor/common/editorCommon';
+import {IModelDecoration} from 'vs/editor/common/editorCommon';
 import {IDecorationsViewportData} from 'vs/editor/common/viewModel/viewModel';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface IPartialViewLinesViewportData {
 	viewportTop: number;
@@ -40,12 +41,12 @@ export class ViewLinesViewportData {
 	/**
 	 * The viewport as a range (`startLineNumber`,1) -> (`endLineNumber`,maxColumn(`endLineNumber`)).
 	 */
-	visibleRange:IEditorRange;
+	visibleRange:Range;
 
 	private _decorations: IModelDecoration[];
 	private _inlineDecorations: IModelDecoration[][];
 
-	constructor(partialData:IPartialViewLinesViewportData, visibleRange:IEditorRange, decorationsData:IDecorationsViewportData) {
+	constructor(partialData:IPartialViewLinesViewportData, visibleRange:Range, decorationsData:IDecorationsViewportData) {
 		this.viewportTop = partialData.viewportTop|0;
 		this.viewportHeight = partialData.viewportHeight|0;
 		this.bigNumbersDelta = partialData.bigNumbersDelta|0;

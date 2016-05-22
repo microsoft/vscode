@@ -77,10 +77,10 @@ class EventGateKeeper<T> extends Disposable {
 }
 
 class MousePosition {
-	public position: editorCommon.IEditorPosition;
+	public position: Position;
 	public mouseColumn: number;
 
-	constructor(position:editorCommon.IEditorPosition, mouseColumn:number) {
+	constructor(position:Position, mouseColumn:number) {
 		this.position = position;
 		this.mouseColumn = mouseColumn;
 	}
@@ -316,7 +316,7 @@ class MouseDownOperation extends Disposable {
 	private _mouseMoveMonitor:GlobalMouseMoveMonitor<IMouseEvent>;
 	private _mouseDownThenMoveEventHandler: EventGateKeeper<IMouseEvent>;
 
-	private _currentSelection: editorCommon.IEditorSelection;
+	private _currentSelection: Selection;
 	private _mouseState: MouseDownState;
 
 	private _onScrollTimeout: TimeoutTimer;
@@ -523,7 +523,7 @@ class MouseDownState {
 	private _startedOnLineNumbers: boolean;
 	public get startedOnLineNumbers(): boolean { return this._startedOnLineNumbers; }
 
-	private _lastMouseDownPosition: editorCommon.IEditorPosition;
+	private _lastMouseDownPosition: Position;
 	private _lastMouseDownPositionEqualCount: number;
 	private _lastMouseDownCount: number;
 	private _lastSetMouseDownCountTime: number;
@@ -555,7 +555,7 @@ class MouseDownState {
 		this._startedOnLineNumbers = startedOnLineNumbers;
 	}
 
-	public trySetCount(setMouseDownCount:number, newMouseDownPosition:editorCommon.IEditorPosition): void {
+	public trySetCount(setMouseDownCount:number, newMouseDownPosition:Position): void {
 		// a. Invalidate multiple clicking if too much time has passed (will be hit by IE because the detail field of mouse events contains garbage in IE10)
 		let currentTime = (new Date()).getTime();
 		if (currentTime - this._lastSetMouseDownCountTime > MouseDownState.CLEAR_MOUSE_DOWN_COUNT_TIME) {

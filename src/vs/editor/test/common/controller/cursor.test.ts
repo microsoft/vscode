@@ -722,10 +722,10 @@ suite('Editor Controller - Cursor', () => {
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
-		thisCursor.addListener(EventType.CursorPositionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorPositionChanged, (e) => {
 			assert.ok(false, 'was not expecting event');
 		});
-		thisCursor.addListener(EventType.CursorSelectionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorSelectionChanged, (e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		moveTo(thisCursor, 1, 1);
@@ -733,11 +733,11 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move eventing', () => {
 		let events = 0;
-		thisCursor.addListener(EventType.CursorPositionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorPositionChanged, (e) => {
 			events++;
 			positionEqual(e.position, 1, 2);
 		});
-		thisCursor.addListener(EventType.CursorSelectionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorSelectionChanged, (e) => {
 			events++;
 			selectionEqual(e.selection, 1, 2, 1, 2);
 		});
@@ -747,11 +747,11 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move in selection mode eventing', () => {
 		let events = 0;
-		thisCursor.addListener(EventType.CursorPositionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorPositionChanged, (e) => {
 			events++;
 			positionEqual(e.position, 1, 2);
 		});
-		thisCursor.addListener(EventType.CursorSelectionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorSelectionChanged, (e) => {
 			events++;
 			selectionEqual(e.selection, 1, 2, 1, 1);
 		});

@@ -11,7 +11,7 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import aria = require('vs/base/browser/ui/aria/aria');
-import {EventType, ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {SignatureHelp, SignatureInformation} from 'vs/editor/common/modes';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {IHintEvent, ParameterHintsModel} from './parameterHintsModel';
@@ -100,14 +100,14 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.editor.addContentWidget(this);
 		this.hide();
 
-		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged,(e: ICursorSelectionChangedEvent) => {
+		this.toDispose.push(this.editor.onDidCursorSelectionChange((e: ICursorSelectionChangedEvent) => {
 			if (this.isVisible) {
 				this.editor.layoutContentWidget(this);
 			}
 		}));
 
 		this.editor.applyFontInfo(this.getDomNode());
-		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged,(e: IConfigurationChangedEvent) => {
+		this.toDispose.push(this.editor.onDidConfigurationChange((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.editor.applyFontInfo(this.getDomNode());
 			}

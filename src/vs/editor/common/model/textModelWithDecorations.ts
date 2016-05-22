@@ -82,7 +82,7 @@ interface IRangeIdToDecorationIdMap {
 }
 
 interface IOldDecoration {
-	range: editorCommon.IEditorRange;
+	range: Range;
 	options: ModelDecorationOptions;
 	id: string;
 }
@@ -187,7 +187,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return null;
 	}
 
-	public getDecorationRange(decorationId:string): editorCommon.IEditorRange {
+	public getDecorationRange(decorationId:string): Range {
 		if (this.decorations.hasOwnProperty(decorationId)) {
 			var decoration = this.decorations[decorationId];
 			return this.getTrackedRange(decoration.rangeId);
@@ -412,7 +412,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return result;
 	}
 
-	private _addDecorationImpl(eventBuilder:DeferredEventsBuilder, ownerId:number, range:editorCommon.IEditorRange, options:ModelDecorationOptions): string {
+	private _addDecorationImpl(eventBuilder:DeferredEventsBuilder, ownerId:number, range:Range, options:ModelDecorationOptions): string {
 		var rangeId = this.addTrackedRange(range, options.stickiness);
 
 		var decoration = new ModelInternalDecoration(this._decorationIdGenerator.nextId(), ownerId, rangeId, options);
@@ -445,7 +445,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return result;
 	}
 
-	private _changeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string, newRange:editorCommon.IEditorRange): void {
+	private _changeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string, newRange:Range): void {
 		if (this.decorations.hasOwnProperty(id)) {
 			var decoration = this.decorations[id];
 			var oldRange = this.getTrackedRange(decoration.rangeId);
@@ -474,7 +474,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	private _removeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string): void {
 		if (this.decorations.hasOwnProperty(id)) {
 			var decoration = this.decorations[id];
-			var oldRange:editorCommon.IEditorRange = null;
+			var oldRange:Range = null;
 			if (eventBuilder) {
 				oldRange = this.getTrackedRange(decoration.rangeId);
 			}
@@ -694,10 +694,10 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
 
 	index: number;
-	range: editorCommon.IEditorRange;
+	range: Range;
 	options: ModelDecorationOptions;
 
-	constructor(index: number, range: editorCommon.IEditorRange, options: ModelDecorationOptions) {
+	constructor(index: number, range: Range, options: ModelDecorationOptions) {
 		this.index = index;
 		this.range = range;
 		this.options = options;

@@ -36,15 +36,13 @@ exports.collectModules = function(excludes) {
 
 		createModuleDescription('vs/workbench/parts/errorList/browser/errorList', excludes),
 
+		createModuleDescription('vs/workbench/parts/terminal/electron-browser/terminalPanel', excludes),
+
 		createModuleDescription('vs/workbench/services/search/node/searchApp', []),
 		createModuleDescription('vs/workbench/services/files/node/watcher/unix/watcherApp', []),
 
 		createModuleDescription('vs/workbench/node/extensionHostProcess', []),
 	];
-
-	/*if (process.platform !== 'win32') {
-		modules.push(createModuleDescription('vs/workbench/parts/terminal/electron-browser/terminalPanel', excludes));
-	}*/
 
 	return modules;
 };

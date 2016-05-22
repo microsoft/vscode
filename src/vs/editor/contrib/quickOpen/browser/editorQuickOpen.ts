@@ -13,6 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {QuickOpenEditorWidget} from './quickOpenEditorWidget';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -79,7 +80,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
  */
 export class BaseEditorQuickOpenAction extends EditorAction {
 	private lineHighlightDecorationId:string;
-	private lastKnownEditorSelection:editorCommon.IEditorSelection;
+	private lastKnownEditorSelection:Selection;
 
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, label:string, condition:Behaviour = Behaviour.WidgetFocus) {
 		super(descriptor, editor, condition);

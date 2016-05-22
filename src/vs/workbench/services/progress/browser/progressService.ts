@@ -35,25 +35,25 @@ export abstract class ScopedService {
 	}
 
 	public registerListeners(): void {
-		this.eventService.addListener(EventType.EDITOR_CLOSED, (e: EditorEvent) => {
+		this.eventService.addListener2(EventType.EDITOR_CLOSED, (e: EditorEvent) => {
 			if (e.editorId === this.scopeId) {
 				this.onScopeDeactivated();
 			}
 		});
 
-		this.eventService.addListener(EventType.EDITOR_OPENED, (e: EditorEvent) => {
+		this.eventService.addListener2(EventType.EDITOR_OPENED, (e: EditorEvent) => {
 			if (e.editorId === this.scopeId) {
 				this.onScopeActivated();
 			}
 		});
 
-		this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => {
+		this.eventService.addListener2(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => {
 			if (e.compositeId === this.scopeId) {
 				this.onScopeDeactivated();
 			}
 		});
 
-		this.eventService.addListener(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
+		this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === this.scopeId) {
 				this.onScopeActivated();
 			}

@@ -13,6 +13,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CancellationToken} from 'vs/base/common/cancellation';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface ITokenizationResult {
 	type?:string;
@@ -212,19 +214,9 @@ export interface IMode {
 	emitOutputSupport?:IEmitOutputSupport;
 
 	/**
-	 * Optional adapter to support detecting links.
-	 */
-	linkSupport?:ILinkSupport;
-
-	/**
 	 * Optional adapter to support configuring this mode.
 	 */
 	configSupport?:IConfigurationSupport;
-
-	/**
-	 * Optional adapter to support task running
-	 */
-	taskSupport?: ITaskSupport;
 
 	/**
 	 * Optional adapter to support rich editing.
@@ -301,7 +293,7 @@ export interface Hover {
 }
 
 export interface HoverProvider {
-	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Hover | Thenable<Hover>;
+	provideHover(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Hover | Thenable<Hover>;
 }
 
 export type SuggestionType = 'method'
@@ -351,9 +343,9 @@ export interface ISuggestSupport {
 
 	filter?: IFilter;
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
 
-	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
+	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
 /**
@@ -363,14 +355,8 @@ export interface IQuickFix {
 	command: ICommand;
 	score: number;
 }
-
-export interface IQuickFixResult {
-	edits?: IResourceEdit[];
-	message?: string;
-}
-
-export interface IQuickFixSupport {
-	getQuickFixes(resource: URI, range: editorCommon.IRange): TPromise<IQuickFix[]>;
+export interface CodeActionProvider {
+	provideCodeActions(model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
 }
 
 
@@ -392,7 +378,7 @@ export interface SignatureHelpProvider {
 
 	signatureHelpTriggerCharacters: string[];
 
-	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
+	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 }
 
 
@@ -406,7 +392,7 @@ export interface DocumentHighlight {
 	kind: DocumentHighlightKind;
 }
 export interface DocumentHighlightProvider {
-	provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
+	provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
 }
 
 
@@ -414,7 +400,7 @@ export interface ReferenceContext {
 	includeDeclaration: boolean;
 }
 export interface ReferenceProvider {
-	provideReferences(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+	provideReferences(model:editorCommon.IReadOnlyModel, position:Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
 }
 
 
@@ -424,7 +410,7 @@ export class Location {
 }
 export type Definition = Location | Location[];
 export interface DefinitionProvider {
-	provideDefinition(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Definition | Thenable<Definition>;
+	provideDefinition(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Definition | Thenable<Definition>;
 }
 
 export enum SymbolKind {
@@ -558,23 +544,18 @@ export interface IFormattingOptions {
 	insertSpaces:boolean;
 }
 
-/**
- * Supports to format source code. There are three levels
- * on which formatting can be offered:
- * (1) format a document
- * (2) format a selectin
- * (3) format on keystroke
- */
-export interface IFormattingSupport {
 
-	formatDocument?: (resource: URI, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
-
-	formatRange?: (resource: URI, range: editorCommon.IRange, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
-
-	autoFormatTriggerCharacters?: string[];
-
-	formatAfterKeystroke?: (resource: URI, position: editorCommon.IPosition, ch: string, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
+export interface DocumentFormattingEditProvider {
+	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
+export interface DocumentRangeFormattingEditProvider {
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+}
+export interface OnTypeFormattingEditProvider {
+	autoFormatTriggerCharacters: string[];
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+}
+
 
 export interface IInplaceReplaceSupportResult {
 	value: string;
@@ -600,25 +581,15 @@ export interface IEmitOutput {
 	content:string;
 }
 
-/**
- * Interface used to detect links.
- */
+
 export interface ILink {
-
 	range: editorCommon.IRange;
-
-	/**
-	 * The url of the link.
-	 * The url should be absolute and will not get any special treatment.
-	 */
 	url: string;
-
-	extraInlineClassName?: string;
+}
+export interface LinkProvider {
+	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 }
 
-export interface ILinkSupport {
-	computeLinks(resource:URI):TPromise<ILink[]>;
-}
 
 /**
  * Interface used to define a configurable editor mode.
@@ -638,40 +609,25 @@ export interface WorkspaceEdit {
 	rejectReason?: string;
 }
 export interface RenameProvider {
-	provideRenameEdits(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+	provideRenameEdits(model:editorCommon.IReadOnlyModel, position:Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 }
+
 
 export interface ICommand {
 	id: string;
 	title: string;
 	arguments?: any[];
 }
-
 export interface ICodeLensSymbol {
 	range: editorCommon.IRange;
 	id?: string;
 	command?: ICommand;
 }
-
-/**
- * Interface used for the code lense support
- */
-export interface ICodeLensSupport {
-	findCodeLensSymbols(resource: URI): TPromise<ICodeLensSymbol[]>;
-	resolveCodeLensSymbol(resource: URI, symbol: ICodeLensSymbol): TPromise<ICodeLensSymbol>;
+export interface CodeLensProvider {
+	provideCodeLenses(model:editorCommon.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
+	resolveCodeLens?(model:editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 }
 
-export interface ITaskSummary {
-}
-
-/**
- * Interface to support building via a langauge service
- */
-export interface ITaskSupport {
-	build?():TPromise<ITaskSummary>;
-	rebuild?():TPromise<ITaskSummary>;
-	clean?():TPromise<void>;
-}
 
 export type CharacterPair = [string, string];
 
@@ -803,10 +759,14 @@ export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<Doc
 
 export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
 
-export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>();
+export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
 
-export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>();
+export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
-export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>();
+export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
 
-export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>();
+export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
+
+export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
+
+export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();

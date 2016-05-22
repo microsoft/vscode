@@ -76,8 +76,8 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.view.setModel(this.model);
 
-		this.addEmitter(this.model);
-		this.addEmitter(this.view);
+		this.addEmitter2(this.model);
+		this.addEmitter2(this.view);
 	}
 
 	public getHTMLElement(): HTMLElement {

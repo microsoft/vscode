@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
 import {IFilter, matchesStrictPrefix, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -14,6 +14,7 @@ import {Registry} from 'vs/platform/platform';
 import {localize} from 'vs/nls';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
 export class TextualSuggestSupport implements ISuggestSupport {
 
@@ -52,10 +53,10 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		this._configurationService = configurationService;
 	}
 
-	public provideCompletionItems(model:IReadOnlyModel, position:IEditorPosition, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]> {
+	public provideCompletionItems(model:IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]> {
 		let config = this._configurationService.getConfiguration<{ wordBasedSuggestions: boolean }>('editor');
 		if (!config || config.wordBasedSuggestions) {
-			return wireCancellationToken(token, this._editorWorkerService.textualSuggest(model.getAssociatedResource(), position));
+			return wireCancellationToken(token, this._editorWorkerService.textualSuggest(model.uri, position));
 		}
 		return <ISuggestResult[]>[];
 	}

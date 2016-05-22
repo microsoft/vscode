@@ -65,7 +65,8 @@ function getNLSConfiguration() {
 		}
 	}
 
-	locale = locale || app.getLocale();
+	var appLocale = app.getLocale();
+	locale = locale || appLocale;
 	// Language tags are case insensitve however an amd loader is case sensitive
 	// To make this work on case preserving & insensitive FS we do the following:
 	// the language bundles have lower case language tags and we always lower case
@@ -78,23 +79,38 @@ function getNLSConfiguration() {
 	if (process.env['VSCODE_DEV']) {
 		return { locale: locale, availableLanguages: {} };
 	}
+
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
-	while (locale) {
-		var candidate = path.join(__dirname, 'vs', 'code', 'electron-main', 'main.nls.') + locale + '.js';
-		if (fs.existsSync(candidate)) {
-			return { locale: initialLocale, availableLanguages: { '*': locale } };
-		} else {
-			var index = locale.lastIndexOf('-');
-			if (index > 0) {
-				locale = locale.substring(0, index);
-			} else {
-				locale = null;
-			}
-		}
+
+	// Check if we have an English locale. If so fall to default since that is our
+	// English translation (we don't ship *.nls.en.json files)
+	if (locale && (locale == 'en' || locale.startsWith('en-'))) {
+		return { locale: locale, availableLanguages: {} };
 	}
 
-	return { locale: initialLocale, availableLanguages: {} };
+	function resolveLocale(locale) {
+		while (locale) {
+			var candidate = path.join(__dirname, 'vs', 'code', 'electron-main', 'main.nls.') + locale + '.js';
+			if (fs.existsSync(candidate)) {
+				return { locale: initialLocale, availableLanguages: { '*': locale } };
+			} else {
+				var index = locale.lastIndexOf('-');
+				if (index > 0) {
+					locale = locale.substring(0, index);
+				} else {
+					locale = null;
+				}
+			}
+		}
+		return null;
+	}
+
+	var resolvedLocale = resolveLocale(locale);
+	if (!resolvedLocale && appLocale && appLocale !== locale) {
+		resolvedLocale = resolveLocale(appLocale);
+	}
+	return resolvedLocale ? resolvedLocale : { locale: initialLocale, availableLanguages: {} };
 }
 
 // Update cwd based on environment and platform

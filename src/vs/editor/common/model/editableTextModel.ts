@@ -12,11 +12,12 @@ import {ILineEdit, ILineMarker, ModelLine} from 'vs/editor/common/model/modelLin
 import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
 import * as strings from 'vs/base/common/strings';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
 	identifier: editorCommon.ISingleEditOperationIdentifier;
-	range: editorCommon.IEditorRange;
+	range: Range;
 	rangeLength: number;
 	lines: string[];
 	forceMoveMarkers: boolean;
@@ -75,7 +76,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		this._commandManager.pushStackElement();
 	}
 
-	public pushEditOperations(beforeCursorState:editorCommon.IEditorSelection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): editorCommon.IEditorSelection[] {
+	public pushEditOperations(beforeCursorState:Selection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): Selection[] {
 		return this.deferredEmit(() => {
 			if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 				// Go through each saved line number and insert a trim whitespace edit
@@ -336,8 +337,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	/**
 	 * Assumes `operations` are validated and sorted ascending
 	 */
-	public static _getInverseEditRanges(operations:IValidatedEditOperation[]): editorCommon.IEditorRange[] {
-		let result:editorCommon.IEditorRange[] = [];
+	public static _getInverseEditRanges(operations:IValidatedEditOperation[]): Range[] {
+		let result:Range[] = [];
 
 		let prevOpEndLineNumber: number;
 		let prevOpEndColumn: number;
@@ -361,7 +362,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				startColumn = op.range.startColumn;
 			}
 
-			let resultRange: editorCommon.IEditorRange;
+			let resultRange: Range;
 
 			if (op.lines && op.lines.length > 0) {
 				// the operation inserts something
@@ -631,7 +632,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		}
 	}
 
-	public undo(): editorCommon.IEditorSelection[] {
+	public undo(): Selection[] {
 		return this._withDeferredEvents(() => {
 			this._isUndoing = true;
 			let r = this._commandManager.undo();
@@ -647,7 +648,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		});
 	}
 
-	public redo(): editorCommon.IEditorSelection[] {
+	public redo(): Selection[] {
 		return this._withDeferredEvents(() => {
 			this._isRedoing = true;
 			let r = this._commandManager.redo();
@@ -681,7 +682,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return this._hasEditableRange;
 	}
 
-	public getEditableRange(): editorCommon.IEditorRange {
+	public getEditableRange(): Range {
 		if (this._hasEditableRange) {
 			return this.getTrackedRange(this._editableRangeId);
 		} else {

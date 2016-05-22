@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import editorCommon = require('vs/editor/common/editorCommon');
 import modes = require('vs/editor/common/modes');
 import URI from 'vs/base/common/uri';
 import WinJS = require('vs/base/common/winjs.base');
@@ -65,7 +65,7 @@ export class JSONMode extends AbstractMode {
 
 		modes.HoverProviderRegistry.register(this.getId(), {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
 		});
 
@@ -76,19 +76,27 @@ export class JSONMode extends AbstractMode {
 		// Initialize Outline support
 		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
 			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
-				return wireCancellationToken(token, this._provideDocumentSymbols(model.getAssociatedResource()));
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.uri));
 			}
 		});
 
-		modes.FormatRegistry.register(this.getId(), this);
+		modes.DocumentFormattingEditProviderRegistry.register(this.getId(), {
+			provideDocumentFormattingEdits: (model, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
+				return wireCancellationToken(token, this._provideDocumentFormattingEdits(model.uri, options));
+			}
+		});
 
-		modes.FormatOnTypeRegistry.register(this.getId(), this);
+		modes.DocumentRangeFormattingEditProviderRegistry.register(this.getId(), {
+			provideDocumentRangeFormattingEdits: (model, range, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
+				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.uri, range, options));
+			}
+		});
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
-				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
 		});
 	}
@@ -140,17 +148,17 @@ export class JSONMode extends AbstractMode {
 	}
 
 	static $navigateValueSet = OneWorkerAttr(JSONMode, JSONMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):WinJS.TPromise<modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, position:editorCommon.IRange, up:boolean):WinJS.TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
 	static $_provideCompletionItems = OneWorkerAttr(JSONMode, JSONMode.prototype._provideCompletionItems);
-	private _provideCompletionItems(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<modes.ISuggestResult[]> {
+	private _provideCompletionItems(resource:URI, position:editorCommon.IPosition):WinJS.TPromise<modes.ISuggestResult[]> {
 		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
 	static $_provideHover = OneWorkerAttr(JSONMode, JSONMode.prototype._provideHover);
-	private _provideHover(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<modes.Hover> {
+	private _provideHover(resource:URI, position:editorCommon.IPosition): WinJS.TPromise<modes.Hover> {
 		return this._worker((w) => w.provideHover(resource, position));
 	}
 
@@ -159,13 +167,13 @@ export class JSONMode extends AbstractMode {
 		return this._worker((w) => w.provideDocumentSymbols(resource));
 	}
 
-	static $formatDocument = OneWorkerAttr(JSONMode, JSONMode.prototype.formatDocument);
-	public formatDocument(resource:URI, options:modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	static $_provideDocumentFormattingEdits = OneWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentFormattingEdits);
+	public _provideDocumentFormattingEdits(resource:URI, options:modes.IFormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, null, options));
 	}
 
-	static $formatRange = OneWorkerAttr(JSONMode, JSONMode.prototype.formatRange);
-	public formatRange(resource:URI, range:EditorCommon.IRange, options:modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
+	static $_provideDocumentRangeFormattingEdits = OneWorkerAttr(JSONMode, JSONMode.prototype._provideDocumentRangeFormattingEdits);
+	public _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.IFormattingOptions):WinJS.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));
 	}
 }

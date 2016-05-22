@@ -749,7 +749,7 @@ suite('Colorizing - HTML', () => {
 
 	test('matchBracket', () => {
 
-		function toString(brackets:[EditorCommon.IEditorRange, EditorCommon.IEditorRange]): [string,string] {
+		function toString(brackets:[Range, Range]): [string,string] {
 			if (!brackets) {
 				return null;
 			}
@@ -757,7 +757,7 @@ suite('Colorizing - HTML', () => {
 			return [brackets[0].toString(), brackets[1].toString()];
 		}
 
-		function assertBracket(lines:string[], lineNumber:number, column:number, expected:[EditorCommon.IEditorRange, EditorCommon.IEditorRange]): void {
+		function assertBracket(lines:string[], lineNumber:number, column:number, expected:[Range, Range]): void {
 			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), false, _mode);
 			// force tokenization
 			model.getLineContext(model.getLineCount());

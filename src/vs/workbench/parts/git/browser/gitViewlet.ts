@@ -69,7 +69,7 @@ export class GitViewlet
 			this.toDispose.push(v);
 		});
 
-		this.toUnbind.push(this.gitService.addBulkListener(() => this.onGitServiceChanges()));
+		this.toUnbind.push(this.gitService.addBulkListener2(() => this.onGitServiceChanges()));
 	}
 
 	// GitView.IController

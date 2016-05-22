@@ -12,6 +12,7 @@ import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
 import {Position as EditorPosition} from 'vs/editor/common/core/position';
+import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {TestThreadService} from './testThreadService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -25,15 +26,16 @@ import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {DocumentSymbolProviderRegistry, DocumentHighlightKind} from 'vs/editor/common/modes';
 import {getCodeLensData} from 'vs/editor/contrib/codelens/common/codelens';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
-import {provideHover} from 'vs/editor/contrib/hover/common/hover';
+import {getHover} from 'vs/editor/contrib/hover/common/hover';
 import {getOccurrencesAtPosition} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
-import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
+import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
 import {getNavigateToItems} from 'vs/workbench/parts/search/common/search';
 import {rename} from 'vs/editor/contrib/rename/common/rename';
 import {provideSignatureHelp} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
-import {formatDocument, formatRange, formatAfterKeystroke} from 'vs/editor/contrib/format/common/format';
+import {getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits} from 'vs/editor/contrib/format/common/format';
+import {asWinJsPromise} from 'vs/base/common/async';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = new EditorModel(
@@ -69,7 +71,7 @@ suite('ExtHostLanguageFeatures', function() {
 			isDirty: false,
 			versionId: model.getVersionId(),
 			modeId: model.getModeId(),
-			url: model.getAssociatedResource(),
+			url: model.uri,
 			value: {
 				EOL: model.getEOL(),
 				lines: model.getValue().split(model.getEOL()),
@@ -200,7 +202,9 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let data = value[0];
 
-				return data.support.resolveCodeLensSymbol(model.getAssociatedResource(), data.symbol).then(symbol => {
+				return asWinJsPromise((token) => {
+					return data.support.resolveCodeLens(model, data.symbol, token);
+				}).then(symbol => {
 					assert.equal(symbol.command.id, 'id');
 					assert.equal(symbol.command.title, 'Title');
 				});
@@ -222,7 +226,9 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 
 				let data = value[0];
-				return data.support.resolveCodeLensSymbol(model.getAssociatedResource(), data.symbol).then(symbol => {
+				return asWinJsPromise((token) => {
+					return data.support.resolveCodeLens(model, data.symbol, token);
+				}).then(symbol => {
 
 					assert.equal(symbol.command.id, 'missing');
 					assert.equal(symbol.command.title, '<<MISSING COMMAND>>');
@@ -237,7 +243,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				return [new types.Location(model.getAssociatedResource(), new types.Range(1, 2, 3, 4))];
+				return [new types.Location(model.uri, new types.Range(1, 2, 3, 4))];
 			}
 		}));
 
@@ -247,7 +253,7 @@ suite('ExtHostLanguageFeatures', function() {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
-				assert.equal(entry.uri.toString(), model.getAssociatedResource().toString());
+				assert.equal(entry.uri.toString(), model.uri.toString());
 			});
 		});
 	});
@@ -256,12 +262,12 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				return [new types.Location(model.getAssociatedResource(), new types.Range(1, 1, 1, 1))];
+				return [new types.Location(model.uri, new types.Range(1, 1, 1, 1))];
 			}
 		}));
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				return new types.Location(model.getAssociatedResource(), new types.Range(1, 1, 1, 1));
+				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
 			}
 		}));
 
@@ -308,7 +314,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 		disposables.push(extHost.registerDefinitionProvider(defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(): any {
-				return new types.Location(model.getAssociatedResource(), new types.Range(1, 1, 1, 1));
+				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
 			}
 		}));
 
@@ -331,7 +337,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			provideHover(model, new EditorPosition(1, 1)).then(value => {
+			getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -350,7 +356,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			provideHover(model, new EditorPosition(1, 1)).then(value => {
+			getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -374,7 +380,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return provideHover(model, new EditorPosition(1, 1)).then(value => {
+			return getHover(model, new EditorPosition(1, 1)).then(value => {
 				assert.equal(value.length, 2);
 				let [first, second] = value;
 				assert.equal(first.htmlContent[0].markdown, 'registered second');
@@ -399,7 +405,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		return threadService.sync().then(() => {
 
-			provideHover(model, new EditorPosition(1, 1)).then(value => {
+			getHover(model, new EditorPosition(1, 1)).then(value => {
 
 				assert.equal(value.length, 1);
 			});
@@ -529,7 +535,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
-				return [new types.Location(model.getAssociatedResource(), new types.Position(0, 0))];
+				return [new types.Location(model.uri, new types.Position(0, 0))];
 			}
 		}));
 
@@ -540,7 +546,7 @@ suite('ExtHostLanguageFeatures', function() {
 
 				let [item] = value;
 				assert.deepEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
-				assert.equal(item.uri.toString(), model.getAssociatedResource().toString());
+				assert.equal(item.uri.toString(), model.uri.toString());
 			});
 
 		});
@@ -555,7 +561,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 		disposables.push(extHost.registerReferenceProvider(defaultSelector, <vscode.ReferenceProvider>{
 			provideReferences(): any {
-				return [new types.Location(model.getAssociatedResource(), new types.Range(0, 0, 0, 0))];
+				return [new types.Location(model.uri, new types.Range(0, 0, 0, 0))];
 			}
 		}));
 
@@ -582,7 +588,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return getQuickFixes(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 2);
 
 				let [first, second] = value;
@@ -608,7 +614,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return getQuickFixes(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -669,7 +675,7 @@ suite('ExtHostLanguageFeatures', function() {
 		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				let edit = new types.WorkspaceEdit();
-				edit.replace(model.getAssociatedResource(), new types.Range(0, 0, 0, 0), 'testing');
+				edit.replace(model.uri, new types.Range(0, 0, 0, 0), 'testing');
 				return edit;
 			}
 		}));
@@ -687,8 +693,8 @@ suite('ExtHostLanguageFeatures', function() {
 		disposables.push(extHost.registerRenameProvider('*', <vscode.RenameProvider>{
 			provideRenameEdits(): any {
 				let edit = new types.WorkspaceEdit();
-				edit.replace(model.getAssociatedResource(), new types.Range(0, 0, 0, 0), 'testing');
-				edit.replace(model.getAssociatedResource(), new types.Range(1, 0, 1, 0), 'testing');
+				edit.replace(model.uri, new types.Range(0, 0, 0, 0), 'testing');
+				edit.replace(model.uri, new types.Range(1, 0, 1, 0), 'testing');
 				return edit;
 			}
 		}));
@@ -851,7 +857,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return formatDocument(model, { insertSpaces: true, tabSize: 4 }).then(value => {
+			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'testing');
@@ -868,7 +874,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return formatDocument(model, { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error();}, err => {  });
+			return getDocumentFormattingEdits(model, { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error();}, err => {  });
 		});
 	});
 
@@ -880,7 +886,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(value => {
+			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'testing');
@@ -901,7 +907,7 @@ suite('ExtHostLanguageFeatures', function() {
 			}
 		}));
 		return threadService.sync().then(() => {
-			return formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(value => {
+			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 				assert.equal(first.text, 'range');
@@ -917,7 +923,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}));
 
 		return threadService.sync().then(() => {
-			return formatRange(model, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error(); }, err => { });
+			return getDocumentRangeFormattingEdits(model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }).then(_ => { throw new Error(); }, err => { });
 		});
 	});
 
@@ -930,7 +936,7 @@ suite('ExtHostLanguageFeatures', function() {
 		}, [';']));
 
 		return threadService.sync().then(() => {
-			return formatAfterKeystroke(model, { lineNumber: 1, column: 1 }, ';', { insertSpaces: true, tabSize: 2 }).then(value => {
+			return getOnTypeFormattingEdits(model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }).then(value => {
 				assert.equal(value.length, 1);
 				let [first] = value;
 

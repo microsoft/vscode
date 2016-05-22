@@ -8,6 +8,7 @@ import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class Adapter {
 
@@ -22,7 +23,7 @@ export class Adapter {
 	public enableBreakpointsFor: { languageIds: string[] };
 	public aiKey: string;
 
-	constructor(rawAdapter: debug.IRawAdapter, systemVariables: SystemVariables, extensionFolderPath: string) {
+	constructor(rawAdapter: debug.IRawAdapter, systemVariables: SystemVariables, public extensionDescription: IExtensionDescription) {
 		if (rawAdapter.windows) {
 			rawAdapter.win = rawAdapter.windows;
 		}
@@ -56,11 +57,11 @@ export class Adapter {
 
 		if (this.program) {
 			this.program = systemVariables ? systemVariables.resolve(this.program) : this.program;
-			this.program = paths.join(extensionFolderPath, this.program);
+			this.program = paths.join(extensionDescription.extensionFolderPath, this.program);
 		}
 		if (this.runtime && this.runtime.indexOf('./') === 0) {
 			this.runtime = systemVariables ? systemVariables.resolve(this.runtime) : this.runtime;
-			this.runtime = paths.join(extensionFolderPath, this.runtime);
+			this.runtime = paths.join(extensionDescription.extensionFolderPath, this.runtime);
 		}
 
 		this.type = rawAdapter.type;

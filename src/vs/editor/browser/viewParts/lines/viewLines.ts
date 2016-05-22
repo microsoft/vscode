@@ -436,7 +436,7 @@ export class ViewLines extends ViewLayer {
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport:editorCommon.Viewport, range: editorCommon.IEditorRange, verticalType: editorCommon.VerticalRevealType): number {
+	private _computeScrollTopToRevealRange(viewport:editorCommon.Viewport, range: Range, verticalType: editorCommon.VerticalRevealType): number {
 		var viewportStartY = viewport.top,
 			viewportHeight = viewport.height,
 			viewportEndY = viewportStartY + viewportHeight,
@@ -469,7 +469,7 @@ export class ViewLines extends ViewLayer {
 		return newScrollTop;
 	}
 
-	private _computeScrollLeftToRevealRange(range: editorCommon.IEditorRange): { scrollLeft: number; maxHorizontalOffset: number; } {
+	private _computeScrollLeftToRevealRange(range: Range): { scrollLeft: number; maxHorizontalOffset: number; } {
 
 		var maxHorizontalOffset = 0;
 

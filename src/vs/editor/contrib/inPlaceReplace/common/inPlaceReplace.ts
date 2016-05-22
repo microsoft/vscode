@@ -51,7 +51,7 @@ class InPlaceReplace extends EditorAction {
 		var selection = this.editor.getSelection(),
 			model = this.editor.getModel(),
 			support = model.getMode().inplaceReplaceSupport,
-			modelURI = model.getAssociatedResource();
+			modelURI = model.uri;
 
 		if(selection.startLineNumber !== selection.endLineNumber) {
 			// Can't accept multiline selection

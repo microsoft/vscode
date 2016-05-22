@@ -343,7 +343,7 @@ export class CSSWorker {
 
 			return nodes.map((occurrence) => {
 				return {
-					uri: model.getAssociatedResource(),
+					uri: model.uri,
 					range: this._range(occurrence.node, model)
 				};
 			});
@@ -434,7 +434,7 @@ export class CSSWorker {
 		}
 	}
 
-	public getQuickFixes(resource: URI, range: editorCommon.IRange): winjs.TPromise<modes.IQuickFix[]> {
+	public provideCodeActions(resource: URI, range: editorCommon.IRange): winjs.TPromise<modes.IQuickFix[]> {
 
 		return this.languageService.join().then(() => {
 			const result: modes.IQuickFix[] = [];

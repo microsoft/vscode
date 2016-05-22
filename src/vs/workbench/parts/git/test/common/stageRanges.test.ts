@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
 import { Model } from 'vs/editor/common/model/model';
 import { NullMode } from 'vs/editor/common/modes/nullMode';
-import { IChange, IEditorSelection, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
+import { IChange } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 
 function changesEqual(actual: IChange[], expected: IChange[]) {
@@ -37,7 +37,7 @@ suite('Git - Stage ranges', () => {
 	var mode = new NullMode();
 
 	test('Get selected changes test - no change selected (selection before changes)', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(1, 1, 1, 1));
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 3, 1, 1));
@@ -46,7 +46,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - no change selected (selection after changes)', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(5, 3, 7, 8));
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 3, 1, 1));
@@ -55,7 +55,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - one change fully selected', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(5, 3, 7, 8));
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 3, 1, 1), createChange(5, 7, 2, 6));
@@ -66,7 +66,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - one change fully selected(deletion)', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(5, 3, 7, 8));
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 3, 1, 1), createChange(5, 0, 5, 6));
@@ -77,7 +77,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - one change (insertion) partially selected', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(5, 3, 6, 1));
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 3, 1, 0), createChange(5, 7, 2, 0));
@@ -88,7 +88,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - multiple changes selected with one selection', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(2, 7, 7, 1));
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 3, 1, 1), createChange(5, 7, 2, 6));
@@ -98,7 +98,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - one change partially seleceted with multiple selections', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(2, 2, 5, 5),  Selection.createSelection(7, 2, 9, 1));
 		var changes: IChange[] = [];
 		changes.push(createChange(1, 15, 1, 10), createChange(120, 127, 122, 126));
@@ -109,7 +109,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - one change partially seleceted with overlapping selections', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(2, 2, 5, 5),  Selection.createSelection(5, 2, 9, 1));
 		var changes: IChange[] = [];
 		changes.push(createChange(1, 15, 1, 10), createChange(120, 127, 122, 126));
@@ -120,7 +120,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - multiple changes partially selected with multiple selections', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(3, 1, 9, 5),  Selection.createSelection(115, 2, 129, 1));
 		var changes: IChange[] = [];
 		changes.push(createChange(1, 15, 1, 10), createChange(116, 135, 122, 126));
@@ -131,7 +131,7 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Get selected changes test - multiple changes selected with multiple selections. Multiple changes not selected', () => {
-		var selections: IEditorSelection[] = [];
+		var selections: Selection[] = [];
 		selections.push(Selection.createSelection(33, 11, 79, 15),  Selection.createSelection(155, 21, 189, 11));
 		var changes: IChange[] = [];
 		changes.push(createChange(1, 45, 1, 0), createChange(80, 89, 72, 79), createChange(154, 190, 152, 186), createChange(216, 235, 222, 226));

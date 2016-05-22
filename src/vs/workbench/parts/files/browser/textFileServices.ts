@@ -7,7 +7,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
@@ -20,6 +19,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -30,7 +30,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	public serviceId = ITextFileService;
 
-	private listenerToUnbind: ListenerUnbind[];
+	private listenerToUnbind: IDisposable[];
 	private _workingFilesModel: WorkingFilesModel;
 
 	private _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration>;
@@ -74,11 +74,11 @@ export abstract class TextFileService implements ITextFileService {
 	protected registerListeners(): void {
 
 		// Configuration changes
-		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)).dispose);
+		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Editor focus change
 		window.addEventListener('blur', () => this.onEditorFocusChange(), true);
-		this.listenerToUnbind.push(this.eventService.addListener(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorFocusChange()));
+		this.listenerToUnbind.push(this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorFocusChange()));
 	}
 
 	private onEditorFocusChange(): void {
@@ -250,9 +250,7 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public dispose(): void {
-		while (this.listenerToUnbind.length) {
-			this.listenerToUnbind.pop()();
-		}
+		this.listenerToUnbind = dispose(this.listenerToUnbind);
 
 		this.workingFilesModel.dispose();
 

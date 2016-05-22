@@ -16,23 +16,13 @@ export interface IEventService {
 	/**
 	 * Allows to add a listener to the platform event bus for all emitters that are known to the platform.
 	 */
-	addListener(eventType: string, listener: (event: any) => void): () => void;
-
-	/**
-	 * Allows to add a listener to the platform event bus for all emitters that are known to the platform.
-	 */
 	addListener2(eventType: string, listener: (event: any) => void): IDisposable;
-
-	/**
-	 * Allows to add a listener to an emitter on the platform event bus with the given type identifier.
-	 */
-	addEmitterTypeListener(eventType: string, emitterType: string, listener: (event: any) => void): () => void;
 
 	/**
 	 * Allows to add an event emitter to the platform bus such as Events from the emitter
 	 * can be received from all listeners on the bus.
 	 */
-	addEmitter(eventEmitter: IEventEmitter, emitterType?: string): () => void;
+	addEmitter2(eventEmitter: IEventEmitter, emitterType?: string): IDisposable;
 
 	/**
 	 * Emits an event of the given type into the platform event bus.

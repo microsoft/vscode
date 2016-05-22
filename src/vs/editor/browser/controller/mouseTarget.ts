@@ -6,7 +6,7 @@
 
 import {Position} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
-import {EditorLayoutInfo, IEditorPosition, IEditorRange, IPosition, MouseTargetType} from 'vs/editor/common/editorCommon';
+import {EditorLayoutInfo, IPosition, MouseTargetType} from 'vs/editor/common/editorCommon';
 import {ClassNames, IMouseTarget, IViewZoneData} from 'vs/editor/browser/editorBrowser';
 import {IDomNodePosition} from 'vs/base/browser/dom';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
@@ -28,11 +28,11 @@ class MouseTarget implements IMouseTarget {
 	public element: Element;
 	public type: MouseTargetType;
 	public mouseColumn: number;
-	public position: IEditorPosition;
-	public range: IEditorRange;
+	public position: Position;
+	public range: EditorRange;
 	public detail: any;
 
-	constructor(element: Element, type: MouseTargetType, mouseColumn:number = 0, position:IEditorPosition = null, range: IEditorRange = null, detail: any = null) {
+	constructor(element: Element, type: MouseTargetType, mouseColumn:number = 0, position:Position = null, range: EditorRange = null, detail: any = null) {
 		this.element = element;
 		this.type = type;
 		this.mouseColumn = mouseColumn;
@@ -541,9 +541,9 @@ export class MouseTargetFactory {
 		if (viewZoneWhitespace) {
 			var viewZoneMiddle = viewZoneWhitespace.verticalOffset + viewZoneWhitespace.height / 2,
 				lineCount = this._context.model.getLineCount(),
-				positionBefore: IEditorPosition = null,
-				position: IEditorPosition,
-				positionAfter: IEditorPosition = null;
+				positionBefore: Position = null,
+				position: Position,
+				positionAfter: Position = null;
 
 			if (viewZoneWhitespace.afterLineNumber !== lineCount) {
 				// There are more lines after this view zone
@@ -575,7 +575,7 @@ export class MouseTargetFactory {
 		return null;
 	}
 
-	private _getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: IEditorRange; isAfterLines: boolean; } {
+	private _getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: EditorRange; isAfterLines: boolean; } {
 		if (this._viewHelper.isAfterLines(mouseVerticalOffset)) {
 			// Below the last line
 			var lineNumber = this._context.model.getLineCount();

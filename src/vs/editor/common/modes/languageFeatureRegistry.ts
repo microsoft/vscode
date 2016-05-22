@@ -125,7 +125,7 @@ export default class LanguageFeatureRegistry<T> {
 	private _updateScores(model: IReadOnlyModel): boolean {
 
 		let candidate = {
-			uri: model.getAssociatedResource().toString(),
+			uri: model.uri.toString(),
 			language: model.getModeId()
 		};
 
@@ -140,7 +140,7 @@ export default class LanguageFeatureRegistry<T> {
 		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
-			entry._score = score(entry.selector, model.getAssociatedResource(), model.getModeId());
+			entry._score = score(entry.selector, model.uri, model.getModeId());
 		}
 
 		// needs sorting
