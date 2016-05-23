@@ -1001,13 +1001,11 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private doRecreateEditorTitleArea(): void {
-		const titleAreaState: ITitleAreaState[] = this.getVisibleEditors().map((e, index) => {
-			const group = this.stacks.groupAt(index);
-
+		const titleAreaState: ITitleAreaState[] = this.stacks.groups.map((group, index) => {
 			return {
-				position: e.position,
-				preview: group && group.previewEditor,
-				editorCount: group ? group.count : 0
+				position: this.stacks.positionOfGroup(group),
+				preview: group.previewEditor,
+				editorCount: group.count
 			};
 		});
 
