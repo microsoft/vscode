@@ -396,7 +396,7 @@ export class QuickOpenAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context: any): TPromise<any> {
+	public run(context?: any): TPromise<any> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
