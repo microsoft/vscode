@@ -751,6 +751,40 @@
 					</array>
 				</dict>
 				<dict>
+					<key>begin</key>
+					<string>(var)\s*(\()</string>
+					<key>beginCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>support.function.misc.css</string>
+						</dict>
+						<key>2</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.section.function.css</string>
+						</dict>
+					</dict>
+					<key>end</key>
+					<string>(\))</string>
+					<key>endCaptures</key>
+					<dict>
+						<key>1</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.section.function.css</string>
+						</dict>
+					</dict>
+					<key>patterns</key>
+					<array>
+						<dict>
+							<key>include</key>
+							<string>#variable-name</string>
+						</dict>
+					</array>
+				</dict>
+				<dict>
 					<key>match</key>
 					<string>\!\s*important</string>
 					<key>name</key>
@@ -797,6 +831,10 @@
 					<string>meta.property-name.css</string>
 					<key>patterns</key>
 					<array>
+						<dict>
+							<key>include</key>
+							<string>#variable-name</string>
+						</dict>
 						<dict>
 							<key>match</key>
 							<string>(-(webkit|moz|o|ms|khtml)-)?(zoom|z-index|y|x|writing-mode|wrap|wrap-through|wrap-inside|wrap-flow|wrap-before|wrap-after|word-wrap|word-spacing|word-break|word|will-change|width|widows|white-space-collapse|white-space|white|weight|volume|voice-volume|voice-stress|voice-rate|voice-pitch-range|voice-pitch|voice-family|voice-duration|voice-balance|voice|visibility|vertical-align|vector-effect|variant|user-zoom|user-select|up|unicode-(bidi|range)|trim|translate|transition-timing-function|transition-property|transition-duration|transition-delay|transition|transform-style|transform-origin|transform-box|transform|touch-action|top-width|top-style|top-right-radius|top-left-radius|top-color|top|timing-function|text-wrap|text-underline-position|text-transform|text-spacing|text-space-trim|text-space-collapse|text-size-adjust|text-shadow|text-replace|text-rendering|text-overflow|text-outline|text-orientation|text-justify|text-indent|text-height|text-emphasis-style|text-emphasis-skip|text-emphasis-position|text-emphasis-color|text-emphasis|text-decoration-style|text-decoration-stroke|text-decoration-skip|text-decoration-line|text-decoration-fill|text-decoration-color|text-decoration|text-combine-upright|text-anchor|text-align-last|text-align-all|text-align|text|target-position|target-new|target-name|target|table-layout|tab-size|system|symbols|suffix|style-type|style-position|style-image|style|stroke-width|stroke-opacity|stroke-miterlimit|stroke-linejoin|stroke-linecap|stroke-dashoffset|stroke-dasharray|stroke|string-set|stretch|stress|stop-opacity|stop-color|stacking-strategy|stacking-shift|stacking-ruby|stacking|src|speed|speech-rate|speech|speak-punctuation|speak-numeral|speak-header|speak-as|speak|span|spacing|space-collapse|space|solid-opacity|solid-color|sizing|size-adjust|size|shape-rendering|shape-padding|shape-outside|shape-margin|shape-inside|shape-image-threshold|shadow|scroll-snap-type|scroll-snap-points-y|scroll-snap-points-x|scroll-snap-destination|scroll-snap-coordinate|scroll-behavior|scale|ry|rx|respond-to|rule-width|rule-style|rule-color|rule|ruby-span|ruby-position|ruby-overhang|ruby-merge|ruby-align|ruby|rows|rotation-point|rotation|rotate|role|right-width|right-style|right-color|right|richness|rest-before|rest-after|rest|resource|resolution|resize|reset|replace|repeat|rendering-intent|region-fragment|rate|range|radius|r|quotes|punctuation-trim|punctuation|property|profile|presentation-level|presentation|prefix|position|pointer-events|point|play-state|play-during|play-count|pitch-range|pitch|phonemes|perspective-origin|perspective|pause-before|pause-after|pause|page-policy|page-break-inside|page-break-before|page-break-after|page|padding-top|padding-right|padding-left|padding-inline-start|padding-inline-end|padding-bottom|padding-block-start|padding-block-end|padding|pad|pack|overhang|overflow-y|overflow-x|overflow-wrap|overflow-style|overflow-inline|overflow-block|overflow|outline-width|outline-style|outline-offset|outline-color|outline|orphans|origin|orientation|orient|ordinal-group|order|opacity|offset-start|offset-inline-start|offset-inline-end|offset-end|offset-block-start|offset-block-end|offset-before|offset-after|offset|object-position|object-fit|numeral|new|negative|nav-up|nav-right|nav-left|nav-index|nav-down|nav|name|move-to|motion-rotation|motion-path|motion-offset|motion|model|mix-blend-mode|min-zoom|min-width|min-inline-size|min-height|min-block-size|min|max-zoom|max-width|max-lines|max-inline-size|max-height|max-block-size|max|mask-type|mask-size|mask-repeat|mask-position|mask-origin|mask-mode|mask-image|mask-composite|mask-clip|mask-border-width|mask-border-source|mask-border-slice|mask-border-repeat|mask-border-outset|mask-border-mode|mask-border|mask|marquee-style|marquee-speed|marquee-play-count|marquee-loop|marquee-direction|marquee|marks|marker-start|marker-side|marker-mid|marker-end|marker|margin-top|margin-right|margin-left|margin-inline-start|margin-inline-end|margin-bottom|margin-block-start|margin-block-end|margin|list-style-type|list-style-position|list-style-image|list-style|list|lines|line-stacking-strategy|line-stacking-shift|line-stacking-ruby|line-stacking|line-snap|line-height|line-grid|line-break|line|lighting-color|level|letter-spacing|length|left-width|left-style|left-color|left|label|kerning|justify-self|justify-items|justify-content|justify|iteration-count|isolation|inline-size|inline-box-align|initial-value|initial-size|initial-letter-wrap|initial-letter-align|initial-letter|initial-before-align|initial-before-adjust|initial-after-align|initial-after-adjust|index|indent|increment|image-rendering|image-resolution|image-orientation|image|icon|hyphens|hyphenate-limit-zone|hyphenate-limit-lines|hyphenate-limit-last|hyphenate-limit-chars|hyphenate-character|hyphenate|height|header|hanging-punctuation|grid-template-rows|grid-template-columns|grid-template-areas|grid-template|grid-row-start|grid-row-gap|grid-row-end|grid-row|grid-rows|grid-gap|grid-column-start|grid-column-gap|grid-column-end|grid-column|grid-columns|grid-auto-rows|grid-auto-flow|grid-auto-columns|grid-area|grid|glyph-orientation-vertical|glyph-orientation-horizontal|gap|font-weight|font-variant-position|font-variant-numeric|font-variant-ligatures|font-variant-east-asian|font-variant-caps|font-variant-alternates|font-variant|font-synthesis|font-style|font-stretch|font-size-adjust|font-size|font-language-override|font-kerning|font-feature-settings|font-family|font|flow-into|flow-from|flow|flood-opacity|flood-color|float-offset|float|flex-wrap|flex-shrink|flex-grow|flex-group|flex-flow|flex-direction|flex-basis|flex|fit-position|fit|filter|fill-rule|fill-opacity|fill|family|fallback|enable-background|empty-cells|emphasis|elevation|duration|drop-initial-value|drop-initial-size|drop-initial-before-align|drop-initial-before-adjust|drop-initial-after-align|drop-initial-after-adjust|drop|down|dominant-baseline|display-role|display-model|display|direction|delay|decoration-break|decoration|cy|cx|cursor|cue-before|cue-after|cue|crop|counter-set|counter-reset|counter-increment|counter|count|corner-shape|corners|continue|content|contain|columns|column-width|column-span|column-rule-width|column-rule-style|column-rule-color|column-rule|column-gap|column-fill|column-count|column-break-before|column-break-after|column|color-rendering|color-profile|color-interpolation-filters|color-interpolation|color-adjust|color|collapse|clip-rule|clip-path|clip|clear|character|caret-shape|caret-color|caret|caption-side|buffered-rendering|break-inside|break-before|break-after|break|box-suppress|box-snap|box-sizing|box-shadow|box-pack|box-orient|box-ordinal-group|box-lines|box-flex-group|box-flex|box-direction|box-decoration-break|box-align|box|bottom-width|bottom-style|bottom-right-radius|bottom-left-radius|bottom-color|bottom|border-width|border-top-width|border-top-style|border-top-right-radius|border-top-left-radius|border-top-color|border-top|border-style|border-spacing|border-right-width|border-right-style|border-right-color|border-right|border-radius|border-limit|border-length|border-left-width|border-left-style|border-left-color|border-left|border-inline-start-width|border-inline-start-style|border-inline-start-color|border-inline-start|border-inline-end-width|border-inline-end-style|border-inline-end-color|border-inline-end|border-image-width|border-image-transform|border-image-source|border-image-slice|border-image-repeat|border-image-outset|border-image|border-color|border-collapse|border-clip-top|border-clip-right|border-clip-left|border-clip-bottom|border-clip|border-bottom-width|border-bottom-style|border-bottom-right-radius|border-bottom-left-radius|border-bottom-color|border-bottom|border-block-start-width|border-block-start-style|border-block-start-color|border-block-start|border-block-end-width|border-block-end-style|border-block-end-color|border-block-end|border|bookmark-target|bookmark-level|bookmark-label|bookmark|block-size|binding|bidi|before|baseline-shift|baseline|balance|background-size|background-repeat|background-position-y|background-position-x|background-position-inline|background-position-block|background-position|background-origin|background-image|background-color|background-clip|background-blend-mode|background-attachment|background|backface-visibility|backdrop-filter|azimuth|attachment|appearance|animation-timing-function|animation-play-state|animation-name|animation-iteration-count|animation-fill-mode|animation-duration|animation-direction|animation-delay|animation|alt|all|alignment-baseline|alignment-adjust|alignment|align-last|align-self|align-items|align-content|align|after|adjust|additive-symbols)</string>
@@ -1128,6 +1166,13 @@
 					<string>constant.character.escape.css</string>
 				</dict>
 			</array>
+		</dict>
+		<key>variable-name</key>
+		<dict>
+			<key>match</key>
+			<string>\-\-[^:\),]+</string>
+			<key>name</key>
+			<string>support.type.property-name.variable.css</string>
 		</dict>
 	</dict>
 	<key>scopeName</key>

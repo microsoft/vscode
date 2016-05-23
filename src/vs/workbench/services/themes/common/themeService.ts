@@ -23,5 +23,4 @@ export interface IThemeData {
 	label: string;
 	description?: string;
 	path: string;
-	styleSheetContent?: string;
 }

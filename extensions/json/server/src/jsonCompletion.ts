@@ -438,10 +438,10 @@ export class JSONCompletion {
 			type = array.length > 0 ? array[0] : null;
 		}
 		if (!type) {
-			return CompletionItemKind.Text;
+			return CompletionItemKind.Value;
 		}
 		switch (type) {
-			case 'string': return CompletionItemKind.Text;
+			case 'string': return CompletionItemKind.Value;
 			case 'object': return CompletionItemKind.Module;
 			case 'property': return CompletionItemKind.Property;
 			default: return CompletionItemKind.Value;

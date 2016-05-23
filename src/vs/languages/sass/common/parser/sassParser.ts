@@ -175,7 +175,7 @@ export class SassParser extends cssParser.Parser {
 		}
 		return this._parseVariableDeclaration() // variable declaration
 			|| this._tryParseRuleset(true) // nested ruleset
-			|| this._parseDeclaration(); // try declaration as last so in the error case, the ast will contain a declaration
+			|| super._parseRuleSetDeclaration(); // try css ruleset declaration as last so in the error case, the ast will contain a declaration
 	}
 
 	public _parseDeclaration(resyncStopTokens?:scanner.TokenType[]): nodes.Declaration {
