@@ -27,6 +27,17 @@ export interface Edit {
 	content: string;
 }
 
+export function applyEdit(text: string, edit: Edit) : string {
+	return text.substring(0, edit.offset) + edit.content + text.substring(edit.offset + edit.length);
+}
+
+export function applyEdits(text: string, edits: Edit[]) : string {
+	for (let i = edits.length - 1; i >= 0; i--) {
+		text = applyEdit(text, edits[i]);
+	}
+	return text;
+}
+
 export function format(documentText: string, range: { offset: number, length: number}, options: FormattingOptions): Edit[] {
 	let initialIndentLevel: number;
 	let value: string;
