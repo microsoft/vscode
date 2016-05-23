@@ -4,43 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ParseError, parseTree, Segment, findNodeAtLocation } from 'vs/base/common/json';
-import { Edit, FormattingOptions, format } from 'vs/base/common/jsonFormatter';
+import { ParseError, Node, parseTree, findNodeAtLocation, JSONPath, Segment } from 'vs/base/common/json';
+import { Edit, FormattingOptions, format, applyEdit } from 'vs/base/common/jsonFormatter';
 
-export function removeProperty(text: string, segments: Segment[], formattingOptions: FormattingOptions) : Edit[] {
-	return setProperty(text, segments, void 0, formattingOptions);
+export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions) : Edit[] {
+	return setProperty(text, path, void 0, formattingOptions);
 }
 
-export function setProperty(text: string, segments: Segment[], value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number) : Edit[] {
-	let lastSegment = segments.pop();
-	if (typeof lastSegment !== 'string') {
-		throw new Error('Last segment must be a property name');
-	}
-
+export function setProperty(text: string, path: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number) : Edit[] {
 	let errors: ParseError[] = [];
-	let node = parseTree(text, errors);
-	if (segments.length > 0) {
-		node = findNodeAtLocation(node, segments);
-		if (node === void 0) {
-			throw new Error('Cannot find object');
+	let root = parseTree(text, errors);
+	let parent: Node = void 0;
+
+	let lastSegment: Segment = void 0;
+	while (path.length > 0) {
+		lastSegment = path.pop();
+		parent = findNodeAtLocation(root, path);
+		if (parent === void 0 && value !== void 0) {
+			if (typeof lastSegment === 'string') {
+				value = { [lastSegment]: value };
+			} else {
+				value = [ value ];
+			}
+		} else {
+			break;
 		}
 	}
-	if (node && node.type === 'object') {
-		let existing = findNodeAtLocation(node, [ lastSegment ]);
+
+	if (!parent) {
+		// empty document
+		if (value === void 0) { // delete
+			throw new Error('Can not delete in empty document');
+		}
+		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : text.length, content: JSON.stringify(value) }, formattingOptions);
+	} else if (parent.type === 'object' && typeof lastSegment === 'string') {
+		let existing = findNodeAtLocation(parent, [ lastSegment ]);
 		if (existing !== void 0) {
 			if (value === void 0) { // delete
-				let propertyIndex = node.children.indexOf(existing.parent);
+				let propertyIndex = parent.children.indexOf(existing.parent);
 				let removeBegin : number;
 				let removeEnd = existing.parent.offset + existing.parent.length;
 				if (propertyIndex > 0) {
 					// remove the comma of the previous node
-					let previous = node.children[propertyIndex - 1];
+					let previous = parent.children[propertyIndex - 1];
 					removeBegin = previous.offset + previous.length;
 				} else {
-					removeBegin = node.offset + 1;
-					if (node.children.length > 1) {
+					removeBegin = parent.offset + 1;
+					if (parent.children.length > 1) {
 						// remove the comma of the next node
-						let next = node.children[1];
+						let next = parent.children[1];
 						removeEnd = next.offset;
 					}
 				}
@@ -54,26 +66,28 @@ export function setProperty(text: string, segments: Segment[], value: any, forma
 				throw new Error(`Property ${lastSegment} does not exist.`);
 			}
 			let newProperty = `${JSON.stringify(lastSegment)}: ${JSON.stringify(value)}`;
-			let index = getInsertionIndex ? getInsertionIndex(node.children.map(p => p.children[0].value)) : node.children.length;
+			let index = getInsertionIndex ? getInsertionIndex(parent.children.map(p => p.children[0].value)) : parent.children.length;
 			let edit: Edit;
 			if (index > 0) {
-				let previous = node.children[index - 1];
+				let previous = parent.children[index - 1];
 				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty};
-			} else if (node.children.length === 0) {
-				edit = { offset: node.offset + 1, length: 0, content: newProperty};
+			} else if (parent.children.length === 0) {
+				edit = { offset: parent.offset + 1, length: 0, content: newProperty};
 			} else {
-				edit = { offset: node.offset + 1, length: 0, content: newProperty + ','};
+				edit = { offset: parent.offset + 1, length: 0, content: newProperty + ','};
 			}
 			return withFormatting(text, edit, formattingOptions);
 		}
+	} else if (parent.type === 'array' && typeof lastSegment === 'number') {
+		throw new Error('Array modification not supported yet');
 	} else {
-		throw new Error('Path does not reference an object');
+		throw new Error(`Can not add ${typeof lastSegment !== 'number' ? 'index' : 'property' } to parent of type ${parent.type}`);
 	}
 }
 
 function withFormatting(text:string, edit: Edit, formattingOptions: FormattingOptions) : Edit[] {
 	// apply the edit
-	let newText = text.substring(0, edit.offset) + edit.content + text.substring(edit.offset + edit.length);
+	let newText = applyEdit(text, edit);
 
 	// format the new text
 	let begin = edit.offset;
@@ -83,7 +97,7 @@ function withFormatting(text:string, edit: Edit, formattingOptions: FormattingOp
 	// apply the formatting edits and track the begin and end offsets of the changes
 	for (let i = edits.length - 1; i >= 0; i--) {
 		let edit = edits[i];
-		newText = newText.substring(0, edit.offset) + edit.content + newText.substring(edit.offset + edit.length);
+		newText = applyEdit(newText, edit);
 		begin = Math.min(begin, edit.offset);
 		end = Math.max(end, edit.offset + edit.length);
 		end += edit.content.length - edit.length;
