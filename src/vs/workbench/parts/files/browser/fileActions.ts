@@ -1560,32 +1560,31 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		return this.textFileService.saveAll(this.getSaveAllArguments(context)).then(results => {
 
 			// Reopen saved untitled editors
-			const editorsToOpen: { input: IResourceInput, position: Position }[] = [];
+			const untitledToReopen: { input: IResourceInput, position: Position }[] = [];
 
 			results.results.forEach(result => {
-				if (!result.success) {
+				if (!result.success || result.source.scheme !== 'untitled') {
 					return;
 				}
 
-				const sourceResource = result.source.toString();
-
-				let mimeOfSource: string;
-				let selectedMime = mapUntitledToProperties[sourceResource] && mapUntitledToProperties[sourceResource].mime;
-				if (!isUnspecific(selectedMime)) {
-					mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
+				const untitledProps = mapUntitledToProperties[result.source.toString()];
+				if (!untitledProps) {
+					return;
 				}
 
-				let encodingOfSource: string = mapUntitledToProperties[sourceResource] && mapUntitledToProperties[sourceResource].encoding;
+				let mimeOfSource: string;
+				if (!isUnspecific(untitledProps.mime)) {
+					mimeOfSource = [untitledProps.mime, MIME_TEXT].join(', ');
+				}
 
-				let indexInGroups = mapUntitledToProperties[sourceResource].indexInGroups;
-
-				indexInGroups.forEach((indexInGroup, index) => {
+				// For each position where the untitled file was opened
+				untitledProps.indexInGroups.forEach((indexInGroup, index) => {
 					if (indexInGroup >= 0) {
-						editorsToOpen.push({
+						untitledToReopen.push({
 							input: {
 								resource: result.target,
 								mime: mimeOfSource,
-								encoding: encodingOfSource,
+								encoding: untitledProps.encoding,
 								options: {
 									pinned: true,
 									index: indexInGroup,
@@ -1598,7 +1597,9 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 				});
 			});
 
-			return this.editorService.openEditors(editorsToOpen).then(() => true);
+			if (untitledToReopen.length) {
+				return this.editorService.openEditors(untitledToReopen).then(() => true);
+			}
 		});
 	}
 
