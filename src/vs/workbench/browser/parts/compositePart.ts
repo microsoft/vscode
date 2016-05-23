@@ -66,7 +66,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private registry: CompositeRegistry<T>,
 		private activeCompositeSettingsKey: string,
 		private nameForTelemetry: string,
-		private compositeCssClass: string,
+		private compositeCSSClass: string,
 		private actionContributionScope: string,
 		id: string
 	) {
@@ -224,7 +224,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Build Container off-DOM
 			compositeContainer = $().div({
-				'class': ['composite', this.compositeCssClass],
+				'class': ['composite', this.compositeCSSClass],
 				id: composite.getId()
 			}, (div: Builder) => {
 				createCompositePromise = composite.create(div);
