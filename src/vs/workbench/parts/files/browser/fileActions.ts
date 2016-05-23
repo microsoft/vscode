@@ -1522,7 +1522,6 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	protected abstract getSaveAllArguments(context?: any): any;
 	protected abstract includeUntitled(): boolean;
 
-
 	private registerListeners(): void {
 
 		// listen to files being changed locally
@@ -1549,7 +1548,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		// Store mimes per untitled file to restore later
 		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; } } = Object.create(null);
 		this.textFileService.getDirty()
-			.filter(r => r.scheme === 'untitled')			// All untitled resources^
+			.filter(r => r.scheme === 'untitled')			// All untitled resources
 			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
 			.filter(i => !!i)								// If possible :)
 			.forEach(i => mapUntitledToProperties[i.getResource().toString()] = { mime: i.getMime(), encoding: i.getEncoding() });
@@ -1557,39 +1556,33 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		// Save all
 		return this.textFileService.saveAll(this.getSaveAllArguments(context)).then((result) => {
 
-			// all saved - now try to reopen saved untitled ones
-			if (this.includeUntitled()) {
-				let untitledResults = result.results.filter((res) => res.source.scheme === 'untitled');
-				let reopenPromise = TPromise.as(null);
+			// Replace all untitled editors that got saved as
+			return this.editorService.replaceEditors(result.results.map(result => {
+				if (!result.success || result.source.scheme !== 'untitled') {
+					return null; // ignore failing saves or non untitled files
+				}
 
-				// Create a promise function for each editor open call to reopen
-				untitledResults.forEach((res) => {
-					if (res.success) {
-						let positions = findSaveAsPositions(this.editorService, res.source);
+				let mimeOfSource: string;
+				let selectedMime = mapUntitledToProperties[result.source.toString()] && mapUntitledToProperties[result.source.toString()].mime;
+				if (!isUnspecific(selectedMime)) {
+					mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
+				}
 
-						let mimeOfSource: string;
-						let selectedMime = mapUntitledToProperties[res.source.toString()] && mapUntitledToProperties[res.source.toString()].mime;
-						if (!isUnspecific(selectedMime)) {
-							mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
+				let encodingOfSource: string = mapUntitledToProperties[result.source.toString()] && mapUntitledToProperties[result.source.toString()].encoding;
+
+				return {
+					toReplace: { resource: result.source },
+					replaceWith: <IResourceInput>{
+						resource: result.target,
+						mime: mimeOfSource,
+						encoding: encodingOfSource,
+						options: {
+							pinned: true,
+							preserveFocus: true
 						}
-
-						let encodingOfSource: string = mapUntitledToProperties[res.source.toString()] && mapUntitledToProperties[res.source.toString()].encoding;
-
-						let targetInput = this.instantiationService.createInstance(FileEditorInput, res.target, mimeOfSource, encodingOfSource);
-						let options = EditorOptions.create({ preserveFocus: true, pinned: true });
-
-						reopenPromise = this.editorService.openEditors(positions.map(p => {
-							return {
-								position: p,
-								input: targetInput,
-								options
-							};
-						}));
 					}
-				});
-
-				return reopenPromise;
-			}
+				};
+			}).filter(o => !!o)).then(() => true);
 		});
 	}
 
@@ -1598,20 +1591,6 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 
 		super.dispose();
 	}
-}
-
-function findSaveAsPositions(editorService: IWorkbenchEditorService, outerResource: URI): Position[] {
-	let activeInput = editorService.getActiveEditorInput();
-
-	return editorService.getVisibleEditors().filter((editor) => {
-		if (outerResource.scheme === 'file' && activeInput !== editor.input) {
-			return false; // skip non active if this is about a file; for untitled respect them all
-		}
-
-		let innerResource = getUntitledOrFileResource(editor.input);
-
-		return innerResource && innerResource.toString() === outerResource.toString();
-	}).map((editor) => editor.position);
 }
 
 export class SaveAllAction extends BaseSaveAllAction {
