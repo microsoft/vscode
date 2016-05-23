@@ -76,7 +76,6 @@ export class EditorPart extends Part implements IEditorPart {
 	private stacks: EditorStacksModel;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
-	private visibleInputs: EditorInput[];
 	private visibleEditors: BaseEditor[];
 	private visibleEditorListeners: IDisposable[][];
 	private instantiatedEditors: BaseEditor[][];
@@ -97,7 +96,6 @@ export class EditorPart extends Part implements IEditorPart {
 	) {
 		super(id);
 
-		this.visibleInputs = [];
 		this.visibleEditors = [];
 
 		this.editorOpenToken = arrays.fill(POSITIONS.length, () => 0);
@@ -162,15 +160,21 @@ export class EditorPart extends Part implements IEditorPart {
 			return TPromise.as<BaseEditor>(null);
 		}
 
-		// Ensure group: We create the group very early on in the part of editor open because it could happen
-		// that multiple editors open at the same time and some fail to open. Having a group ensures that the
-		// position we are targeting is always up to date because it changes if a rochade happens meanwhile.
-		const group = this.ensureGroup(position, !options || !options.preserveFocus);
+		const pinned = options && (options.pinned || typeof options.index === 'number'); // make pinned when index is provided
+		const index = options && options.index;
+		const focus = !options || !options.preserveFocus;
 
-		// Remember as visible input for this position
-		this.visibleInputs[position] = input;
+		// Update stacks: We do this early on before the UI is there because we want our stacks model to have
+		// a consistent view of the editor world and updating it later async after the UI is there will cause
+		// issues (e.g. when a closeEditor call is made that expects the openEditor call to have updated the
+		// stacks model).
+		// This can however cause a race condition where the stacks model indicates the opened editor is there
+		// while the UI is not yet ready. Clients have to deal with this fact and we have to make sure that the
+		// stacks model gets updated if any of the UI updating fails with an error.
+		const group = this.ensureGroup(position, focus);
+		group.openEditor(input, { active: true, pinned, index });
 
-		// Open: input is provided
+		// Open through UI
 		return this.doOpenEditor(group, input, options, widthRatios);
 	}
 
@@ -375,7 +379,7 @@ export class EditorPart extends Part implements IEditorPart {
 			monitor.cancel();
 
 			// Make sure that the user meanwhile has not opened another input
-			if (this.visibleInputs[position] !== input) {
+			if (group.activeEditor !== input) {
 				timerEvent.stop();
 
 				// It can happen that the same editor input is being opened rapidly one after the other
@@ -386,25 +390,19 @@ export class EditorPart extends Part implements IEditorPart {
 				// The fix is to detect if the active input matches with this one that gets canceled and only
 				// in that case notify others about the input change event as well as to make sure that the
 				// editor title area is up to date.
-				if (this.visibleInputs[position] && this.visibleInputs[position].matches(input)) {
+				if (group.activeEditor && group.activeEditor.matches(input)) {
 					this.doRecreateEditorTitleArea();
-					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), this.visibleInputs[position], options, position));
+					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), group.activeEditor, options, position));
 				}
 
 				return editor;
 			}
 
-			const focus = !options || !options.preserveFocus;
-			const pinned = options && (options.pinned || typeof options.index === 'number'); // make pinned when index is provided
-			const index = options && options.index;
-
 			// Focus (unless prevented)
+			const focus = !options || !options.preserveFocus;
 			if (focus) {
 				editor.focus();
 			}
-
-			// Update stacks
-			group.openEditor(input, { active: true, pinned, index });
 
 			// Progress Done
 			this.sideBySideControl.updateProgress(position, ProgressState.DONE);
@@ -454,29 +452,8 @@ export class EditorPart extends Part implements IEditorPart {
 		// Event
 		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
 
-		// Recover
-		this.doRecoverFromSetInputError(group, input);
-	}
-
-	private doRecoverFromSetInputError(group: EditorGroup, input: EditorInput): void {
-		const position = this.stacks.positionOfGroup(group);
-
-		if (this.visibleInputs[position] !== input) {
-			return; // user opened another input meanwhile
-		}
-
-		// our first editor failed of the group so close it
-		if (!group.count) {
-			this.doCloseGroup(group);
-		}
-
-		// Restore active editor from group if this was not the one causing the problem
-		else if (!group.activeEditor.matches(input)) {
-			this.openEditor(group.activeEditor, null, position).done(null, errors.onUnexpectedError);
-		}
-
-		// Otherwise the active editor seems to cause issues, so close it
-		else {
+		// Recover by closing the active editor (if the input is still the active one)
+		if (group.activeEditor === input) {
 			this.doCloseActiveEditor(group);
 		}
 	}
@@ -513,9 +490,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doCloseActiveEditor(group: EditorGroup, focusNext = true): void {
 		const position = this.stacks.positionOfGroup(group);
-
-		// Update visible inputs for position
-		this.visibleInputs[position] = null;
 
 		// Update stacks model
 		group.closeEditor(group.activeEditor);
@@ -735,7 +709,6 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.move(from, to);
 
 		// Move data structures
-		arrays.move(this.visibleInputs, from, to);
 		arrays.move(this.visibleEditors, from, to);
 		arrays.move(this.visibleEditorListeners, from, to);
 		arrays.move(this.editorOpenToken, from, to);
@@ -1092,7 +1065,6 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		this.visibleEditors = null;
-		this.visibleInputs = null;
 
 		// Pass to super
 		super.dispose();
@@ -1249,7 +1221,6 @@ export class EditorPart extends Part implements IEditorPart {
 			let from = <Position>arg1;
 			let to = <Position>arg2;
 
-			this.doRochade(this.visibleInputs, from, to, null);
 			this.doRochade(this.visibleEditors, from, to, null);
 			this.doRochade(this.editorOpenToken, from, to, null);
 			this.doRochade(this.mapEditorInstantiationPromiseToEditor, from, to, Object.create(null));
