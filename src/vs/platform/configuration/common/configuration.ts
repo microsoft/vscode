@@ -6,6 +6,7 @@
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {JSONPath} from 'vs/base/common/json';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -33,6 +34,12 @@ export interface IConfigurationService {
 	 * Event that fires when the configuration changes.
 	 */
 	onDidUpdateConfiguration: Event<IConfigurationServiceEvent>;
+
+	/**
+	 * Sets a user configuration. An the setting does not yet exist in the settings, it will be
+	 * added.
+	 */
+	setUserConfiguration(key: string | JSONPath, value: any) : Thenable<void>;
 }
 
 export interface IConfigurationServiceEvent {

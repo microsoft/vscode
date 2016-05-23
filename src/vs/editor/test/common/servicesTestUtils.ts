@@ -168,4 +168,8 @@ export class MockConfigurationService extends ConfigurationService {
 		});
 	}
 
+	setUserConfiguration(key: any, value: any) : Thenable<void> {
+		return TPromise.as(null);
+	}
+
 }

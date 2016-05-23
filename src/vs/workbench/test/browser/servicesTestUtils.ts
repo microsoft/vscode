@@ -461,4 +461,8 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 	public onDidUpdateConfiguration() {
 		return { dispose() { } };
 	}
+
+	public setUserConfiguration(key: any, value: any) : Thenable<void> {
+		return TPromise.as(null);
+	}
 }
