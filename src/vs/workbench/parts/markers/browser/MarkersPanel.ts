@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/markers';
 import { TPromise } from 'vs/base/common/winjs.base';
+import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import builder = require('vs/base/browser/builder');
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -35,7 +36,7 @@ export class MarkersPanel extends Panel {
 
 	public create(parent: builder.Builder): TPromise<void> {
 		super.create(parent);
-		addClass(parent.getHTMLElement(), 'markers-panel');
+		dom.addClass(parent.getHTMLElement(), 'markers-panel');
 
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer);
 		this.tree = new TreeImpl.Tree(parent.getHTMLElement(), {
