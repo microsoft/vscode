@@ -194,13 +194,6 @@ export class MouseTargetFactory {
 		var t = <Element>e.target;
 		var path = this.getClassNamePathTo(t, this._viewHelper.viewDomNode);
 
-		// Is it a cursor ?
-		var lineNumberAttribute = t.hasAttribute && t.hasAttribute('lineNumber') ? t.getAttribute('lineNumber') : null;
-		var columnAttribute = t.hasAttribute && t.hasAttribute('column') ? t.getAttribute('column') : null;
-		if (lineNumberAttribute && columnAttribute) {
-			return this.createMouseTargetFromViewCursor(t, parseInt(lineNumberAttribute, 10), parseInt(columnAttribute, 10), mouseColumn);
-		}
-
 		// Is it a content widget?
 		if (REGEX.IS_CHILD_OF_CONTENT_WIDGETS.test(path) || REGEX.IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS.test(path)) {
 			return this.createMouseTargetFromContentWidgetsChild(t, mouseColumn);
@@ -209,6 +202,13 @@ export class MouseTargetFactory {
 		// Is it an overlay widget?
 		if (REGEX.IS_CHILD_OF_OVERLAY_WIDGETS.test(path)) {
 			return this.createMouseTargetFromOverlayWidgetsChild(t, mouseColumn);
+		}
+
+		// Is it a cursor ?
+		var lineNumberAttribute = t.hasAttribute && t.hasAttribute('lineNumber') ? t.getAttribute('lineNumber') : null;
+		var columnAttribute = t.hasAttribute && t.hasAttribute('column') ? t.getAttribute('column') : null;
+		if (lineNumberAttribute && columnAttribute) {
+			return this.createMouseTargetFromViewCursor(t, parseInt(lineNumberAttribute, 10), parseInt(columnAttribute, 10), mouseColumn);
 		}
 
 		// Is it the textarea cover?
