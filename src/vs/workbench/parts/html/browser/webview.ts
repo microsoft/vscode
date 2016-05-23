@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/text!./webview.html';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';

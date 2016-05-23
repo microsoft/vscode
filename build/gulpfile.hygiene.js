@@ -48,7 +48,6 @@ var indentationFilter = [
 	'!**/vs/base/common/marked/raw.marked.js',
 	'!**/vs/base/common/winjs.base.raw.js',
 	'!**/vs/base/node/terminateProcess.sh',
-	'!**/vs/text.js',
 	'!**/vs/nls.js',
 	'!**/vs/css.js',
 	'!**/vs/loader.js',
