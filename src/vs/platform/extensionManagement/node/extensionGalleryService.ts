@@ -12,6 +12,7 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { getExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 
 export interface IGalleryExtensionFile {
@@ -350,8 +351,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	private getRequestHeaders(): TPromise<any> {
 		return this.machineId.then(machineId => {
 			const result = {
-				'X-Market-Client-Id': 'VSCode',
-				'User-Agent': 'VSCode'
+				'X-Market-Client-Id': `VSCode ${ pkg.version }`,
+				'User-Agent': `VSCode ${ pkg.version }`
 			};
 
 			if (machineId) {
