@@ -1362,9 +1362,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 	private updateActionsEnablement(): void {
 
+		// Move Group Left
+		this.moveGroupLeftActions[Position.LEFT].enabled = false;
+
 		// Move Group Right
 		this.moveGroupRightActions[Position.LEFT].enabled = this.getVisibleEditorCount() > 1;
 		this.moveGroupRightActions[Position.CENTER].enabled = this.getVisibleEditorCount() > 2;
+		this.moveGroupRightActions[Position.RIGHT].enabled = false;
 
 		// Close Editors in Other Groups
 		POSITIONS.map((position) => this.closeEditorsInOtherGroupsActions[position].enabled = this.getVisibleEditorCount() > 1);
