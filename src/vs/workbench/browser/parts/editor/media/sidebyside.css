@@ -101,6 +101,7 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
 	font-style: italic;
+	padding-left: 1px; /* we need to push the label a bit to accomodate for the italic style */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label {
