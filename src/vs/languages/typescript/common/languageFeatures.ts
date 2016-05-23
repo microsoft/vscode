@@ -24,15 +24,15 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
 
 	const disposables: lifecycle.IDisposable[] = [];
-	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
-	disposables.push(modes.SignatureHelpProviderRegistry.register(selector, new SignatureHelpAdapter(modelService, worker)));
-	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
-	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
-	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker)));
-	disposables.push(modes.ReferenceProviderRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
-	disposables.push(modes.DocumentSymbolProviderRegistry.register(selector, new OutlineAdapter(modelService, worker)));
-	disposables.push(modes.DocumentRangeFormattingEditProviderRegistry.register(selector, new FormatAdapter(modelService, worker)));
-	disposables.push(modes.OnTypeFormattingEditProviderRegistry.register(selector, new FormatOnTypeAdapter(modelService, worker)));
+	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker), true));
+	disposables.push(modes.SignatureHelpProviderRegistry.register(selector, new SignatureHelpAdapter(modelService, worker), true));
+	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker), true));
+	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker), true));
+	disposables.push(modes.ReferenceProviderRegistry.register(selector, new ReferenceAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentSymbolProviderRegistry.register(selector, new OutlineAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentRangeFormattingEditProviderRegistry.register(selector, new FormatAdapter(modelService, worker), true));
+	disposables.push(modes.OnTypeFormattingEditProviderRegistry.register(selector, new FormatOnTypeAdapter(modelService, worker), true));
 	disposables.push(new DiagnostcsAdapter(defaults, selector, markerService, modelService, worker));
 
 	return lifecycle.combinedDisposable(disposables);

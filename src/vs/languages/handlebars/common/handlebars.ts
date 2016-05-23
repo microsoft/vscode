@@ -121,13 +121,13 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
 				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
-		});
+		}, true);
 
 		modes.ReferenceProviderRegistry.register(this.getId(), {
 			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
 				return wireCancellationToken(token, this._provideReferences(model.uri, position, context));
 			}
-		});
+		}, true);
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
@@ -135,19 +135,19 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
-		});
+		}, true);
 
 		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
 			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
 				return wireCancellationToken(token, this._provideDocumentHighlights(model.uri, position));
 			}
-		});
+		}, true);
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
 				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
-		});
+		}, true);
 	}
 
 	protected _createRichEditSupport(): modes.IRichEditSupport {
