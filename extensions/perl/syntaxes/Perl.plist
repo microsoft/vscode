@@ -56,7 +56,7 @@
 			<key>comment</key>
 			<string>string.regexp.compile.perl</string>
 			<key>end</key>
-			<string>((([egimosxradlupc]*)))(?=(\s+\S|\s*[;\,\#\{\}\)]|$))</string>
+			<string>((([egimosxradlupc]*)))(?=(\s+\S|\s*[;\,\#\{\}\)]|\s*$))</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>1</key>
@@ -309,7 +309,7 @@
 			<key>comment</key>
 			<string>string.regexp.find-m.perl</string>
 			<key>end</key>
-			<string>((([egimosxradlupc]*)))(?=(\s+\S|\s*[;\,\#\{\}\)]|$))</string>
+			<string>((([egimosxradlupc]*)))(?=(\s+\S|\s*[;\,\#\{\}\)]|\s*$))</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>1</key>
@@ -595,7 +595,7 @@
 			<key>comment</key>
 			<string>string.regexp.replace.perl</string>
 			<key>end</key>
-			<string>((([egimosxradlupc]*)))(?=(\s+\S|\s*[;\,\#\{\}\)\]&gt;]|$))</string>
+			<string>((([egimosxradlupc]*)))(?=(\s+\S|\s*[;\,\#\{\}\)\]&gt;]|\s*$))</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1161,7 +1161,7 @@
 			<key>contentName</key>
 			<string>string.regexp.find.perl</string>
 			<key>end</key>
-			<string>((\1([egimosxradlupc]*)))(?=(\s+\S|\s*[;\,\#\{\}\)]|$))</string>
+			<string>((\1([egimosxradlupc]*)))(?=(\s+\S|\s*[;\,\#\{\}\)]|\s*$))</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>1</key>
