@@ -26,6 +26,7 @@ export interface IPylintCategorySeverity {
 }
 export interface ILintingSettings {
     enabled: boolean;
+    prospectorEnabled: boolean,
     pylintEnabled: boolean;
     pep8Enabled: boolean;
     flake8Enabled: boolean;
@@ -34,6 +35,9 @@ export interface ILintingSettings {
     lintOnSave: boolean;
     maxNumberOfProblems: number;
     pylintCategorySeverity: IPylintCategorySeverity;
+    prospectorPath: string;
+    prospectorSourcePath: string;
+    prospectorExtraCommands: string;
     pylintPath: string;
     pep8Path: string;
     flake8Path: string;
