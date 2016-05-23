@@ -205,7 +205,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Set the title early enough
-		const pinned = options && (options.pinned || typeof options.index === 'number');
+		const pinned = group.isPinned(input);
 		const active = this.stacks.isActive(group);
 		this.sideBySideControl.setTitleLabel(position, input, pinned, active);
 
