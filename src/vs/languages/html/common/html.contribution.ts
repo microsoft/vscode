@@ -33,8 +33,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'html.format.unformatted': {
 			'type': ['string', 'null'],
-			'default': null,
-			'description': nls.localize('format.unformatted', "List of tags, comma separated, that shouldn't be reformatted. 'null' defaults to all inline tags."),
+			'default': 'a, abbr, acronym, b, bdo, big, br, button, cite, code, dfn, em, i, img, input, kbd, label, map, object, q, samp, script, select, small, span, strong, sub, sup, textarea, tt, var',
+			'description': nls.localize('format.unformatted', "List of tags, comma separated, that shouldn't be reformatted. 'null' defaults to all tags listed at https://www.w3.org/TR/html5/dom.html#phrasing-content."),
 		},
 		'html.format.indentInnerHtml': {
 			'type': 'boolean',
@@ -63,7 +63,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'html.format.extraLiners': {
 			'type': ['string', 'null'],
-			'default': null,
+			'default': 'head, body, /html',
 			'description': nls.localize('format.extraLiners', "List of tags, comma separated, that should have an extra newline before them. 'null' defaults to \"head, body, /html\"."),
 		},
 	}
