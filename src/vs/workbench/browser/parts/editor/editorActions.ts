@@ -870,8 +870,21 @@ export class ShowEditorsInGroupAction extends QuickOpenAction {
 	public static ID = 'workbench.action.showEditorsInGroup';
 	public static LABEL = nls.localize('showEditorsInGroup', "Show Editors in Group");
 
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+	constructor(
+		actionId: string,
+		actionLabel: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(actionId, actionLabel, NAVIGATE_IN_GROUP_PREFIX, quickOpenService);
+	}
+
+	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
+		if (editorIdentifier) {
+			this.editorService.activateGroup(this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group)); // workaround for not having a group specific quick open for opened editors
+		}
+
+		return super.run(editorIdentifier);
 	}
 }
 
