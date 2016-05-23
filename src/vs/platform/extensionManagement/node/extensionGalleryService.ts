@@ -280,7 +280,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private _query(options: IQueryOptions = {}): TPromise<IQueryResult> {
 		const text = getOrDefault(options, o => o.text, '');
-		const pageSize = getOrDefault(options, o => o.pageSize, 30);
+		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
