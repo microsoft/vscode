@@ -89,7 +89,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
-	private pendingEditorInputsToClose: IEditorIdentifier[];
+	private pendingEditorInputsToClose: EditorInput[];
 	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
@@ -136,7 +136,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private onEditorDisposed(identifier: IEditorIdentifier): void {
-		this.pendingEditorInputsToClose.push(identifier);
+		this.pendingEditorInputsToClose.push(identifier.editor);
 		this.startDelayedCloseEditorsFromInputDispose();
 	}
 
@@ -1252,12 +1252,16 @@ export class EditorPart extends Part implements IEditorPart {
 				// Split between visible and hidden editors
 				const visibleEditors: IEditorIdentifier[] = [];
 				const hiddenEditors: IEditorIdentifier[] = [];
-				this.pendingEditorInputsToClose.forEach(identifier => {
-					if (identifier.group.isActive(identifier.editor)) {
-						visibleEditors.push(identifier);
-					} else {
-						hiddenEditors.push(identifier);
-					}
+				this.pendingEditorInputsToClose.forEach(editor => {
+					this.stacks.groups.forEach(group => {
+						if (group.contains(editor)) {
+							if (group.isActive(editor)) {
+								visibleEditors.push({ group, editor });
+							} else {
+								hiddenEditors.push({ group, editor });
+							}
+						}
+					});
 				});
 
 				// Close all hidden first
