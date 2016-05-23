@@ -230,7 +230,7 @@ export class FrankensteinMode extends AbstractMode {
 		super(descriptor.id);
 
 		if (editorWorkerService) {
-			modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(this.getId(), editorWorkerService, configurationService));
+			modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(this.getId(), editorWorkerService, configurationService), true);
 		}
 	}
 }

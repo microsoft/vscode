@@ -11,6 +11,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {RunOnceScheduler} from 'vs/base/common/async';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {EndOfLine} from 'vs/workbench/api/node/extHostTypes';
@@ -341,10 +342,7 @@ export class MainThreadTextEditor {
  */
 export class MainThreadEditorsTracker {
 
-	private static _LAST_TEXT_EDITOR_ID = 0;
-	private _nextId(): string {
-		return String(++MainThreadEditorsTracker._LAST_TEXT_EDITOR_ID);
-	}
+	private static _Ids = new IdGenerator('');
 
 	private _toDispose: IDisposable[];
 	private _codeEditorService: ICodeEditorService;
@@ -467,7 +465,7 @@ export class MainThreadEditorsTracker {
 
 			// Create new editors as needed
 			for (let i = existingTextEditors.length; i < codeEditors.length; i++) {
-				let newTextEditor = new MainThreadTextEditor(this._nextId(), model, codeEditors[i], this._focusTracker, this._modelService);
+				let newTextEditor = new MainThreadTextEditor(MainThreadEditorsTracker._Ids.nextId(), model, codeEditors[i], this._focusTracker, this._modelService);
 				existingTextEditors.push(newTextEditor);
 				this._onTextEditorAdd.fire(newTextEditor);
 			}
@@ -496,7 +494,7 @@ export class MainThreadEditorsTracker {
 
 			// Create new editor if needed or adjust it
 			if (existingTextEditors.length === 0) {
-				let newTextEditor = new MainThreadTextEditor(this._nextId(), model, null, this._focusTracker, this._modelService);
+				let newTextEditor = new MainThreadTextEditor(MainThreadEditorsTracker._Ids.nextId(), model, null, this._focusTracker, this._modelService);
 				existingTextEditors.push(newTextEditor);
 				this._onTextEditorAdd.fire(newTextEditor);
 			} else {

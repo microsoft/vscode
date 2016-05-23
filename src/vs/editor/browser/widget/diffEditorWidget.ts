@@ -30,7 +30,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 
 interface IEditorDiffDecorations {
 	decorations:editorCommon.IModelDeltaDecoration[];
-	overviewZones:editorBrowser.OverviewRulerZone[];
+	overviewZones:editorCommon.OverviewRulerZone[];
 }
 
 interface IEditorDiffDecorationsWithZones extends IEditorDiffDecorations {
@@ -1476,7 +1476,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, 'char-delete', true));
 				}
 
-				result.overviewZones.push(new editorBrowser.OverviewRulerZone(
+				result.overviewZones.push(new editorCommon.OverviewRulerZone(
 					lineChange.originalStartLineNumber,
 					lineChange.originalEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
@@ -1541,7 +1541,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'char-insert', true));
 				}
-				result.overviewZones.push(new editorBrowser.OverviewRulerZone(
+				result.overviewZones.push(new editorCommon.OverviewRulerZone(
 					lineChange.modifiedStartLineNumber,
 					lineChange.modifiedEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
@@ -1656,7 +1656,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 			// Add overview zones in the overview ruler
 			if (isChangeOrDelete(lineChange)) {
-				result.overviewZones.push(new editorBrowser.OverviewRulerZone(
+				result.overviewZones.push(new editorCommon.OverviewRulerZone(
 					lineChange.originalStartLineNumber,
 					lineChange.originalEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
@@ -1694,7 +1694,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 			if (isChangeOrInsert(lineChange)) {
 				result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'line-insert', true));
 
-				result.overviewZones.push(new editorBrowser.OverviewRulerZone(
+				result.overviewZones.push(new editorCommon.OverviewRulerZone(
 					lineChange.modifiedStartLineNumber,
 					lineChange.modifiedEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,

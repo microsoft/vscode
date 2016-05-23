@@ -169,7 +169,7 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: CommonEditorRegistry.commandWeight(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(KbExpr.has(ctxReferenceSearchVisible), KbExpr.has('config.editor.dismissPeekOnEsc')),
+	when: KbExpr.and(KbExpr.has(ctxReferenceSearchVisible), KbExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });
 
@@ -178,6 +178,6 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: CommonEditorRegistry.commandWeight(-101),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(KbExpr.has(ReferenceWidget.INNER_EDITOR_CONTEXT_KEY), KbExpr.has('config.editor.dismissPeekOnEsc')),
+	when: KbExpr.and(KbExpr.has(ReferenceWidget.INNER_EDITOR_CONTEXT_KEY), KbExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });

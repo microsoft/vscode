@@ -243,7 +243,7 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 			provideCompletionItems: (model, position, token) => {
 				return wireCancellationToken(token, editorWorkerService.textualSuggest(model.uri, position));
 			}
-		});
+		}, true);
 	}
 
 	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {

@@ -207,7 +207,7 @@ export class LESSMode extends AbstractMode {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
 				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
-		});
+		}, true);
 
 		this.inplaceReplaceSupport = this;
 
@@ -217,19 +217,19 @@ export class LESSMode extends AbstractMode {
 			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
 				return wireCancellationToken(token, this._provideReferences(model.uri, position));
 			}
-		});
+		}, true);
 
 		modes.DefinitionProviderRegistry.register(this.getId(), {
 			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
 				return wireCancellationToken(token, this._provideDefinition(model.uri, position));
 			}
-		});
+		}, true);
 
 		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
 			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
 				return wireCancellationToken(token, this._provideDocumentSymbols(model.uri));
 			}
-		});
+		}, true);
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
@@ -237,7 +237,7 @@ export class LESSMode extends AbstractMode {
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
-		});
+		}, true);
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 

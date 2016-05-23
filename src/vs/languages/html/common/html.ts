@@ -329,13 +329,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
 				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
-		});
+		}, true);
 
 		modes.ReferenceProviderRegistry.register(this.getId(), {
 			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
 				return wireCancellationToken(token, this._provideReferences(model.uri, position, context));
 			}
-		});
+		}, true);
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
@@ -343,25 +343,25 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
-		});
+		}, true);
 
 		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
 			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
 				return wireCancellationToken(token, this._provideDocumentHighlights(model.uri, position));
 			}
-		});
+		}, true);
 
 		modes.DocumentRangeFormattingEditProviderRegistry.register(this.getId(), {
 			provideDocumentRangeFormattingEdits: (model, range, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.uri, range, options));
 			}
-		});
+		}, true);
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {
 				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
-		});
+		}, true);
 	}
 
 	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
@@ -407,8 +407,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 
 			onEnterRules: [
 				{
-					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
+					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
 					action: { indentAction: modes.IndentAction.IndentOutdent }
 				},
 				{

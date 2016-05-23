@@ -67,7 +67,7 @@ export class JSONMode extends AbstractMode {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
 				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
-		});
+		}, true);
 
 		this.inplaceReplaceSupport = this;
 
@@ -78,19 +78,19 @@ export class JSONMode extends AbstractMode {
 			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
 				return wireCancellationToken(token, this._provideDocumentSymbols(model.uri));
 			}
-		});
+		}, true);
 
 		modes.DocumentFormattingEditProviderRegistry.register(this.getId(), {
 			provideDocumentFormattingEdits: (model, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._provideDocumentFormattingEdits(model.uri, options));
 			}
-		});
+		}, true);
 
 		modes.DocumentRangeFormattingEditProviderRegistry.register(this.getId(), {
 			provideDocumentRangeFormattingEdits: (model, range, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.uri, range, options));
 			}
-		});
+		}, true);
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
@@ -98,7 +98,7 @@ export class JSONMode extends AbstractMode {
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
-		});
+		}, true);
 	}
 
 	public creationDone(): void {
