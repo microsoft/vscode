@@ -770,11 +770,11 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doMoveEditorAcrossGroups(input: EditorInput, from: EditorGroup, to: EditorGroup, index?: number): void {
 
-		// A move to another group is a close first...
-		this.doCloseEditor(from, input, false /* do not activate next one behind if any */);
-
-		// ...and an open in the target group
+		// A move to another group is an open first...
 		this.openEditor(input, EditorOptions.create({ pinned: true, index }), this.stacks.positionOfGroup(to)).done(null, errors.onUnexpectedError);
+
+		// and a close afterwards...
+		this.doCloseEditor(from, input, false /* do not activate next one behind if any */);
 	}
 
 	public arrangeGroups(arrangement: GroupArrangement): void {
