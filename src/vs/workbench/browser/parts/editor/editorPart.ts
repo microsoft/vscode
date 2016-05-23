@@ -703,11 +703,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public getActiveEditorInput(): EditorInput {
-		if (!this.sideBySideControl) {
-			return null; // too early
-		}
-
-		let lastActiveEditor = this.sideBySideControl.getActiveEditor();
+		let lastActiveEditor = this.getActiveEditor();
 
 		return lastActiveEditor ? lastActiveEditor.input : null;
 	}
