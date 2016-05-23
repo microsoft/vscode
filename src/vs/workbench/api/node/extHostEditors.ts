@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -171,13 +172,13 @@ export class ExtHostEditors {
 
 class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
-	private static LAST_ID: number = 0;
+	private static _Keys = new IdGenerator('TextEditorDecorationType');
 
 	private _proxy: MainThreadEditors;
 	public key: string;
 
 	constructor(proxy: MainThreadEditors, options: vscode.DecorationRenderOptions) {
-		this.key = 'TextEditorDecorationType' + (++TextEditorDecorationType.LAST_ID);
+		this.key = TextEditorDecorationType._Keys.nextId();
 		this._proxy = proxy;
 		this._proxy._registerTextEditorDecorationType(this.key, <any>options);
 	}
