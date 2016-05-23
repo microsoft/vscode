@@ -125,7 +125,7 @@ export class Sash extends EventEmitter {
 		this.emit('start', startEvent);
 
 		let $window = $(window);
-		let containerCssClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
+		let containerCSSClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
 
 		let lastCurrentX = startX;
 		let lastCurrentY = startY;
@@ -151,12 +151,12 @@ export class Sash extends EventEmitter {
 			this.emit('end');
 
 			$window.off('mousemove');
-			document.body.classList.remove(containerCssClass);
+			document.body.classList.remove(containerCSSClass);
 
 			$(DOM.getElementsByTagName('iframe')).style('pointer-events', 'auto');
 		});
 
-		document.body.classList.add(containerCssClass);
+		document.body.classList.add(containerCSSClass);
 	}
 
 	private onTouchStart(event: GestureEvent): void {
