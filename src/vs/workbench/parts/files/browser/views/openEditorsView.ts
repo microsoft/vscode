@@ -75,7 +75,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 					.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
 
 				// Make sure to keep active open editor highlighted
-				if (this.model.activeGroup) {
+				if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
 					this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
 				}
 			}

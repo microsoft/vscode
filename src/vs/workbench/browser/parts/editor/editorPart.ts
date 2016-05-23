@@ -162,14 +162,19 @@ export class EditorPart extends Part implements IEditorPart {
 			return TPromise.as<BaseEditor>(null);
 		}
 
+		// Ensure group: We create the group very early on in the part of editor open because it could happen
+		// that multiple editors open at the same time and some fail to open. Having a group ensures that the
+		// position we are targeting is always up to date because it changes if a rochade happens meanwhile.
+		const group = this.ensureGroup(position, !options || !options.preserveFocus);
+
 		// Remember as visible input for this position
 		this.visibleInputs[position] = input;
 
 		// Open: input is provided
-		return this.doOpenEditor(input, options, position, widthRatios);
+		return this.doOpenEditor(group, input, options, widthRatios);
 	}
 
-	private doOpenEditor(input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[]): TPromise<BaseEditor> {
+	private doOpenEditor(group: EditorGroup, input: EditorInput, options: EditorOptions, widthRatios: number[]): TPromise<BaseEditor> {
 
 		// We need an editor descriptor for the input
 		let descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
@@ -178,6 +183,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Opened to the side
+		let position = this.stacks.positionOfGroup(group);
 		if (position !== Position.LEFT) {
 
 			// Log side by side use
@@ -196,23 +202,26 @@ export class EditorPart extends Part implements IEditorPart {
 		this.editorOpenToken[position]++;
 		const editorOpenToken = this.editorOpenToken[position];
 		const monitor = new ProgressMonitor(editorOpenToken, TPromise.timeout(this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */).then(() => {
+			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
+
 			if (editorOpenToken === this.editorOpenToken[position]) {
 				this.sideBySideControl.updateProgress(position, ProgressState.INFINITE);
 			}
 		}));
 
 		// Show editor
-		return this.doShowEditor(descriptor, input, options, position, widthRatios, monitor).then(editor => {
+		return this.doShowEditor(group, descriptor, input, options, widthRatios, monitor).then(editor => {
 			if (!editor) {
 				return TPromise.as<BaseEditor>(null); // canceled or other error
 			}
 
 			// Set input to editor
-			return this.doSetInput(editor, input, options, position, monitor);
+			return this.doSetInput(group, editor, input, options, monitor);
 		});
 	}
 
-	private doShowEditor(descriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, position: Position, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
+	private doShowEditor(group: EditorGroup, descriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[], monitor: ProgressMonitor): TPromise<BaseEditor> {
+		let position = this.stacks.positionOfGroup(group);
 		const editorAtPosition = this.visibleEditors[position];
 
 		// Return early if the currently visible editor can handle the input
@@ -227,7 +236,8 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Create Editor
 		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Creating Editor: {0}', descriptor.getName()));
-		return this.doCreateEditor(descriptor, position, monitor).then(editor => {
+		return this.doCreateEditor(group, descriptor, monitor).then(editor => {
+			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			// Make sure that the user meanwhile did not open another editor or something went wrong
 			if (!editor || !this.visibleEditors[position] || editor.getId() !== this.visibleEditors[position].getId()) {
@@ -256,7 +266,8 @@ export class EditorPart extends Part implements IEditorPart {
 		}, (e: any) => this.messageService.show(Severity.Error, types.isString(e) ? new Error(e) : e));
 	}
 
-	private doCreateEditor(descriptor: EditorDescriptor, position: Position, monitor: ProgressMonitor): TPromise<BaseEditor> {
+	private doCreateEditor(group: EditorGroup, descriptor: EditorDescriptor, monitor: ProgressMonitor): TPromise<BaseEditor> {
+		let position = this.stacks.positionOfGroup(group);
 
 		// We need the container for this editor now
 		let editorContainer = this.mapEditorToEditorContainers[position][descriptor.getId()];
@@ -276,7 +287,8 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Instantiate editor
-		return this.doInstantiateEditor(descriptor, position).then(editor => {
+		return this.doInstantiateEditor(group, descriptor).then(editor => {
+			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			// Make sure that the user meanwhile did not open another editor
 			if (monitor.token !== this.editorOpenToken[position]) {
@@ -300,7 +312,8 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	private doInstantiateEditor(descriptor: EditorDescriptor, position: Position): TPromise<BaseEditor> {
+	private doInstantiateEditor(group: EditorGroup, descriptor: EditorDescriptor): TPromise<BaseEditor> {
+		let position = this.stacks.positionOfGroup(group);
 
 		// Return early if already instantiated
 		let instantiatedEditor = this.instantiatedEditors[position].filter(e => descriptor.describes(e))[0];
@@ -319,18 +332,22 @@ export class EditorPart extends Part implements IEditorPart {
 		let editorInstantiationService = this.instantiationService.createChild(new ServiceCollection([IProgressService, progressService]));
 		let loaded = false;
 
-		let instantiateEditorPromise = editorInstantiationService.createInstance(descriptor).then((editor: BaseEditor) => {
-			loaded = true;
-			this.instantiatedEditors[position].push(editor);
-			delete this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
+		const onInstantiate = (arg: BaseEditor | Error): TPromise<BaseEditor | Error> => {
+			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
-			return editor;
-		}, (error) => {
 			loaded = true;
 			delete this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()];
 
-			return TPromise.wrapError(error);
-		});
+			if (arg instanceof BaseEditor) {
+				this.instantiatedEditors[position].push(arg);
+
+				return TPromise.as(arg);
+			}
+
+			return TPromise.wrapError(arg);
+		};
+
+		let instantiateEditorPromise = editorInstantiationService.createInstance(descriptor).then(onInstantiate, onInstantiate);
 
 		if (!loaded) {
 			this.mapEditorInstantiationPromiseToEditor[position][descriptor.getId()] = instantiateEditorPromise;
@@ -339,7 +356,8 @@ export class EditorPart extends Part implements IEditorPart {
 		return instantiateEditorPromise;
 	}
 
-	private doSetInput(editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): TPromise<BaseEditor> {
+	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {
+		let position = this.stacks.positionOfGroup(group);
 
 		// Emit Input-Changed Event as appropiate
 		const previousInput = editor.getInput();
@@ -351,6 +369,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Call into Editor
 		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Set Editor Input: {0}', input.getName()));
 		return editor.setInput(input, options).then(() => {
+			let position = this.stacks.positionOfGroup(group); // might have changed due to a rochade meanwhile
 
 			// Stop loading promise if any
 			monitor.cancel();
@@ -385,7 +404,6 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			// Update stacks
-			const group = this.ensureGroup(position, focus);
 			group.openEditor(input, { active: true, pinned, index });
 
 			// Progress Done
@@ -408,10 +426,11 @@ export class EditorPart extends Part implements IEditorPart {
 			// Fullfill promise with Editor that is being used
 			return editor;
 
-		}, (e: any) => this.doHandleSetInputError(e, editor, input, options, position, monitor));
+		}, (e: any) => this.doHandleSetInputError(e, group, editor, input, options, monitor));
 	}
 
-	private doHandleSetInputError(e: Error | IMessageWithAction, editor: BaseEditor, input: EditorInput, options: EditorOptions, position: Position, monitor: ProgressMonitor): void {
+	private doHandleSetInputError(e: Error | IMessageWithAction, group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): void {
+		const position = this.stacks.positionOfGroup(group);
 
 		// Stop loading promise if any
 		monitor.cancel();
@@ -436,28 +455,29 @@ export class EditorPart extends Part implements IEditorPart {
 		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
 
 		// Recover
-		this.doRecoverFromSetInputError(position, input);
+		this.doRecoverFromSetInputError(group, input);
 	}
 
-	private doRecoverFromSetInputError(position: Position, input: EditorInput): void {
+	private doRecoverFromSetInputError(group: EditorGroup, input: EditorInput): void {
+		const position = this.stacks.positionOfGroup(group);
+
 		if (this.visibleInputs[position] !== input) {
 			return; // user opened another input meanwhile
 		}
 
+		// our first editor failed of the group so close it
+		if (!group.count) {
+			this.doCloseGroup(group);
+		}
+
 		// Restore active editor from group if this was not the one causing the problem
-		const group = this.stacks.groupAt(position);
-		if (group && !input.matches(group.activeEditor)) {
+		else if (!group.activeEditor.matches(input)) {
 			this.openEditor(group.activeEditor, null, position).done(null, errors.onUnexpectedError);
 		}
 
-		// Otherwise if we have a group, close the active editor that fails to open
-		else if (group) {
-			this.doCloseActiveEditor(group);
-		}
-
-		// Otherwise we are in a state where our first editor failed to open and we do not even have a group yet
+		// Otherwise the active editor seems to cause issues, so close it
 		else {
-			this.doCloseGroup(position);
+			this.doCloseActiveEditor(group);
 		}
 	}
 
@@ -502,12 +522,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Close group is this is the last editor in group
 		if (group.count === 0) {
-
-			// Update stacks model
-			this.modifyGroups(() => this.stacks.closeGroup(group));
-
-			// Update UI
-			this.doCloseGroup(position);
+			this.doCloseGroup(group);
 		}
 
 		// Otherwise open next active
@@ -522,7 +537,11 @@ export class EditorPart extends Part implements IEditorPart {
 		group.closeEditor(input);
 	}
 
-	private doCloseGroup(position: Position): void {
+	private doCloseGroup(group: EditorGroup): void {
+		const position = this.stacks.positionOfGroup(group);
+
+		// Update stacks model
+		this.modifyGroups(() => this.stacks.closeGroup(group));
 
 		// Emit Input-Changing Event
 		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
