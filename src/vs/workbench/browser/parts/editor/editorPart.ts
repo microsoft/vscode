@@ -855,8 +855,17 @@ export class EditorPart extends Part implements IEditorPart {
 		const centerEditors = editors.filter(e => e.position === Position.CENTER);
 		const rightEditors = editors.filter(e => e.position === Position.RIGHT);
 
-		// Validate we do not produce empty groups
-		if ((!leftEditors.length && (centerEditors.length || rightEditors.length) || (!centerEditors.length && rightEditors.length))) {
+		const leftGroup = this.stacks.groupAt(Position.LEFT);
+		const centerGroup = this.stacks.groupAt(Position.CENTER);
+		const rightGroup = this.stacks.groupAt(Position.RIGHT);
+
+		// Compute the imaginary count if we let all editors open as the way requested
+		const leftCount = leftEditors.length + (leftGroup ? leftGroup.count : 0);
+		const centerCount = centerEditors.length + (centerGroup ? centerGroup.count : 0);
+		const rightCount = rightEditors.length + (rightGroup ? rightGroup.count : 0);
+
+		// Validate we do not produce empty groups given our imaginary count model
+		if ((!leftCount && (centerCount || rightCount) || (!centerCount && rightCount))) {
 			leftEditors.push(...centerEditors);
 			leftEditors.push(...rightEditors);
 			centerEditors.splice(0, centerEditors.length);
