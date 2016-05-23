@@ -512,20 +512,24 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Ensure memento state does not capture a deleted file
-		let lastActiveResource: string = this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
-		if (lastActiveResource && e.contains(URI.parse(lastActiveResource), FileChangeType.DELETED)) {
-			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = null;
-		}
+		// Ensure memento state does not capture a deleted file (we run this from a timeout because
+		// delete events can result in UI activity that will fill the memento again when multiple
+		// editors are closing)
+		setTimeout(() => {
+			let lastActiveResource: string = this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
+			if (lastActiveResource && e.contains(URI.parse(lastActiveResource), FileChangeType.DELETED)) {
+				this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = null;
+			}
+		});
 
 		// Check if an explorer refresh is necessary (delayed to give internal events a chance to react first)
 		// Note: there is no guarantee when the internal events are fired vs real ones. Code has to deal with the fact that one might
 		// be fired first over the other or not at all.
-		TPromise.timeout(ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY).then(() => {
+		setTimeout(() => {
 			if (!this.shouldRefresh && this.shouldRefreshFromEvent(e)) {
 				this.refreshFromEvent();
 			}
-		});
+		}, ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY);
 	}
 
 	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
