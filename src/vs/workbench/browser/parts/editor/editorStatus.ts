@@ -646,7 +646,8 @@ export class ChangeModeAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionId, actionLabel);
 	}
@@ -664,10 +665,12 @@ export class ChangeModeAction extends Action {
 
 		// Compute mode
 		let currentModeId: string;
+		let currentModeName: string;
 		if (!!(<ITokenizedModel>textModel).getMode) {
 			let mode = (<ITokenizedModel>textModel).getMode();
 			if (mode) {
-				currentModeId = this.modeService.getLanguageName(mode.getId());
+				currentModeId = mode.getId();
+				currentModeName = this.modeService.getLanguageName(currentModeId);
 			}
 		}
 
@@ -675,16 +678,23 @@ export class ChangeModeAction extends Action {
 		let picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
 			return {
 				label: lang,
-				description: currentModeId === lang ? nls.localize('configuredLanguage', "Configured Language") : void 0
+				description: currentModeName === lang ? nls.localize('configuredLanguage', "Configured Language") : void 0
 			};
 		});
 		picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
 
 		// Offer action to configure via settings
 		let configureLabel = nls.localize('configureAssociations', "Configure File Associations...");
+		let pattern: string = void 0;
 		if (fileinput) {
 			const resource = fileinput.getResource();
-			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
+			let ext = paths.extname(resource.fsPath);
+			if (ext) {
+				pattern = '*' + ext;
+			} else {
+				ext = paths.basename(resource.fsPath);
+				pattern = ext;
+			}
 			if (ext) {
 				configureLabel = nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext);
 			}
@@ -724,6 +734,8 @@ export class ChangeModeAction extends Action {
 					if (language === autoDetectMode) {
 						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
 					} else if (language === configureModeAssociations) {
+						this.configurationService.setUserConfiguration(['files.associations', pattern || ''], currentModeId || '');
+
 						const action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
 						action.run().done(() => action.dispose(), errors.onUnexpectedError);
 
