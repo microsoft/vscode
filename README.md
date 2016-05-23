@@ -114,6 +114,9 @@ If you're working in a [virtualenv](https://virtualenv.readthedocs.org/), you ca
 
 ## Change Log
 
+### Version 0.3.9
+* Fixed auto indenting issues [#137](https://github.com/DonJayamanne/pythonVSCode/issues/137)
+
 ### Version 0.3.8
 * Added support for linting using prospector [#130](https://github.com/DonJayamanne/pythonVSCode/pull/130)
 * Fixed issue where environment variables weren't being inherited by the debugger [#109](https://github.com/DonJayamanne/pythonVSCode/issues/109) and [#77](https://github.com/DonJayamanne/pythonVSCode/issues/77)
