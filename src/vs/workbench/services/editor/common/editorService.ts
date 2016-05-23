@@ -67,6 +67,13 @@ export interface IWorkbenchEditorService extends IEditorService {
 	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 
 	/**
+	 * Given a list of editors to replace, will look across all groups where this editor is open (active or hidden)
+	 * and replace it with the new editor and the provied options.
+	 */
+	replaceEditors(editors: { toReplace: IResourceInput, replaceWith: IResourceInput }[]): TPromise<IEditor[]>;
+	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions }[]): TPromise<IEditor[]>;
+
+	/**
 	 * Closes the editor at the provided position.
 	 */
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;

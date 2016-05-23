@@ -70,6 +70,10 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as([]);
 	}
 
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<IEditor[]> {
+		return TPromise.as([]);
+	}
+
 	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
 		return TPromise.as(null);
 	}

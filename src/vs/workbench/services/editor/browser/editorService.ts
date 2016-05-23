@@ -29,6 +29,7 @@ export interface IEditorPart {
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
+	replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
@@ -166,6 +167,24 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			});
 
 			return this.editorPart.openEditors(typedInputs);
+		});
+	}
+
+	public replaceEditors(editors: { toReplace: IResourceInput, replaceWith: IResourceInput }[]): TPromise<BaseEditor[]>;
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
+	public replaceEditors(editors: any[]): TPromise<BaseEditor[]> {
+		return TPromise.join(editors.map(editor => this.inputToType(editor.toReplace))).then(toReplaceInputs => {
+			return TPromise.join(editors.map(editor => this.inputToType(editor.replaceWith))).then(replaceWithInputs => {
+				const typedReplacements: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
+					return {
+						toReplace: toReplaceInputs[index],
+						replaceWith: replaceWithInputs[index],
+						options: editor.toReplace instanceof EditorInput ? editor.options : TextEditorOptions.from(editor.replaceWith)
+					};
+				});
+
+				return this.editorPart.replaceEditors(typedReplacements);
+			});
 		});
 	}
 
@@ -322,6 +341,10 @@ class EditorPartDelegate implements IEditorPart {
 
 	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<IEditor[]> {
 		return this.editorService.openEditors(editors);
+	}
+
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]> {
+		return this.editorService.replaceEditors(editors);
 	}
 
 	public getActiveEditor(): BaseEditor {

@@ -58,6 +58,13 @@ interface IEditorPartUIState {
 	widthRatio: number[];
 }
 
+interface IEditorReplacement extends IEditorIdentifier {
+	group: EditorGroup;
+	editor: EditorInput;
+	replaceWith: EditorInput;
+	options?: EditorOptions;
+}
+
 /**
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
@@ -817,6 +824,63 @@ export class EditorPart extends Part implements IEditorPart {
 		if (editor) {
 			this.pinEditor(position, editor.input);
 		}
+	}
+
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]> {
+		const activeReplacements: IEditorReplacement[] = [];
+		const hiddenReplacements: IEditorReplacement[] = [];
+
+		// Find editors across groups to close
+		editors.forEach(editor => {
+			if (editor.toReplace.isDirty()) {
+				return; // we do not handle dirty in this method, so ignore all dirty
+			}
+
+			// For each group
+			this.stacks.groups.forEach(group => {
+				const index = group.indexOf(editor.toReplace);
+				if (index >= 0) {
+					if (editor.options) {
+						editor.options.index = index; // make sure we respect the index of the editor to replace!
+					} else {
+						editor.options = EditorOptions.create({ index });
+					}
+
+					const replacement = { group, editor: editor.toReplace, replaceWith: editor.replaceWith, options: editor.options };
+					if (group.activeEditor.matches(editor.toReplace)) {
+						activeReplacements.push(replacement);
+					} else {
+						hiddenReplacements.push(replacement);
+					}
+				}
+			});
+		});
+
+		// Deal with hidden replacements first
+		hiddenReplacements.forEach(replacement => {
+			const group = replacement.group;
+
+			group.openEditor(replacement.replaceWith, { active: false, pinned: true, index: replacement.options.index });
+			group.closeEditor(replacement.editor);
+		});
+
+		// Now deal with active editors to be opened
+		const res = this.openEditors(activeReplacements.map(replacement => {
+			const group = replacement.group;
+
+			return {
+				input: replacement.replaceWith,
+				position: this.stacks.positionOfGroup(group),
+				options: replacement.options
+			};
+		}));
+
+		// Close active editors to be replaced now (they are no longer active)
+		activeReplacements.forEach(replacement => {
+			this.doCloseEditor(replacement.group, replacement.editor, false);
+		});
+
+		return res;
 	}
 
 	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]> {

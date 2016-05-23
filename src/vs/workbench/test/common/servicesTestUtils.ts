@@ -305,6 +305,10 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return TPromise.as([]);
 	}
 
+	public replaceEditors(editors): TPromise<IEditor[]> {
+		return TPromise.as([]);
+	}
+
 	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {
 		return TPromise.as(null);
 	}
