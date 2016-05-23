@@ -45,6 +45,11 @@ export interface IResourceInput {
 	mime?: string;
 
 	/**
+	 * The encoding of the text input if known.
+	 */
+	encoding?: string;
+
+	/**
 	 * Optional options to use when opening the text input.
 	 */
 	options?: ITextEditorOptions;

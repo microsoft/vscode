@@ -187,6 +187,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	 * Sets the absolute file resource URI this input is about.
 	 */
 	setResource(resource: URI): void;
+
+	/**
+	 * Sets the preferred encodingt to use for this input.
+	 */
+	setPreferredEncoding(encoding: string): void;
 }
 
 /**

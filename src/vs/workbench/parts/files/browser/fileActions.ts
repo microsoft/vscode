@@ -28,7 +28,7 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, UntitledEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, EditorOptions, UntitledEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -40,7 +40,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
@@ -1404,8 +1404,6 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 
 			// Save As (or Save untitled with associated path)
 			if (this.isSaveAs() || source.scheme === 'untitled') {
-				let positionsOfSource = findSaveAsPositions(this.editorService, source);
-
 				let mimeOfSource: string;
 				if (source.scheme === 'untitled') {
 					let selectedMime = this.untitledEditorService.get(source).getMime();
@@ -1423,9 +1421,10 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				}
 
 				let selectionOfSource: Selection;
-				if (positionsOfSource.length) {
-					const activeEditor = this.editorService.getActiveEditor();
-					if (activeEditor instanceof BaseTextEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
+				const activeEditor = this.editorService.getActiveEditor();
+				if (activeEditor instanceof BaseTextEditor) {
+					const activeResource = getUntitledOrFileResource(activeEditor.input);
+					if (activeResource.toString() === source.toString()) {
 						selectionOfSource = <Selection>activeEditor.getSelection();
 					}
 				}
@@ -1448,31 +1447,24 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				}
 
 				return savePromise.then((target) => {
-					if (!target) {
-						return;
+					if (!target || target.toString() === source.toString()) {
+						return; // save canceled or same resource used
 					}
 
-					// Reopen editors for the resource based on the positions
-					let reopenPromise = TPromise.as(null);
-					if (target.toString() !== source.toString() && positionsOfSource.length) {
-						let targetInput = this.instantiationService.createInstance(FileEditorInput, target, mimeOfSource, encodingOfSource);
-
-						let options = new TextEditorOptions();
-						options.pinned = true;
-						if (selectionOfSource) {
-							options.selection(selectionOfSource.startLineNumber, selectionOfSource.startColumn, selectionOfSource.endLineNumber, selectionOfSource.endColumn);
+					const replaceWith: IResourceInput = {
+						resource: target,
+						mime: mimeOfSource,
+						encoding: encodingOfSource,
+						options: {
+							pinned: true,
+							selection: selectionOfSource
 						}
+					};
 
-						reopenPromise = this.editorService.openEditors(positionsOfSource.map(p => {
-							return {
-								position: p,
-								input: targetInput,
-								options
-							};
-						}));
-					}
-
-					return reopenPromise;
+					return this.editorService.replaceEditors([{
+						toReplace: { resource: source },
+						replaceWith: replaceWith
+					}]).then(() => true);
 				});
 			}
 

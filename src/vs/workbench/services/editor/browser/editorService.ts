@@ -288,7 +288,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Base Text Editor Support for file resources
 		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
-			return this.createFileInput(resourceInput.resource, resourceInput.mime);
+			return this.createFileInput(resourceInput.resource, resourceInput.mime, resourceInput.encoding);
 		}
 
 		// Treat an URI as ResourceEditorInput
@@ -302,10 +302,11 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as<EditorInput>(null);
 	}
 
-	private createFileInput(resource: URI, mime?: string): TPromise<IFileEditorInput> {
+	private createFileInput(resource: URI, mime?: string, encoding?: string): TPromise<IFileEditorInput> {
 		return this.instantiationService.createInstance(this.fileInputDescriptor).then((typedFileInput) => {
 			typedFileInput.setResource(resource);
 			typedFileInput.setMime(mime || guessMimeTypes(resource.fsPath).join(', '));
+			typedFileInput.setPreferredEncoding(encoding);
 
 			return typedFileInput;
 		});

@@ -43,7 +43,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 	private verboseDescription: string;
 
 	/**
-	 * An editor input whos contents are retrieved from file services.
+	 * An editor input who's contents are retrieved from file services.
 	 */
 	constructor(
 		resource: URI,
@@ -87,6 +87,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 		assert.ok(mime, 'Editor input needs mime type');
 
 		this.mime = mime;
+	}
+
+	public setPreferredEncoding(encoding: string): void {
+		this.preferredEncoding = encoding;
 	}
 
 	public getEncoding(): string {
