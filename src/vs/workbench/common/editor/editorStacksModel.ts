@@ -598,6 +598,7 @@ interface ISerializedEditorStacksModel {
 export class EditorStacksModel implements IEditorStacksModel {
 
 	private static STORAGE_KEY = 'editorStacks.model';
+	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private toDispose: IDisposable[];
 	private loaded: boolean;
@@ -1082,7 +1083,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 				let value = factory.serialize(editor);
 				if (typeof value === 'string') {
 					this.recentlyClosedEditors.push({ id: editor.getId(), value });
-					this.recentlyClosedEditors = this.recentlyClosedEditors.slice(0, 10); // upper bound of recently closed
+					if (this.recentlyClosedEditors.length > EditorStacksModel.MAX_RECENTLY_CLOSED_EDITORS) {
+						this.recentlyClosedEditors = this.recentlyClosedEditors.slice(this.recentlyClosedEditors.length - EditorStacksModel.MAX_RECENTLY_CLOSED_EDITORS); // upper bound of recently closed
+					}
 				}
 			}
 		}

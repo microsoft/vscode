@@ -167,26 +167,6 @@ export class EditorPart extends Part implements IEditorPart {
 			return TPromise.as<BaseEditor>(null);
 		}
 
-		const pinned = options && (options.pinned || typeof options.index === 'number'); // make pinned when index is provided
-		const index = options && options.index;
-		const focus = !options || !options.preserveFocus;
-
-		// Update stacks: We do this early on before the UI is there because we want our stacks model to have
-		// a consistent view of the editor world and updating it later async after the UI is there will cause
-		// issues (e.g. when a closeEditor call is made that expects the openEditor call to have updated the
-		// stacks model).
-		// This can however cause a race condition where the stacks model indicates the opened editor is there
-		// while the UI is not yet ready. Clients have to deal with this fact and we have to make sure that the
-		// stacks model gets updated if any of the UI updating fails with an error.
-		const group = this.ensureGroup(position, focus);
-		group.openEditor(input, { active: true, pinned, index });
-
-		// Open through UI
-		return this.doOpenEditor(group, input, options, widthRatios);
-	}
-
-	private doOpenEditor(group: EditorGroup, input: EditorInput, options: EditorOptions, widthRatios: number[]): TPromise<BaseEditor> {
-
 		// We need an editor descriptor for the input
 		let descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
 		if (!descriptor) {
@@ -194,7 +174,6 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Opened to the side
-		let position = this.stacks.positionOfGroup(group);
 		if (position !== Position.LEFT) {
 
 			// Log side by side use
@@ -204,10 +183,24 @@ export class EditorPart extends Part implements IEditorPart {
 			options = this.findSideOptions(input, options, position);
 		}
 
+		// Open through UI
+		return this.doOpenEditor(position, descriptor, input, options, widthRatios);
+	}
+
+	private doOpenEditor(position: Position, descriptor: EditorDescriptor, input: EditorInput, options: EditorOptions, widthRatios: number[]): TPromise<BaseEditor> {
+
+		// Update stacks: We do this early on before the UI is there because we want our stacks model to have
+		// a consistent view of the editor world and updating it later async after the UI is there will cause
+		// issues (e.g. when a closeEditor call is made that expects the openEditor call to have updated the
+		// stacks model).
+		// This can however cause a race condition where the stacks model indicates the opened editor is there
+		// while the UI is not yet ready. Clients have to deal with this fact and we have to make sure that the
+		// stacks model gets updated if any of the UI updating fails with an error.
+		const group = this.ensureGroup(position, !options || !options.preserveFocus);
+		group.openEditor(input, { active: true, pinned: options && (options.pinned || typeof options.index === 'number'), index: options && options.index });
+
 		// Set the title early enough
-		const pinned = group.isPinned(input);
-		const active = this.stacks.isActive(group);
-		this.sideBySideControl.setTitleLabel(position, input, pinned, active);
+		this.sideBySideControl.setTitleLabel(position, input, group.isPinned(input), this.stacks.isActive(group));
 
 		// Progress Monitor & Ref Counting
 		this.editorOpenToken[position]++;
