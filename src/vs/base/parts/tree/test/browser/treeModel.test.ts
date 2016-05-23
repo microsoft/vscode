@@ -1302,23 +1302,23 @@ suite('TreeModel - Dynamic data model', () => {
 			model.collapse('father');
 
 			var times = 0;
-			var listener = dataModel.addListener('getChildren', (element) => {
+			var listener = dataModel.addListener2('getChildren', (element) => {
 				times++;
 				assert.equal(element, 'grandfather');
 			});
 
 			model.refresh('grandfather').done(() => {
 				assert.equal(times, 1);
-				listener();
+				listener.dispose();
 
-				listener = dataModel.addListener('getChildren', (element) => {
+				listener = dataModel.addListener2('getChildren', (element) => {
 					times++;
 					assert.equal(element, 'father');
 				});
 
 				model.expand('father').done(() => {
 					assert.equal(times, 2);
-					listener();
+					listener.dispose();
 					done();
 				});
 			});
@@ -1351,8 +1351,8 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var getTimes = 0;
 			var gotTimes = 0;
-			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
-			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
+			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
+			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
 
 			var p1 = model.refresh('father');
 			assert.equal(getTimes, 1);
@@ -1373,8 +1373,8 @@ suite('TreeModel - Dynamic data model', () => {
 				assert.equal(nav.next().id, 'sister');
 				assert.equal(nav.next() && false, null);
 
-				getListener();
-				gotListener();
+				getListener.dispose();
+				gotListener.dispose();
 				done();
 			});
 		});
@@ -1399,10 +1399,10 @@ suite('TreeModel - Dynamic data model', () => {
 			counter.listen(model, 'item:refresh', (e) => { refreshTimes++; });
 
 			var getTimes = 0;
-			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
+			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
 
 			var gotTimes = 0;
-			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
+			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
 
 			var p1, p2;
 
@@ -1455,8 +1455,8 @@ suite('TreeModel - Dynamic data model', () => {
 				assert.equal(nav.next().id, 'son');
 				assert.equal(nav.next() && false, null);
 
-				getListener();
-				gotListener();
+				getListener.dispose();
+				gotListener.dispose();
 				done();
 			});
 		});
@@ -1479,8 +1479,8 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var getTimes = 0;
 			var gotTimes = 0;
-			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
-			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
+			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
+			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
 
 			var p1, p2;
 
@@ -1521,8 +1521,8 @@ suite('TreeModel - Dynamic data model', () => {
 				assert.equal(nav.next().id, 'son');
 				assert.equal(nav.next() && false, null);
 
-				getListener();
-				gotListener();
+				getListener.dispose();
+				gotListener.dispose();
 				done();
 			});
 		});

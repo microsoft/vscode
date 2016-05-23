@@ -140,7 +140,7 @@ if (product.quality === 'alpha' || product.quality === 'insider') {
 	let actionRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
 		primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-		// on mac this keybinding is reserved to cycle between windows
-		mac: { primary: null }
+		// on mac cmd+` is reserved to cycle between windows
+		mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
 	}), 'View: ' + ToggleTerminalAction.LABEL, nls.localize('viewCategory', "View"));
 }

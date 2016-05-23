@@ -11,8 +11,10 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {Position} from 'vs/editor/common/core/position';
 
-export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition):TPromise<DocumentHighlight[]> {
+export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position):TPromise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
 	let foundResult = false;
@@ -46,9 +48,9 @@ class WordHighlighter {
 
 	private editor: editorCommon.ICommonCodeEditor;
 	private model: editorCommon.IModel;
-	private _lastWordRange: editorCommon.IEditorRange;
+	private _lastWordRange: Range;
 	private _decorationIds: string[];
-	private toUnhook: Function[];
+	private toUnhook: IDisposable[];
 
 	private workerRequestTokenId:number = 0;
 	private workerRequest:TPromise<DocumentHighlight[]> = null;
@@ -62,14 +64,14 @@ class WordHighlighter {
 		this.editor = editor;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
-		this.toUnhook.push(editor.addListener(editorCommon.EventType.CursorPositionChanged, (e:editorCommon.ICursorPositionChangedEvent) => {
+		this.toUnhook.push(editor.onDidCursorPositionChange((e:editorCommon.ICursorPositionChangedEvent) => {
 			this._onPositionChanged(e);
 		}));
-		this.toUnhook.push(editor.addListener(editorCommon.EventType.ModelChanged, (e) => {
+		this.toUnhook.push(editor.onDidModelChange((e) => {
 			this._stopAll();
 			this.model = this.editor.getModel();
 		}));
-		this.toUnhook.push(editor.addListener('change', (e) => {
+		this.toUnhook.push(editor.onDidModelContentChange((e) => {
 			this._stopAll();
 		}));
 
@@ -265,9 +267,7 @@ class WordHighlighter {
 
 	public destroy(): void {
 		this._stopAll();
-		while(this.toUnhook.length > 0) {
-			this.toUnhook.pop()();
-		}
+		this.toUnhook = dispose(this.toUnhook);
 	}
 }
 

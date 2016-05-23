@@ -599,7 +599,14 @@ export class DebugService implements debug.IDebugService {
 			this.inDebugMode.set(true);
 			this.lazyTransitionToRunningState();
 
-			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints(), watchExpressionsCount: this.model.getWatchExpressions().length });
+			this.telemetryService.publicLog('debugSessionStart', {
+				type: configuration.type,
+				breakpointCount: this.model.getBreakpoints().length,
+				exceptionBreakpoints: this.model.getExceptionBreakpoints(),
+				watchExpressionsCount: this.model.getWatchExpressions().length,
+				extensionName: `${ this.configurationManager.adapter.extensionDescription.publisher }.${ this.configurationManager.adapter.extensionDescription.name }`,
+				isBuiltin: this.configurationManager.adapter.extensionDescription.isBuiltin
+			});
 		}).then(undefined, (error: any) => {
 			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 			this.setStateAndEmit(debug.State.Inactive);
@@ -654,7 +661,7 @@ export class DebugService implements debug.IDebugService {
 			});
 
 			if (filteredTasks[0].isWatching) {
-				return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
+				return new TPromise((c, e) => this.taskService.addOneTimeDisposableListener(TaskServiceEvents.Inactive, () => c(null)));
 			}
 
 			return taskPromise;

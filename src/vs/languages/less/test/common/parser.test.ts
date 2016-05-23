@@ -5,6 +5,7 @@
 
 'use strict';
 
+import assert = require('assert');
 import _parser = require('vs/languages/less/common/parser/lessParser');
 import nodes = require ('vs/languages/css/common/parser/cssNodes');
 import errors = require ('vs/languages/css/common/parser/cssErrors');
@@ -12,8 +13,8 @@ import errors = require ('vs/languages/css/common/parser/cssErrors');
 import cssParserTests = require ('vs/languages/css/test/common/parser.test');
 
 
-function assertNode(text: string, parser: _parser.LessParser, f: ()=>nodes.Node):void {
-	cssParserTests.assertNode(text, parser, f);
+function assertNode(text: string, parser: _parser.LessParser, f: ()=>nodes.Node):nodes.Node {
+	return cssParserTests.assertNode(text, parser, f);
 }
 
 function assertNoNode(text: string, parser: _parser.LessParser, f: ()=>nodes.Node):void {
@@ -225,5 +226,12 @@ suite('LESS - LESS Parser', () => {
 		assertNode('&.float', parser, parser._parseSimpleSelector.bind(parser));
 		assertNode('&-foo', parser, parser._parseSimpleSelector.bind(parser));
 		assertNode('&--&', parser, parser._parseSimpleSelector.bind(parser));
+	});
+
+	test('LESS Parser - CSS Variable Declaration', function() {
+		var parser = new _parser.LessParser();
+		var ruleSetNode= assertNode(':root{--variable: red}', parser, parser._parseRuleset.bind(parser));
+		var actualNode= (<nodes.VariableDeclaration>ruleSetNode.getChild(1).getChild(0)).getVariable();
+		assert.ok(actualNode instanceof nodes.CSSVariable);
 	});
 });

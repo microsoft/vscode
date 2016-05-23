@@ -7,12 +7,12 @@
 import Actions = require('vs/base/common/actions');
 import WinJS = require('vs/base/common/winjs.base');
 import Assert = require('vs/base/common/assert');
-import EventEmitter = require('vs/base/common/eventEmitter');
 
 import Descriptors = require('vs/platform/instantiation/common/descriptors');
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
 import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 export let IActionsService = createDecorator<IActionsService>('actionsService');
 
@@ -73,7 +73,7 @@ export class SyncActionDescriptor {
  */
 export class DeferredAction extends Actions.Action {
 	private _cachedAction: Actions.IAction;
-	private _emitterUnbind: EventEmitter.ListenerUnbind;
+	private _emitterUnbind: IDisposable;
 
 	constructor(private _instantiationService: Instantiation.IInstantiationService, private _descriptor: Descriptors.AsyncDescriptor0<Actions.Action>,
 		id: string, label = '', cssClass = '', enabled = true) {
@@ -178,7 +178,7 @@ export class DeferredAction extends Actions.Action {
 			this._cachedAction = action;
 
 			// Pipe events from the instantated action through this deferred action
-			this._emitterUnbind = this.addEmitter(<Actions.Action>this._cachedAction);
+			this._emitterUnbind = this.addEmitter2(<Actions.Action>this._cachedAction);
 
 			return action;
 		});
@@ -186,7 +186,7 @@ export class DeferredAction extends Actions.Action {
 
 	public dispose(): void {
 		if (this._emitterUnbind) {
-			this._emitterUnbind();
+			this._emitterUnbind.dispose();
 		}
 		if (this._cachedAction) {
 			this._cachedAction.dispose();

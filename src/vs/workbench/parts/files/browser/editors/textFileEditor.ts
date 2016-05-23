@@ -64,7 +64,7 @@ export class TextFileEditor extends BaseTextEditor {
 		TextFileEditorModel.setSaveErrorHandler(instantiationService.createInstance(SaveErrorHandler));
 
 		// Clear view state for deleted files
-		this.toUnbind.push(this.eventService.addListener(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFilesChanged(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFilesChanged(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -135,7 +135,7 @@ export class TextFileEditor extends BaseTextEditor {
 			let mode = textFileModel.textEditorModel.getMode();
 			let setModelEvent = this.telemetryService.timedPublicLog('editorSetModel', {
 				mode: mode && mode.getId(),
-				resource: textFileModel.textEditorModel.getAssociatedResource().toString(),
+				resource: textFileModel.textEditorModel.uri.toString(),
 			});
 
 			// Editor

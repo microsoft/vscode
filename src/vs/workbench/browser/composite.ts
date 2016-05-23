@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {IAction, IActionRunner, ActionRunner} from 'vs/base/common/actions';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -13,6 +12,7 @@ import {CompositeEvent} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IComposite} from 'vs/workbench/common/composite';
+import {IEditorControl} from 'vs/platform/editor/common/editor';
 
 /**
  * Internal composite events to communicate with composite container.
@@ -187,7 +187,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	/**
 	 * Returns the underlying composite control or null if it is not accessible.
 	 */
-	public getControl(): IEventEmitter {
+	public getControl(): IEditorControl {
 		return null;
 	}
 }

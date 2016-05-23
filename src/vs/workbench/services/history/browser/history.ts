@@ -8,7 +8,6 @@ import errors = require('vs/base/common/errors');
 import platform = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import {EventType} from 'vs/base/common/events';
-import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -20,6 +19,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -28,7 +28,7 @@ export class EditorState {
 
 	private static EDITOR_SELECTION_THRESHOLD = 5; // number of lines to move in editor to justify for new state
 
-	constructor(private _editorInput: IEditorInput, private _selection: IEditorSelection) {
+	constructor(private _editorInput: IEditorInput, private _selection: Selection) {
 		//
 	}
 
@@ -36,7 +36,7 @@ export class EditorState {
 		return this._editorInput;
 	}
 
-	public get selection(): IEditorSelection {
+	public get selection(): Selection {
 		return this._selection;
 	}
 
@@ -68,7 +68,7 @@ interface IInputWithPath {
 }
 
 export abstract class BaseHistoryService {
-	protected toUnbind: { (): void; }[];
+	protected toUnbind: IDisposable[];
 
 	constructor(
 		private eventService: IEventService,
@@ -81,13 +81,13 @@ export abstract class BaseHistoryService {
 		window.document.title = this.getWindowTitle(null);
 
 		// Editor Input Changes
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
 
 		// Editor Input State Changes
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (e: EditorInputEvent) => this.onEditorInputStateChanged(e.editorInput)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (e: EditorInputEvent) => this.onEditorInputStateChanged(e.editorInput)));
 
 		// Text Editor Selection Changes
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, (event: TextEditorSelectionEvent) => this.onTextEditorSelectionChanged(event)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, (event: TextEditorSelectionEvent) => this.onTextEditorSelectionChanged(event)));
 	}
 
 	private onEditorInputStateChanged(input: IEditorInput): void {
@@ -220,9 +220,7 @@ export abstract class BaseHistoryService {
 	}
 
 	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }
 
@@ -384,7 +382,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		// Take out on dispose
-		input.addOneTimeListener(EventType.DISPOSE, () => {
+		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
 			this.stack.forEach((e, i) => {
 				if (e.input.matches(input)) {
 					this.stack.splice(i, 1);

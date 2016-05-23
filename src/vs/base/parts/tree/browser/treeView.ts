@@ -401,7 +401,7 @@ export class TreeView extends HeightMap {
 	private static currentExternalDragAndDropData: _.IDragAndDropData = null;
 
 	private context: IViewContext;
-	private modelListeners: { (): void; }[];
+	private modelListeners: Lifecycle.IDisposable[];
 	private model: Model.TreeModel;
 
 	private viewListeners: Lifecycle.IDisposable[];
@@ -663,7 +663,7 @@ export class TreeView extends HeightMap {
 		this.releaseModel();
 		this.model = newModel;
 
-		this.modelListeners.push(this.model.addBulkListener((e) => this.onModelEvents(e)));
+		this.modelListeners.push(this.model.addBulkListener2((e) => this.onModelEvents(e)));
 	}
 
 	private onModelEvents(events:any[]): void {
@@ -1588,9 +1588,7 @@ export class TreeView extends HeightMap {
 
 	private releaseModel(): void {
 		if (this.model) {
-			while (this.modelListeners.length) {
-				this.modelListeners.pop()();
-			}
+			this.modelListeners = Lifecycle.dispose(this.modelListeners);
 			this.model = null;
 		}
 	}

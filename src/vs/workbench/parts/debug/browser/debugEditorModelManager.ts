@@ -91,7 +91,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private onModelAdded(model: editorcommon.IModel): void {
-		const modelUrlStr = model.getAssociatedResource().toString();
+		const modelUrlStr = model.uri.toString();
 		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.source.uri.toString() === modelUrlStr);
 
 		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUrlStr));
@@ -113,7 +113,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private onModelRemoved(model: editorcommon.IModel): void {
-		const modelUrlStr = model.getAssociatedResource().toString();
+		const modelUrlStr = model.uri.toString();
 		if (this.modelData.hasOwnProperty(modelUrlStr)) {
 			const modelData = this.modelData[modelUrlStr];
 			delete this.modelData[modelUrlStr];
@@ -209,7 +209,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			};
 		});
 
-		const modelUrl = modelData.model.getAssociatedResource();
+		const modelUrl = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
 			const decorationRange = modelData.model.getDecorationRange(modelData.breakpointDecorationIds[i]);
 			// check if the line got deleted.

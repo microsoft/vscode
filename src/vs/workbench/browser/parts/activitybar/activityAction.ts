@@ -11,7 +11,7 @@ import {Builder, $} from 'vs/base/browser/builder';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
 import {Action} from 'vs/base/common/actions';
 import {BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge} from 'vs/workbench/services/activity/common/activityService';
 
 export class ActivityAction extends Action {
@@ -175,7 +175,7 @@ export class ActivityActionItem extends BaseActionItem {
 		}
 	}
 
-	public _updateUnknown(event: IEmitterEvent): void {
+	public _updateUnknown(event: EmitterEvent): void {
 		if (event.getType() === ActivityAction.BADGE) {
 			let action = this.getAction();
 			if (action instanceof ActivityAction) {

@@ -18,7 +18,7 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {QuickFixRegistry} from 'vs/editor/common/modes';
+import {CodeActionProviderRegistry} from 'vs/editor/common/modes';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IQuickFix2} from '../common/quickFix';
 import {QuickFixModel} from './quickFixModel';
@@ -128,7 +128,7 @@ export class QuickFixAction extends EditorAction {
 
 	public isSupported(): boolean {
 		var model = this.editor.getModel();
-		return QuickFixRegistry.has(model) && !this.editor.getConfiguration().readOnly;
+		return CodeActionProviderRegistry.has(model) && !this.editor.getConfiguration().readOnly;
 	}
 
 	public run():TPromise<boolean> {

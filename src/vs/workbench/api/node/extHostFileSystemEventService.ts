@@ -132,7 +132,7 @@ export class MainThreadFileSystemEventService {
 			events.deleted.length = 0;
 		}, 100);
 
-		eventService.addListener('files:fileChanges', (event: FileChangesEvent) => {
+		eventService.addListener2('files:fileChanges', (event: FileChangesEvent) => {
 			for (let change of event.changes) {
 				switch (change.type) {
 					case FileChangeType.ADDED:

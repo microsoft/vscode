@@ -10,7 +10,7 @@ import {Disposables} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import {Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent} from 'vs/base/browser/ui/sash/sash';
-import {EventType, EditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {EditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
@@ -111,7 +111,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this.domNode.setAttribute('role', 'presentation');
 		}
 
-		this._disposables.add(this.editor.addListener2(EventType.EditorLayout, (info: EditorLayoutInfo) => {
+		this._disposables.add(this.editor.onDidLayoutChange((info: EditorLayoutInfo) => {
 			var width = this._getWidth(info);
 			this.domNode.style.width = width + 'px';
 			this._onWidth(width);

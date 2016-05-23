@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>fileTypes</key>
@@ -186,34 +186,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^(\s*):(markdown)(?=\(|$)$</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>2</key>
-				<dict>
-					<key>name</key>
-					<string>constant.language.name.markdown.filter.jade</string>
-				</dict>
-			</dict>
-			<key>end</key>
-			<string>^(?!(\1\s)|\s*$)</string>
-			<key>name</key>
-			<string>text.markdown.filter.jade</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>include</key>
-					<string>#filter_args</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>text.html.markdown</string>
-				</dict>
-			</array>
-		</dict>
-		<dict>
-			<key>begin</key>
-			<string>^(\s*):(sass)(?=\(|$)$</string>
+			<string>^(\s*):(sass)(?=\(|$)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>2</key>
@@ -230,7 +203,7 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#filter_args</string>
+					<string>#tag_attributes</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -240,7 +213,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^(\s*):(less)(?=\(|$)$</string>
+			<string>^(\s*):(less)(?=\(|$)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>2</key>
@@ -257,7 +230,7 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#filter_args</string>
+					<string>#tag_attributes</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -267,7 +240,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>^(\s*):(stylus)(?=\(|$)$</string>
+			<string>^(\s*):(stylus)(?=\(|$)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>2</key>
@@ -282,7 +255,7 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#filter_args</string>
+					<string>#tag_attributes</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -309,7 +282,7 @@
 			<array>
 				<dict>
 					<key>include</key>
-					<string>#filter_args</string>
+					<string>#tag_attributes</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -332,8 +305,6 @@
 			<string>Generic Jade filter.</string>
 			<key>end</key>
 			<string>^(?!(\1\s)|\s*$)</string>
-			<key>name</key>
-			<string>text.generic.filter.jade</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -353,13 +324,13 @@
 						</dict>
 						<dict>
 							<key>match</key>
-							<string>\w</string>
+							<string>[\w-]</string>
 							<key>name</key>
 							<string>constant.language.name.generic.filter.jade</string>
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>#filter_args</string>
+							<string>#tag_attributes</string>
 						</dict>
 						<dict>
 							<key>match</key>
@@ -776,73 +747,6 @@
 				<dict>
 					<key>include</key>
 					<string>#interpolated_error</string>
-				</dict>
-			</array>
-		</dict>
-		<key>filter_args</key>
-		<dict>
-			<key>begin</key>
-			<string>\G(\()</string>
-			<key>captures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>meta.args.filter.jade</string>
-				</dict>
-				<key>2</key>
-				<dict>
-					<key>name</key>
-					<string>invalid.illegal.extra.args.filter.jade</string>
-				</dict>
-			</dict>
-			<key>end</key>
-			<string>(\))(.*?$)</string>
-			<key>name</key>
-			<string>args.filter.jade</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>begin</key>
-					<string>([^\s(),=]+)(=?)</string>
-					<key>beginCaptures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>entity.other.attribute-name.tag.jade</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>punctuation.separator.key-value.jade</string>
-						</dict>
-					</dict>
-					<key>contentName</key>
-					<string>string.value.args.filter.jade</string>
-					<key>end</key>
-					<string>((?=\))|,|$)</string>
-					<key>patterns</key>
-					<array>
-						<dict>
-							<key>include</key>
-							<string>#filter_args_paren</string>
-						</dict>
-					</array>
-				</dict>
-			</array>
-		</dict>
-		<key>filter_args_paren</key>
-		<dict>
-			<key>begin</key>
-			<string>\(</string>
-			<key>end</key>
-			<string>\)|$</string>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>include</key>
-					<string>#filter_args_paren</string>
 				</dict>
 			</array>
 		</dict>

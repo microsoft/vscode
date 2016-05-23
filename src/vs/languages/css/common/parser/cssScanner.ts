@@ -43,7 +43,6 @@ export enum TokenType {
 	Resolution,
 	Comma,
 	Charset,
-
 	EscapedJavaScript,
 	BadEscapedJavaScript,
 	Comment,
@@ -288,6 +287,7 @@ export class Scanner {
 		if (tokenType !== null) {
 			return this.finishToken(offset, tokenType);
 		}
+
 		let content: string[] = [];
 		if (this.ident(content)) {
 			return this.finishToken(offset, TokenType.Ident, content.join(''));

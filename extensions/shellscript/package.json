@@ -7,7 +7,8 @@
 		"languages": [{
 			"id": "shellscript",
 			"aliases": ["Shell Script (Bash)", "shellscript", "bash", "sh", "zsh"],
-			"extensions": [".sh", ".bash", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".bash_logout", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv"],
+			"extensions": [".sh", ".bash", ".bashrc", ".bash_profile", ".bash_login", ".ebuild", ".install", ".profile", ".bash_logout", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv"],
+			"filenames": ["PKGBUILD"],
 			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh)|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
 			"configuration": "./shellscript.configuration.json",
 			"mimetypes": ["text/x-shellscript"]

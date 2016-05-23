@@ -8,11 +8,12 @@
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
 import {assign} from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
 import {ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
 import {ISuggestResult2} from '../common/suggest';
 import {asWinJsPromise} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
 export class CompletionItem {
 
@@ -30,7 +31,7 @@ export class CompletionItem {
 		this.filter = container.support && container.support.filter || fuzzyContiguousFilter;
 	}
 
-	resolveDetails(model:IReadOnlyModel, position:IEditorPosition): TPromise<ISuggestion> {
+	resolveDetails(model:IReadOnlyModel, position:Position): TPromise<ISuggestion> {
 		if (!this._support || typeof this._support.resolveCompletionItem !== 'function') {
 			return TPromise.as(this.suggestion);
 		}
@@ -122,6 +123,11 @@ export class CompletionModel {
 			// compute highlights based on 'label'
 			item.highlights = filter(word, suggestion.label);
 			match = item.highlights !== null;
+
+			// no match on label -> check on codeSnippet
+			if (!match && suggestion.codeSnippet !== suggestion.label) {
+				match = !isFalsyOrEmpty((filter(word, suggestion.codeSnippet.replace(/{{.+?}}/g, '')))); // filters {{text}}-snippet syntax
+			}
 
 			// no match on label nor codeSnippet -> check on filterText
 			if(!match && typeof suggestion.filterText === 'string') {

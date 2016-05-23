@@ -7,14 +7,15 @@
 import * as strings from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export class EditOperationsCommand implements editorCommon.ICommand {
 
 	private _edits:editorCommon.ISingleEditOperation[];
-	private _initialSelection: editorCommon.IEditorSelection;
+	private _initialSelection: Selection;
 	private _selectionId: string;
 
-	constructor(edits:editorCommon.ISingleEditOperation[], initialSelection: editorCommon.IEditorSelection) {
+	constructor(edits:editorCommon.ISingleEditOperation[], initialSelection: Selection) {
 		this._edits = edits;
 		this._initialSelection = initialSelection;
 	}
@@ -44,7 +45,7 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 

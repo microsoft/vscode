@@ -6,6 +6,7 @@
 import cp = require('child_process');
 import termJs = require('term.js');
 import lifecycle = require('vs/base/common/lifecycle');
+import os = require('os');
 import path = require('path');
 import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
@@ -69,7 +70,7 @@ export class TerminalPanel extends Panel {
 	private createTerminalProcess(): cp.ChildProcess {
 		let env = this.cloneEnv();
 		env['PTYSHELL'] = this.getShell();
-		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : process.env.HOME;
+		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
 		return cp.fork('./terminalProcess', [], {
 			env: env,
 			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath

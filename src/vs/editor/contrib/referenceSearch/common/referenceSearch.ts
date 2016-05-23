@@ -7,12 +7,13 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IReadOnlyModel, IEditorPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
 import {asWinJsPromise} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
-export function provideReferences(model: IReadOnlyModel, position: IEditorPosition): TPromise<Location[]> {
+export function provideReferences(model: IReadOnlyModel, position: Position): TPromise<Location[]> {
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {

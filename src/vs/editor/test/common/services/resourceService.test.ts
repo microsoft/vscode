@@ -39,11 +39,11 @@ suite('Editor Services - ResourceService', () => {
 		var url = URI.parse('far');
 		var element = createTestMirrorModelFromString('hi');
 		var service = new ResourceService();
-		service.addListener(ResourceEvents.ADDED, () => {
+		service.addListener2(ResourceEvents.ADDED, () => {
 			eventCnt++;
 			assert.ok(true);
 		});
-		service.addListener(ResourceEvents.REMOVED, () => {
+		service.addListener2(ResourceEvents.REMOVED, () => {
 			eventCnt++;
 			assert.ok(true);
 		});
@@ -64,7 +64,7 @@ suite('Editor Services - ResourceService', () => {
 		var service = new ResourceService();
 		service.insert(url, element);
 
-		service.addBulkListener((events) => {
+		service.addBulkListener2((events) => {
 			eventCnt++;
 			assert.equal(events.length, 1);
 			assert.equal(events[0].getData().originalEvents.length, 1);

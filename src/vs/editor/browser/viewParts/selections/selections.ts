@@ -11,6 +11,7 @@ import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 import {HorizontalRange, LineVisibleRanges} from 'vs/editor/common/view/renderingContext';
 import {IRenderingContext} from 'vs/editor/common/view/renderingContext';
+import {Range} from 'vs/editor/common/core/range';
 
 enum CornerStyle {
 	EXTERN,
@@ -78,7 +79,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	private _context:ViewContext;
 	private _lineHeight:number;
 	private _roundedSelection:boolean;
-	private _selections:editorCommon.IEditorRange[];
+	private _selections:Range[];
 	private _renderResult:string[];
 
 	constructor(context:ViewContext) {
@@ -271,7 +272,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 	}
 
-	private _getVisibleRangesWithStyle(selection: editorCommon.IEditorRange, ctx: IRenderingContext, previousFrame:LineVisibleRangesWithStyle[]): LineVisibleRangesWithStyle[] {
+	private _getVisibleRangesWithStyle(selection: Range, ctx: IRenderingContext, previousFrame:LineVisibleRangesWithStyle[]): LineVisibleRangesWithStyle[] {
 		let _linesVisibleRanges = ctx.linesVisibleRangesForRange(selection, true) || [];
 		let linesVisibleRanges = _linesVisibleRanges.map(toStyled);
 		let visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);

@@ -135,7 +135,7 @@ class MarkerEntry extends QuickOpenEntryItem {
 		let editor: ICommonCodeEditor;
 		for (let candidate of editors) {
 			if (!candidate.getModel()
-				|| candidate.getModel().getAssociatedResource().toString() !== this._marker.resource.toString()) {
+				|| candidate.getModel().uri.toString() !== this._marker.resource.toString()) {
 
 				continue;
 			}

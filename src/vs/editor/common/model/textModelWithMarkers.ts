@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Position} from 'vs/editor/common/core/position';
-import {IEditorPosition, IModelContentChangedFlushEvent, IRawText, IReadOnlyLineMarker, ITextModelWithMarkers} from 'vs/editor/common/editorCommon';
+import {IModelContentChangedFlushEvent, IRawText, IReadOnlyLineMarker, ITextModelWithMarkers} from 'vs/editor/common/editorCommon';
 import {ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
@@ -135,7 +135,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		}
 	}
 
-	_getMarker(id:string): IEditorPosition {
+	_getMarker(id:string): Position {
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			return new Position(marker.line.lineNumber, marker.column);

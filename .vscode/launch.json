@@ -74,6 +74,21 @@
 			"request": "launch",
 			"program": "${workspaceRoot}/src/vs/languages/css/common/buildscripts/generate_browserjs.js",
 			"stopOnEntry": false
+		},
+		{
+			"name": "Debug monaco",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceRoot}/build/lib/monaco.js",
+			"stopOnEntry": false,
+			"args": [
+			],
+			"cwd": "${workspaceRoot}/build/lib"
+			// ,
+
+			// "port": 5870,
+			// "sourceMaps": true,
+			// "outDir": "${workspaceRoot}/out"
 		}
 	]
 }

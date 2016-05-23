@@ -17,20 +17,22 @@ import {TypeScriptWorkerProtocol, LanguageServiceDefaults} from 'vs/languages/ty
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {wireCancellationToken} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export function register(modelService: IModelService, markerService: IMarkerService,
 	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
 
 	const disposables: lifecycle.IDisposable[] = [];
-	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
-	disposables.push(modes.SignatureHelpProviderRegistry.register(selector, new SignatureHelpAdapter(modelService, worker)));
-	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
-	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
-	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker)));
-	disposables.push(modes.ReferenceProviderRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
-	disposables.push(modes.DocumentSymbolProviderRegistry.register(selector, new OutlineAdapter(modelService, worker)));
-	disposables.push(modes.FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
-	disposables.push(modes.FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
+	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker), true));
+	disposables.push(modes.SignatureHelpProviderRegistry.register(selector, new SignatureHelpAdapter(modelService, worker), true));
+	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker), true));
+	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker), true));
+	disposables.push(modes.ReferenceProviderRegistry.register(selector, new ReferenceAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentSymbolProviderRegistry.register(selector, new OutlineAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentRangeFormattingEditProviderRegistry.register(selector, new FormatAdapter(modelService, worker), true));
+	disposables.push(modes.OnTypeFormattingEditProviderRegistry.register(selector, new FormatOnTypeAdapter(modelService, worker), true));
 	disposables.push(new DiagnostcsAdapter(defaults, selector, markerService, modelService, worker));
 
 	return lifecycle.combinedDisposable(disposables);
@@ -88,21 +90,21 @@ class DiagnostcsAdapter extends Adapter {
 		super(modelService, worker);
 
 		const onModelAdd = (model: editorCommon.IModel): void => {
-			if (!matches(_selector, model.getAssociatedResource(), model.getModeId())) {
+			if (!matches(_selector, model.uri, model.getModeId())) {
 				return;
 			}
 
 			let handle: number;
-			this._listener[model.getAssociatedResource().toString()] = model.addListener2(editorCommon.EventType.ModelContentChanged2, () => {
+			this._listener[model.uri.toString()] = model.addListener2(editorCommon.EventType.ModelContentChanged2, () => {
 				clearTimeout(handle);
-				handle = setTimeout(() => this._doValidate(model.getAssociatedResource()), 500);
+				handle = setTimeout(() => this._doValidate(model.uri), 500);
 			});
 
-			this._doValidate(model.getAssociatedResource());
+			this._doValidate(model.uri);
 		};
 
 		const onModelRemoved = (model: editorCommon.IModel): void => {
-			delete this._listener[model.getAssociatedResource().toString()];
+			delete this._listener[model.uri.toString()];
 		};
 
 		this._disposables.push(modelService.onModelAdded(onModelAdd));
@@ -174,9 +176,9 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return true;
 	}
 
-	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		const wordInfo = model.getWordUntilPosition(position);
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 		const offset = this._positionToOffset(resource, position);
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
@@ -200,8 +202,8 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		}));
 	}
 
-	resolveCompletionItem(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
-		const resource = model.getAssociatedResource();
+	resolveCompletionItem(model:editorCommon.IReadOnlyModel, position:Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getCompletionEntryDetails(resource.toString(),
@@ -247,8 +249,8 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 	public signatureHelpTriggerCharacters = ['(', ','];
 
-	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
-		let resource = model.getAssociatedResource();
+	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.SignatureHelp> {
+		let resource = model.uri;
 		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
 			if (!info) {
@@ -296,8 +298,8 @@ class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvide
 
 class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
-	provideHover(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Hover> {
-		let resource = model.getAssociatedResource();
+	provideHover(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.Hover> {
+		let resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getQuickInfoAtPosition(resource.toString(), this._positionToOffset(resource, position));
@@ -317,8 +319,8 @@ class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
 class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvider {
 
-	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: editorCommon.IEditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
-		const resource = model.getAssociatedResource();
+	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getOccurrencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
@@ -340,8 +342,8 @@ class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvi
 
 class DefinitionAdapter extends Adapter {
 
-	public provideDefinition(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, token:CancellationToken): Thenable<modes.Definition> {
-		const resource = model.getAssociatedResource();
+	public provideDefinition(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.Definition> {
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));
@@ -368,8 +370,8 @@ class DefinitionAdapter extends Adapter {
 
 class ReferenceAdapter extends Adapter implements modes.ReferenceProvider {
 
-	provideReferences(model:editorCommon.IReadOnlyModel, position:editorCommon.IEditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
-		const resource = model.getAssociatedResource();
+	provideReferences(model:editorCommon.IReadOnlyModel, position:Position, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
@@ -397,7 +399,7 @@ class ReferenceAdapter extends Adapter implements modes.ReferenceProvider {
 class OutlineAdapter extends Adapter implements modes.DocumentSymbolProvider {
 
 	public provideDocumentSymbols(model:editorCommon.IReadOnlyModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> {
-		const resource = model.getAssociatedResource();
+		const resource = model.uri;
 
 		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getNavigationBarItems(resource.toString())).then(items => {
 			if (!items) {
@@ -480,45 +482,8 @@ outlineTypeTable[Kind.localFunction] = modes.SymbolKind.Function;
 
 // --- formatting ----
 
-class FormatAdapter extends Adapter implements modes.IFormattingSupport {
-
-	formatRange(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>{
-		return this._worker(resource).then(worker => {
-			return worker.getFormattingEditsForRange(resource.toString(),
-				this._positionToOffset(resource, { lineNumber: range.startLineNumber, column: range.startColumn }),
-				this._positionToOffset(resource, { lineNumber: range.endLineNumber, column: range.endColumn }),
-				FormatAdapter._convertOptions(options));
-		}).then(edits => {
-			if (edits) {
-				return edits.map(edit => this._convertTextChanges(resource, edit));
-			}
-		});
-	}
-
-	get autoFormatTriggerCharacters() {
-		return [';', '}', '\n'];
-	}
-
-	formatAfterKeystroke(resource: URI, position: editorCommon.IPosition, ch: string, options: modes.IFormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> {
-		return this._worker(resource).then(worker => {
-			return worker.getFormattingEditsAfterKeystroke(resource.toString(),
-				this._positionToOffset(resource, position),
-				ch, FormatAdapter._convertOptions(options));
-		}).then(edits => {
-			if (edits) {
-				return edits.map(edit => this._convertTextChanges(resource, edit));
-			}
-		});
-	}
-
-	private _convertTextChanges(resource: URI, change: ts.TextChange): editorCommon.ISingleEditOperation {
-		return <editorCommon.ISingleEditOperation>{
-			text: change.newText,
-			range: this._textSpanToRange(resource, change.span)
-		};
-	}
-
-	private static _convertOptions(options: modes.IFormattingOptions): ts.FormatCodeOptions {
+abstract class FormatHelper extends Adapter {
+	protected static _convertOptions(options: modes.IFormattingOptions): ts.FormatCodeOptions {
 		return {
 			ConvertTabsToSpaces: options.insertSpaces,
 			TabSize: options.tabSize,
@@ -536,5 +501,51 @@ class FormatAdapter extends Adapter implements modes.IFormattingSupport {
 			PlaceOpenBraceOnNewLineForControlBlocks: false,
 			PlaceOpenBraceOnNewLineForFunctions: false
 		};
+	}
+
+	protected _convertTextChanges(resource: URI, change: ts.TextChange): editorCommon.ISingleEditOperation {
+		return <editorCommon.ISingleEditOperation>{
+			text: change.newText,
+			range: this._textSpanToRange(resource, change.span)
+		};
+	}
+}
+
+class FormatAdapter extends FormatHelper implements modes.DocumentRangeFormattingEditProvider {
+
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
+		const resource = model.uri;
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
+			return worker.getFormattingEditsForRange(resource.toString(),
+				this._positionToOffset(resource, { lineNumber: range.startLineNumber, column: range.startColumn }),
+				this._positionToOffset(resource, { lineNumber: range.endLineNumber, column: range.endColumn }),
+				FormatHelper._convertOptions(options));
+		}).then(edits => {
+			if (edits) {
+				return edits.map(edit => this._convertTextChanges(resource, edit));
+			}
+		}));
+	}
+}
+
+class FormatOnTypeAdapter extends FormatHelper implements modes.OnTypeFormattingEditProvider {
+
+	get autoFormatTriggerCharacters() {
+		return [';', '}', '\n'];
+	}
+
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
+		const resource = model.uri;
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
+			return worker.getFormattingEditsAfterKeystroke(resource.toString(),
+				this._positionToOffset(resource, position),
+				ch, FormatHelper._convertOptions(options));
+		}).then(edits => {
+			if (edits) {
+				return edits.map(edit => this._convertTextChanges(resource, edit));
+			}
+		}));
 	}
 }

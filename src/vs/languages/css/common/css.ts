@@ -327,45 +327,49 @@ export class CSSMode extends AbstractMode {
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 
-		// modes.DocumentHighlightProviderRegistry.register(this.getId(), {
-		// 	provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
-		// 		return wireCancellationToken(token, this._provideDocumentHighlights(model.getAssociatedResource(), position));
-		// 	}
-		// });
+		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
+			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
+				return wireCancellationToken(token, this._provideDocumentHighlights(model.uri, position));
+			}
+		}, true);
 
 		modes.HoverProviderRegistry.register(this.getId(), {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._provideHover(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
 			}
-		});
+		}, true);
 
-		// modes.ReferenceProviderRegistry.register(this.getId(), {
-		// 	provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
-		// 		return wireCancellationToken(token, this._provideReferences(model.getAssociatedResource(), position));
-		// 	}
-		// });
+		modes.ReferenceProviderRegistry.register(this.getId(), {
+			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._provideReferences(model.uri, position));
+			}
+		}, true);
 
 		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
 			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
-				return wireCancellationToken(token, this._provideDocumentSymbols(model.getAssociatedResource()));
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.uri));
 			}
-		});
+		}, true);
 
-		// modes.DefinitionProviderRegistry.register(this.getId(), {
-		// 	provideDefinition: (model, position, token): Thenable<modes.Definition> => {
-		// 		return wireCancellationToken(token, this._provideDefinition(model.getAssociatedResource(), position));
-		// 	}
-		// });
+		modes.DefinitionProviderRegistry.register(this.getId(), {
+			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._provideDefinition(model.uri, position));
+			}
+		}, true);
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [' ', ':'],
 			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
-				return wireCancellationToken(token, this._provideCompletionItems(model.getAssociatedResource(), position));
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}
-		});
+		}, true);
 
-		modes.QuickFixRegistry.register(this.getId(), this);
+		modes.CodeActionProviderRegistry.register(this.getId(), {
+			provideCodeActions: (model, range, token): Thenable<modes.IQuickFix[]> => {
+				return wireCancellationToken(token, this._provideCodeActions(model.uri, range));
+			}
+		}, true);
 	}
 
 	public creationDone(): void {
@@ -437,8 +441,8 @@ export class CSSMode extends AbstractMode {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 
-	static getQuickFixes = OneWorkerAttr(CSSMode, CSSMode.prototype.getQuickFixes);
-	public getQuickFixes(resource: URI, marker: IMarker | editorCommon.IRange): WinJS.TPromise<modes.IQuickFix[]>{
-		return this._worker((w) => w.getQuickFixes(resource, marker));
+	static _provideCodeActions = OneWorkerAttr(CSSMode, CSSMode.prototype._provideCodeActions);
+	private _provideCodeActions(resource: URI, marker: IMarker | editorCommon.IRange): WinJS.TPromise<modes.IQuickFix[]>{
+		return this._worker((w) => w.provideCodeActions(resource, marker));
 	}
 }

@@ -13,6 +13,7 @@ import {LanguageSelector, score} from 'vs/editor/common/modes/languageSelector';
 interface Entry<T> {
 	selector: LanguageSelector;
 	provider: T;
+	isBuiltin: boolean;
 	_score: number;
 	_time: number;
 }
@@ -30,11 +31,12 @@ export default class LanguageFeatureRegistry<T> {
 		return this._onDidChange.event;
 	}
 
-	register(selector: LanguageSelector, provider: T): IDisposable {
+	register(selector: LanguageSelector, provider: T, isBuiltin = false): IDisposable {
 
 		let entry: Entry<T> = {
 			selector,
 			provider,
+			isBuiltin,
 			_score: -1,
 			_time: this._clock++
 		};
@@ -125,7 +127,7 @@ export default class LanguageFeatureRegistry<T> {
 	private _updateScores(model: IReadOnlyModel): boolean {
 
 		let candidate = {
-			uri: model.getAssociatedResource().toString(),
+			uri: model.uri.toString(),
 			language: model.getModeId()
 		};
 
@@ -140,7 +142,11 @@ export default class LanguageFeatureRegistry<T> {
 		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
-			entry._score = score(entry.selector, model.getAssociatedResource(), model.getModeId());
+			entry._score = score(entry.selector, model.uri, model.getModeId());
+			if (entry.isBuiltin && entry._score > 0) {
+				entry._score = .5;
+				entry._time = -1;
+			}
 		}
 
 		// needs sorting

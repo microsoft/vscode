@@ -644,7 +644,7 @@ export class SearchViewlet extends Viewlet {
 	private loading: boolean;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchResult;
-	private callOnModelChange: Function[];
+	private callOnModelChange: lifecycle.IDisposable[];
 
 	private viewletVisible: IKeybindingContextKey<boolean>;
 	private actionRegistry: { [key: string]: Action; };
@@ -685,9 +685,9 @@ export class SearchViewlet extends Viewlet {
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_CHANGES, (e) => this.onFilesChanged(e)));
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DELETED, (e) => this.onUntitledFileDeleted(e)));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)).dispose);
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFilesChanged(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e) => this.onUntitledFileDeleted(e)));
+		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
 	private onConfigurationUpdated(configuration: any): void {
@@ -881,9 +881,9 @@ export class SearchViewlet extends Viewlet {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
 				});
 
-			this.toUnbind.push(() => renderer.dispose());
+			this.toUnbind.push(renderer);
 
-			this.toUnbind.push(this.tree.addListener('selection', (event: any) => {
+			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
 				let element: any, keyboard = event.payload && event.payload.origin === 'keyboard';
 				if (keyboard) {
 					element = this.tree.getFocus();
@@ -1364,7 +1364,7 @@ export class SearchViewlet extends Viewlet {
 					this.viewModel = this.instantiationService.createInstance(SearchResult, query.contentPattern);
 					this.tree.setInput(this.viewModel).then(() => {
 						autoExpand(false);
-						this.callOnModelChange.push(this.viewModel.addListener('changed', (e: any) => this.tree.refresh(e, true)));
+						this.callOnModelChange.push(this.viewModel.addListener2('changed', (e: any) => this.tree.refresh(e, true)));
 					}).done(null, errors.onUnexpectedError);
 				}
 
@@ -1500,6 +1500,6 @@ export class SearchViewlet extends Viewlet {
 			this.viewModel.dispose();
 			this.viewModel = null;
 		}
-		lifecycle.cAll(this.callOnModelChange);
+		this.callOnModelChange = lifecycle.dispose(this.callOnModelChange);
 	}
 }

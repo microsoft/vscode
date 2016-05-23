@@ -44,7 +44,7 @@ export class OutputWorker {
 		return this._contextService;
 	}
 
-	public computeLinks(resource: URI): TPromise<ILink[]> {
+	public provideLinks(resource: URI): TPromise<ILink[]> {
 		let links: ILink[] = [];
 		if (!this.patterns.length) {
 			return TPromise.as(links);

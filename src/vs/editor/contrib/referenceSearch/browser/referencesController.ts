@@ -22,6 +22,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {ReferencesModel, OneReference} from './referencesModel';
 import {ReferenceWidget, LayoutData} from './referencesWidget';
+import {Range} from 'vs/editor/common/core/range';
 
 export const ctxReferenceSearchVisible = 'referenceSearchVisible';
 
@@ -74,7 +75,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._editor = null;
 	}
 
-	public toggleWidget(range: editorCommon.IEditorRange, modelPromise: TPromise<ReferencesModel>, options: RequestOptions) : void {
+	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions) : void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: editorCommon.IPosition;
@@ -89,8 +90,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._disposables.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => { this.closeWidget(); }));
-		this._disposables.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => {
+		this._disposables.push(this._editor.onDidModelModeChange(() => { this.closeWidget(); }));
+		this._disposables.push(this._editor.onDidModelChange(() => {
 			if(!this._ignoreModelChangeEvent) {
 				this.closeWidget();
 			}
@@ -156,7 +157,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 				this._widget.setMetaTitle(options.getMetaTitle(model));
 
 				// set 'best' selection
-				let uri = this._editor.getModel().getAssociatedResource();
+				let uri = this._editor.getModel().uri;
 				let pos = { lineNumber: range.startLineNumber, column: range.startColumn };
 				let selection = this._model.nearestReference(uri, pos);
 				return this._widget.setSelection(selection);

@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {Emitter} from 'vs/base/common/event';
 import {CommonKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -29,14 +29,14 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IOptions, ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import {getQuickFixes} from 'vs/editor/contrib/quickFix/common/quickFix';
+import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
 
 class MarkerModel {
 
 	private _editor: ICodeEditor;
 	private _markers: IMarker[];
 	private _nextIdx: number;
-	private _toUnbind: Function[];
+	private _toUnbind: IDisposable[];
 	private _ignoreSelectionChange: boolean;
 	private _onCurrentMarkerChanged: Emitter<IMarker>;
 	private _onMarkerSetChanged: Emitter<MarkerModel>;
@@ -52,8 +52,8 @@ class MarkerModel {
 		this.setMarkers(markers);
 
 		// listen on editor
-		this._toUnbind.push(this._editor.addListener(editorCommon.EventType.Disposed, () => this.dispose()));
-		this._toUnbind.push(this._editor.addListener(editorCommon.EventType.CursorPositionChanged, () => {
+		this._toUnbind.push(this._editor.onDidDispose(() => this.dispose()));
+		this._toUnbind.push(this._editor.onDidCursorPositionChange(() => {
 			if (!this._ignoreSelectionChange) {
 				this._nextIdx = -1;
 			}
@@ -177,7 +177,7 @@ class MarkerModel {
 	}
 
 	public dispose(): void {
-		this._toUnbind = cAll(this._toUnbind);
+		this._toUnbind = dispose(this._toUnbind);
 	}
 }
 
@@ -294,7 +294,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._element.appendChild(renderHtml(marker.message));
 		this._quickFixSection.style.display = 'none';
 
-		getQuickFixes(this.editor.getModel(), marker).then(result => {
+		getCodeActions(this.editor.getModel(), Range.lift(marker)).then(result => {
 			dom.clearNode(this._quickFixSection);
 
 			if (result.length > 0) {
@@ -437,7 +437,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._callOnClose.push(this._model);
 		this._callOnClose.push(this._zone);
 
-		this._callOnClose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => {
+		this._callOnClose.push(this._editor.onDidModelChange(() => {
 			this._cleanUp();
 		}));
 
@@ -452,14 +452,14 @@ class MarkerController implements editorCommon.IEditorContribution {
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
-		if (!changedResources.some(r => this._editor.getModel().getAssociatedResource().toString() === r.toString())) {
+		if (!changedResources.some(r => this._editor.getModel().uri.toString() === r.toString())) {
 			return;
 		}
 		this._model.setMarkers(this._getMarkers());
 	}
 
 	private _getMarkers(): IMarker[] {
-		var resource = this._editor.getModel().getAssociatedResource(),
+		var resource = this._editor.getModel().uri,
 			markers = this._markerService.read({ resource: resource });
 
 		return markers;

@@ -5,7 +5,7 @@
 'use strict';
 
 import {IConfiguration} from 'vs/editor/common/editorCommon';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IViewModel} from 'vs/editor/common/viewModel/viewModel';
 
 export interface IViewEventBus {
@@ -13,7 +13,7 @@ export interface IViewEventBus {
 }
 
 export interface IViewEventHandler {
-	handleEvents(events:IEmitterEvent[]): void;
+	handleEvents(events:EmitterEvent[]): void;
 }
 
 export class ViewContext {

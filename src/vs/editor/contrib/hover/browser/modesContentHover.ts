@@ -12,11 +12,11 @@ import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
-import {IEditorRange, IRange} from 'vs/editor/common/editorCommon';
+import {IRange} from 'vs/editor/common/editorCommon';
 import {HoverProviderRegistry, Hover, IMode} from 'vs/editor/common/modes';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {provideHover} from '../common/hover';
+import {getHover} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
 
@@ -24,14 +24,14 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 
 	private _editor: ICodeEditor;
 	private _result: Hover[];
-	private _range: IEditorRange;
+	private _range: Range;
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._range = null;
 	}
 
-	public setRange(range: IEditorRange): void {
+	public setRange(range: Range): void {
 		this._range = range;
 		this._result = [];
 	}
@@ -47,7 +47,7 @@ class ModesContentComputer implements IHoverComputer<Hover[]> {
 			return TPromise.as(null);
 		}
 
-		return provideHover(model, new Position(
+		return getHover(model, new Position(
 			this._range.startLineNumber,
 			this._range.startColumn
 		));
@@ -120,7 +120,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static ID = 'editor.contrib.modesContentHoverWidget';
 	private _messages: Hover[];
-	private _lastRange: IEditorRange;
+	private _lastRange: Range;
 	private _computer: ModesContentComputer;
 	private _hoverOperation: HoverOperation<Hover[]>;
 	private _highlightDecorations:string[];
@@ -157,7 +157,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	public startShowingAt(range: IEditorRange, focus: boolean): void {
+	public startShowingAt(range: Range, focus: boolean): void {
 		if (this._lastRange) {
 			if (this._lastRange.equalsRange(range)) {
 				// We have to show the widget at the exact same range as before, so no work is needed

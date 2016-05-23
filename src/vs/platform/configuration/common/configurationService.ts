@@ -11,7 +11,7 @@ import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import model = require('./model');
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IDisposable, cAll} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import collections = require('vs/base/common/collections');
 import {IConfigurationService, IConfigurationServiceEvent}  from './configuration';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -56,7 +56,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 
 	private bulkFetchFromWorkspacePromise: TPromise<any>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<model.IConfigFile> };
-	private callOnDispose: Function;
+	private callOnDispose: IDisposable;
 	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, workspaceSettingsRootFolder: string = '.vscode') {
@@ -78,11 +78,13 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	}
 
 	protected registerListeners(): void {
-		let unbind = this.eventService.addListener(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
+		let unbind = this.eventService.addListener2(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
 		let subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.onDidRegisterConfiguration());
-		this.callOnDispose = () => {
-			unbind();
-			subscription.dispose();
+		this.callOnDispose = {
+			dispose: () => {
+				unbind.dispose();
+				subscription.dispose();
+			}
 		};
 	}
 
@@ -261,7 +263,7 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 		if (this.reloadConfigurationScheduler) {
 			this.reloadConfigurationScheduler.dispose();
 		}
-		this.callOnDispose = cAll(this.callOnDispose);
+		this.callOnDispose.dispose();
 		this._onDidUpdateConfiguration.dispose();
 	}
 }

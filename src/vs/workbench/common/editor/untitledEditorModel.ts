@@ -18,7 +18,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
-	private textModelChangeListener: () => void;
+	private textModelChangeListener: IDisposable;
 	private configurationChangeListener: IDisposable;
 
 	private dirty: boolean;
@@ -94,7 +94,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
 
 			// Listen to content changes
-			this.textModelChangeListener = this.textEditorModel.addListener(EventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
+			this.textModelChangeListener = this.textEditorModel.addListener2(EventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
 
 			// Emit initial dirty event if we are
 			if (this.dirty) {
@@ -118,7 +118,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		super.dispose();
 
 		if (this.textModelChangeListener) {
-			this.textModelChangeListener();
+			this.textModelChangeListener.dispose();
 			this.textModelChangeListener = null;
 		}
 

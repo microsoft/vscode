@@ -5,7 +5,8 @@
 'use strict';
 
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {ICursorStateComputer, IEditableTextModel, IEditorSelection, IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
+import {ICursorStateComputer, IEditableTextModel, IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
+import {Selection} from 'vs/editor/common/core/selection';
 
 interface IEditOperation {
 	operations: IIdentifiedSingleEditOperation[];
@@ -13,16 +14,16 @@ interface IEditOperation {
 
 interface IStackElement {
 	beforeVersionId: number;
-	beforeCursorState: IEditorSelection[];
+	beforeCursorState: Selection[];
 
 	editOperations: IEditOperation[];
 
-	afterCursorState: IEditorSelection[];
+	afterCursorState: Selection[];
 	afterVersionId: number;
 }
 
 export interface IUndoRedoResult {
-	selections: IEditorSelection[];
+	selections: Selection[];
 	recordedVersionId: number;
 }
 
@@ -53,7 +54,7 @@ export class EditStack {
 		this.future = [];
 	}
 
-	public pushEditOperation(beforeCursorState: IEditorSelection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): IEditorSelection[] {
+	public pushEditOperation(beforeCursorState: Selection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): Selection[] {
 		// No support for parallel universes :(
 		this.future = [];
 

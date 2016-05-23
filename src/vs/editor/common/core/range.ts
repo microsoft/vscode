@@ -6,9 +6,12 @@
 'use strict';
 
 import {Position} from 'vs/editor/common/core/position';
-import {IEditorPosition, IEditorRange, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IPosition, IRange} from 'vs/editor/common/editorCommon';
 
-export class Range implements IEditorRange {
+/**
+ * A range in the editor.
+ */
+export class Range {
 
 	public startLineNumber:number;
 	public startColumn:number;
@@ -29,51 +32,87 @@ export class Range implements IEditorRange {
 		}
 	}
 
+	/**
+	 * Test if this range is empty.
+	 */
 	public isEmpty(): boolean {
 		return Range.isEmpty(this);
 	}
 
+	/**
+	 * Test if position is in this range. If the position is at the edges, will return true.
+	 */
 	public containsPosition(position:IPosition): boolean {
 		return Range.containsPosition(this, position);
 	}
 
+	/**
+	 * Test if range is in this range. If the range is equal to this range, will return true.
+	 */
 	public containsRange(range:IRange): boolean {
 		return Range.containsRange(this, range);
 	}
 
+	/**
+	 * A reunion of the two ranges. The smallest position will be used as the start point, and the largest one as the end point.
+	 */
 	public plusRange(range:IRange): Range {
 		return Range.plusRange(this, range);
 	}
 
+	/**
+	 * A intersection of the two ranges.
+	 */
 	public intersectRanges(range:IRange): Range {
 		return Range.intersectRanges(this, range);
 	}
 
+	/**
+	 * Test if this range equals other.
+	 */
 	public equalsRange(other:IRange): boolean {
 		return Range.equalsRange(this, other);
 	}
 
-	public getEndPosition(): IEditorPosition {
+	/**
+	 * Return the end position (which will be after or equal to the start position)
+	 */
+	public getEndPosition(): Position {
 		return new Position(this.endLineNumber, this.endColumn);
 	}
 
-	public getStartPosition(): IEditorPosition {
+	/**
+	 * Return the start position (which will be before or equal to the end position)
+	 */
+	public getStartPosition(): Position {
 		return new Position(this.startLineNumber, this.startColumn);
 	}
 
+	/**
+	 * Clone this range.
+	 */
 	public cloneRange(): Range {
 		return new Range(this.startLineNumber, this.startColumn, this.endLineNumber, this.endColumn);
 	}
 
+	/**
+	 * Transform to a user presentable string representation.
+	 */
 	public toString(): string {
 		return '[' + this.startLineNumber + ',' + this.startColumn + ' -> ' + this.endLineNumber + ',' + this.endColumn + ']';
 	}
 
-	public setEndPosition(endLineNumber: number, endColumn: number): IEditorRange {
+	/**
+	 * Create a new range using this range's start position, and using endLineNumber and endColumn as the end position.
+	 */
+	public setEndPosition(endLineNumber: number, endColumn: number): Range {
 		return new Range(this.startLineNumber, this.startColumn, endLineNumber, endColumn);
 	}
 
-	public setStartPosition(startLineNumber: number, startColumn: number): IEditorRange {
+	/**
+	 * Create a new range using this range's end position, and using startLineNumber and startColumn as the start position.
+	 */
+	public setStartPosition(startLineNumber: number, startColumn: number): Range {
 		return new Range(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
 	}
 
@@ -83,7 +122,7 @@ export class Range implements IEditorRange {
 
 	// ---
 
-	public static lift(range:IRange): IEditorRange {
+	public static lift(range:IRange): Range {
 		if (!range) {
 			return null;
 		}

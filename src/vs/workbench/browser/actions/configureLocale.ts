@@ -83,7 +83,7 @@ let schema : IJSONSchema =
 	properties: {
 		locale: {
 			type: 'string',
-			enum: ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-tw'],
+			enum: ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'],
 			description: nls.localize('JsonSchema.locale', 'The UI Language to use.')
 		}
 	}

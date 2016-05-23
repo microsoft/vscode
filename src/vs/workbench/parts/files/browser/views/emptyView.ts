@@ -41,7 +41,7 @@ export class EmptyView extends CollapsibleView {
 
 		let button = new Button(section);
 		button.label = nls.localize('openFolder', "Open Folder");
-		button.on('click', () => {
+		button.addListener2('click', () => {
 			this.runWorkbenchAction(env.isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 		});
 	}

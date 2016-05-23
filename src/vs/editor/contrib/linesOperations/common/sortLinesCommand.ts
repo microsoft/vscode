@@ -7,14 +7,15 @@
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export class SortLinesCommand implements editorCommon.ICommand {
 
-	private selection:editorCommon.IEditorSelection;
+	private selection:Selection;
 	private selectionId:string;
 	private descending:boolean;
 
-	constructor(selection:editorCommon.IEditorSelection, descending:boolean) {
+	constructor(selection:Selection, descending:boolean) {
 		this.selection = selection;
 		this.descending = descending;
 	}
@@ -28,7 +29,7 @@ export class SortLinesCommand implements editorCommon.ICommand {
 		this.selectionId = builder.trackSelection(this.selection);
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):editorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):Selection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }
@@ -36,7 +37,7 @@ export class SortLinesCommand implements editorCommon.ICommand {
 /**
  * Generate commands for sorting lines on a model.
  */
-export function sortLines(model:editorCommon.ITextModel, selection:editorCommon.IEditorSelection, descending:boolean): editorCommon.IIdentifiedSingleEditOperation {
+export function sortLines(model:editorCommon.ITextModel, selection:Selection, descending:boolean): editorCommon.IIdentifiedSingleEditOperation {
 	let startLineNumber = selection.startLineNumber;
 	let endLineNumber = selection.endLineNumber;
 

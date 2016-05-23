@@ -1141,6 +1141,10 @@ export class VariableDeclaration extends Node {
 		return false;
 	}
 
+	public getVariable():Variable {
+		return this.variable;
+	}
+
 	public getName():string {
 		return this.variable ? this.variable.getName() : '';
 	}
@@ -1181,6 +1185,9 @@ export class Variable extends Node {
 		return this.getText();
 	}
 
+}
+
+export class CSSVariable extends Variable {
 }
 
 export class ExtendsReference extends Node {

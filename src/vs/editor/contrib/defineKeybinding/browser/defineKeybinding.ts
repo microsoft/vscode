@@ -61,14 +61,14 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		this._launchWidget = new DefineKeybindingLauncherWidget(this._editor, keybindingService, () => this.launch());
 		this._defineWidget = new DefineKeybindingWidget(this._editor, keybindingService, (keybinding) => this._onAccepted(keybinding));
 
-		this._toDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e) => {
+		this._toDispose.push(this._editor.onDidConfigurationChange((e) => {
 			if (isInterestingEditorModel(this._editor)) {
 				this._launchWidget.show();
 			} else {
 				this._launchWidget.hide();
 			}
 		}));
-		this._toDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, (e) => {
+		this._toDispose.push(this._editor.onDidModelChange((e) => {
 			if (isInterestingEditorModel(this._editor)) {
 				this._launchWidget.show();
 			} else {
@@ -123,7 +123,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			return;
 		}
 
-		let url = model.getAssociatedResource().toString();
+		let url = model.uri.toString();
 		if (!INTERESTING_FILE.test(url)) {
 			return;
 		}
@@ -374,7 +374,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			let htmlkb = this._keybindingService.getHTMLLabelFor(this._lastKeybinding);
 			htmlkb.forEach((item) => this._outputNode.appendChild(renderHtml(item)));
 		}));
-		this._toDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e) => {
+		this._toDispose.push(this._editor.onDidConfigurationChange((e) => {
 			if (this._isVisible) {
 				this._layout();
 			}
@@ -479,7 +479,7 @@ function isInterestingEditorModel(editor:editorCommon.ICommonCodeEditor): boolea
 	if (!model) {
 		return false;
 	}
-	let url = model.getAssociatedResource().toString();
+	let url = model.uri.toString();
 	return INTERESTING_FILE.test(url);
 }
 

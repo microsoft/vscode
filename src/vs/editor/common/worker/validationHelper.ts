@@ -5,7 +5,7 @@
 'use strict';
 
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {IMirrorModel} from 'vs/editor/common/editorCommon';
@@ -31,9 +31,7 @@ class ValidationModel implements IDisposable {
 		this._changeCallback = changeCallback;
 		this._model = model;
 		this._isDirty = false;
-		this._toDispose.push({
-			dispose: model.addBulkListener((events) => this._onModelChanged(events))
-		});
+		this._toDispose.push(model.addBulkListener2((events) => this._onModelChanged(events)));
 	}
 
 	public dispose(): void {
@@ -57,7 +55,7 @@ class ValidationModel implements IDisposable {
 		return this._model;
 	}
 
-	private _onModelChanged(events:IEmitterEvent[]): void {
+	private _onModelChanged(events:EmitterEvent[]): void {
 		var containsChanged = false;
 		for (var i = 0; !containsChanged && i < events.length; i++) {
 			if (events[i].getType() === 'changed') {
@@ -130,7 +128,7 @@ export class ValidationHelper implements IDisposable {
 		var model = <IMirrorModel>element;
 
 		var validationModel = new ValidationModel(model, (model) => this._onChanged(model));
-		this._models[model.getAssociatedResource().toString()] = validationModel;
+		this._models[model.uri.toString()] = validationModel;
 		this._onChanged(validationModel);
 	}
 
@@ -170,10 +168,10 @@ export class ValidationHelper implements IDisposable {
 			.map((modelUrl) => this._models[modelUrl])
 			.forEach((model) => {
 				if (model.isDirty()) {
-					dirtyModels.push(model.getMirrorModel().getAssociatedResource());
+					dirtyModels.push(model.getMirrorModel().uri);
 					model.markAsClean();
 				} else {
-					cleanModels.push(model.getMirrorModel().getAssociatedResource());
+					cleanModels.push(model.getMirrorModel().uri);
 				}
 			});
 

@@ -21,7 +21,7 @@ import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} 
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
-import {provideHover} from 'vs/editor/contrib/hover/common/hover';
+import {getHover} from 'vs/editor/contrib/hover/common/hover';
 import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 
@@ -67,7 +67,7 @@ export class HTMLWorker {
 		providers.push(htmlTags.getIonicTagProvider());
 	}
 
-	public format(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
+	public provideDocumentRangeFormattingEdits(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
 		return this.formatHTML(resource, range, options);
 	}
 
@@ -150,7 +150,7 @@ export class HTMLWorker {
 	public provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
 			if (isEmbeddedMode) {
-				return provideHover(model, Position.lift(position)).then((r) => {
+				return getHover(model, Position.lift(position)).then((r) => {
 					return (r.length > 0 ? r[0] : null);
 				});
 			}
@@ -171,7 +171,7 @@ export class HTMLWorker {
 
 			allPromises = models
 				.filter((model) => (typeof model.getMode()['findColorDeclarations'] === 'function'))
-				.map((model) => model.getMode()['findColorDeclarations'](model.getAssociatedResource()));
+				.map((model) => model.getMode()['findColorDeclarations'](model.uri));
 
 			return winjs.TPromise.join(allPromises).then((results:IColorRange[][]) => {
 				let result:IColorRange[] = [];
@@ -584,7 +584,7 @@ export class HTMLWorker {
 		let lineCount = model.getLineCount(),
 			newLinks: modes.ILink[] = [],
 			state: LinkDetectionState = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC,
-			modelAbsoluteUrl = model.getAssociatedResource(),
+			modelAbsoluteUrl = model.uri,
 			lineNumber: number,
 			lineContent: string,
 			lineContentLength: number,
@@ -659,7 +659,7 @@ export class HTMLWorker {
 		return newLinks;
 	}
 
-	public computeLinks(resource: URI): winjs.TPromise<modes.ILink[]> {
+	public provideLinks(resource: URI): winjs.TPromise<modes.ILink[]> {
 		let model = this.resourceService.get(resource);
 		return winjs.TPromise.as(this._computeHTMLLinks(model));
 	}

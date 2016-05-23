@@ -25,10 +25,12 @@ var sourcemaps = require('gulp-sourcemaps');
 var _ = require('underscore');
 var assign = require('object-assign');
 var quiet = !!process.env['VSCODE_BUILD_QUIET'];
+var declaration = !!process.env['VSCODE_BUILD_DECLARATION_FILES'];
 
 var rootDir = path.join(__dirname, 'src');
 var tsOptions = {
 	target: 'ES5',
+	declaration: declaration,
 	module: 'amd',
 	verbose: !quiet,
 	preserveConstEnums: true,

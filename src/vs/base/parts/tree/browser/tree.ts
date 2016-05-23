@@ -14,6 +14,8 @@ import { ScrollbarVisibility } from 'vs/base/browser/ui/scrollbar/scrollableElem
 
 export interface ITree extends Events.IEventEmitter {
 
+	emit(eventType:string, data?:any):void;
+
 	/**
 	 * Returns the tree's DOM element.
 	 */
