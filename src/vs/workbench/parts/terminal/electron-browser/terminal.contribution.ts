@@ -20,7 +20,7 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Confi
 configurationRegistry.registerConfiguration({
 	'id': 'terminal',
 	'order': 100,
-	'title': nls.localize('integratedTerminalConfigurationTitle', "(Experimental) Integrated terminal configuration"),
+	'title': nls.localize('integratedTerminalConfigurationTitle', "Integrated terminal configuration"),
 	'type': 'object',
 	'properties': {
 		'integratedTerminal.shell.unixLike': {
