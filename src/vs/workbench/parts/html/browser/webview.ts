@@ -117,7 +117,7 @@ export default class Webview {
 	style(themeId: string): void {
 		const {color, backgroundColor, fontFamily, fontSize} = window.getComputedStyle(this._styleElement);
 
-		let autoThemeRules = `
+		let value = `
 		:root {
 			--background-color: ${backgroundColor};
 			--color: ${color};
@@ -129,20 +129,9 @@ export default class Webview {
 			color: var(--color);
 			font-family: var(--font-family);
 			font-size: var(--font-size);
-		}`;
-
-		// let autoThemeRules = `
-		// * {
-		// 	color: ${color};
-		// 	background-color: ${backgroundColor};
-		// 	font-family: ${fontFamily};
-		// 	font-size: ${fontSize};
-		// }`;
-
-		let value = `
-		body {
 			margin: 0;
 		}
+
 		img {
 			max-width: 100%;
 			max-height: 100%;
@@ -195,7 +184,7 @@ export default class Webview {
 			value += `
 			::-webkit-scrollbar-thumb {
 				background-color: rgba(111, 195, 223, 0.3);
-		  	}
+			}
 			::-webkit-scrollbar-thumb:hover {
 				background-color: rgba(111, 195, 223, 0.8);
 			}
@@ -206,6 +195,6 @@ export default class Webview {
 			bodyClasses['add'] = 'monaco-editor hc-black';
 		}
 
-		this._send('styles', value, bodyClasses, autoThemeRules);
+		this._send('styles', value, bodyClasses);
 	}
 }

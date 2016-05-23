@@ -21,10 +21,6 @@
 			}
 		}
 
-		function isThemeAware(body) {
-			return body ? body.className.split(' ').includes('vs-theme-aware') : false;
-		}
-
 
 		const ipcRenderer = require('electron').ipcRenderer;
 		const target = document.getElementById('_target');
@@ -33,14 +29,13 @@
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', function(event, value, bodyClasses, autoThemeRules) {
+		ipcRenderer.on('styles', function(event, value, bodyClasses) {
 			initData.styles = value;
 			initData.bodyClasses = bodyClasses;
-			initData.autoThemeRules = autoThemeRules;
 
 			// webview
 			let defaultStyles = document.getElementById('_defaultStyles');
-			defaultStyles.innerHTML = initData.styles + initData.autoThemeRules;
+			defaultStyles.innerHTML = initData.styles;
 
 			let body = target.contentDocument.getElementsByTagName('body');
 			styleBody(body[0]);
@@ -48,7 +43,7 @@
 			// iframe
 			defaultStyles = target.contentDocument.getElementById('_defaultStyles');
 			if(defaultStyles) {
-				defaultStyles.innerHTML = initData.styles + (isThemeAware(body[0]) ? '' : initData.autoThemeRules);
+				defaultStyles.innerHTML = initData.styles;
 			}
 		});
 
@@ -73,7 +68,7 @@
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-			defaultStyles.innerHTML = initData.styles + (isThemeAware(newDocument.body) ? '' : initData.autoThemeRules);
+			defaultStyles.innerHTML = initData.styles;
 			if (newDocument.head.hasChildNodes()) {
 				newDocument.head.insertBefore(defaultStyles, newDocument.head.firstChild);
 			} else {
