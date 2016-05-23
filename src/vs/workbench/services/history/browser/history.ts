@@ -347,6 +347,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			options: options
 		};
 
+		// If we are not at the end of history, we remove anything after
+		if (this.stack.length > this.index + 1) {
+			this.stack = this.stack.slice(0, this.index + 1);
+		}
+
 		// Replace at current position
 		if (replace) {
 			this.stack[this.index] = entry;
