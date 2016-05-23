@@ -1544,45 +1544,61 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	}
 
 	protected doRun(context: any): TPromise<boolean> {
+		const stacks = this.editorService.getStacksModel();
 
-		// Store mimes per untitled file to restore later
-		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; } } = Object.create(null);
+		// Store some properties per untitled file to restore later after save is completed
+		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; } } = Object.create(null);
 		this.textFileService.getDirty()
 			.filter(r => r.scheme === 'untitled')			// All untitled resources
 			.map(r => this.untitledEditorService.get(r))	// Mapped to their inputs
 			.filter(i => !!i)								// If possible :)
-			.forEach(i => mapUntitledToProperties[i.getResource().toString()] = { mime: i.getMime(), encoding: i.getEncoding() });
+			.forEach(i => {
+				mapUntitledToProperties[i.getResource().toString()] = { mime: i.getMime(), encoding: i.getEncoding(), indexInGroups: stacks.groups.map(g => g.indexOf(i)) };
+			});
 
 		// Save all
-		return this.textFileService.saveAll(this.getSaveAllArguments(context)).then((result) => {
+		return this.textFileService.saveAll(this.getSaveAllArguments(context)).then(results => {
 
-			// Replace all untitled editors that got saved as
-			return this.editorService.replaceEditors(result.results.map(result => {
-				if (!result.success || result.source.scheme !== 'untitled') {
-					return null; // ignore failing saves or non untitled files
+			// Reopen saved untitled editors
+			const editorsToOpen: { input: IResourceInput, position: Position }[] = [];
+
+			results.results.forEach(result => {
+				if (!result.success) {
+					return;
 				}
 
+				const sourceResource = result.source.toString();
+
 				let mimeOfSource: string;
-				let selectedMime = mapUntitledToProperties[result.source.toString()] && mapUntitledToProperties[result.source.toString()].mime;
+				let selectedMime = mapUntitledToProperties[sourceResource] && mapUntitledToProperties[sourceResource].mime;
 				if (!isUnspecific(selectedMime)) {
 					mimeOfSource = [selectedMime, MIME_TEXT].join(', ');
 				}
 
-				let encodingOfSource: string = mapUntitledToProperties[result.source.toString()] && mapUntitledToProperties[result.source.toString()].encoding;
+				let encodingOfSource: string = mapUntitledToProperties[sourceResource] && mapUntitledToProperties[sourceResource].encoding;
 
-				return {
-					toReplace: { resource: result.source },
-					replaceWith: <IResourceInput>{
-						resource: result.target,
-						mime: mimeOfSource,
-						encoding: encodingOfSource,
-						options: {
-							pinned: true,
-							preserveFocus: true
-						}
+				let indexInGroups = mapUntitledToProperties[sourceResource].indexInGroups;
+
+				indexInGroups.forEach((indexInGroup, index) => {
+					if (indexInGroup >= 0) {
+						editorsToOpen.push({
+							input: {
+								resource: result.target,
+								mime: mimeOfSource,
+								encoding: encodingOfSource,
+								options: {
+									pinned: true,
+									index: indexInGroup,
+									preserveFocus: true
+								}
+							},
+							position: index
+						});
 					}
-				};
-			}).filter(o => !!o)).then(() => true);
+				});
+			});
+
+			return this.editorService.openEditors(editorsToOpen).then(() => true);
 		});
 	}
 

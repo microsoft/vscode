@@ -950,7 +950,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Open each input respecting the options. Since there can only be one active editor in each
 		// position, we have to pick the first input from each position and add the others as inactive
 		let promises: TPromise<BaseEditor>[] = [];
-		[leftEditors.shift(), centerEditors.shift(), rightEditors.shift()].forEach((editor, index) => {
+		[leftEditors.shift(), centerEditors.shift(), rightEditors.shift()].forEach((editor, position) => {
 			if (!editor) {
 				return; // unused position
 			}
@@ -958,7 +958,7 @@ export class EditorPart extends Part implements IEditorPart {
 			const input = editor.input;
 
 			// Resolve editor options
-			const preserveFocus = activePosition !== index;
+			const preserveFocus = activePosition !== position;
 			let options: EditorOptions;
 			if (editor.options) {
 				options = editor.options;
@@ -967,7 +967,7 @@ export class EditorPart extends Part implements IEditorPart {
 				options = EditorOptions.create({ preserveFocus: preserveFocus });
 			}
 
-			promises.push(this.openEditor(input, options, index, widthRatios));
+			promises.push(this.openEditor(input, options, position, widthRatios));
 		});
 
 		return TPromise.join(promises).then(editors => {
