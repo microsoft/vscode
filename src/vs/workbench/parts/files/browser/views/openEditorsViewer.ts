@@ -318,6 +318,7 @@ export class Controller extends treedefaults.DefaultController {
 			if (pinEditor) {
 				this.editorService.pinEditor(position, element.editorInput);
 			}
+			this.editorService.activateGroup(position);
 			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus: !pinEditor }), position)
 				.done(() => this.editorService.activateGroup(position), errors.onUnexpectedError);
 		}
