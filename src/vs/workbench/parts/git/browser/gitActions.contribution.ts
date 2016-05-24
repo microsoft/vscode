@@ -28,7 +28,7 @@ import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import wbar = require('vs/workbench/common/actionRegistry');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction } from './gitActions';
+import { OpenChangeAction, OpenFileAction, SyncAction, PullAction, PushAction, PublishAction, StartGitBranchAction, StartGitCheckoutAction, InputCommitAction, UndoLastCommitAction, StageAction } from './gitActions';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 
@@ -480,3 +480,4 @@ workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGi
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitCheckoutAction, StartGitCheckoutAction.ID, StartGitCheckoutAction.LABEL), 'Git: Checkout', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InputCommitAction, InputCommitAction.ID, InputCommitAction.LABEL), 'Git: Commit', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(UndoLastCommitAction, UndoLastCommitAction.ID, UndoLastCommitAction.LABEL), 'Git: Undo Last Commit', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StageAction, StageAction.ID, StageAction.LABEL), 'Git: Stage', category);
