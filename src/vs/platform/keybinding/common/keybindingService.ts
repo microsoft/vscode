@@ -33,7 +33,7 @@ export interface IKeybindings {
 	};
 }
 
-enum KbExprType {
+export enum KbExprType {
 	KbDefinedExpression = 1,
 	KbNotExpression = 2,
 	KbEqualsExpression = 3,
