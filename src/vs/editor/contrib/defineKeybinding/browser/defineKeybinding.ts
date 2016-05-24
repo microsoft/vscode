@@ -26,6 +26,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CodeSnippet, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
+import {SmartSnippetInserter} from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
@@ -111,6 +112,10 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			'\t"when": "{{editorTextFocus}}"',
 			'}{{}}'
 		].join('\n');
+
+		let smartInsertInfo = SmartSnippetInserter.insertSnippet(this._editor.getModel(), this._editor.getPosition());
+		snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
+		this._editor.setPosition(smartInsertInfo.position);
 
 		getSnippetController(this._editor).run(new CodeSnippet(snippetText), 0, 0);
 	}
