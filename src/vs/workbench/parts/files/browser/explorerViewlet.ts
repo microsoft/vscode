@@ -60,7 +60,8 @@ export class ExplorerViewlet extends Viewlet {
 		this.viewletContainer = parent.div().addClass('explorer-viewlet');
 
 		return this.configurationService.loadConfiguration().then((config:IFilesConfiguration) => {
-			this.openEditorsVisible = config.explorer.openEditors.visible && config.explorer.openEditors.maxVisible !== 0;
+			// Open editors view should always be visible in no folder workspace.
+			this.openEditorsVisible = !this.contextService.getWorkspace() || (config.explorer.openEditors.visible && config.explorer.openEditors.maxVisible !== 0);
 			if (this.openEditorsVisible) {
 				this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
 
