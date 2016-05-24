@@ -45,6 +45,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
 import {Selection} from 'vs/editor/common/core/selection';
 
@@ -1637,12 +1638,12 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 		return 'explorer-action save-all';
 	}
 
-	protected getSaveAllArguments(position: Position): any {
-		if (!position) {
+	protected getSaveAllArguments(editorIdentifier: IEditorIdentifier): any {
+		if (!editorIdentifier) {
 			return this.includeUntitled();
 		}
 
-		const editorGroup = this.editorService.getStacksModel().getGroup(position);
+		const editorGroup = editorIdentifier.group;
 		const resourcesToSave = [];
 		editorGroup.getEditors().forEach(editor => {
 			if (editor instanceof FileEditorInput || editor instanceof UntitledEditorInput) {
