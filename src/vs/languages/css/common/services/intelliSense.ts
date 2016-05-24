@@ -74,14 +74,11 @@ export class CSSIntellisense {
 			} else if (node instanceof nodes.Interpolation) {
 				this.getCompletionsForInterpolation(<nodes.Interpolation> node, result);
 			} else if (node instanceof nodes.FunctionArgument) {
-				this.getCompletionsForFunctionArguments(<nodes.FunctionArgument> node, result);
+				this.getCompletionsForFunctionArgument(<nodes.FunctionArgument> node, <nodes.Function>node.getParent(), result);
 			} else if (node instanceof nodes.FunctionDeclaration) {
 				this.getCompletionsForFunctionDeclaration(<nodes.FunctionDeclaration> node, result);
 			} else if (node instanceof nodes.Function) {
-				let functionNode: nodes.Function= <nodes.Function>node;
-				if (functionNode.getIdentifier().getText() === 'var') {
-					this.getVariableProposalsForCSSVarFunction(result);
-				}
+				this.getCompletionsForFunctionArgument(null, <nodes.Function>node, result);
 			}
 			if (result.length > 0) {
 				return { currentWord: this.currentWord, suggestions: result, incomplete: this.isIncomplete };
@@ -547,6 +544,11 @@ export class CSSIntellisense {
 	}
 
 	public getCompletionsForExpression(expression: nodes.Expression, result:Modes.ISuggestion[]):Modes.ISuggestion[]{
+		if (expression.getParent() instanceof nodes.FunctionArgument) {
+			this.getCompletionsForFunctionArgument(<nodes.FunctionArgument>expression.getParent(), <nodes.Function>expression.getParent().getParent(), result);
+			return result;
+		}
+
 		var declaration = <nodes.Declaration> expression.findParent(nodes.NodeType.Declaration);
 		if (!declaration) {
 			this.getTermProposals(result);
@@ -563,7 +565,12 @@ export class CSSIntellisense {
 		return result;
 	}
 
-	public getCompletionsForFunctionArguments(arg: nodes.FunctionArgument, result: Modes.ISuggestion[]): Modes.ISuggestion[] {
+	public getCompletionsForFunctionArgument(arg: nodes.FunctionArgument, func: nodes.Function, result: Modes.ISuggestion[]): Modes.ISuggestion[] {
+		if (func.getIdentifier().getText() === 'var') {
+			if (!func.getArguments().hasChildren() || func.getArguments().getChild(0) === arg) {
+				this.getVariableProposalsForCSSVarFunction(result);
+			}
+		}
 		return result;
 	}
 

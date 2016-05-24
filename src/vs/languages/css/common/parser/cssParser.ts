@@ -1005,7 +1005,7 @@ export class Parser {
 		if (node.getArguments().addChild(this._parseFunctionArgument())) {
 			while (this.accept(scanner.TokenType.Comma)) {
 				if (!node.getArguments().addChild(this._parseFunctionArgument())) {
-					return this.finish(node, errors.ParseError.ExpressionExpected);
+					this.markError(node, errors.ParseError.ExpressionExpected);
 				}
 			}
 		}
