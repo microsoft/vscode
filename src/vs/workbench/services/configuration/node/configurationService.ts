@@ -19,8 +19,10 @@ import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IDisposable} from 'vs/base/common/lifecycle';
-
-import fs = require('fs');
+import {readFile, writeFile} from 'vs/base/node/pfs';
+import {JSONPath} from 'vs/base/common/json';
+import {applyEdits} from 'vs/base/common/jsonFormatter';
+import {setProperty} from 'vs/base/common/jsonEdit';
 
 export class ConfigurationService extends CommonConfigurationService {
 
@@ -58,18 +60,7 @@ export class ConfigurationService extends CommonConfigurationService {
 	}
 
 	protected resolveContent(resource: uri): TPromise<IContent> {
-		return new TPromise<IContent>((c, e) => {
-			fs.readFile(resource.fsPath, (error, contents) => {
-				if (error) {
-					e(error);
-				} else {
-					c({
-						resource: resource,
-						value: contents.toString()
-					});
-				}
-			});
-		});
+		return readFile(resource.fsPath).then(contents => ({resource, value: contents.toString()}));
 	}
 
 	protected resolveStat(resource: uri): TPromise<IStat> {
@@ -125,6 +116,17 @@ export class ConfigurationService extends CommonConfigurationService {
 			),
 			parseErrors: globalSettings.settingsParseErrors
 		};
+	}
+
+	public setUserConfiguration(key: any, value: any) : Thenable<void> {
+		let appSettingsPath = this.contextService.getConfiguration().env.appSettingsPath;
+		return readFile(appSettingsPath, 'utf8').then(content => {
+			let {tabSize, insertSpaces} = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
+			let path: JSONPath = typeof key === 'string' ? (<string> key).split('.') : <JSONPath> key;
+			let edits = setProperty(content, path, value, {insertSpaces, tabSize, eol: '\n'});
+			content = applyEdits(content, edits);
+			return writeFile(appSettingsPath, content, 'utf8');
+		});
 	}
 
 	public dispose(): void {

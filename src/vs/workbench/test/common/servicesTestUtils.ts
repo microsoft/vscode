@@ -516,4 +516,8 @@ export class TestLifecycleService implements ILifecycleService {
 	public get onShutdown(): Event<void> {
 		return this._onShutdown.event;
 	}
+
+	public setUserConfiguration(key: any, value: any): Thenable<void> {
+		return TPromise.as(null);
+	}
 }

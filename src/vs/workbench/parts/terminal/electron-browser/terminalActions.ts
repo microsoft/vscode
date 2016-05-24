@@ -11,7 +11,7 @@ import {ITerminalService} from 'vs/workbench/parts/terminal/common/terminal';
 export class ToggleTerminalAction extends Action {
 
 	public static ID = 'workbench.action.terminal.toggleTerminal';
-	public static LABEL = nls.localize('toggleTerminal', "(Experimental) Toggle Terminal");
+	public static LABEL = nls.localize('toggleTerminal', "Toggle Terminal");
 
 	constructor(
 		id: string, label: string,

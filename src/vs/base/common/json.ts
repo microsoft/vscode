@@ -669,6 +669,7 @@ export interface Node {
 }
 
 export type Segment = string | number;
+export type JSONPath = Segment[];
 
 export interface Location {
 	/**
@@ -679,13 +680,13 @@ export interface Location {
 	 * The path describing the location in the JSON document. The path consists of a sequence strings
 	 * representing an object property or numbers for array indices.
 	 */
-	path: Segment[];
+	path: JSONPath;
 	/**
 	 * Matches the locations path against a pattern consisting of strings (for properties) and numbers (for array indices).
 	 * '*' will match a single segment, of any property name or index.
 	 * '**' will match a sequece of segments or no segment, of any property name or index.
 	 */
-	matches: (patterns: Segment[]) => boolean;
+	matches: (patterns: JSONPath) => boolean;
 	/**
 	 * If set, the location's offset is at a property key.
 	 */
@@ -927,13 +928,18 @@ export function parseTree(text:string, errors: ParseError[] = [], options?: Pars
 	visit(text, visitor, options);
 
 	let result = currentParent.children[0];
-	delete result.parent;
+	if (result) {
+		delete result.parent;
+	}
 	return result;
 }
 
-export function findNodeAtLocation(root: Node, segments: Segment[]) : Node {
+export function findNodeAtLocation(root: Node, path: JSONPath) : Node {
+	if (!root) {
+		return void 0;
+	}
 	let node = root;
-	for (let segment of segments) {
+	for (let segment of path) {
 		if (typeof segment === 'string') {
 			if (node.type !== 'object') {
 				return void 0;
@@ -1168,6 +1174,9 @@ export function visit(text:string, visitor: JSONVisitor, options?: ParseOptions)
 	}
 
 	scanNext();
+	if (_scanner.getToken() === SyntaxKind.EOF) {
+		return true;
+	}
 	if (!parseValue()) {
 		handleError(ParseErrorCode.ValueExpected, [], []);
 		return false;

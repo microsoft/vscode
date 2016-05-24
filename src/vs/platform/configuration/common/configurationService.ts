@@ -20,6 +20,7 @@ import {EventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/com
 import {IConfigurationRegistry, Extensions} from './configurationRegistry';
 import {Registry} from 'vs/platform/platform';
 import Event, {Emitter} from 'vs/base/common/event';
+import {JSONPath} from 'vs/base/common/json';
 
 
 // ---- service abstract implementation
@@ -97,6 +98,8 @@ export abstract class ConfigurationService implements IConfigurationService, IDi
 	protected abstract resolveContent(resource: uri): TPromise<IContent>;
 
 	protected abstract resolveStat(resource: uri): TPromise<IStat>;
+
+	public abstract setUserConfiguration(key: string | JSONPath, value: any) : Thenable<void>;
 
 	public getConfiguration<T>(section?: string): T {
 		let result = section ? this.cachedConfig.config[section] : this.cachedConfig.config;
