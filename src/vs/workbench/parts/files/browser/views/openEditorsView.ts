@@ -16,10 +16,10 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, UntitledEditorEvent, CompositeEvent} from 'vs/workbench/common/events';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
@@ -60,7 +60,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.model = editorService.getStacksModel();
 		this.lastDirtyCount = 0;
 		this.updateTreeScheduler = new RunOnceScheduler(() => {
-			if (this.isDisposed) {
+			if (this.isDisposed || !this.isVisible) {
 				return;
 			}
 
@@ -155,6 +155,13 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		// Also handle configuration updates
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+
+		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
+		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
+			if (e.compositeId === VIEWLET_ID) {
+				this.updateTreeScheduler.schedule();
+			}
+		}));
 	}
 
 	private highlightEntry(entry: OpenEditor): void {
