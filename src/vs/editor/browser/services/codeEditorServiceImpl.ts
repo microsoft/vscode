@@ -16,9 +16,9 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	private _styleSheet: HTMLStyleElement;
 	private _decorationRenderOptions: {[key:string]:DecorationRenderOptions};
 
-	constructor() {
+	constructor(styleSheet = dom.createStyleSheet()) {
 		super();
-		this._styleSheet = dom.createStyleSheet();
+		this._styleSheet = styleSheet;
 		this._decorationRenderOptions = Object.create(null);
 	}
 
@@ -129,6 +129,7 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 		letterSpacing: 'letter-spacing:{0};',
 
 		gutterIconPath: 'background:url(\'{0}\') center center no-repeat;',
+		gutterIconSize: 'background-size:{0};',
 	};
 
 	/**
@@ -209,7 +210,10 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 		let cssTextArr = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.file(opts.gutterIconPath).toString()));
+			cssTextArr.push(strings.format(this._CSS_MAP.gutterIconPath, URI.parse(opts.gutterIconPath).toString()));
+			if (typeof opts.gutterIconSize !== 'undefined') {
+				cssTextArr.push(strings.format(this._CSS_MAP.gutterIconSize, opts.gutterIconSize));
+			}
 		}
 
 		return cssTextArr.join('');
