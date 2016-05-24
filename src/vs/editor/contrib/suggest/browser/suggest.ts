@@ -129,10 +129,6 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private triggerCharacterHandler(character: string, groups: ISuggestSupport[][]): void {
-		groups = groups.map(supports => {
-			return supports.filter(support => support.shouldAutotriggerSuggest);
-		});
-
 		if (groups.length > 0) {
 			this.triggerSuggest(character, groups).done(null, onUnexpectedError);
 		}
