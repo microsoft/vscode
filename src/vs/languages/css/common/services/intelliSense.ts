@@ -515,12 +515,14 @@ export class CSSIntellisense {
 		if (!declarations) { // incomplete nodes
 			return result;
 		}
+
 		var node = declarations.findFirstChildBeforeOffset(this.offset);
 		if (!node) {
 			return this.getCompletionsForDeclarationProperty(result);
 		}
-		if (node instanceof nodes.Declaration) {
-			var declaration = <nodes.Declaration> node;
+
+		if (node instanceof nodes.AbstractDeclaration) {
+			var declaration = <nodes.AbstractDeclaration> node;
 			if ((!isDefined(declaration.colonPosition) || this.offset <= declaration.colonPosition) || (isDefined(declaration.semicolonPosition) && declaration.semicolonPosition < this.offset)) {
 				if (this.offset === declaration.semicolonPosition + 1) {
 					return result; // don't show new properties right after semicolon (see Bug 15421:[intellisense] [css] Be less aggressive when manually typing CSS)
@@ -529,12 +531,14 @@ export class CSSIntellisense {
 				// complete property
 				return this.getCompletionsForDeclarationProperty(result);
 			}
-			// complete value
-			return this.getCompletionsForDeclarationValue(declaration, result);
+
+			if (declaration instanceof nodes.Declaration) {
+				// complete value
+				return this.getCompletionsForDeclarationValue(declaration, result);
+			}
 		}
 		return result;
 	}
-
 
 	public getCompletionsForVariableDeclaration(declaration: nodes.VariableDeclaration, result:Modes.ISuggestion[]):Modes.ISuggestion[] {
 		if (this.offset > declaration.colonPosition) {

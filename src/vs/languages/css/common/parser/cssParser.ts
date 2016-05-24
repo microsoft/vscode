@@ -337,6 +337,10 @@ export class Parser {
 			return this.finish(node, errors.ParseError.VariableValueExpected, [], panic);
 		}
 
+		if (this.peek(scanner.TokenType.SemiColon)) {
+			node.semicolonPosition = this.token.offset; // not part of the declaration, but useful information for code assist
+		}
+
 		return this.finish(node);
 	}
 

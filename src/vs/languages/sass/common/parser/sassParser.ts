@@ -74,6 +74,10 @@ export class SassParser extends cssParser.Parser {
 			}
 		}
 
+		if (this.peek(scanner.TokenType.SemiColon)) {
+			node.semicolonPosition = this.token.offset; // not part of the declaration, but useful information for code assist
+		}
+
 		return this.finish(node);
 	}
 
