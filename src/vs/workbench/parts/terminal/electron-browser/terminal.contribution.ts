@@ -11,7 +11,7 @@ import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {TerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminalService';
 import {ToggleTerminalAction} from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
-import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_UNIX_LIKE, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/common/terminal';
+import {ITerminalService, TERMINAL_PANEL_ID, TERMINAL_DEFAULT_SHELL_LINUX, TERMINAL_DEFAULT_SHELL_OSX, TERMINAL_DEFAULT_SHELL_WINDOWS} from 'vs/workbench/parts/terminal/common/terminal';
 import * as panel from 'vs/workbench/browser/panel';
 import {Registry} from 'vs/platform/platform';
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
@@ -23,10 +23,15 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('integratedTerminalConfigurationTitle', "Integrated terminal configuration"),
 	'type': 'object',
 	'properties': {
-		'integratedTerminal.shell.unixLike': {
-			'description': nls.localize('integratedTerminal.shell.unixLike', "The path of the shell that the terminal uses on Linux and OS X."),
+		'integratedTerminal.shell.linux': {
+			'description': nls.localize('integratedTerminal.shell.linux', "The path of the shell that the terminal uses on Linux."),
 			'type': 'string',
-			'default': TERMINAL_DEFAULT_SHELL_UNIX_LIKE
+			'default': TERMINAL_DEFAULT_SHELL_LINUX
+		},
+		'integratedTerminal.shell.osx': {
+			'description': nls.localize('integratedTerminal.shell.osx', "The path of the shell that the terminal uses on OS X."),
+			'type': 'string',
+			'default': TERMINAL_DEFAULT_SHELL_OSX
 		},
 		'integratedTerminal.shell.windows': {
 			'description': nls.localize('integratedTerminal.shell.windows', "The path of the shell that the terminal uses on Windows."),

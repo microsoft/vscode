@@ -152,7 +152,10 @@ export class TerminalPanel extends Panel {
 		if (platform.isWindows) {
 			return config.integratedTerminal.shell.windows;
 		}
-		return config.integratedTerminal.shell.unixLike;
+		if (platform.isMacintosh) {
+			return config.integratedTerminal.shell.osx;
+		}
+		return config.integratedTerminal.shell.linux;
 	}
 
 	private getTerminalColors(): string[] {
