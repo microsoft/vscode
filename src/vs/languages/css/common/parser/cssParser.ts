@@ -998,15 +998,11 @@ export class Parser {
 			return null;
 		}
 
-		let parseMoreArguments= true;
 		if (isVarFunc) {
-			if (!node.getArguments().addChild(this._parseCSSVariable())) {
-				return this.finish(node, errors.ParseError.VariableValueExpected);
-			}
-		} else {
-			parseMoreArguments= node.getArguments().addChild(this._parseFunctionArgument());
+			this._peekAndMarkErrorsForVarFunction(node);
 		}
-		if (parseMoreArguments) {
+
+		if (node.getArguments().addChild(this._parseFunctionArgument())) {
 			while (this.accept(scanner.TokenType.Comma)) {
 				if (!node.getArguments().addChild(this._parseFunctionArgument())) {
 					return this.finish(node, errors.ParseError.ExpressionExpected);
@@ -1018,6 +1014,16 @@ export class Parser {
 			return <nodes.Function> this.finish(node, errors.ParseError.RightParenthesisExpected);
 		}
 		return <nodes.Function> this.finish(node);
+	}
+
+	private _peekAndMarkErrorsForVarFunction(node: nodes.Function):void {
+		var pos = this.mark();
+		let functionArgument= <nodes.FunctionArgument>this._parseFunctionArgument();
+		this.restoreAtMark(pos);
+
+		if (!functionArgument || !(functionArgument.getValue() instanceof nodes.CSSVariable)) {
+			this.markError(node, errors.ParseError.VariableNameExpected);
+		}
 	}
 
 	public _parseFunctionIdentifier(): nodes.Identifier {
@@ -1040,7 +1046,7 @@ export class Parser {
 
 	public _parseFunctionArgument(): nodes.Node {
 		var node = <nodes.FunctionArgument> this.create(nodes.FunctionArgument);
-		if (node.setValue(this._parseExpr(true))) {
+		if (node.setValue(this._parseCSSVariable() || this._parseExpr(true))) {
 			return this.finish(node);
 		}
 		return null;

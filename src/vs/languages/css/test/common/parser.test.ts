@@ -24,7 +24,9 @@ export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.No
 
 export function assertFunction(text: string, parser: _parser.Parser, f: ()=>nodes.Node, ... expectedArguments: nodes.NodeType[]):void {
 	let functionNode:nodes.Function= <nodes.Function>assertNode(text, parser, f);
-	let actualArguments= functionNode.getArguments().getChildren();
+	let actualArguments= functionNode.getArguments().getChildren().map((child) => {
+		return child.getChild(0);
+	});
 	assert.equal(actualArguments.length, expectedArguments.length);
 	expectedArguments.forEach((expectedArgument, index) => {
 		let actualArgument= actualArguments[index];
@@ -348,10 +350,14 @@ suite('CSS - Parser', () => {
 		assertNoNode('% ()', parser, parser._parseFunction.bind(parser));
 
 		assertFunction('var(--color)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName);
-		assertFunction('var(--color, somevalue)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName, nodes.NodeType.FunctionArgument);
-		assertFunction('fun(value1, value2)', parser, parser._parseFunction.bind(parser), nodes.NodeType.FunctionArgument, nodes.NodeType.FunctionArgument);
+		assertFunction('var(--color, somevalue)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName, nodes.NodeType.Expression);
+		assertFunction('var(--variable1, --variable2)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName, nodes.NodeType.VariableName);
+		assertFunction('var(--variable1, var(--variable2))', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName, nodes.NodeType.Expression);
+		assertFunction('fun(value1, value2)', parser, parser._parseFunction.bind(parser), nodes.NodeType.Expression, nodes.NodeType.Expression);
 
-		assertError('var(value1, value2)', parser, parser._parseFunction.bind(parser), errors.ParseError.VariableValueExpected);
+		assertError('var()', parser, parser._parseFunction.bind(parser), errors.ParseError.VariableNameExpected);
+		assertError('var(value1, value2)', parser, parser._parseFunction.bind(parser), errors.ParseError.VariableNameExpected);
+		assertError('var(value1, --variable)', parser, parser._parseFunction.bind(parser), errors.ParseError.VariableNameExpected);
 	});
 
 	test('Test Token prio', function() {
