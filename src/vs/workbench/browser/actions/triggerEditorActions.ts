@@ -570,11 +570,7 @@ let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchA
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorsAction, CLOSE_ALL_EDITORS_ACTION_ID, CLOSE_ALL_EDITORS_ACTION_LABEL), 'View: Close All Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherEditorsAction, CLOSE_OTHER_EDITORS_ACTION_ID, CLOSE_OTHER_EDITORS_ACTION_LABEL), 'View: Close Other Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SPLIT_EDITOR_ACTION_ID, SPLIT_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(CycleEditorAction, CYCLE_EDITOR_ACTION_ID, CYCLE_EDITOR_ACTION_LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
-	// on mac this keybinding is reserved to cycle between windows
-	mac: { primary: null }
-}), 'View: Cycle Between Opened Editors', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CycleEditorAction, CYCLE_EDITOR_ACTION_ID, CYCLE_EDITOR_ACTION_LABEL), 'View: Cycle Between Opened Editors', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFirstEditorAction, FOCUS_FIRST_EDITOR_ACTION_ID, FOCUS_FIRST_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus into Left Hand Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusSecondEditorAction, FOCUS_SECOND_EDITOR_ACTION_ID, FOCUS_SECOND_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_2 }), 'View: Focus into Side Editor', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusThirdEditorAction, FOCUS_THIRD_EDITOR_ACTION_ID, FOCUS_THIRD_EDITOR_ACTION_LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_3 }), 'View: Focus into Right Hand Editor', category);
