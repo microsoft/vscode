@@ -1022,6 +1022,10 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public unpinEditor(position: Position, input: EditorInput): void {
+		if (input.isDirty()) {
+			return; // we do not allow to unpin dirty editors
+		}
+
 		const group = this.stacks.groupAt(position);
 		if (group) {
 			if (group.isPreview(input)) {
