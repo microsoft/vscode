@@ -500,10 +500,9 @@ export class DebugService implements debug.IDebugService {
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
-			.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
+			.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
 			.then(() => {
-				this.configurationManager.resloveConfiguration(configuration);
-				configuration = configuration || this.configurationManager.configuration;
+				configuration = this.configurationManager.configuration;
 				if (!configuration) {
 					return this.configurationManager.openConfigFile(false).then(openend => {
 						if (openend) {
