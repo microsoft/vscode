@@ -49,20 +49,20 @@ const DEFAULT_ANSI_COLORS = {
 	'vs': [
 		'#000000', // black
 		'#cd3131', // red
-		'#09885a', // green
-		'#e5e510', // yellow
-		'#0451a5', // blue
+		'#008000', // green
+		'#949800', // yellow
+		'#2472c8', // blue
 		'#bc05bc', // magenta
 		'#0598bc', // cyan
-		'#e5e5e5', // white
-		'#111111', // bright black
+		'#555555', // white
+		'#666666', // bright black
 		'#cd3131', // bright red
-		'#09885a', // bright green
-		'#e5e510', // bright yellow
-		'#0451a5', // bright blue
+		'#00aa00', // bright green
+		'#b5ba00', // bright yellow
+		'#2b89ef', // bright blue
 		'#bc05bc', // bright magenta
 		'#0598bc', // bright cyan
-		'#e5e5e5'  // bright white
+		'#a5a5a5'  // bright white
 	],
 	'vs-dark': [
 		'#000000', // black
