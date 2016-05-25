@@ -138,7 +138,6 @@ export class TerminalPanel extends Panel {
 
 			let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 			this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
-			this.terminal.colors = this.getTerminalColors();
 			resolve(void 0);
 		});
 	}
@@ -166,29 +165,6 @@ export class TerminalPanel extends Panel {
 			return config.integratedTerminal.shell.osx;
 		}
 		return config.integratedTerminal.shell.linux;
-	}
-
-	private getTerminalColors(): string[] {
-		let config = this.configurationService.getConfiguration<ITerminalConfiguration>().integratedTerminal.ansiColors;
-		let colors = [
-			config.black,
-			config.red,
-			config.green,
-			config.yellow,
-			config.blue,
-			config.magenta,
-			config.cyan,
-			config.white,
-			config.brightBlack,
-			config.brightRed,
-			config.brightGreen,
-			config.brightYellow,
-			config.brightBlue,
-			config.brightMagenta,
-			config.brightCyan,
-			config.brightWhite
-		];
-		return colors;
 	}
 
 	public dispose(): void {
