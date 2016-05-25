@@ -483,7 +483,7 @@ export class EditorPart extends Part implements IEditorPart {
 			this.doCloseActiveEditor(group, focusNext);
 		}
 
-		// Closing inactive editor is just a model update
+		// Closing inactive editor is just a model and title update
 		else {
 			this.doCloseInactiveEditor(group, input);
 		}
@@ -510,6 +510,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Closing inactive editor is just a model update
 		group.closeEditor(input);
+
+		// Update UI
+		this.sideBySideControl.updateTitleArea({ position: this.stacks.positionOfGroup(group), preview: group.previewEditor, editorCount: group.count });
 	}
 
 	private doCloseGroup(group: EditorGroup): void {
@@ -628,6 +631,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Update stacks model: close non active editors supporting the direction
 			group.closeEditors(group.activeEditor, direction);
+
+			// Update UI
+			this.sideBySideControl.updateTitleArea({ position: this.stacks.positionOfGroup(group), preview: group.previewEditor, editorCount: group.count });
 		}
 
 		// Finally: we are asked to close editors around a non-active editor

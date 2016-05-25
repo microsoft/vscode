@@ -1200,11 +1200,22 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			let input = editor ? editor.input : null;
 
 			if (input && editor) {
+
+				// Pinned
 				const isPinned = !input.matches(state.preview);
 				if (isPinned) {
 					this.titleContainer[state.position].addClass('pinned');
 				} else {
 					this.titleContainer[state.position].removeClass('pinned');
+				}
+
+				// Overflow
+				const isOverflowing = state.editorCount > 1;
+				const showEditorAction = this.showEditorsOfGroup[state.position];
+				if (isOverflowing) {
+					showEditorAction.class = 'show-group-editors-overflowing-action';
+				} else {
+					showEditorAction.class = 'show-group-editors-action';
 				}
 			}
 		}
