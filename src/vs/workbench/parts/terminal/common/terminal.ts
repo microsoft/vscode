@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import platform = require('vs/base/common/platform');
+import processes = require('vs/base/node/processes');
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -14,7 +15,7 @@ export const TERMINAL_SERVICE_ID = 'terminalService';
 
 export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
-export const TERMINAL_DEFAULT_SHELL_WINDOWS = platform.isWindows ? (process.env.COMSPEC || 'cmd.exe') : 'cmd.exe';
+export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
 
 export var ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
