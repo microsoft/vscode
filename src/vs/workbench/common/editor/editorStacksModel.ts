@@ -831,6 +831,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public groupAt(position: Position): EditorGroup {
+		this.ensureLoaded();
+
 		return this._groups[position];
 	}
 
@@ -1043,6 +1045,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public popLastClosedEditor(): EditorInput {
+		this.ensureLoaded();
+
 		const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 
 		let serializedEditor = this.recentlyClosedEditors.pop();
@@ -1054,6 +1058,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	}
 
 	public clearLastClosedEditors(): void {
+		this.ensureLoaded();
+
 		this.recentlyClosedEditors = [];
 	}
 
