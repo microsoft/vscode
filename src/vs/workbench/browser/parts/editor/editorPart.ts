@@ -887,7 +887,14 @@ export class EditorPart extends Part implements IEditorPart {
 			return TPromise.as<BaseEditor[]>([]);
 		}
 
-		return this.doOpenEditors(editors);
+		let activePosition: Position;
+		if (this.stacks.activeGroup) {
+			activePosition = this.stacks.positionOfGroup(this.stacks.activeGroup);
+		}
+
+		const widthRatios = this.sideBySideControl.getWidthRatios();
+
+		return this.doOpenEditors(editors, activePosition, widthRatios);
 	}
 
 	public restoreEditors(): TPromise<BaseEditor[]> {
@@ -971,6 +978,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 		return TPromise.join(promises).then(editors => {
 
+			// Ensure active position
+			this.focusGroup(activePosition);
+
 			// Update stacks model for remaining inactive editors
 			[leftEditors, centerEditors, rightEditors].forEach((editors, index) => {
 				const group = this.stacks.groupAt(index);
@@ -995,7 +1005,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Update UI
 			const editor = this.visibleEditors[position];
-			this.sideBySideControl.setActive(editor);
+			if (editor) {
+				this.sideBySideControl.setActive(editor);
+			}
 		}
 	}
 
@@ -1008,7 +1020,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Focus Editor
 			const editor = this.visibleEditors[position];
-			editor.focus();
+			if (editor) {
+				editor.focus();
+			}
 		}
 	}
 
