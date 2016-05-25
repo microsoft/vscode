@@ -212,7 +212,7 @@ export class RefreshAction extends GitAction {
 }
 
 export abstract class BaseStageAction extends GitAction {
-	private editorService: IWorkbenchEditorService;
+	protected editorService: IWorkbenchEditorService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
@@ -490,7 +490,7 @@ export class GlobalUndoAction extends BaseUndoAction {
 
 export abstract class BaseUnstageAction extends GitAction {
 
-	private editorService: IWorkbenchEditorService;
+	protected editorService: IWorkbenchEditorService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);

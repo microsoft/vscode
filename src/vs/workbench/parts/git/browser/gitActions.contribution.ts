@@ -8,11 +8,12 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/platform/platform');
 import abr = require('vs/workbench/browser/actionBarRegistry');
-import { TPromise } from 'vs/base/common/winjs.base';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
 import baseeditor = require('vs/workbench/browser/parts/editor/baseEditor');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
+import PlatformEditorCommon = require('vs/platform/editor/common/editor');
 import tdeditor = require('vs/workbench/browser/parts/editor/textDiffEditor');
 import teditor = require('vs/workbench/browser/parts/editor/textEditor');
 import filesCommon = require('vs/workbench/parts/files/common/files');
@@ -241,6 +242,112 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 				return status.getPath();
 			}
 		}
+	}
+}
+
+export class WorkbenchStageAction extends StageAction {
+
+	private contextService: IWorkspaceContextService;
+
+	constructor(
+		id = WorkbenchStageAction.ID,
+		label = WorkbenchStageAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		super(id, label, gitService, editorService);
+		this.contextService = contextService;
+		this.onGitServiceChange();
+	}
+
+	protected updateEnablement(): void {
+		if (this.contextService) {
+			this.enabled = this.isEnabled();
+		} else {
+			this.enabled = super.isEnabled();
+		}
+	}
+
+	public isEnabled():boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+		let editor = this.editorService.getActiveEditor();
+		if (editor === null) {
+			return false;
+		}
+		if (editor instanceof baseeditor.BaseEditor) {
+			return true;
+		}
+		return false;
+	}
+
+	public run(context?: any): Promise {
+		// use context if provided, else get file in view
+		if (context) {
+			return super.run(context);
+		}
+		let input = <WorkbenchEditorCommon.IFileEditorInput>this.editorService.getActiveEditor().input;
+		if (gitei.isGitEditorInput(input)) {
+			return super.run([(<gitei.GitDiffEditorInput>(<PlatformEditorCommon.IEditorInput>input)).getFileStatus()]);
+		}
+		let fileStatus = getStatus(this.gitService, this.contextService, input);
+		return super.run([fileStatus]);
+	}
+}
+
+export class WorkbenchUnstageAction extends UnstageAction {
+
+	private contextService: IWorkspaceContextService;
+
+	constructor(
+		id = WorkbenchUnstageAction.ID,
+		label = WorkbenchUnstageAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
+		super(id, label, gitService, editorService);
+		this.contextService = contextService;
+		this.onGitServiceChange();
+	}
+
+	protected updateEnablement(): void {
+		if (this.contextService) {
+			this.enabled = this.isEnabled();
+		} else {
+			this.enabled = super.isEnabled();
+		}
+	}
+
+	public isEnabled():boolean {
+		if (!super.isEnabled()) {
+			return false;
+		}
+		let editor = this.editorService.getActiveEditor();
+		if (editor === null) {
+			return false;
+		}
+		if (editor instanceof baseeditor.BaseEditor) {
+			return true;
+		}
+		return false;
+	}
+
+	public run(context?: any): Promise {
+		// use context if provided, else get file in view
+		if (context) {
+			return super.run(context);
+		}
+		let fileStatus: IFileStatus;
+		let input = <WorkbenchEditorCommon.IFileEditorInput>this.editorService.getActiveEditor().input;
+		if (gitei.isGitEditorInput(input)) {
+			fileStatus = (<gitei.GitDiffEditorInput>(<PlatformEditorCommon.IEditorInput>input)).getFileStatus();
+		} else {
+			fileStatus = getStatus(this.gitService, this.contextService, input);
+		}
+		return super.run([fileStatus]);
 	}
 }
 
@@ -480,5 +587,5 @@ workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGi
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StartGitCheckoutAction, StartGitCheckoutAction.ID, StartGitCheckoutAction.LABEL), 'Git: Checkout', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InputCommitAction, InputCommitAction.ID, InputCommitAction.LABEL), 'Git: Commit', category);
 workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(UndoLastCommitAction, UndoLastCommitAction.ID, UndoLastCommitAction.LABEL), 'Git: Undo Last Commit', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(StageAction, StageAction.ID, StageAction.LABEL), 'Git: Stage', category);
-workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(UnstageAction, UnstageAction.ID, UnstageAction.LABEL), 'Git: Unstage', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(WorkbenchStageAction, WorkbenchStageAction.ID, WorkbenchStageAction.LABEL), 'Git: Stage', category);
+workbenchActionRegistry.registerWorkbenchAction(new SyncActionDescriptor(WorkbenchUnstageAction, WorkbenchUnstageAction.ID, WorkbenchUnstageAction.LABEL), 'Git: Unstage', category);
