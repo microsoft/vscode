@@ -200,5 +200,10 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 			this.editorInputChangeListener.dispose();
 			this.editorInputChangeListener = null;
 		}
+
+		if (this.themeChangeListener) {
+			this.themeChangeListener.dispose();
+			this.themeChangeListener = null;
+		}
 	}
 }
