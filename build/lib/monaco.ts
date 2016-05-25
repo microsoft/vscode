@@ -42,8 +42,13 @@ type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.C
 type TSTopLevelDeclare = TSTopLevelDeclaration | ts.VariableStatement;
 
 function isDeclaration(a:TSTopLevelDeclare): a is TSTopLevelDeclaration {
-	let tmp = <TSTopLevelDeclaration>a;
-	return tmp.name && typeof tmp.name.text === 'string';
+	return (
+		a.kind === ts.SyntaxKind.InterfaceDeclaration
+		|| a.kind === ts.SyntaxKind.EnumDeclaration
+		|| a.kind === ts.SyntaxKind.ClassDeclaration
+		|| a.kind === ts.SyntaxKind.TypeAliasDeclaration
+		|| a.kind === ts.SyntaxKind.FunctionDeclaration
+	);
 }
 
 function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TSTopLevelDeclare)=>boolean): void {
@@ -62,15 +67,14 @@ function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TSTop
 			case ts.SyntaxKind.TypeAliasDeclaration:
 			case ts.SyntaxKind.FunctionDeclaration:
 				stop = visitor(<TSTopLevelDeclare>node);
-				break;
 		}
 
-		if (node.kind !== ts.SyntaxKind.SourceFile) {
-			if (getNodeText(sourceFile, node).indexOf('cursorStyleToString') >= 0) {
-				console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
-				console.log(getNodeText(sourceFile, node));
-			}
-		}
+		// if (node.kind !== ts.SyntaxKind.SourceFile) {
+		// 	if (getNodeText(sourceFile, node).indexOf('Handler') >= 0) {
+		// 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
+		// 		console.log(getNodeText(sourceFile, node));
+		// 	}
+		// }
 
 		if (stop) {
 			return;
@@ -85,7 +89,20 @@ function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TSTop
 function getAllTopLevelDeclarations(sourceFile:ts.SourceFile): TSTopLevelDeclare[] {
 	let all:TSTopLevelDeclare[] = [];
 	visitTopLevelDeclarations(sourceFile, (node) => {
-		all.push(node);
+		if (node.kind === ts.SyntaxKind.InterfaceDeclaration) {
+			let interfaceDeclaration = <ts.InterfaceDeclaration>node;
+			let triviaStart = interfaceDeclaration.pos;
+			let triviaEnd = interfaceDeclaration.name.pos;
+			let triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
+			if (triviaText.indexOf('@internal') === -1) {
+				all.push(node);
+			}
+		} else {
+			let nodeText = getNodeText(sourceFile, node);
+			if (nodeText.indexOf('@internal') === -1) {
+				all.push(node);
+			}
+		}
 		return false /*continue*/;
 	});
 	return all;
@@ -103,19 +120,43 @@ function getTopLevelDeclaration(sourceFile:ts.SourceFile, typeName:string): TSTo
 			return false /*continue*/;
 		}
 		// node is ts.VariableStatement
-		return (getNodeText(sourceFile, node).indexOf(typeName) >= 0);
+		if (getNodeText(sourceFile, node).indexOf(typeName) >= 0) {
+			result = node;
+			return true /*stop*/;
+		}
+		return false /*continue*/;
 	});
+	if (result === null) {
+		console.log('COULD NOT FIND ' + typeName + '!');
+	}
 	return result;
 }
 
 
-function getNodeText(sourceFile:ts.SourceFile, node:ts.Node): string {
+function getNodeText(sourceFile:ts.SourceFile, node:{pos:number; end:number;}): string {
 	return sourceFile.getFullText().substring(node.pos, node.end);
 }
 
 
 function getMassagedTopLevelDeclarationText(sourceFile:ts.SourceFile, declaration: TSTopLevelDeclare): string {
 	let result = getNodeText(sourceFile, declaration);
+	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration) {
+		let interfaceDeclaration = <ts.InterfaceDeclaration>declaration;
+
+		let members = interfaceDeclaration.members;
+		members.forEach((member) => {
+			try {
+				let memberText = getNodeText(sourceFile, member);
+				if (memberText.indexOf('@internal') >= 0) {
+					// console.log('BEFORE: ', result);
+					result = result.replace(memberText, '');
+					// console.log('AFTER: ', result);
+				}
+			} catch (err) {
+				// life..
+			}
+		});
+	}
 	result = result.replace(/export default/g, 'export');
 	result = result.replace(/export declare/g, 'export');
 	return result;
@@ -147,7 +188,7 @@ function format(text:string): string {
 		for (let i = edits.length - 1; i >= 0; i--) {
 			let change = edits[i];
 			let head = result.slice(0, change.span.start);
-			let tail = result.slice(change.span.start + change.span.length)
+			let tail = result.slice(change.span.start + change.span.length);
 			result = head + change.newText + tail;
 		}
 		return result;
@@ -183,6 +224,7 @@ lines.forEach(line => {
 
 	let m1 = line.match(/^\s*#include\(([^\)]*)\)\:(.*)$/);
 	if (m1) {
+		console.log('HANDLING META: ' + line);
 		let moduleId = m1[1];
 		let sourceFile = getSourceFile(moduleId);
 
@@ -200,27 +242,38 @@ lines.forEach(line => {
 
 	let m2 = line.match(/^\s*#includeAll\(([^\)]*)\)\:(.*)$/);
 	if (m2) {
+		console.log('HANDLING META: ' + line);
 		let moduleId = m2[1];
 		let sourceFile = getSourceFile(moduleId);
 
 		let typeNames = m2[2].split(/,/);
-		let typesToExclude: {[typeName:string]:boolean;} = {};
+		let typesToExcludeMap: {[typeName:string]:boolean;} = {};
+		let typesToExcludeArr: string[] = [];
 		typeNames.forEach((typeName) => {
 			typeName = typeName.trim();
 			if (typeName.length === 0) {
 				return;
 			}
-			typesToExclude[typeName] = true;
+			typesToExcludeMap[typeName] = true;
+			typesToExcludeArr.push(typeName);
 		});
 
 		getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
 			if (isDeclaration(declaration)) {
-				if (typesToExclude[declaration.name.text]) {
+				if (typesToExcludeMap[declaration.name.text]) {
 					return;
 				}
 			} else {
-				// todo
 				// node is ts.VariableStatement
+				let nodeText = getNodeText(sourceFile, declaration);
+				for (let i = 0; i < typesToExcludeArr.length; i++) {
+					if (nodeText.indexOf(typesToExcludeArr[i]) >= 0) {
+						return;
+					}
+				}
+				// let toExcludeArr
+				// console.log('TODO!!!');
+				// todo
 				// return (getNodeText(sourceFile, declaration).indexOf(typeName) >= 0);
 			}
 			result.push(getMassagedTopLevelDeclarationText(sourceFile, declaration));
