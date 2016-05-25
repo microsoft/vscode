@@ -350,7 +350,7 @@ export class FindModelBoundToEditorModel {
 			replaceStrings.push(this.getReplaceString(model.getValueInRange(ranges[i])));
 		}
 
-		let command = new ReplaceAllCommand(ranges, replaceStrings);
+		let command = new ReplaceAllCommand(this._editor.getSelection(), ranges, replaceStrings);
 		this._executeEditorCommand('replaceAll', command);
 
 		this.research(false);

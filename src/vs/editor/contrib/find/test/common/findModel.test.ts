@@ -1212,7 +1212,7 @@ suite('FindModel', () => {
 		findModel.replaceAll();
 		assertFindState(
 			editor,
-			[8, 16, 8, 16],
+			[6, 17, 6, 17],
 			null,
 			[ ]
 		);
@@ -1248,7 +1248,7 @@ suite('FindModel', () => {
 		findModel.replaceAll();
 		assertFindState(
 			editor,
-			[9, 3, 9, 3],
+			[1, 1, 1, 1],
 			null,
 			[
 				[6, 1, 6, 3],
@@ -1285,7 +1285,7 @@ suite('FindModel', () => {
 		findModel.replaceAll();
 		assertFindState(
 			editor,
-			[11, 16, 11, 16],
+			[1, 1, 1, 1],
 			null,
 			[]
 		);
@@ -1314,7 +1314,7 @@ suite('FindModel', () => {
 		findModel.replaceAll();
 		assertFindState(
 			editor,
-			[14, 3, 14, 3],
+			[1, 1, 1, 1],
 			null,
 			[]
 		);
@@ -1322,6 +1322,36 @@ suite('FindModel', () => {
 		assert.equal(editor.getModel().getLineContent(12), '\t><');
 		assert.equal(editor.getModel().getLineContent(13), '\t><');
 		assert.equal(editor.getModel().getLineContent(14), '\t>ciao');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('issue #3516: "replace all" moves page/cursor/focus/scroll to the place of the last replacement', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'include', replaceString: 'bar' }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[2, 2, 2, 9],
+				[3, 2, 3, 9]
+			]
+		);
+
+		findModel.replaceAll();
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[]
+		);
+
+		assert.equal(editor.getModel().getLineContent(2), '#bar "cool.h"');
+		assert.equal(editor.getModel().getLineContent(3), '#bar <iostream>');
 
 		findModel.dispose();
 		findState.dispose();
