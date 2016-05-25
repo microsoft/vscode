@@ -6,7 +6,6 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import types = require('vs/base/common/types');
 import {Action} from 'vs/base/common/actions';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
@@ -78,8 +77,8 @@ export class SplitEditorAction extends Action {
 				}
 		}
 
-		// Only split if the input is resource editor input
-		if (!types.isUndefinedOrNull(targetPosition) && !!getUntitledOrFileResource(activeEditor.input)) {
+		// Only split if we have a target position to split to
+		if (typeof targetPosition === 'number') {
 			return this.editorService.openEditor(activeEditor.input, null, targetPosition);
 		}
 
@@ -336,7 +335,7 @@ export class FocusNextGroup extends Action {
 		}
 
 		// Run the action for the target next position
-		if (!types.isUndefinedOrNull(nextPosition) && this.navigateActions[nextPosition]) {
+		if (typeof nextPosition === 'number' && this.navigateActions[nextPosition]) {
 			return this.navigateActions[nextPosition].run(event);
 		}
 
