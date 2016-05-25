@@ -19,7 +19,7 @@ import {IStringDictionary} from 'vs/base/common/collections';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ITerminalConfiguration, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
+import {ITerminalConfiguration, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {Panel} from 'vs/workbench/browser/panel';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';

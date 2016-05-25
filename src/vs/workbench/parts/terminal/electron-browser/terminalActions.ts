@@ -6,7 +6,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Action} from 'vs/base/common/actions';
-import {ITerminalService} from 'vs/workbench/parts/terminal/common/terminal';
+import {ITerminalService} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 
 export class ToggleTerminalAction extends Action {
 
