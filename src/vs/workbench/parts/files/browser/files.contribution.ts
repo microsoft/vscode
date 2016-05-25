@@ -240,13 +240,8 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.maxVisible': {
 			'type': 'number',
-			'description': nls.localize('maxVisible', "Maximum number of open editors to show before scrollbars appear. If set to 0 open editors section gets hidden (only applied after VSCode restart)."),
+			'description': nls.localize('maxVisible', "Maximum number of open editors to show before scrollbars appear. If set to 0 open editors section gets hidden - only applied after VSCode restart."),
 			'default': 9
-		},
-		'explorer.openEditors.visible': {
-			'type': 'boolean',
-			'description': nls.localize('openEditorsVisible', "Controls if open editors section is visible or not. Only gets applied after VSCode restart."),
-			'default': true
 		},
 		'explorer.openEditors.dynamicHeight': {
 			'type': 'boolean',

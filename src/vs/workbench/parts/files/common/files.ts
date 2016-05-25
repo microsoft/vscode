@@ -62,7 +62,6 @@ export interface IFilesConfiguration extends IFilesConfiguration {
 		openEditors: {
 			maxVisible: number;
 			dynamicHeight: boolean;
-			visible: boolean;
 		};
 		autoReveal: boolean;
 	};
