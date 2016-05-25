@@ -736,10 +736,10 @@ registerFindCommand(FIND_IDS.ToggleRegexCommand, x => x.toggleRegex(), {
 });
 registerFindCommand(FIND_IDS.ReplaceOneAction, x => x.replace(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);
 registerFindCommand(FIND_IDS.ReplaceAllAction, x => x.replaceAll(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);
 registerFindCommand(FIND_IDS.SelectAllMatchesAction, x => x.selectAllMatches(), {
 	primary: KeyMod.Alt | KeyCode.Enter
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);
