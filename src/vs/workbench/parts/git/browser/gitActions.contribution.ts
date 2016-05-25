@@ -255,7 +255,7 @@ export class StageRangesAction extends baseeditor.EditorInputAction {
 		this.editorService = editorService;
 		this.gitService = gitService;
 		this.editor = editor.getControl();
-		this.editor.onDidCursorSelectionChange(() => this.updateEnablement());
+		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
 		this.editor.onDidUpdateDiff(() => this.updateEnablement());
 		this.class = 'git-action stage-ranges';
 	}

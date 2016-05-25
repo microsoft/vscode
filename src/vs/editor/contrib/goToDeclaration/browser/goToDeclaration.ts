@@ -228,8 +228,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 
-		this.toUnhook.push(this.editor.onDidModelChange((e) => this.resetHandler()));
-		this.toUnhook.push(this.editor.onDidModelContentChange((e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
+		this.toUnhook.push(this.editor.onDidChangeModel((e) => this.resetHandler()));
+		this.toUnhook.push(this.editor.onDidChangeModelContent((e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
 		this.toUnhook.push(this.editor.onDidScrollChange((e) => {
 			if (e.scrollTopChanged || e.scrollLeftChanged) {
 				this.resetHandler();

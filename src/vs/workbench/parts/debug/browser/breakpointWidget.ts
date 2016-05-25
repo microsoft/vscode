@@ -45,7 +45,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.breakpointWidgetVisible = keybindingService.createKey(CONTEXT_BREAKPOINT_WIDGET_VISIBLE, false);
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
-		this.toDispose.push(editor.onDidModelChange(() => this.dispose()));
+		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));
 	}
 
 	public static createInstance(editor: editorbrowser.ICodeEditor, lineNumber: number, instantiationService: IInstantiationService): void {

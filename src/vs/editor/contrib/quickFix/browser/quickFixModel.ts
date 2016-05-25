@@ -78,8 +78,8 @@ export class QuickFixModel extends EventEmitter {
 			this.autoSuggestDelay = 300;
 		}
 
-		this.toDispose.push(this.editor.onDidModelChange(() => this.onModelChanged()));
-		this.toDispose.push(this.editor.onDidModelModeChange(() => this.onModelChanged()));
+		this.toDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
+		this.toDispose.push(this.editor.onDidChangeModelMode(() => this.onModelChanged()));
 		this.toDispose.push(CodeActionProviderRegistry.onDidChange(this.onModelChanged, this));
 	}
 
@@ -98,7 +98,7 @@ export class QuickFixModel extends EventEmitter {
 
 		this.markerService.onMarkerChanged(this.onMarkerChanged, this, this.toLocalDispose);
 
-		this.toLocalDispose.push(this.editor.onDidCursorPositionChange((e: ICursorPositionChangedEvent) => {
+		this.toLocalDispose.push(this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			this.onCursorPositionChanged();
 		}));
 	}

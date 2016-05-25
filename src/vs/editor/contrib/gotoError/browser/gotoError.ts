@@ -53,7 +53,7 @@ class MarkerModel {
 
 		// listen on editor
 		this._toUnbind.push(this._editor.onDidDispose(() => this.dispose()));
-		this._toUnbind.push(this._editor.onDidCursorPositionChange(() => {
+		this._toUnbind.push(this._editor.onDidChangeCursorPosition(() => {
 			if (!this._ignoreSelectionChange) {
 				this._nextIdx = -1;
 			}
@@ -437,7 +437,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._callOnClose.push(this._model);
 		this._callOnClose.push(this._zone);
 
-		this._callOnClose.push(this._editor.onDidModelChange(() => {
+		this._callOnClose.push(this._editor.onDidChangeModel(() => {
 			this._cleanUp();
 		}));
 

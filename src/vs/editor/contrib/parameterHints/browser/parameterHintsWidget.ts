@@ -100,14 +100,14 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.editor.addContentWidget(this);
 		this.hide();
 
-		this.toDispose.push(this.editor.onDidCursorSelectionChange((e: ICursorSelectionChangedEvent) => {
+		this.toDispose.push(this.editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 			if (this.isVisible) {
 				this.editor.layoutContentWidget(this);
 			}
 		}));
 
 		this.editor.applyFontInfo(this.getDomNode());
-		this.toDispose.push(this.editor.onDidConfigurationChange((e: IConfigurationChangedEvent) => {
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.editor.applyFontInfo(this.getDomNode());
 			}

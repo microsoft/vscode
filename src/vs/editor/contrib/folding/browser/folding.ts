@@ -164,8 +164,8 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		this.decorations = [];
 		this.computeToken = 0;
 
-		this.globalToDispose.push(this.editor.onDidModelChange(() => this.onModelChanged()));
-		this.globalToDispose.push(this.editor.onDidConfigurationChange((e: editorCommon.IConfigurationChangedEvent) => {
+		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
+		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
 			let oldIsEnabled = this._isEnabled;
 			this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
 			if (oldIsEnabled !== this._isEnabled) {
@@ -316,7 +316,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 		this.localToDispose.push(this.contentChangedScheduler);
 		this.localToDispose.push(this.cursorChangedScheduler);
-		this.localToDispose.push(this.editor.onDidModelContentChange(() => {
+		this.localToDispose.push(this.editor.onDidChangeModelContent(() => {
 			this.contentChangedScheduler.schedule();
 		}));
 		this.localToDispose.push({ dispose: () => {
@@ -330,7 +330,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		}});
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		this.localToDispose.push(this.editor.onDidCursorPositionChange(e => {
+		this.localToDispose.push(this.editor.onDidChangeCursorPosition(e => {
 			this.cursorChangedScheduler.schedule();
 		}));
 

@@ -64,14 +64,14 @@ class WordHighlighter {
 		this.editor = editor;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
-		this.toUnhook.push(editor.onDidCursorPositionChange((e:editorCommon.ICursorPositionChangedEvent) => {
+		this.toUnhook.push(editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
 			this._onPositionChanged(e);
 		}));
-		this.toUnhook.push(editor.onDidModelChange((e) => {
+		this.toUnhook.push(editor.onDidChangeModel((e) => {
 			this._stopAll();
 			this.model = this.editor.getModel();
 		}));
-		this.toUnhook.push(editor.onDidModelContentChange((e) => {
+		this.toUnhook.push(editor.onDidChangeModelContent((e) => {
 			this._stopAll();
 		}));
 

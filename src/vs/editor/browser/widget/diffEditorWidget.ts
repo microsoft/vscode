@@ -126,22 +126,22 @@ var DIFF_EDITOR_ID = 0;
 
 export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDiffEditor {
 
-	public onDidModelContentChange(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
+	public onDidChangeModelContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelContentChanged, listener);
 	}
-	public onDidModelModeChange(listener: (e:editorCommon.IModelModeChangedEvent)=>void): IDisposable {
+	public onDidChangeModelMode(listener: (e:editorCommon.IModelModeChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
 	}
-	public onDidModelOptionsChange(listener: (e:editorCommon.IModelOptionsChangedEvent)=>void): IDisposable {
+	public onDidChangeModelOptions(listener: (e:editorCommon.IModelOptionsChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
 	}
-	public onDidConfigurationChange(listener: (e:editorCommon.IConfigurationChangedEvent)=>void): IDisposable {
+	public onDidChangeConfiguration(listener: (e:editorCommon.IConfigurationChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ConfigurationChanged, listener);
 	}
-	public onDidCursorPositionChange(listener: (e:editorCommon.ICursorPositionChangedEvent)=>void): IDisposable {
+	public onDidChangeCursorPosition(listener: (e:editorCommon.ICursorPositionChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.CursorPositionChanged, listener);
 	}
-	public onDidCursorSelectionChange(listener: (e:editorCommon.ICursorSelectionChangedEvent)=>void): IDisposable {
+	public onDidChangeCursorSelection(listener: (e:editorCommon.ICursorSelectionChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.CursorSelectionChanged, listener);
 	}
 	public onDidDispose(listener: ()=>void): IDisposable {

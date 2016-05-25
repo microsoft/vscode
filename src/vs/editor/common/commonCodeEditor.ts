@@ -36,43 +36,43 @@ var EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements IActionProvider, editorCommon.ICommonCodeEditor {
 
-	public onDidModelContentChange(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
+	public onDidChangeModelContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelContentChanged, listener);
 	}
-	public onDidModelModeChange(listener: (e:editorCommon.IModelModeChangedEvent)=>void): IDisposable {
+	public onDidChangeModelMode(listener: (e:editorCommon.IModelModeChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
 	}
-	public onDidModelOptionsChange(listener: (e:editorCommon.IModelOptionsChangedEvent)=>void): IDisposable {
+	public onDidChangeModelOptions(listener: (e:editorCommon.IModelOptionsChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
 	}
-	public onDidModelModeSupportChange(listener: (e:editorCommon.IModeSupportChangedEvent)=>void): IDisposable {
+	public onDidChangeModelModeSupport(listener: (e:editorCommon.IModeSupportChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelModeSupportChanged, listener);
 	}
-	public onDidModelDecorationsChange(listener: (e:editorCommon.IModelDecorationsChangedEvent)=>void): IDisposable {
+	public onDidChangeModelDecorations(listener: (e:editorCommon.IModelDecorationsChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelDecorationsChanged, listener);
 	}
-	public onDidConfigurationChange(listener: (e:editorCommon.IConfigurationChangedEvent)=>void): IDisposable {
+	public onDidChangeConfiguration(listener: (e:editorCommon.IConfigurationChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ConfigurationChanged, listener);
 	}
-	public onDidModelChange(listener: (e:editorCommon.IModelChangedEvent)=>void): IDisposable {
+	public onDidChangeModel(listener: (e:editorCommon.IModelChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelChanged, listener);
 	}
-	public onDidCursorPositionChange(listener: (e:editorCommon.ICursorPositionChangedEvent)=>void): IDisposable {
+	public onDidChangeCursorPosition(listener: (e:editorCommon.ICursorPositionChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.CursorPositionChanged, listener);
 	}
-	public onDidCursorSelectionChange(listener: (e:editorCommon.ICursorSelectionChangedEvent)=>void): IDisposable {
+	public onDidChangeCursorSelection(listener: (e:editorCommon.ICursorSelectionChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.CursorSelectionChanged, listener);
 	}
-	public onDidEditorTextFocus(listener: ()=>void): IDisposable {
+	public onDidFocusEditorText(listener: ()=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.EditorTextFocus, listener);
 	}
-	public onDidEditorTextBlur(listener: ()=>void): IDisposable {
+	public onDidBlurEditorText(listener: ()=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.EditorTextBlur, listener);
 	}
-	public onDidEditorFocus(listener: ()=>void): IDisposable {
+	public onDidFocusEditor(listener: ()=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.EditorFocus, listener);
 	}
-	public onDidEditorBlur(listener: ()=>void): IDisposable {
+	public onDidBlurEditor(listener: ()=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.EditorBlur, listener);
 	}
 	public onDidDispose(listener: ()=>void): IDisposable {

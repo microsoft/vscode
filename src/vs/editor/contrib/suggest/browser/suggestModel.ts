@@ -196,9 +196,9 @@ export class SuggestModel implements IDisposable {
 		this.context = null;
 
 		this.toDispose = [];
-		this.toDispose.push(this.editor.onDidConfigurationChange(() => this.onEditorConfigurationChange()));
-		this.toDispose.push(this.editor.onDidCursorSelectionChange(e => this.onCursorChange(e)));
-		this.toDispose.push(this.editor.onDidModelChange(() => this.cancel()));
+		this.toDispose.push(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
+		this.toDispose.push(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
+		this.toDispose.push(this.editor.onDidChangeModel(() => this.cancel()));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.onSuggestRegistryChange, this));
 		this.onEditorConfigurationChange();
 	}

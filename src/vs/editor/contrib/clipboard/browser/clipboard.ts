@@ -26,7 +26,7 @@ class ClipboardWritingAction extends EditorAction {
 	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, condition:Behaviour) {
 		super(descriptor, editor, condition);
 		this.toUnhook = [];
-		this.toUnhook.push(this.editor.onDidCursorSelectionChange((e:editorCommon.ICursorSelectionChangedEvent) => {
+		this.toUnhook.push(this.editor.onDidChangeCursorSelection((e:editorCommon.ICursorSelectionChangedEvent) => {
 			this.resetEnablementState();
 		}));
 	}

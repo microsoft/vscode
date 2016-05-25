@@ -128,7 +128,7 @@ export class MainThreadTextEditor {
 		if (this._codeEditor) {
 
 			// Catch early the case that this code editor gets a different model set and disassociate from this model
-			this._codeEditorListeners.push(this._codeEditor.onDidModelChange(() => {
+			this._codeEditorListeners.push(this._codeEditor.onDidChangeModel(() => {
 				this.setCodeEditor(null);
 			}));
 
@@ -136,17 +136,17 @@ export class MainThreadTextEditor {
 				this._lastSelection = this._codeEditor.getSelections();
 				this._onSelectionChanged.fire(this._lastSelection);
 			};
-			this._codeEditorListeners.push(this._codeEditor.onDidCursorSelectionChange(forwardSelection));
+			this._codeEditorListeners.push(this._codeEditor.onDidChangeCursorSelection(forwardSelection));
 			if (!Selection.selectionsArrEqual(this._lastSelection, this._codeEditor.getSelections())) {
 				forwardSelection();
 			}
-			this._codeEditorListeners.push(this._codeEditor.onDidEditorFocus(() => {
+			this._codeEditorListeners.push(this._codeEditor.onDidFocusEditor(() => {
 				this._focusTracker.onGainedFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidEditorBlur(() => {
+			this._codeEditorListeners.push(this._codeEditor.onDidBlurEditor(() => {
 				this._focusTracker.onLostFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidConfigurationChange(() => {
+			this._codeEditorListeners.push(this._codeEditor.onDidChangeConfiguration(() => {
 				this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 			}));
 			this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
@@ -405,7 +405,7 @@ export class MainThreadEditorsTracker {
 	}
 
 	private _onCodeEditorAdd(codeEditor: EditorCommon.ICommonCodeEditor): void {
-		this._editorModelChangeListeners[codeEditor.getId()] = codeEditor.onDidModelChange(_ => this._updateMapping.schedule());
+		this._editorModelChangeListeners[codeEditor.getId()] = codeEditor.onDidChangeModel(_ => this._updateMapping.schedule());
 		this._updateMapping.schedule();
 	}
 

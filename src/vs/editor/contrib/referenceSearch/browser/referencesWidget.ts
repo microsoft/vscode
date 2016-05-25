@@ -52,7 +52,7 @@ class DecorationsManager implements IDisposable {
 	private _callOnModelChange:IDisposable[] = [];
 
 	constructor(private editor:ICodeEditor, private model:ReferencesModel) {
-		this._callOnDispose.push(this.editor.onDidModelChange(() => this._onModelChanged()));
+		this._callOnDispose.push(this.editor.onDidChangeModel(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
 

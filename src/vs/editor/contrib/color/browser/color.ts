@@ -95,9 +95,9 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 
 		this._callOnDispose.push(this._contentChangedScheduler);
 		this._callOnDispose.push(this._decorationsChangedScheduler);
-		this._callOnDispose.push(this._editor.onDidModelChange(() => this.onModelChange()));
-		this._callOnDispose.push(this._editor.onDidModelModeChange(() => this.onModelChange()));
-		this._callOnDispose.push(this._editor.onDidModelModeSupportChange((e: editorCommon.IModeSupportChangedEvent) => {
+		this._callOnDispose.push(this._editor.onDidChangeModel(() => this.onModelChange()));
+		this._callOnDispose.push(this._editor.onDidChangeModelMode(() => this.onModelChange()));
+		this._callOnDispose.push(this._editor.onDidChangeModelModeSupport((e: editorCommon.IModeSupportChangedEvent) => {
 			this.onModelChange();
 		}));
 
@@ -173,7 +173,7 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 				this._currentFindColorDeclarationsPromise = null;
 			}
 		});
-		this._callOnModelChange.push(this._editor.onDidModelContentChange((event) => this._contentChangedScheduler.schedule()));
+		this._callOnModelChange.push(this._editor.onDidChangeModelContent((event) => this._contentChangedScheduler.schedule()));
 		this._callOnModelChange.push(model.addListener2(editorCommon.EventType.ModelDecorationsChanged, (event) => this._decorationsChangedScheduler.schedule()));
 	}
 
