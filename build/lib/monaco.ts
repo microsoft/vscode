@@ -38,7 +38,7 @@ function getSourceFile(moduleId:string): ts.SourceFile {
 }
 
 
-type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration | ts.TypeAliasDeclaration | ts.FunctionDeclaration;
+type TSTopLevelDeclaration = ts.InterfaceDeclaration | ts.EnumDeclaration | ts.ClassDeclaration | ts.TypeAliasDeclaration | ts.FunctionDeclaration | ts.ModuleDeclaration;
 type TSTopLevelDeclare = TSTopLevelDeclaration | ts.VariableStatement;
 
 function isDeclaration(a:TSTopLevelDeclare): a is TSTopLevelDeclaration {
@@ -48,6 +48,7 @@ function isDeclaration(a:TSTopLevelDeclare): a is TSTopLevelDeclaration {
 		|| a.kind === ts.SyntaxKind.ClassDeclaration
 		|| a.kind === ts.SyntaxKind.TypeAliasDeclaration
 		|| a.kind === ts.SyntaxKind.FunctionDeclaration
+		|| a.kind === ts.SyntaxKind.ModuleDeclaration
 	);
 }
 
@@ -66,11 +67,12 @@ function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TSTop
 			case ts.SyntaxKind.VariableStatement:
 			case ts.SyntaxKind.TypeAliasDeclaration:
 			case ts.SyntaxKind.FunctionDeclaration:
+			case ts.SyntaxKind.ModuleDeclaration:
 				stop = visitor(<TSTopLevelDeclare>node);
 		}
 
 		// if (node.kind !== ts.SyntaxKind.SourceFile) {
-		// 	if (getNodeText(sourceFile, node).indexOf('Handler') >= 0) {
+		// 	if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
 		// 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
 		// 		console.log(getNodeText(sourceFile, node));
 		// 	}
@@ -89,11 +91,16 @@ function visitTopLevelDeclarations(sourceFile:ts.SourceFile, visitor:(node:TSTop
 function getAllTopLevelDeclarations(sourceFile:ts.SourceFile): TSTopLevelDeclare[] {
 	let all:TSTopLevelDeclare[] = [];
 	visitTopLevelDeclarations(sourceFile, (node) => {
-		if (node.kind === ts.SyntaxKind.InterfaceDeclaration) {
+		if (node.kind === ts.SyntaxKind.InterfaceDeclaration || node.kind === ts.SyntaxKind.ClassDeclaration || node.kind === ts.SyntaxKind.ModuleDeclaration) {
 			let interfaceDeclaration = <ts.InterfaceDeclaration>node;
 			let triviaStart = interfaceDeclaration.pos;
 			let triviaEnd = interfaceDeclaration.name.pos;
 			let triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
+
+			// // let nodeText = getNodeText(sourceFile, node);
+			// if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
+			// 	console.log('TRIVIA: ', triviaText);
+			// }
 			if (triviaText.indexOf('@internal') === -1) {
 				all.push(node);
 			}
@@ -140,6 +147,10 @@ function getNodeText(sourceFile:ts.SourceFile, node:{pos:number; end:number;}): 
 
 function getMassagedTopLevelDeclarationText(sourceFile:ts.SourceFile, declaration: TSTopLevelDeclare): string {
 	let result = getNodeText(sourceFile, declaration);
+	// if (result.indexOf('MonacoWorker') >= 0) {
+	// 	console.log('here!');
+	// 	// console.log(ts.SyntaxKind[declaration.kind]);
+	// }
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
 
@@ -220,33 +231,62 @@ var recipe = fs.readFileSync(path.join(__dirname, './monaco-editor.d.ts.recipe')
 var lines = recipe.split(/\r\n|\n|\r/);
 var result = [];
 
+function createReplacer(data:string): (str:string)=>string {
+	data = data || '';
+	let rawDirectives = data.split(';');
+	let directives: [RegExp,string][] = [];
+	rawDirectives.forEach((rawDirective) => {
+		if (rawDirective.length === 0) {
+			return;
+		}
+		let pieces = rawDirective.split('=>');
+		let findStr = pieces[0];
+		let replaceStr = pieces[1];
+
+		findStr = findStr.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
+		findStr = '\\b' + findStr + '\\b';
+		directives.push([new RegExp(findStr, 'g'), replaceStr]);
+	});
+
+	return (str:string)=> {
+		for (let i = 0; i < directives.length; i++) {
+			str = str.replace(directives[i][0], directives[i][1]);
+		}
+		return str;
+	};
+}
+
 lines.forEach(line => {
 
-	let m1 = line.match(/^\s*#include\(([^\)]*)\)\:(.*)$/);
+	let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 	if (m1) {
 		console.log('HANDLING META: ' + line);
 		let moduleId = m1[1];
 		let sourceFile = getSourceFile(moduleId);
 
-		let typeNames = m1[2].split(/,/);
+		let replacer = createReplacer(m1[2]);
+
+		let typeNames = m1[3].split(/,/);
 		typeNames.forEach((typeName) => {
 			typeName = typeName.trim();
 			if (typeName.length === 0) {
 				return;
 			}
 			let declaration = getTopLevelDeclaration(sourceFile, typeName);
-			result.push(getMassagedTopLevelDeclarationText(sourceFile, declaration));
+			result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
 		});
 		return;
 	}
 
-	let m2 = line.match(/^\s*#includeAll\(([^\)]*)\)\:(.*)$/);
+	let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
 	if (m2) {
 		console.log('HANDLING META: ' + line);
 		let moduleId = m2[1];
 		let sourceFile = getSourceFile(moduleId);
 
-		let typeNames = m2[2].split(/,/);
+		let replacer = createReplacer(m2[2]);
+
+		let typeNames = m2[3].split(/,/);
 		let typesToExcludeMap: {[typeName:string]:boolean;} = {};
 		let typesToExcludeArr: string[] = [];
 		typeNames.forEach((typeName) => {
@@ -272,7 +312,7 @@ lines.forEach(line => {
 					}
 				}
 			}
-			result.push(getMassagedTopLevelDeclarationText(sourceFile, declaration));
+			result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
 		});
 		return;
 	}
@@ -281,9 +321,9 @@ lines.forEach(line => {
 });
 
 let resultTxt = result.join('\n');
-resultTxt = resultTxt.replace(/\beditorCommon\./g, '');
-resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
 resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
+resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
+resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
 
 resultTxt = format(resultTxt);
 

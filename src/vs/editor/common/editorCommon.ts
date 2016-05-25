@@ -1254,7 +1254,6 @@ export interface ICommand {
 /**
  * A single edit operation, that acts as a simple replace.
  * i.e. Replace text at `range` with `text` in model.
- * @internal
  */
 export interface ISingleEditOperation {
 	/**

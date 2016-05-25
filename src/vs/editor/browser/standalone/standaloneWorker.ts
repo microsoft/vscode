@@ -13,9 +13,9 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon';
-import {Emitter} from 'vs/base/common/event';
+import {createMonacoBaseAPI} from 'vs/editor/common/standalone/standaloneBase';
 
-class MirrorModel extends MirrorModel2 {
+export class MirrorModel extends MirrorModel2 {
 
 	public get uri(): URI {
 		return this._uri;
@@ -129,12 +129,6 @@ class MirrorModel extends MirrorModel2 {
 	}
 }
 
-this.Monaco = this.Monaco || {};
-var Monaco = this.Monaco;
-
-this.monaco = this.monaco || {};
-var monaco = this.monaco;
-
 export class StandaloneWorker /*extends EditorSimpleWorker*/ implements IRequestHandler {
 	_requestHandlerTrait: any;
 
@@ -145,19 +139,12 @@ export class StandaloneWorker /*extends EditorSimpleWorker*/ implements IRequest
 		// super();
 		this._models = Object.create(null);
 		this._foreignModule = null;
+	}
 
-
-		Monaco.TPromise = TPromise;
-		Monaco.Emitter = Emitter;
-
-		let that = this;
-		monaco.worker = {
-			get mirrorModels () {
-				let all: MirrorModel[] = [];
-				Object.keys(that._models).forEach((key) => all.push(that._models[key]));
-				return all;
-			}
-		};
+	public getModels(): MirrorModel[] {
+		let all: MirrorModel[] = [];
+		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
+		return all;
 	}
 
 	public acceptNewModel(data:IRawModelData): void {
@@ -218,9 +205,23 @@ export class StandaloneWorker /*extends EditorSimpleWorker*/ implements IRequest
 	}
 }
 
+const standaloneWorker = new StandaloneWorker();
+
 /**
  * Called on the worker side
  */
 export function create(): IRequestHandler {
-	return new StandaloneWorker();
+	return standaloneWorker;
 }
+
+function createMonacoWorkerAPI()/*: typeof monaco.worker*/ {
+	return {
+		get mirrorModels () {
+			return standaloneWorker.getModels();
+		}
+	};
+}
+
+var global:any = self;
+global.monaco = createMonacoBaseAPI();
+global.monaco.worker = createMonacoWorkerAPI();
