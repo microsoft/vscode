@@ -7,6 +7,12 @@
 	line-height: 22px;
 }
 
+.markers-panel .file-path {
+	opacity: .7;
+    margin-left: .5em;
+    font-size: .9em;
+}
+
 .markers-panel .icon {
 	float: left;
 	display: block;

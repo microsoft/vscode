@@ -11,12 +11,13 @@ import { IMarker } from 'vs/platform/markers/common/markers';
 import tree = require('vs/base/parts/tree/browser/tree');
 import { Marker, Resource } from 'vs/workbench/parts/markers/common/MarkersModel';
 import Severity from 'vs/base/common/severity';
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import { getPathLabel } from 'vs/base/common/labels';
 
 var $ = dom.emmet;
 
 interface IResourceTemplateData {
-	name: HTMLElement;
-	location: HTMLElement;
+	label: HTMLElement;
 }
 
 interface IMarkerTemplateData {
@@ -52,7 +53,7 @@ export class DataSource implements tree.IDataSource {
 }
 
 export class Renderer implements tree.IRenderer {
-	constructor(
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 	}
 
@@ -77,8 +78,7 @@ export class Renderer implements tree.IRenderer {
 
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
 		var data: IResourceTemplateData = Object.create(null);
-		data.name = dom.append(container, $('span.label'));
-		data.location = dom.append(container, $('.location'));
+		data.label = dom.append(container, $('.label'));
 		return data;
 	}
 
@@ -101,8 +101,10 @@ export class Renderer implements tree.IRenderer {
 	}
 
 	private renderResourceElement(tree: tree.ITree, element: Resource, templateData: IResourceTemplateData) {
-		templateData.name.textContent = paths.basename(element.uri.fsPath);
-		templateData.location.textContent = element.uri.path;
+		let fileNameElement= dom.append(templateData.label, $('span.file-name'));
+		fileNameElement.textContent= paths.basename(element.uri.fsPath);
+		let fileLocationElement= dom.append(templateData.label, $('span.file-path'));
+		fileLocationElement.textContent= getPathLabel(element.uri, this.contextService);
 	}
 
 	private renderMarkerElement(tree: tree.ITree, element: IMarker, templateData: IMarkerTemplateData) {
