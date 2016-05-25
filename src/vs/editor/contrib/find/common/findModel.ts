@@ -23,6 +23,7 @@ export const FIND_IDS = {
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
 	AddSelectionToNextFindMatchAction: 'editor.action.addSelectionToNextFindMatch',
+	UndoAddSelectionAction: 'editor.action.undoAddSelection',
 	MoveSelectionToNextFindMatchAction: 'editor.action.moveSelectionToNextFindMatch',
 	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
 	CloseFindWidgetCommand: 'closeFindWidget',

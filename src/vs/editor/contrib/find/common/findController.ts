@@ -455,6 +455,32 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 	}
 }
 
+export class UndoAddSelectionAction extends EditorAction {
+	static ID = FIND_IDS.UndoAddSelectionAction;
+
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
+		super(descriptor, editor);
+	}
+
+	public run(): TPromise<boolean> {
+		let allSelections = this.editor.getSelections();
+
+		if(allSelections.length === 0) {
+			return TPromise.as(false);
+		}
+
+		if(allSelections.length === 1) {
+			this.editor.setPosition(allSelections[0].getStartPosition());
+			return TPromise.as(true);
+		}
+
+		this.editor.setSelections(allSelections.slice(0, allSelections.length - 1));
+		this.editor.revealRangeInCenterIfOutsideViewport(allSelections[allSelections.length - 1]);
+
+		return TPromise.as(true);
+	}
+}
+
 export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchAction {
 	static ID = FIND_IDS.MoveSelectionToNextFindMatchAction;
 
@@ -711,6 +737,10 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddSelectio
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_D
 }, 'Add Selection To Next Find Match'));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UndoAddSelectionAction, UndoAddSelectionAction.ID, nls.localize('undoAddSelection', "Undo Add Selection"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_D
+}, 'Undo Add Selection'));
 
 function registerFindCommand(id:string, callback:(controller:CommonFindController)=>void, keybindings:IKeybindings, needsKey:string = null): void {
 	CommonEditorRegistry.registerEditorCommand(id, CommonEditorRegistry.commandWeight(5), keybindings, false, needsKey, (ctx, editor, args) => {
