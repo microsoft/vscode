@@ -1729,8 +1729,11 @@ export class FocusOpenEditorsView extends Action {
 
 	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
-			viewlet.getOpenEditorsView().expand();
-			viewlet.getOpenEditorsView().getViewer().DOMFocus();
+			const openEditorsView = viewlet.getOpenEditorsView();
+			if (openEditorsView) {
+				openEditorsView.expand();
+				openEditorsView.getViewer().DOMFocus();
+			}
 		});
 	}
 }
@@ -1788,7 +1791,9 @@ export class ShowActiveFileInExplorer extends Action {
 					}
 				} else {
 					const openEditorsView = viewlet.getOpenEditorsView();
-					openEditorsView.expand();
+					if (openEditorsView) {
+						openEditorsView.expand();
+					}
 				}
 			});
 		} else {
