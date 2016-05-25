@@ -18,7 +18,7 @@ export class Marker {
 export function toModel(markers: IMarker[]) {
 	let markersByResource: { [uri: string]: IMarker[] }= Object.create(null);
 	markers.forEach((marker:IMarker) => {
-		let uri:string= marker.resource.toString();
+		let uri:string= marker.resource.path;
 		let markers:IMarker[]= markersByResource[uri];
 		if (!markers) {
 			markers= [];

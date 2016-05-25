@@ -14,10 +14,12 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/Constants';
 import * as MarkersModel from 'vs/workbench/parts/markers/common/MarkersModel';
+import {Controller} from 'vs/workbench/parts/markers/browser/MarkersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import * as Viewer from 'vs/workbench/parts/markers/browser/MarkersTreeViewer';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { ActionProvider } from 'vs/workbench/parts/markers/browser/MarkersActionProvider';
 
 export class MarkersPanel extends Panel {
 
@@ -38,10 +40,13 @@ export class MarkersPanel extends Panel {
 		super.create(parent);
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
 
-		var renderer = this.instantiationService.createInstance(Viewer.Renderer);
+		var actionProvider = this.instantiationService.createInstance(ActionProvider);
+		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
+		var controller = this.instantiationService.createInstance(Controller, actionProvider);
 		this.tree = new TreeImpl.Tree(parent.getHTMLElement(), {
 			dataSource: new Viewer.DataSource(),
 			renderer: renderer,
+			controller: controller
 		}, {
 			indentPixels: 0,
 			twistiePixels: 20,

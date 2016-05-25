@@ -3,16 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.markers-panel .monaco-list-row {
-	line-height: 22px;
-}
-
-.markers-panel .file-path {
-	opacity: .7;
-    margin-left: .5em;
-    font-size: .9em;
-}
-
 .markers-panel .icon {
 	float: left;
 	display: block;
@@ -22,6 +12,37 @@
 	margin-left: 4px;
 }
 
+.markers-panel > .monaco-tree .monaco-tree-row .content .monaco-file-label {
+	vertical-align: middle;
+}
+
+.markers-panel > .monaco-tree .monaco-tree-row .content .count-badge-wrapper {
+	display: block;
+	float: right;
+	margin-right: 10px;
+	line-height: 22px;
+}
+
+.markers-panel > .monaco-tree .monaco-tree-row:hover .content .count-badge-wrapper,
+.markers-panel > .monaco-tree.focused .monaco-tree-row.focused .content .count-badge-wrapper {
+	display: none;
+}
+
+.markers-panel > .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar,
+.markers-panel > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-action-bar {
+	display: block;
+	position: absolute;
+	top: 0;
+	right: 10px;
+}
+
+.markers-panel > .monaco-tree .monaco-tree-row .content .monaco-action-bar {
+	display: none;
+}
+
+a.action-label.icon.action-remove {
+	background: url("action-remove-dark.svg") center center no-repeat;
+}
 
 .markers-panel .icon.warning {
 	background: url('status-warning.svg') center center no-repeat;
@@ -45,22 +66,4 @@
 
 .vs-dark .markers-panel .icon.info:before {
 	background: url('status-info-inverse.svg') center center no-repeat;
-}
-
-.markers-panel .label {
-	display: block;
-	float: left;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	/* icon: 16 + 4 + 4 */
-	/* line: 20 + 4 + 4 */
-	/* col: 20 + 4 + 4 */
-	/* file: 100 + 4 + 4 */
-	max-width: calc(100% - 24px - 200px - 20px)
-}
-
-.markers-panel .location {
-	float: right;
-	margin: 0 4px;
-	width: 200px;
 }
