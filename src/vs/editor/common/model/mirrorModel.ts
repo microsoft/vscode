@@ -395,22 +395,22 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 
 			this._setVersionId(contentChangedEvent.versionId);
 			switch (contentChangedEvent.changeType) {
-				case editorCommon.EventType.ModelContentChangedFlush:
+				case editorCommon.EventType.ModelRawContentChangedFlush:
 					this._onLinesFlushed(<editorCommon.IModelContentChangedFlushEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case editorCommon.EventType.ModelContentChangedLinesDeleted:
+				case editorCommon.EventType.ModelRawContentChangedLinesDeleted:
 					this._onLinesDeleted(<editorCommon.IModelContentChangedLinesDeletedEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case editorCommon.EventType.ModelContentChangedLinesInserted:
+				case editorCommon.EventType.ModelRawContentChangedLinesInserted:
 					this._onLinesInserted(<editorCommon.IModelContentChangedLinesInsertedEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case editorCommon.EventType.ModelContentChangedLineChanged:
+				case editorCommon.EventType.ModelRawContentChangedLineChanged:
 					this._onLineChanged(<editorCommon.IModelContentChangedLineChangedEvent>contentChangedEvent);
 					changed = true;
 					break;

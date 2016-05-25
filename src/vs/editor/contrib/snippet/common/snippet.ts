@@ -460,29 +460,29 @@ class InsertSnippetController {
 		});
 
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.onDidChangeModelContent((e:editorCommon.IModelContentChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeModelRawContent((e:editorCommon.IModelContentChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
 
-			if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
+			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
 				// a model.setValue() was called
 				this.stopAll();
-			} else if (e.changeType === editorCommon.EventType.ModelContentChangedLineChanged) {
+			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLineChanged) {
 				var changedLine = (<editorCommon.IModelContentChangedLineChangedEvent>e).lineNumber;
 				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 
 				if (changedLine < highlightRange.startLineNumber || changedLine > highlightRange.endLineNumber) {
 					this.stopAll();
 				}
-			} else if (e.changeType === editorCommon.EventType.ModelContentChangedLinesInserted) {
+			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLinesInserted) {
 				var insertLine = (<editorCommon.IModelContentChangedLinesInsertedEvent>e).fromLineNumber;
 				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 
 				if (insertLine < highlightRange.startLineNumber || insertLine > highlightRange.endLineNumber) {
 					this.stopAll();
 				}
-			} else if (e.changeType === editorCommon.EventType.ModelContentChangedLinesDeleted) {
+			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLinesDeleted) {
 				var deleteLine1 = (<editorCommon.IModelContentChangedLinesDeletedEvent>e).fromLineNumber;
 				var deleteLine2 = (<editorCommon.IModelContentChangedLinesDeletedEvent>e).toLineNumber;
 				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
@@ -533,7 +533,7 @@ class InsertSnippetController {
 			}
 		}));
 
-		this.listenersToRemove.push(this.model.addListener2(editorCommon.EventType.ModelDecorationsChanged, (e: editorCommon.IModelDecorationsChangedEvent) => {
+		this.listenersToRemove.push(this.model.onDidChangeDecorations((e) => {
 			if (this.isFinished) {
 				return;
 			}

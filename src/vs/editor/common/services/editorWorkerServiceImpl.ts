@@ -180,7 +180,7 @@ export class EditorModelManager extends Disposable {
 		});
 
 		let toDispose:IDisposable[] = [];
-		toDispose.push(model.addBulkListener2((events) => {
+		toDispose.push(model.addBulkListener((events) => {
 			let changedEvents: editorCommon.IModelContentChangedEvent2[] = [];
 			for (let i = 0, len = events.length; i < len; i++) {
 				let e = events[i];

@@ -22,7 +22,7 @@ function equalRange(left, right) {
 
 function contentChangedFlushEvent(detail: editorCommon.IRawText): editorCommon.IModelContentChangedFlushEvent {
 	return {
-		changeType: editorCommon.EventType.ModelContentChangedFlush,
+		changeType: editorCommon.EventType.ModelRawContentChangedFlush,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -32,7 +32,7 @@ function contentChangedFlushEvent(detail: editorCommon.IRawText): editorCommon.I
 
 function contentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
 	return {
-		changeType: editorCommon.EventType.ModelContentChangedLinesDeleted,
+		changeType: editorCommon.EventType.ModelRawContentChangedLinesDeleted,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -43,7 +43,7 @@ function contentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: n
 
 function contentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, detail: string): editorCommon.IModelContentChangedLinesInsertedEvent {
 	return {
-		changeType: editorCommon.EventType.ModelContentChangedLinesInserted,
+		changeType: editorCommon.EventType.ModelRawContentChangedLinesInserted,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -55,7 +55,7 @@ function contentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: 
 
 function contentChangedLineChanged(lineNumber: number, detail: string): editorCommon.IModelContentChangedLineChangedEvent {
 	return {
-		changeType: editorCommon.EventType.ModelContentChangedLineChanged,
+		changeType: editorCommon.EventType.ModelRawContentChangedLineChanged,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,

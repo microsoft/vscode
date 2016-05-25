@@ -75,7 +75,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 		this.listenersToRemove = [];
 		this._toDispose = [];
-		this.listenersToRemove.push(this.model.addBulkListener2((events:EmitterEvent[]) => this.onEvents(events)));
+		this.listenersToRemove.push(this.model.addBulkListener((events:EmitterEvent[]) => this.onEvents(events)));
 		this._toDispose.push(this.configuration.onDidChange((e) => {
 			this.onEvents([new EmitterEvent(editorCommon.EventType.ConfigurationChanged, e)]);
 		}));
@@ -153,7 +153,7 @@ export class ViewModel extends EventEmitter implements IViewModel {
 	private onEvents(events:EmitterEvent[]): void {
 		this.deferredEmit(() => {
 
-			let hasContentChange = events.some((e) => e.getType() === editorCommon.EventType.ModelContentChanged),
+			let hasContentChange = events.some((e) => e.getType() === editorCommon.EventType.ModelRawContentChanged),
 				previousCenteredModelRange:Range;
 			if (!hasContentChange) {
 				// We can only convert the current centered view range to the current centered model range if the model has no changes.
@@ -175,26 +175,26 @@ export class ViewModel extends EventEmitter implements IViewModel {
 
 				switch (e.getType()) {
 
-					case editorCommon.EventType.ModelContentChanged:
+					case editorCommon.EventType.ModelRawContentChanged:
 						modelContentChangedEvent = <editorCommon.IModelContentChangedEvent>data;
 
 						switch (modelContentChangedEvent.changeType) {
-							case editorCommon.EventType.ModelContentChangedFlush:
+							case editorCommon.EventType.ModelRawContentChangedFlush:
 								this.onModelFlushed(<editorCommon.IModelContentChangedFlushEvent>modelContentChangedEvent);
 								hadOtherModelChange = true;
 								break;
 
-							case editorCommon.EventType.ModelContentChangedLinesDeleted:
+							case editorCommon.EventType.ModelRawContentChangedLinesDeleted:
 								this.onModelLinesDeleted(<editorCommon.IModelContentChangedLinesDeletedEvent>modelContentChangedEvent);
 								hadOtherModelChange = true;
 								break;
 
-							case editorCommon.EventType.ModelContentChangedLinesInserted:
+							case editorCommon.EventType.ModelRawContentChangedLinesInserted:
 								this.onModelLinesInserted(<editorCommon.IModelContentChangedLinesInsertedEvent>modelContentChangedEvent);
 								hadOtherModelChange = true;
 								break;
 
-							case editorCommon.EventType.ModelContentChangedLineChanged:
+							case editorCommon.EventType.ModelRawContentChangedLineChanged:
 								hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(<editorCommon.IModelContentChangedLineChangedEvent>modelContentChangedEvent);
 								break;
 

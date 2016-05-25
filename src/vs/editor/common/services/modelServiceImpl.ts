@@ -52,7 +52,7 @@ class ModelData implements IDisposable {
 		this.isSyncedToWorkers = false;
 
 		this._markerDecorations = [];
-		this._modelEventsListener = model.addBulkListener2((events) => eventsHandler(this, events));
+		this._modelEventsListener = model.addBulkListener((events) => eventsHandler(this, events));
 	}
 
 	public dispose(): void {
@@ -554,7 +554,7 @@ export class ModelServiceImpl implements IModelService {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
 
-			if (e.getType() === editorCommon.EventType.ModelContentChanged) {
+			if (e.getType() === editorCommon.EventType.ModelRawContentChanged) {
 				eventsForWorkers.contentChanged.push(<editorCommon.IModelContentChangedEvent>e.getData());
 			}
 		}

@@ -5,7 +5,7 @@
 'use strict';
 
 import {IAction} from 'vs/base/common/actions';
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
+import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -1944,7 +1944,18 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 /**
  * A model.
  */
-export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEventEmitter, IEditorModel {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+
+	onDidChangeRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	onDidChangeContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
+	onDidChangeModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
+	onDidChangeDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
+	onDidChangeOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
+	onDidChangeMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
+	onWillDispose(listener: ()=>void): IDisposable;
+
+	addBulkListener(listener:BulkListenerCallback):IDisposable;
+
 	/**
 	 * A unique identifier associated with this model.
 	 */
@@ -3089,7 +3100,8 @@ export interface ICommonEditorContributionDescriptor {
  */
 export interface IEditor {
 
-	onDidChangeModelContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	onDidChangeModelRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	onDidChangeModelContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
 	onDidChangeModelMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
 	onDidChangeModelOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
 	onDidChangeConfiguration(listener: (e:IConfigurationChangedEvent)=>void): IDisposable;
@@ -3623,12 +3635,12 @@ export var EventType = {
 	ModelModeChanged: 'modelsModeChanged',
 	ModelModeSupportChanged: 'modelsModeSupportChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelContentChanged: 'contentChanged',
+	ModelRawContentChanged: 'contentChanged',
 	ModelContentChanged2: 'contentChanged2',
-	ModelContentChangedFlush: 'flush',
-	ModelContentChangedLinesDeleted: 'linesDeleted',
-	ModelContentChangedLinesInserted: 'linesInserted',
-	ModelContentChangedLineChanged: 'lineChanged',
+	ModelRawContentChangedFlush: 'flush',
+	ModelRawContentChangedLinesDeleted: 'linesDeleted',
+	ModelRawContentChangedLinesInserted: 'linesInserted',
+	ModelRawContentChangedLineChanged: 'lineChanged',
 
 	EditorTextBlur: 'blur',
 	EditorTextFocus: 'focus',

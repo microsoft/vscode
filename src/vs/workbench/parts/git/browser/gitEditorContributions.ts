@@ -30,7 +30,7 @@ class MergeDecoratorBoundToModel extends Disposable {
 		this._filePath = filePath;
 		this._decorations = [];
 		this._redecorateSoon = this._register(new RunOnceScheduler(() => this.redecorate(), 300));
-		this._register(this._model.addListener2(common.EventType.ModelContentChanged, () => this._redecorateSoon.schedule()));
+		this._register(this._model.onDidChangeContent(() => this._redecorateSoon.schedule()));
 		this._register(this._gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this._redecorateSoon.schedule()));
 		this._redecorateSoon.schedule();
 	}

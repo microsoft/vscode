@@ -45,7 +45,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _shouldDenyMode: boolean;
 
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText) {
-		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged, editorCommon.EventType.ModelOptionsChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged);
 		super(allowedEventTypes);
 
 		this._shouldSimplifyMode = (rawText.length > TextModel.MODEL_SYNC_LIMIT);
@@ -203,7 +203,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	_createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
 		return {
-			changeType: editorCommon.EventType.ModelContentChangedFlush,
+			changeType: editorCommon.EventType.ModelRawContentChangedFlush,
 			detail: null,
 			// TODO@Alex -> remove these fields from here
 			versionId: -1,
@@ -615,7 +615,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	_emitModelContentChangedFlushEvent(e:editorCommon.IModelContentChangedFlushEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelContentChanged, e);
+			this.emit(editorCommon.EventType.ModelRawContentChanged, e);
 		}
 	}
 

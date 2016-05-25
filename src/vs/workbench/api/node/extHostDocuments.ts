@@ -521,7 +521,7 @@ export class MainThreadDocuments {
 		}
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
-		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener2((events) => this._onModelEvents(modelUrl, events));
+		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
 		this._proxy._acceptModelAdd({
 			url: model.uri,
 			versionId: model.getVersionId(),
