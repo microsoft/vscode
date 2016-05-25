@@ -108,8 +108,11 @@ export class HTMLWorker {
 
 	private getTagsFormatOption(key: string, dflt: string[]): string[] {
 		let list = <string> this.getFormatOption(key, null);
-		if (list) {
-			return list.split(',').map(t => t.trim().toLowerCase());
+		if (typeof list === 'string') {
+			if (list.length > 0) {
+				return list.split(',').map(t => t.trim().toLowerCase());
+			}
+			return [];
 		}
 		return dflt;
 	}

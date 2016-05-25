@@ -14,6 +14,7 @@ import {IInstantiationService, optional} from 'vs/platform/instantiation/common/
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -57,6 +58,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IStorageService private _storageService: IStorageService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
 		this._editor = editor;
@@ -112,8 +114,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._disposables.push(this._widget.onDidSelectReference(event => {
 			let {element, kind} = event;
 			switch (kind) {
-				case 'side':
 				case 'open':
+					if (event.source === 'editor'
+						&& getConfigurationValue(this._configurationService.getConfiguration(), 'editor.stablePeek', false)) {
+
+						// when stable peek is configured we don't close
+						// the peek window on selecting the editor 
+						break;
+					}
+				case 'side':
 					this._openReference(element, kind === 'side');
 					break;
 				case 'goto':

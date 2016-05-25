@@ -429,15 +429,17 @@ export class DebugService implements debug.IDebugService {
 	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void[]> {
 		this.model.addBreakpoints(rawBreakpoints);
 		const uris = arrays.distinct(rawBreakpoints, raw => raw.uri.toString()).map(raw => raw.uri);
+		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, rbp.uri.fsPath)));
 
 		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri)));
 	}
 
 	public removeBreakpoints(id?: string): TPromise<any> {
 		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
+		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.source.uri.fsPath)));
 		const urisToClear = arrays.distinct(toRemove, bp => bp.source.uri.toString()).map(bp => bp.source.uri);
-		this.model.removeBreakpoints(toRemove);
 
+		this.model.removeBreakpoints(toRemove);
 		return TPromise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}
 
@@ -498,10 +500,9 @@ export class DebugService implements debug.IDebugService {
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
-			.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
+			.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
 			.then(() => {
-				this.configurationManager.resloveConfiguration(configuration);
-				configuration = configuration || this.configurationManager.configuration;
+				configuration = this.configurationManager.configuration;
 				if (!configuration) {
 					return this.configurationManager.openConfigFile(false).then(openend => {
 						if (openend) {

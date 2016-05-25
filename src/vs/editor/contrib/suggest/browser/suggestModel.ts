@@ -82,7 +82,7 @@ class Context {
 		}
 
 		const supports = SuggestRegistry.all(model);
-		this.isAutoTriggerEnabled = supports.some(s => s.shouldAutotriggerSuggest);
+		this.isAutoTriggerEnabled = (supports.length > 0);
 	}
 
 	public shouldAutoTrigger(): boolean {

@@ -19,12 +19,13 @@ export interface ITMSyntaxExtensionPoint {
 	language: string;
 	scopeName: string;
 	path: string;
+	injectTo: string[];
 }
 
 let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', {
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
-	defaultSnippets: [ { body: [{ id: '', extensions: [] }] }],
+	defaultSnippets: [ { body: [{ language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'}] }],
 	items: {
 		type: 'object',
 		defaultSnippets: [ { body: { language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'} }],
@@ -40,8 +41,16 @@ let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtens
 			path: {
 				description: nls.localize('vscode.extension.contributes.grammars.path', 'Path of the tmLanguage file. The path is relative to the extension folder and typically starts with \'./syntaxes/\'.'),
 				type: 'string'
+			},
+			injectTo: {
+				description: nls.localize('vscode.extension.contributes.grammars.injectTo', 'List of language scope names to which this grammar is injected to.'),
+				type: 'array',
+				items: {
+					type: 'string'
+				}
 			}
-		}
+		},
+		require: ['scopeName', 'path']
 	}
 });
 
@@ -49,6 +58,7 @@ export class MainProcessTextMateSyntax {
 	private _grammarRegistry: Registry;
 	private _modeService: IModeService;
 	private _scopeNameToFilePath: { [scopeName:string]: string; };
+	private _injections: { [scopeName:string]: string[]; };
 
 	constructor(
 		@IModeService modeService: IModeService
@@ -57,9 +67,13 @@ export class MainProcessTextMateSyntax {
 		this._grammarRegistry = new Registry({
 			getFilePath: (scopeName:string) => {
 				return this._scopeNameToFilePath[scopeName];
+			},
+			getInjections: (scopeName:string) => {
+				return this._injections[scopeName];
 			}
 		});
 		this._scopeNameToFilePath = {};
+		this._injections = {};
 
 		grammarsExtPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
@@ -82,6 +96,10 @@ export class MainProcessTextMateSyntax {
 		}
 		if (!syntax.path || (typeof syntax.path !== 'string')) {
 			collector.error(nls.localize('invalid.path.0', "Expected string in `contributes.{0}.path`. Provided value: {1}", grammarsExtPoint.name, String(syntax.path)));
+			return;
+		}
+		if (syntax.injectTo && (!Array.isArray(syntax.injectTo) || syntax.injectTo.some(scope => typeof scope !== 'string'))) {
+			collector.error(nls.localize('invalid.injectTo', "Invalid value in `contributes.{0}.injectTo`. Must be an array of language scope names. Provided value: {1}", grammarsExtPoint.name, JSON.stringify(syntax.injectTo)));
 			return;
 		}
 		let normalizedAbsolutePath = paths.normalize(paths.join(extensionFolderPath, syntax.path));

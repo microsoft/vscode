@@ -14,9 +14,12 @@ class ZoomManager {
 	public static INSTANCE = new ZoomManager();
 
 	private _zoomLevel: number = 0;
+	private _pixelRatioCache: number = 0;
+	private _pixelRatioComputed: boolean = false;
 
 	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
 	public onDidChangeZoomLevel:Event<number> = this._onDidChangeZoomLevel.event;
+
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
@@ -27,12 +30,35 @@ class ZoomManager {
 		}
 
 		this._zoomLevel = zoomLevel;
+		this._pixelRatioComputed = false;
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+	}
+
+	public getPixelRatio(): number {
+		if (!this._pixelRatioComputed) {
+			this._pixelRatioCache = this._computePixelRatio();
+			this._pixelRatioComputed = true;
+		}
+		return this._pixelRatioCache;
+	}
+
+	private _computePixelRatio(): number {
+		let ctx = document.createElement('canvas').getContext('2d');
+		let dpr = window.devicePixelRatio || 1;
+		let bsr = 	(<any>ctx).webkitBackingStorePixelRatio ||
+					(<any>ctx).mozBackingStorePixelRatio ||
+					(<any>ctx).msBackingStorePixelRatio ||
+					(<any>ctx).oBackingStorePixelRatio ||
+					(<any>ctx).backingStorePixelRatio || 1;
+		return dpr / bsr;
 	}
 }
 
 export function getZoomLevel(): number {
 	return ZoomManager.INSTANCE.getZoomLevel();
+}
+export function getPixelRatio(): number {
+	return ZoomManager.INSTANCE.getPixelRatio();
 }
 export function setZoomLevel(zoomLevel:number): void {
 	ZoomManager.INSTANCE.setZoomLevel(zoomLevel);

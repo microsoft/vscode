@@ -33,13 +33,7 @@ exports.loaderConfig = function (emptyPaths) {
 	var result = {
 		paths: {
 			'vs': 'out-build/vs',
-			'vs/extensions': 'extensions',
 			'vscode': 'empty:'
-		},
-		'vs/text': {
-			paths: {
-				'vs/extensions': 'extensions'
-			}
 		},
 		nodeModules: emptyPaths||[]
 	};
@@ -55,7 +49,6 @@ function loader(bundledFileHeader) {
 		'out-build/vs/loader.js',
 		'out-build/vs/css.js',
 		'out-build/vs/nls.js',
-		'out-build/vs/text.js'
 	], { base: 'out-build' })
 		.pipe(es.through(function(data) {
 			if (isFirst) {

@@ -13,7 +13,8 @@ export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
 export const TERMINAL_SERVICE_ID = 'terminalService';
 
-export const TERMINAL_DEFAULT_SHELL_UNIX_LIKE = process.env.SHELL || 'sh';
+export const TERMINAL_DEFAULT_SHELL_LINUX = process.env.SHELL || 'sh';
+export const TERMINAL_DEFAULT_SHELL_OSX = process.env.SHELL || 'sh';
 export const TERMINAL_DEFAULT_SHELL_WINDOWS = platform.isWindows ? path.resolve(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : '';
 
 export var ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
@@ -21,7 +22,8 @@ export var ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE
 export interface ITerminalConfiguration {
 	integratedTerminal: {
 		shell: {
-			unixLike: string,
+			linux: string,
+			osx: string,
 			windows: string
 		},
 		fontFamily: string,
@@ -49,5 +51,5 @@ export interface ITerminalConfiguration {
 export interface ITerminalService {
 	serviceId: ServiceIdentifier<any>;
 
-	show(): TPromise<any>;
+	toggle(): TPromise<any>;
 }

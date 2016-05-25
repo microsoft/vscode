@@ -453,6 +453,7 @@ export interface LayoutData {
 
 export interface SelectionEvent {
 	kind: 'goto' | 'show' | 'side' | 'open';
+	source: 'editor' | 'tree' | 'title';
 	element: OneReference;
 }
 
@@ -513,7 +514,8 @@ export class ReferenceWidget extends PeekViewWidget {
 		if (this._preview && this._preview.getModel()) {
 			this._onDidSelectReference.fire({
 				element: this._getFocusedReference(),
-				kind: e.ctrlKey || e.metaKey ? 'side' : 'open'
+				kind: e.ctrlKey || e.metaKey ? 'side' : 'open',
+				source: 'title'
 			});
 		}
 	}
@@ -633,18 +635,18 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.FOCUSED, (element) => {
 			if (element instanceof OneReference) {
 				this._revealReference(element);
-				this._onDidSelectReference.fire({ element, kind: 'show' });
+				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
 			}
 		}));
 		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
 				this._revealReference(element);
-				this._onDidSelectReference.fire({ element, kind: 'goto' });
+				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
 			}
 		}));
 		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.OPEN_TO_SIDE, (element: any) => {
 			if (element instanceof OneReference) {
-				this._onDidSelectReference.fire({ element, kind: 'side' });
+				this._onDidSelectReference.fire({ element, kind: 'side', source: 'tree' });
 			}
 		}));
 
@@ -653,7 +655,8 @@ export class ReferenceWidget extends PeekViewWidget {
 			if (e.event.detail === 2) {
 				this._onDidSelectReference.fire({
 					element: this._getFocusedReference(),
-					kind: (e.event.ctrlKey || e.event.metaKey) ? 'side' : 'open'
+					kind: (e.event.ctrlKey || e.event.metaKey) ? 'side' : 'open',
+					source: 'editor'
 				});
 			}
 		}));

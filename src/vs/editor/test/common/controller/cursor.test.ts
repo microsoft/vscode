@@ -1553,6 +1553,42 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #3882: deleteWordRight', () => {
+		usingCursor({
+			text: [
+				'public void Add( int x,',
+				'                 int y )'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 24, false);
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+		});
+	});
+
+	test('issue #3882: deleteWordStartRight', () => {
+		usingCursor({
+			text: [
+				'public void Add( int x,',
+				'                 int y )'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 24, false);
+			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+		});
+	});
+
+	test('issue #3882: deleteWordEndRight', () => {
+		usingCursor({
+			text: [
+				'public void Add( int x,',
+				'                 int y )'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 24, false);
+			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+		});
+	});
+
 	test('deleteWordStartRight', () => {
 		usingCursor({
 			text: [
@@ -1844,7 +1880,7 @@ suite('Editor Controller - Regression tests', () => {
 			],
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 18, false);
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'A line with text.And another one', '001');
 		});
 	});
 

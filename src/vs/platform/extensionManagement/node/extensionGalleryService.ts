@@ -6,12 +6,10 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtension, IExtensionGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { isUndefined } from 'vs/base/common/types';
-import { IXHRResponse } from 'vs/base/common/http';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { matchesContiguousSubString } from 'vs/base/common/filters';
-import { getExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
+import pkg from 'vs/platform/package';
 import product from 'vs/platform/product';
 
 export interface IGalleryExtensionFile {
@@ -190,23 +188,11 @@ function toExtension(galleryExtension: IGalleryExtension, extensionsGalleryUrl: 
 	};
 }
 
-const FIVE_MINUTES = 1000 * 60 * 5;
-
-function extensionFilter(input: string): (e: IExtension) => boolean {
-	return extension => {
-		return !!matchesContiguousSubString(input, `${ extension.publisher }.${ extension.name }`)
-			|| !!matchesContiguousSubString(input, extension.name)
-			|| !!matchesContiguousSubString(input, extension.displayName)
-			|| !!matchesContiguousSubString(input, extension.description);
-	};
-}
-
 export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	serviceId = IExtensionGalleryService;
 
 	private extensionsGalleryUrl: string;
-	private extensionsCacheUrl: string;
 	private machineId: TPromise<string>;
 
 	constructor(
@@ -215,7 +201,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.extensionsCacheUrl = config && config.cacheUrl;
 		this.machineId = telemetryService.getTelemetryInfo().then(({ machineId }) => machineId);
 	}
 
@@ -234,52 +219,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		const type = options.ids ? 'ids' : (options.text ? 'text' : 'all');
 		const text = options.text || '';
-		this.telemetryService.publicLog('galleryService:query', { type, text });
-
-		const cache = this.queryCache().then(result => {
-			const rawLastModified = result.getResponseHeader('last-modified');
-
-			if (!rawLastModified) {
-				return TPromise.wrapError('no last modified header');
-			}
-
-			const lastModified = new Date(rawLastModified).getTime();
-			const now = new Date().getTime();
-			const diff = now - lastModified;
-
-			if (diff > FIVE_MINUTES) {
-				return TPromise.wrapError('stale');
-			}
-
-			return this.getRequestHeaders().then(downloadHeaders => {
-				const rawExtensions: IGalleryExtension[] = JSON.parse(result.responseText).results[0].extensions || [];
-				let extensions = rawExtensions
-					.map(e => toExtension(e, this.extensionsGalleryUrl, downloadHeaders));
-
-				if (options.ids) {
-					extensions = extensions.filter(e => options.ids.indexOf(getExtensionId(e)) > -1);
-				} else if (options.text) {
-					extensions = extensions.filter(extensionFilter(options.text));
-				}
-
-				extensions = extensions
-					.sort((a, b) => b.galleryInformation.installCount - a.galleryInformation.installCount);
-
-				return {
-					firstPage: extensions,
-					total: extensions.length,
-					pageSize: extensions.length,
-					getPage: () => TPromise.as([])
-				};
-			});
-		});
-
-		return cache.then(null, _ => this._query(options));
-	}
-
-	private _query(options: IQueryOptions = {}): TPromise<IQueryResult> {
-		const text = getOrDefault(options, o => o.text, '');
 		const pageSize = getOrDefault(options, o => o.pageSize, 30);
+
+		this.telemetryService.publicLog('galleryService:query', { type, text });
 
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
@@ -337,21 +279,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			});
 	}
 
-	private queryCache(): TPromise<IXHRResponse> {
-		const url = this.extensionsCacheUrl;
-
-		if (!url) {
-			return TPromise.wrapError(new Error('No cache configured.'));
-		}
-
-		return this.requestService.makeRequest({ url });
-	}
-
 	private getRequestHeaders(): TPromise<any> {
 		return this.machineId.then(machineId => {
 			const result = {
-				'X-Market-Client-Id': 'VSCode',
-				'User-Agent': 'VSCode'
+				'X-Market-Client-Id': `VSCode ${ pkg.version }`,
+				'User-Agent': `VSCode ${ pkg.version }`
 			};
 
 			if (machineId) {

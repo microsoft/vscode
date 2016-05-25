@@ -237,7 +237,7 @@ export class ThemeService implements IThemeService {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
 
-			let themeSelector = toCssSelector(extensionId + '-' + Paths.normalize(theme.path));
+			let themeSelector = toCSSSelector(extensionId + '-' + Paths.normalize(theme.path));
 			this.knownThemes.push({
 				id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
 				label: theme.label || Paths.basename(theme.path),
@@ -268,7 +268,7 @@ export class ThemeService implements IThemeService {
 
 
 
-function toCssSelector(str: string) {
+function toCSSSelector(str: string) {
 	return str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 }
 

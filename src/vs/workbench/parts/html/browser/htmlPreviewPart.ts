@@ -122,7 +122,8 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	public layout(dimension: Dimension): void {
 		const {width, height} = dimension;
-		this._container.style.width = `${width}px`;
+		// we take the padding we set on create into account
+		this._container.style.width = `${Math.max(width - 20, 0)}px`;
 		this._container.style.height = `${height}px`;
 	}
 

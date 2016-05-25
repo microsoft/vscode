@@ -4,14 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/text!vs/languages/typescript/common/lib/lib.d.ts';
-import 'vs/text!vs/languages/typescript/common/lib/lib.es6.d.ts';
+import {contents as libdts} from 'vs/languages/typescript/common/lib/lib-ts';
+import {contents as libes6ts} from 'vs/languages/typescript/common/lib/lib-es6-ts';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TypeScriptWorkerProtocol, IRawModelData} from './typescript';
 import {IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
+
+const DEFAULT_LIB = {
+	NAME: 'defaultLib:lib.d.ts',
+	CONTENTS: libdts
+};
+
+const ES6_LIB = {
+	NAME: 'defaultLib:lib.es6.d.ts',
+	CONTENTS: libes6ts
+};
 
 class TypeScriptWorker extends TypeScriptWorkerProtocol implements ts.LanguageServiceHost {
 
@@ -78,9 +88,10 @@ class TypeScriptWorker extends TypeScriptWorkerProtocol implements ts.LanguageSe
 			// static extra lib
 			text = this._extraLibs[fileName];
 
-		} else if (this.isDefaultLibFileName(fileName)) {
-			// load lib(.es6)?.d.ts as module
-			text = require(fileName);
+		} else if (fileName === DEFAULT_LIB.NAME) {
+			text = DEFAULT_LIB.CONTENTS;
+		} else if (fileName === ES6_LIB.NAME) {
+			text = ES6_LIB.CONTENTS;
 		} else {
 			return;
 		}
@@ -98,9 +109,7 @@ class TypeScriptWorker extends TypeScriptWorkerProtocol implements ts.LanguageSe
 
 	getDefaultLibFileName(options: ts.CompilerOptions): string {
 		// TODO@joh support lib.es7.d.ts
-		return options.target > ts.ScriptTarget.ES5
-			? 'vs/text!vs/languages/typescript/common/lib/lib.es6.d.ts'
-			: 'vs/text!vs/languages/typescript/common/lib/lib.d.ts';
+		return options.target > ts.ScriptTarget.ES5 ? DEFAULT_LIB.NAME : ES6_LIB.NAME;
 	}
 
 	isDefaultLibFileName(fileName: string): boolean {

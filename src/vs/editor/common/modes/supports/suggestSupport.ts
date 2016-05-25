@@ -35,10 +35,6 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		return [];
 	}
 
-	public get shouldAutotriggerSuggest(): boolean {
-		return true;
-	}
-
 	public get filter(): IFilter {
 		return matchesStrictPrefix;
 	}

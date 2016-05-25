@@ -12,5 +12,5 @@ exports.standaloneLanguages = require('./vs/editor/standalone-languages/buildfil
 exports.standaloneLanguages2 = require('./vs/languages/buildfile-editor-languages').collectModules();
 
 exports.entrypoint = function (name) {
-	return [{ name: name, include: [], exclude: ['vs/css', 'vs/nls', 'vs/text'] }];
+	return [{ name: name, include: [], exclude: ['vs/css', 'vs/nls'] }];
 };

@@ -35,12 +35,19 @@ suite('JSON - edits', () => {
 		let content = '{\n  "x": "y"\n}';
 		let edits = setProperty(content, ['x'], 'bar', formatterOptions);
 		assertEdit(content, edits, '{\n  "x": "bar"\n}');
+
+		content = 'true';
+		edits = setProperty(content, [], 'bar', formatterOptions);
+		assertEdit(content, edits, '"bar"');
 	});
 
 	test('insert property', () => {
 		let content = "{}";
 		let edits = setProperty(content, ['foo'], 'bar', formatterOptions);
 		assertEdit(content, edits, '{\n  "foo": "bar"\n}');
+
+		edits = setProperty(content, ['foo', 'foo2'], 'bar', formatterOptions);
+		assertEdit(content, edits, '{\n  "foo": {\n    "foo2": "bar"\n  }\n}');
 
 		content = "{\n}";
 		edits = setProperty(content, ['foo'], 'bar', formatterOptions);
@@ -72,6 +79,10 @@ suite('JSON - edits', () => {
 
 		edits = setProperty(content, ['x', 'c'], 'bar', formatterOptions, () => 2);
 		assertEdit(content, edits, '{\n  "x": {\n    "a": 1,\n    "b": true,\n    "c": "bar"\n  }\n}\n');
+
+		content = '';
+		edits = setProperty(content, ['foo', 0], 'bar', formatterOptions);
+		assertEdit(content, edits, '{\n  "foo": [\n    "bar"\n  ]\n}');
 	});
 
 	test('remove property', () => {

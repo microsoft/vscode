@@ -142,7 +142,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 				return action;
 			}
-				);
+			);
 
 		// Add to viewlet switcher
 		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
@@ -235,7 +235,7 @@ export class ActivitybarPart extends Part implements IActivityService {
 
 class ViewletActivityAction extends ActivityAction {
 	private static preventDoubleClickDelay = 300;
-	private static lastRun: number = 0;
+	private lastRun: number = 0;
 
 	private viewlet: ViewletDescriptor;
 
@@ -251,12 +251,12 @@ class ViewletActivityAction extends ActivityAction {
 
 	public run(): TPromise<any> {
 
-		// cheap trick to prevent accident trigger on a doubleclick (to help nervous people)
-		let now = new Date().getTime();
-		if (now - ViewletActivityAction.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
+		// prevent accident trigger on a doubleclick (to help nervous people)
+		let now = Date.now();
+		if (now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
 			return TPromise.as(true);
 		}
-		ViewletActivityAction.lastRun = now;
+		this.lastRun = now;
 
 		let sideBarHidden = this.partService.isSideBarHidden();
 		let activeViewlet = this.viewletService.getActiveViewlet();

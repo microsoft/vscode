@@ -17,7 +17,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IStringDictionary} from 'vs/base/common/collections';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ITerminalConfiguration, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
+import {ITerminalConfiguration, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
 import {Panel} from 'vs/workbench/browser/panel';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
@@ -36,7 +36,8 @@ export class TerminalPanel extends Panel {
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ITerminalService private terminalService: ITerminalService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
 		this.toDispose = [];
@@ -46,11 +47,13 @@ export class TerminalPanel extends Panel {
 		let cols = Math.floor(this.parentDomElement.offsetWidth / TERMINAL_CHAR_WIDTH);
 		let rows = Math.floor(this.parentDomElement.offsetHeight / TERMINAL_CHAR_HEIGHT);
 		this.terminal.resize(cols, rows);
-		this.ptyProcess.send({
-			event: 'resize',
-			cols: cols,
-			rows: rows
-		});
+		if (this.ptyProcess.connected) {
+			this.ptyProcess.send({
+				event: 'resize',
+				cols: cols,
+				rows: rows
+			});
+		}
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -103,12 +106,19 @@ export class TerminalPanel extends Panel {
 				});
 				return false;
 			});
-			this.ptyProcess.on('exit', (data) => {
+			this.ptyProcess.on('exit', (exitCode) => {
+				this.toDispose = lifecycle.dispose(this.toDispose);
 				this.terminal.destroy();
 				// TODO: When multiple terminals are supported this should do something smarter. There is
 				// also a weird bug here at least on Ubuntu 15.10 where the new terminal text does not
 				// repaint correctly.
-				this.createTerminal();
+				if (exitCode === 0) {
+					this.createTerminal();
+				} else {
+					// TODO: Allow the terminal to be relaunched after an error
+					console.error('Integrated terminal exited with code ' + exitCode);
+				}
+				this.terminalService.toggle();
 			});
 			this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'mousedown', (event) => {
 				// Drop selection and focus terminal on Linux to enable middle button paste when click
@@ -152,7 +162,10 @@ export class TerminalPanel extends Panel {
 		if (platform.isWindows) {
 			return config.integratedTerminal.shell.windows;
 		}
-		return config.integratedTerminal.shell.unixLike;
+		if (platform.isMacintosh) {
+			return config.integratedTerminal.shell.osx;
+		}
+		return config.integratedTerminal.shell.linux;
 	}
 
 	private getTerminalColors(): string[] {

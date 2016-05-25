@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { readFile, writeFile } from 'vs/base/node/pfs';
 import { watch, FSWatcher, readFileSync } from 'fs';
 import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
-import * as json from 'vs/base/common/json';
+import { JSONPath, parse } from 'vs/base/common/json';
+import { applyEdits } from 'vs/base/common/jsonFormatter';
+import { setProperty } from 'vs/base/common/jsonEdit';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService, IConfigurationServiceEvent } from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -63,6 +66,20 @@ export class NodeConfigurationService implements IConfigurationService, IDisposa
 		return this._getConfiguration<T>(section);
 	}
 
+	setUserConfiguration(key: string | JSONPath, value: any) : Thenable<void> {
+		return readFile(this.configurationPath, 'utf8').then(content => {
+			// todo: revisit when defaults are read as well
+			let config = this.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
+			let tabSize = typeof config.tabSize === 'number' ? config.tabSize : 4;
+			let insertSpaces = typeof config.insertSpaces === 'boolean' ? config.insertSpaces : false;
+
+			let path: JSONPath = typeof key === 'string' ? (<string> key).split('.') : <JSONPath> key;
+			let edits = setProperty(content, path, value, { insertSpaces, tabSize, eol: '\n' });
+			content = applyEdits(content, edits);
+			return writeFile(this.configurationPath, content, 'utf8');
+		});
+	}
+
 	loadConfiguration<T>(section?: string): TPromise<T> {
 		return TPromise.wrapError(new Error('not implemented'));
 	}
@@ -93,7 +110,7 @@ export class NodeConfigurationService implements IConfigurationService, IDisposa
 		}
 
 		try {
-			this.cache = json.parse(content) || {};
+			this.cache = parse(content) || {};
 		} catch (error) {
 			// noop
 		}
