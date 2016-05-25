@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
-import {IModelContentChangedEvent, EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
+import {EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {EventType as WorkbenchEventType, UntitledEditorEvent, ResourceEvent} from 'vs/workbench/common/events';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -94,7 +94,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
 
 			// Listen to content changes
-			this.textModelChangeListener = this.textEditorModel.addListener2(EventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
+			this.textModelChangeListener = this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged());
 
 			// Emit initial dirty event if we are
 			if (this.dirty) {
@@ -107,7 +107,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		});
 	}
 
-	private onModelContentChanged(e: IModelContentChangedEvent): void {
+	private onModelContentChanged(): void {
 		if (!this.dirty) {
 			this.dirty = true;
 			this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_DIRTY, new UntitledEditorEvent(this.resource));

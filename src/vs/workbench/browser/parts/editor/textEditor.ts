@@ -145,7 +145,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}));
 
 		// Hook Listener for content changes
-		this.toUnbind.push(this.editorControl.onDidChangeModelContent((event: IModelContentChangedEvent) => {
+		this.toUnbind.push(this.editorControl.onDidChangeModelRawContent((event: IModelContentChangedEvent) => {
 			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
 		}));
 

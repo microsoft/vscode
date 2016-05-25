@@ -83,6 +83,10 @@ suite('JSON - edits', () => {
 		content = '';
 		edits = setProperty(content, ['foo', 0], 'bar', formatterOptions);
 		assertEdit(content, edits, '{\n  "foo": [\n    "bar"\n  ]\n}');
+
+		content = '//comment';
+		edits = setProperty(content, ['foo', 0], 'bar', formatterOptions);
+		assertEdit(content, edits, '{\n  "foo": [\n    "bar"\n  ]\n} //comment\n');
 	});
 
 	test('remove property', () => {

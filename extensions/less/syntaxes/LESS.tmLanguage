@@ -376,7 +376,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>@[a-zA-Z0-9_-][\w-]*</string>
+			<string>(@[a-zA-Z0-9_-][\w-]*)|(\-\-[^:\),]+)</string>
 			<key>name</key>
 			<string>variable.other.less</string>
 		</dict>

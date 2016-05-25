@@ -1420,7 +1420,7 @@ suite('Editor Controller - Regression tests', () => {
 			moveTo(cursor, 3, 4, true);
 
 			let isFirst = true;
-			model.addListener2(EventType.ModelContentChanged, (e) => {
+			model.onDidChangeContent(() => {
 				if (isFirst) {
 					isFirst = false;
 					cursorCommand(cursor, H.Type, { text: '\t' }, 'keyboard');

@@ -134,13 +134,13 @@ export class Cursor extends EventEmitter {
 		this._isHandling = false;
 
 		this.modelUnbinds = [];
-		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelContentChanged, (e:editorCommon.IModelContentChangedEvent) => {
+		this.modelUnbinds.push(this.model.onDidChangeRawContent((e) => {
 			this._onModelContentChanged(e);
 		}));
-		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => {
+		this.modelUnbinds.push(this.model.onDidChangeMode((e) => {
 			this._onModelModeChanged();
 		}));
-		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
+		this.modelUnbinds.push(this.model.onDidChangeModeSupport((e) => {
 			// TODO@Alex: react only if certain supports changed?
 			this._onModelModeChanged();
 		}));
@@ -259,7 +259,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _onModelContentChanged(e:editorCommon.IModelContentChangedEvent): void {
-		if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
+		if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
 			// a model.setValue() was called
 			this.cursors.dispose();
 

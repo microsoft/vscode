@@ -81,7 +81,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _addDecorations(reference:FileReferences):void {
-		this._callOnModelChange.push(this.editor.getModel().addListener2(editorCommon.EventType.ModelDecorationsChanged, (event) => this._onDecorationChanged(event)));
+		this._callOnModelChange.push(this.editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
 
 		this.editor.getModel().changeDecorations((accessor) => {
 			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
@@ -107,17 +107,17 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	private _onDecorationChanged(event:any):void {
-		var addedOrChangedDecorations = <any[]> event.addedOrChangedDecorations,
+	private _onDecorationChanged(event:editorCommon.IModelDecorationsChangedEvent):void {
+		var addedOrChangedDecorations = event.addedOrChangedDecorations,
 			toRemove:string[] = [];
 
 		for(var i = 0, len = addedOrChangedDecorations.length; i < len; i++) {
-			var reference = collections.lookup(this._decorationSet, <string> addedOrChangedDecorations[i].id);
+			var reference = collections.lookup(this._decorationSet, addedOrChangedDecorations[i].id);
 			if(!reference) {
 				continue;
 			}
 
-			var newRange = <editorCommon.IRange> addedOrChangedDecorations[i].range,
+			var newRange = addedOrChangedDecorations[i].range,
 				ignore = false;
 
 			if(Range.equalsRange(newRange, reference.range)) {
@@ -399,16 +399,19 @@ class VSash {
 			getVerticalSashHeight: () => this._height
 		});
 
-		let data: { startX: number, startRatio: number };
+		// compute the current widget clientX postion since
+		// the sash works with clientX when dragging
+		let clientX: number;
 		this._disposables.add(this._sash.addListener2('start', (e: ISashEvent) => {
-			data = { startX: e.startX, startRatio: this._ratio };
+			clientX = e.startX - (this._width * this.ratio);
 		}));
 
 		this._disposables.add(this._sash.addListener2('change', (e: ISashEvent) => {
-			let {currentX} = e;
-			let newRatio = data.startRatio * (currentX / data.startX);
-			if (newRatio > .05 && newRatio < .95) {
-				this._ratio = newRatio;
+			// compute the new position of the sash and from that
+			// compute the new ratio that we are using
+			let newLeft = e.currentX - clientX;
+			if (newLeft > 20 && newLeft + 20 < this._width) {
+				this._ratio = newLeft / this._width;
 				this._sash.layout();
 				this._onDidChangePercentages.fire(this);
 			}

@@ -139,6 +139,8 @@ export class ScopeBuilder implements nodes.IVisitor {
 			case nodes.NodeType.Keyframe:
 				this.addSymbol(node, (<nodes.Keyframe> node).getName(), nodes.ReferenceType.Keyframe);
 				return true;
+			case nodes.NodeType.Declaration:
+				return this.visitDeclarationNode(<nodes.Declaration>node);
 			case nodes.NodeType.VariableDeclaration:
 				return this.visitVariableDeclarationNode(<nodes.VariableDeclaration>node);
 			case nodes.NodeType.Ruleset:
@@ -187,10 +189,13 @@ export class ScopeBuilder implements nodes.IVisitor {
 	}
 
 	public visitVariableDeclarationNode(node:nodes.VariableDeclaration):boolean {
-		if (node.getVariable() instanceof nodes.CSSVariable) {
-			this.addCSSVariable(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
-		} else {
-			this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
+		this.addSymbol(node, (<nodes.VariableDeclaration> node).getName(), nodes.ReferenceType.Variable);
+		return true;
+	}
+
+	public visitDeclarationNode(node:nodes.Declaration):boolean {
+		if (Symbols.isCssVariable(node.getProperty().getIdentifier())) {
+			this.addCSSVariable(node.getProperty(), node.getProperty().getName(), nodes.ReferenceType.Variable);
 		}
 		return true;
 	}
@@ -276,6 +281,9 @@ export class Symbols {
 			if (referenceTypes) {
 				return referenceTypes;
 			} else {
+				if (Symbols.isCssVariable(node)) {
+					return [ nodes.ReferenceType.Variable ];
+				}
 				// are a reference to a keyframe?
 				var decl = nodes.getParentDeclaration(node);
 				if (decl) {
@@ -346,5 +354,9 @@ export class Symbols {
 			scope = scope.parent;
 		}
 		return null;
+	}
+
+	public static isCssVariable(identifier: nodes.Identifier):boolean {
+		return /^--/.test(identifier.getText());
 	}
 }

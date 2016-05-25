@@ -28,8 +28,11 @@ function getSourceFile(moduleId) {
     return SOURCE_FILE_MAP[moduleId];
 }
 function isDeclaration(a) {
-    var tmp = a;
-    return tmp.name && typeof tmp.name.text === 'string';
+    return (a.kind === ts.SyntaxKind.InterfaceDeclaration
+        || a.kind === ts.SyntaxKind.EnumDeclaration
+        || a.kind === ts.SyntaxKind.ClassDeclaration
+        || a.kind === ts.SyntaxKind.TypeAliasDeclaration
+        || a.kind === ts.SyntaxKind.FunctionDeclaration);
 }
 function visitTopLevelDeclarations(sourceFile, visitor) {
     var stop = false;
@@ -45,14 +48,13 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
             case ts.SyntaxKind.TypeAliasDeclaration:
             case ts.SyntaxKind.FunctionDeclaration:
                 stop = visitor(node);
-                break;
         }
-        if (node.kind !== ts.SyntaxKind.SourceFile) {
-            if (getNodeText(sourceFile, node).indexOf('cursorStyleToString') >= 0) {
-                console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
-                console.log(getNodeText(sourceFile, node));
-            }
-        }
+        // if (node.kind !== ts.SyntaxKind.SourceFile) {
+        // 	if (getNodeText(sourceFile, node).indexOf('Handler') >= 0) {
+        // 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
+        // 		console.log(getNodeText(sourceFile, node));
+        // 	}
+        // }
         if (stop) {
             return;
         }
@@ -63,7 +65,21 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
 function getAllTopLevelDeclarations(sourceFile) {
     var all = [];
     visitTopLevelDeclarations(sourceFile, function (node) {
-        all.push(node);
+        if (node.kind === ts.SyntaxKind.InterfaceDeclaration) {
+            var interfaceDeclaration = node;
+            var triviaStart = interfaceDeclaration.pos;
+            var triviaEnd = interfaceDeclaration.name.pos;
+            var triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
+            if (triviaText.indexOf('@internal') === -1) {
+                all.push(node);
+            }
+        }
+        else {
+            var nodeText = getNodeText(sourceFile, node);
+            if (nodeText.indexOf('@internal') === -1) {
+                all.push(node);
+            }
+        }
         return false /*continue*/;
     });
     return all;
@@ -79,8 +95,15 @@ function getTopLevelDeclaration(sourceFile, typeName) {
             return false /*continue*/;
         }
         // node is ts.VariableStatement
-        return (getNodeText(sourceFile, node).indexOf(typeName) >= 0);
+        if (getNodeText(sourceFile, node).indexOf(typeName) >= 0) {
+            result = node;
+            return true /*stop*/;
+        }
+        return false /*continue*/;
     });
+    if (result === null) {
+        console.log('COULD NOT FIND ' + typeName + '!');
+    }
     return result;
 }
 function getNodeText(sourceFile, node) {
@@ -88,6 +111,21 @@ function getNodeText(sourceFile, node) {
 }
 function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
     var result = getNodeText(sourceFile, declaration);
+    if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
+        var interfaceDeclaration = declaration;
+        var members = interfaceDeclaration.members;
+        members.forEach(function (member) {
+            try {
+                var memberText = getNodeText(sourceFile, member);
+                if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
+                    // console.log('BEFORE: ', result);
+                    result = result.replace(memberText, '');
+                }
+            }
+            catch (err) {
+            }
+        });
+    }
     result = result.replace(/export default/g, 'export');
     result = result.replace(/export declare/g, 'export');
     return result;
@@ -144,6 +182,7 @@ var result = [];
 lines.forEach(function (line) {
     var m1 = line.match(/^\s*#include\(([^\)]*)\)\:(.*)$/);
     if (m1) {
+        console.log('HANDLING META: ' + line);
         var moduleId = m1[1];
         var sourceFile_1 = getSourceFile(moduleId);
         var typeNames = m1[2].split(/,/);
@@ -159,24 +198,34 @@ lines.forEach(function (line) {
     }
     var m2 = line.match(/^\s*#includeAll\(([^\)]*)\)\:(.*)$/);
     if (m2) {
+        console.log('HANDLING META: ' + line);
         var moduleId = m2[1];
         var sourceFile_2 = getSourceFile(moduleId);
         var typeNames = m2[2].split(/,/);
-        var typesToExclude_1 = {};
+        var typesToExcludeMap_1 = {};
+        var typesToExcludeArr_1 = [];
         typeNames.forEach(function (typeName) {
             typeName = typeName.trim();
             if (typeName.length === 0) {
                 return;
             }
-            typesToExclude_1[typeName] = true;
+            typesToExcludeMap_1[typeName] = true;
+            typesToExcludeArr_1.push(typeName);
         });
         getAllTopLevelDeclarations(sourceFile_2).forEach(function (declaration) {
             if (isDeclaration(declaration)) {
-                if (typesToExclude_1[declaration.name.text]) {
+                if (typesToExcludeMap_1[declaration.name.text]) {
                     return;
                 }
             }
             else {
+                // node is ts.VariableStatement
+                var nodeText = getNodeText(sourceFile_2, declaration);
+                for (var i = 0; i < typesToExcludeArr_1.length; i++) {
+                    if (nodeText.indexOf(typesToExcludeArr_1[i]) >= 0) {
+                        return;
+                    }
+                }
             }
             result.push(getMassagedTopLevelDeclarationText(sourceFile_2, declaration));
         });

@@ -36,8 +36,11 @@ var EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements IActionProvider, editorCommon.ICommonCodeEditor {
 
-	public onDidChangeModelContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelContentChanged, listener);
+	public onDidChangeModelRawContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
+	}
+	public onDidChangeModelContent(listener: (e:editorCommon.IModelContentChangedEvent2)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
 	}
 	public onDidChangeModelMode(listener: (e:editorCommon.IModelModeChangedEvent)=>void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelModeChanged, listener);
@@ -835,7 +838,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				}
 			}));
 
-			this.listenersToRemove.push(this.model.addBulkListener2((events) => {
+			this.listenersToRemove.push(this.model.addBulkListener((events) => {
 				for (var i = 0, len = events.length; i < len; i++) {
 					var eventType = events[i].getType();
 					var e = events[i].getData();
@@ -855,8 +858,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 							this.emit(editorCommon.EventType.ModelModeSupportChanged, e);
 							break;
 
-						case editorCommon.EventType.ModelContentChanged:
-							this.emit(editorCommon.EventType.ModelContentChanged, e);
+						case editorCommon.EventType.ModelRawContentChanged:
+							this.emit(editorCommon.EventType.ModelRawContentChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelOptionsChanged:

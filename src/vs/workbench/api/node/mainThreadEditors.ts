@@ -91,7 +91,7 @@ export class MainThreadTextEditor {
 		this._lastSelection = [ new Selection(1,1,1,1) ];
 		this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 		this._modelListeners = [];
-		this._modelListeners.push(this._model.addListener2(EditorCommon.EventType.ModelOptionsChanged, (e) => {
+		this._modelListeners.push(this._model.onDidChangeOptions((e) => {
 			this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 		}));
 

@@ -484,7 +484,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
 		this.focusedItem = item;
-		this.list.setFocus(index);
 		this.updateWidgetHeight();
 		this.list.reveal(index);
 

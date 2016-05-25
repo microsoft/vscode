@@ -77,6 +77,11 @@ export class LessParser extends cssParser.Parser {
 			this.restoreAtMark(mark);
 			return null; // at keyword, but no ':', not a variable declaration but some at keyword
 		}
+
+		if (this.peek(scanner.TokenType.SemiColon)) {
+			node.semicolonPosition = this.token.offset; // not part of the declaration, but useful information for code assist
+		}
+
 		return <nodes.VariableDeclaration> this.finish(node);
 	}
 

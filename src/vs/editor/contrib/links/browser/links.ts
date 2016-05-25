@@ -121,7 +121,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.messageService = messageService;
 		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(editor.onDidChangeModelContent((e:editorCommon.IModelContentChangedEvent) => this.onChange()));
+		this.listenersToRemove.push(editor.onDidChangeModelContent((e) => this.onChange()));
 		this.listenersToRemove.push(editor.onDidChangeModel((e) => this.onModelChanged()));
 		this.listenersToRemove.push(editor.onDidChangeModelMode((e) => this.onModelModeChanged()));
 		this.listenersToRemove.push(this.editor.onMouseUp((e:IEditorMouseEvent) => this.onEditorMouseUp(e)));

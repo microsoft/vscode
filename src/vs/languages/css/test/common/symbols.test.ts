@@ -191,11 +191,11 @@ suite('CSS - symbols', () => {
 
 	test('mark occurrences for variable defined in root and used in a rule', function() {
 		var p = new parser.Parser();
-		assertOccurrences(p, '.a{ background: var(--var1) } :root{ --var1: abc;}', '--var1', 2, 1, nodes.ReferenceType.Variable);
+		assertOccurrences(p, '.a{ background: var(--var1); } :root{ --var1: abc;}', '--var1', 2, 1, nodes.ReferenceType.Variable);
 	});
 
 	test('mark occurrences for variable defined in a rule and used in a different rule', function() {
 		var p = new parser.Parser();
-		assertOccurrences(p, '.a{ background: var(--var1) } :b{ --var1: abc;}', '--var1', 2, 1, nodes.ReferenceType.Variable);
+		assertOccurrences(p, '.a{ background: var(--var1); } :b{ --var1: abc;}', '--var1', 2, 1, nodes.ReferenceType.Variable);
 	});
 });

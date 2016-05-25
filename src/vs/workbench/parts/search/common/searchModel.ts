@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import lifecycle = require('vs/base/common/lifecycle');
 import collections = require('vs/base/common/collections');
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IModel, ITextModel, IModelDeltaDecoration, EventType, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
+import {IModel, ITextModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as Search from 'vs/platform/search/common/search';
@@ -149,7 +149,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		this._model = model;
 		this._diskFileMatch = fileMatch;
 		this._updateScheduler = new RunOnceScheduler(this._updateMatches.bind(this), 250);
-		this._unbind.push(this._model.addListener2(EventType.ModelContentChanged, _ => this._updateScheduler.schedule()));
+		this._unbind.push(this._model.onDidChangeContent(_ => this._updateScheduler.schedule()));
 		this._updateMatches();
 	}
 

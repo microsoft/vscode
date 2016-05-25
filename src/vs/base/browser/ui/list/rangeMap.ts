@@ -36,6 +36,32 @@ export function intersect(one: IRange, other: IRange): IRange {
 	return { start, end };
 }
 
+export function isEmpty(range: IRange): boolean {
+	return range.end - range.start <= 0;
+}
+
+export function relativeComplement(one: IRange, other: IRange): IRange[] {
+	const result: IRange[] = [];
+	const first = { start: one.start, end: Math.min(other.start, one.end) };
+	const second = { start: Math.max(other.end, one.start), end: one.end };
+
+	if (!isEmpty(first)) {
+		result.push(first);
+	}
+
+	if (!isEmpty(second)) {
+		result.push(second);
+	}
+
+	return result;
+}
+
+export function each(range: IRange, fn: (index : number) => void): void {
+	for (let i = range.start; i < range.end; i++) {
+		fn(i);
+	}
+}
+
 /**
  * Returns the intersection between a ranged group and a range.
  * Returns `[]` if the intersection is empty.

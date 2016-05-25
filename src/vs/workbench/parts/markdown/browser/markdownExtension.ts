@@ -9,7 +9,6 @@ import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import paths = require('vs/base/common/paths');
-import {EventType as EditorEventType, IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
@@ -94,7 +93,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 				};
 
 				// Listen on changes to the underlying resource of the markdown preview
-				toUnbind.push(editorModel.addListener2(EditorEventType.ModelContentChanged, (modelEvent: IModelContentChangedEvent) => {
+				toUnbind.push(editorModel.onDidChangeContent(() => {
 					if (this.reloadTimeout) {
 						window.clearTimeout(this.reloadTimeout);
 					}
@@ -111,7 +110,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 
 				// Unbind when input or model gets disposed
 				toUnbind.push(input.addListener2(EventType.DISPOSE, unbind));
-				toUnbind.push(editorModel.addListener2(EditorEventType.ModelDispose, unbind));
+				toUnbind.push(editorModel.onWillDispose(unbind));
 			}
 		}
 	}

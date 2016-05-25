@@ -174,7 +174,7 @@ class DirtyDiffModelDecorator {
 		this.diffDelayer = new async.ThrottledDelayer<void>(200);
 
 		this.toDispose = [];
-		this.toDispose.push(model.addListener2(common.EventType.ModelContentChanged, () => this.triggerDiff()));
+		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this.onChanges()));
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.OPERATION_END, e => {
 			if (e.operation.id !== git.ServiceOperations.BACKGROUND_FETCH) {

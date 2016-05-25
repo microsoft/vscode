@@ -12,7 +12,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import {IModelContentChangedEvent, EventType as EditorEventType} from 'vs/editor/common/editorCommon';
+import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
 import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState} from 'vs/workbench/parts/files/common/files';
@@ -272,7 +272,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 					this.createTextEditorModelPromise = null;
 
 					this.setDirty(false); // Ensure we are not tracking a stale state
-					this.textModelChangeListener = this.textEditorModel.addListener2(EditorEventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
+					this.textModelChangeListener = this.textEditorModel.onDidChangeRawContent((e: IModelContentChangedEvent) => this.onModelContentChanged(e));
 
 					return this;
 				}, (error) => {

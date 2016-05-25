@@ -436,11 +436,11 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		}, 250);
 		this._localToDispose.push(scheduler);
 		this._localToDispose.push(detectVisible);
-		this._localToDispose.push(model.addBulkListener2((events) => {
+		this._localToDispose.push(model.addBulkListener((events) => {
 			let hadChange = false;
 			for (let i = 0; i < events.length; i++) {
 				const eventType = events[i].getType();
-				if (eventType === editorCommon.EventType.ModelContentChanged) {
+				if (eventType === editorCommon.EventType.ModelRawContentChanged) {
 					hadChange = true;
 					break;
 				}

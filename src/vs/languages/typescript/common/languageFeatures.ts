@@ -95,7 +95,7 @@ class DiagnostcsAdapter extends Adapter {
 			}
 
 			let handle: number;
-			this._listener[model.uri.toString()] = model.addListener2(editorCommon.EventType.ModelContentChanged2, () => {
+			this._listener[model.uri.toString()] = model.onDidChangeContent(() => {
 				clearTimeout(handle);
 				handle = setTimeout(() => this._doValidate(model.uri), 500);
 			});

@@ -97,8 +97,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUrlStr));
 		const breakPointDecorations = model.deltaDecorations([], this.createBreakpointDecorations(breakpoints));
 
-		const toDispose: lifecycle.IDisposable[] = [model.addListener2(editorcommon.EventType.ModelDecorationsChanged, (e: editorcommon.IModelDecorationsChangedEvent) =>
-			this.onModelDecorationsChanged(modelUrlStr, e))];
+		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUrlStr, e))];
 
 		this.modelData[modelUrlStr] = {
 			model: model,

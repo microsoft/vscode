@@ -79,19 +79,19 @@ class FormatOnType implements editorCommon.IEditorContribution {
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. Iff so, we won't
 		// apply the format edits
-		var unbind = this.editor.onDidChangeModelContent((e: editorCommon.IModelContentChangedEvent) => {
-			if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
+		var unbind = this.editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
+			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
 				// a model.setValue() was called
 				canceled = true;
-			} else if (e.changeType === editorCommon.EventType.ModelContentChangedLineChanged) {
+			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLineChanged) {
 				var changedLine = (<editorCommon.IModelContentChangedLineChangedEvent>e).lineNumber;
 				canceled = changedLine <= position.lineNumber;
 
-			} else if (e.changeType === editorCommon.EventType.ModelContentChangedLinesInserted) {
+			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLinesInserted) {
 				var insertLine = (<editorCommon.IModelContentChangedLinesInsertedEvent>e).fromLineNumber;
 				canceled = insertLine <= position.lineNumber;
 
-			} else if (e.changeType === editorCommon.EventType.ModelContentChangedLinesDeleted) {
+			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLinesDeleted) {
 				var deleteLine2 = (<editorCommon.IModelContentChangedLinesDeletedEvent>e).toLineNumber;
 				canceled = deleteLine2 <= position.lineNumber;
 			}

@@ -261,7 +261,7 @@ export class Parser {
 	}
 
 	public _parseRuleSetDeclaration() : nodes.Node {
-		return this._parseCSSVariableDeclaration() || this._parseDeclaration();
+		return this._parseDeclaration();
 	}
 
 	public _needsSemicolonAfter(node: nodes.Node) : boolean {
@@ -317,26 +317,6 @@ export class Parser {
 		if (!this.accept(scanner.TokenType.CurlyR)) {
 			return this.finish(node, errors.ParseError.RightCurlyExpected, [scanner.TokenType.CurlyR, scanner.TokenType.SemiColon ]);
 		}
-		return this.finish(node);
-	}
-
-	// CSS variables: --font-size: 12px;
-	public _parseCSSVariableDeclaration(panic:scanner.TokenType[]=[]): nodes.VariableDeclaration {
-		var node = <nodes.VariableDeclaration> this.create(nodes.VariableDeclaration);
-
-		if (!node.setVariable(this._parseCSSVariable())) {
-			return null;
-		}
-
-		if (!this.accept(scanner.TokenType.Colon, ':')) {
-			return this.finish(node, errors.ParseError.ColonExpected);
-		}
-		node.colonPosition = this.prevToken.offset;
-
-		if (!node.setValue(this._parseExpr())) {
-			return this.finish(node, errors.ParseError.VariableValueExpected, [], panic);
-		}
-
 		return this.finish(node);
 	}
 
@@ -974,20 +954,10 @@ export class Parser {
 		return null;
 	}
 
-	public _parseCSSVariable(): nodes.Variable {
-		if (this.peekRegExp(scanner.TokenType.Ident, /^--/)) {
-			var node = <nodes.Variable> this.create(nodes.CSSVariable);
-			this.consumeToken();
-			return this.finish(node);
-		}
-		return null;
-	}
-
 	public _parseFunction(): nodes.Function {
 
 		var pos = this.mark();
 		var node = <nodes.Function> this.create(nodes.Function);
-		var isVarFunc= this.peek(scanner.TokenType.Ident, 'var');
 
 		if (!node.setIdentifier(this._parseFunctionIdentifier())) {
 			return null;
@@ -998,18 +968,10 @@ export class Parser {
 			return null;
 		}
 
-		let parseMoreArguments= true;
-		if (isVarFunc) {
-			if (!node.getArguments().addChild(this._parseCSSVariable())) {
-				return this.finish(node, errors.ParseError.VariableValueExpected);
-			}
-		} else {
-			parseMoreArguments= node.getArguments().addChild(this._parseFunctionArgument());
-		}
-		if (parseMoreArguments) {
+		if (node.getArguments().addChild(this._parseFunctionArgument())) {
 			while (this.accept(scanner.TokenType.Comma)) {
 				if (!node.getArguments().addChild(this._parseFunctionArgument())) {
-					return this.finish(node, errors.ParseError.ExpressionExpected);
+					this.markError(node, errors.ParseError.ExpressionExpected);
 				}
 			}
 		}

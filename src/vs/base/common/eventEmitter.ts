@@ -124,7 +124,7 @@ export class EventEmitter implements IEventEmitter {
 		return this.addOneTimeListener(eventType, listener);
 	}
 
-	private addBulkListener(listener:BulkListenerCallback):IDisposable {
+	protected addBulkListener(listener:BulkListenerCallback):IDisposable {
 
 		this._bulkListeners.push(listener);
 

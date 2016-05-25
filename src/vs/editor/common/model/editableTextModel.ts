@@ -13,6 +13,7 @@ import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/
 import {IMode} from 'vs/editor/common/modes';
 import * as strings from 'vs/base/common/strings';
 import {Selection} from 'vs/editor/common/core/selection';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -30,6 +31,13 @@ interface IIdentifiedLineEdit extends ILineEdit{
 
 export class EditableTextModel extends TextModelWithDecorations implements editorCommon.IEditableTextModel {
 
+	public onDidChangeRawContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
+	}
+	public onDidChangeContent(listener: (e:editorCommon.IModelContentChangedEvent2)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
+	}
+
 	private _commandManager:EditStack;
 
 	// for extra details about change events:
@@ -43,7 +51,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	private _trimAutoWhitespaceLines: number[];
 
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
-		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged2);
 		super(allowedEventTypes, rawText, modeOrPromise);
 
@@ -594,7 +602,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				for (let i = 0, len = contentChangedEvents.length; i < len; i++) {
-					this.emit(editorCommon.EventType.ModelContentChanged, contentChangedEvents[i]);
+					this.emit(editorCommon.EventType.ModelRawContentChanged, contentChangedEvents[i]);
 				}
 				for (let i = 0, len = contentChanged2Events.length; i < len; i++) {
 					this.emit(editorCommon.EventType.ModelContentChanged2, contentChanged2Events[i]);
@@ -692,7 +700,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _createLineChangedEvent(lineNumber: number): editorCommon.IModelContentChangedLineChangedEvent {
 		return {
-			changeType: editorCommon.EventType.ModelContentChangedLineChanged,
+			changeType: editorCommon.EventType.ModelRawContentChangedLineChanged,
 			lineNumber: lineNumber,
 			detail: this._lines[lineNumber - 1].text,
 			versionId: -1,
@@ -703,7 +711,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
 		return {
-			changeType: editorCommon.EventType.ModelContentChangedLinesDeleted,
+			changeType: editorCommon.EventType.ModelRawContentChangedLinesDeleted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
 			versionId: -1,
@@ -714,7 +722,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _createLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): editorCommon.IModelContentChangedLinesInsertedEvent {
 		return {
-			changeType: editorCommon.EventType.ModelContentChangedLinesInserted,
+			changeType: editorCommon.EventType.ModelRawContentChangedLinesInserted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
 			detail: newLinesContent,

@@ -174,7 +174,7 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 			}
 		});
 		this._callOnModelChange.push(this._editor.onDidChangeModelContent((event) => this._contentChangedScheduler.schedule()));
-		this._callOnModelChange.push(model.addListener2(editorCommon.EventType.ModelDecorationsChanged, (event) => this._decorationsChangedScheduler.schedule()));
+		this._callOnModelChange.push(model.onDidChangeDecorations((event) => this._decorationsChangedScheduler.schedule()));
 	}
 
 	private renderAndTrackColors(colors:{range:editorCommon.IRange; value:string; }[]): void {

@@ -13,16 +13,25 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 
+/**
+ * @internal
+ */
 export interface IContentWidgetData {
 	widget: IContentWidget;
 	position: IContentWidgetPosition;
 }
 
+/**
+ * @internal
+ */
 export interface IOverlayWidgetData {
 	widget: IOverlayWidget;
 	position: IOverlayWidgetPosition;
 }
 
+/**
+ * @internal
+ */
 export interface ICodeEditorHelper {
 	getScrollWidth(): number;
 	getScrollLeft(): number;
@@ -37,6 +46,9 @@ export interface ICodeEditorHelper {
 	getOffsetForColumn(lineNumber:number, column:number): number;
 }
 
+/**
+ * @internal
+ */
 export interface IView extends IDisposable {
 	domNode: HTMLElement;
 
@@ -69,6 +81,9 @@ export interface IView extends IDisposable {
 	removeOverlayWidget(widgetData: IOverlayWidgetData): void;
 }
 
+/**
+ * @internal
+ */
 export interface IViewZoneData {
 	viewZoneId: number;
 	positionBefore:Position;
@@ -77,6 +92,9 @@ export interface IViewZoneData {
 	afterLineNumber: number;
 }
 
+/**
+ * @internal
+ */
 export interface IMouseDispatchData {
 	position: Position;
 	/**
@@ -93,6 +111,9 @@ export interface IMouseDispatchData {
 	shiftKey: boolean;
 }
 
+/**
+ * @internal
+ */
 export interface IViewController {
 	dispatchMouse(data:IMouseDispatchData);
 
@@ -112,6 +133,9 @@ export interface IViewController {
 	emitMouseDown(e:IEditorMouseEvent): void;
 }
 
+/**
+ * @internal
+ */
 export var ClassNames = {
 	TEXTAREA_COVER: 'textAreaCover',
 	TEXTAREA: 'inputarea',
@@ -131,6 +155,9 @@ export var ClassNames = {
 	VIEW_ZONES: 'view-zones'
 };
 
+/**
+ * @internal
+ */
 export interface IViewportInfo {
 	visibleRange: Range;
 	width:number;
@@ -347,10 +374,14 @@ export interface IEditorMouseEvent {
 	target: IMouseTarget;
 }
 
+/**
+ * @internal
+ */
 export type ISimpleEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
 
 /**
  * An editor contribution descriptor that will be used to construct editor contributions
+ * @internal
  */
 export interface IEditorContributionDescriptor {
 	/**
@@ -362,6 +393,7 @@ export interface IEditorContributionDescriptor {
 
 /**
  * An overview ruler
+ * @internal
  */
 export interface IOverviewRuler {
 	getDomNode(): HTMLElement;
@@ -429,6 +461,7 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 
 	/**
 	 * Get the view zones.
+	 * @internal
 	 */
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
 
@@ -465,9 +498,13 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 
 	/**
 	 * Set the model ranges that will be hidden in the view.
+	 * @internal
 	 */
 	setHiddenAreas(ranges:editorCommon.IRange[]): void;
 
+	/**
+	 * @internal
+	 */
 	setAriaActiveDescendant(id:string): void;
 
 	/**
