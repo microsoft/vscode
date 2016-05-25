@@ -17,7 +17,7 @@ export class TerminalService implements ITerminalService {
 	) {
 	}
 
-	public show(): TPromise<any> {
+	public toggle(): TPromise<any> {
 		const panel = this.panelService.getActivePanel();
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
 			this.partService.setPanelHidden(true);

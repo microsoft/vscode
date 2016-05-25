@@ -17,9 +17,9 @@ ptyProcess.on('data', function (data) {
 	process.send(data);
 });
 
-ptyProcess.on('exit', function () {
-	process.exit(0);
-})
+ptyProcess.on('exit', function (exitCode) {
+	process.exit(exitCode);
+});
 
 process.on('message', function (message) {
 	if (message.event === 'input') {
