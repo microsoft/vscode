@@ -22,16 +22,8 @@ export function assertNode(text: string, parser: _parser.Parser, f: ()=>nodes.No
 	return node;
 }
 
-export function assertFunction(text: string, parser: _parser.Parser, f: ()=>nodes.Node, ... expectedArguments: nodes.NodeType[]):void {
-	let functionNode:nodes.Function= <nodes.Function>assertNode(text, parser, f);
-	let actualArguments= functionNode.getArguments().getChildren().map((child) => {
-		return child.getChild(0);
-	});
-	assert.equal(actualArguments.length, expectedArguments.length);
-	expectedArguments.forEach((expectedArgument, index) => {
-		let actualArgument= actualArguments[index];
-		assert.equal(actualArgument.type, expectedArgument);
-	})
+export function assertFunction(text: string, parser: _parser.Parser, f: ()=>nodes.Node):void {
+	assertNode(text, parser, f);
 }
 
 export function assertNoNode(text: string, parser: _parser.Parser, f: ()=>nodes.Node):void {
@@ -221,6 +213,13 @@ suite('CSS - Parser', () => {
 		var parser = new _parser.Parser();
 		assertNode('asdsa', parser, parser._parseProperty.bind(parser));
 		assertNode('asdsa334', parser, parser._parseProperty.bind(parser));
+
+		assertNode('--color', parser, parser._parseProperty.bind(parser));
+		assertNode('--primary-font', parser, parser._parseProperty.bind(parser));
+		assertNode('-color', parser, parser._parseProperty.bind(parser));
+		assertNode('somevar', parser, parser._parseProperty.bind(parser));
+		assertNode('some--var', parser, parser._parseProperty.bind(parser));
+		assertNode('somevar--', parser, parser._parseProperty.bind(parser));
 	});
 
 	test('Parser - Ruleset', function() {
@@ -311,6 +310,16 @@ suite('CSS - Parser', () => {
 		assertNode('*background: #f00 /* IE 7 and below */', parser, parser._parseDeclaration.bind(parser));
 		assertNode('_background: #f60 /* IE 6 and below */', parser, parser._parseDeclaration.bind(parser));
 		assertNode('background-image: linear-gradient(to right, silver, white 50px, white calc(100% - 50px), silver)', parser, parser._parseDeclaration.bind(parser));
+
+		assertNode('--color: #F5F5F5', parser, parser._parseDeclaration.bind(parser));
+		assertNode('--color: 0', parser, parser._parseDeclaration.bind(parser));
+		assertNode('--color: 255', parser, parser._parseDeclaration.bind(parser));
+		assertNode('--color: 25.5', parser, parser._parseDeclaration.bind(parser));
+		assertNode('--color: 25px', parser, parser._parseDeclaration.bind(parser));
+		assertNode('--color: 25.5px', parser, parser._parseDeclaration.bind(parser));
+		assertNode('--primary-font: "wf_SegoeUI","Segoe UI","Segoe","Segoe WP"', parser, parser._parseDeclaration.bind(parser));
+		assertError('--color : ', parser, parser._parseDeclaration.bind(parser), errors.ParseError.PropertyValueExpected);
+		assertError('--color value', parser, parser._parseDeclaration.bind(parser), errors.ParseError.ColonExpected);
 	});
 
 
@@ -349,15 +358,11 @@ suite('CSS - Parser', () => {
 		assertNoNode('%()', parser, parser._parseFunction.bind(parser));
 		assertNoNode('% ()', parser, parser._parseFunction.bind(parser));
 
-		assertFunction('var(--color)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName);
-		assertFunction('var(--color, somevalue)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName, nodes.NodeType.Expression);
-		assertFunction('var(--variable1, --variable2)', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName, nodes.NodeType.VariableName);
-		assertFunction('var(--variable1, var(--variable2))', parser, parser._parseFunction.bind(parser), nodes.NodeType.VariableName, nodes.NodeType.Expression);
-		assertFunction('fun(value1, value2)', parser, parser._parseFunction.bind(parser), nodes.NodeType.Expression, nodes.NodeType.Expression);
-
-		assertError('var()', parser, parser._parseFunction.bind(parser), errors.ParseError.VariableNameExpected);
-		assertError('var(value1, value2)', parser, parser._parseFunction.bind(parser), errors.ParseError.VariableNameExpected);
-		assertError('var(value1, --variable)', parser, parser._parseFunction.bind(parser), errors.ParseError.VariableNameExpected);
+		assertFunction('var(--color)', parser, parser._parseFunction.bind(parser));
+		assertFunction('var(--color, somevalue)', parser, parser._parseFunction.bind(parser));
+		assertFunction('var(--variable1, --variable2)', parser, parser._parseFunction.bind(parser));
+		assertFunction('var(--variable1, var(--variable2))', parser, parser._parseFunction.bind(parser));
+		assertFunction('fun(value1, value2)', parser, parser._parseFunction.bind(parser));
 	});
 
 	test('Test Token prio', function() {
@@ -396,27 +401,5 @@ suite('CSS - Parser', () => {
 		assertNode('36mm, -webkit-calc(100%-10px)', parser, parser._parseExpr.bind(parser));
 	});
 
-	test('Parser - Variable', function () {
-		var parser = new _parser.Parser();
-		assertNode('--color', parser, parser._parseCSSVariable.bind(parser));
-		assertNode('--primary-font', parser, parser._parseCSSVariable.bind(parser));
-		assertNoNode('-color', parser, parser._parseCSSVariable.bind(parser));
-		assertNoNode('somevar', parser, parser._parseCSSVariable.bind(parser));
-		assertNoNode('some--var', parser, parser._parseCSSVariable.bind(parser));
-		assertNoNode('somevar--', parser, parser._parseCSSVariable.bind(parser));
-	});
-
-	test('Parser - VariableDeclaration', function() {
-		var parser = new _parser.Parser();
-		assertNode('--color: #F5F5F5', parser, parser._parseCSSVariableDeclaration.bind(parser));
-		assertNode('--color: 0', parser, parser._parseCSSVariableDeclaration.bind(parser));
-		assertNode('--color: 255', parser, parser._parseCSSVariableDeclaration.bind(parser));
-		assertNode('--color: 25.5', parser, parser._parseCSSVariableDeclaration.bind(parser));
-		assertNode('--color: 25px', parser, parser._parseCSSVariableDeclaration.bind(parser));
-		assertNode('--color: 25.5px', parser, parser._parseCSSVariableDeclaration.bind(parser));
-		assertNode('--primary-font: "wf_SegoeUI","Segoe UI","Segoe","Segoe WP"', parser, parser._parseCSSVariableDeclaration.bind(parser));
-		assertError('--color : ', parser, parser._parseCSSVariableDeclaration.bind(parser), errors.ParseError.VariableValueExpected);
-		assertError('--color value', parser, parser._parseCSSVariableDeclaration.bind(parser), errors.ParseError.ColonExpected);
-	});
 });
 

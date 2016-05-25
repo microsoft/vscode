@@ -1192,9 +1192,6 @@ export class Variable extends Node {
 
 }
 
-export class CSSVariable extends Variable {
-}
-
 export class ExtendsReference extends Node {
 	private selector:Selector;
 

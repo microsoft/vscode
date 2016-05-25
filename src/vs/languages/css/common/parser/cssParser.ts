@@ -261,7 +261,7 @@ export class Parser {
 	}
 
 	public _parseRuleSetDeclaration() : nodes.Node {
-		return this._parseCSSVariableDeclaration() || this._parseDeclaration();
+		return this._parseDeclaration();
 	}
 
 	public _needsSemicolonAfter(node: nodes.Node) : boolean {
@@ -317,30 +317,6 @@ export class Parser {
 		if (!this.accept(scanner.TokenType.CurlyR)) {
 			return this.finish(node, errors.ParseError.RightCurlyExpected, [scanner.TokenType.CurlyR, scanner.TokenType.SemiColon ]);
 		}
-		return this.finish(node);
-	}
-
-	// CSS variables: --font-size: 12px;
-	public _parseCSSVariableDeclaration(panic:scanner.TokenType[]=[]): nodes.VariableDeclaration {
-		var node = <nodes.VariableDeclaration> this.create(nodes.VariableDeclaration);
-
-		if (!node.setVariable(this._parseCSSVariable())) {
-			return null;
-		}
-
-		if (!this.accept(scanner.TokenType.Colon, ':')) {
-			return this.finish(node, errors.ParseError.ColonExpected);
-		}
-		node.colonPosition = this.prevToken.offset;
-
-		if (!node.setValue(this._parseExpr())) {
-			return this.finish(node, errors.ParseError.VariableValueExpected, [], panic);
-		}
-
-		if (this.peek(scanner.TokenType.SemiColon)) {
-			node.semicolonPosition = this.token.offset; // not part of the declaration, but useful information for code assist
-		}
-
 		return this.finish(node);
 	}
 
@@ -978,20 +954,10 @@ export class Parser {
 		return null;
 	}
 
-	public _parseCSSVariable(): nodes.Variable {
-		if (this.peekRegExp(scanner.TokenType.Ident, /^--/)) {
-			var node = <nodes.Variable> this.create(nodes.CSSVariable);
-			this.consumeToken();
-			return this.finish(node);
-		}
-		return null;
-	}
-
 	public _parseFunction(): nodes.Function {
 
 		var pos = this.mark();
 		var node = <nodes.Function> this.create(nodes.Function);
-		var isVarFunc= this.peek(scanner.TokenType.Ident, 'var');
 
 		if (!node.setIdentifier(this._parseFunctionIdentifier())) {
 			return null;
@@ -1000,10 +966,6 @@ export class Parser {
 		if (this.hasWhitespace() || !this.accept(scanner.TokenType.ParenthesisL)) {
 			this.restoreAtMark(pos);
 			return null;
-		}
-
-		if (isVarFunc) {
-			this._peekAndMarkErrorsForVarFunction(node);
 		}
 
 		if (node.getArguments().addChild(this._parseFunctionArgument())) {
@@ -1018,16 +980,6 @@ export class Parser {
 			return <nodes.Function> this.finish(node, errors.ParseError.RightParenthesisExpected);
 		}
 		return <nodes.Function> this.finish(node);
-	}
-
-	private _peekAndMarkErrorsForVarFunction(node: nodes.Function):void {
-		var pos = this.mark();
-		let functionArgument= <nodes.FunctionArgument>this._parseFunctionArgument();
-		this.restoreAtMark(pos);
-
-		if (!functionArgument || !(functionArgument.getValue() instanceof nodes.CSSVariable)) {
-			this.markError(node, errors.ParseError.VariableNameExpected);
-		}
 	}
 
 	public _parseFunctionIdentifier(): nodes.Identifier {
@@ -1050,7 +1002,7 @@ export class Parser {
 
 	public _parseFunctionArgument(): nodes.Node {
 		var node = <nodes.FunctionArgument> this.create(nodes.FunctionArgument);
-		if (node.setValue(this._parseCSSVariable() || this._parseExpr(true))) {
+		if (node.setValue(this._parseExpr(true))) {
 			return this.finish(node);
 		}
 		return null;

@@ -73,6 +73,14 @@ function getKind(node:nodes.Node):DocumentHighlightKind {
 		return DocumentHighlightKind.Write;
 	}
 
+	if (node instanceof nodes.Identifier) {
+		if (node.parent && node.parent instanceof nodes.Property) {
+			if (_symbols.Symbols.isCssVariable(node)) {
+				return DocumentHighlightKind.Write;
+			}
+		}
+	}
+
 	if (node.parent) {
 		switch (node.parent.type) {
 			case nodes.NodeType.FunctionDeclaration:

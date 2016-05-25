@@ -526,8 +526,7 @@ export class SassParser extends cssParser.Parser {
 			}
 		}
 
-		let functionArgumentNode= <nodes.FunctionArgument>super._parseFunctionArgument();
-		if (functionArgumentNode && node.setValue(functionArgumentNode.getValue())) {
+		if (node.setValue(this._parseExpr(true))) {
 			return this.finish(node);
 		}
 

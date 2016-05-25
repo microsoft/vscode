@@ -227,11 +227,4 @@ suite('LESS - LESS Parser', () => {
 		assertNode('&-foo', parser, parser._parseSimpleSelector.bind(parser));
 		assertNode('&--&', parser, parser._parseSimpleSelector.bind(parser));
 	});
-
-	test('LESS Parser - CSS Variable Declaration', function() {
-		var parser = new _parser.LessParser();
-		var ruleSetNode= assertNode(':root{--variable: red}', parser, parser._parseRuleset.bind(parser));
-		var actualNode= (<nodes.VariableDeclaration>ruleSetNode.getChild(1).getChild(0)).getVariable();
-		assert.ok(actualNode instanceof nodes.CSSVariable);
-	});
 });
