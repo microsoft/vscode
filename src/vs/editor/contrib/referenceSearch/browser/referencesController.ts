@@ -119,7 +119,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 						&& getConfigurationValue(this._configurationService.getConfiguration(), 'editor.stablePeek', false)) {
 
 						// when stable peek is configured we don't close
-						// the peek window on selecting the editor 
+						// the peek window on selecting the editor
 						break;
 					}
 				case 'side':
@@ -163,13 +163,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			return this._widget.setModel(this._model).then(() => {
 
 				// set title
-				this._widget.setMetaTitle(options.getMetaTitle(model));
+				this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
 				// set 'best' selection
 				let uri = this._editor.getModel().uri;
 				let pos = { lineNumber: range.startLineNumber, column: range.startColumn };
 				let selection = this._model.nearestReference(uri, pos);
-				return this._widget.setSelection(selection);
+				if (selection) {
+					return this._widget.setSelection(selection);
+				}
 			});
 
 		}, error => {
