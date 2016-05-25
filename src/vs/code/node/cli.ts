@@ -35,14 +35,23 @@ export function main(args: string[]): TPromise<void> {
 		});
 		delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 
-		const child = spawn(process.execPath, args, {
-			detached: true,
-			stdio: 'ignore',
-			env
-		});
+		let options = {
+			detacted: true,
+			env,
+		};
+		if (!argv.verbose) {
+			options['stdio'] = 'ignore';
+		}
 
-		if (argv.wait) {
-			return new TPromise<void>(c => child.once('exit', ()=> c(null)));
+		const child = spawn(process.execPath, args, options);
+
+		if (argv.verbose) {
+			child.stdout.on('data', (data) => console.log(data.toString('utf8').trim()));
+			child.stderr.on('data', (data) => console.log(data.toString('utf8').trim()));
+		}
+
+		if (argv.wait || argv.verbose) {
+			return new TPromise<void>(c => child.once('exit', () => c(null)));
 		}
 	}
 
