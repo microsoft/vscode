@@ -564,9 +564,15 @@ export abstract class BaseUnstageAction extends GitAction {
 
 export class UnstageAction extends BaseUnstageAction {
 	static ID = 'workbench.action.git.unstage';
+	static LABEL = nls.localize('unstage', "Unstage");
 
-	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(UnstageAction.ID, nls.localize('unstage', "Unstage"), 'git-action unstage', gitService, editorService);
+	constructor(
+		id = UnstageAction.ID,
+		label = UnstageAction.LABEL,
+		@IGitService gitService: IGitService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, 'git-action unstage', gitService, editorService);
 	}
 }
 
