@@ -48,6 +48,17 @@ export function stageRanges(diff:editorbrowser.IDiffEditor): string {
 	return applyChangesToModel(diff.getModel().original, diff.getModel().modified, changes);
 }
 
+export function unstageRanges(diff:editorbrowser.IDiffEditor): string {
+	var selections = diff.getSelections();
+	var changes = getSelectedChanges(diff.getLineChanges(), selections);
+
+	changes.forEach((change) => {
+		[change.originalStartLineNumber, change.originalEndLineNumber, change.modifiedStartLineNumber, change.modifiedEndLineNumber] = [change.modifiedStartLineNumber, change.modifiedEndLineNumber, change.originalStartLineNumber, change.originalEndLineNumber];
+	});
+
+	return applyChangesToModel(diff.getModel().modified, diff.getModel().original, changes);
+}
+
 /**
  * Returns an intersection between a change and a selection.
  * Returns null if intersection does not exist.

@@ -244,13 +244,13 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 	}
 }
 
-export class StageRangesAction extends baseeditor.EditorInputAction {
+export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction {
 	private gitService: IGitService;
 	private editorService: IWorkbenchEditorService;
 	private editor:editorbrowser.IDiffEditor;
 
-	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
-		super('workbench.action.git.stageRanges', nls.localize('stageSelectedLines', "Stage Selected Lines"));
+	constructor(id: string, label: string, editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+		super(id, label);
 
 		this.editorService = editorService;
 		this.gitService = gitService;
@@ -279,8 +279,12 @@ export class StageRangesAction extends baseeditor.EditorInputAction {
 		return stageranges.getSelectedChanges(changes, selections).length > 0;
 	}
 
+	protected getRangesAppliedResult(editor: editorbrowser.IDiffEditor) {
+		return stageranges.stageRanges(editor);
+	}
+
 	public run():TPromise<any> {
-		var result = stageranges.stageRanges(this.editor);
+		var result = this.getRangesAppliedResult(this.editor);
 
 		var status = (<gitei.GitWorkingTreeDiffEditorInput>this.input).getFileStatus();
 		var path = status.getPath();
@@ -307,6 +311,28 @@ export class StageRangesAction extends baseeditor.EditorInputAction {
 
 	private updateEnablement():void {
 		this.enabled = this.isEnabled();
+	}
+}
+
+export class StageRangesAction extends BaseStageRangesAction {
+	static ID = 'workbench.action.git.stageRanges';
+	static LABEL = nls.localize('stageSelectedLines', "Stage Selected Lines");
+
+	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+		super(StageRangesAction.ID, StageRangesAction.LABEL, editor, gitService, editorService);
+	}
+}
+
+export class UnstageRangesAction extends BaseStageRangesAction {
+	static ID = 'workbench.action.git.unstageRanges';
+	static LABEL = nls.localize('unstageSelectedLines', "Unstage Selected Lines");
+
+	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
+		super(UnstageRangesAction.ID, UnstageRangesAction.LABEL, editor, gitService, editorService);
+	}
+
+	protected getRangesAppliedResult(editor: editorbrowser.IDiffEditor) {
+		return stageranges.unstageRanges(editor);
 	}
 }
 
@@ -356,10 +382,14 @@ class GitWorkingTreeDiffEditorActionContributor extends baseeditor.EditorInputAc
 	}
 
 	public hasSecondaryActionsForEditorInput(context:baseeditor.IEditorInputActionContext):boolean {
-		return (context.input instanceof gitei.GitWorkingTreeDiffEditorInput && context.editor instanceof tdeditor.TextDiffEditor);
+		return (context.input instanceof gitei.GitDiffEditorInput && context.editor instanceof tdeditor.TextDiffEditor);
 	}
 
 	public getSecondaryActionsForEditorInput(context:baseeditor.IEditorInputActionContext):baseeditor.IEditorInputAction[] {
+		if (context.input instanceof gitei.GitIndexDiffEditorInput) {
+			return [ this.instantiationService.createInstance(UnstageRangesAction, <tdeditor.TextDiffEditor>context.editor) ];
+		}
+
 		return [ this.instantiationService.createInstance(StageRangesAction, <tdeditor.TextDiffEditor>context.editor) ];
 	}
 }
