@@ -225,6 +225,10 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public get adapter(): Adapter {
+		if (!this.configuration || !this.configuration.type) {
+			return null;
+		}
+
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
 	}
 
