@@ -16,14 +16,13 @@ import markdownTokenTypes = require('vs/languages/markdown/common/markdownTokenT
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {wireCancellationToken} from 'vs/base/common/async';
+import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export const language =
 	<Types.ILanguage>{
@@ -216,13 +215,12 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 	private _threadService:IThreadService;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor: Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(descriptor.id);
 		let lexer = Compile.compile(language);
@@ -237,12 +235,9 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 
-		Modes.SuggestRegistry.register(this.getId(), {
-			triggerCharacters: [],
-			provideCompletionItems: (model, position, token) => {
-				return wireCancellationToken(token, editorWorkerService.textualSuggest(model.uri, position));
-			}
-		}, true);
+		Modes.SuggestRegistry.register(this.getId(),
+			new TextualSuggestSupport(editorWorkerService, configurationService),
+			true);
 	}
 
 	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {
