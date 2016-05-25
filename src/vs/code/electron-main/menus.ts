@@ -503,6 +503,7 @@ export class VSCodeMenu {
 
 		let output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "Toggle &&Output"), 'workbench.action.output.toggleOutput');
 		let debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "Toggle De&&bug Console"), 'workbench.debug.action.toggleRepl');
+		let integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "Toggle &&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
 
 		let fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsManager.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsManager.getWindowCount() > 0 });
 		let toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
@@ -529,6 +530,7 @@ export class VSCodeMenu {
 			__separator__(),
 			output,
 			debugConsole,
+			integratedTerminal,
 			__separator__(),
 			fullscreen,
 			platform.isWindows ||  platform.isLinux ? toggleMenuBar : void 0,
