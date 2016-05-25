@@ -11,7 +11,7 @@ import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 
 ModesRegistry.registerCompatMode({
 	id: 'json',
-	extensions: ['.json', '.bowerrc', '.jshintrc', '.jscsrc', '.eslintrc'],
+	extensions: ['.json', '.bowerrc', '.jshintrc', '.jscsrc', '.eslintrc', '.babelrc'],
 	aliases: ['JSON', 'json'],
 	mimetypes: ['application/json'],
 	moduleId: 'vs/languages/json/common/json',
