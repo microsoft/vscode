@@ -33,7 +33,6 @@ export class Storage implements IStorageService {
 	private workspaceStorage: IStorage;
 	private globalStorage: IStorage;
 
-	private toUnbind: { (): void; }[];
 	private workspaceKey: string;
 
 	constructor(contextService: IWorkspaceContextService, globalStorage: IStorage, workspaceStorage = globalStorage) {
@@ -41,8 +40,6 @@ export class Storage implements IStorageService {
 
 		this.globalStorage = globalStorage;
 		this.workspaceStorage = workspaceStorage;
-
-		this.toUnbind = [];
 
 		// Calculate workspace storage key
 		this.workspaceKey = this.getWorkspaceKey(workspace);
@@ -187,12 +184,6 @@ export class Storage implements IStorageService {
 		}
 
 		return value ? true : false;
-	}
-
-	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
 	}
 
 	private toStorageKey(key: string, scope: StorageScope): string {
