@@ -32,6 +32,9 @@ import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/commo
 import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import {optional} from 'vs/platform/instantiation/common/instantiation';
+
 
 export class DefinitionActionConfig {
 
@@ -189,9 +192,15 @@ export class PeekDefinitionAction extends DefinitionAction {
 		descriptor: editorCommon.IEditorActionDescriptorData,
 		editor: editorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
 		super(descriptor, editor, messageService, editorService, new DefinitionActionConfig(void 0, void 0, true, false));
+	}
+
+	getEnablementState(): boolean {
+		return (!this._peekViewService || !this._peekViewService.isActive)
+			&& super.getEnablementState();
 	}
 }
 
