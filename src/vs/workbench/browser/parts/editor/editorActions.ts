@@ -66,6 +66,7 @@ export class SplitEditorAction extends Action {
 				else if (activeEditor.position === Position.LEFT) {
 					let options = new TextEditorOptions();
 					options.preserveFocus = true;
+					options.pinned = true;
 
 					return this.editorService.openEditor(activeEditor.input, options, Position.RIGHT).then(() => {
 						this.editorService.moveGroup(Position.RIGHT, Position.CENTER);
