@@ -36,7 +36,7 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 		if (value === void 0) { // delete
 			throw new Error('Can not delete in empty document');
 		}
-		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : text.length, content: JSON.stringify(value) }, formattingOptions);
+		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
 	} else if (parent.type === 'object' && typeof lastSegment === 'string') {
 		let existing = findNodeAtLocation(parent, [ lastSegment ]);
 		if (existing !== void 0) {
