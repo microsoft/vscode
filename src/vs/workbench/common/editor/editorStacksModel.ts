@@ -968,17 +968,17 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 				if (editors.length > 0) {
 					const leftGroup = this.openGroup('', true);
-					leftGroup.openEditor(editors[0], { active: true });
+					leftGroup.openEditor(editors[0], { active: true, pinned: true });
 				}
 
 				if (editors.length > 1) {
 					const centerGroup = this.openGroup('', true);
-					centerGroup.openEditor(editors[1], { active: true });
+					centerGroup.openEditor(editors[1], { active: true, pinned: true });
 				}
 
 				if (editors.length > 2) {
 					const rightGroup = this.openGroup('', true);
-					rightGroup.openEditor(editors[2], { active: true });
+					rightGroup.openEditor(editors[2], { active: true, pinned: true });
 				}
 
 				this.storageService.remove(LEGACY_EDITOR_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
