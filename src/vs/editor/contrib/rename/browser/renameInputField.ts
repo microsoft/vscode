@@ -116,8 +116,8 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 				}
 			};
 
-			disposeOnDone.push(this._editor.onDidCursorSelectionChange(onCursorChanged));
-			disposeOnDone.push(this._editor.onDidEditorBlur(this._currentCancelInput));
+			disposeOnDone.push(this._editor.onDidChangeCursorSelection(onCursorChanged));
+			disposeOnDone.push(this._editor.onDidBlurEditor(this._currentCancelInput));
 
 			this._show();
 

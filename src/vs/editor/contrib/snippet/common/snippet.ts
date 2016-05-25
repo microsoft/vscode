@@ -460,7 +460,7 @@ class InsertSnippetController {
 		});
 
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.onDidModelContentChange((e:editorCommon.IModelContentChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeModelContent((e:editorCommon.IModelContentChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
@@ -502,7 +502,7 @@ class InsertSnippetController {
 			}
 		}));
 
-		this.listenersToRemove.push(this.editor.onDidCursorPositionChange((e:editorCommon.ICursorPositionChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
@@ -513,19 +513,19 @@ class InsertSnippetController {
 			}
 		}));
 
-		this.listenersToRemove.push(this.editor.onDidModelChange(() => {
+		this.listenersToRemove.push(this.editor.onDidChangeModel(() => {
 			this.stopAll();
 		}));
 
 		var blurTimeout = -1;
-		this.listenersToRemove.push(this.editor.onDidEditorBlur(() => {
+		this.listenersToRemove.push(this.editor.onDidBlurEditor(() => {
 			// Blur if within 100ms we do not focus back
 			blurTimeout = setTimeout(() => {
 				this.stopAll();
 			}, 100);
 		}));
 
-		this.listenersToRemove.push(this.editor.onDidEditorFocus(() => {
+		this.listenersToRemove.push(this.editor.onDidFocusEditor(() => {
 			// Cancel the blur timeout (if any)
 			if (blurTimeout !== -1) {
 				clearTimeout(blurTimeout);

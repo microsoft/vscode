@@ -126,7 +126,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		this.toDispose.push(this.editor.onMouseMove((e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.toDispose.push(this.editor.onMouseLeave((e: editorbrowser.IEditorMouseEvent) => this.hoverWidget.hide()));
 		this.toDispose.push(this.editor.onKeyDown((e: keyboard.IKeyboardEvent) => this.onKeyDown(e)));
-		this.toDispose.push(this.editor.onDidModelChange(() => this.hideHoverWidget()));
+		this.toDispose.push(this.editor.onDidChangeModel(() => this.hideHoverWidget()));
 		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 	}
 

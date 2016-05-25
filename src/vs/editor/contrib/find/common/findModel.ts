@@ -57,7 +57,7 @@ export class FindModelBoundToEditorModel {
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.push(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.onDidCursorPositionChange((e:editorCommon.ICursorPositionChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeCursorPosition((e:editorCommon.ICursorPositionChangedEvent) => {
 			if (
 				e.reason === editorCommon.CursorChangeReason.Explicit
 				|| e.reason === editorCommon.CursorChangeReason.Undo
@@ -68,7 +68,7 @@ export class FindModelBoundToEditorModel {
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.onDidModelContentChange((e:editorCommon.IModelContentChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeModelContent((e:editorCommon.IModelContentChangedEvent) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}
@@ -350,7 +350,7 @@ export class FindModelBoundToEditorModel {
 			replaceStrings.push(this.getReplaceString(model.getValueInRange(ranges[i])));
 		}
 
-		let command = new ReplaceAllCommand(ranges, replaceStrings);
+		let command = new ReplaceAllCommand(this._editor.getSelection(), ranges, replaceStrings);
 		this._executeEditorCommand('replaceAll', command);
 
 		this.research(false);

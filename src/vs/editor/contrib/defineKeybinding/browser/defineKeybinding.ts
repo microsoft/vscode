@@ -26,6 +26,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CodeSnippet, getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
+import {SmartSnippetInserter} from 'vs/editor/contrib/defineKeybinding/common/smartSnippetInserter';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
@@ -61,14 +62,14 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		this._launchWidget = new DefineKeybindingLauncherWidget(this._editor, keybindingService, () => this.launch());
 		this._defineWidget = new DefineKeybindingWidget(this._editor, keybindingService, (keybinding) => this._onAccepted(keybinding));
 
-		this._toDispose.push(this._editor.onDidConfigurationChange((e) => {
+		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => {
 			if (isInterestingEditorModel(this._editor)) {
 				this._launchWidget.show();
 			} else {
 				this._launchWidget.hide();
 			}
 		}));
-		this._toDispose.push(this._editor.onDidModelChange((e) => {
+		this._toDispose.push(this._editor.onDidChangeModel((e) => {
 			if (isInterestingEditorModel(this._editor)) {
 				this._launchWidget.show();
 			} else {
@@ -111,6 +112,10 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 			'\t"when": "{{editorTextFocus}}"',
 			'}{{}}'
 		].join('\n');
+
+		let smartInsertInfo = SmartSnippetInserter.insertSnippet(this._editor.getModel(), this._editor.getPosition());
+		snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
+		this._editor.setPosition(smartInsertInfo.position);
 
 		getSnippetController(this._editor).run(new CodeSnippet(snippetText), 0, 0);
 	}
@@ -374,7 +379,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 			let htmlkb = this._keybindingService.getHTMLLabelFor(this._lastKeybinding);
 			htmlkb.forEach((item) => this._outputNode.appendChild(renderHtml(item)));
 		}));
-		this._toDispose.push(this._editor.onDidConfigurationChange((e) => {
+		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => {
 			if (this._isVisible) {
 				this._layout();
 			}

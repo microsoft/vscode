@@ -494,7 +494,7 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 		});
 
 		if (editorWorkerService) {
-			Modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(this.getId(), editorWorkerService, configurationService), true);
+			Modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(editorWorkerService, configurationService), true);
 		}
 	}
 

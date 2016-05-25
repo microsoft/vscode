@@ -81,7 +81,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 		configureFont();
 
-		data.disposables.push(this.editor.onDidConfigurationChange((e: IConfigurationChangedEvent) => {
+		data.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				configureFont();
 			}
@@ -231,7 +231,7 @@ class SuggestionDetails {
 
 		this.configureFont();
 
-		this.disposables.push(this.editor.onDidConfigurationChange((e: IConfigurationChangedEvent) => {
+		this.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.configureFont();
 			}
@@ -369,10 +369,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.list = new List(this.listElement, this.delegate, [renderer]);
 
 		this.toDispose = [
-			editor.onDidEditorTextBlur(() => this.onEditorBlur()),
+			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.onDidCursorSelectionChange(() => this.onCursorSelectionChanged()),
+			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
 			this.model.onDidTrigger(e => this.onDidTrigger(e)),
 			this.model.onDidSuggest(e => this.onDidSuggest(e)),
 			this.model.onDidCancel(e => this.onDidCancel(e))

@@ -50,9 +50,9 @@ export class SuggestController implements IEditorContribution {
 
 		this.toDispose = [];
 		this.toDispose.push(this.widget.onDidVisibilityChange(visible => visible ? this.suggestWidgetVisible.set(true) : this.suggestWidgetVisible.reset()));
-		this.toDispose.push(editor.onDidConfigurationChange(() => this.update()));
-		this.toDispose.push(editor.onDidModelChange(() => this.update()));
-		this.toDispose.push(editor.onDidModelModeChange(() => this.update()));
+		this.toDispose.push(editor.onDidChangeConfiguration(() => this.update()));
+		this.toDispose.push(editor.onDidChangeModel(() => this.update()));
+		this.toDispose.push(editor.onDidChangeModelMode(() => this.update()));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.update, this));
 
 		this.toDispose.push(this.model.onDidAccept(e => getSnippetController(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
@@ -129,10 +129,6 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	private triggerCharacterHandler(character: string, groups: ISuggestSupport[][]): void {
-		groups = groups.map(supports => {
-			return supports.filter(support => support.shouldAutotriggerSuggest);
-		});
-
 		if (groups.length > 0) {
 			this.triggerSuggest(character, groups).done(null, onUnexpectedError);
 		}

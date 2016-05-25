@@ -67,7 +67,7 @@ export class DiffNavigator extends EventEmitter {
 		this.toUnbind.push(this.editor.onDidUpdateDiff(() => this.onDiffUpdated() ));
 
 		if(this.options.followsCaret) {
-			this.toUnbind.push(this.editor.getModifiedEditor().onDidCursorPositionChange((e:ICursorPositionChangedEvent) => {
+			this.toUnbind.push(this.editor.getModifiedEditor().onDidChangeCursorPosition((e:ICursorPositionChangedEvent) => {
 				if(this.ignoreSelectionChange) {
 					return;
 				}
@@ -75,7 +75,7 @@ export class DiffNavigator extends EventEmitter {
 			}));
 		}
 		if(this.options.alwaysRevealFirst) {
-			this.toUnbind.push(this.editor.getModifiedEditor().onDidModelChange((e) => {
+			this.toUnbind.push(this.editor.getModifiedEditor().onDidChangeModel((e) => {
 				this.revealFirst = true;
 			}));
 		}

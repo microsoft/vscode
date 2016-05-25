@@ -42,9 +42,9 @@ export class ParameterHintsModel extends Disposable {
 
 		this.active = false;
 
-		this._register(this.editor.onDidModelChange(e => this.onModelChanged()));
-		this._register(this.editor.onDidModelModeChange(_ => this.onModelChanged()));
-		this._register(this.editor.onDidCursorSelectionChange(e => this.onCursorChange(e)));
+		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
+		this._register(this.editor.onDidChangeModelMode(_ => this.onModelChanged()));
+		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
 		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 		this.onModelChanged();
 	}

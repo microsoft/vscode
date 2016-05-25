@@ -675,7 +675,7 @@ let editorConfiguration:IConfigurationNode = {
 		'editor.stablePeek' : {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('stablePeek', "Do not close peek editors when double clicking their content or when hitting Escape.")
+			'description': nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting Escape.")
 		},
 		'diffEditor.renderSideBySide' : {
 			'type': 'boolean',

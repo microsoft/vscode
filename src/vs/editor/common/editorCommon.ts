@@ -2930,12 +2930,12 @@ export interface ICommonEditorContributionDescriptor {
  */
 export interface IEditor {
 
-	onDidModelContentChange(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
-	onDidModelModeChange(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
-	onDidModelOptionsChange(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
-	onDidConfigurationChange(listener: (e:IConfigurationChangedEvent)=>void): IDisposable;
-	onDidCursorPositionChange(listener: (e:ICursorPositionChangedEvent)=>void): IDisposable;
-	onDidCursorSelectionChange(listener: (e:ICursorSelectionChangedEvent)=>void): IDisposable;
+	onDidChangeModelContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	onDidChangeModelMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
+	onDidChangeModelOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
+	onDidChangeConfiguration(listener: (e:IConfigurationChangedEvent)=>void): IDisposable;
+	onDidChangeCursorPosition(listener: (e:ICursorPositionChangedEvent)=>void): IDisposable;
+	onDidChangeCursorSelection(listener: (e:ICursorSelectionChangedEvent)=>void): IDisposable;
 	onDidDispose(listener: ()=>void): IDisposable;
 
 	dispose(): void;
@@ -3211,15 +3211,15 @@ export interface IRangeWithMessage {
 
 export interface ICommonCodeEditor extends IEditor {
 
-	onDidModelChange(listener: (e:IModelChangedEvent)=>void): IDisposable;
-	onDidModelModeSupportChange(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
-	onDidModelDecorationsChange(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
+	onDidChangeModel(listener: (e:IModelChangedEvent)=>void): IDisposable;
+	onDidChangeModelModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
+	onDidChangeModelDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
 
-	onDidEditorTextFocus(listener: ()=>void): IDisposable;
-	onDidEditorTextBlur(listener: ()=>void): IDisposable;
+	onDidFocusEditorText(listener: ()=>void): IDisposable;
+	onDidBlurEditorText(listener: ()=>void): IDisposable;
 
-	onDidEditorFocus(listener: ()=>void): IDisposable;
-	onDidEditorBlur(listener: ()=>void): IDisposable;
+	onDidFocusEditor(listener: ()=>void): IDisposable;
+	onDidBlurEditor(listener: ()=>void): IDisposable;
 
 	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.

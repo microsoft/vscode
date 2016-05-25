@@ -313,7 +313,7 @@ export class QuickFixSelectionWidget implements IContentWidget {
 
 		this.editor.addContentWidget(this);
 
-		this.listenersToRemove.push(this.editor.onDidCursorSelectionChange((e: ICursorSelectionChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 			if (this.isActive) {
 				this.editor.layoutContentWidget(this);
 			}

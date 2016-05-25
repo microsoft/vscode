@@ -35,20 +35,14 @@ export class TextualSuggestSupport implements ISuggestSupport {
 		return [];
 	}
 
-	public get shouldAutotriggerSuggest(): boolean {
-		return true;
-	}
-
 	public get filter(): IFilter {
 		return matchesStrictPrefix;
 	}
 
-	private _modeId: string;
 	private _editorWorkerService: IEditorWorkerService;
 	private _configurationService: IConfigurationService;
 
-	constructor(modeId: string, editorWorkerService: IEditorWorkerService, configurationService: IConfigurationService) {
-		this._modeId = modeId;
+	constructor(editorWorkerService: IEditorWorkerService, configurationService: IConfigurationService) {
 		this._editorWorkerService = editorWorkerService;
 		this._configurationService = configurationService;
 	}

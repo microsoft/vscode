@@ -98,7 +98,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this.focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this.focusTracker.addFocusListener(() => this._reseedFindScope());
 
-		this._register(this._codeEditor.onDidConfigurationChange((e:IConfigurationChangedEvent) => {
+		this._register(this._codeEditor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.readOnly) {
 				if (this._codeEditor.getConfiguration().readOnly) {
 					// Hide replace part if editor becomes read only
@@ -107,7 +107,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				this._updateButtons();
 			}
 		}));
-		this._register(this._codeEditor.onDidCursorSelectionChange(() => {
+		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
 			if (this._isVisible) {
 				this._updateToggleSelectionFindButton();
 			}

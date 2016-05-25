@@ -25,7 +25,7 @@ export class IPadShowKeyboard implements IEditorContribution {
 		this.editor = editor;
 		this.toDispose = [];
 		if (browser.isIPad) {
-			this.toDispose.push(editor.onDidConfigurationChange(() => this.update()));
+			this.toDispose.push(editor.onDidChangeConfiguration(() => this.update()));
 			this.update();
 		}
 	}

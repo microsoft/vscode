@@ -60,7 +60,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 		this._model = null;
 
-		this._register(this._editor.onDidModelChange(() => {
+		this._register(this._editor.onDidChangeModel(() => {
 			let shouldRestartFind = (this._editor.getModel() && this._state.isRevealed);
 
 			this.disposeModel();
@@ -523,7 +523,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.lastWordUnderCursor = null;
 
-		this._register(editor.onDidCursorSelectionChange((e: editorCommon.ICursorSelectionChangedEvent) => {
+		this._register(editor.onDidChangeCursorSelection((e: editorCommon.ICursorSelectionChangedEvent) => {
 			if (e.selection.isEmpty()) {
 				if (e.reason === editorCommon.CursorChangeReason.Explicit) {
 					if (!this.lastWordUnderCursor || !this.lastWordUnderCursor.containsPosition(e.selection.getStartPosition())) {
@@ -539,7 +539,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 				this._update();
 			}
 		}));
-		this._register(editor.onDidModelChange((e) => {
+		this._register(editor.onDidChangeModel((e) => {
 			this.removeDecorations();
 		}));
 		this._register(CommonFindController.getFindController(editor).getState().addChangeListener((e) => {
@@ -736,10 +736,10 @@ registerFindCommand(FIND_IDS.ToggleRegexCommand, x => x.toggleRegex(), {
 });
 registerFindCommand(FIND_IDS.ReplaceOneAction, x => x.replace(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);
 registerFindCommand(FIND_IDS.ReplaceAllAction, x => x.replaceAll(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);
 registerFindCommand(FIND_IDS.SelectAllMatchesAction, x => x.selectAllMatches(), {
 	primary: KeyMod.Alt | KeyCode.Enter
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);

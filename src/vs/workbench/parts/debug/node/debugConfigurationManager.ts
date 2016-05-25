@@ -228,31 +228,32 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
 	}
 
-	public setConfiguration(name: string): TPromise<void> {
+	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
-			if (!config || !config.configurations) {
+			if (typeof nameOrConfig === 'string' && (!config || !config.configurations)) {
 				this.configuration = null;
 				return;
 			}
 
-			// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-			const filtered = name ? config.configurations.filter(cfg => cfg.name === name) : [config.configurations[0]];
+			if (typeof nameOrConfig === 'string') {
+				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
+				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
+
+				this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
+				if (config && this.configuration) {
+					this.configuration.debugServer = config.debugServer;
+				}
+			} else {
+				this.configuration = objects.deepClone(nameOrConfig);
+			}
 
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
-			if (this.configuration) {
-				this.resloveConfiguration(this.configuration);
-				this.configuration.debugServer = config.debugServer;
+			if (this.configuration && this.systemVariables) {
+				Object.keys(this.configuration).forEach(key => {
+					this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
+				});
 			}
 		}).then(() => this._onDidConfigurationChange.fire(this.configurationName));
-	}
-
-	public resloveConfiguration(configuration: debug.IConfig) {
-		if (this.systemVariables && configuration) {
-			Object.keys(configuration).forEach(key => {
-				configuration[key] = this.systemVariables.resolveAny(configuration[key]);
-			});
-		}
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {

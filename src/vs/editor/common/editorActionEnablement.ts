@@ -115,15 +115,15 @@ class InternalEnablementState extends CachingEnablementState {
 
 		this._callOnDispose = [];
 		if (this._behaviour & Behaviour.TextFocus) {
-			this._callOnDispose.push(this.editor.onDidEditorTextFocus(() => this._updateTextFocus(true)));
-			this._callOnDispose.push(this.editor.onDidEditorTextBlur(() => this._updateTextFocus(false)));
+			this._callOnDispose.push(this.editor.onDidFocusEditorText(() => this._updateTextFocus(true)));
+			this._callOnDispose.push(this.editor.onDidBlurEditorText(() => this._updateTextFocus(false)));
 		}
 		if (this._behaviour & Behaviour.WidgetFocus) {
-			this._callOnDispose.push(this.editor.onDidEditorFocus(() => this._updateWidgetFocus(true)));
-			this._callOnDispose.push(this.editor.onDidEditorBlur(() => this._updateWidgetFocus(false)));
+			this._callOnDispose.push(this.editor.onDidFocusEditor(() => this._updateWidgetFocus(true)));
+			this._callOnDispose.push(this.editor.onDidBlurEditor(() => this._updateWidgetFocus(false)));
 		}
 		if (this._behaviour & Behaviour.Writeable) {
-			this._callOnDispose.push(this.editor.onDidConfigurationChange((e) => this._update()));
+			this._callOnDispose.push(this.editor.onDidChangeConfiguration((e) => this._update()));
 		}
 	}
 
@@ -174,12 +174,12 @@ class DescentEnablementState extends CachingEnablementState {
 		super();
 
 		if (behaviour & Behaviour.UpdateOnModelChange) {
-			this._callOnDispose.push(this.editor.onDidModelChange(() => this.reset()));
-			this._callOnDispose.push(this.editor.onDidModelModeChange(() => this.reset()));
-			this._callOnDispose.push(this.editor.onDidModelModeSupportChange(() => this.reset()));
+			this._callOnDispose.push(this.editor.onDidChangeModel(() => this.reset()));
+			this._callOnDispose.push(this.editor.onDidChangeModelMode(() => this.reset()));
+			this._callOnDispose.push(this.editor.onDidChangeModelModeSupport(() => this.reset()));
 		}
 		if (behaviour & Behaviour.UpdateOnCursorPositionChange) {
-			this._callOnDispose.push(this.editor.onDidCursorPositionChange(() => this.reset()));
+			this._callOnDispose.push(this.editor.onDidChangeCursorPosition(() => this.reset()));
 		}
 	}
 

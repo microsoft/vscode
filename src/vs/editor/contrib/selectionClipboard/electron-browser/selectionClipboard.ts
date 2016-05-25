@@ -25,7 +25,7 @@ class SelectionClipboard extends Disposable implements IEditorContribution {
 		if (platform.isLinux) {
 			var isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
 
-			this._register(editor.onDidConfigurationChange((e:IConfigurationChangedEvent) => {
+			this._register(editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 				if (e.contribInfo) {
 					isEnabled = editor.getConfiguration().contribInfo.selectionClipboard;
 				}
@@ -81,7 +81,7 @@ class SelectionClipboard extends Disposable implements IEditorContribution {
 				clipboard.writeText(textToCopy, 'selection');
 			}, 100));
 
-			this._register(editor.onDidCursorSelectionChange((e:ICursorSelectionChangedEvent) => {
+			this._register(editor.onDidChangeCursorSelection((e:ICursorSelectionChangedEvent) => {
 				if (!isEnabled) {
 					return;
 				}

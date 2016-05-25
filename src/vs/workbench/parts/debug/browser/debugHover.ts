@@ -85,7 +85,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				this.hide();
 			}
 		}));
-		this.toDispose.push(this.editor.onDidConfigurationChange((e: IConfigurationChangedEvent) => {
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.editor.applyFontInfo(this.domNode);
 			}

@@ -52,7 +52,7 @@ class DecorationsManager implements IDisposable {
 	private _callOnModelChange:IDisposable[] = [];
 
 	constructor(private editor:ICodeEditor, private model:ReferencesModel) {
-		this._callOnDispose.push(this.editor.onDidModelChange(() => this._onModelChanged()));
+		this._callOnDispose.push(this.editor.onDidChangeModel(() => this._onModelChanged()));
 		this._onModelChanged();
 	}
 
@@ -332,13 +332,13 @@ class Controller extends DefaultController {
 class Renderer extends LegacyRenderer {
 	private _contextService:IWorkspaceContextService;
 
-	constructor(private editor: ICodeEditor, @IWorkspaceContextService contextService:IWorkspaceContextService) {
+	constructor( @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super();
 		this._contextService = contextService;
 	}
 
-	public getHeight(tree:tree.ITree, element:any):number {
-		return 1.2 * this.editor.getConfiguration().lineHeight;
+	public getHeight(tree: tree.ITree, element: any): number {
+		return 22;
 	}
 
 	protected render(tree:tree.ITree, element:any, container:HTMLElement):tree.IElementCallback {
@@ -559,7 +559,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
 			var config = {
 				dataSource: this._instantiationService.createInstance(DataSource),
-				renderer: this._instantiationService.createInstance(Renderer, this.editor),
+				renderer: this._instantiationService.createInstance(Renderer),
 				//sorter: new Sorter(),
 				controller: new Controller()
 			};
@@ -621,7 +621,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		if (this._model.empty) {
 			this.setTitle('');
 			this._messageContainer.innerHtml(nls.localize('noResults', "No results")).show();
-			return;
+			return TPromise.as(void 0);
 		}
 
 		this._messageContainer.hide();

@@ -45,7 +45,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		});
 
 		this._editor.applyFontInfo(this._domNode);
-		this._register(this._editor.onDidConfigurationChange((e:IConfigurationChangedEvent) => {
+		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this._editor.applyFontInfo(this._domNode);
 			}
@@ -144,7 +144,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this._showAtLineNumber = -1;
 
 		this._editor.applyFontInfo(this._domNode);
-		this._register(this._editor.onDidConfigurationChange((e:IConfigurationChangedEvent) => {
+		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this._editor.applyFontInfo(this._domNode);
 			}
