@@ -525,9 +525,12 @@ export class SassParser extends cssParser.Parser {
 				node.setIdentifier(argument);
 			}
 		}
-		if (node.setValue(this._parseExpr(true))) {
+
+		let functionArgumentNode= <nodes.FunctionArgument>super._parseFunctionArgument();
+		if (functionArgumentNode && node.setValue(functionArgumentNode.getValue())) {
 			return this.finish(node);
 		}
+
 		return null;
 	}
 }
