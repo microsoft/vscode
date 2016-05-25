@@ -89,7 +89,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
-	private pendingEditorInputsToClose: EditorInput[];
+	private pendingEditorInputsToClose: IEditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
@@ -136,7 +136,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private onEditorDisposed(identifier: IEditorIdentifier): void {
-		this.pendingEditorInputsToClose.push(identifier.editor);
+		this.pendingEditorInputsToClose.push(identifier);
 		this.startDelayedCloseEditorsFromInputDispose();
 	}
 
@@ -1255,16 +1255,15 @@ export class EditorPart extends Part implements IEditorPart {
 				// Split between visible and hidden editors
 				const visibleEditors: IEditorIdentifier[] = [];
 				const hiddenEditors: IEditorIdentifier[] = [];
-				this.pendingEditorInputsToClose.forEach(editor => {
-					this.stacks.groups.forEach(group => {
-						if (group.contains(editor)) {
-							if (group.isActive(editor)) {
-								visibleEditors.push({ group, editor });
-							} else {
-								hiddenEditors.push({ group, editor });
-							}
-						}
-					});
+				this.pendingEditorInputsToClose.forEach(identifier => {
+					const group = identifier.group;
+					const editor = identifier.editor;
+
+					if (group.isActive(editor)) {
+						visibleEditors.push(identifier);
+					} else if (group.contains(editor)) {
+						hiddenEditors.push(identifier);
+					}
 				});
 
 				// Close all hidden first
