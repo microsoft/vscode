@@ -87,6 +87,14 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label > span {
 	opacity: 1;
+	width: 100%;
+	height:14px;
+	box-sizing:border-box;
+	display: inline-block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow-x:hidden;
+	margin-bottom:-3px;
 }
 
 .monaco-editor .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
