@@ -111,13 +111,13 @@ function getNodeText(sourceFile, node) {
 }
 function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
     var result = getNodeText(sourceFile, declaration);
-    if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration) {
+    if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
         var interfaceDeclaration = declaration;
         var members = interfaceDeclaration.members;
         members.forEach(function (member) {
             try {
                 var memberText = getNodeText(sourceFile, member);
-                if (memberText.indexOf('@internal') >= 0) {
+                if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
                     // console.log('BEFORE: ', result);
                     result = result.replace(memberText, '');
                 }

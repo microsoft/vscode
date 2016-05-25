@@ -1,4 +1,3 @@
-// TODO@Alex: Remove EventType, EmitterEvent, ListenerCallback, BulkListenerCallback, IEventEmitter
 
 declare module monaco.editor {
 
@@ -57,9 +56,7 @@ declare module monaco {
 
 #include(vs/base/common/uri): URI
 
-// TODO@Alex: START remove this
-#include(vs/base/common/eventEmitter): EmitterEvent, ListenerCallback, BulkListenerCallback, IEventEmitter
-// TODO@Alex: END remove this
+#include(vs/base/common/eventEmitter): EmitterEvent, BulkListenerCallback
 
 #include(vs/base/common/keyCodes): KeyCode, KeyMod
 

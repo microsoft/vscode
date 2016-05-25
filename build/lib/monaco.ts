@@ -140,14 +140,14 @@ function getNodeText(sourceFile:ts.SourceFile, node:{pos:number; end:number;}): 
 
 function getMassagedTopLevelDeclarationText(sourceFile:ts.SourceFile, declaration: TSTopLevelDeclare): string {
 	let result = getNodeText(sourceFile, declaration);
-	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration) {
-		let interfaceDeclaration = <ts.InterfaceDeclaration>declaration;
+	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
+		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
 
-		let members = interfaceDeclaration.members;
+		let members:ts.NodeArray<ts.Node> = interfaceDeclaration.members;
 		members.forEach((member) => {
 			try {
 				let memberText = getNodeText(sourceFile, member);
-				if (memberText.indexOf('@internal') >= 0) {
+				if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
 					// console.log('BEFORE: ', result);
 					result = result.replace(memberText, '');
 					// console.log('AFTER: ', result);
@@ -271,10 +271,6 @@ lines.forEach(line => {
 						return;
 					}
 				}
-				// let toExcludeArr
-				// console.log('TODO!!!');
-				// todo
-				// return (getNodeText(sourceFile, declaration).indexOf(typeName) >= 0);
 			}
 			result.push(getMassagedTopLevelDeclarationText(sourceFile, declaration));
 		});

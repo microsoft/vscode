@@ -1,4 +1,3 @@
-// TODO@Alex: Remove EventType, EmitterEvent, ListenerCallback, BulkListenerCallback, IEventEmitter
 
 declare module monaco.editor {
 
@@ -113,18 +112,6 @@ declare module monaco {
      *
      */
     export class Uri {
-        private static _empty;
-        private static _slash;
-        private static _regexp;
-        private static _driveLetterPath;
-        private static _upperCaseDrive;
-        private _scheme;
-        private _authority;
-        private _path;
-        private _query;
-        private _fragment;
-        private _formatted;
-        private _fsPath;
         constructor();
         /**
          * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
@@ -163,44 +150,26 @@ declare module monaco {
         withFragment(value: string): Uri;
         static parse(value: string): Uri;
         static file(path: string): Uri;
-        private static _parseComponents(value);
         static create(scheme?: string, authority?: string, path?: string, query?: string, fragment?: string): Uri;
-        private static _validate(ret);
         /**
          *
          * @param skipEncoding Do not encode the result, default is `false`
          */
         toString(skipEncoding?: boolean): string;
-        private static _asFormatted(uri, skipEncoding);
         toJSON(): any;
         static revive(data: any): Uri;
     }
 
-    // TODO@Alex: START remove this
 
     export class EmitterEvent {
-        private _type;
-        private _data;
         constructor(eventType?: string, data?: any);
         getType(): string;
         getData(): any;
     }
 
-    export interface ListenerCallback {
-        (value: any): void;
-    }
-
     export interface BulkListenerCallback {
         (value: EmitterEvent[]): void;
     }
-
-    export interface IEventEmitter extends IDisposable {
-        addListener2(eventType: string, listener: ListenerCallback): IDisposable;
-        addOneTimeDisposableListener(eventType: string, listener: ListenerCallback): IDisposable;
-        addBulkListener2(listener: BulkListenerCallback): IDisposable;
-        addEmitter2(eventEmitter: IEventEmitter): IDisposable;
-    }
-    // TODO@Alex: END remove this
 
 
     /**
@@ -1219,8 +1188,6 @@ declare module monaco.editor {
             indentGuides: boolean;
             scrollbar: InternalEditorScrollbarOptions;
         });
-        private static _toSortedIntegerArray(source);
-        private static _numberArraysEqual(a, b);
         equals(other: InternalEditorViewOptions): boolean;
         createChangeEvent(newOpts: InternalEditorViewOptions): IViewConfigurationChangedEvent;
         clone(): InternalEditorViewOptions;
@@ -1934,7 +1901,15 @@ declare module monaco.editor {
     /**
      * A model.
      */
-    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEventEmitter, IEditorModel {
+    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+        onDidChangeRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+        onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
+        onDidChangeModeSupport(listener: (e: IModeSupportChangedEvent) => void): IDisposable;
+        onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+        onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+        onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
+        onWillDispose(listener: () => void): IDisposable;
+        addBulkListener(listener: BulkListenerCallback): IDisposable;
         /**
          * A unique identifier associated with this model.
          */
@@ -2660,7 +2635,8 @@ declare module monaco.editor {
      * An editor.
      */
     export interface IEditor {
-        onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+        onDidChangeModelRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+        onDidChangeModelContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
         onDidChangeModelMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
         onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
         onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
@@ -2973,12 +2949,12 @@ declare module monaco.editor {
         ModelModeChanged: string;
         ModelModeSupportChanged: string;
         ModelOptionsChanged: string;
-        ModelContentChanged: string;
+        ModelRawContentChanged: string;
         ModelContentChanged2: string;
-        ModelContentChangedFlush: string;
-        ModelContentChangedLinesDeleted: string;
-        ModelContentChangedLinesInserted: string;
-        ModelContentChangedLineChanged: string;
+        ModelRawContentChangedFlush: string;
+        ModelRawContentChangedLinesDeleted: string;
+        ModelRawContentChangedLinesInserted: string;
+        ModelRawContentChangedLineChanged: string;
         EditorTextBlur: string;
         EditorTextFocus: string;
         EditorFocus: string;
