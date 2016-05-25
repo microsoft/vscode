@@ -62,17 +62,14 @@ export class SplitEditorAction extends Action {
 					targetPosition = Position.RIGHT;
 				}
 
-				// Replace the center editor with the contents of the left editor and push center to the right
-				else if (activeEditor.position === Position.LEFT && !!getUntitledOrFileResource(activeEditor.input)) {
-					let centerInput = visibleEditors[Position.CENTER].input;
-
+				// Push the center group to the right to make room for the splitted input
+				else if (activeEditor.position === Position.LEFT) {
 					let options = new TextEditorOptions();
 					options.preserveFocus = true;
 
-					return this.editorService.openEditor(activeEditor.input, options, Position.CENTER).then(() => {
-						return this.editorService.openEditor(centerInput, options, Position.RIGHT).then(() => {
-							this.editorService.focusGroup(Position.CENTER);
-						});
+					return this.editorService.openEditor(activeEditor.input, options, Position.RIGHT).then(() => {
+						this.editorService.moveGroup(Position.RIGHT, Position.CENTER);
+						this.editorService.focusGroup(Position.CENTER);
 					});
 				}
 		}
@@ -408,6 +405,7 @@ export class CloseEditorAction extends Action {
 
 	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
 		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
+
 		// Close Active Editor
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
