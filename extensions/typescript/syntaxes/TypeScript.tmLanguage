@@ -1659,7 +1659,7 @@
 		<key>type-parameters</key>
 		<dict>
 			<key>begin</key>
-			<string>([a-zA-Z_$][\w$]*)?(&lt;)</string>
+			<string>([a-zA-Z_$][\w$]*)?(&lt;)(?=(([a-zA-Z_$][\w$.]*)(&lt;([a-zA-Z_$][\w$.,\s]+)&gt;)?[,\s]*)+&gt;)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
