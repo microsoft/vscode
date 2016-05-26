@@ -1953,6 +1953,9 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	onDidChangeMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
 	onWillDispose(listener: ()=>void): IDisposable;
 
+	/**
+	 * @internal
+	 */
 	addBulkListener(listener:BulkListenerCallback):IDisposable;
 
 	/**
@@ -3621,6 +3624,9 @@ export var ClassName = {
 	EditorErrorDecoration: 'redsquiggly'
 };
 
+/**
+ * @internal
+ */
 export var EventType = {
 	Disposed: 'disposed',
 

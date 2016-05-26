@@ -16,15 +16,15 @@ import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
 import {startup} from './standaloneCodeEditor';
-import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IRichLanguageConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 
-export function registerLanguageConfiguration(languageId:string, configuration:IRichEditConfiguration): IDisposable {
+export function setLanguageConfiguration(languageId:string, configuration:IRichLanguageConfiguration): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
 	return staticPlatformServices.modeService.registerRichEditSupport(languageId, configuration);
 }
 
-export function registerTokensProvider(languageId:string, support:modes.ITokenizationSupport2): IDisposable {
+export function setTokensProvider(languageId:string, support:modes.TokensProvider): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
 	return staticPlatformServices.modeService.registerTokenizationSupport2(languageId, support);
@@ -161,8 +161,8 @@ export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
 export function createMonacoLanguagesAPI()/*: typeof monaco.languages*/ {
 	return {
 		// provider methods
-		registerLanguageConfiguration: registerLanguageConfiguration,
-		registerTokensProvider: registerTokensProvider,
+		setLanguageConfiguration: setLanguageConfiguration,
+		setTokensProvider: setTokensProvider,
 		registerReferenceProvider: registerReferenceProvider,
 		registerRenameProvider: registerRenameProvider,
 		// SuggestRegistry: SuggestRegistry,

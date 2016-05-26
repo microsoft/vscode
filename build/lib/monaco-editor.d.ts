@@ -14,9 +14,9 @@ declare module monaco.worker {
 declare module monaco.languages {
 
 
-    export function registerLanguageConfiguration(languageId: string, configuration: IRichEditConfiguration): IDisposable;
+    export function setLanguageConfiguration(languageId: string, configuration: IRichLanguageConfiguration): IDisposable;
 
-    export function registerTokensProvider(languageId: string, support: ITokenizationSupport2): IDisposable;
+    export function setTokensProvider(languageId: string, support: TokensProvider): IDisposable;
 
     export function registerReferenceProvider(languageId: string, support: ReferenceProvider): IDisposable;
 
@@ -55,7 +55,7 @@ declare module monaco.languages {
         blockComment?: CharacterPair;
     }
 
-    export interface IRichEditConfiguration {
+    export interface IRichLanguageConfiguration {
         comments?: CommentRule;
         brackets?: CharacterPair[];
         wordPattern?: RegExp;
@@ -103,25 +103,25 @@ declare module monaco.languages {
         getId(): string;
     }
 
-    export interface IToken2 {
+    export interface IToken {
         startIndex: number;
         scopes: string | string[];
     }
 
-    export interface ILineTokens2 {
-        tokens: IToken2[];
-        endState: IState2;
+    export interface ILineTokens {
+        tokens: IToken[];
+        endState: IState;
         retokenize?: Promise<void>;
     }
 
-    export interface IState2 {
-        clone(): IState2;
-        equals(other: IState2): boolean;
+    export interface IState {
+        clone(): IState;
+        equals(other: IState): boolean;
     }
 
-    export interface ITokenizationSupport2 {
-        getInitialState(): IState2;
-        tokenize(line: string, state: IState2): ILineTokens2;
+    export interface TokensProvider {
+        getInitialState(): IState;
+        tokenize(line: string, state: IState): ILineTokens;
     }
 
     /**
@@ -353,8 +353,6 @@ declare module monaco.languages {
 
 declare module monaco.editor {
 
-
-    export function setupServices(services: IEditorOverrideServices): IEditorOverrideServices;
 
     export function create(domElement: HTMLElement, options: IEditorConstructionOptions, services: IEditorOverrideServices): ICodeEditor;
 
@@ -2341,7 +2339,6 @@ declare module monaco.editor {
         onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
         onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
         onWillDispose(listener: () => void): IDisposable;
-        addBulkListener(listener: BulkListenerCallback): IDisposable;
         /**
          * A unique identifier associated with this model.
          */
@@ -3370,47 +3367,6 @@ declare module monaco.editor {
     export var EditorType: {
         ICodeEditor: string;
         IDiffEditor: string;
-    };
-
-    export var EventType: {
-        Disposed: string;
-        ConfigurationChanged: string;
-        ModelDispose: string;
-        ModelChanged: string;
-        ModelTokensChanged: string;
-        ModelModeChanged: string;
-        ModelModeSupportChanged: string;
-        ModelOptionsChanged: string;
-        ModelRawContentChanged: string;
-        ModelContentChanged2: string;
-        ModelRawContentChangedFlush: string;
-        ModelRawContentChangedLinesDeleted: string;
-        ModelRawContentChangedLinesInserted: string;
-        ModelRawContentChangedLineChanged: string;
-        EditorTextBlur: string;
-        EditorTextFocus: string;
-        EditorFocus: string;
-        EditorBlur: string;
-        ModelDecorationsChanged: string;
-        CursorPositionChanged: string;
-        CursorSelectionChanged: string;
-        CursorRevealRange: string;
-        CursorScrollRequest: string;
-        ViewFocusGained: string;
-        ViewFocusLost: string;
-        ViewFocusChanged: string;
-        ViewScrollChanged: string;
-        ViewZonesChanged: string;
-        ViewLayoutChanged: string;
-        ContextMenu: string;
-        MouseDown: string;
-        MouseUp: string;
-        MouseMove: string;
-        MouseLeave: string;
-        KeyDown: string;
-        KeyUp: string;
-        EditorLayout: string;
-        DiffUpdated: string;
     };
 
     export var Handler: {

@@ -85,7 +85,7 @@ export function executeTests(tokenizationSupport: modes.ITokenizationSupport, te
 	}
 }
 
-export function executeTests2(tokenizationSupport: modes.ITokenizationSupport2, tests:ITestItem2[][]): void {
+export function executeTests2(tokenizationSupport: modes.TokensProvider, tests:ITestItem2[][]): void {
 	for (var i = 0, len = tests.length; i < len; i++) {
 		assert.ok(true, 'TEST #' + i);
 		executeTest2(tokenizationSupport, tests[i]);
@@ -118,7 +118,7 @@ function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITes
 	}
 }
 
-function executeTest2(tokenizationSupport: modes.ITokenizationSupport2, tests:ITestItem2[]): void {
+function executeTest2(tokenizationSupport: modes.TokensProvider, tests:ITestItem2[]): void {
 	var state = tokenizationSupport.getInitialState();
 	for (var i = 0, len = tests.length; i < len; i++) {
 		assert.ok(true, tests[i].line);

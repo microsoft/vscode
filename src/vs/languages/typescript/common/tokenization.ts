@@ -12,7 +12,7 @@ export enum Language {
 	EcmaScript5
 }
 
-export function createTokenizationSupport2(language:Language):Modes.ITokenizationSupport2 {
+export function createTokenizationSupport2(language:Language):Modes.TokensProvider {
 
 	var classifier = ts.createClassifier(),
 		bracketTypeTable = language === Language.TypeScript ? tsBracketTypeTable : jsBracketTypeTable,

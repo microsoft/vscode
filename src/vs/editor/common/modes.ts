@@ -309,7 +309,7 @@ export interface IState2 {
 	clone():IState2;
 	equals(other:IState2):boolean;
 }
-export interface ITokenizationSupport2 {
+export interface TokensProvider {
 	getInitialState(): IState2;
 	tokenize(line:string, state:IState2): ILineTokens2;
 }
