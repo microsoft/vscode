@@ -34,7 +34,7 @@ import {QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ShowEditorsInLeftGroupAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {ShowEditorsInLeftGroupAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export enum Rochade {
@@ -128,8 +128,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private moveGroupLeftActions: MoveGroupLeftAction[];
 	private moveGroupRightActions: MoveGroupRightAction[];
 	private closeEditorsInGroupActions: CloseEditorsInGroupAction[];
-	private closeEditorsInOtherGroupsActions: CloseEditorsInOtherGroupsAction[];
-	private closeAllEditorsAction: CloseAllEditorsAction;
 	private splitEditorAction: SplitEditorAction;
 
 	private leftSash: Sash;
@@ -211,19 +209,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
 
 		// Move Group Left
-		this.moveGroupLeftActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, MoveGroupLeftAction.LABEL));
+		this.moveGroupLeftActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupLeftAction, MoveGroupLeftAction.ID, nls.localize('moveLeft', "Move Left")));
 
 		// Move Group Right
-		this.moveGroupRightActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupRightAction, MoveGroupRightAction.ID, MoveGroupRightAction.LABEL));
+		this.moveGroupRightActions = POSITIONS.map((position) => this.instantiationService.createInstance(MoveGroupRightAction, MoveGroupRightAction.ID, nls.localize('moveRight', "Move Right")));
 
 		// Close All Editors in Group
-		this.closeEditorsInGroupActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, CloseEditorsInGroupAction.LABEL));
-
-		// Close Editors in Other Groups
-		this.closeEditorsInOtherGroupsActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL));
-
-		// Close All Editors
-		this.closeAllEditorsAction = this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL);
+		this.closeEditorsInGroupActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
 	}
 
 	private initStyles(): void {
@@ -1374,10 +1366,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.moveGroupLeftActions[position],
 			this.moveGroupRightActions[position],
 			new Separator(),
-			this.closeEditorsInGroupActions[position],
-			this.closeEditorsInOtherGroupsActions[position],
-			new Separator(),
-			this.closeAllEditorsAction
+			this.closeEditorsInGroupActions[position]
 		];
 	}
 
@@ -1390,9 +1379,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.moveGroupRightActions[Position.LEFT].enabled = this.getVisibleEditorCount() > 1;
 		this.moveGroupRightActions[Position.CENTER].enabled = this.getVisibleEditorCount() > 2;
 		this.moveGroupRightActions[Position.RIGHT].enabled = false;
-
-		// Close Editors in Other Groups
-		POSITIONS.map((position) => this.closeEditorsInOtherGroupsActions[position].enabled = this.getVisibleEditorCount() > 1);
 	}
 
 	public clearTitleArea(position: Position): void {
@@ -1755,7 +1741,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 
 		// Actions
-		[this.splitEditorAction, this.closeAllEditorsAction, ...this.closeEditorActions, ...this.moveGroupLeftActions, ...this.moveGroupRightActions, ...this.closeEditorsInGroupActions, ...this.closeEditorsInOtherGroupsActions].forEach((action) => {
+		[this.splitEditorAction, ...this.closeEditorActions, ...this.moveGroupLeftActions, ...this.moveGroupRightActions, ...this.closeEditorsInGroupActions].forEach((action) => {
 			action.dispose();
 		});
 

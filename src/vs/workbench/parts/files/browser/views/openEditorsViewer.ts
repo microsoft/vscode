@@ -20,7 +20,7 @@ import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IContextMenuService, ContextSubMenu} from 'vs/platform/contextview/browser/contextView';
+import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/common/editor';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
@@ -30,7 +30,7 @@ import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction,
 import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {CloseOtherEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseEditorAction, CloseAllEditorsAction, CloseAllEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {CloseOtherEditorsInGroupAction, CloseEditorAction, CloseAllEditorsInGroupAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.emmet;
 
@@ -383,16 +383,14 @@ export class ActionProvider implements IActionProvider {
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const result = [];
 		const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
-		const multipleGroups = this.model.groups.length > 1;
-		const closeActions = [];
 
 		if (element instanceof EditorGroup) {
 			if (!autoSaveEnabled) {
-				result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL));
+				result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
 				result.push(new Separator());
 			}
 
-			closeActions.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
+			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
 		} else {
 			const openEditor = <OpenEditor>element;
 			const resource = openEditor.getResource();
@@ -410,12 +408,12 @@ export class ActionProvider implements IActionProvider {
 					result.push(this.instantiationService.createInstance(CopyPathAction, resource));
 
 					// Files: Save / Revert
-					if (!autoSaveEnabled && openEditor.isDirty()) {
+					if (!autoSaveEnabled) {
 						result.push(new Separator());
 
 						const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
 						saveAction.setResource(resource);
-						saveAction.enabled = true;
+						saveAction.enabled = openEditor.isDirty();
 						result.push(saveAction);
 
 						const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
@@ -451,22 +449,12 @@ export class ActionProvider implements IActionProvider {
 				result.push(new Separator());
 			}
 
-			closeActions.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
-			closeActions.push(new Separator());
-			const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, CloseOtherEditorsInGroupAction.LABEL);
+			result.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close")));
+			const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 			closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
-			closeActions.push(closeOtherEditorsInGroupAction);
-			closeActions.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, CloseAllEditorsInGroupAction.LABEL));
-			closeActions.push(new Separator());
+			result.push(closeOtherEditorsInGroupAction);
+			result.push(this.instantiationService.createInstance(CloseAllEditorsInGroupAction, CloseAllEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
 		}
-
-		const closeEditorInOtherGroupsAction = this.instantiationService.createInstance(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL);
-		closeEditorInOtherGroupsAction.enabled = multipleGroups;
-		closeActions.push(closeEditorInOtherGroupsAction);
-		closeActions.push(new Separator());
-		closeActions.push(this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL));
-
-		result.push(new ContextSubMenu(nls.localize('close', "Close"), closeActions));
 
 		return TPromise.as(result);
 	}
