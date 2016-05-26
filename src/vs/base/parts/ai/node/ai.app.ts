@@ -42,7 +42,6 @@ export function registerAIChannel(server: IServer) {
 // It is important to dispose the AI adapter properly because
 // only then they flush remaining data.
 process.on('SIGTERM', function () {
-	console.log('HERE');
 	let promises: TPromise<any>[] = [];
 	for (let handle in adapter) {
 		let ai = adapter[handle];
