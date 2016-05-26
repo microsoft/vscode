@@ -13,13 +13,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/Constants';
-import * as MarkersModel from 'vs/workbench/parts/markers/common/MarkersModel';
+import { MarkersModel } from 'vs/workbench/parts/markers/common/MarkersModel';
 import {Controller} from 'vs/workbench/parts/markers/browser/MarkersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import * as Viewer from 'vs/workbench/parts/markers/browser/MarkersTreeViewer';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/MarkersActionProvider';
+import Messages from 'vs/workbench/parts/markers/common/Messages';
 
 export class MarkersPanel extends Panel {
 
@@ -59,13 +60,39 @@ export class MarkersPanel extends Panel {
 		return TPromise.as(null);
 	}
 
+	public getTitle():string {
+		let title= '';
+		let marketStatistics= this.markerService.getStatistics();
+		let addPipe= false;
+		if (marketStatistics.errors > 0) {
+			title += ' ' + marketStatistics.errors + ' Errors';
+			addPipe= true;
+		}
+		if (marketStatistics.warnings > 0) {
+			title= addPipe ? title + ', ' : title;
+			title += ' ' + marketStatistics.warnings + ' Warnings';
+			addPipe= true;
+		}
+		if (marketStatistics.infos > 0) {
+			title= addPipe ? title + ', ' : title;
+			title += ' ' + marketStatistics.infos + ' Info';
+			addPipe= true;
+		}
+		if (marketStatistics.unknwons > 0) {
+			title= addPipe ? title + ', ' : title;
+			title += ' ' + marketStatistics.unknwons + ' Unknowns';
+		}
+		return title ? title : Messages.MARKERS_PANEL_NO_PROBLEMS_TITLE;
+	}
+
 	public layout(dimension: builder.Dimension): void {
 		this.tree.layout(dimension.height);
 	}
 
 	private render(): void {
+		this.updateTitleArea();
 		let allMarkers = this.markerService.read().slice(0);
-		let model= MarkersModel.toModel(allMarkers);
+		let model= new MarkersModel(allMarkers);
 		this.tree.setInput(model);
 	}
 

@@ -23,11 +23,6 @@
 	line-height: 22px;
 }
 
-.markers-panel > .monaco-tree .monaco-tree-row:hover .content .count-badge-wrapper,
-.markers-panel > .monaco-tree.focused .monaco-tree-row.focused .content .count-badge-wrapper {
-	display: none;
-}
-
 .markers-panel > .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar,
 .markers-panel > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-action-bar {
 	display: block;

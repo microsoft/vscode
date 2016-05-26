@@ -4,38 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as Map from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { IMarker } from 'vs/platform/markers/common/markers';
 
 export class Resource {
-	constructor(public uri:URI, public markers:Marker[]){};
+	constructor(public uri: URI, public markers: Marker[]){};
 }
 
 export class Marker {
 	constructor(public id:string, public marker: IMarker){};
 }
 
-export function toModel(markers: IMarker[]) {
-	let markersByResource: { [uri: string]: IMarker[] }= Object.create(null);
-	markers.forEach((marker:IMarker) => {
-		let uri:string= marker.resource.path;
-		let markers:IMarker[]= markersByResource[uri];
-		if (!markers) {
-			markers= [];
-			markersByResource[uri]= markers;
-		}
-		markers.push(marker);
-	});
-	let resources:Resource[]= [];
-	for (let uri in markersByResource) {
-		let markers = markersByResource[uri].map((marker:IMarker, index:number) => {
-			return new Marker(uri.toString() + index, marker);
-		});
-		let resource= new Resource(URI.file(uri), markers);
-		resources.push(resource);
+export class MarkersModel {
+
+	private markersByResource: Map.SimpleMap<URI, IMarker[]>;
+
+	constructor(private markers: IMarker[]= []) {
+		this.markersByResource= new Map.SimpleMap<URI, IMarker[]>();
+		this.process(markers);
 	}
-	resources.sort((a: Resource, b: Resource):number => {
-		return a.markers.length > b.markers.length ? -1 : 1;
-	});
-	return {resources: resources};
-};
+
+	public getResources():Resource[] {
+		return this.markersByResource.entries().map((entry) => {
+			return new Resource(entry.key, entry.value.map(this.toMarker));
+		});
+	}
+
+	private process(markers: IMarker[]) {
+		markers.forEach((marker:IMarker) => {
+			let uri:URI= marker.resource;
+			let markers:IMarker[]= this.markersByResource.get(uri);
+			if (!markers) {
+				markers= [];
+				this.markersByResource.set(uri, markers);
+			}
+			markers.push(marker);
+		});
+	}
+
+	private toMarker(marker: IMarker, index: number):Marker {
+		return new Marker(marker.resource.toString() + index, marker);
+	}
+}
