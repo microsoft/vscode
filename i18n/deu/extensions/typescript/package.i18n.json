@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "JavaScript-Überprüfung aktivieren/deaktivieren",
 	"typescript.reloadProjects.title": "TypeScript-Projekt erneut laden",
 	"typescript.tsdk.desc": "Gibt den Ordnerpfad mit den zu verwendenden tsserver- und lib*.d.ts-Dateien an.",
+	"typescript.tsserver.trace": "Aktiviert die Nachverfolgung von an den TS-Server gesendeten Nachrichten.",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Vervollständigen Sie Funktionen mit deren Parametersignatur.",
 	"typescript.validate.enable": "TypeScript-Überprüfung aktivieren/deaktivieren"
 }

@@ -9,7 +9,7 @@
 	"indentUsingSpaces": "Einzug mithilfe von Leerzeichen",
 	"indentUsingTabs": "Einzug mithilfe von Tabstopps",
 	"indentationToSpaces": "Einzug in Leerzeichen konvertieren",
-	"indentationToTabs": "Einzug in Registerkarten konvertieren",
+	"indentationToTabs": "Einzug in Tabstopps konvertieren",
 	"selectTabWidth": "Tabulatorgröße für aktuelle Datei auswählen",
 	"toggleRenderWhitespace": "Rendern von Leerzeichen umschalten"
 }

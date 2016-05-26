@@ -6,8 +6,8 @@
 {
 	"schema.json": "Beschreibt eine JSON-Datei mithilfe eines Schemas. Weitere Informationen finden Sie unter \"json-schema.org\".",
 	"schema.json.$schema": "Das Schema, anhand dessen das Dokument überprüft wird. ",
-	"schema.json.additionalItems": "Für Arrays. Gilt nur, wenn \"items\" als Array festgelegt ist. Wenn es sich um ein Schema handelt, überprüft dieses Schema Elemente nach den vom Elementarray angegebenen Elementen. Wenn der Wert \"false\" ist, führen zusätzliche Elemente zu Validierungsfehlern.",
-	"schema.json.additionalProperties": "Ein Schema oder ein boolescher Wert. Wenn es sich um ein Schema handelt, werden alle Eigenschaften überprüft, die nicht mit \"properties\" oder \"patternProperties\" übereinstimmen. Wenn \"false\", bewirken alle Eigenschaften, die mit keiner dieser Angaben übereinstimmen, einen Schemafehler.",
+	"schema.json.additionalItems": "Für Arrays. Gilt nur, wenn \"items\" als Array festgelegt ist. Wenn es sich um ein Schema handelt, überprüft dieses Schema Elemente nach den vom Elementarray angegebenen Elementen. Wenn der Wert FALSE ist, führen zusätzliche Elemente zu Validierungsfehlern.",
+	"schema.json.additionalProperties": "Ein Schema oder ein boolescher Wert. Wenn es sich um ein Schema handelt, werden alle Eigenschaften überprüft, die nicht mit \"properties\" oder \"patternProperties\" übereinstimmen. Wenn der Wert FALSE ist, bewirken alle Eigenschaften, die mit keiner dieser Angaben übereinstimmen, einen Schemafehler.",
 	"schema.json.allOf": "Ein Array von Schemas, die alle übereinstimmen müssen.",
 	"schema.json.anyOf": "Ein Array von Schemas, von denen mindestens ein Schema übereinstimmen muss.",
 	"schema.json.default": "Ein Standardwert. Wird von Vorschlägen verwendet.",
@@ -37,5 +37,5 @@
 	"schema.json.required": "Ein Array von Zeichenfolgen, das die Namen aller für dieses Objekt erforderlichen Eigenschaften auflistet.",
 	"schema.json.title": "Ein beschreibender Titel des Elements.",
 	"schema.json.type": "Eine Zeichenfolge eines der grundlegenden Schematypen (\"number\", \"integer\", \"null\", \"array\", \"object\", \"boolean\", \"string\") oder ein Array aus Zeichenfolgen, das eine Teilmenge dieser Typen angibt.",
-	"schema.json.uniqueItems": "Gibt an, dass alle Elemente im Array eindeutig sein müssen. Der Standardwert ist \"false\"."
+	"schema.json.uniqueItems": "Gibt an, dass alle Elemente im Array eindeutig sein müssen. Der Standardwert ist FALSE."
 }
