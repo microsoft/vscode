@@ -36,7 +36,7 @@ export function main(args: string[]): TPromise<void> {
 		delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 
 		let options = {
-			detacted: true,
+			detached: true,
 			env,
 		};
 		if (!argv.verbose) {
