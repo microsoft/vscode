@@ -144,6 +144,11 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		);
 	}
 
+	public dispose(): void {
+		this._hoverOperation.cancel();
+		super.dispose();
+	}
+
 	public onModelDecorationsChanged(): void {
 		if (this._isChangingDecorations) {
 			return;
