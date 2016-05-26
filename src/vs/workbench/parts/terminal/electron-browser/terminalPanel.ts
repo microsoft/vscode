@@ -106,7 +106,9 @@ export class TerminalPanel extends Panel {
 	public layout(dimension: Dimension): void {
 		let cols = Math.floor(this.parentDomElement.offsetWidth / TERMINAL_CHAR_WIDTH);
 		let rows = Math.floor(this.parentDomElement.offsetHeight / TERMINAL_CHAR_HEIGHT);
-		this.terminal.resize(cols, rows);
+		if (this.terminal) {
+			this.terminal.resize(cols, rows);
+		}
 		if (this.ptyProcess.connected) {
 			this.ptyProcess.send({
 				event: 'resize',
@@ -120,6 +122,15 @@ export class TerminalPanel extends Panel {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
 		return this.createTerminal();
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		if (visible && this.terminal === null) {
+			return super.setVisible(visible).then(() => {
+				return this.createTerminal();
+			});
+		}
+		return super.setVisible(visible);
 	}
 
 	private cloneEnv(): IStringDictionary<string> {
@@ -169,12 +180,11 @@ export class TerminalPanel extends Panel {
 			this.ptyProcess.on('exit', (exitCode) => {
 				this.toDispose = lifecycle.dispose(this.toDispose);
 				this.terminal.destroy();
+				this.terminal = null;
 				// TODO: When multiple terminals are supported this should do something smarter. There is
 				// also a weird bug here at least on Ubuntu 15.10 where the new terminal text does not
 				// repaint correctly.
-				if (exitCode === 0) {
-					this.createTerminal();
-				} else {
+				if (exitCode !== 0) {
 					// TODO: Allow the terminal to be relaunched after an error
 					console.error('Integrated terminal exited with code ' + exitCode);
 				}
