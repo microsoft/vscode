@@ -24,6 +24,7 @@ import 'vs/css!vs/editor/contrib/inPlaceReplace/browser/inPlaceReplace';
 import 'vs/editor/contrib/inPlaceReplace/common/inPlaceReplace';
 import 'vs/editor/contrib/iPadShowKeyboard/browser/iPadShowKeyboard';
 import 'vs/editor/contrib/linesOperations/common/linesOperations';
+import 'vs/editor/contrib/carretOperations/common/carretOperations';
 import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/multicursor/common/multicursor';
 import 'vs/editor/contrib/outlineMarker/browser/outlineMarker';
