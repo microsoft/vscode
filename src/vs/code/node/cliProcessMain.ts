@@ -15,7 +15,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IEventService } from 'vs/platform/event/common/event';
 import { EventService } from 'vs/platform/event/common/eventService';
-import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IQueryResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -68,20 +68,31 @@ class Main {
 					return TPromise.wrapError(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
 				}
 
-				return this.extensionGalleryService.query({ ids: [id] }).then(result => {
-					const [extension] = result.firstPage;
+				return this.extensionGalleryService.query({ ids: [id] })
+					.then<IQueryResult>(null, err => {
+						if (err.responseText) {
+							try {
+								const response = JSON.parse(err.responseText);
+								return TPromise.wrapError(response.message);
+							} catch (e) {
+								return TPromise.wrapError(err);
+							}
+						}
+					})
+					.then(result => {
+						const [extension] = result.firstPage;
 
-					if (!extension) {
-						return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
-					}
+						if (!extension) {
+							return TPromise.wrapError(`${ notFound(id) }\n${ useId }`);
+						}
 
-					console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
-					console.log(localize('installing', "Installing..."));
+						console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
+						console.log(localize('installing', "Installing..."));
 
-					return this.extensionManagementService.install(extension).then(extension => {
-						console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
+						return this.extensionManagementService.install(extension).then(extension => {
+							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
+						});
 					});
-				});
 			}));
 		});
 	}
