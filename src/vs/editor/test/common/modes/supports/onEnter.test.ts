@@ -93,6 +93,10 @@ suite('OnEnter', () => {
 				{
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 					action: { indentAction: IndentAction.None, removeText: 1 }
+				},
+				{
+					beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+					action: { indentAction: IndentAction.None, removeText: 1 }
 				}
 			]
 		});
@@ -131,7 +135,7 @@ suite('OnEnter', () => {
 		testIndentAction('\t*', '', null, null);
 		testIndentAction('\t *', '', IndentAction.None, '* ');
 		testIndentAction('\t */', '', IndentAction.None, null, 1);
-		testIndentAction('\t * */', '', null, null);
+		testIndentAction('\t * */', '', IndentAction.None, null, 1);
 		testIndentAction('\t * * / * / * / */', '', null, null);
 		testIndentAction('\t * ', '', IndentAction.None, '* ');
 		testIndentAction(' * ', '', IndentAction.None, '* ');
@@ -146,5 +150,6 @@ suite('OnEnter', () => {
 		testIndentAction('   */', '', IndentAction.None, null, 1);
 		testIndentAction('     */', '', IndentAction.None, null, 1);
 		testIndentAction('\t     */', '', IndentAction.None, null, 1);
+		testIndentAction(' *--------------------------------------------------------------------------------------------*/', '', IndentAction.None, null, 1);
 	});
 });
