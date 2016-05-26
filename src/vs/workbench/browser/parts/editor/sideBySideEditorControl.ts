@@ -1222,10 +1222,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				// Overflow
 				const isOverflowing = state.editorCount > 1;
 				const showEditorAction = this.showEditorsOfGroup[state.position];
-				if (isOverflowing) {
-					showEditorAction.class = 'show-group-editors-overflowing-action';
+				if (!isOverflowing) {
+					showEditorAction.class = 'show-group-editors-overflowing-action-hidden';
+					showEditorAction.enabled = false;
 				} else {
 					showEditorAction.class = 'show-group-editors-action';
+					showEditorAction.enabled = true;
 				}
 			}
 		}
@@ -1309,13 +1311,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			primaryActions.unshift(this.splitEditorAction);
 		}
 
-		const showEditorAction = this.showEditorsOfGroup[position];
 		if (isOverflowing) {
-			showEditorAction.class = 'show-group-editors-overflowing-action';
-		} else {
-			showEditorAction.class = 'show-group-editors-action';
+			this.showEditorsOfGroup[position].class = 'show-group-editors-action';
+			this.showEditorsOfGroup[position].enabled = true;
+			primaryActions.unshift(this.showEditorsOfGroup[position]);
 		}
-		primaryActions.unshift(this.showEditorsOfGroup[position]);
 
 		// Secondary Actions
 		if (secondaryActions.length) {

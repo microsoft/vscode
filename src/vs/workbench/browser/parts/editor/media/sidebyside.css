@@ -204,11 +204,15 @@
 }
 
 .monaco-workbench .show-group-editors-action {
-	background: url('chevron-disabled.svg') center center no-repeat;
+	background: url('chevron.svg') center center no-repeat;
+}
+
+.monaco-workbench .show-group-editors-action-hidden {
+	display: none;
 }
 
 .vs-dark .monaco-workbench .show-group-editors-action {
-	background: url('chevron-disabled-inverse.svg') center center no-repeat;
+	background: url('chevron-inverse.svg') center center no-repeat;
 }
 
 /* High Contrast Theming */
@@ -216,7 +220,6 @@
 .hc-black .monaco-workbench .close-editor-action,
 .hc-black .monaco-workbench .close-editor-dirty-action,
 .hc-black .monaco-workbench .show-group-editors-action,
-.hc-black .monaco-workbench .show-group-editors-overflowing-action,
 .hc-black .monaco-workbench .split-editor-action {
 	background: none;
 }
@@ -225,17 +228,8 @@
 	width: 24px;
 }
 
-.hc-black .monaco-workbench .show-group-editors-overflowing-action:before {
-	content: url('chevron-inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
 .hc-black .monaco-workbench .show-group-editors-action:before {
-	content: url('chevron-disabled-inverse.svg');
+	content: url('chevron-inverse.svg');
 	position: absolute;
 	top: 12px;
 	left: 8px;

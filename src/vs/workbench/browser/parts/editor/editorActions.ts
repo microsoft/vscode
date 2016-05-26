@@ -875,6 +875,8 @@ export class ShowEditorsInLeftGroupAction extends QuickOpenAction {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(actionId, actionLabel, NAVIGATE_IN_LEFT_GROUP_PREFIX, quickOpenService);
+
+		this.class = 'show-group-editors-action';
 	}
 }
 
@@ -892,6 +894,8 @@ export class ShowEditorsInCenterGroupAction extends QuickOpenAction {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(actionId, actionLabel, NAVIGATE_IN_CENTER_GROUP_PREFIX, quickOpenService);
+
+		this.class = 'show-group-editors-action';
 	}
 }
 
@@ -909,6 +913,8 @@ export class ShowEditorsInRightGroupAction extends QuickOpenAction {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(actionId, actionLabel, NAVIGATE_IN_RIGHT_GROUP_PREFIX, quickOpenService);
+
+		this.class = 'show-group-editors-action';
 	}
 }
 
