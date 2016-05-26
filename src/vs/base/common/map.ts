@@ -5,11 +5,96 @@
 
 'use strict';
 
-export interface Entry<T> {
-	next?: Entry<T>;
-	prev?: Entry<T>;
-	key: string;
+export interface Key {
+	toString():string;
+}
+
+export interface Entry<K, T> {
+	next?: Entry<K, T>;
+	prev?: Entry<K, T>;
+	key: K;
 	value: T;
+}
+
+export class SimpleMap<K extends Key, T> {
+
+	protected map: { [key: string]: Entry<K, T> };
+	protected _size: number;
+
+	constructor() {
+		this.map = Object.create(null);
+		this._size = 0;
+	}
+
+	public get size(): number {
+		return this._size;
+	}
+
+	public get(k: K): T {
+		const value = this.peek(k);
+
+		return value ? value : null;
+	}
+
+	public keys(): K[] {
+		var keys: K[] = [];
+		for (let key in this.map) {
+			keys.push(this.map[key].key);
+		}
+		return keys;
+	}
+
+	public entries(): Entry<K, T>[] {
+		var entries: Entry<K, T>[] = [];
+		for (let key in this.map) {
+			entries.push(this.map[key]);
+		}
+		return entries;
+	}
+
+	public set(k: K, t: T): boolean {
+		if (this.get(k)) {
+			return false; // already present!
+		}
+
+		this.push(k, t);
+
+		return true;
+	}
+
+	public delete(k: K): T {
+		let value:T= this.get(k);
+		if (value) {
+			this.pop(k);
+			return value;
+		}
+		return null;
+	}
+
+	public has(k: K): boolean {
+		return !!this.get(k);
+	}
+
+	public clear(): void {
+		this.map = Object.create(null);
+		this._size = 0;
+	}
+
+	protected push(key: K, value: T): void {
+		const entry: Entry<K, T> = { key, value };
+		this.map[key.toString()] = entry;
+		this._size++;
+	}
+
+	protected pop(k: K): void {
+		delete this.map[k.toString()];
+		this._size--;
+	}
+
+	protected peek(k: K): T {
+		const entry= this.map[k.toString()];
+		return entry ? entry.value : null;
+	}
 }
 
 /**
@@ -18,9 +103,9 @@ export interface Entry<T> {
  * all elements will be removed until the ratio is full filled (e.g. 0.75 to remove 25% of old elements).
  */
 export class LinkedMap<T> {
-	protected map: { [key: string]: Entry<T> };
-	private head: Entry<T>;
-	private tail: Entry<T>;
+	protected map: { [key: string]: Entry<string, T> };
+	private head: Entry<string, T>;
+	private tail: Entry<string, T>;
 	private _size: number;
 	private ratio: number;
 
@@ -39,7 +124,7 @@ export class LinkedMap<T> {
 			return false; // already present!
 		}
 
-		const entry: Entry<T> = { key, value };
+		const entry: Entry<string, T> = { key, value };
 		this.push(entry);
 
 		if (this._size > this.limit) {
@@ -91,7 +176,7 @@ export class LinkedMap<T> {
 		this.tail = null;
 	}
 
-	protected push(entry: Entry<T>): void {
+	protected push(entry: Entry<string, T>): void {
 		if (this.head) {
 			// [A]-[B] = [A]-[B]->[X]
 			entry.prev = this.head;
