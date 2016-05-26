@@ -794,9 +794,7 @@ class SnippetController implements ISnippetController {
 		SnippetController._addCommandForSnippet(this._editor.getModel(), prepared.adaptedSnippet, prepared.typeRange, edits);
 
 		if (edits.length > 0) {
-			this._editor.getModel().pushStackElement();
 			this._editor.executeEdits('editor.contrib.insertSnippetHelper', edits);
-			this._editor.getModel().pushStackElement();
 		}
 
 		let cursorOnly = SnippetController._getSnippetCursorOnly(prepared.adaptedSnippet);
@@ -820,9 +818,7 @@ class SnippetController implements ISnippetController {
 		}
 
 		if (edits.length > 0) {
-			this._editor.getModel().pushStackElement();
 			this._editor.executeEdits('editor.contrib.insertSnippetHelper', edits);
-			this._editor.getModel().pushStackElement();
 		}
 	}
 

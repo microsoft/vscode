@@ -608,9 +608,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			// read only editor => sorry!
 			return false;
 		}
+		this.model.pushStackElement();
 		this.model.pushEditOperations(this.cursor.getSelections(), edits, () => {
 			return this.cursor.getSelections();
 		});
+		this.model.pushStackElement();
 		return true;
 	}
 
