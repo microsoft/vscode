@@ -30,10 +30,11 @@ import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ShowEditorsInGroupAction, CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {ShowEditorsInLeftGroupAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export enum Rochade {
@@ -123,7 +124,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private mapActionsToEditors: { [editorId: string]: IEditorActions; }[];
 
 	private closeEditorActions: CloseEditorAction[];
-	private showEditorsOfGroup: ShowEditorsInGroupAction[];
+	private showEditorsOfGroup: QuickOpenAction[];
 	private moveGroupLeftActions: MoveGroupLeftAction[];
 	private moveGroupRightActions: MoveGroupRightAction[];
 	private closeEditorsInGroupActions: CloseEditorsInGroupAction[];
@@ -194,8 +195,17 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Close
 		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
 
-		// Show Editors
-		this.showEditorsOfGroup = POSITIONS.map((position) => this.instantiationService.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, ShowEditorsInGroupAction.LABEL));
+		// Show Editors of Group
+		this.showEditorsOfGroup = POSITIONS.map((position) => {
+			switch (position) {
+				case Position.LEFT:
+					return this.instantiationService.createInstance(ShowEditorsInLeftGroupAction, ShowEditorsInLeftGroupAction.ID, ShowEditorsInLeftGroupAction.LABEL);
+				case Position.CENTER:
+					return this.instantiationService.createInstance(ShowEditorsInCenterGroupAction, ShowEditorsInCenterGroupAction.ID, ShowEditorsInCenterGroupAction.LABEL);
+				default:
+					return this.instantiationService.createInstance(ShowEditorsInRightGroupAction, ShowEditorsInRightGroupAction.ID, ShowEditorsInRightGroupAction.LABEL);
+			}
+		});
 
 		// Split
 		this.splitEditorAction = this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);

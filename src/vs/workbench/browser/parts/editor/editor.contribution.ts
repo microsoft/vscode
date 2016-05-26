@@ -33,9 +33,10 @@ import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {CloseEditorsInGroupAction, CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, PinEditorAction, UnpinEditorAction, CloseOtherEditorsInGroupAction, OpenToSideAction,
-	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInGroupAction,
-	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousEditorInGroupAction, NAVIGATE_IN_GROUP_PREFIX,
-	GlobalQuickOpenAction, OpenPreviousEditorFromHistoryAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ClearEditorHistoryAction
+	NavigateBetweenGroupsAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup, ShowEditorsInLeftGroupAction,
+	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, CloseRightEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, ReopenClosedEditorAction, OpenPreviousEditorInGroupAction, NAVIGATE_IN_LEFT_GROUP_PREFIX,
+	GlobalQuickOpenAction, OpenPreviousEditorFromHistoryAction, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, ShowAllEditorsAction, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ClearEditorHistoryAction, ShowEditorsInCenterGroupAction,
+	NAVIGATE_IN_CENTER_GROUP_PREFIX, ShowEditorsInRightGroupAction, NAVIGATE_IN_RIGHT_GROUP_PREFIX
 } from 'vs/workbench/browser/parts/editor/editorActions';
 
 // Register String Editor
@@ -248,13 +249,43 @@ actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionCont
 Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
 		'vs/workbench/browser/parts/editor/editorPicker',
-		'EditorGroupPicker',
-		NAVIGATE_IN_GROUP_PREFIX,
+		'LeftEditorGroupPicker',
+		NAVIGATE_IN_LEFT_GROUP_PREFIX,
 		[
 			{
-				prefix: NAVIGATE_IN_GROUP_PREFIX,
+				prefix: NAVIGATE_IN_LEFT_GROUP_PREFIX,
 				needsEditor: false,
-				description: nls.localize('editorGroupPicker', "Show Editors in Active Group")
+				description: nls.localize('leftEditorGroupPicker', "Show Editors in Left Group")
+			}
+		]
+	)
+);
+
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/browser/parts/editor/editorPicker',
+		'CenterEditorGroupPicker',
+		NAVIGATE_IN_CENTER_GROUP_PREFIX,
+		[
+			{
+				prefix: NAVIGATE_IN_CENTER_GROUP_PREFIX,
+				needsEditor: false,
+				description: nls.localize('centerEditorGroupPicker', "Show Editors in Center Group")
+			}
+		]
+	)
+);
+
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/browser/parts/editor/editorPicker',
+		'RightEditorGroupPicker',
+		NAVIGATE_IN_RIGHT_GROUP_PREFIX,
+		[
+			{
+				prefix: NAVIGATE_IN_RIGHT_GROUP_PREFIX,
+				needsEditor: false,
+				description: nls.localize('rightEditorGroupPicker', "Show Editors in Right Group")
 			}
 		]
 	)
@@ -311,7 +342,9 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousEditorInGr
 	}
 }), 'Open Previous in Editor Group');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllEditorsAction, ShowAllEditorsAction.ID, ShowAllEditorsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt |  KeyCode.Tab }), 'View: Show All Editors', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, ShowEditorsInGroupAction.LABEL), 'View: Show Editors in Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInLeftGroupAction, ShowEditorsInLeftGroupAction.ID, ShowEditorsInLeftGroupAction.LABEL), 'View: Show Editors in Left Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInCenterGroupAction, ShowEditorsInCenterGroupAction.ID, ShowEditorsInCenterGroupAction.LABEL), 'View: Show Editors in Center Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowEditorsInRightGroupAction, ShowEditorsInRightGroupAction.ID, ShowEditorsInRightGroupAction.LABEL), 'View: Show Editors in Left Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextEditor, OpenNextEditor.ID, OpenNextEditor.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow }

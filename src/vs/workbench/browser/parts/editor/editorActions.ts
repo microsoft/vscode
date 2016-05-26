@@ -861,12 +861,12 @@ export class ReopenClosedEditorAction extends Action {
 	}
 }
 
-export const NAVIGATE_IN_GROUP_PREFIX = '~>';
+export const NAVIGATE_IN_LEFT_GROUP_PREFIX = 'edt left ';
 
-export class ShowEditorsInGroupAction extends QuickOpenAction {
+export class ShowEditorsInLeftGroupAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.showEditorsInGroup';
-	public static LABEL = nls.localize('showEditorsInGroup', "Show Editors in Group");
+	public static ID = 'workbench.action.showEditorsInLeftGroup';
+	public static LABEL = nls.localize('showEditorsInLeftGroup', "Show Editors in Left Group");
 
 	constructor(
 		actionId: string,
@@ -874,19 +874,45 @@ export class ShowEditorsInGroupAction extends QuickOpenAction {
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
-		super(actionId, actionLabel, NAVIGATE_IN_GROUP_PREFIX, quickOpenService);
-	}
-
-	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
-		if (editorIdentifier) {
-			this.editorService.activateGroup(this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group)); // workaround for not having a group specific quick open for opened editors
-		}
-
-		return super.run(editorIdentifier);
+		super(actionId, actionLabel, NAVIGATE_IN_LEFT_GROUP_PREFIX, quickOpenService);
 	}
 }
 
-export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = '~';
+export const NAVIGATE_IN_CENTER_GROUP_PREFIX = 'edt center ';
+
+export class ShowEditorsInCenterGroupAction extends QuickOpenAction {
+
+	public static ID = 'workbench.action.showEditorsInCenterGroup';
+	public static LABEL = nls.localize('showEditorsInCenterGroup', "Show Editors in Center Group");
+
+	constructor(
+		actionId: string,
+		actionLabel: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(actionId, actionLabel, NAVIGATE_IN_CENTER_GROUP_PREFIX, quickOpenService);
+	}
+}
+
+export const NAVIGATE_IN_RIGHT_GROUP_PREFIX = 'edt right ';
+
+export class ShowEditorsInRightGroupAction extends QuickOpenAction {
+
+	public static ID = 'workbench.action.showEditorsInRightGroup';
+	public static LABEL = nls.localize('showEditorsInRightGroup', "Show Editors in Right Group");
+
+	constructor(
+		actionId: string,
+		actionLabel: string,
+		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(actionId, actionLabel, NAVIGATE_IN_RIGHT_GROUP_PREFIX, quickOpenService);
+	}
+}
+
+export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 
 export class ShowAllEditorsAction extends QuickOpenAction {
 
@@ -907,7 +933,8 @@ export class OpenPreviousEditorInGroupAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
 	}
@@ -915,9 +942,22 @@ export class OpenPreviousEditorInGroupAction extends Action {
 	public run(): TPromise<any> {
 		let keys = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(NAVIGATE_IN_GROUP_PREFIX, {
-			keybindings: keys
-		});
+		const stacks = this.editorService.getStacksModel();
+		if (stacks.activeGroup) {
+			const activePosition = stacks.positionOfGroup(stacks.activeGroup);
+			const count = stacks.groups.length;
+			let prefix = NAVIGATE_IN_LEFT_GROUP_PREFIX;
+
+			if (activePosition === Position.CENTER && count === 3) {
+				prefix = NAVIGATE_IN_CENTER_GROUP_PREFIX;
+			} else if (activePosition === Position.RIGHT || (activePosition === Position.CENTER && count === 2)) {
+				prefix = NAVIGATE_IN_RIGHT_GROUP_PREFIX;
+			}
+
+			this.quickOpenService.show(prefix, {
+				keybindings: keys
+			});
+		}
 
 		return TPromise.as(true);
 	}

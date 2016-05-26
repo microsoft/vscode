@@ -15,6 +15,7 @@ import {IAutoFocus, Mode, IContext} from 'vs/base/parts/quickopen/common/quickOp
 import {QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import scorer = require('vs/base/common/scorer');
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
+import {Position} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -93,15 +94,17 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
-		const stacks = this.editorService.getStacksModel();
-		if (!stacks.activeGroup) {
-			return TPromise.as(null);
-		}
-
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 
-		const entries = this.getEditorEntries().filter(e => {
+		const editorEntries = this.getEditorEntries();
+		if (!editorEntries.length) {
+			return TPromise.as(null);
+		}
+
+		const stacks = this.editorService.getStacksModel();
+
+		const entries = editorEntries.filter(e => {
 			if (!searchValue) {
 				return true;
 			}
@@ -149,13 +152,19 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 	protected abstract getEditorEntries(): EditorPickerEntry[];
 }
 
-export class EditorGroupPicker extends BaseEditorPicker {
+export abstract class EditorGroupPicker extends BaseEditorPicker {
 
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const stacks = this.editorService.getStacksModel();
+		const group = stacks.groupAt(this.getPosition());
+		if (!group) {
+			return [];
+		}
 
-		return stacks.activeGroup.getEditors(true).map((editor, index) => this.instantiationService.createInstance(EditorPickerEntry, editor, stacks.activeGroup));
+		return group.getEditors(true).map((editor, index) => this.instantiationService.createInstance(EditorPickerEntry, editor, group));
 	}
+
+	protected abstract getPosition(): Position;
 
 	public getEmptyLabel(searchString: string): string {
 		if (searchString) {
@@ -173,14 +182,40 @@ export class EditorGroupPicker extends BaseEditorPicker {
 		}
 
 		const stacks = this.editorService.getStacksModel();
-		if (!stacks.activeGroup) {
+		const group = stacks.groupAt(this.getPosition());
+		if (!group) {
 			return super.getAutoFocus(searchValue);
 		}
 
 		return {
-			autoFocusFirstEntry: stacks.activeGroup.count === 1,
-			autoFocusSecondEntry: stacks.activeGroup.count > 1
+			autoFocusFirstEntry: group.count === 1,
+			autoFocusSecondEntry: group.count > 1
 		};
+	}
+}
+
+export class LeftEditorGroupPicker extends EditorGroupPicker {
+
+	protected getPosition(): Position {
+		return Position.LEFT;
+	}
+}
+
+export class CenterEditorGroupPicker extends EditorGroupPicker {
+
+	protected getPosition(): Position {
+		const stacks = this.editorService.getStacksModel();
+
+		return stacks.groups.length > 2 ? Position.CENTER : -1; // with 2 groups open, the center one is not available
+	}
+}
+
+export class RightEditorGroupPicker extends EditorGroupPicker {
+
+	protected getPosition(): Position {
+		const stacks = this.editorService.getStacksModel();
+
+		return stacks.groups.length > 2 ? Position.RIGHT : Position.CENTER;
 	}
 }
 
