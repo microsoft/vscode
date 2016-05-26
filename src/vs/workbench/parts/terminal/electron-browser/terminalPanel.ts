@@ -217,6 +217,9 @@ export class TerminalPanel extends Panel {
 	}
 
 	private setTerminalTheme(themeId: string) {
+		if (!this.terminal) {
+			return;
+		}
 		let baseThemeId = getBaseThemeId(themeId);
 		this.terminal.colors = DEFAULT_ANSI_COLORS[baseThemeId];
 		this.terminal.refresh(0, this.terminal.rows);
@@ -227,6 +230,9 @@ export class TerminalPanel extends Panel {
 	}
 
 	private focusTerminal(force?: boolean): void {
+		if (!this.terminal) {
+			return;
+		}
 		let text = window.getSelection().toString();
 		if (!text || force) {
 			this.terminal.focus();
