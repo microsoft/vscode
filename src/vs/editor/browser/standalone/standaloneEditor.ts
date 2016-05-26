@@ -64,13 +64,13 @@ Monaco.Editor.ContentWidgetPositionPreference = ContentWidgetPositionPreference;
 Monaco.Editor.OverlayWidgetPositionPreference = OverlayWidgetPositionPreference;
 
 // Register all built-in standalone languages
-let MonacoEditorLanguages: ILanguageDef[] = this.MonacoEditorLanguages || [];
+let MonacoEditorLanguages: ILanguageDef[] = global.MonacoEditorLanguages || [];
 MonacoEditorLanguages.forEach((language) => {
 	standaloneCodeEditor.registerStandaloneLanguage(language, language.defModule);
 });
 
 // Register all built-in standalone JSON schemas
-let MonacoEditorSchemas: { [url:string]: IJSONSchema } = this.MonacoEditorSchemas || {};
+let MonacoEditorSchemas: { [url:string]: IJSONSchema } = global.MonacoEditorSchemas || {};
 for (var uri in MonacoEditorSchemas) {
 	standaloneCodeEditor.registerStandaloneSchema(uri, MonacoEditorSchemas[uri]);
 }

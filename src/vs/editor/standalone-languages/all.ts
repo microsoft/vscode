@@ -7,8 +7,10 @@
 
 import {ILanguageDef} from './types';
 
-this.MonacoEditorLanguages = this.MonacoEditorLanguages || [];
-let MonacoEditorLanguages: ILanguageDef[] = this.MonacoEditorLanguages;
+var global:any = self;
+
+global.MonacoEditorLanguages = global.MonacoEditorLanguages || [];
+let MonacoEditorLanguages: ILanguageDef[] = global.MonacoEditorLanguages;
 
 MonacoEditorLanguages.push({
 	id: 'bat',
