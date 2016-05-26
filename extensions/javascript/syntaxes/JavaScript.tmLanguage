@@ -67,7 +67,7 @@
 		<key>assignment-operator</key>
 		<dict>
 			<key>match</key>
-			<string>&lt;&lt;=|&gt;&gt;=|&gt;&gt;&gt;=|\*=|(?&lt;!\()/=|%=|\+=|\-=|&amp;=|\^=</string>
+			<string>&lt;&lt;=|&gt;&gt;&gt;=|&gt;&gt;=|\*=|(?&lt;!\()/=|%=|\+=|\-=|&amp;=|\^=</string>
 			<key>name</key>
 			<string>keyword.operator.assignment.js</string>
 		</dict>
@@ -1097,7 +1097,7 @@
 		<key>logic-operator</key>
 		<dict>
 			<key>match</key>
-			<string>\!|&amp;|~|\^|\||&amp;&amp;|\|\|</string>
+			<string>\!|&amp;&amp;|&amp;|~|\^|\|\||\|</string>
 			<key>name</key>
 			<string>keyword.operator.arithmetic.js</string>
 		</dict>
@@ -1268,7 +1268,7 @@
 		<key>numeric-literal</key>
 		<dict>
 			<key>match</key>
-			<string>\b(?&lt;=[^$])((0(x|X)[0-9a-fA-F]+)|(([0-9]+(\.[0-9]+)?))([eE]([+-]?)[0-9]+(\.[0-9]+)?)?)\b</string>
+			<string>\b(?&lt;=[^$])((0(x|X)[0-9a-fA-F]+)|(0(o|O)[0-7]+)|(0(b|B)(0|1)+)|(([0-9]+(\.[0-9]+)?))([eE]([+-]?)[0-9]+(\.[0-9]+)?)?)\b</string>
 			<key>name</key>
 			<string>constant.numeric.js</string>
 		</dict>
@@ -1614,7 +1614,7 @@
 		<key>relational-operator</key>
 		<dict>
 			<key>match</key>
-			<string>===|==|=|!=|!==|&lt;=|&gt;=|&lt;&gt;|&lt;|&gt;</string>
+			<string>===|!==|==|!=|&lt;=|&gt;=|&lt;&gt;|=|&lt;|&gt;</string>
 			<key>name</key>
 			<string>keyword.operator.comparison.js</string>
 		</dict>
@@ -1904,7 +1904,7 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>support.type.js</string>
+					<string>entity.name.class.js</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -2253,4 +2253,3 @@
 	<string>805375ec-d614-41f5-8993-5843fe63ea82</string>
 </dict>
 </plist>
-
