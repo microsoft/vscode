@@ -21,17 +21,15 @@ import * as semver from 'semver';
 
 const CloseAction = new Action('close', nls.localize('close', "Close"), '', true, () => null);
 
-const ShowLicenseAction = (licenseUrl: string) => new Action(
-	'update.showLicense',
-	nls.localize('license', "Read License"),
-	null,
-	true,
+const LinkAction = (id: string, message: string, licenseUrl: string) => new Action(
+	id, message, null, true,
 	() => { shell.openExternal(licenseUrl); return TPromise.as(null); }
 );
 
 export class UpdateContribution implements IWorkbenchContribution {
 
 	private static KEY = 'releaseNotes/lastVersion';
+	private static INSIDER_KEY = 'releaseNotes/shouldShowInsiderDisclaimer';
 	getId() { return 'vs.update'; }
 
 	constructor(
@@ -52,7 +50,6 @@ export class UpdateContribution implements IWorkbenchContribution {
 						ShowReleaseNotesAction(env.releaseNotesUrl, true)
 					]
 				});
-
 			}, 0);
 		}
 
@@ -63,10 +60,32 @@ export class UpdateContribution implements IWorkbenchContribution {
 					message: nls.localize('licenseChanged', "Our license terms have changed, please go through them.", env.appName, env.version),
 					actions: [
 						CloseAction,
-						ShowLicenseAction(env.licenseUrl)
+						LinkAction('update.showLicense', nls.localize('license', "Read License"), env.licenseUrl)
 					]
 				});
+			}, 0);
+		}
 
+		const shouldShowInsiderDisclaimer = storageService.getBoolean(UpdateContribution.INSIDER_KEY, StorageScope.GLOBAL, true);
+
+		// is this a build which releases often?
+		if (shouldShowInsiderDisclaimer && /-alpha$|-insider$/.test(env.version)) {
+			setTimeout(() => {
+				messageService.show(Severity.Info, {
+					message: nls.localize('insiderBuilds', "Insider builds are becoming daily builds!", env.appName, env.version),
+					actions: [
+						CloseAction,
+						new Action('update.neverAgain', nls.localize('neverShowAgain', "Never Show Again"), '', true, () => {
+							storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
+							return TPromise.as(null);
+						}),
+						new Action('update.insiderBuilds', nls.localize('readmore', "Read More"), '', true, () => {
+							shell.openExternal('http://go.microsoft.com/fwlink/?LinkID=798816');
+							storageService.store(UpdateContribution.INSIDER_KEY, false, StorageScope.GLOBAL);
+							return TPromise.as(null);
+						})
+					]
+				});
 			}, 0);
 		}
 
