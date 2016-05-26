@@ -8,8 +8,9 @@
 import * as nls from 'vs/nls';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
-this.MonacoEditorSchemas = this.MonacoEditorSchemas || {};
-let MonacoEditorSchemas: { [uri:string]:IJSONSchema } = this.MonacoEditorSchemas;
+var global:any = self;
+global.MonacoEditorSchemas = global.MonacoEditorSchemas || {};
+let MonacoEditorSchemas: { [uri:string]:IJSONSchema } = global.MonacoEditorSchemas;
 
 MonacoEditorSchemas['http://json.schemastore.org/project'] = {
 	'title': nls.localize('project.json.title', 'JSON schema for ASP.NET project.json files'),

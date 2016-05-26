@@ -31,13 +31,13 @@ global.monaco.editor = createMonacoEditorAPI();
 global.monaco.languages = createMonacoLanguagesAPI();
 
 // Register all built-in standalone languages
-let MonacoEditorLanguages: ILanguageDef[] = this.MonacoEditorLanguages || [];
+let MonacoEditorLanguages: ILanguageDef[] = global.MonacoEditorLanguages || [];
 MonacoEditorLanguages.forEach((language) => {
 	registerMonarchStandaloneLanguage(language, language.defModule);
 });
 
 // Register all built-in standalone JSON schemas
-let MonacoEditorSchemas: { [url:string]: IJSONSchema } = this.MonacoEditorSchemas || {};
+let MonacoEditorSchemas: { [url:string]: IJSONSchema } = global.MonacoEditorSchemas || {};
 for (var uri in MonacoEditorSchemas) {
 	registerStandaloneSchema(uri, MonacoEditorSchemas[uri]);
 }
