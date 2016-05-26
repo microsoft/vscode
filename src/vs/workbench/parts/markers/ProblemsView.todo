@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+Problems Panel:
+	☐ Tree view grouped by file
+	☐ Show the badge count #no of markers at each file
+	☐ Show the total count at the top in the label
+	☐ Click or Enter on the marker open the file at that marker
+	☐ No clear button to remove the markers / file from the panel
+	☐ Sorting Files and markers inside
