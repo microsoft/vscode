@@ -61,9 +61,9 @@ export class SaveParticipant implements IWorkbenchContribution {
 		let prevSelection: Selection[] = [Selection.createSelection(1, 1, 1, 1)];
 		let cursors: IPosition[] = [];
 
-		// If this is auto save, try to find active cursors to prevent removing
-		// whitespace automatically while the user is typing at the end of a line
-		if (isAutoSaved && model.isAttachedToEditor()) {
+		// Find `prevSelection` in any case do ensure a good undo stack when pushing the edit
+		// Collect active cursors in `cursors` only if `isAutoSaved` to avoid having the cursors jump
+		if (model.isAttachedToEditor()) {
 			let allEditors = this.codeEditorService.listCodeEditors();
 			for (let i = 0, len = allEditors.length; i < len; i++) {
 				let editor = allEditors[i];
@@ -75,12 +75,14 @@ export class SaveParticipant implements IWorkbenchContribution {
 
 				if (model === editorModel) {
 					prevSelection = editor.getSelections();
-					cursors.push(...prevSelection.map(s => {
-						return {
-							lineNumber: s.positionLineNumber,
-							column: s.positionColumn
-						};
-					}));
+					if (isAutoSaved) {
+						cursors.push(...prevSelection.map(s => {
+							return {
+								lineNumber: s.positionLineNumber,
+								column: s.positionColumn
+							};
+						}));
+					}
 				}
 			}
 		}
