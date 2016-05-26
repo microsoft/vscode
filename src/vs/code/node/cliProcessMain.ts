@@ -59,9 +59,8 @@ class Main {
 	}
 
 	private installExtension(ids: string[]): TPromise<any> {
-		return this.extensionManagementService.getInstalled().then(installed => {
-			return sequence(ids.map(id => () => {
-
+		return sequence(ids.map(id => () => {
+			return this.extensionManagementService.getInstalled().then(installed => {
 				const isInstalled = installed.some(e => getExtensionId(e) === id);
 
 				if (isInstalled) {
@@ -93,8 +92,8 @@ class Main {
 							console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version));
 						});
 					});
-			}));
-		});
+			});
+		}));
 	}
 
 	private uninstallExtension(ids: string[]): TPromise<any> {
