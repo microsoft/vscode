@@ -1541,6 +1541,14 @@ export class OneCursorOp {
 			ctx.executeCommand = new ReplaceCommand(selection, typeText);
 			return true;
 		} else {
+			if (selection.startLineNumber === selection.endLineNumber) {
+				let lineMaxColumn = cursor.model.getLineMaxColumn(selection.startLineNumber);
+				if (selection.startColumn !== 1 || selection.endColumn !== lineMaxColumn) {
+					// This is a single line selection that is not the entire line
+					ctx.executeCommand = new ReplaceCommand(selection, '\t');
+					return true;
+				}
+			}
 			return this.indent(cursor, ctx);
 		}
 	}
