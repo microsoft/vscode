@@ -219,7 +219,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		const type = options.ids ? 'ids' : (options.text ? 'text' : 'all');
 		const text = options.text || '';
-		const pageSize = getOrDefault(options, o => o.pageSize, 30);
+		const pageSize = getOrDefault(options, o => o.pageSize, 50);
 
 		this.telemetryService.publicLog('galleryService:query', { type, text });
 

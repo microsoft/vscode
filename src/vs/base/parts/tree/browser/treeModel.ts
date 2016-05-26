@@ -391,6 +391,10 @@ export class Item extends Events.EventEmitter {
 			}
 
 			const result = childrenPromise.then((elements: any[]) => {
+				if (this.isDisposed()) {
+					return WinJS.TPromise.as(null);
+				}
+
 				elements = !elements ? [] : elements.slice(0);
 				elements = this.sort(elements);
 

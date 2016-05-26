@@ -36,7 +36,7 @@ function extensionEquals(one: IExtensionManifest, other: IExtensionManifest): bo
 	return one.publisher === other.publisher && one.name === other.name;
 }
 
-const OutdatedPeriod = 4 * 60 * 60 * 1000; // every 4 hours
+const OutdatedPeriod = 12 * 60 * 60 * 1000; // every 12 hours
 
 export class ExtensionsStatusbarItem implements IStatusbarItem {
 

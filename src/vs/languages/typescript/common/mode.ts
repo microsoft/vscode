@@ -73,6 +73,11 @@ const richEditConfiguration:IRichEditConfiguration = {
 			// e.g.  */|
 			beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 			action: { indentAction: modes.IndentAction.None, removeText: 1 }
+		},
+		{
+			// e.g.  *-----*/|
+			beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+			action: { indentAction: modes.IndentAction.None, removeText: 1 }
 		}
 	],
 

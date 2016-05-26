@@ -11,19 +11,78 @@ import path = require('path');
 import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
+import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStringDictionary} from 'vs/base/common/collections';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ITerminalConfiguration, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
+import {ITerminalConfiguration, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {Panel} from 'vs/workbench/browser/panel';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
 const TERMINAL_CHAR_WIDTH = 8;
 const TERMINAL_CHAR_HEIGHT = 18;
+
+const DEFAULT_ANSI_COLORS = {
+	'hc-black': [
+		'#000000', // black
+		'#cd0000', // red
+		'#00cd00', // green
+		'#cdcd00', // yellow
+		'#0000ee', // blue
+		'#cd00cd', // magenta
+		'#00cdcd', // cyan
+		'#e5e5e5', // white
+		'#7f7f7f', // bright black
+		'#ff0000', // bright red
+		'#00ff00', // bright green
+		'#ffff00', // bright yellow
+		'#5c5cff', // bright blue
+		'#ff00ff', // bright magenta
+		'#00ffff', // bright cyan
+		'#ffffff'  // bright white
+	],
+	'vs': [
+		'#000000', // black
+		'#cd3131', // red
+		'#008000', // green
+		'#949800', // yellow
+		'#2472c8', // blue
+		'#bc05bc', // magenta
+		'#0598bc', // cyan
+		'#555555', // white
+		'#666666', // bright black
+		'#cd3131', // bright red
+		'#00aa00', // bright green
+		'#b5ba00', // bright yellow
+		'#2b89ef', // bright blue
+		'#bc05bc', // bright magenta
+		'#0598bc', // bright cyan
+		'#a5a5a5'  // bright white
+	],
+	'vs-dark': [
+		'#000000', // black
+		'#cd3131', // red
+		'#09885a', // green
+		'#e5e510', // yellow
+		'#0451a5', // blue
+		'#bc05bc', // magenta
+		'#0598bc', // cyan
+		'#e5e5e5', // white
+		'#111111', // bright black
+		'#cd3131', // bright red
+		'#09885a', // bright green
+		'#e5e510', // bright yellow
+		'#0451a5', // bright blue
+		'#bc05bc', // bright magenta
+		'#0598bc', // bright cyan
+		'#e5e5e5'  // bright white
+	]
+};
 
 export class TerminalPanel extends Panel {
 
@@ -37,7 +96,8 @@ export class TerminalPanel extends Panel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
 		this.toDispose = [];
@@ -132,15 +192,24 @@ export class TerminalPanel extends Panel {
 					this.focusTerminal();
 				}
 			}));
+			this.toDispose.push(this.themeService.onDidThemeChange((themeId) => {
+				this.setTerminalTheme(themeId);
+			}));
 
 			this.terminal.open(this.terminalDomElement);
 			this.parentDomElement.appendChild(terminalScrollbar.getDomNode());
 
 			let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 			this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
-			this.terminal.colors = this.getTerminalColors();
+			this.setTerminalTheme(this.themeService.getTheme());
 			resolve(void 0);
 		});
+	}
+
+	private setTerminalTheme(themeId: string) {
+		let baseThemeId = getBaseThemeId(themeId);
+		this.terminal.colors = DEFAULT_ANSI_COLORS[baseThemeId];
+		this.terminal.refresh(0, this.terminal.rows);
 	}
 
 	public focus(): void {
@@ -166,29 +235,6 @@ export class TerminalPanel extends Panel {
 			return config.integratedTerminal.shell.osx;
 		}
 		return config.integratedTerminal.shell.linux;
-	}
-
-	private getTerminalColors(): string[] {
-		let config = this.configurationService.getConfiguration<ITerminalConfiguration>().integratedTerminal.ansiColors;
-		let colors = [
-			config.black,
-			config.red,
-			config.green,
-			config.yellow,
-			config.blue,
-			config.magenta,
-			config.cyan,
-			config.white,
-			config.brightBlack,
-			config.brightRed,
-			config.brightGreen,
-			config.brightYellow,
-			config.brightBlue,
-			config.brightMagenta,
-			config.brightCyan,
-			config.brightWhite
-		];
-		return colors;
 	}
 
 	public dispose(): void {

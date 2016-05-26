@@ -721,6 +721,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
+			case State.Empty:
+				return false;
 			case State.Loading:
 				return !this.isAuto;
 			default:

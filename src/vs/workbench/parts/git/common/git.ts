@@ -23,6 +23,7 @@ export interface IRawFileStatus {
 
 export interface IRemote {
 	name: string;
+	url: string;
 }
 
 export interface IHead {

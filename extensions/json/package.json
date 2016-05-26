@@ -27,7 +27,8 @@
 					".bowerrc",
 					".jshintrc",
 					".jscsrc",
-					".eslintrc"
+					".eslintrc",
+					".babelrc"
 				],
 				"mimetypes": [
 					"application/json"

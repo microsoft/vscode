@@ -6,6 +6,7 @@
 import * as os from 'os';
 import * as minimist from 'minimist';
 import pkg from 'vs/platform/package';
+import { localize } from 'vs/nls';
 
 export interface ParsedArgs extends minimist.ParsedArgs {
 	help: boolean;
@@ -76,29 +77,32 @@ export function parseArgs(args: string[]) {
 }
 
 const executable = 'code' + (os.platform() === 'win32' ? '.exe' : '');
-const indent = '  ';
+
+export const optionsHelp: { [name: string]: string; } = {
+	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
+	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
+	'-g, --goto': localize('goto', "Open the file at path at the line and column (add :line[:column] to path)."),
+	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
+	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
+	'-r, --reuse-window': localize('reuseWindow', "Force opening a file or folder in the last active window."),
+	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
+	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
+	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
+	'--list-extensions': localize('listExtensions', "List the installed extensions."),
+	'--install-extension <extension>': localize('installExtension', "Installs an extension."),
+	'--uninstall-extension <extension>': localize('uninstallExtension', "Uninstalls an extension."),
+	'-v, --version': localize('version', "Print version."),
+	'-h, --help': localize('help', "Print usage.")
+};
+
+function formatOptions(options: { [name: string]: string; }): string {
+	return Object.keys(options)
+		.reduce((r, key) => r.concat([`  ${ key }`, `      ${ options[key] }`]), []).join('\n');
+}
+
 export const helpMessage = `Visual Studio Code v${ pkg.version }
 
 Usage: ${ executable } [arguments] [paths...]
 
 Options:
-${ indent }-d, --diff            Open a diff editor. Requires to pass two file paths
-${ indent }                      as arguments.
-${ indent }--disable-extensions  Disable all installed extensions.
-${ indent }-g, --goto            Open the file at path at the line and column (add
-${ indent }                      :line[:column] to path).
-${ indent }-h, --help            Print usage.
-${ indent }--locale <locale>     The locale to use (e.g. en-US or zh-TW).
-${ indent }-n, --new-window      Force a new instance of Code.
-${ indent }-r, --reuse-window    Force opening a file or folder in the last active
-${ indent }                      window.
-${ indent }--user-data-dir <dir> Specifies the directory that user data is kept in,
-${ indent }                      useful when running as root.
-${ indent }--verbose             Print verbose output (implies --wait).
-${ indent }-v, --version         Print version.
-${ indent }-w, --wait            Wait for the window to be closed before returning.
-${ indent }--list-extensions     List the installed extensions.
-${ indent }--install-extension <extension>
-${ indent }                      Installs an extension.
-${ indent }--uninstall-extension <extension>
-${ indent }                      Uninstalls an extension.`;
+${formatOptions(optionsHelp)}`;

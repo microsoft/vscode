@@ -88,7 +88,10 @@ export class Client implements IClient, IDisposable {
 				}
 
 				this.activeRequests.splice(this.activeRequests.indexOf(result), 1);
-				this.disposeDelayer.trigger(() => this.disposeClient());
+
+				if (this.activeRequests.length === 0) {
+					this.disposeDelayer.trigger(() => this.disposeClient());
+				}
 			});
 		}, () => request.cancel());
 

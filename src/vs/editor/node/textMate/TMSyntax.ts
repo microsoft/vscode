@@ -64,6 +64,9 @@ export class MainProcessTextMateSyntax {
 		@IModeService modeService: IModeService
 	) {
 		this._modeService = modeService;
+		this._scopeNameToFilePath = {};
+		this._injections = {};
+
 		this._grammarRegistry = new Registry({
 			getFilePath: (scopeName:string) => {
 				return this._scopeNameToFilePath[scopeName];
@@ -72,8 +75,6 @@ export class MainProcessTextMateSyntax {
 				return this._injections[scopeName];
 			}
 		});
-		this._scopeNameToFilePath = {};
-		this._injections = {};
 
 		grammarsExtPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
@@ -109,6 +110,16 @@ export class MainProcessTextMateSyntax {
 		}
 
 		this._scopeNameToFilePath[syntax.scopeName] = normalizedAbsolutePath;
+
+		if (syntax.injectTo) {
+			for (let injectScope of syntax.injectTo) {
+				let injections = this._injections[injectScope];
+				if (!injections) {
+					this._injections[injectScope] = injections = [];
+				}
+				injections.push(syntax.scopeName);
+			}
+		}
 
 		let modeId = syntax.language;
 		if (modeId) {
