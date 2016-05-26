@@ -191,17 +191,17 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private initActions(): void {
 
 		// Close
-		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL));
+		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close")));
 
 		// Show Editors of Group
 		this.showEditorsOfGroup = POSITIONS.map((position) => {
 			switch (position) {
 				case Position.LEFT:
-					return this.instantiationService.createInstance(ShowEditorsInLeftGroupAction, ShowEditorsInLeftGroupAction.ID, ShowEditorsInLeftGroupAction.LABEL);
+					return this.instantiationService.createInstance(ShowEditorsInLeftGroupAction, ShowEditorsInLeftGroupAction.ID, nls.localize('showEditors', "Show Editors"));
 				case Position.CENTER:
-					return this.instantiationService.createInstance(ShowEditorsInCenterGroupAction, ShowEditorsInCenterGroupAction.ID, ShowEditorsInCenterGroupAction.LABEL);
+					return this.instantiationService.createInstance(ShowEditorsInCenterGroupAction, ShowEditorsInCenterGroupAction.ID, nls.localize('showEditors', "Show Editors"));
 				default:
-					return this.instantiationService.createInstance(ShowEditorsInRightGroupAction, ShowEditorsInRightGroupAction.ID, ShowEditorsInRightGroupAction.LABEL);
+					return this.instantiationService.createInstance(ShowEditorsInRightGroupAction, ShowEditorsInRightGroupAction.ID, nls.localize('showEditors', "Show Editors"));
 			}
 		});
 
@@ -1237,12 +1237,12 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			let input = editor ? editor.input : null;
 
 			if (input && editor) {
-				this.doUpdateEditorTitleArea(editor, input, state.position, !input.matches(state.preview), activePosition === state.position, state.editorCount > 1);
+				this.doUpdateEditorTitleArea(editor, input, state.position, !input.matches(state.preview), activePosition === state.position, state.editorCount > 1, states.length);
 			}
 		});
 	}
 
-	private doUpdateEditorTitleArea(editor: BaseEditor, input: EditorInput, position: Position, isPinned: boolean, isActive: boolean, isOverflowing: boolean): void {
+	private doUpdateEditorTitleArea(editor: BaseEditor, input: EditorInput, position: Position, isPinned: boolean, isActive: boolean, isOverflowing: boolean, groupCount: number): void {
 		let primaryActions: IAction[] = [];
 		let secondaryActions: IAction[] = [];
 
@@ -1267,7 +1267,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		// Apply to title in side by side control
-		this.setTitle(position, input, prepareActions(primaryActions), prepareActions(secondaryActions), isPinned, isActive, isOverflowing);
+		this.setTitle(position, input, prepareActions(primaryActions), prepareActions(secondaryActions), isPinned, isActive, isOverflowing, groupCount);
 	}
 
 	private getEditorActionsForContext(context: BaseEditor, editor: BaseEditor, position: Position): IEditorActions;
@@ -1293,7 +1293,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		};
 	}
 
-	private setTitle(position: Position, input: EditorInput, primaryActions: IAction[], secondaryActions: IAction[], isPinned: boolean, isActive: boolean, isOverflowing: boolean): void {
+	private setTitle(position: Position, input: EditorInput, primaryActions: IAction[], secondaryActions: IAction[], isPinned: boolean, isActive: boolean, isOverflowing: boolean, groupCount: number): void {
 
 		// Editor Title (Status + Label + Description)
 		this.setTitleLabel(position, input, isPinned, isActive);
@@ -1304,9 +1304,14 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		}
 
 		if (isOverflowing) {
-			this.showEditorsOfGroup[position].class = 'show-group-editors-action';
-			this.showEditorsOfGroup[position].enabled = true;
-			primaryActions.unshift(this.showEditorsOfGroup[position]);
+			let actionPosition = position;
+			if (groupCount === 2 && position === Position.CENTER) {
+				actionPosition = Position.RIGHT; // with 2 groups, CENTER === RIGHT
+			}
+
+			this.showEditorsOfGroup[actionPosition].class = 'show-group-editors-action';
+			this.showEditorsOfGroup[actionPosition].enabled = true;
+			primaryActions.unshift(this.showEditorsOfGroup[actionPosition]);
 		}
 
 		// Secondary Actions
