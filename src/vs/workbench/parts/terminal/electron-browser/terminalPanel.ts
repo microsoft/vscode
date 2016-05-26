@@ -51,7 +51,7 @@ const DEFAULT_ANSI_COLORS = {
 		'#cd3131', // red
 		'#008000', // green
 		'#949800', // yellow
-		'#2472c8', // blue
+		'#0451a5', // blue
 		'#bc05bc', // magenta
 		'#0598bc', // cyan
 		'#555555', // white
@@ -59,7 +59,7 @@ const DEFAULT_ANSI_COLORS = {
 		'#cd3131', // bright red
 		'#00aa00', // bright green
 		'#b5ba00', // bright yellow
-		'#2b89ef', // bright blue
+		'#0451a5', // bright blue
 		'#bc05bc', // bright magenta
 		'#0598bc', // bright cyan
 		'#a5a5a5'  // bright white
@@ -69,17 +69,17 @@ const DEFAULT_ANSI_COLORS = {
 		'#cd3131', // red
 		'#09885a', // green
 		'#e5e510', // yellow
-		'#0451a5', // blue
-		'#bc05bc', // magenta
-		'#0598bc', // cyan
+		'#2472c8', // blue
+		'#bc3fbc', // magenta
+		'#11a8cd', // cyan
 		'#e5e5e5', // white
-		'#111111', // bright black
-		'#cd3131', // bright red
-		'#09885a', // bright green
-		'#e5e510', // bright yellow
-		'#0451a5', // bright blue
-		'#bc05bc', // bright magenta
-		'#0598bc', // bright cyan
+		'#666666', // bright black
+		'#f14c4c', // bright red
+		'#17a773', // bright green
+		'#f5f543', // bright yellow
+		'#3b8eea', // bright blue
+		'#d670d6', // bright magenta
+		'#29b8db', // bright cyan
 		'#e5e5e5'  // bright white
 	]
 };
