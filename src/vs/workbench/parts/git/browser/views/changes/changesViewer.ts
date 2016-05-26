@@ -364,6 +364,7 @@ export class Renderer implements tree.IRenderer {
 		}
 
 		data.name.textContent = rename || name;
+		data.name.title = renamePath || path;
 		data.folder.textContent = toReadablePath(renameFolder || folder);
 	}
 
