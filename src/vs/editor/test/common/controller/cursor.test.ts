@@ -1468,7 +1468,7 @@ suite('Editor Controller - Regression tests', () => {
 	test('issue #4312: trying to type a tab character over a sequence of spaces results in unexpected behaviour', () => {
 		usingCursor({
 			text: [
-				'var foo = 123;       // this is a comment'
+				'var foo = 123;       // this is a comment',
 				'var bar = 4;       // another comment'
 			],
 			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
