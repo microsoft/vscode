@@ -259,6 +259,11 @@ export interface IEditorOptions {
 	 */
 	fontLigatures?:boolean;
 	/**
+	 * Disable the use of `translate3d`.
+	 * Defaults to false.
+	 */
+	disableTranslate3d?:boolean;
+	/**
 	 * Should the cursor be hidden in the overview ruler.
 	 * Defaults to false.
 	 */
