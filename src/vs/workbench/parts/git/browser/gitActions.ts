@@ -1029,9 +1029,15 @@ export class PublishAction extends GitAction {
 
 			promise = TPromise.as(result ? remoteName : null);
 		} else {
-			promise = this.quickOpenService.pick(remotes.map(r => r.name), {
-				placeHolder: nls.localize('publishPickMessage', "Pick a remote to publish the branch '{0}' to:", branchName)
-			});
+			const picks = remotes.map(({ name, url }) => ({
+				label: name,
+				description: url
+			}));
+
+			const placeHolder = nls.localize('publishPickMessage', "Pick a remote to publish the branch '{0}' to:", branchName);
+
+			promise = this.quickOpenService.pick(picks, { placeHolder })
+				.then(pick => pick && pick.label);
 		}
 
 		return promise

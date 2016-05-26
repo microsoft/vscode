@@ -11,6 +11,7 @@ import objects = require('vs/base/common/objects');
 import uuid = require('vs/base/common/uuid');
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
+import { uniqueFilter } from 'vs/base/common/arrays';
 import { IRawFileStatus, IHead, ITag, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import { detectMimesFromStream } from 'vs/base/node/mime';
 import files = require('vs/platform/files/common/files');
@@ -637,12 +638,17 @@ export class Repository {
 	}
 
 	public getRemotes(): TPromise<IRemote[]> {
-		return this.run(['remote'], { log: false })
+		const regex = /^([^\s]+)\s+([^\s]+)\s/;
+
+		return this.run(['remote', '--verbose'], { log: false })
 			.then(result => result.stdout
 				.trim()
 				.split('\n')
 				.filter(b => !!b)
-				.map(name => ({ name }))
+				.map(line => regex.exec(line))
+				.filter(g => !!g)
+				.map(groups => ({ name: groups[1], url: groups[2] }))
+				.filter(uniqueFilter<{ name: string; }>(g => g.name))
 			);
 	}
 
