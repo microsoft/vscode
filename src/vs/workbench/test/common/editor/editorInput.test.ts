@@ -14,7 +14,7 @@ class MyEditorInput extends EditorInput {
 		return 'text/css';
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return '';
 	}
 

@@ -117,11 +117,6 @@ export enum Direction {
 export interface IEditorInput extends IEventEmitter {
 
 	/**
-	 * Returns the identifier of this input or null if none.
-	 */
-	getId(): string;
-
-	/**
 	 * Returns the display name of this input.
 	 */
 	getName(): string;

@@ -133,7 +133,7 @@ export class ResourceEditorInput extends EditorInput {
 		this.resource = resource;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return ResourceEditorInput.ID;
 	}
 

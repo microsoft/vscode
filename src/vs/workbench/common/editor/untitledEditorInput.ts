@@ -48,7 +48,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		this.modeId = modeId;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return UntitledEditorInput.ID;
 	}
 

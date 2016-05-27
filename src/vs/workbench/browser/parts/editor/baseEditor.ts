@@ -450,7 +450,7 @@ export class EditorInputActionContributor extends ActionBarContributor {
 
 	/* Subclasses can override to provide a custom cache implementation */
 	protected toId(context: IEditorInputActionContext): string {
-		return context.editor.getId() + context.input.getId();
+		return context.editor.getId() + context.input.getTypeId();
 	}
 
 	private clearInputsFromCache(position: Position, isPrimary: boolean): void {

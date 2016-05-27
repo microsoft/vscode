@@ -63,7 +63,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 		return this._toUnbind;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return DiffEditorInput.ID;
 	}
 

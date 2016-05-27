@@ -175,7 +175,7 @@ export class EditorHistoryModel extends QuickOpenModel {
 		}
 
 		// Using the factory we try to recreate the input
-		const factory = this.registry.getEditorInputFactory(input.getId());
+		const factory = this.registry.getEditorInputFactory(input.getTypeId());
 		if (factory) {
 			const inputRaw = factory.serialize(input);
 			if (inputRaw) {
@@ -217,12 +217,12 @@ export class EditorHistoryModel extends QuickOpenModel {
 			let entry = this.entries[i];
 			let input = (<EditorHistoryEntry>entry).getInput();
 
-			let factory = this.registry.getEditorInputFactory(input.getId());
+			let factory = this.registry.getEditorInputFactory(input.getTypeId());
 			if (factory) {
 				let value = factory.serialize(input);
 				if (types.isString(value)) {
 					entries.push({
-						id: input.getId(),
+						id: input.getTypeId(),
 						value: value
 					});
 				}

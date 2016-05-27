@@ -33,11 +33,6 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 
 	/**
-	 * Returns the unique id of this input.
-	 */
-	public abstract getId(): string;
-
-	/**
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
 	 * above the editor area when the input is shown.
 	 */
@@ -54,6 +49,11 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	public getDescription(verbose?: boolean): string {
 		return null;
 	}
+
+	/**
+	 * Returns the unique type identifier of this input.
+	 */
+	public abstract getTypeId(): string;
 
 	/**
 	 * Returns the preferred editor for this input. A list of candidate editors is passed in that whee registered

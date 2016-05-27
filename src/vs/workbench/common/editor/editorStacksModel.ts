@@ -556,11 +556,11 @@ export class EditorGroup implements IEditorGroup {
 		let serializedEditors: ISerializedEditorInput[] = [];
 		let serializablePreviewIndex: number;
 		this.editors.forEach(e => {
-			let factory = registry.getEditorInputFactory(e.getId());
+			let factory = registry.getEditorInputFactory(e.getTypeId());
 			if (factory) {
 				let value = factory.serialize(e);
 				if (typeof value === 'string') {
-					serializedEditors.push({ id: e.getId(), value });
+					serializedEditors.push({ id: e.getTypeId(), value });
 					serializableEditors.push(e);
 
 					if (this.preview === e) {
@@ -1095,11 +1095,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		if (event.pinned) {
 			const registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 
-			const factory = registry.getEditorInputFactory(editor.getId());
+			const factory = registry.getEditorInputFactory(editor.getTypeId());
 			if (factory) {
 				let value = factory.serialize(editor);
 				if (typeof value === 'string') {
-					this.recentlyClosedEditors.push({ id: editor.getId(), value });
+					this.recentlyClosedEditors.push({ id: editor.getTypeId(), value });
 					if (this.recentlyClosedEditors.length > EditorStacksModel.MAX_RECENTLY_CLOSED_EDITORS) {
 						this.recentlyClosedEditors = this.recentlyClosedEditors.slice(this.recentlyClosedEditors.length - EditorStacksModel.MAX_RECENTLY_CLOSED_EDITORS); // upper bound of recently closed
 					}

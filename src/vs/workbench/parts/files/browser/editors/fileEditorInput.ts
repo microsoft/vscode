@@ -111,7 +111,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return FILE_EDITOR_INPUT_ID;
 	}
 

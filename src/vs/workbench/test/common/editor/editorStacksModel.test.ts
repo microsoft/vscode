@@ -94,7 +94,7 @@ class TestEditorInput extends EditorInput {
 	constructor(public id: string) {
 		super();
 	}
-	public getId() { return 'testEditorInput'; }
+	public getTypeId() { return 'testEditorInput'; }
 	public resolve() { return null; }
 
 	public matches(other: TestEditorInput): boolean {
@@ -106,7 +106,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 	constructor(public id: string) {
 		super();
 	}
-	public getId() { return 'testEditorInput-nonSerializable'; }
+	public getTypeId() { return 'testEditorInput-nonSerializable'; }
 	public resolve() { return null; }
 
 	public matches(other: TestEditorInput): boolean {
