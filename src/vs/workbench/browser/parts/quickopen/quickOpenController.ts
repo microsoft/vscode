@@ -29,7 +29,7 @@ import {EditorHistoryModel} from 'vs/workbench/browser/parts/quickopen/editorHis
 import {EditorInput} from 'vs/workbench/common/editor';
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -435,7 +435,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 				// Set input
 				if (!this.pickOpenWidget.isVisible()) {
-					this.pickOpenWidget.show(model, void 0, autoFocus);
+					this.pickOpenWidget.show(model, { autoFocus });
 				} else {
 					this.pickOpenWidget.setInput(model, autoFocus);
 				}
@@ -487,7 +487,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		return this.show(this.previousValue);
 	}
 
-	public show(prefix?: string, quickNavigateConfiguration?: IQuickNavigateConfiguration): TPromise<void> {
+	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
+		let quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
+
 		this.previousValue = prefix;
 
 		let promiseCompletedOnHide = new TPromise<void>((c) => {
@@ -505,7 +507,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 
 		if (handlerDescriptor) {
-			this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: !!quickNavigateConfiguration });
+			this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
 		}
 
 		// Create upon first open
@@ -548,7 +550,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		// Show quick open with prefix or editor history
 		if (!this.quickOpenWidget.isVisible() || quickNavigateConfiguration) {
 			if (prefix) {
-				this.quickOpenWidget.show(prefix, quickNavigateConfiguration);
+				this.quickOpenWidget.show(prefix, { quickNavigateConfiguration });
 			} else {
 				let editorHistory = this.getEditorHistoryModelWithGroupLabel();
 				if (editorHistory.getEntries().length < 2) {
@@ -563,7 +565,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					autoFocus = { autoFocusFirstEntry: visibleEditorCount === 0, autoFocusSecondEntry: visibleEditorCount !== 0 };
 				}
 
-				this.quickOpenWidget.show(editorHistory, quickNavigateConfiguration, autoFocus);
+				this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus });
 			}
 		}
 

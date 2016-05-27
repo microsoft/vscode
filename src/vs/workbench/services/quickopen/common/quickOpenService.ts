@@ -74,6 +74,10 @@ export interface IInputOptions {
 	validateInput?: (input: string) => TPromise<string>;
 }
 
+export interface IShowOptions {
+	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+}
+
 export var IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');
 
 export interface IQuickOpenService {
@@ -86,7 +90,7 @@ export interface IQuickOpenService {
 	 *
 	 * The returned promise completes when quick open is closing.
 	 */
-	show(prefix?: string, quickNavigateConfiguration?: IQuickNavigateConfiguration): TPromise<void>;
+	show(prefix?: string, options?: IShowOptions): TPromise<void>;
 
 	/**
 	 * Refreshes the quick open control. No-op, if the control is hidden.

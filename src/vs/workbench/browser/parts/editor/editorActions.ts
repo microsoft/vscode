@@ -960,9 +960,7 @@ export class OpenPreviousEditorInGroupAction extends Action {
 				prefix = NAVIGATE_IN_RIGHT_GROUP_PREFIX;
 			}
 
-			this.quickOpenService.show(prefix, {
-				keybindings: keys
-			});
+			this.quickOpenService.show(prefix, { quickNavigateConfiguration: { keybindings: keys } });
 		}
 
 		return TPromise.as(true);
@@ -1005,9 +1003,7 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 	public run(): TPromise<any> {
 		let keys = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickOpenService.show(null, {
-			keybindings: keys
-		});
+		this.quickOpenService.show(null, { quickNavigateConfiguration: { keybindings: keys } });
 
 		return TPromise.as(true);
 	}
