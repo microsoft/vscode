@@ -1465,6 +1465,21 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #4312: trying to type a tab character over a sequence of spaces results in unexpected behaviour', () => {
+		usingCursor({
+			text: [
+				'var foo = 123;       // this is a comment',
+				'var bar = 4;       // another comment'
+			],
+			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 15, false);
+			moveTo(cursor, 1, 22, true);
+			cursorCommand(cursor, H.Tab);
+			assert.equal(model.getLineContent(1), 'var foo = 123;\t// this is a comment');
+		});
+	});
+
 	test('issue #832: deleteWordLeft', () => {
 		usingCursor({
 			text: [

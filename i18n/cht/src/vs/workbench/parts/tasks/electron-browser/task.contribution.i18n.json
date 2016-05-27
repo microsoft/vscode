@@ -72,7 +72,7 @@
 	"TaskSystem.noBuildType": "未設定有效的工作執行器。支援的工作執行器為 [服務] 和 [程式]。",
 	"TaskSystem.noConfiguration": "未設定任何工作執行器。",
 	"TaskSystem.runningTask": "有一個工作正在執行。要終止工作嗎?",
-	"TaskSystem.terminateTask": "終止工作(&T)",
+	"TaskSystem.terminateTask": "終止工作(&&T)",
 	"TaskSystem.unknownError": "執行工作時發生錯誤。如需詳細資訊，請參閱工作記錄檔。",
 	"TerminateAction.failed": "無法終止執行中的工作",
 	"TerminateAction.label": "終止執行中的工作",

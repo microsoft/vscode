@@ -51,7 +51,7 @@ const DEFAULT_ANSI_COLORS = {
 		'#cd3131', // red
 		'#008000', // green
 		'#949800', // yellow
-		'#2472c8', // blue
+		'#0451a5', // blue
 		'#bc05bc', // magenta
 		'#0598bc', // cyan
 		'#555555', // white
@@ -59,7 +59,7 @@ const DEFAULT_ANSI_COLORS = {
 		'#cd3131', // bright red
 		'#00aa00', // bright green
 		'#b5ba00', // bright yellow
-		'#2b89ef', // bright blue
+		'#0451a5', // bright blue
 		'#bc05bc', // bright magenta
 		'#0598bc', // bright cyan
 		'#a5a5a5'  // bright white
@@ -69,17 +69,17 @@ const DEFAULT_ANSI_COLORS = {
 		'#cd3131', // red
 		'#09885a', // green
 		'#e5e510', // yellow
-		'#0451a5', // blue
-		'#bc05bc', // magenta
-		'#0598bc', // cyan
+		'#2472c8', // blue
+		'#bc3fbc', // magenta
+		'#11a8cd', // cyan
 		'#e5e5e5', // white
-		'#111111', // bright black
-		'#cd3131', // bright red
-		'#09885a', // bright green
-		'#e5e510', // bright yellow
-		'#0451a5', // bright blue
-		'#bc05bc', // bright magenta
-		'#0598bc', // bright cyan
+		'#666666', // bright black
+		'#f14c4c', // bright red
+		'#17a773', // bright green
+		'#f5f543', // bright yellow
+		'#3b8eea', // bright blue
+		'#d670d6', // bright magenta
+		'#29b8db', // bright cyan
 		'#e5e5e5'  // bright white
 	]
 };
@@ -106,7 +106,9 @@ export class TerminalPanel extends Panel {
 	public layout(dimension: Dimension): void {
 		let cols = Math.floor(this.parentDomElement.offsetWidth / TERMINAL_CHAR_WIDTH);
 		let rows = Math.floor(this.parentDomElement.offsetHeight / TERMINAL_CHAR_HEIGHT);
-		this.terminal.resize(cols, rows);
+		if (this.terminal) {
+			this.terminal.resize(cols, rows);
+		}
 		if (this.ptyProcess.connected) {
 			this.ptyProcess.send({
 				event: 'resize',
@@ -120,6 +122,15 @@ export class TerminalPanel extends Panel {
 		super.create(parent);
 		this.parentDomElement = parent.getHTMLElement();
 		return this.createTerminal();
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		if (visible && this.terminal === null) {
+			return super.setVisible(visible).then(() => {
+				return this.createTerminal();
+			});
+		}
+		return super.setVisible(visible);
 	}
 
 	private cloneEnv(): IStringDictionary<string> {
@@ -169,12 +180,11 @@ export class TerminalPanel extends Panel {
 			this.ptyProcess.on('exit', (exitCode) => {
 				this.toDispose = lifecycle.dispose(this.toDispose);
 				this.terminal.destroy();
+				this.terminal = null;
 				// TODO: When multiple terminals are supported this should do something smarter. There is
 				// also a weird bug here at least on Ubuntu 15.10 where the new terminal text does not
 				// repaint correctly.
-				if (exitCode === 0) {
-					this.createTerminal();
-				} else {
+				if (exitCode !== 0) {
 					// TODO: Allow the terminal to be relaunched after an error
 					console.error('Integrated terminal exited with code ' + exitCode);
 				}
@@ -200,13 +210,16 @@ export class TerminalPanel extends Panel {
 			this.parentDomElement.appendChild(terminalScrollbar.getDomNode());
 
 			let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
-			this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
+			this.terminalDomElement.style.fontFamily = config.terminal.integrated.fontFamily;
 			this.setTerminalTheme(this.themeService.getTheme());
 			resolve(void 0);
 		});
 	}
 
 	private setTerminalTheme(themeId: string) {
+		if (!this.terminal) {
+			return;
+		}
 		let baseThemeId = getBaseThemeId(themeId);
 		this.terminal.colors = DEFAULT_ANSI_COLORS[baseThemeId];
 		this.terminal.refresh(0, this.terminal.rows);
@@ -217,6 +230,9 @@ export class TerminalPanel extends Panel {
 	}
 
 	private focusTerminal(force?: boolean): void {
+		if (!this.terminal) {
+			return;
+		}
 		let text = window.getSelection().toString();
 		if (!text || force) {
 			this.terminal.focus();
@@ -229,12 +245,12 @@ export class TerminalPanel extends Panel {
 	private getShell(): string {
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 		if (platform.isWindows) {
-			return config.integratedTerminal.shell.windows;
+			return config.terminal.integrated.shell.windows;
 		}
 		if (platform.isMacintosh) {
-			return config.integratedTerminal.shell.osx;
+			return config.terminal.integrated.shell.osx;
 		}
-		return config.integratedTerminal.shell.linux;
+		return config.terminal.integrated.shell.linux;
 	}
 
 	public dispose(): void {

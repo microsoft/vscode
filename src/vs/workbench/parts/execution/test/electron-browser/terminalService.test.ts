@@ -16,9 +16,11 @@ suite('Execution - TerminalService', () => {
 
 	setup(() => {
 		mockConfig = {
-			externalTerminal: {
-				windowsExec: 'testWindowsShell',
-				linuxExec: 'testLinuxShell'
+			terminal: {
+				external: {
+					windowsExec: 'testWindowsShell',
+					linuxExec: 'testLinuxShell'
+				}
 			}
 		};
 		mockOnExit = s => s;
@@ -32,7 +34,7 @@ suite('Execution - TerminalService', () => {
 			spawn: (command, args, opts) => {
 				// assert
 				equal(command, testShell, 'shell should equal expected');
-				equal(args[args.length - 1], mockConfig.externalTerminal.windowsExec, 'terminal should equal expected')
+				equal(args[args.length - 1], mockConfig.terminal.external.windowsExec, 'terminal should equal expected')
 				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
 				done();
 				return {
@@ -64,7 +66,7 @@ suite('Execution - TerminalService', () => {
 				}
 			}
 		};
-		mockConfig.externalTerminal.windowsExec = undefined;
+		mockConfig.terminal.external.windowsExec = undefined;
 		let testService = new WinTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
@@ -81,7 +83,7 @@ suite('Execution - TerminalService', () => {
 		let mockSpawner = {
 			spawn: (command, args, opts) => {
 				// assert
-				equal(command, mockConfig.externalTerminal.linuxExec, 'terminal should equal expected');
+				equal(command, mockConfig.terminal.external.linuxExec, 'terminal should equal expected');
 				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
 				done();
 				return {
@@ -111,7 +113,7 @@ suite('Execution - TerminalService', () => {
 				}
 			}
 		};
-		mockConfig.externalTerminal.linuxExec = undefined;
+		mockConfig.terminal.external.linuxExec = undefined;
 		let testService = new LinuxTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,

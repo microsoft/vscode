@@ -20,13 +20,15 @@ export const TERMINAL_DEFAULT_SHELL_WINDOWS = processes.getWindowsShell();
 export var ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export interface ITerminalConfiguration {
-	integratedTerminal: {
-		shell: {
-			linux: string,
-			osx: string,
-			windows: string
-		},
-		fontFamily: string
+	terminal: {
+		integrated: {
+			shell: {
+				linux: string,
+				osx: string,
+				windows: string
+			},
+			fontFamily: string
+		}
 	};
 }
 

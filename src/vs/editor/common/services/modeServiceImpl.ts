@@ -25,7 +25,7 @@ import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {IRichEditConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IRichLanguageConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
@@ -443,7 +443,7 @@ export class ModeServiceImpl implements IModeService {
 		return this.doRegisterMonarchDefinition(modeId, lexer);
 	}
 
-	public registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable {
+	public registerRichEditSupport(modeId: string, support: IRichLanguageConfiguration): IDisposable {
 		return this.registerModeSupport(modeId, modes.MutableSupport.RichEditSupport, (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
 	}
 
@@ -451,7 +451,7 @@ export class ModeServiceImpl implements IModeService {
 		return this.registerModeSupport(modeId, modes.MutableSupport.TokenizationSupport, callback);
 	}
 
-	public registerTokenizationSupport2(modeId: string, support: modes.ITokenizationSupport2): IDisposable {
+	public registerTokenizationSupport2(modeId: string, support: modes.TokensProvider): IDisposable {
 		return this.registerModeSupport(modeId, modes.MutableSupport.TokenizationSupport, (mode) => {
 			return new TokenizationSupport2Adapter(mode, support);
 		});
@@ -508,9 +508,9 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	public shouldGenerateEmbeddedModels = false;
 
 	private _mode: modes.IMode;
-	private _actual: modes.ITokenizationSupport2;
+	private _actual: modes.TokensProvider;
 
-	constructor(mode: modes.IMode, actual: modes.ITokenizationSupport2) {
+	constructor(mode: modes.IMode, actual: modes.TokensProvider) {
 		this._mode = mode;
 		this._actual = actual;
 	}

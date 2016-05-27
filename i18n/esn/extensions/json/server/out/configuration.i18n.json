@@ -33,7 +33,7 @@
 	"schema.json.oneOf": "Una matriz de esquemas, de los cuales uno debe coincidir.",
 	"schema.json.pattern": "Una expresión regular con la que hacer coincidir la cadena. No está anclada de forma implícita.",
 	"schema.json.patternProperties": "Mapa de expresiones regulares de nombres de propiedad para hacer coincidir las propiedades de los esquemas.",
-	"schema.json.properties": "Mapa de nombres de propiedad para esquemas para cada propiedad.",
+	"schema.json.properties": "Asignación de nombres de propiedad a esquemas para cada propiedad.",
 	"schema.json.required": "Una matriz de cadenas que enumera los nombres de todas las propiedades necesarias para este objeto.",
 	"schema.json.title": "Un título descriptivo del elemento",
 	"schema.json.type": "Una cadena de uno de los tipos de esquema básicos (número, entero, nulo, matriz, objeto, booleano, cadena) o una matriz de cadenas que especifica un subconjunto de esos tipos.",

@@ -11,7 +11,7 @@
 	"End of file expected": "预期的文件结尾",
 	"ExpectedCloseBrace": "需要逗号或右大括号",
 	"ExpectedCloseBracket": "需要逗号或右中括号",
-	"Invalid symbol": "预期的 JSON 对象、数组或文本",
+	"Invalid symbol": "需要 JSON 对象、数组或文本",
 	"InvalidEscapeCharacter": "字符串中的转义字符无效",
 	"InvalidNumberFormat": "数字格式无效",
 	"InvalidUnicode": "字符串中的 Unicode 序列无效",

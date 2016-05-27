@@ -6,8 +6,8 @@
 {
 	"allFiles": "所有檔案",
 	"cancel": "取消",
-	"dontSave": "不要儲存(&N)",
-	"save": "儲存(&S)",
+	"dontSave": "不要儲存(&&N)",
+	"save": "儲存(&&S)",
 	"saveAll": "全部儲存(&&S)",
 	"saveChangesDetail": "如果您不儲存變更，這些變更將會遺失。",
 	"saveChangesMessage": "要儲存對 {0} 所做的變更嗎?",

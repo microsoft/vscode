@@ -2026,7 +2026,7 @@
 		<key>type-parameters</key>
 		<dict>
 			<key>begin</key>
-			<string>([a-zA-Z_$][\w$]*)?(&lt;)</string>
+			<string>JAVASCRIPT_DOES_NOT_HAVE_TYPE_PARAMETERS_SO_NEVER_MATCH_PLEASE([a-zA-Z_$][\w$]*)?(&lt;)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>

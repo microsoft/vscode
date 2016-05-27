@@ -5,18 +5,18 @@ Do Not Translate or Localize
 
 This project incorporates components from the projects listed below. The original copyright notices and the licenses under which Microsoft received such components are set forth below. Microsoft reserves all rights not expressly granted herein, whether by implication, estoppel or otherwise.
 
-1.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
-2.	chjj-marked version 0.3.2 (https://github.com/npmcomponent/chjj-marked)
-3.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
-4.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
-5.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
-6.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
-7.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-8.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
-9.	ionide/ionide-fsharp (https://github.com/ionide/ionide-fsharp)
-10.	js-beautify version 1.6.2 (https://github.com/beautify-web/js-beautify)
-11.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
-12.	language-c version 0.51.3 (https://github.com/atom/language-c)
+1.	atom/language-c version 0.51.3 (https://github.com/atom/language-c)
+2.	Benvie/JavaScriptNext.tmLanguage (https://github.com/Benvie/JavaScriptNext.tmLanguage)
+3.	chjj-marked version 0.3.2 (https://github.com/npmcomponent/chjj-marked)
+4.	Colorsublime-Themes version 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes)
+5.	davidrios/jade-tmbundle (https://github.com/davidrios/jade-tmbundle)
+6.	definitelytyped (https://github.com/DefinitelyTyped/DefinitelyTyped)
+7.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
+8.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
+9.	Ionic documentation version 1.2.4 (https://github.com/driftyco/ionic-site)
+10.	ionide/ionide-fsharp (https://github.com/ionide/ionide-fsharp)
+11.	js-beautify version 1.6.2 (https://github.com/beautify-web/js-beautify)
+12.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 13.	language-docker (https://github.com/docker/docker)
 14.	language-go version 0.39.0 (https://github.com/atom/language-go)
 15.	language-php version 0.29.0 (https://github.com/atom/language-php)
@@ -29,35 +29,73 @@ This project incorporates components from the projects listed below. The origina
 22.	sublimehq/Packages (https://github.com/sublimehq/Packages)
 23.	SublimeText/PowerShell (https://github.com/SublimeText/PowerShell)
 24.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-25.	textmate/coffee-script.tmbundle (https://github.com/textmate/coffee-script.tmbundle)
-26.	textmate/css.tmbundle (https://github.com/textmate/css.tmbundle)
-27.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-28.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-29.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-30.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-31.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-32.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
-33.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-34.	textmate/less.tmbundle (https://github.com/textmate/less.tmbundle)
-35.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
-36.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
-37.	textmate/objective-c.tmbundle (https://github.com/textmate/objective-c.tmbundle)
-38.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
-39.	textmate/php.tmbundle (https://github.com/textmate/php.tmbundle)
-40.	textmate/python.tmbundle (https://github.com/textmate/python.tmbundle)
-41.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
-42.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
-43.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
-44.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
-45.	textmate/xml.tmbundle (https://github.com/textmate/xml.tmbundle)
-46.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-47.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
-48.	typescript version 1.8.2 (https://github.com/Microsoft/TypeScript)
-49.	typescript version 1.8.9 (https://github.com/Microsoft/TypeScript)
-50.	typescript-sublime-plugin version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-51.	unity-shader-files version 0.1.0 (https://github.com/nashella/unity-shader-files)
-52.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+25.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+26.	textmate/coffee-script.tmbundle (https://github.com/textmate/coffee-script.tmbundle)
+27.	textmate/css.tmbundle (https://github.com/textmate/css.tmbundle)
+28.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+29.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+30.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+31.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+32.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+33.	textmate/java.tmbundle (https://github.com/textmate/java.tmbundle)
+34.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
+35.	textmate/less.tmbundle (https://github.com/textmate/less.tmbundle)
+36.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+37.	textmate/make.tmbundle (https://github.com/textmate/make.tmbundle)
+38.	textmate/objective-c.tmbundle (https://github.com/textmate/objective-c.tmbundle)
+39.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
+40.	textmate/php.tmbundle (https://github.com/textmate/php.tmbundle)
+41.	textmate/python.tmbundle (https://github.com/textmate/python.tmbundle)
+42.	textmate/r.tmbundle (https://github.com/textmate/r.tmbundle)
+43.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
+44.	textmate/shellscript.tmbundle (https://github.com/textmate/shellscript.tmbundle)
+45.	textmate/sql.tmbundle (https://github.com/textmate/sql.tmbundle)
+46.	textmate/xml.tmbundle (https://github.com/textmate/xml.tmbundle)
+47.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
+48.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
+49.	typescript version 1.8.2 (https://github.com/Microsoft/TypeScript)
+50.	typescript version 1.8.9 (https://github.com/Microsoft/TypeScript)
+51.	typescript-sublime-plugin version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
+52.	unity-shader-files version 0.1.0 (https://github.com/nashella/unity-shader-files)
+53.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 
+
+%% atom/language-c NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright (c) 2014 GitHub Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+This package was derived from a TextMate bundle located at
+https://github.com/textmate/c.tmbundle and distributed under the following
+license, located in `README.mdown`:
+
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+=========================================
+END OF atom/language-c NOTICES AND INFORMATION
 
 %% Benvie/JavaScriptNext.tmLanguage NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -340,43 +378,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 =========================================
 END OF Jxck/assert NOTICES AND INFORMATION
-
-%% language-c NOTICES AND INFORMATION BEGIN HERE
-=========================================
-The MIT License (MIT)
-
-Copyright (c) 2014 GitHub Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
-This package was derived from a TextMate bundle located at
-https://github.com/textmate/c.tmbundle and distributed under the following
-license, located in `README.mdown`:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-=========================================
-END OF language-c NOTICES AND INFORMATION
 
 %% language-docker NOTICES AND INFORMATION BEGIN HERE
 =========================================
@@ -1113,10 +1114,26 @@ to the base-name name of the original file, and an extension of txt, html, or si
 =========================================
 END OF textmate/asp.vb.net.tmbundle NOTICES AND INFORMATION
 
+%% textmate/c.tmbundle NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) textmate-c.tmbundle authors
+
+If not otherwise specified (see below), files in this repository fall under the following license:
+
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+
+An exception is made for files in readable text which contain their own license information,
+or files where an accompanying file exists (in the same directory) with a "-license" suffix added
+to the base-name name of the original file, and an extension of txt, html, or similar. For example
+"tidy" is accompanied by "tidy-license.txt".
+=========================================
+END OF textmate/c.tmbundle NOTICES AND INFORMATION
+
 %% textmate/coffee-script.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
-The MIT License (MIT)
-
 Copyright (c) 2009-2014 Jeremy Ashkenas
 
 Permission is hereby granted, free of charge, to any person

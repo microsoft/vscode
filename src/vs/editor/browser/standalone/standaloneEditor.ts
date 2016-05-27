@@ -46,6 +46,9 @@ function shallowClone<T>(obj:T): T {
 	return r;
 }
 
+/**
+ * @internal
+ */
 export function setupServices(services: IEditorOverrideServices): IEditorOverrideServices {
 	return startup.setupServices(services);
 }
@@ -327,7 +330,6 @@ export function colorizeModelLine(model:IModel, lineNumber:number, tabSize:numbe
 export function createMonacoEditorAPI()/*: typeof monaco.editor*/ {
 	return {
 		// methods
-		setupServices: setupServices,
 		create: create,
 		createDiffEditor: createDiffEditor,
 

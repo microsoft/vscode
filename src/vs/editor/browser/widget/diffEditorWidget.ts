@@ -351,13 +351,13 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _createLeftHandSideEditor(options:editorCommon.IDiffEditorOptions, instantiationService:IInstantiationService): void {
 		this.originalEditor = instantiationService.createInstance(CodeEditorWidget, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
-		this._toDispose.push(this.originalEditor.addBulkListener2((events: any) => this._onOriginalEditorEvents(events)));
+		this._toDispose.push(this.originalEditor.addBulkListener2((events) => this._onOriginalEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.originalEditor));
 	}
 
 	private _createRightHandSideEditor(options:editorCommon.IDiffEditorOptions, instantiationService:IInstantiationService): void {
 		this.modifiedEditor = instantiationService.createInstance(CodeEditorWidget, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
-		this._toDispose.push(this.modifiedEditor.addBulkListener2((events: any) => this._onModifiedEditorEvents(events)));
+		this._toDispose.push(this.modifiedEditor.addBulkListener2((events) => this._onModifiedEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.modifiedEditor));
 	}
 
@@ -715,11 +715,21 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _onOriginalEditorEvents(events:EmitterEvent[]): void {
 		for (var i = 0; i < events.length; i++) {
-			if (events[i].getType() === 'scroll') {
-				this._onOriginalEditorScroll(events[i].getData());
+			let type = events[i].getType();
+			let data = events[i].getData();
+
+			if (type === 'scroll') {
+				this._onOriginalEditorScroll(data);
 			}
-			if (events[i].getType() === editorCommon.EventType.ViewZonesChanged) {
+			if (type === editorCommon.EventType.ViewZonesChanged) {
 				this._onViewZonesChanged();
+			}
+			if (type === editorCommon.EventType.ConfigurationChanged) {
+				let isViewportWrapping = this.originalEditor.getConfiguration().wrappingInfo.isViewportWrapping;
+				if (isViewportWrapping) {
+					// oh no, you didn't!
+					this.originalEditor.updateOptions({ wrappingColumn: -1 });
+				}
 			}
 		}
 		this._recomputeIfNecessary(events);
@@ -727,16 +737,25 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _onModifiedEditorEvents(events:EmitterEvent[]): void {
 		for (var i = 0; i < events.length; i++) {
-			if (events[i].getType() === 'scroll') {
-				this._onModifiedEditorScroll(events[i].getData());
-				this._layoutOverviewViewport();
-			}
-			if (events[i].getType() === 'viewLayoutChanged') {
-				this._layoutOverviewViewport();
-			}
+			let type = events[i].getType();
+			let data = events[i].getData();
 
-			if (events[i].getType() === editorCommon.EventType.ViewZonesChanged) {
+			if (type === 'scroll') {
+				this._onModifiedEditorScroll(data);
+				this._layoutOverviewViewport();
+			}
+			if (type === 'viewLayoutChanged') {
+				this._layoutOverviewViewport();
+			}
+			if (type === editorCommon.EventType.ViewZonesChanged) {
 				this._onViewZonesChanged();
+			}
+			if (type === editorCommon.EventType.ConfigurationChanged) {
+				let isViewportWrapping = this.modifiedEditor.getConfiguration().wrappingInfo.isViewportWrapping;
+				if (isViewportWrapping) {
+					// oh no, you didn't!
+					this.modifiedEditor.updateOptions({ wrappingColumn: -1 });
+				}
 			}
 		}
 		this._recomputeIfNecessary(events);

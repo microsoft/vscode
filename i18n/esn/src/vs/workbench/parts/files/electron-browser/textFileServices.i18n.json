@@ -6,7 +6,7 @@
 {
 	"allFiles": "Todos los archivos",
 	"cancel": "Cancelar",
-	"dontSave": "No guardar",
+	"dontSave": "&&No guardar",
 	"save": "&&Guardar",
 	"saveAll": "&&Guardar todo",
 	"saveChangesDetail": "Los cambios se perderán si no se guardan.",

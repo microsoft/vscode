@@ -13,12 +13,12 @@ declare module monaco.worker {
 
 declare module monaco.languages {
 
-#includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>):
-#include(vs/editor/common/modes/supports/richEditSupport): CommentRule, IRichEditConfiguration
+#includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.):
+#include(vs/editor/common/modes/supports/richEditSupport): CommentRule, IRichLanguageConfiguration
 #include(vs/editor/common/modes/supports/onEnter): IIndentationRules, IOnEnterRegExpRules
 #include(vs/editor/common/modes/supports/electricCharacter): IBracketElectricCharacterContribution, IDocComment
 #include(vs/editor/common/modes/supports/characterPair): ICharacterPairContribution
-#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.):
+#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens;IState2=>IState):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint
 
 }
