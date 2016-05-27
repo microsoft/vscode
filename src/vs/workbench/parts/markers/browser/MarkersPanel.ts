@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/markers';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -24,6 +25,7 @@ import Messages from 'vs/workbench/parts/markers/common/Messages';
 
 export class MarkersPanel extends Panel {
 
+	private markersModel: MarkersModel;
 	private tree: Tree.ITree;
 	private _toDispose: lifecycle.IDisposable[];
 
@@ -34,6 +36,7 @@ export class MarkersPanel extends Panel {
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
+		this.markersModel= new MarkersModel();
 		this._toDispose = [];
 	}
 
@@ -43,7 +46,7 @@ export class MarkersPanel extends Panel {
 
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
-		var controller = this.instantiationService.createInstance(Controller, actionProvider);
+		var controller = this.instantiationService.createInstance(Controller);
 		this.tree = new TreeImpl.Tree(parent.getHTMLElement(), {
 			dataSource: new Viewer.DataSource(),
 			renderer: renderer,
@@ -54,7 +57,9 @@ export class MarkersPanel extends Panel {
 		});
 
 		this._toDispose.push(this.markerService.onMarkerChanged((changedResources) => {
-			this.render();
+			this.updateTitleArea();
+			this.updateResources(changedResources);
+			this.tree.refresh();
 		}));
 		this.render();
 		return TPromise.as(null);
@@ -89,11 +94,17 @@ export class MarkersPanel extends Panel {
 		this.tree.layout(dimension.height);
 	}
 
+	private updateResources(resources: URI[]) {
+		resources.forEach((resource) => {
+			let markers= this.markerService.read({resource: resource}).slice(0)
+			this.markersModel.updateResource(resource, markers);
+		})
+	}
+
 	private render(): void {
-		this.updateTitleArea();
 		let allMarkers = this.markerService.read().slice(0);
-		let model= new MarkersModel(allMarkers);
-		this.tree.setInput(model);
+		this.markersModel.updateMarkers(allMarkers);
+		this.tree.setInput(this.markersModel);
 	}
 
 	public dispose(): void {

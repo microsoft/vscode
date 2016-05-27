@@ -21,14 +21,8 @@ export class Controller extends treedefaults.DefaultController {
 	private contextMenuService:IContextMenuService;
 	private actionProvider:actionsrenderer.IActionProvider;
 
-	constructor(actionProvider:actionsrenderer.IActionProvider,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_UP });
-
-		this.actionProvider = actionProvider;
-		this.contextMenuService = contextMenuService;
-
 		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_UP_ARROW, this.onUp.bind(this));
 		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DOWN_ARROW, this.onDown.bind(this));
 		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_UP, this.onPageUp.bind(this));
