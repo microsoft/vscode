@@ -97,46 +97,69 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					};
 				});
 
-				for (let i = 0, len = this._trimAutoWhitespaceLines.length; i < len; i++) {
-					let trimLineNumber = this._trimAutoWhitespaceLines[i];
-					let maxLineColumn = this.getLineMaxColumn(trimLineNumber);
-
-					let allowTrimLine = true;
+				// Sometimes, auto-formatters change ranges automatically which can cause undesired auto whitespace trimming near the cursor
+				// We'll use the following heuristic: if the edits occur near the cursor, then it's ok to trim auto whitespace
+				let editsAreNearCursors = true;
+				for (let i = 0, len = beforeCursorState.length; i < len; i++) {
+					let sel = beforeCursorState[i];
+					let foundEditNearSel = false;
 					for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
 						let editRange = incomingEdits[j].range;
-						let editText = incomingEdits[j].text;
-
-						if (trimLineNumber < editRange.startLineNumber || trimLineNumber > editRange.endLineNumber) {
-							// `trimLine` is completely outside this edit
-							continue;
+						let selIsAbove = editRange.startLineNumber > sel.endLineNumber;
+						let selIsBelow = sel.startLineNumber > editRange.endLineNumber;
+						if (!selIsAbove && !selIsBelow) {
+							foundEditNearSel = true;
+							break;
 						}
-
-						// At this point:
-						//   editRange.startLineNumber <= trimLine <= editRange.endLineNumber
-
-						if (
-							trimLineNumber === editRange.startLineNumber && editRange.startColumn === maxLineColumn
-							&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(0) === '\n'
-						) {
-							// This edit inserts a new line (and maybe other text) after `trimLine`
-							continue;
-						}
-
-						// Looks like we can't trim this line as it would interfere with an incoming edit
-						allowTrimLine = false;
+					}
+					if (!foundEditNearSel) {
+						editsAreNearCursors = false;
 						break;
 					}
+				}
 
-					if (allowTrimLine) {
-						editOperations.push({
-							identifier: null,
-							range: new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn),
-							text: null,
-							forceMoveMarkers: false,
-							isAutoWhitespaceEdit: false
-						});
+				if (editsAreNearCursors) {
+					for (let i = 0, len = this._trimAutoWhitespaceLines.length; i < len; i++) {
+						let trimLineNumber = this._trimAutoWhitespaceLines[i];
+						let maxLineColumn = this.getLineMaxColumn(trimLineNumber);
+
+						let allowTrimLine = true;
+						for (let j = 0, lenJ = incomingEdits.length; j < lenJ; j++) {
+							let editRange = incomingEdits[j].range;
+							let editText = incomingEdits[j].text;
+
+							if (trimLineNumber < editRange.startLineNumber || trimLineNumber > editRange.endLineNumber) {
+								// `trimLine` is completely outside this edit
+								continue;
+							}
+
+							// At this point:
+							//   editRange.startLineNumber <= trimLine <= editRange.endLineNumber
+
+							if (
+								trimLineNumber === editRange.startLineNumber && editRange.startColumn === maxLineColumn
+								&& editRange.isEmpty() && editText && editText.length > 0 && editText.charAt(0) === '\n'
+							) {
+								// This edit inserts a new line (and maybe other text) after `trimLine`
+								continue;
+							}
+
+							// Looks like we can't trim this line as it would interfere with an incoming edit
+							allowTrimLine = false;
+							break;
+						}
+
+						if (allowTrimLine) {
+							editOperations.push({
+								identifier: null,
+								range: new Range(trimLineNumber, 1, trimLineNumber, maxLineColumn),
+								text: null,
+								forceMoveMarkers: false,
+								isAutoWhitespaceEdit: false
+							});
+						}
+
 					}
-
 				}
 
 				this._trimAutoWhitespaceLines = null;

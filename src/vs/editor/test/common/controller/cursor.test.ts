@@ -10,7 +10,11 @@ import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {EndOfLinePreference, EventType, Handler, IPosition, ISelection, IEditorOptions, DefaultEndOfLine, ITextModelCreationOptions} from 'vs/editor/common/editorCommon';
+import {
+	EndOfLinePreference, EventType, Handler, IPosition, ISelection, IEditorOptions,
+	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
+	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData
+} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode, IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
@@ -2181,6 +2185,49 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(1), '    ');
 			assert.equal(model.getLineContent(2), '');
 			assert.equal(model.getLineContent(3), '    ');
+		});
+	});
+
+	test('issue #6862: Editor removes auto inserted indentation when formatting on type', () => {
+		usingCursor({
+			text: [
+				'function foo (params: string) {}'
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			},
+			mode: new OnEnterMode(IndentAction.IndentOutdent),
+		}, (model, cursor) => {
+
+			moveTo(cursor, 1, 32);
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getLineContent(1), 'function foo (params: string) {');
+			assert.equal(model.getLineContent(2), '    ');
+			assert.equal(model.getLineContent(3), '}');
+
+			class TestCommand implements ICommand {
+
+				private _selectionId: string = null;
+
+				public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
+					builder.addEditOperation(new Range(1, 13, 1, 14), '');
+					this._selectionId = builder.trackSelection(cursor.getSelection());
+				}
+
+				public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): Selection {
+					return helper.getTrackedSelection(this._selectionId);
+				}
+
+			}
+
+			cursor.trigger('autoFormat', Handler.ExecuteCommand, new TestCommand());
+			assert.equal(model.getLineContent(1), 'function foo(params: string) {');
+			assert.equal(model.getLineContent(2), '    ');
+			assert.equal(model.getLineContent(3), '}');
 		});
 	});
 
