@@ -77,7 +77,7 @@ export class SplitEditorAction extends Action {
 
 		// Only split if we have a target position to split to
 		if (typeof targetPosition === 'number') {
-			return this.editorService.openEditor(activeEditor.input, null, targetPosition);
+			return this.editorService.openEditor(activeEditor.input, EditorOptions.create({ pinned: true }), targetPosition);
 		}
 
 		return TPromise.as(true);
