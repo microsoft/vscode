@@ -819,9 +819,9 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private onEditorTitleDoubleclick(position: Position): void {
-		const editor = this.visibleEditors[position];
-		if (editor) {
-			this.pinEditor(position, editor.input);
+		const group = this.stacks.groupAt(position);
+		if (group) {
+			this.pinEditor(position, group.activeEditor);
 		}
 	}
 

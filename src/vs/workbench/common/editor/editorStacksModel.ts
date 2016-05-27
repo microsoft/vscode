@@ -432,6 +432,11 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public pin(editor: EditorInput): void {
+		const index = this.indexOf(editor);
+		if (index === -1) {
+			return; // not found
+		}
+
 		if (!this.isPreview(editor)) {
 			return; // can only pin a preview editor
 		}
@@ -444,6 +449,11 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public unpin(editor: EditorInput): void {
+		const index = this.indexOf(editor);
+		if (index === -1) {
+			return; // not found
+		}
+		
 		if (!this.isPinned(editor)) {
 			return; // can only unpin a pinned editor
 		}
