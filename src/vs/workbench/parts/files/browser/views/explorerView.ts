@@ -158,6 +158,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		}
 
 		let clearSelection = true;
+		let clearFocus = false;
 
 		// Handle File Input
 		if (e.editorInput && e.editorInput instanceof FileEditorInput) {
@@ -177,9 +178,19 @@ export class ExplorerView extends CollapsibleViewletView {
 			}
 		}
 
+		// Handle closed (convince explorer to not reopen any file when getting visible)
+		if (!e.editorInput) {
+			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
+			clearFocus = true;
+		}
+
 		// Otherwise clear
-		if (this.isVisible && clearSelection) {
+		if (clearSelection) {
 			this.explorerViewer.clearSelection();
+		}
+
+		if (clearFocus) {
+			this.explorerViewer.clearFocus();
 		}
 	}
 
