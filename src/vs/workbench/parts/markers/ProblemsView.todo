@@ -6,7 +6,8 @@
 Problems Panel:
 	☐ Tree view grouped by file
 	☐ Show the badge count #no of markers at each file
-	☐ Show the total count at the top in the label
+	☐ Show the total count in the panel title showing each marker count
 	☐ Click or Enter on the marker open the file at that marker
 	☐ No clear button to remove the markers / file from the panel
 	☐ Sorting Files and markers inside
+	☐ Action to collapse all
