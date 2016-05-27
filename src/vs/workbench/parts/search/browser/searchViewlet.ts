@@ -1368,13 +1368,7 @@ export class SearchViewlet extends Viewlet {
 					this.viewModel = this.instantiationService.createInstance(SearchResult, query.contentPattern);
 					this.tree.setInput(this.viewModel).then(() => {
 						autoExpand(false);
-						this.callOnModelChange.push(this.viewModel.addListener2('changed', (e: any) => {
-							const focus = this.tree.isDOMFocused();
-							this.tree.refresh(e, true);
-							if (focus) {
-								this.tree.DOMFocus();
-							}
-						}));
+						this.callOnModelChange.push(this.viewModel.addListener2('changed', (e: any) => this.tree.refresh(e, true)));
 					}).done(null, errors.onUnexpectedError);
 				}
 
