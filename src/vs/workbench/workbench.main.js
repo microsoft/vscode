@@ -24,6 +24,7 @@ define([
 	'vs/languages/languages.main',
 
 	// Workbench
+	'vs/workbench/browser/actions/toggleStatusbarVisibility',
 	'vs/workbench/browser/actions/toggleSidebarVisibility',
 	'vs/workbench/browser/actions/toggleSidebarPosition',
 	'vs/workbench/browser/actions/openSettings',
