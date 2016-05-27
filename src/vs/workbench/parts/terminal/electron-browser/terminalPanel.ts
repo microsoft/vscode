@@ -210,7 +210,7 @@ export class TerminalPanel extends Panel {
 			this.parentDomElement.appendChild(terminalScrollbar.getDomNode());
 
 			let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
-			this.terminalDomElement.style.fontFamily = config.integratedTerminal.fontFamily;
+			this.terminalDomElement.style.fontFamily = config.terminal.integrated.fontFamily;
 			this.setTerminalTheme(this.themeService.getTheme());
 			resolve(void 0);
 		});
@@ -245,12 +245,12 @@ export class TerminalPanel extends Panel {
 	private getShell(): string {
 		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
 		if (platform.isWindows) {
-			return config.integratedTerminal.shell.windows;
+			return config.terminal.integrated.shell.windows;
 		}
 		if (platform.isMacintosh) {
-			return config.integratedTerminal.shell.osx;
+			return config.terminal.integrated.shell.osx;
 		}
-		return config.integratedTerminal.shell.linux;
+		return config.terminal.integrated.shell.linux;
 	}
 
 	public dispose(): void {

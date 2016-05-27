@@ -20,26 +20,26 @@ let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Confi
 configurationRegistry.registerConfiguration({
 	'id': 'terminal',
 	'order': 100,
-	'title': nls.localize('integratedTerminalConfigurationTitle', "Integrated terminal configuration"),
+	'title': nls.localize('terminalIntegratedConfigurationTitle', "Integrated terminal configuration"),
 	'type': 'object',
 	'properties': {
-		'integratedTerminal.shell.linux': {
-			'description': nls.localize('integratedTerminal.shell.linux', "The path of the shell that the terminal uses on Linux."),
+		'terminal.integrated.shell.linux': {
+			'description': nls.localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_LINUX
 		},
-		'integratedTerminal.shell.osx': {
-			'description': nls.localize('integratedTerminal.shell.osx', "The path of the shell that the terminal uses on OS X."),
+		'terminal.integrated.shell.osx': {
+			'description': nls.localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on OS X."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_OSX
 		},
-		'integratedTerminal.shell.windows': {
-			'description': nls.localize('integratedTerminal.shell.windows', "The path of the shell that the terminal uses on Windows."),
+		'terminal.integrated.shell.windows': {
+			'description': nls.localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows."),
 			'type': 'string',
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
 		},
-		'integratedTerminal.fontFamily': {
-			'description': nls.localize('integratedTerminal.fontFamily', "The font family used by the terminal (CSS font-family format)."),
+		'terminal.integrated.fontFamily': {
+			'description': nls.localize('terminal.integrated.fontFamily', "The font family used by the terminal (CSS font-family format)."),
 			'type': 'string',
 			'default': 'Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback"'
 		}
