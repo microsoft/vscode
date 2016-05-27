@@ -47,13 +47,14 @@ export interface IEditorPart {
 }
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
+	
 	public serviceId = IWorkbenchEditorService;
 
-	private editorPart: IEditorPart;
+	private editorPart: IEditorPart | IWorkbenchEditorService;
 	private fileInputDescriptor: AsyncDescriptor0<IFileEditorInput>;
 
 	constructor(
-		editorPart: IEditorPart,
+		editorPart: IEditorPart | IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService?: IInstantiationService
 	) {
@@ -326,85 +327,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 }
 
-// Helper that implements IEditorPart through an instance of IEditorService
-class EditorPartDelegate implements IEditorPart {
-	private editorService: IWorkbenchEditorService;
-
-	constructor(service: IWorkbenchEditorService) {
-		this.editorService = service;
-	}
-
-	public openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
-	public openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
-	public openEditor(input?: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
-		return this.editorService.openEditor(input, options, arg3);
-	}
-
-	public openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<IEditor[]> {
-		return this.editorService.openEditors(editors);
-	}
-
-	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]> {
-		return this.editorService.replaceEditors(editors);
-	}
-
-	public getActiveEditor(): BaseEditor {
-		return <BaseEditor>this.editorService.getActiveEditor();
-	}
-
-	public activateGroup(position: Position): void {
-		this.editorService.activateGroup(position);
-	}
-
-	public focusGroup(position: Position): void {
-		this.editorService.focusGroup(position);
-	}
-
-	public pinEditor(position: Position, input: IEditorInput): void {
-		this.editorService.pinEditor(position, input);
-	}
-
-	public unpinEditor(position: Position, input: IEditorInput): void {
-		this.editorService.unpinEditor(position, input);
-	}
-
-	public getActiveEditorInput(): EditorInput {
-		return <EditorInput>this.editorService.getActiveEditorInput();
-	}
-
-	public getVisibleEditors(): IEditor[] {
-		return this.editorService.getVisibleEditors();
-	}
-
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
-		this.editorService.moveEditor(input, from, to, index);
-	}
-
-	public moveGroup(from: Position, to: Position): void {
-		this.editorService.moveGroup(from, to);
-	}
-
-	public arrangeGroups(arrangement: GroupArrangement): void {
-		this.editorService.arrangeGroups(arrangement);
-	}
-
-	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
-		return this.editorService.closeEditor(position, input);
-	}
-
-	public closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void> {
-		return this.editorService.closeEditors(position, except, direction);
-	}
-
-	public closeAllEditors(except?: Position): TPromise<void> {
-		return this.editorService.closeAllEditors(except);
-	}
-
-	public getStacksModel(): IEditorStacksModel {
-		return this.editorService.getStacksModel();
-	}
-}
-
 export interface IDelegatingWorkbenchEditorHandler {
 	(editor: BaseEditor, input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<boolean>;
 	(editor: BaseEditor, input: EditorInput, options?: EditorOptions, position?: Position): TPromise<boolean>;
@@ -429,7 +351,7 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
 		super(
-			new EditorPartDelegate(editorService),
+			editorService,
 			untitledEditorService,
 			instantiationService
 		);
