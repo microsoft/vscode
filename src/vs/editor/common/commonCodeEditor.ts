@@ -851,6 +851,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 							this.emit(editorCommon.EventType.ModelRawContentChanged, e);
 							break;
 
+						case editorCommon.EventType.ModelContentChanged2:
+							this.emit(editorCommon.EventType.ModelContentChanged2, e);
+							break;
+
 						case editorCommon.EventType.ModelOptionsChanged:
 							this.emit(editorCommon.EventType.ModelOptionsChanged, e);
 							break;
