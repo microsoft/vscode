@@ -115,16 +115,10 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public getActions(): IAction[] {
 		const actions: Action[] = [];
-		// New File
+
 		actions.push(this.instantiationService.createInstance(NewFileAction, this.getViewer(), null));
-
-		// New Folder
 		actions.push(this.instantiationService.createInstance(NewFolderAction, this.getViewer(), null));
-
-		// Refresh
 		actions.push(this.instantiationService.createInstance(RefreshViewExplorerAction, this, 'explorer-action refresh-explorer'));
-
-		// Collapse
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.getViewer(), true, 'explorer-action collapse-explorer'));
 
 		// Set Order
@@ -263,7 +257,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				if (lastActiveFileResource && root && root.find(lastActiveFileResource)) {
 					let editorInput = this.instantiationService.createInstance(FileEditorInput, lastActiveFileResource, void 0, void 0);
-					this.openEditor(editorInput).done(null, errors.onUnexpectedError);
+					this.activateOrOpenEditor(editorInput).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
 				}
@@ -281,11 +275,11 @@ export class ExplorerView extends CollapsibleViewletView {
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
 
-			this.openEditor(editorInput, keepFocus).done(null, errors.onUnexpectedError);
+			this.activateOrOpenEditor(editorInput, keepFocus).done(null, errors.onUnexpectedError);
 		}
 	}
 
-	private openEditor(input: FileEditorInput, keepFocus?: boolean): TPromise<IEditor> {
+	private activateOrOpenEditor(input: FileEditorInput, keepFocus?: boolean): TPromise<IEditor> {
 
 		// First try to find if input already visible
 		let editors = this.editorService.getVisibleEditors();
@@ -355,6 +349,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	public getOptimalWidth(): number {
 		let parentNode = this.explorerViewer.getHTMLElement();
 		let childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item-label > a'));
+
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
@@ -387,8 +382,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 							// Open new file in editor (pinned)
 							if (!childElement.isDirectory) {
-								let editorInput = this.instantiationService.createInstance(FileEditorInput, childElement.resource, childElement.mime, void 0);
-								return this.editorService.openEditor(editorInput, EditorOptions.create({ pinned: true }));
+								return this.editorService.openEditor({ resource: childElement.resource, options: { pinned: true } });
 							}
 						});
 					});
@@ -497,10 +491,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 			// Open it (pinned)
 			if (parentElement) {
-				this.explorerViewer.refresh(parentElement).then(() => {
-					let editorInput = this.instantiationService.createInstance(FileEditorInput, importedElement.resource, importedElement.mime, void 0);
-					return this.editorService.openEditor(editorInput, EditorOptions.create({ pinned: true }));
-				}).done(null, errors.onUnexpectedError);
+				this.explorerViewer.refresh(parentElement).then(() => this.editorService.openEditor({ resource: importedElement.resource, options: { pinned: true } })).done(null, errors.onUnexpectedError);
 			}
 		}
 
@@ -598,7 +589,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private filterToAddRemovedOnWorkspacePath(e: FileChangesEvent, fn: (change: IFileChange, workspacePathSegments: string[]) => boolean): FileChangesEvent {
-		return new FileChangesEvent(e.changes.filter((change) => {
+		return new FileChangesEvent(e.changes.filter(change => {
 			if (change.type === FileChangeType.UPDATED) {
 				return false; // we only want added / removed
 			}
@@ -688,7 +679,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Load Root Stat with given target path configured
 		let options: IResolveFileOptions = { resolveTo: targetsToResolve };
-		let promise = this.fileService.resolveFile(this.workspace.resource, options).then((stat: IFileStat) => {
+		let promise = this.fileService.resolveFile(this.workspace.resource, options).then(stat => {
 			let explorerPromise: TPromise<void>;
 
 			// Convert to model
@@ -779,7 +770,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Stat needs to be resolved first and then revealed
 		let options: IResolveFileOptions = { resolveTo: [resource] };
-		return this.fileService.resolveFile(this.workspace.resource, options).then((stat: IFileStat) => {
+		return this.fileService.resolveFile(this.workspace.resource, options).then(stat => {
 
 			// Convert to model
 			let modelStat = FileStat.create(stat, options.resolveTo);
@@ -788,14 +779,14 @@ export class ExplorerView extends CollapsibleViewletView {
 			FileStat.mergeLocalWithDisk(modelStat, root);
 
 			// Select and Reveal
-			return this.explorerViewer.refresh(root).then(() => {
-				return this.doSelect(root.find(resource), reveal);
-			});
+			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
+
 		}, (e: any) => this.messageService.show(Severity.Error, e));
 	}
 
 	private hasSelection(resource: URI): FileStat {
 		let currentSelection: FileStat[] = this.explorerViewer.getSelection();
+
 		for (let i = 0; i < currentSelection.length; i++) {
 			if (currentSelection[i].resource.toString() === resource.toString()) {
 				return currentSelection[i];
