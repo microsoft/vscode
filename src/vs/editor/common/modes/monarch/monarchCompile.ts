@@ -427,43 +427,6 @@ export function compile(json: ILanguage): monarchCommon.ILexer {
 		}
 	}
 
-	lexer.suggestSupport = {
-		textualCompletions: true,
-		disableAutoTrigger: false,
-		triggerCharacters: [],
-		snippets: []
-	};
-	if (typeof (<any>json).suggestSupport !== 'undefined') {
-		var suggestSupport = (<any>json).suggestSupport;
-
-		if (Array.isArray(suggestSupport.snippets)) {
-			var _snippets: any[] = suggestSupport.snippets;
-			for (var i = 0, len = _snippets.length; i < len; i++) {
-				if (typeof _snippets[i] === 'string') {
-					lexer.suggestSupport.snippets.push({
-						type: 'snippet',
-						label: _snippets[i],
-						codeSnippet: _snippets[i]
-					});
-				} else {
-					lexer.suggestSupport.snippets.push(_snippets[i]);
-				}
-			}
-		}
-
-		if (Array.isArray(suggestSupport.triggerCharacters)) {
-			lexer.suggestSupport.triggerCharacters = suggestSupport.triggerCharacters;
-		}
-
-		if (typeof suggestSupport.textualCompletions !== 'undefined') {
-			lexer.suggestSupport.textualCompletions = suggestSupport.textualCompletions;
-		}
-
-		if (typeof suggestSupport.disableAutoTrigger !== 'undefined') {
-			lexer.suggestSupport.disableAutoTrigger = suggestSupport.disableAutoTrigger;
-		}
-	}
-
 	// For calling compileAction later on
 	var lexerMin: monarchCommon.ILexerMin = <any>json;
 	lexerMin.name = lexer.name;

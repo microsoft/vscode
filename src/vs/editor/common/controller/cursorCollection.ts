@@ -7,8 +7,9 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {IModeConfiguration, IOneCursorState, IViewModelHelper, OneCursor} from 'vs/editor/common/controller/oneCursor';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IConfiguration, IEditorPosition, IEditorSelection, IModel, ISelection} from 'vs/editor/common/editorCommon';
+import {IConfiguration, IModel, ISelection} from 'vs/editor/common/editorCommon';
 import {IAutoClosingPair} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface ICursorCollectionState {
 	primary: IOneCursorState;
@@ -78,7 +79,7 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getPosition(index: number): IEditorPosition {
+	public getPosition(index: number): Position {
 		if (index === 0) {
 			return this.primaryCursor.getPosition();
 		} else {
@@ -86,7 +87,7 @@ export class CursorCollection {
 		}
 	}
 
-	public getViewPosition(index: number): IEditorPosition {
+	public getViewPosition(index: number): Position {
 		if (index === 0) {
 			return this.primaryCursor.getViewPosition();
 		} else {
@@ -94,8 +95,8 @@ export class CursorCollection {
 		}
 	}
 
-	public getPositions(): IEditorPosition[] {
-		var result: IEditorPosition[] = [];
+	public getPositions(): Position[] {
+		var result: Position[] = [];
 		result.push(this.primaryCursor.getPosition());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getPosition());
@@ -103,8 +104,8 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getViewPositions(): IEditorPosition[] {
-		var result: IEditorPosition[] = [];
+	public getViewPositions(): Position[] {
+		var result: Position[] = [];
 		result.push(this.primaryCursor.getViewPosition());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getViewPosition());
@@ -112,7 +113,7 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getSelection(index: number): IEditorSelection {
+	public getSelection(index: number): Selection {
 		if (index === 0) {
 			return this.primaryCursor.getSelection();
 		} else {
@@ -120,8 +121,8 @@ export class CursorCollection {
 		}
 	}
 
-	public getSelections(): IEditorSelection[] {
-		var result: IEditorSelection[] = [];
+	public getSelections(): Selection[] {
+		var result: Selection[] = [];
 		result.push(this.primaryCursor.getSelection());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getSelection());
@@ -129,8 +130,8 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getViewSelections(): IEditorSelection[] {
-		var result: IEditorSelection[] = [];
+	public getViewSelections(): Selection[] {
+		var result: Selection[] = [];
 		result.push(this.primaryCursor.getViewSelection());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getViewSelection());
@@ -239,8 +240,8 @@ export class CursorCollection {
 		var cursors = this.getAll();
 		var sortedCursors:{
 			index: number;
-			selection: IEditorSelection;
-			viewSelection: IEditorSelection;
+			selection: Selection;
+			viewSelection: Selection;
 		}[] = [];
 		for (var i = 0; i < cursors.length; i++) {
 			sortedCursors.push({
@@ -289,7 +290,7 @@ export class CursorCollection {
 						resultingSelectionIsLTR = winnerSelectionIsLTR;
 					}
 
-					var resultingSelection: IEditorSelection;
+					var resultingSelection: Selection;
 					if (resultingSelectionIsLTR) {
 						resultingSelection = new Selection(resultingRange.startLineNumber, resultingRange.startColumn, resultingRange.endLineNumber, resultingRange.endColumn);
 					} else {

@@ -18,12 +18,13 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {MockCodeEditorService} from 'vs/editor/test/common/mocks/mockCodeEditorService';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
+import {Range} from 'vs/editor/common/core/range';
 
 export class MockCodeEditor extends CommonCodeEditor {
 	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
 		return new MockConfiguration(options);
 	}
-	public getCenteredRangeInViewport(): editorCommon.IEditorRange { return null; }
+	public getCenteredRangeInViewport(): Range { return null; }
 
 	public getScrollWidth(): number { return 0; }
 	public getScrollLeft(): number { return 0; }

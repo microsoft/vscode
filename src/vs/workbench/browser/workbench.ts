@@ -618,14 +618,14 @@ export class Workbench implements IPartService {
 	}
 
 	private hookPartListeners(part: Part): void {
-		this.toDispose.push(this.toDisposable(this.eventService.addEmitter(part, part.getId())));
+		this.toDispose.push(this.eventService.addEmitter2(part, part.getId()));
 	}
 
 	private registerListeners(): void {
 
 		// Listen to editor changes
-		this.toDispose.push(this.toDisposable(this.eventService.addListener(EventType.EDITOR_CLOSED, () => this.onEditorOpenedOrClosed())));
-		this.toDispose.push(this.toDisposable(this.eventService.addListener(EventType.EDITOR_OPENED, () => this.onEditorOpenedOrClosed())));
+		this.toDispose.push(this.eventService.addListener2(EventType.EDITOR_CLOSED, () => this.onEditorOpenedOrClosed()));
+		this.toDispose.push(this.eventService.addListener2(EventType.EDITOR_OPENED, () => this.onEditorOpenedOrClosed()));
 
 		// Handle message service and quick open events
 		if (this.messageService instanceof WorkbenchMessageService) {
@@ -650,14 +650,6 @@ export class Workbench implements IPartService {
 		} else {
 			this.editorBackgroundDelayer.trigger(() => this.editorPart.getContainer().removeClass('empty'));
 		}
-	}
-
-	private toDisposable(fn: () => void): IDisposable {
-		return {
-			dispose: function () {
-				fn();
-			}
-		};
 	}
 
 	private createWorkbenchLayout(): void {

@@ -11,8 +11,8 @@ import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import aria = require('vs/base/browser/ui/aria/aria');
-import {EventType, ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
-import {IParameterHints, ISignature} from 'vs/editor/common/modes';
+import {ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {SignatureHelp, SignatureInformation} from 'vs/editor/common/modes';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {IHintEvent, ParameterHintsModel} from './parameterHintsModel';
 
@@ -35,7 +35,7 @@ export class ParameterHintsWidget implements IContentWidget {
 	private currentSignature: number;
 	private isDisposed: boolean;
 	private isVisible: boolean;
-	private parameterHints: IParameterHints;
+	private parameterHints: SignatureHelp;
 	private announcedLabel: string;
 	private toDispose: IDisposable[];
 
@@ -61,7 +61,7 @@ export class ParameterHintsWidget implements IContentWidget {
 			this.show();
 			this.parameterHints = e.hints;
 			this.render(e.hints);
-			this.currentSignature = e.hints.currentSignature;
+			this.currentSignature = e.hints.activeSignature;
 			this.select(this.currentSignature);
 		}));
 
@@ -100,14 +100,14 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.editor.addContentWidget(this);
 		this.hide();
 
-		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged,(e: ICursorSelectionChangedEvent) => {
+		this.toDispose.push(this.editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 			if (this.isVisible) {
 				this.editor.layoutContentWidget(this);
 			}
 		}));
 
 		this.editor.applyFontInfo(this.getDomNode());
-		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged,(e: IConfigurationChangedEvent) => {
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.editor.applyFontInfo(this.getDomNode());
 			}
@@ -156,7 +156,7 @@ export class ParameterHintsWidget implements IContentWidget {
 		return null;
 	}
 
-	private render(hints:IParameterHints): void {
+	private render(hints:SignatureHelp): void {
 		if (hints.signatures.length > 1) {
 			this.$el.addClass('multiple');
 		} else {
@@ -169,9 +169,9 @@ export class ParameterHintsWidget implements IContentWidget {
 
 		for (var i = 0, len = hints.signatures.length; i < len; i++) {
 			var signature = hints.signatures[i];
-			var $signature = this.renderSignature(this.$signatures, signature, hints.currentParameter);
+			var $signature = this.renderSignature(this.$signatures, signature, hints.activeParameter);
 
-			this.renderDocumentation($signature, signature, hints.currentParameter);
+			this.renderDocumentation($signature, signature, hints.activeParameter);
 
 			var signatureHeight = $signature.getClientArea().height;
 
@@ -184,7 +184,7 @@ export class ParameterHintsWidget implements IContentWidget {
 		}
 	}
 
-	private renderSignature($el:Builder, signature:ISignature, currentParameter:number):Builder {
+	private renderSignature($el:Builder, signature:SignatureInformation, currentParameter:number):Builder {
 
 		var $signature = $('.signature').appendTo($el),
 			hasParameters = signature.parameters.length > 0;
@@ -197,11 +197,22 @@ export class ParameterHintsWidget implements IContentWidget {
 			var $parameters = $('span.parameters'),
 				offset = 0;
 
+			let idx = 0;
 			for (var i = 0, len = signature.parameters.length; i < len; i++) {
 				var parameter = signature.parameters[i];
-				(i === 0 ? $signature : $parameters).append($('span').text(signature.label.substring(offset, parameter.signatureLabelOffset)));
-				$parameters.append($('span.parameter').addClass(i === currentParameter ? 'active' : '').text(signature.label.substring(parameter.signatureLabelOffset, parameter.signatureLabelEnd)));
-				offset = parameter.signatureLabelEnd;
+				idx = signature.label.indexOf(parameter.label, idx);
+
+				let signatureLabelOffset = 0;
+				let signatureLabelEnd = 0;
+				if (idx >= 0) {
+					signatureLabelOffset = idx;
+					idx += parameter.label.length;
+					signatureLabelEnd = idx;
+				}
+
+				(i === 0 ? $signature : $parameters).append($('span').text(signature.label.substring(offset, signatureLabelOffset)));
+				$parameters.append($('span.parameter').addClass(i === currentParameter ? 'active' : '').text(signature.label.substring(signatureLabelOffset, signatureLabelEnd)));
+				offset = signatureLabelEnd;
 			}
 
 			$signature.append($parameters);
@@ -211,7 +222,7 @@ export class ParameterHintsWidget implements IContentWidget {
 		return $signature;
 	}
 
-	private renderDocumentation($el:Builder, signature:ISignature, activeParameterIdx:number): void {
+	private renderDocumentation($el:Builder, signature:SignatureInformation, activeParameterIdx:number): void {
 
 		if(signature.documentation) {
 			$el.append($('.documentation').text(signature.documentation));
@@ -243,8 +254,8 @@ export class ParameterHintsWidget implements IContentWidget {
 		}
 
 		this.$overloads.text(overloads);
-		if (this.parameterHints && this.parameterHints.signatures[position].parameters[this.parameterHints.currentParameter]) {
-			const labelToAnnounce = this.parameterHints.signatures[position].parameters[this.parameterHints.currentParameter].label;
+		if (this.parameterHints && this.parameterHints.signatures[position].parameters[this.parameterHints.activeParameter]) {
+			const labelToAnnounce = this.parameterHints.signatures[position].parameters[this.parameterHints.activeParameter].label;
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
 			if (this.announcedLabel !== labelToAnnounce) {

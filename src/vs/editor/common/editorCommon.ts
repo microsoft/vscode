@@ -5,19 +5,25 @@
 'use strict';
 
 import {IAction} from 'vs/base/common/actions';
-import Event from 'vs/base/common/event';
-import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IEventEmitter, BulkListenerCallback} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {Selection} from 'vs/editor/common/core/selection';
 
-export type KeyCode = KeyCode;
-export type KeyMod = KeyMod;
+/**
+ * @internal
+ */
+export interface Event<T> {
+	(listener: (e: T) => any, thisArg?: any): IDisposable;
+}
 
 // --- position & range
 
@@ -33,28 +39,6 @@ export interface IPosition {
 	 * column (the first character in a line is between column 1 and column 2)
 	 */
 	column:number;
-}
-
-/**
- * A position in the editor.
- */
-export interface IEditorPosition extends IPosition {
-	/**
-	 * Test if this position equals other position
-	 */
-	equals(other:IPosition): boolean;
-	/**
-	 * Test if this position is before other position. If the two positions are equal, the result will be false.
-	 */
-	isBefore(other:IPosition): boolean;
-	/**
-	 * Test if this position is before other position. If the two positions are equal, the result will be true.
-	 */
-	isBeforeOrEqual(other:IPosition): boolean;
-	/**
-	 * Clone this position.
-	 */
-	clone(): IEditorPosition;
 }
 
 /**
@@ -77,61 +61,6 @@ export interface IRange {
 	 * Column on which the range ends in line `endLineNumber`.
 	 */
 	endColumn:number;
-}
-
-/**
- * A range in the editor.
- */
-export interface IEditorRange extends IRange {
-	/**
-	 * Test if this range is empty.
-	 */
-	isEmpty(): boolean;
-	collapseToStart():IEditorRange;
-	/**
-	 * Test if position is in this range. If the position is at the edges, will return true.
-	 */
-	containsPosition(position:IPosition): boolean;
-	/**
-	 * Test if range is in this range. If the range is equal to this range, will return true.
-	 */
-	containsRange(range:IRange): boolean;
-	/**
-	 * A reunion of the two ranges. The smallest position will be used as the start point, and the largest one as the end point.
-	 */
-	plusRange(range:IRange): IEditorRange;
-	/**
-	 * A intersection of the two ranges.
-	 */
-	intersectRanges(range:IRange): IEditorRange;
-	/**
-	 * Test if this range equals other.
-	 */
-	equalsRange(other:IRange): boolean;
-	/**
-	 * Return the end position (which will be after or equal to the start position)
-	 */
-	getEndPosition(): IEditorPosition;
-	/**
-	 * Create a new range using this range's start position, and using endLineNumber and endColumn as the end position.
-	 */
-	setEndPosition(endLineNumber: number, endColumn: number): IEditorRange;
-	/**
-	 * Return the start position (which will be before or equal to the end position)
-	 */
-	getStartPosition(): IEditorPosition;
-	/**
-	 * Create a new range using this range's end position, and using startLineNumber and startColumn as the start position.
-	 */
-	setStartPosition(startLineNumber: number, startColumn: number): IEditorRange;
-	/**
-	 * Clone this range.
-	 */
-	cloneRange(): IEditorRange;
-	/**
-	 * Transform to a user presentable string representation.
-	 */
-	toString(): string;
 }
 
 /**
@@ -169,32 +98,6 @@ export enum SelectionDirection {
 	 * The selection starts below where it ends.
 	 */
 	RTL
-}
-
-/**
- * A selection in the editor.
- */
-export interface IEditorSelection extends ISelection, IEditorRange {
-	/**
-	 * Test if equals other selection.
-	 */
-	equalsSelection(other:ISelection): boolean;
-	/**
-	 * Clone this selection.
-	 */
-	clone(): IEditorSelection;
-	/**
-	 * Get directions (LTR or RTL).
-	 */
-	getDirection(): SelectionDirection;
-	/**
-	 * Create a new selection with a different `positionLineNumber` and `positionColumn`.
-	 */
-	setEndPosition(endLineNumber: number, endColumn: number): IEditorSelection;
-	/**
-	 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
-	 */
-	setStartPosition(startLineNumber: number, startColumn: number): IEditorSelection;
 }
 
 /**
@@ -994,23 +897,6 @@ export interface IConfigurationChangedEvent {
  */
 export interface IModeSupportChangedEvent {
 	tokenizationSupport:boolean;
-	occurrencesSupport:boolean;
-	declarationSupport:boolean;
-	typeDeclarationSupport:boolean;
-	navigateTypesSupport:boolean;
-	referenceSupport:boolean;
-	suggestSupport:boolean;
-	parameterHintsSupport:boolean;
-	extraInfoSupport:boolean;
-	outlineSupport:boolean;
-	logicalSelectionSupport:boolean;
-	formattingSupport:boolean;
-	inplaceReplaceSupport:boolean;
-	emitOutputSupport:boolean;
-	linkSupport:boolean;
-	configSupport:boolean;
-	quickFixSupport: boolean;
-	codeLensSupport: boolean;
 	richEditSupport: boolean;
 }
 
@@ -1109,6 +995,7 @@ export interface IModelDeltaDecoration {
 
 /**
  * A tracked range in the model.
+ * @internal
  */
 export interface IModelTrackedRange {
 	/**
@@ -1118,7 +1005,7 @@ export interface IModelTrackedRange {
 	/**
 	 * Range that this tracked range covers
 	 */
-	range: IEditorRange;
+	range: Range;
 }
 
 /**
@@ -1136,7 +1023,7 @@ export interface IModelDecoration {
 	/**
 	 * Range that this decoration covers.
 	 */
-	range: IEditorRange;
+	range: Range;
 	/**
 	 * Options associated with this decoration.
 	 */
@@ -1145,6 +1032,7 @@ export interface IModelDecoration {
 
 /**
  * An accessor that can add, change or remove model decorations.
+ * @internal
  */
 export interface IModelDecorationsChangeAccessor {
 	/**
@@ -1203,6 +1091,7 @@ export interface IWordAtPosition {
 
 /**
  * Range of a word inside a model.
+ * @internal
  */
 export interface IWordRange {
 	/**
@@ -1215,6 +1104,9 @@ export interface IWordRange {
 	end:number;
 }
 
+/**
+ * @internal
+ */
 export interface ITokenInfo {
 	token: IToken;
 	lineNumber: number;
@@ -1222,6 +1114,9 @@ export interface ITokenInfo {
 	endColumn: number;
 }
 
+/**
+ * @internal
+ */
 export interface ITokenIterator {
 	hasNext(): boolean;
 	next(): ITokenInfo;
@@ -1277,6 +1172,7 @@ export enum EndOfLineSequence {
 
 /**
  * A read-only line marker in the model.
+ * @internal
  */
 export interface IReadOnlyLineMarker {
 	id: string;
@@ -1306,7 +1202,7 @@ export interface IEditOperationBuilder {
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.
 	 */
-	addEditOperation(range:IEditorRange, text:string): void;
+	addEditOperation(range:Range, text:string): void;
 
 	/**
 	 * Track `selection` when applying edit operations.
@@ -1317,7 +1213,7 @@ export interface IEditOperationBuilder {
 	 *           should clamp to the previous or the next character.
 	 * @return A unique identifer.
 	 */
-	trackSelection(selection:IEditorSelection, trackPreviousOnEmpty?:boolean): string;
+	trackSelection(selection:Selection, trackPreviousOnEmpty?:boolean): string;
 }
 
 /**
@@ -1333,7 +1229,7 @@ export interface ICursorStateComputerData {
 	 * @param id The unique identifier returned by `trackSelection`.
 	 * @return The selection.
 	 */
-	getTrackedSelection(id:string): IEditorSelection;
+	getTrackedSelection(id:string): Selection;
 }
 
 /**
@@ -1352,12 +1248,13 @@ export interface ICommand {
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */
-	computeCursorState(model:ITokenizedModel, helper:ICursorStateComputerData): IEditorSelection;
+	computeCursorState(model:ITokenizedModel, helper:ICursorStateComputerData): Selection;
 }
 
 /**
  * A single edit operation, that acts as a simple replace.
  * i.e. Replace text at `range` with `text` in model.
+ * @internal
  */
 export interface ISingleEditOperation {
 	/**
@@ -1386,7 +1283,7 @@ export interface IIdentifiedSingleEditOperation {
 	/**
 	 * The range to replace. This can be empty to emulate a simple insert.
 	 */
-	range: IEditorRange;
+	range: Range;
 	/**
 	 * The text to replace with. This can be null to emulate a simple delete.
 	 */
@@ -1410,11 +1307,12 @@ export interface ICursorStateComputer {
 	/**
 	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
 	 */
-	(inverseEditOperations:IIdentifiedSingleEditOperation[]): IEditorSelection[];
+	(inverseEditOperations:IIdentifiedSingleEditOperation[]): Selection[];
 }
 
 /**
  * A list of tokens on a line.
+ * @internal
  */
 export interface ILineTokens {
 	getTokenCount(): number;
@@ -1439,8 +1337,14 @@ export interface ILineTokens {
 	 */
 	findIndexOfOffset(offset:number): number;
 
+	/**
+	 * @internal
+	 */
 	sliceAndInflate(startOffset:number, endOffset:number, deltaStartIndex:number): ViewLineToken[];
 
+	/**
+	 * @internal
+	 */
 	inflate(): ViewLineToken[];
 }
 
@@ -1498,6 +1402,11 @@ export interface ITextModel {
 	setValue(newValue:string): void;
 
 	/**
+	 * Replace the entire text buffer value contained in this model.
+	 */
+	setValueFromRawText(newValue:IRawText): void;
+
+	/**
 	 * Get the text stored in this model.
 	 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
 	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -1531,6 +1440,7 @@ export interface ITextModel {
 	 * sit in lines with length < `LONG_LINE_BOUNDARY`. Second bucket (B) is of
 	 * characters that sit in lines with length >= `LONG_LINE_BOUNDARY`.
 	 * If count(B) > count(A) return true. Returns false otherwise.
+	 * @internal
 	 */
 	isDominatedByLongLines(): boolean;
 
@@ -1582,7 +1492,7 @@ export interface ITextModel {
 	/**
 	 * Create a valid position,
 	 */
-	validatePosition(position:IPosition): IEditorPosition;
+	validatePosition(position:IPosition): Position;
 
 	/**
 	 * Advances the given position by the given offest (negative offsets are also accepted)
@@ -1594,24 +1504,66 @@ export interface ITextModel {
 	 * If the ofsset is such that the new position would be in the middle of a multi-byte
 	 * line terminator, throws an exception.
 	 */
-	modifyPosition(position: IPosition, offset: number): IEditorPosition;
+	modifyPosition(position: IPosition, offset: number): Position;
 
 	/**
 	 * Create a valid range.
 	 */
-	validateRange(range:IRange): IEditorRange;
+	validateRange(range:IRange): Range;
 
 	/**
 	 * Get a range covering the entire model
 	 */
-	getFullModelRange(): IEditorRange;
+	getFullModelRange(): Range;
 
 	/**
 	 * Returns iff the model was disposed or not.
 	 */
 	isDisposed(): boolean;
+
+	/**
+	 * No mode supports allowed on this model because it is simply too large.
+	 * (even tokenization would cause too much memory pressure)
+	 * @internal
+	 */
+	isTooLargeForHavingAMode(): boolean;
+
+	/**
+	 * Only basic mode supports allowed on this model because it is simply too large.
+	 * (tokenization is allowed and other basic supports)
+	 * @internal
+	 */
+	isTooLargeForHavingARichMode(): boolean;
 }
 
+export interface IReadOnlyModel extends ITextModel {
+	/**
+	 * Gets the resource associated with this editor model.
+	 */
+	uri: URI;
+
+	getModeId(): string;
+
+	/**
+	 * Get the word under or besides `position`.
+	 * @param position The position to look for a word.
+	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
+	 * @return The word under or besides `position`. Might be null.
+	 */
+	getWordAtPosition(position:IPosition): IWordAtPosition;
+
+	/**
+	 * Get the word under or besides `position` trimmed to `position`.column
+	 * @param position The position to look for a word.
+	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
+	 * @return The word under or besides `position`. Will never be null.
+	 */
+	getWordUntilPosition(position:IPosition): IWordAtPosition;
+}
+
+/**
+ * @internal
+ */
 export interface IRichEditBracket {
 	modeId: string;
 	open: string;
@@ -1620,8 +1572,11 @@ export interface IRichEditBracket {
 	reversedRegex: RegExp;
 }
 
+/**
+ * @internal
+ */
 export interface IFoundBracket {
-	range: IEditorRange;
+	range: Range;
 	open: string;
 	close: string;
 	isOpen: boolean;
@@ -1636,26 +1591,20 @@ export interface ITokenizedModel extends ITextModel {
 	 * Tokenize if necessary and get the tokens for the line `lineNumber`.
 	 * @param lineNumber The line number
 	 * @param inaccurateTokensAcceptable Are inaccurate tokens acceptable? Defaults to false
+	 * @internal
 	 */
 	getLineTokens(lineNumber:number, inaccurateTokensAcceptable?:boolean): ILineTokens;
 
 	/**
 	 * Tokenize if necessary and get the tokenization result for the line `lineNumber`, as returned by the language mode.
+	 * @internal
 	 */
 	getLineContext(lineNumber:number): ILineContext;
 
-	/*package*/_getLineModeTransitions(lineNumber:number): IModeTransition[];
-
 	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * Optionally, the language mode of the model can be changed.
-	 * This call clears all of the undo / redo stack,
-	 * removes all decorations or tracked ranges, emits a
-	 * ModelContentChanged(ModelContentChangedFlush) event and
-	 * unbinds the mirror model from the previous mode to the new
-	 * one if the mode has changed.
+	 * @internal
 	 */
-	setValue(newValue:string, newMode?:IMode): void;
+	_getLineModeTransitions(lineNumber:number): IModeTransition[];
 
 	/**
 	 * Get the current language mode associated with the model.
@@ -1665,18 +1614,20 @@ export interface ITokenizedModel extends ITextModel {
 	/**
 	 * Set the current language mode associated with the model.
 	 */
-	setMode(newMode:IMode): void;
-	setMode(newModePromise:TPromise<IMode>): void;
+	setMode(newMode:IMode|TPromise<IMode>): void;
+
 	/**
 	 * A mode can be currently pending loading if a promise is used when constructing a model or calling setMode().
 	 *
 	 * If there is no currently pending loading mode, then the result promise will complete immediately.
 	 * Otherwise, the result will complete once the currently pending loading mode is loaded.
+	 * @internal
 	 */
 	whenModeIsReady(): TPromise<IMode>;
 
 	/**
 	 * Returns the true (inner-most) language mode at a given position.
+	 * @internal
 	 */
 	getModeAtPosition(lineNumber:number, column:number): IMode;
 
@@ -1701,6 +1652,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * next and previous tokens from the provided position.
 	 * The iterator is made available through the callback
 	 * function and can't be used afterwards.
+	 * @internal
 	 */
 	tokenIterator(position: IPosition, callback: (it: ITokenIterator) =>any): any;
 
@@ -1709,8 +1661,9 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param request The bracket we're searching for
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
+	 * @internal
 	 */
-	findMatchingBracketUp(bracket:string, position:IPosition): IEditorRange;
+	findMatchingBracketUp(bracket:string, position:IPosition): Range;
 
 	// /**
 	//  * Find the first bracket in the model before `position`.
@@ -1730,36 +1683,44 @@ export interface ITokenizedModel extends ITextModel {
 	 * Given a `position`, if the position is on top or near a bracket,
 	 * find the matching bracket of that bracket and return the ranges of both brackets.
 	 * @param position The position at which to look for a bracket.
+	 * @internal
 	 */
-	matchBracket(position:IPosition): [IEditorRange,IEditorRange];
-
-	/**
-	 * No mode supports allowed on this model because it is simply too large.
-	 * (even tokenization would cause too much memory pressure)
-	 */
-	isTooLargeForHavingAMode(): boolean;
-
-	/**
-	 * Only basic mode supports allowed on this model because it is simply too large.
-	 * (tokenization is allowed and other basic supports)
-	 */
-	isTooLargeForHavingARichMode(): boolean;
+	matchBracket(position:IPosition): [Range,Range];
 }
 
 /**
  * A model that can track markers.
  */
 export interface ITextModelWithMarkers extends ITextModel {
-	/*package*/_addMarker(lineNumber:number, column:number, stickToPreviousCharacter:boolean): string;
-	/*package*/_changeMarker(id:string, newLineNumber:number, newColumn:number): void;
-	/*package*/_changeMarkerStickiness(id:string, newStickToPreviousCharacter:boolean): void;
-	/*package*/_getMarker(id:string): IEditorPosition;
-	/*package*/_removeMarker(id:string): void;
-	/*package*/_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[];
+	/**
+	 * @internal
+	 */
+	_addMarker(lineNumber:number, column:number, stickToPreviousCharacter:boolean): string;
+	/**
+	 * @internal
+	 */
+	_changeMarker(id:string, newLineNumber:number, newColumn:number): void;
+	/**
+	 * @internal
+	 */
+	_changeMarkerStickiness(id:string, newStickToPreviousCharacter:boolean): void;
+	/**
+	 * @internal
+	 */
+	_getMarker(id:string): Position;
+	/**
+	 * @internal
+	 */
+	_removeMarker(id:string): void;
+	/**
+	 * @internal
+	 */
+	_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[];
 }
 
 /**
  * A map of changed ranges used during the model internal processing
+ * @internal
  */
 export interface IChangedTrackedRanges {
 	[key:string]:IRange;
@@ -1781,6 +1742,7 @@ export interface ITextModelWithTrackedRanges extends ITextModel {
 	 * @param range The range to start tracking.
 	 * @param stickiness The behaviour when typing at the edges of the range.
 	 * @return A unique identifier for the tracked range.
+	 * @internal
 	 */
 	addTrackedRange(range:IRange, stickiness:TrackedRangeStickiness): string;
 
@@ -1788,6 +1750,7 @@ export interface ITextModelWithTrackedRanges extends ITextModel {
 	 * Change the range of a tracked range.
 	 * @param id The id of the tracked range, as returned by a `addTrackedRange` call.
 	 * @param newRange The new range of the tracked range.
+	 * @internal
 	 */
 	changeTrackedRange(id:string, newRange:IRange): void;
 
@@ -1795,26 +1758,30 @@ export interface ITextModelWithTrackedRanges extends ITextModel {
 	 * Change the stickiness (behaviour when typing at the edges of the range) for a tracked range.
 	 * @param id The id of the tracked range, as returned by a `addTrackedRange` call.
 	 * @param newStickiness The new behaviour when typing at the edges of the range.
+	 * @internal
 	 */
 	changeTrackedRangeStickiness(id:string, newStickiness:TrackedRangeStickiness): void;
 
 	/**
 	 * Remove a tracked range.
 	 * @param id The id of the tracked range, as returned by a `addTrackedRaneg` call.
+	 * @internal
 	 */
 	removeTrackedRange(id:string): void;
 
 	/**
 	 * Get the range of a tracked range.
 	 * @param id The id of the tracked range, as returned by a `addTrackedRaneg` call.
+	 * @internal
 	 */
-	getTrackedRange(id:string): IEditorRange;
+	getTrackedRange(id:string): Range;
 
 	/**
 	 * Gets all the tracked ranges for the lines between `startLineNumber` and `endLineNumber` as an array.
 	 * @param startLineNumber The start line number
 	 * @param endLineNumber The end line number
 	 * @return An array with the tracked ranges
+	 * @internal
 	 */
 	getLinesTrackedRanges(startLineNumber:number, endLineNumber:number): IModelTrackedRange[];
 }
@@ -1829,6 +1796,7 @@ export interface ITextModelWithDecorations {
 	 * This allows for all events to be queued up until the change
 	 * is completed. Returns whatever the callback returns.
 	 * @param ownerId Identifies the editor id in which these decorations should appear. If no `ownerId` is provided, the decorations will appear in all editors that attach this model.
+	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor:IModelDecorationsChangeAccessor)=>any, ownerId?:number): any;
 
@@ -1847,6 +1815,7 @@ export interface ITextModelWithDecorations {
 	/**
 	 * Remove all decorations that have been added with this specific ownerId.
 	 * @param ownerId The owner id to search for.
+	 * @internal
 	 */
 	removeAllDecorationsWithOwnerId(ownerId:number): void;
 
@@ -1862,7 +1831,7 @@ export interface ITextModelWithDecorations {
 	 * @param id The decoration id.
 	 * @return The decoration range or null if the decoration was not found.
 	 */
-	getDecorationRange(id:string): IEditorRange;
+	getDecorationRange(id:string): Range;
 
 	/**
 	 * Gets all the decorations for the line `lineNumber` as an array.
@@ -1929,7 +1898,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.
 	 */
-	pushEditOperations(beforeCursorState:IEditorSelection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): IEditorSelection[];
+	pushEditOperations(beforeCursorState:Selection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): Selection[];
 
 	/**
 	 * Edit the model without adding the edits to the undo stack.
@@ -1942,35 +1911,51 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 	/**
 	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
 	 * The inverse edit operations will be pushed on the redo stack.
+	 * @internal
 	 */
-	undo(): IEditorSelection[];
+	undo(): Selection[];
 
 	/**
 	 * Redo edit operations until the next stop point created by `pushStackElement`.
 	 * The inverse edit operations will be pushed on the undo stack.
+	 * @internal
 	 */
-	redo(): IEditorSelection[];
+	redo(): Selection[];
 
 	/**
 	 * Set an editable range on the model.
+	 * @internal
 	 */
 	setEditableRange(range:IRange): void;
 
 	/**
 	 * Check if the model has an editable range.
+	 * @internal
 	 */
 	hasEditableRange(): boolean;
 
 	/**
 	 * Get the editable range on the model.
+	 * @internal
 	 */
-	getEditableRange(): IEditorRange;
+	getEditableRange(): Range;
 }
 
 /**
  * A model.
  */
-export interface IModel extends IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEventEmitter, IEditorModel {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
+
+	onDidChangeRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	onDidChangeContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
+	onDidChangeModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
+	onDidChangeDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
+	onDidChangeOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
+	onDidChangeMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
+	onWillDispose(listener: ()=>void): IDisposable;
+
+	addBulkListener(listener:BulkListenerCallback):IDisposable;
+
 	/**
 	 * A unique identifier associated with this model.
 	 */
@@ -1979,13 +1964,15 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	/**
 	 * Destroy this model. This will unbind the model from the mode
 	 * and make all necessary clean-up to release this object to the GC.
+	 * @internal
 	 */
 	destroy(): void;
 
 	/**
-	 * Gets the resource associated with this editor model.
+	 * Destroy this model. This will unbind the model from the mode
+	 * and make all necessary clean-up to release this object to the GC.
 	 */
-	getAssociatedResource(): URI;
+	dispose(): void;
 
 	/**
 	 * Search the model.
@@ -1997,7 +1984,7 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if not matches have been found.
 	 */
-	findMatches(searchString:string, searchOnlyEditableRange:boolean, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): IEditorRange[];
+	findMatches(searchString:string, searchOnlyEditableRange:boolean, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): Range[];
 	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2008,7 +1995,7 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if no matches have been found.
 	 */
-	findMatches(searchString:string, searchScope:IRange, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): IEditorRange[];
+	findMatches(searchString:string, searchScope:IRange, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount?:number): Range[];
 	/**
 	 * Search the model for the next match. Loops to the beginning of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2018,7 +2005,7 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * @param wholeWord Force the matching to match entire words only.
 	 * @return The range where the next match is. It is null if no next match has been found.
 	 */
-	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
+	findNextMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range;
 	/**
 	 * Search the model for the previous match. Loops to the end of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -2028,45 +2015,41 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * @param wholeWord Force the matching to match entire words only.
 	 * @return The range where the previous match is. It is null if no previous match has been found.
 	 */
-	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): IEditorRange;
+	findPreviousMatch(searchString:string, searchStart:IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): Range;
 
 	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * Optionally, the language mode of the model can be changed.
-	 * This call clears all of the undo / redo stack,
-	 * removes all decorations or tracked ranges, emits a
-	 * ModelContentChanged(ModelContentChangedFlush) event and
-	 * unbinds the mirror model from the previous mode to the new
-	 * one if the mode has changed.
+	 * @internal
 	 */
-	setValue(newValue:string, newMode?:IMode): void;
-	setValue(newValue:string, newModePromise:TPromise<IMode>): void;
-
-	setValueFromRawText(newValue:IRawText, newMode?:IMode): void;
-	setValueFromRawText(newValue:IRawText, newModePromise:TPromise<IMode>): void;
-
 	onBeforeAttached(): void;
 
+	/**
+	 * @internal
+	 */
 	onBeforeDetached(): void;
-
-	getModeId(): string;
 
 	/**
 	 * Returns iff this model is attached to an editor or not.
+	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
 }
 
+/**
+ * @internal
+ */
 export interface IRangeWithText {
 	text:string;
 	range:IRange;
 }
 
+/**
+ * @internal
+ */
 export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 	getEmbeddedAtPosition(position:IPosition): IMirrorModel;
 	getAllEmbedded(): IMirrorModel[];
 
-	getAssociatedResource(): URI;
+	uri: URI;
 
 	getOffsetFromPosition(position:IPosition): number;
 	getPositionFromOffset(offset:number): IPosition;
@@ -2076,6 +2059,8 @@ export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 
 	getAllWordsWithRange(): IRangeWithText[];
 	getAllUniqueWords(skipWordOnce?:string): string[];
+
+	getModeId(): string;
 }
 
 /**
@@ -2264,19 +2249,19 @@ export interface ICursorPositionChangedEvent {
 	/**
 	 * Primary cursor's position.
 	 */
-	position:IEditorPosition;
+	position:Position;
 	/**
 	 * Primary cursor's view position
 	 */
-	viewPosition:IEditorPosition;
+	viewPosition:Position;
 	/**
 	 * Secondary cursors' position.
 	 */
-	secondaryPositions:IEditorPosition[];
+	secondaryPositions:Position[];
 	/**
 	 * Secondary cursors' view position.
 	 */
-	secondaryViewPositions:IEditorPosition[];
+	secondaryViewPositions:Position[];
 	/**
 	 * Reason.
 	 */
@@ -2297,19 +2282,19 @@ export interface ICursorSelectionChangedEvent {
 	/**
 	 * The primary selection.
 	 */
-	selection:IEditorSelection;
+	selection:Selection;
 	/**
 	 * The primary selection in view coordinates.
 	 */
-	viewSelection:IEditorSelection;
+	viewSelection:Selection;
 	/**
 	 * The secondary selections.
 	 */
-	secondarySelections:IEditorSelection[];
+	secondarySelections:Selection[];
 	/**
 	 * The secondary selections in view coordinates.
 	 */
-	secondaryViewSelections:IEditorSelection[];
+	secondaryViewSelections:Selection[];
 	/**
 	 * Source of the call that caused the event.
 	 */
@@ -2319,6 +2304,9 @@ export interface ICursorSelectionChangedEvent {
 	 */
 	reason:CursorChangeReason;
 }
+/**
+ * @internal
+ */
 export enum VerticalRevealType {
 	Simple = 0,
 	Center = 1,
@@ -2326,16 +2314,17 @@ export enum VerticalRevealType {
 }
 /**
  * An event describing a request to reveal a specific range in the view of the editor.
+ * @internal
  */
 export interface ICursorRevealRangeEvent {
 	/**
 	 * Range to be reavealed.
 	 */
-	range:IEditorRange;
+	range:Range;
 	/**
 	 * View range to be reavealed.
 	 */
-	viewRange:IEditorRange;
+	viewRange:Range;
 
 	verticalType: VerticalRevealType;
 	/**
@@ -2345,6 +2334,9 @@ export interface ICursorRevealRangeEvent {
 	revealHorizontal:boolean;
 }
 
+/**
+ * @internal
+ */
 export interface ICursorScrollRequestEvent {
 	deltaLines: number;
 }
@@ -2354,6 +2346,9 @@ export interface IModelChangedEvent {
 	newModelUrl: string;
 }
 
+/**
+ * @internal
+ */
 export interface IEditorWhitespace {
 	id:number;
 	afterLineNumber:number;
@@ -2737,6 +2732,7 @@ export interface ILineChange extends IChange {
 }
 /**
  * Information about a line in the diff editor
+ * @internal
  */
 export interface IDiffLineInformation {
 	equivalentLineNumber: number;
@@ -2744,10 +2740,16 @@ export interface IDiffLineInformation {
 
 export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = 'editorTextFocus';
 export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
+/**
+ * @internal
+ */
 export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
 export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
 export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelection';
 export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
+/**
+ * @internal
+ */
 export const SHOW_ACCESSIBILITY_HELP_ACTION_ID = 'editor.action.showAccessibilityHelp';
 
 export class BareFontInfo {
@@ -2813,6 +2815,9 @@ export class FontInfo extends BareFontInfo {
 	}
 }
 
+/**
+ * @internal
+ */
 export interface IConfiguration {
 	onDidChange: Event<IConfigurationChangedEvent>;
 
@@ -2823,6 +2828,9 @@ export interface IConfiguration {
 
 // --- view
 
+/**
+ * @internal
+ */
 export interface IViewEventNames {
 	ModelFlushedEvent: string;
 	LinesDeletedEvent: string;
@@ -2836,6 +2844,9 @@ export interface IViewEventNames {
 	LineMappingChangedEvent: string;
 }
 
+/**
+ * @internal
+ */
 export var ViewEventNames = {
 	ModelFlushedEvent: 'modelFlushedEvent',
 	LinesDeletedEvent: 'linesDeletedEvent',
@@ -2867,6 +2878,9 @@ export interface INewScrollPosition {
 	scrollTop?: number;
 }
 
+/**
+ * @internal
+ */
 export interface IViewLinesDeletedEvent {
 	/**
 	 * At what line the deletion began (inclusive).
@@ -2878,6 +2892,9 @@ export interface IViewLinesDeletedEvent {
 	toLineNumber: number;
 }
 
+/**
+ * @internal
+ */
 export interface IViewLinesInsertedEvent {
 	/**
 	 * Before what line did the insertion begin
@@ -2889,6 +2906,9 @@ export interface IViewLinesInsertedEvent {
 	toLineNumber: number;
 }
 
+/**
+ * @internal
+ */
 export interface IViewLineChangedEvent {
 	/**
 	 * The line that has changed.
@@ -2896,6 +2916,9 @@ export interface IViewLineChangedEvent {
 	lineNumber: number;
 }
 
+/**
+ * @internal
+ */
 export interface IViewTokensChangedEvent {
 	/**
 	 * Start line number of range
@@ -2907,6 +2930,9 @@ export interface IViewTokensChangedEvent {
 	toLineNumber: number;
 }
 
+/**
+ * @internal
+ */
 export interface IViewDecorationsChangedEvent {
 	/**
 	 * signals that at least one inline decoration has changed
@@ -2914,37 +2940,46 @@ export interface IViewDecorationsChangedEvent {
 	inlineDecorationsChanged: boolean;
 }
 
+/**
+ * @internal
+ */
 export interface IViewCursorPositionChangedEvent {
 	/**
 	 * Primary cursor's position.
 	 */
-	position: IEditorPosition;
+	position: Position;
 	/**
 	 * Secondary cursors' position.
 	 */
-	secondaryPositions: IEditorPosition[];
+	secondaryPositions: Position[];
 	/**
 	 * Is the primary cursor in the editable range?
 	 */
 	isInEditableRange: boolean;
 }
 
+/**
+ * @internal
+ */
 export interface IViewCursorSelectionChangedEvent {
 	/**
 	 * The primary selection.
 	 */
-	selection: IEditorSelection;
+	selection: Selection;
 	/**
 	 * The secondary selections.
 	 */
-	secondarySelections: IEditorSelection[];
+	secondarySelections: Selection[];
 }
 
+/**
+ * @internal
+ */
 export interface IViewRevealRangeEvent {
 	/**
 	 * Range to be reavealed.
 	 */
-	range: IEditorRange;
+	range: Range;
 
 	verticalType: VerticalRevealType;
 	/**
@@ -2954,10 +2989,16 @@ export interface IViewRevealRangeEvent {
 	revealHorizontal: boolean;
 }
 
+/**
+ * @internal
+ */
 export interface IViewScrollRequestEvent {
 	deltaLines: number;
 }
 
+/**
+ * @internal
+ */
 export interface IViewWhitespaceViewportData {
 	id:number;
 	afterLineNumber:number;
@@ -2965,6 +3006,9 @@ export interface IViewWhitespaceViewportData {
 	height:number;
 }
 
+/**
+ * @internal
+ */
 export class Viewport {
 	_viewportBrand: void;
 
@@ -3022,6 +3066,7 @@ export interface IActionDescriptor {
 
 /**
  * Data associated with an editor action contribution
+ * @internal
  */
 export interface IEditorActionDescriptorData {
 	id:string;
@@ -3029,12 +3074,19 @@ export interface IEditorActionDescriptorData {
 	alias?:string;
 }
 
+/**
+ * @internal
+ */
 export type IEditorActionContributionCtor = IConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
 
+/**
+ * @internal
+ */
 export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
 
 /**
  * An editor contribution descriptor that will be used to construct editor contributions
+ * @internal
  */
 export interface ICommonEditorContributionDescriptor {
 	/**
@@ -3046,7 +3098,18 @@ export interface ICommonEditorContributionDescriptor {
 /**
  * An editor.
  */
-export interface IEditor extends IEventEmitter {
+export interface IEditor {
+
+	onDidChangeModelRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
+	onDidChangeModelContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
+	onDidChangeModelMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable;
+	onDidChangeModelOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
+	onDidChangeConfiguration(listener: (e:IConfigurationChangedEvent)=>void): IDisposable;
+	onDidChangeCursorPosition(listener: (e:ICursorPositionChangedEvent)=>void): IDisposable;
+	onDidChangeCursorSelection(listener: (e:ICursorSelectionChangedEvent)=>void): IDisposable;
+	onDidDispose(listener: ()=>void): IDisposable;
+
+	dispose(): void;
 
 	getId(): string;
 
@@ -3060,6 +3123,7 @@ export interface IEditor extends IEventEmitter {
 
 	/**
 	 * Destroy the editor.
+	 * @internal
 	 */
 	destroy(): void;
 
@@ -3070,11 +3134,13 @@ export interface IEditor extends IEventEmitter {
 
 	/**
 	 * Indicates that the editor becomes visible.
+	 * @internal
 	 */
 	onVisible(): void;
 
 	/**
 	 * Indicates that the editor becomes hidden.
+	 * @internal
 	 */
 	onHide(): void;
 
@@ -3085,7 +3151,7 @@ export interface IEditor extends IEventEmitter {
 	layout(dimension?:IDimension): void;
 
 	/**
-	 * Brings browser focus to the editor
+	 * Brings browser focus to the editor text
 	 */
 	focus(): void;
 
@@ -3122,7 +3188,7 @@ export interface IEditor extends IEventEmitter {
 	/**
 	 * Returns the primary position of the cursor.
 	 */
-	getPosition(): IEditorPosition;
+	getPosition(): Position;
 
 	/**
 	 * Set the primary position of the cursor. This will remove any secondary cursors.
@@ -3163,21 +3229,21 @@ export interface IEditor extends IEventEmitter {
 	/**
 	 * Returns the primary selection of the editor.
 	 */
-	getSelection(): IEditorSelection;
+	getSelection(): Selection;
 
 	/**
 	 * Returns all the selections of the editor.
 	 */
-	getSelections(): IEditorSelection[];
+	getSelections(): Selection[];
 
 	/**
 	 * Set the primary selection of the editor. This will remove any secondary cursors.
 	 * @param selection The new selection
 	 */
 	setSelection(selection:IRange): void;
-	setSelection(selection:IEditorRange): void;
+	setSelection(selection:Range): void;
 	setSelection(selection:ISelection): void;
-	setSelection(selection:IEditorSelection): void;
+	setSelection(selection:Selection): void;
 
 	/**
 	 * Set the selections for all the cursors of the editor.
@@ -3244,14 +3310,21 @@ export interface IEditor extends IEventEmitter {
 	 * will get the ownerId of the editor (meaning they will not show up in other
 	 * editors).
 	 * @see IModel.changeDecorations
+	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor:IModelDecorationsChangeAccessor)=>any): any;
 }
 
+/**
+ * @internal
+ */
 export interface ICodeEditorState {
 	validate(editor:ICommonCodeEditor): boolean;
 }
 
+/**
+ * @internal
+ */
 export enum CodeEditorStateFlag {
 	Value,
 	Selection,
@@ -3281,6 +3354,9 @@ export interface IEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
+/**
+ * @internal
+ */
 export interface IThemeDecorationRenderOptions {
 	backgroundColor?: string;
 
@@ -3304,6 +3380,9 @@ export interface IThemeDecorationRenderOptions {
 	overviewRulerColor?: string;
 }
 
+/**
+ * @internal
+ */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
 	overviewRulerLane?: OverviewRulerLane;
@@ -3312,12 +3391,25 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
 	dark?: IThemeDecorationRenderOptions;
 }
 
+/**
+ * @internal
+ */
 export interface IRangeWithMessage {
 	range: IRange;
 	hoverMessage?: IHTMLContentElement[];
 }
 
 export interface ICommonCodeEditor extends IEditor {
+
+	onDidChangeModel(listener: (e:IModelChangedEvent)=>void): IDisposable;
+	onDidChangeModelModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
+	onDidChangeModelDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
+
+	onDidFocusEditorText(listener: ()=>void): IDisposable;
+	onDidBlurEditorText(listener: ()=>void): IDisposable;
+
+	onDidFocusEditor(listener: ()=>void): IDisposable;
+	onDidBlurEditor(listener: ()=>void): IDisposable;
 
 	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.
@@ -3331,6 +3423,9 @@ export interface ICommonCodeEditor extends IEditor {
 	 */
 	getContribution(id: string): IEditorContribution;
 
+	/**
+	 * @internal
+	 */
 	captureState(...flags:CodeEditorStateFlag[]): ICodeEditorState;
 
 	/**
@@ -3345,6 +3440,7 @@ export interface ICommonCodeEditor extends IEditor {
 
 	/**
 	 * Returns the 'raw' editor's configuration, as it was applied over the defaults, but without any computed members.
+	 * @internal
 	 */
 	getRawConfiguration(): IEditorOptions;
 
@@ -3425,13 +3521,19 @@ export interface ICommonCodeEditor extends IEditor {
 	getLineDecorations(lineNumber: number): IModelDecoration[];
 
 	/**
-	 * All decorations added through this call wii get the ownerId of this editor.
+	 * All decorations added through this call will get the ownerId of this editor.
 	 * @see IModel.deltaDecorations
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 
+	/**
+	 * @internal
+	 */
 	setDecorations(decorationTypeKey: string, ranges:IRangeWithMessage[]): void;
 
+	/**
+	 * @internal
+	 */
 	removeDecorations(decorationTypeKey:string): void;
 
 	/**
@@ -3443,11 +3545,13 @@ export interface ICommonCodeEditor extends IEditor {
 	 * Prevent the editor from sending a widgetFocusLost event,
 	 * set it in a state where it believes that focus is in one of its widgets.
 	 * Use this method with care and always add a matching `endForcedWidgetFocus`
+	 * @internal
 	 */
 	beginForcedWidgetFocus(): void;
 
 	/**
 	 * End the preventing of sending a widgetFocusLost event.
+	 * @internal
 	 */
 	endForcedWidgetFocus(): void;
 
@@ -3456,12 +3560,15 @@ export interface ICommonCodeEditor extends IEditor {
 	 * The callback should not do operations on the view, as the view might not be updated to reflect previous typed characters.
 	 * @param character Character to listen to.
 	 * @param callback Function to call when `character` is typed.
+	 * @internal
 	 */
-	addTypingListener(character: string, callback: () => void): ListenerUnbind;
+	addTypingListener(character: string, callback: () => void): IDisposable;
 
 }
 
 export interface ICommonDiffEditor extends IEditor {
+	onDidUpdateDiff(listener: ()=>void): IDisposable;
+
 	/**
 	 * Type the getModel() of IEditor.
 	 */
@@ -3475,11 +3582,13 @@ export interface ICommonDiffEditor extends IEditor {
 	/**
 	 * Get information based on computed diff about a line number from the original model.
 	 * If the diff computation is not finished or the model is missing, will return null.
+	 * @internal
 	 */
 	getDiffLineInformationForOriginal(lineNumber:number): IDiffLineInformation;
 	/**
 	 * Get information based on computed diff about a line number from the modified model.
 	 * If the diff computation is not finished or the model is missing, will return null.
+	 * @internal
 	 */
 	getDiffLineInformationForModified(lineNumber:number): IDiffLineInformation;
 
@@ -3490,10 +3599,12 @@ export interface ICommonDiffEditor extends IEditor {
 
 	/**
 	 * Returns whether the diff editor is ignoring trim whitespace or not.
+	 * @internal
 	 */
 	ignoreTrimWhitespace: boolean;
 	/**
 	 * Returns whether the diff editor is rendering side by side or not.
+	 * @internal
 	 */
 	renderSideBySide: boolean;
 }
@@ -3503,6 +3614,9 @@ export var EditorType = {
 	IDiffEditor: 'vs.editor.IDiffEditor'
 };
 
+/**
+ * @internal
+ */
 export var ClassName = {
 	EditorWarningDecoration: 'greensquiggly',
 	EditorErrorDecoration: 'redsquiggly'
@@ -3521,12 +3635,12 @@ export var EventType = {
 	ModelModeChanged: 'modelsModeChanged',
 	ModelModeSupportChanged: 'modelsModeSupportChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelContentChanged: 'contentChanged',
+	ModelRawContentChanged: 'contentChanged',
 	ModelContentChanged2: 'contentChanged2',
-	ModelContentChangedFlush: 'flush',
-	ModelContentChangedLinesDeleted: 'linesDeleted',
-	ModelContentChangedLinesInserted: 'linesInserted',
-	ModelContentChangedLineChanged: 'lineChanged',
+	ModelRawContentChangedFlush: 'flush',
+	ModelRawContentChangedLinesDeleted: 'linesDeleted',
+	ModelRawContentChangedLinesInserted: 'linesInserted',
+	ModelRawContentChangedLineChanged: 'lineChanged',
 
 	EditorTextBlur: 'blur',
 	EditorTextFocus: 'focus',
@@ -3685,6 +3799,9 @@ export enum TextEditorCursorStyle {
 	Underline = 3
 }
 
+/**
+ * @internal
+ */
 export function cursorStyleToString(cursorStyle:TextEditorCursorStyle): string {
 	if (cursorStyle === TextEditorCursorStyle.Line) {
 		return 'line';
@@ -3696,3 +3813,104 @@ export function cursorStyleToString(cursorStyle:TextEditorCursorStyle): string {
 		throw new Error('cursorStyleToString: Unknown cursorStyle');
 	}
 }
+
+/**
+ * @internal
+ */
+export class ColorZone {
+	_colorZoneBrand: void;
+
+	from: number;
+	to: number;
+	colorId: number;
+	position: OverviewRulerLane;
+
+	constructor(from:number, to:number, colorId:number, position: OverviewRulerLane) {
+		this.from = from|0;
+		this.to = to|0;
+		this.colorId = colorId|0;
+		this.position = position|0;
+	}
+}
+
+/**
+ * A zone in the overview ruler
+ * @internal
+ */
+export class OverviewRulerZone {
+	_overviewRulerZoneBrand: void;
+
+	startLineNumber: number;
+	endLineNumber: number;
+	position: OverviewRulerLane;
+	forceHeight: number;
+
+	private _color: string;
+	private _darkColor: string;
+
+	private _colorZones: ColorZone[];
+
+	constructor(
+		startLineNumber: number, endLineNumber: number,
+		position: OverviewRulerLane,
+		forceHeight: number,
+		color: string, darkColor: string
+	) {
+		this.startLineNumber = startLineNumber;
+		this.endLineNumber = endLineNumber;
+		this.position = position;
+		this.forceHeight = forceHeight;
+		this._color = color;
+		this._darkColor = darkColor;
+		this._colorZones = null;
+	}
+
+	public getColor(useDarkColor:boolean): string {
+		if (useDarkColor) {
+			return this._darkColor;
+		}
+		return this._color;
+	}
+
+	public equals(other:OverviewRulerZone): boolean {
+		return (
+			this.startLineNumber === other.startLineNumber
+			&& this.endLineNumber === other.endLineNumber
+			&& this.position === other.position
+			&& this.forceHeight === other.forceHeight
+			&& this._color === other._color
+			&& this._darkColor === other._darkColor
+		);
+	}
+
+	public compareTo(other:OverviewRulerZone): number {
+		if (this.startLineNumber === other.startLineNumber) {
+			if (this.endLineNumber === other.endLineNumber) {
+				if (this.forceHeight === other.forceHeight) {
+					if (this.position === other.position) {
+						if (this._darkColor === other._darkColor) {
+							if (this._color === other._color) {
+								return 0;
+							}
+							return this._color < other._color ? -1 : 1;
+						}
+						return this._darkColor < other._darkColor ? -1 : 1;
+					}
+					return this.position - other.position;
+				}
+				return this.forceHeight - other.forceHeight;
+			}
+			return this.endLineNumber - other.endLineNumber;
+		}
+		return this.startLineNumber - other.startLineNumber;
+	}
+
+	public setColorZones(colorZones:ColorZone[]): void {
+		this._colorZones = colorZones;
+	}
+
+	public getColorZones(): ColorZone[] {
+		return this._colorZones;
+	}
+}
+

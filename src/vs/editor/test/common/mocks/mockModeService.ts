@@ -89,6 +89,9 @@ export class MockModeService implements IModeService {
 	registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
 		throw new Error('Not implemented');
 	}
+	registerTokenizationSupport2(modeId: string, support: modes.ITokenizationSupport2): IDisposable {
+		throw new Error('Not implemented');
+	}
 	registerMonarchDefinition(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
 		throw new Error('Not implemented');
 	}

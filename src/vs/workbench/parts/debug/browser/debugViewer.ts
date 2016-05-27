@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import { isMacintosh } from 'vs/base/common/platform';
 import dom = require('vs/base/browser/dom');
-import mouse = require('vs/base/browser/mouseEvent');
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import labels = require('vs/base/common/labels');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
@@ -192,6 +192,51 @@ export class BaseDebugController extends treedefaults.DefaultController {
 }
 
 // call stack
+
+export class CallStackController extends BaseDebugController {
+
+	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
+		if (typeof element === 'number') {
+			return this.showMoreStackFrames(tree, element);
+		}
+		if (element instanceof model.StackFrame) {
+			this.focusStackFrame(element, event, true);
+		}
+
+		return super.onLeftClick(tree, element, event);
+	}
+
+	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
+		if (typeof element === 'number') {
+			return this.showMoreStackFrames(tree, element);
+		}
+		if (element instanceof model.StackFrame) {
+			this.focusStackFrame(element, event, false);
+		}
+
+		return super.onEnter(tree, event);
+	}
+
+	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
+	private showMoreStackFrames(tree: tree.ITree, threadId: number): boolean {
+		const thread = this.debugService.getModel().getThreads()[threadId];
+		if (thread) {
+			thread.getCallStack(this.debugService, true)
+				.done(() => tree.refresh(), errors.onUnexpectedError);
+		}
+
+		return true;
+	}
+
+	private focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent|IMouseEvent, preserveFocus: boolean): void {
+		this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
+
+		const sideBySide = (event && (event.ctrlKey || event.metaKey));
+		this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+	}
+}
+
 
 export class CallStackActionProvider implements renderer.IActionProvider {
 
@@ -772,7 +817,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		}
 	}
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof model.Expression && event.detail === 2) {
 			const expression = <debug.IExpression>element;
@@ -1056,13 +1101,29 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 export class BreakpointsController extends BaseDebugController {
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		if (element instanceof model.FunctionBreakpoint && event.detail === 2) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
+		if (element instanceof model.Breakpoint) {
+			this.openBreakpointSource(element, event, true);
+		}
 
 		return super.onLeftClick(tree, element, event);
+	}
+
+	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		const element = tree.getFocus();
+		if (element instanceof model.FunctionBreakpoint) {
+			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+			return true;
+		}
+		if (element instanceof model.Breakpoint) {
+			this.openBreakpointSource(element, event, false);
+		}
+
+		return super.onEnter(tree, event);
 	}
 
 	protected onSpace(tree: tree.ITree, event: IKeyboardEvent): boolean {
@@ -1072,7 +1133,6 @@ export class BreakpointsController extends BaseDebugController {
 
 		return true;
 	}
-
 
 	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
@@ -1087,5 +1147,12 @@ export class BreakpointsController extends BaseDebugController {
 		}
 
 		return false;
+	}
+
+	private openBreakpointSource(breakpoint: debug.IBreakpoint, event: IKeyboardEvent|IMouseEvent, preserveFocus: boolean): void {
+		if (!breakpoint.source.inMemory) {
+			const sideBySide = (event && (event.ctrlKey || event.metaKey));
+			this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		}
 	}
 }

@@ -9,6 +9,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService, optional} from 'vs/platform/instantiation/common/instantiation';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
@@ -101,16 +102,17 @@ export abstract class AbstractMode implements modes.IMode {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);
 	}
 
-	public registerSupport<T>(support:string, callback:(mode:modes.IMode) => T) : IDisposable {
+	public registerSupport<T>(supportEnum:modes.MutableSupport, callback:(mode:modes.IMode) => T) : IDisposable {
+		let supportStr = modes.mutableSupportToString(supportEnum);
 		var supportImpl = callback(this);
-		this[support] = supportImpl;
-		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(support));
+		this[supportStr] = supportImpl;
+		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(supportEnum));
 
 		return {
 			dispose: () => {
-				if (this[support] === supportImpl) {
-					delete this[support];
-					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(support));
+				if (this[supportStr] === supportImpl) {
+					delete this[supportStr];
+					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(supportEnum));
 				}
 			}
 		};
@@ -134,11 +136,8 @@ class SimplifiedMode implements modes.IMode {
 
 		if (this._sourceMode.addSupportChangedListener) {
 			this._sourceMode.addSupportChangedListener((e) => {
-				if (e.tokenizationSupport || e.richEditSupport) {
-					this._assignSupports();
-					let newEvent = SimplifiedMode._createModeSupportChangedEvent(e);
-					this._eventEmitter.emit('modeSupportChanged', newEvent);
-				}
+				this._assignSupports();
+				this._eventEmitter.emit('modeSupportChanged', e);
 			});
 		}
 	}
@@ -154,31 +153,6 @@ class SimplifiedMode implements modes.IMode {
 	private _assignSupports(): void {
 		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
 		this.richEditSupport = this._sourceMode.richEditSupport;
-	}
-
-	private static _createModeSupportChangedEvent(originalModeEvent:IModeSupportChangedEvent): IModeSupportChangedEvent {
-		var event:IModeSupportChangedEvent = {
-			codeLensSupport: false,
-			tokenizationSupport: originalModeEvent.tokenizationSupport,
-			occurrencesSupport:false,
-			declarationSupport:false,
-			typeDeclarationSupport:false,
-			navigateTypesSupport:false,
-			referenceSupport:false,
-			suggestSupport:false,
-			parameterHintsSupport:false,
-			extraInfoSupport:false,
-			outlineSupport:false,
-			logicalSelectionSupport:false,
-			formattingSupport:false,
-			inplaceReplaceSupport:false,
-			emitOutputSupport:false,
-			linkSupport:false,
-			configSupport:false,
-			quickFixSupport:false,
-			richEditSupport: originalModeEvent.richEditSupport,
-		};
-		return event;
 	}
 }
 
@@ -248,42 +222,30 @@ export var isDigit:(character:string, base:number)=>boolean = (function () {
 
 export class FrankensteinMode extends AbstractMode {
 
-	public suggestSupport:modes.ISuggestSupport;
-
 	constructor(
-		descriptor:modes.IModeDescriptor,
+		descriptor: modes.IModeDescriptor,
+		@IConfigurationService configurationService: IConfigurationService,
 		@optional(IEditorWorkerService) editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
 
 		if (editorWorkerService) {
-			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+			modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(editorWorkerService, configurationService), true);
 		}
 	}
 }
 
-function _createModeSupportChangedEvent(...changedSupports: string[]): IModeSupportChangedEvent {
-	var event:IModeSupportChangedEvent = {
-		codeLensSupport: false,
-		tokenizationSupport:false,
-		occurrencesSupport:false,
-		declarationSupport:false,
-		typeDeclarationSupport:false,
-		navigateTypesSupport:false,
-		referenceSupport:false,
-		suggestSupport:false,
-		parameterHintsSupport:false,
-		extraInfoSupport:false,
-		outlineSupport:false,
-		logicalSelectionSupport:false,
-		formattingSupport:false,
-		inplaceReplaceSupport:false,
-		emitOutputSupport:false,
-		linkSupport:false,
-		configSupport:false,
-		quickFixSupport:false,
-		richEditSupport: false
+function _createModeSupportChangedEvent(supportEnum:modes.MutableSupport): IModeSupportChangedEvent {
+	let e:IModeSupportChangedEvent = {
+		richEditSupport: false,
+		tokenizationSupport: false
 	};
-	changedSupports.forEach(support => event[support] = true);
-	return event;
+	if (supportEnum === modes.MutableSupport.RichEditSupport) {
+		e.richEditSupport = true;
+		return e;
+	} else if (supportEnum === modes.MutableSupport.TokenizationSupport) {
+		e.tokenizationSupport = true;
+		return e;
+	}
+	throw new Error('Illegal argument!');
 }

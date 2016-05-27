@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import URI from 'vs/base/common/uri';
-import {IModelContentChangedEvent, EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
+import {EventType, EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {EventType as WorkbenchEventType, UntitledEditorEvent, ResourceEvent} from 'vs/workbench/common/events';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -18,7 +18,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
 export class UntitledEditorModel extends StringEditorModel implements IEncodingSupport {
-	private textModelChangeListener: () => void;
+	private textModelChangeListener: IDisposable;
 	private configurationChangeListener: IDisposable;
 
 	private dirty: boolean;
@@ -94,7 +94,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
 
 			// Listen to content changes
-			this.textModelChangeListener = this.textEditorModel.addListener(EventType.ModelContentChanged, (e: IModelContentChangedEvent) => this.onModelContentChanged(e));
+			this.textModelChangeListener = this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged());
 
 			// Emit initial dirty event if we are
 			if (this.dirty) {
@@ -107,7 +107,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		});
 	}
 
-	private onModelContentChanged(e: IModelContentChangedEvent): void {
+	private onModelContentChanged(): void {
 		if (!this.dirty) {
 			this.dirty = true;
 			this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_DIRTY, new UntitledEditorEvent(this.resource));
@@ -118,7 +118,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		super.dispose();
 
 		if (this.textModelChangeListener) {
-			this.textModelChangeListener();
+			this.textModelChangeListener.dispose();
 			this.textModelChangeListener = null;
 		}
 

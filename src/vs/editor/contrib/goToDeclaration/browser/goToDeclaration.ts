@@ -9,7 +9,6 @@ import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
 import {Throttler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -25,13 +24,17 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IReference, DeclarationRegistry} from 'vs/editor/common/modes';
+import {Location, DefinitionProviderRegistry} from 'vs/editor/common/modes';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {ReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referencesController';
 import {ReferencesModel} from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import {optional} from 'vs/platform/instantiation/common/instantiation';
+
 
 export class DefinitionActionConfig {
 
@@ -62,7 +65,7 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	public isSupported(): boolean {
-		return DeclarationRegistry.has(this.editor.getModel()) && super.isSupported();
+		return DefinitionProviderRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState(): boolean {
@@ -70,13 +73,7 @@ export class DefinitionAction extends EditorAction {
 			return false;
 		}
 
-		const model = this.editor.getModel();
-		const position = this.editor.getSelection().getStartPosition();
-		return DeclarationRegistry.all(model).some(provider => {
-			return provider.canFindDeclaration(
-				model.getLineContext(position.lineNumber),
-				position.column - 1);
-		});
+		return DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
 	public run(): TPromise<any> {
@@ -93,19 +90,19 @@ export class DefinitionAction extends EditorAction {
 			// * remove falsy references
 			// * remove reference at the current pos
 			// * collapse ranges to start pos
-			let result: IReference[] = [];
+			let result: Location[] = [];
 			for (let i = 0; i < references.length; i++) {
 				let reference = references[i];
 				if (!reference) {
 					continue;
 				}
-				let {resource, range} = reference;
+				let {uri, range} = reference;
 				if (!this._configuration.filterCurrent
-					|| resource.toString() !== model.getAssociatedResource().toString()
+					|| uri.toString() !== model.uri.toString()
 					|| !Range.containsPosition(range, pos)) {
 
 					result.push({
-						resource,
+						uri,
 						range: Range.collapseToStart(range)
 					});
 				}
@@ -124,7 +121,7 @@ export class DefinitionAction extends EditorAction {
 		});
 	}
 
-	private _onResult(references: IReference[]) {
+	private _onResult(references: Location[]) {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(this.editor, references);
 		} else {
@@ -137,14 +134,14 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(reference: IReference, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor>{
-		let {resource, range} = reference;
-		return this._editorService.openEditor({ resource, options: { selection: range } }, sideBySide).then(editor => {
+	private _openReference(reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor>{
+		let {uri, range} = reference;
+		return this._editorService.openEditor({ resource:uri, options: { selection: range } }, sideBySide).then(editor => {
 			return <editorCommon.IEditor> editor.getControl();
 		});
 	}
 
-	private _openInPeek(target: editorCommon.ICommonCodeEditor, references: IReference[]) {
+	private _openInPeek(target: editorCommon.ICommonCodeEditor, references: Location[]) {
 		let controller = ReferencesController.getController(target);
 		controller.toggleWidget(target.getSelection(), TPromise.as(new ReferencesModel(references)), {
 			getMetaTitle: (model) => {
@@ -195,9 +192,15 @@ export class PeekDefinitionAction extends DefinitionAction {
 		descriptor: editorCommon.IEditorActionDescriptorData,
 		editor: editorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
 		super(descriptor, editor, messageService, editorService, new DefinitionActionConfig(void 0, void 0, true, false));
+	}
+
+	getEnablementState(): boolean {
+		return (!this._peekViewService || !this._peekViewService.isActive)
+			&& super.getEnablementState();
 	}
 }
 
@@ -212,7 +215,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	static MAX_SOURCE_PREVIEW_LINES = 7;
 
 	private editor: ICodeEditor;
-	private toUnhook: ListenerUnbind[];
+	private toUnhook: IDisposable[];
 	private decorations: string[];
 	private currentWordUnderMouse: editorCommon.IWordAtPosition;
 	private throttler: Throttler;
@@ -228,15 +231,19 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.editor = editor;
 		this.throttler = new Throttler();
 
-		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.MouseDown, (e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
-		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.MouseUp, (e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
-		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.MouseMove, (e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
-		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.KeyDown, (e: IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.KeyUp, (e: IKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.toUnhook.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
+		this.toUnhook.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
+		this.toUnhook.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 
-		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.ModelChanged, (e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
-		this.toUnhook.push(this.editor.addListener('change', (e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
-		this.toUnhook.push(this.editor.addListener('scroll', () => this.resetHandler()));
+		this.toUnhook.push(this.editor.onDidChangeModel((e) => this.resetHandler()));
+		this.toUnhook.push(this.editor.onDidChangeModelContent(() => this.resetHandler()));
+		this.toUnhook.push(this.editor.onDidScrollChange((e) => {
+			if (e.scrollTopChanged || e.scrollLeftChanged) {
+				this.resetHandler();
+			}
+		}));
 	}
 
 	private onEditorMouseMove(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): void {
@@ -294,7 +301,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			// Single result
 			else {
 				let result = results[0];
-				this.editorService.resolveEditorModel({ resource: result.resource }).then(model => {
+				this.editorService.resolveEditorModel({ resource: result.uri }).then(model => {
 					let source: string;
 					if (model && model.textEditorModel) {
 
@@ -435,10 +442,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			(browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
 			mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
-			DeclarationRegistry.has(this.editor.getModel());
+			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget): TPromise<IReference[]> {
+	private findDefinition(target: IMouseTarget): TPromise<Location[]> {
 		let model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);
@@ -463,9 +470,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	public dispose(): void {
-		while (this.toUnhook.length > 0) {
-			this.toUnhook.pop()();
-		}
+		this.toUnhook = dispose(this.toUnhook);
 	}
 }
 

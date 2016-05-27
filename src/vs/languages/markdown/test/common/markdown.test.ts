@@ -68,7 +68,6 @@ suite('Markdown - tokenization', () => {
 			threadService,
 			modeService,
 			null,
-			null,
 			null
 		);
 

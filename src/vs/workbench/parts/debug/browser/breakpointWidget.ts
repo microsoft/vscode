@@ -13,7 +13,6 @@ import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import editorcommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,7 +45,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.breakpointWidgetVisible = keybindingService.createKey(CONTEXT_BREAKPOINT_WIDGET_VISIBLE, false);
 		this.breakpointWidgetVisible.set(true);
 		BreakpointWidget.INSTANCE = this;
-		this.toDispose.push(editor.addListener2(editorcommon.EventType.ModelChanged, () => this.dispose()));
+		this.toDispose.push(editor.onDidChangeModel(() => this.dispose()));
 	}
 
 	public static createInstance(editor: editorbrowser.ICodeEditor, lineNumber: number, instantiationService: IInstantiationService): void {
@@ -60,7 +59,7 @@ export class BreakpointWidget extends ZoneWidget {
 
 	protected _fillContainer(container: HTMLElement): void {
 		dom.addClass(container, 'breakpoint-widget');
-		const uri = this.editor.getModel().getAssociatedResource();
+		const uri = this.editor.getModel().uri;
 		const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));

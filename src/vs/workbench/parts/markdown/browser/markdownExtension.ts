@@ -9,7 +9,6 @@ import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import paths = require('vs/base/common/paths');
-import {EventType as EditorEventType, IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
@@ -23,7 +22,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 interface ILanguageConfiguration {
 	markdown: {
@@ -36,10 +35,10 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 
 	private static RELOAD_MARKDOWN_DELAY = 300; // delay before reloading markdown preview after user typing
 
-	private fileChangeListener: () => void;
+	private fileChangeListener: IDisposable;
 	private configFileChangeListener: IDisposable;
 	private themeChangeListener: IDisposable;
-	private editorInputChangeListener: () => void;
+	private editorInputChangeListener: IDisposable;
 	private markdownConfigurationThumbprint: string;
 	private markdownConfigurationPaths: string[];
 	private reloadTimeout: number;
@@ -64,11 +63,11 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.fileChangeListener = this.eventService.addListener(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e));
+		this.fileChangeListener = this.eventService.addListener2(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e));
 		this.configFileChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigFileChange(e));
 
 		// reload markdown editors when their resources change
-		this.editorInputChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e));
+		this.editorInputChangeListener = this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e));
 
 		// initially read the config for CSS styles in preview
 		this.readMarkdownConfiguration(this.configurationService.getConfiguration<ILanguageConfiguration>());
@@ -86,17 +85,15 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 			let markdownResource = input.getResource();
 			let editorModel = this.modelService.getModel(markdownResource);
 			if (editorModel && !this.hasModelListenerOnResourcePath[markdownResource.toString()]) {
-				let toUnbind: Function[] = [];
+				let toUnbind: IDisposable[] = [];
 				let unbind = () => {
-					while (toUnbind.length) {
-						toUnbind.pop()();
-					}
+					toUnbind = dispose(toUnbind);
 
 					this.hasModelListenerOnResourcePath[markdownResource.toString()] = false;
 				};
 
 				// Listen on changes to the underlying resource of the markdown preview
-				toUnbind.push(editorModel.addListener(EditorEventType.ModelContentChanged, (modelEvent: IModelContentChangedEvent) => {
+				toUnbind.push(editorModel.onDidChangeContent(() => {
 					if (this.reloadTimeout) {
 						window.clearTimeout(this.reloadTimeout);
 					}
@@ -112,8 +109,8 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 				this.hasModelListenerOnResourcePath[markdownResource.toString()] = true;
 
 				// Unbind when input or model gets disposed
-				toUnbind.push(input.addListener(EventType.DISPOSE, unbind));
-				toUnbind.push(editorModel.addListener(EditorEventType.ModelDispose, unbind));
+				toUnbind.push(input.addListener2(EventType.DISPOSE, unbind));
+				toUnbind.push(editorModel.onWillDispose(unbind));
 			}
 		}
 	}
@@ -190,7 +187,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 
 	public dispose(): void {
 		if (this.fileChangeListener) {
-			this.fileChangeListener();
+			this.fileChangeListener.dispose();
 			this.fileChangeListener = null;
 		}
 
@@ -200,7 +197,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		}
 
 		if (this.editorInputChangeListener) {
-			this.editorInputChangeListener();
+			this.editorInputChangeListener.dispose();
 			this.editorInputChangeListener = null;
 		}
 	}

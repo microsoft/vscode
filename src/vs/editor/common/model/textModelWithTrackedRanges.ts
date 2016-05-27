@@ -5,13 +5,14 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IdGenerator} from 'vs/editor/common/core/idGenerator';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ILineMarker} from 'vs/editor/common/model/modelLine';
 import {INewMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';
 import {FullModelRetokenizer, IRetokenizeRequest} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
 
 interface ITrackedRange {
 	id:string;
@@ -140,7 +141,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		var startMarkerId = this._addMarker(textRange.startLineNumber, textRange.startColumn, startMarkerSticksToPreviousCharacter);
 		var endMarkerId = this._addMarker(textRange.endLineNumber, textRange.endColumn, endMarkerSticksToPreviousCharacter);
 
-		var range = new TrackedRange(this._rangeIdGenerator.generate(), startMarkerId, endMarkerId);
+		var range = new TrackedRange(this._rangeIdGenerator.nextId(), startMarkerId, endMarkerId);
 		this._ranges[range.id] = range;
 		this._markerIdToRangeId[startMarkerId] = range.id;
 		this._markerIdToRangeId[endMarkerId] = range.id;
@@ -176,7 +177,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 			let startMarkerId = markerIds[2 * i];
 			let endMarkerId = markerIds[2 * i + 1];
 
-			let range = new TrackedRange(this._rangeIdGenerator.generate(), startMarkerId, endMarkerId);
+			let range = new TrackedRange(this._rangeIdGenerator.nextId(), startMarkerId, endMarkerId);
 			this._ranges[range.id] = range;
 			this._markerIdToRangeId[startMarkerId] = range.id;
 			this._markerIdToRangeId[endMarkerId] = range.id;
@@ -256,7 +257,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		}
 	}
 
-	private _newEditorRange(startPosition: editorCommon.IEditorPosition, endPosition: editorCommon.IEditorPosition): editorCommon.IEditorRange {
+	private _newEditorRange(startPosition: Position, endPosition: Position): Range {
 		if (endPosition.isBefore(startPosition)) {
 			// This tracked range has turned in on itself (end marker before start marker)
 			// This can happen in extreme editing conditions where lots of text is removed and lots is added
@@ -267,7 +268,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 	}
 
-	public getTrackedRange(rangeId:string): editorCommon.IEditorRange {
+	public getTrackedRange(rangeId:string): Range {
 		var range = this._ranges[rangeId];
 		var startMarker = this._getMarker(range.startMarkerId);
 		var endMarker = this._getMarker(range.endMarkerId);
@@ -314,8 +315,8 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 			i: number,
 			len: number,
 			lineNumber: number,
-			startMarker: editorCommon.IEditorPosition,
-			endMarker: editorCommon.IEditorPosition;
+			startMarker: Position,
+			endMarker: Position;
 
 		for (i = 0, len = result.length; i < len; i++) {
 			resultMap[result[i].id] = true;

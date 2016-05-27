@@ -8,7 +8,10 @@ import * as assert from 'assert';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EventType, IModelContentChangedEvent, IModelContentChangedFlushEvent} from 'vs/editor/common/editorCommon';
+import {
+	EventType, IModelContentChangedEvent, IModelContentChangedFlushEvent, IModelContentChangedLineChangedEvent,
+	IModelContentChangedLinesDeletedEvent, IModelContentChangedLinesInsertedEvent
+} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {BracketMode} from 'vs/editor/test/common/testModes';
 
@@ -109,7 +112,7 @@ suite('Editor Model - Model', () => {
 	// --------- insert text eventing
 
 	test('model insert empty text does not trigger eventing', () => {
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
@@ -117,10 +120,10 @@ suite('Editor Model - Model', () => {
 
 	test('model insert text without newline eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
-			assert.equal(e.lineNumber, 1);
+			assert.equal(e.changeType, EventType.ModelRawContentChangedLineChanged);
+			assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'foo ')]);
 		assert.equal(listenerCalls, 1, 'listener calls');
@@ -130,21 +133,21 @@ suite('Editor Model - Model', () => {
 		var listenerCalls = 0;
 		var order = 0;
 
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			listenerCalls++;
 
-			if (e.changeType === EventType.ModelContentChangedLineChanged) {
+			if (e.changeType === EventType.ModelRawContentChangedLineChanged) {
 				if (order === 0) {
 					assert.equal(++order, 1, 'ModelContentChangedLineChanged first');
-					assert.equal(e.lineNumber, 1, 'ModelContentChangedLineChanged line number 1');
+					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1, 'ModelContentChangedLineChanged line number 1');
 				} else {
 					assert.equal(++order, 2, 'ModelContentChangedLineChanged first');
-					assert.equal(e.lineNumber, 1, 'ModelContentChangedLineChanged line number 1');
+					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1, 'ModelContentChangedLineChanged line number 1');
 				}
-			} else if (e.changeType === EventType.ModelContentChangedLinesInserted) {
+			} else if (e.changeType === EventType.ModelRawContentChangedLinesInserted) {
 				assert.equal(++order, 3, 'ModelContentChangedLinesInserted second');
-				assert.equal(e.fromLineNumber, 2, 'ModelContentChangedLinesInserted fromLineNumber');
-				assert.equal(e.toLineNumber, 2, 'ModelContentChangedLinesInserted toLineNumber');
+				assert.equal((<IModelContentChangedLinesInsertedEvent>e).fromLineNumber, 2, 'ModelContentChangedLinesInserted fromLineNumber');
+				assert.equal((<IModelContentChangedLinesInsertedEvent>e).toLineNumber, 2, 'ModelContentChangedLinesInserted toLineNumber');
 			} else {
 				assert.ok (false);
 			}
@@ -206,7 +209,7 @@ suite('Editor Model - Model', () => {
 	// --------- delete text eventing
 
 	test('model delete empty text does not trigger eventing', () => {
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
@@ -214,10 +217,10 @@ suite('Editor Model - Model', () => {
 
 	test('model delete text from one line eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
-			assert.equal(e.lineNumber, 1);
+			assert.equal(e.changeType, EventType.ModelRawContentChangedLineChanged);
+			assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 2))]);
 		assert.equal(listenerCalls, 1, 'listener calls');
@@ -225,10 +228,10 @@ suite('Editor Model - Model', () => {
 
 	test('model delete all text from a line eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			listenerCalls++;
-			assert.equal(e.changeType, EventType.ModelContentChangedLineChanged);
-			assert.equal(e.lineNumber, 1);
+			assert.equal(e.changeType, EventType.ModelRawContentChangedLineChanged);
+			assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 14))]);
 		assert.equal(listenerCalls, 1, 'listener calls');
@@ -237,21 +240,21 @@ suite('Editor Model - Model', () => {
 	test('model delete text from two lines eventing', () => {
 		var listenerCalls = 0;
 		var order = 0;
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			listenerCalls++;
 
-			if (e.changeType === EventType.ModelContentChangedLineChanged) {
+			if (e.changeType === EventType.ModelRawContentChangedLineChanged) {
 				if (order === 0) {
 					assert.equal(++order, 1);
-					assert.equal(e.lineNumber, 1);
+					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
 				} else {
 					assert.equal(++order, 2);
-					assert.equal(e.lineNumber, 1);
+					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
 				}
-			} else if (e.changeType === EventType.ModelContentChangedLinesDeleted) {
+			} else if (e.changeType === EventType.ModelRawContentChangedLinesDeleted) {
 				assert.equal(++order, 3);
-				assert.equal(e.fromLineNumber, 2);
-				assert.equal(e.toLineNumber, 2);
+				assert.equal((<IModelContentChangedLinesDeletedEvent>e).fromLineNumber, 2);
+				assert.equal((<IModelContentChangedLinesDeletedEvent>e).toLineNumber, 2);
 			} else {
 				assert.ok (false);
 			}
@@ -265,21 +268,21 @@ suite('Editor Model - Model', () => {
 		var listenerCalls = 0;
 		var order = 0;
 
-		thisModel.addListener(EventType.ModelContentChanged, (e) => {
+		thisModel.onDidChangeRawContent((e) => {
 			listenerCalls++;
 
-			if (e.changeType === EventType.ModelContentChangedLineChanged) {
+			if (e.changeType === EventType.ModelRawContentChangedLineChanged) {
 				if (order === 0) {
 					assert.equal(++order, 1);
-					assert.equal(e.lineNumber, 1);
+					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
 				} else {
 					assert.equal(++order, 2);
-					assert.equal(e.lineNumber, 1);
+					assert.equal((<IModelContentChangedLineChangedEvent>e).lineNumber, 1);
 				}
-			} else if (e.changeType === EventType.ModelContentChangedLinesDeleted) {
+			} else if (e.changeType === EventType.ModelRawContentChangedLinesDeleted) {
 				assert.equal(++order, 3);
-				assert.equal(e.fromLineNumber, 2);
-				assert.equal(e.toLineNumber, 3);
+				assert.equal((<IModelContentChangedLinesDeletedEvent>e).fromLineNumber, 2);
+				assert.equal((<IModelContentChangedLinesDeletedEvent>e).toLineNumber, 3);
 			} else {
 				assert.ok (false);
 			}
@@ -324,10 +327,10 @@ suite('Editor Model - Model', () => {
 	// --------- setValue
 	test('setValue eventing', () => {
 		var listenerCalls = 0;
-		thisModel.addOneTimeListener(EventType.ModelContentChanged, (e:IModelContentChangedEvent) => {
+		thisModel.onDidChangeRawContent((e:IModelContentChangedEvent) => {
 			listenerCalls++;
 
-			assert.equal(e.changeType, EventType.ModelContentChangedFlush);
+			assert.equal(e.changeType, EventType.ModelRawContentChangedFlush);
 
 			assert.deepEqual((<IModelContentChangedFlushEvent>e).detail.lines, [ 'new value' ]);
 		});

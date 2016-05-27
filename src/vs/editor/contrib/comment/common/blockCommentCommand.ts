@@ -13,10 +13,10 @@ import {ICommentsConfiguration} from 'vs/editor/common/modes';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
-	private _selection: editorCommon.IEditorSelection;
+	private _selection: Selection;
 	private _usedEndToken: string;
 
-	constructor(selection:editorCommon.IEditorSelection) {
+	constructor(selection:Selection) {
 		this._selection = selection;
 		this._usedEndToken = null;
 	}
@@ -136,7 +136,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		}, config, model, builder);
 	}
 
-	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		if (inverseEditOperations.length === 2) {
 			var startTokenEditOperation = inverseEditOperations[0];

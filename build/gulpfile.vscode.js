@@ -32,7 +32,7 @@ var baseModules = [
 	'applicationinsights', 'assert', 'child_process', 'chokidar', 'crypto', 'emmet',
 	'events', 'fs', 'getmac', 'glob', 'graceful-fs', 'http', 'http-proxy-agent',
 	'https', 'https-proxy-agent', 'iconv-lite', 'electron', 'net',
-	'os', 'path', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url',
+	'os', 'path', 'pty.js', 'readline', 'sax', 'semver', 'stream', 'string_decoder', 'url', 'term.js',
 	'vscode-textmate', 'winreg', 'yauzl', 'native-keymap', 'zlib', 'minimist'
 ];
 
@@ -68,6 +68,7 @@ var vscodeResources = [
 	'out-build/vs/workbench/parts/html/browser/webview.html',
 	'out-build/vs/workbench/parts/markdown/**/*.md',
 	'out-build/vs/workbench/parts/tasks/**/*.json',
+	'out-build/vs/workbench/parts/terminal/electron-browser/terminalProcess.js',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
 	'!**/test/**'

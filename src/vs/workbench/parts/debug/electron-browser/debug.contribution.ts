@@ -7,6 +7,7 @@ import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
 import editorcommon = require('vs/editor/common/editorCommon');
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
@@ -120,11 +121,16 @@ KeybindingsRegistry.registerCommandDesc({
 	handler(accessor: ServicesAccessor, configuration: any) {
 		const debugService = accessor.get(debug.IDebugService);
 		if (typeof configuration === 'string') {
-			return debugService.getConfigurationManager().setConfiguration(configuration)
-				.then(() => debugService.createSession(false));
+			const configurationManager = debugService.getConfigurationManager();
+			return configurationManager.setConfiguration(configuration)
+				.then(() => {
+					return configurationManager.configurationName ? debugService.createSession(false)
+						: TPromise.wrapError(new Error(nls.localize('launchConfigDoesNotExist', "Launch configuration '{0}' does not exist.", configuration)));
+				});
 		}
 
-		return debugService.createSession(false, configuration);
+		const noDebug = configuration && !!configuration.noDebug;
+		return debugService.createSession(noDebug, configuration);
 	},
 	when: KbExpr.not(debug.CONTEXT_IN_DEBUG_MODE),
 	primary: undefined

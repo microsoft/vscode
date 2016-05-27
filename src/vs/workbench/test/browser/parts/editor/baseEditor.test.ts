@@ -140,7 +140,7 @@ suite('Workbench BaseEditor', () => {
 
 			return e.setVisible(true).then(function () {
 				assert(e.isVisible());
-				input.addListener('dispose', function () {
+				input.addListener2('dispose', function () {
 					assert(false);
 				});
 				e.dispose();

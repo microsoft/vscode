@@ -75,3 +75,14 @@ export enum StorageScope {
 	 */
 	WORKSPACE
 }
+
+
+export const NullStorageService: IStorageService = {
+	serviceId: undefined,
+	store() { return undefined; },
+	swap() { return undefined; },
+	remove() { return undefined; },
+	get(a, b, defaultValue) { return defaultValue; },
+	getInteger(a, b, defaultValue) { return defaultValue; },
+	getBoolean(a, b, defaultValue) { return defaultValue; },
+};

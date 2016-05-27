@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IAction, IActionItem} from 'vs/base/common/actions';
+import {IEditorControl} from 'vs/platform/editor/common/editor';
 
 export interface IComposite {
 
@@ -36,7 +36,7 @@ export interface IComposite {
 	/**
 	 * Returns the underlying control of this composite.
 	 */
-	getControl(): IEventEmitter;
+	getControl(): IEditorControl;
 
 	/**
 	 * Asks the underlying control to focus.

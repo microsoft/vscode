@@ -2,16 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
-import {CancellationToken, CancellationTokenSource} from 'vs/base/common/cancellation';
-import {Disposable} from 'vs/base/common/lifecycle';
+import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
+}
+
+export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
+	if (isThenable(arg)) {
+		return arg;
+	} else {
+		return TPromise.as(arg);
+	}
 }
 
 export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Thenable<T>): TPromise<T> {
@@ -26,6 +35,14 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Th
 	}, () => {
 		source.cancel();
 	});
+}
+
+/**
+ * Hook a cancellation token to a WinJS Promise
+ */
+export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>): Thenable<T> {
+	token.onCancellationRequested(() => promise.cancel());
+	return promise;
 }
 
 export interface ITask<T> {
@@ -47,9 +64,15 @@ export interface ITask<T> {
  * 		var throttler = new Throttler();
  * 		var letters = [];
  *
- * 		function letterReceived(l) {
+ * 		function deliver() {
+ * 			const lettersToDeliver = letters;
+ * 			letters = [];
+ * 			return makeTheTrip(lettersToDeliver);
+ * 		}
+ *
+ * 		function onLetterReceived(l) {
  * 			letters.push(l);
- * 			throttler.queue(() => { return makeTheTrip(); });
+ * 			throttler.queue(deliver);
  * 		}
  */
 export class Throttler {
@@ -64,7 +87,7 @@ export class Throttler {
 		this.queuedPromiseFactory = null;
 	}
 
-	public queue<T>(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
+	queue<T>(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
 		if (this.activePromise) {
 			this.queuedPromiseFactory = promiseFactory;
 
@@ -145,7 +168,7 @@ export class Delayer<T> {
 		this.task = null;
 	}
 
-	public trigger(task: ITask<T>, delay: number = this.defaultDelay): TPromise<T> {
+	trigger(task: ITask<T>, delay: number = this.defaultDelay): TPromise<T> {
 		this.task = task;
 		this.cancelTimeout();
 
@@ -172,11 +195,11 @@ export class Delayer<T> {
 		return this.completionPromise;
 	}
 
-	public isTriggered(): boolean {
+	isTriggered(): boolean {
 		return this.timeout !== null;
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
@@ -210,7 +233,7 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 		this.throttler = new Throttler();
 	}
 
-	public trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
+	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
 		return super.trigger(() => this.throttler.queue(promiseFactory), delay);
 	}
 }
@@ -231,7 +254,7 @@ export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
 		this.periodThrottler = new Throttler();
 	}
 
-	public trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
+	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
 		return super.trigger(() => {
 			return this.periodThrottler.queue(() => {
 				return Promise.join([
@@ -399,8 +422,8 @@ export class Limiter<T> {
 		this.runningPromises = 0;
 	}
 
-	public queue(promiseFactory: ITask<Promise>): Promise;
-	public queue(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
+	queue(promiseFactory: ITask<Promise>): Promise;
+	queue(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
 		return new TPromise<T>((c, e, p) => {
 			this.outstandingPromises.push({
 				factory: promiseFactory,
@@ -438,19 +461,19 @@ export class TimeoutTimer extends Disposable {
 		this._token = -1;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.cancel();
 		super.dispose();
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		if (this._token !== -1) {
 			platform.clearTimeout(this._token);
 			this._token = -1;
 		}
 	}
 
-	public cancelAndSet(runner: () => void, timeout:number): void {
+	cancelAndSet(runner: () => void, timeout:number): void {
 		this.cancel();
 		this._token = platform.setTimeout(() => {
 			this._token = -1;
@@ -458,7 +481,7 @@ export class TimeoutTimer extends Disposable {
 		}, timeout);
 	}
 
-	public setIfNotSet(runner: () => void, timeout: number): void {
+	setIfNotSet(runner: () => void, timeout: number): void {
 		if (this._token !== -1) {
 			// timer is already set
 			return;
@@ -479,19 +502,19 @@ export class IntervalTimer extends Disposable {
 		this._token = -1;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.cancel();
 		super.dispose();
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		if (this._token !== -1) {
 			platform.clearInterval(this._token);
 			this._token = -1;
 		}
 	}
 
-	public cancelAndSet(runner: () => void, interval:number): void {
+	cancelAndSet(runner: () => void, interval:number): void {
 		this.cancel();
 		this._token = platform.setInterval(() => {
 			runner();
@@ -516,7 +539,7 @@ export class RunOnceScheduler {
 	/**
 	 * Dispose RunOnceScheduler
 	 */
-	public dispose(): void {
+	dispose(): void {
 		this.cancel();
 		this.runner = null;
 	}
@@ -524,7 +547,7 @@ export class RunOnceScheduler {
 	/**
 	 * Cancel current scheduled runner (if any).
 	 */
-	public cancel(): void {
+	cancel(): void {
 		if (this.isScheduled()) {
 			platform.clearTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
@@ -534,21 +557,14 @@ export class RunOnceScheduler {
 	/**
 	 * Replace runner. If there is a runner already scheduled, the new runner will be called.
 	 */
-	public setRunner(runner: () => void): void {
+	setRunner(runner: () => void): void {
 		this.runner = runner;
-	}
-
-	/**
-	 * Set timeout. This change will only impact new schedule calls.
-	 */
-	public setTimeout(timeout: number): void {
-		this.timeout = timeout;
 	}
 
 	/**
 	 * Cancel previous runner (if any) & schedule a new runner.
 	 */
-	public schedule(): void {
+	schedule(delay = this.timeout): void {
 		this.cancel();
 		this.timeoutToken = platform.setTimeout(this.timeoutHandler, this.timeout);
 	}
@@ -556,7 +572,7 @@ export class RunOnceScheduler {
 	/**
 	 * Returns true if scheduled.
 	 */
-	public isScheduled(): boolean {
+	isScheduled(): boolean {
 		return this.timeoutToken !== -1;
 	}
 

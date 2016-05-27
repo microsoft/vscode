@@ -14,6 +14,7 @@ import {IInstantiationService, optional} from 'vs/platform/instantiation/common/
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService, getConfigurationValue} from 'vs/platform/configuration/common/configuration';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -22,6 +23,7 @@ import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IPeekViewService} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {ReferencesModel, OneReference} from './referencesModel';
 import {ReferenceWidget, LayoutData} from './referencesWidget';
+import {Range} from 'vs/editor/common/core/range';
 
 export const ctxReferenceSearchVisible = 'referenceSearchVisible';
 
@@ -56,6 +58,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
 		@IStorageService private _storageService: IStorageService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@optional(IPeekViewService) private _peekViewService: IPeekViewService
 	) {
 		this._editor = editor;
@@ -74,7 +77,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._editor = null;
 	}
 
-	public toggleWidget(range: editorCommon.IEditorRange, modelPromise: TPromise<ReferencesModel>, options: RequestOptions) : void {
+	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions) : void {
 
 		// close current widget and return early is position didn't change
 		let widgetPosition: editorCommon.IPosition;
@@ -89,8 +92,8 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this._disposables.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => { this.closeWidget(); }));
-		this._disposables.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => {
+		this._disposables.push(this._editor.onDidChangeModelMode(() => { this.closeWidget(); }));
+		this._disposables.push(this._editor.onDidChangeModel(() => {
 			if(!this._ignoreModelChangeEvent) {
 				this.closeWidget();
 			}
@@ -111,8 +114,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._disposables.push(this._widget.onDidSelectReference(event => {
 			let {element, kind} = event;
 			switch (kind) {
-				case 'side':
 				case 'open':
+					if (event.source === 'editor'
+						&& getConfigurationValue(this._configurationService.getConfiguration(), 'editor.stablePeek', false)) {
+
+						// when stable peek is configured we don't close
+						// the peek window on selecting the editor
+						break;
+					}
+				case 'side':
 					this._openReference(element, kind === 'side');
 					break;
 				case 'goto':
@@ -153,13 +163,15 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			return this._widget.setModel(this._model).then(() => {
 
 				// set title
-				this._widget.setMetaTitle(options.getMetaTitle(model));
+				this._widget.setMetaTitle(options.getMetaTitle(this._model));
 
 				// set 'best' selection
-				let uri = this._editor.getModel().getAssociatedResource();
+				let uri = this._editor.getModel().uri;
 				let pos = { lineNumber: range.startLineNumber, column: range.startColumn };
 				let selection = this._model.nearestReference(uri, pos);
-				return this._widget.setSelection(selection);
+				if (selection) {
+					return this._widget.setSelection(selection);
+				}
 			});
 
 		}, error => {
@@ -184,10 +196,10 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 	private _gotoReference(ref: OneReference): void {
 		this._ignoreModelChangeEvent = true;
-		const {resource, range} = ref;
+		const {uri, range} = ref;
 
 		this._editorService.openEditor({
-			resource,
+			resource: uri,
 			options: { selection: range }
 		}).done(openedEditor => {
 			this._ignoreModelChangeEvent = false;
@@ -214,9 +226,9 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	private _openReference(ref: OneReference, sideBySide: boolean): void {
-		const {resource, range} = ref;
+		const {uri, range} = ref;
 		this._editorService.openEditor({
-			resource,
+			resource: uri,
 			options: { selection: range }
 		}, sideBySide);
 

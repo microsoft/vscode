@@ -492,15 +492,22 @@ export class SimpleSelector extends Node {
 	}
 }
 
-export class Declaration extends Node {
-
-	private property:Property;
-	private value:Expression;
-	private nestedProprties:NestedProperties;
+export abstract class AbstractDeclaration extends Node {
 
 	// positions for code assist
 	public colonPosition:number;
 	public semicolonPosition:number; // semicolon following the declaration
+
+	constructor(offset:number, length:number) {
+		super(offset, length);
+	}
+}
+
+export class Declaration extends AbstractDeclaration {
+
+	private property:Property;
+	private value:Expression;
+	private nestedProprties:NestedProperties;
 
 	constructor(offset:number, length:number) {
 		super(offset, length);
@@ -1117,12 +1124,10 @@ export class NumericValue extends Node {
 	}
 }
 
-export class VariableDeclaration extends Node {
+export class VariableDeclaration extends AbstractDeclaration {
 
 	private variable:Variable;
 	private value:Node;
-
-	public colonPosition: number;
 
 	constructor(offset:number, length:number) {
 		super(offset, length);
@@ -1139,6 +1144,10 @@ export class VariableDeclaration extends Node {
 			return true;
 		}
 		return false;
+	}
+
+	public getVariable():Variable {
+		return this.variable;
 	}
 
 	public getName():string {

@@ -13,7 +13,7 @@ import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution} fro
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {ParameterHintsRegistry} from 'vs/editor/common/modes';
+import {SignatureHelpProviderRegistry} from 'vs/editor/common/modes';
 import {ParameterHintsModel} from './parameterHintsModel';
 import {ParameterHintsWidget} from './parameterHintsWidget';
 
@@ -65,7 +65,7 @@ class ParameterHintsController implements IEditorContribution {
 	}
 
 	public trigger(): void {
-		this.model.trigger(undefined, 0);
+		this.model.trigger(0);
 	}
 }
 
@@ -78,7 +78,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 
 	public isSupported(): boolean {
-		return ParameterHintsRegistry.has(this.editor.getModel()) && super.isSupported();
+		return SignatureHelpProviderRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public run():TPromise<boolean> {

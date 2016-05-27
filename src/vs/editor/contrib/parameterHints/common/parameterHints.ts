@@ -5,26 +5,21 @@
 
 'use strict';
 
-import {illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {IParameterHints, ParameterHintsRegistry} from 'vs/editor/common/modes';
+import {SignatureHelp, SignatureHelpProviderRegistry} from 'vs/editor/common/modes';
+import {asWinJsPromise} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
-export function getParameterHints(model:IModel, position:IPosition, triggerCharacter: string): TPromise<IParameterHints> {
+export function provideSignatureHelp(model:IReadOnlyModel, position:Position): TPromise<SignatureHelp> {
 
-	let support = ParameterHintsRegistry.ordered(model)[0];
+	let support = SignatureHelpProviderRegistry.ordered(model)[0];
 	if (!support) {
 		return TPromise.as(undefined);
 	}
 
-	return support.getParameterHints(model.getAssociatedResource(), position, triggerCharacter);
+	return asWinJsPromise((token) => support.provideSignatureHelp(model, position, token));
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeSignatureHelpProvider', function(model, position, args) {
-	let {triggerCharacter} = args;
-	if (triggerCharacter && typeof triggerCharacter !== 'string') {
-		throw illegalArgument('triggerCharacter');
-	}
-	return getParameterHints(model, position, triggerCharacter);
-});
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeSignatureHelpProvider', provideSignatureHelp);

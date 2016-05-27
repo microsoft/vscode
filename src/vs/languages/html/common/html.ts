@@ -6,8 +6,8 @@
 
 import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import editorCommon = require('vs/editor/common/editorCommon');
+import modes = require('vs/editor/common/modes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import { AbstractMode, createWordRegExp, ModeWorkerManager } from 'vs/editor/common/modes/abstractMode';
 import { AbstractState } from 'vs/editor/common/modes/abstractState';
@@ -18,14 +18,11 @@ import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
-// import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
-import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
-import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {wireCancellationToken} from 'vs/base/common/async';
 
-export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
-export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
+export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get it from us.
+export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get it from us.
 
 export enum States {
 	Content,
@@ -52,7 +49,7 @@ export class State extends AbstractState {
 	public attributeValueQuote:string;
 	public attributeValue:string;
 
-	constructor(mode:Modes.IMode, kind:States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValue:string) {
+	constructor(mode:modes.IMode, kind:States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValue:string) {
 		super(mode);
 		this.kind = kind;
 		this.lastTagName = lastTagName;
@@ -70,7 +67,7 @@ export class State extends AbstractState {
 		return new State(this.getMode(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValue);
 	}
 
-	public equals(other:Modes.IState):boolean {
+	public equals(other:modes.IState):boolean {
 		if (other instanceof State) {
 			return (
 				super.equals(other) &&
@@ -85,15 +82,15 @@ export class State extends AbstractState {
 		return false;
 	}
 
-	private nextElementName(stream:Modes.IStream):string {
+	private nextElementName(stream:modes.IStream):string {
 		return stream.advanceIfRegExp(/^[_:\w][_:\w-.\d]*/).toLowerCase();
 	}
 
-	private nextAttributeName(stream:Modes.IStream):string {
+	private nextAttributeName(stream:modes.IStream):string {
 		return stream.advanceIfRegExp(/^[^\s"'>/=\x00-\x0F\x7F\x80-\x9F]*/).toLowerCase();
 	}
 
-	public tokenize(stream:Modes.IStream) : Modes.ITokenizationResult {
+	public tokenize(stream:modes.IStream) : modes.ITokenizationResult {
 
 		switch(this.kind){
 			case States.WithinComment:
@@ -288,23 +285,16 @@ export class State extends AbstractState {
 
 export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode implements ITokenizationCustomization {
 
-	public tokenizationSupport: Modes.ITokenizationSupport;
-	public richEditSupport: Modes.IRichEditSupport;
-	public linkSupport:Modes.ILinkSupport;
-	public extraInfoSupport:Modes.IExtraInfoSupport;
-	public occurrencesSupport:Modes.IOccurrencesSupport;
-	public referenceSupport: Modes.IReferenceSupport;
-	public formattingSupport: Modes.IFormattingSupport;
-	public parameterHintsSupport: Modes.IParameterHintsSupport;
-	public suggestSupport: Modes.ISuggestSupport;
-	public configSupport: Modes.IConfigurationSupport;
+	public tokenizationSupport: modes.ITokenizationSupport;
+	public richEditSupport: modes.IRichEditSupport;
+	public configSupport: modes.IConfigurationSupport;
 
 	private modeService:IModeService;
 	private threadService:IThreadService;
 	private _modeWorkerManager: ModeWorkerManager<W>;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@IThreadService threadService: IThreadService
@@ -316,30 +306,11 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.threadService = threadService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, true);
-		this.linkSupport = this;
 		this.configSupport = this;
-		this.formattingSupport = this;
-		this.extraInfoSupport = this;
-		this.occurrencesSupport = this;
-		this.referenceSupport = new ReferenceSupport(this.getId(), {
-			tokens: ['invalid'],
-			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
-
-		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
-			triggerCharacters: ['(', ','],
-			excludeTokens: ['*'],
-			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
-		// TODO@Alex TODO@Joh: there is something off about declaration support of embedded JS in HTML
-		// this.declarationSupport = new DeclarationSupport(this, {
-		// 		tokens: ['invalid'],
-		// 		findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
-
-		this.suggestSupport = new SuggestSupport(this.getId(), {
-			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
-			excludeTokens: ['comment'],
-			suggest: (resource, position) => this.suggest(resource, position)});
 
 		this.richEditSupport = this._createRichEditSupport();
+
+		this._registerSupports();
 	}
 
 	public asyncCtor(): winjs.Promise {
@@ -349,7 +320,50 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		]);
 	}
 
-	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
+	protected _registerSupports(): void {
+		if (this.getId() !== 'html') {
+			throw new Error('This method must be overwritten!');
+		}
+
+		modes.HoverProviderRegistry.register(this.getId(), {
+			provideHover: (model, position, token): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
+			}
+		}, true);
+
+		modes.ReferenceProviderRegistry.register(this.getId(), {
+			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._provideReferences(model.uri, position, context));
+			}
+		}, true);
+
+		modes.SuggestRegistry.register(this.getId(), {
+			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
+			}
+		}, true);
+
+		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
+			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
+				return wireCancellationToken(token, this._provideDocumentHighlights(model.uri, position));
+			}
+		}, true);
+
+		modes.DocumentRangeFormattingEditProviderRegistry.register(this.getId(), {
+			provideDocumentRangeFormattingEdits: (model, range, options, token): Thenable<editorCommon.ISingleEditOperation[]> => {
+				return wireCancellationToken(token, this._provideDocumentRangeFormattingEdits(model.uri, range, options));
+			}
+		}, true);
+
+		modes.LinkProviderRegistry.register(this.getId(), {
+			provideLinks: (model, token): Thenable<modes.ILink[]> => {
+				return wireCancellationToken(token, this._provideLinks(model.uri));
+			}
+		}, true);
+	}
+
+	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
 		return new ModeWorkerManager<W>(descriptor, 'vs/languages/html/common/htmlWorker', 'HTMLWorker', null, instantiationService);
 	}
 
@@ -357,7 +371,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._modeWorkerManager.worker(runner);
 	}
 
-	protected _createRichEditSupport(): Modes.IRichEditSupport {
+	protected _createRichEditSupport(): modes.IRichEditSupport {
 		return new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('#-?%'),
@@ -392,13 +406,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 
 			onEnterRules: [
 				{
-					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
-					action: { indentAction: Modes.IndentAction.IndentOutdent }
+					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+					action: { indentAction: modes.IndentAction.IndentOutdent }
 				},
 				{
 					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					action: { indentAction: Modes.IndentAction.Indent }
+					action: { indentAction: modes.IndentAction.Indent }
 				}
 			],
 		});
@@ -406,16 +420,16 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 
 	// TokenizationSupport
 
-	public getInitialState():Modes.IState {
+	public getInitialState():modes.IState {
 		return new State(this, States.Content, '', '', '', '', '');
 	}
 
-	public enterNestedMode(state:Modes.IState):boolean {
+	public enterNestedMode(state:modes.IState):boolean {
 		return state instanceof State && (<State>state).kind === States.WithinEmbeddedContent;
 	}
 
-	public getNestedMode(state:Modes.IState): IEnteringNestedModeData {
-		var result:Modes.IMode = null;
+	public getNestedMode(state:modes.IState): IEnteringNestedModeData {
+		var result:modes.IMode = null;
 		var htmlState:State = <State>state;
 		var missingModePromise: winjs.Promise = null;
 
@@ -446,7 +460,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		};
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState):ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:modes.IState):ILeavingNestedModeData {
 		var tagName = (<State>state).lastTagName;
 		var regexp = new RegExp('<\\/' + tagName + '\\s*>', 'i');
 		var match:any = regexp.exec(line);
@@ -473,48 +487,38 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._worker((w) => w._doConfigure(options));
 	}
 
-	static $computeLinks = OneWorkerAttr(HTMLMode, HTMLMode.prototype.computeLinks);
-	public computeLinks(resource:URI):winjs.TPromise<Modes.ILink[]> {
-		return this._worker((w) => w.computeLinks(resource));
+	static $_provideLinks = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideLinks);
+	protected _provideLinks(resource:URI):winjs.TPromise<modes.ILink[]> {
+		return this._worker((w) => w.provideLinks(resource));
 	}
 
-	static $formatRange = OneWorkerAttr(HTMLMode, HTMLMode.prototype.formatRange);
-	public formatRange(resource:URI, range:EditorCommon.IRange, options:Modes.IFormattingOptions):winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
-		return this._worker((w) => w.format(resource, range, options));
+	static $_provideDocumentRangeFormattingEdits = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentRangeFormattingEdits);
+	private _provideDocumentRangeFormattingEdits(resource:URI, range:editorCommon.IRange, options:modes.IFormattingOptions):winjs.TPromise<editorCommon.ISingleEditOperation[]> {
+		return this._worker((w) => w.provideDocumentRangeFormattingEdits(resource, range, options));
 	}
 
-	static $computeInfo = OneWorkerAttr(HTMLMode, HTMLMode.prototype.computeInfo);
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
-		return this._worker((w) => w.computeInfo(resource, position));
+	static $_provideHover = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideHover);
+	protected _provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
+		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $findReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findReferences);
-	public findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
-		return this._worker((w) => w.findReferences(resource, position, includeDeclaration));
+	static $_provideReferences = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideReferences);
+	protected _provideReferences(resource:URI, position:editorCommon.IPosition, context: modes.ReferenceContext): winjs.TPromise<modes.Location[]> {
+		return this._worker((w) => w.provideReferences(resource, position));
 	}
 
-	static $findDeclaration = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findDeclaration);
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
-		return this._worker((w) => w.findDeclaration(resource, position));
+	static $_provideDocumentHighlights = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideDocumentHighlights);
+	protected _provideDocumentHighlights(resource:URI, position:editorCommon.IPosition, strict:boolean = false): winjs.TPromise<modes.DocumentHighlight[]> {
+		return this._worker((w) => w.provideDocumentHighlights(resource, position, strict));
 	}
 
-	static $findOccurrences = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findOccurrences);
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): winjs.TPromise<Modes.IOccurence[]> {
-		return this._worker((w) => w.findOccurrences(resource, position, strict));
-	}
-
-	static $suggest = OneWorkerAttr(HTMLMode, HTMLMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
+	static $_provideCompletionItems = OneWorkerAttr(HTMLMode, HTMLMode.prototype._provideCompletionItems);
+	protected _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
+		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(HTMLMode, HTMLMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:editorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
-	}
-
-	static $getParameterHints = OneWorkerAttr(HTMLMode, HTMLMode.prototype.getParameterHints);
-	public getParameterHints(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IParameterHints> {
-		return this._worker((w) => w.getParameterHints(resource, position));
 	}
 }

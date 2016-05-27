@@ -107,19 +107,19 @@ export class Cursor extends EventEmitter {
 				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
 					return new Position(lineNumber, column);
 				},
-				convertModelRangeToViewRange: (modelRange: editorCommon.IEditorRange) => {
+				convertModelRangeToViewRange: (modelRange: Range) => {
 					return modelRange;
 				},
 				convertViewToModelPosition: (lineNumber:number, column:number) => {
 					return new Position(lineNumber, column);
 				},
-				convertViewSelectionToModelSelection: (viewSelection:editorCommon.IEditorSelection) => {
+				convertViewSelectionToModelSelection: (viewSelection:Selection) => {
 					return viewSelection;
 				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition) => {
+				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:Position) => {
 					return modelPosition;
 				},
-				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:editorCommon.IEditorRange) => {
+				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:Range) => {
 					return modelRange;
 				}
 
@@ -134,13 +134,13 @@ export class Cursor extends EventEmitter {
 		this._isHandling = false;
 
 		this.modelUnbinds = [];
-		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelContentChanged, (e:editorCommon.IModelContentChangedEvent) => {
+		this.modelUnbinds.push(this.model.onDidChangeRawContent((e) => {
 			this._onModelContentChanged(e);
 		}));
-		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => {
+		this.modelUnbinds.push(this.model.onDidChangeMode((e) => {
 			this._onModelModeChanged();
 		}));
-		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
+		this.modelUnbinds.push(this.model.onDidChangeModeSupport((e) => {
 			// TODO@Alex: react only if certain supports changed?
 			this._onModelModeChanged();
 		}));
@@ -163,7 +163,7 @@ export class Cursor extends EventEmitter {
 
 		var selections = this.cursors.getSelections(),
 			result:editorCommon.ICursorState[] = [],
-			selection: editorCommon.IEditorSelection;
+			selection: Selection;
 
 		for (var i = 0; i < selections.length; i++) {
 			selection = selections[i];
@@ -230,7 +230,7 @@ export class Cursor extends EventEmitter {
 		this.model.setEditableRange(range);
 	}
 
-	public getEditableRange(): editorCommon.IEditorRange {
+	public getEditableRange(): Range {
 		return this.model.getEditableRange();
 	}
 
@@ -259,7 +259,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _onModelContentChanged(e:editorCommon.IModelContentChangedEvent): void {
-		if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
+		if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
 			// a model.setValue() was called
 			this.cursors.dispose();
 
@@ -281,15 +281,15 @@ export class Cursor extends EventEmitter {
 
 	// ------ some getters/setters
 
-	public getSelection(): editorCommon.IEditorSelection {
+	public getSelection(): Selection {
 		return this.cursors.getSelection(0);
 	}
 
-	public getSelections(): editorCommon.IEditorSelection[] {
+	public getSelections(): Selection[] {
 		return this.cursors.getSelections();
 	}
 
-	public getPosition(): editorCommon.IEditorPosition {
+	public getPosition(): Position {
 		return this.cursors.getPosition(0);
 	}
 
@@ -473,7 +473,7 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _interpretCommandResult(cursorState:editorCommon.IEditorSelection[]): boolean {
+	private _interpretCommandResult(cursorState:Selection[]): boolean {
 		if (!cursorState) {
 			return false;
 		}
@@ -488,7 +488,7 @@ export class Cursor extends EventEmitter {
 		var operations: editorCommon.IIdentifiedSingleEditOperation[] = [],
 			operationMinor = 0;
 
-		var addEditOperation = (selection:editorCommon.IEditorRange, text:string) => {
+		var addEditOperation = (selection:Range, text:string) => {
 			if (selection.isEmpty() && text === '') {
 				// This command wants to add a no-op => no thank you
 				return;
@@ -506,7 +506,7 @@ export class Cursor extends EventEmitter {
 		};
 
 		var hadTrackedRange = false;
-		var trackSelection = (selection: editorCommon.IEditorSelection, trackPreviousOnEmpty?:boolean ) => {
+		var trackSelection = (selection: Selection, trackPreviousOnEmpty?:boolean ) => {
 			var selectionMarkerStickToPreviousCharacter:boolean,
 				positionMarkerStickToPreviousCharacter:boolean;
 
@@ -767,7 +767,7 @@ export class Cursor extends EventEmitter {
 			}
 		}
 
-		var selectionsAfter = this.model.pushEditOperations(selectionsBefore, filteredOperations, (inverseEditOperations:editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IEditorSelection[] => {
+		var selectionsAfter = this.model.pushEditOperations(selectionsBefore, filteredOperations, (inverseEditOperations:editorCommon.IIdentifiedSingleEditOperation[]): Selection[] => {
 			var groupedInverseEditOperations:editorCommon.IIdentifiedSingleEditOperation[][] = [];
 			for (var i = 0; i < selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
@@ -783,7 +783,7 @@ export class Cursor extends EventEmitter {
 			var minorBasedSorter = (a:editorCommon.IIdentifiedSingleEditOperation, b:editorCommon.IIdentifiedSingleEditOperation) => {
 				return a.identifier.minor - b.identifier.minor;
 			};
-			var cursorSelections: editorCommon.IEditorSelection[] = [];
+			var cursorSelections: Selection[] = [];
 			for (var i = 0; i < selectionsBefore.length; i++) {
 				if (groupedInverseEditOperations[i].length > 0 || commandsData.hadTrackedRanges[i]) {
 					groupedInverseEditOperations[i].sort(minorBasedSorter);

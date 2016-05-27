@@ -9,6 +9,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import mime = require('vs/base/common/mime');
 import Event, { Emitter } from 'vs/base/common/event';
 import uri from 'vs/base/common/uri';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Action } from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
@@ -251,17 +252,18 @@ export class DebugService implements debug.IDebugService {
 					allThreadsStopped: event.body.allThreadsStopped
 				});
 
-				this.model.getThreads()[threadId].getCallStack(this).then(callStack => {
+				const thread = this.model.getThreads()[threadId];
+				thread.getCallStack(this).then(callStack => {
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
-						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus, thread).done(null, errors.onUnexpectedError);
 						this.windowService.getWindow().focus();
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
 						return this.openOrRevealSource(stackFrameToFocus.source, stackFrameToFocus.lineNumber, false, false);
 					} else {
-						this.setFocusedStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+						this.setFocusedStackFrameAndEvaluate(null, thread).done(null, errors.onUnexpectedError);
 					}
 				});
 			}, errors.onUnexpectedError);
@@ -394,8 +396,12 @@ export class DebugService implements debug.IDebugService {
 		return !!this.contextService.getWorkspace();
 	}
 
-	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
-		this.viewModel.setFocusedStackFrame(focusedStackFrame);
+	public setFocusedStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame, thread?: debug.IThread): TPromise<void> {
+		if (!thread && focusedStackFrame) {
+			thread = this.model.getThreads()[focusedStackFrame.threadId];
+		}
+
+		this.viewModel.setFocusedStackFrame(focusedStackFrame, thread);
 		if (focusedStackFrame) {
 			return this.model.evaluateWatchExpressions(this.session, focusedStackFrame);
 		} else {
@@ -423,15 +429,17 @@ export class DebugService implements debug.IDebugService {
 	public addBreakpoints(rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void[]> {
 		this.model.addBreakpoints(rawBreakpoints);
 		const uris = arrays.distinct(rawBreakpoints, raw => raw.uri.toString()).map(raw => raw.uri);
+		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, rbp.uri.fsPath)));
 
 		return TPromise.join(uris.map(uri => this.sendBreakpoints(uri)));
 	}
 
 	public removeBreakpoints(id?: string): TPromise<any> {
 		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
+		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.source.uri.fsPath)));
 		const urisToClear = arrays.distinct(toRemove, bp => bp.source.uri.toString()).map(bp => bp.source.uri);
-		this.model.removeBreakpoints(toRemove);
 
+		this.model.removeBreakpoints(toRemove);
 		return TPromise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}
 
@@ -492,10 +500,9 @@ export class DebugService implements debug.IDebugService {
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
 			.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
-			.then(() => this.configurationManager.setConfiguration((this.configurationManager.configurationName))
+			.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
 			.then(() => {
-				this.configurationManager.resloveConfiguration(configuration);
-				configuration = configuration || this.configurationManager.configuration;
+				configuration = this.configurationManager.configuration;
 				if (!configuration) {
 					return this.configurationManager.openConfigFile(false).then(openend => {
 						if (openend) {
@@ -593,7 +600,14 @@ export class DebugService implements debug.IDebugService {
 			this.inDebugMode.set(true);
 			this.lazyTransitionToRunningState();
 
-			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints(), watchExpressionsCount: this.model.getWatchExpressions().length });
+			this.telemetryService.publicLog('debugSessionStart', {
+				type: configuration.type,
+				breakpointCount: this.model.getBreakpoints().length,
+				exceptionBreakpoints: this.model.getExceptionBreakpoints(),
+				watchExpressionsCount: this.model.getWatchExpressions().length,
+				extensionName: `${ this.configurationManager.adapter.extensionDescription.publisher }.${ this.configurationManager.adapter.extensionDescription.name }`,
+				isBuiltin: this.configurationManager.adapter.extensionDescription.isBuiltin
+			});
 		}).then(undefined, (error: any) => {
 			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 			this.setStateAndEmit(debug.State.Inactive);
@@ -648,7 +662,7 @@ export class DebugService implements debug.IDebugService {
 			});
 
 			if (filteredTasks[0].isWatching) {
-				return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
+				return new TPromise((c, e) => this.taskService.addOneTimeDisposableListener(TaskServiceEvents.Inactive, () => c(null)));
 			}
 
 			return taskPromise;
@@ -839,8 +853,15 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		return this.session.continue({ threadId }).then(() => {
-			this.lazyTransitionToRunningState(threadId);
+		return this.session.continue({ threadId }).then(response => {
+			let allThreadsContinued = response.body ? response.body.allThreadsContinued !== false : true;
+
+			// TODO@Isidor temporary workaround for #1703
+			if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'php')) {
+				allThreadsContinued = false;
+			}
+
+			this.lazyTransitionToRunningState(allThreadsContinued ? undefined : threadId);
 		});
 	}
 
@@ -852,41 +873,36 @@ export class DebugService implements debug.IDebugService {
 		return this.session.pause({ threadId });
 	}
 
-
 	private lazyTransitionToRunningState(threadId?: number): void {
-		let cancelTransitionToRunningState = false;
+		let setNewFocusedStackFrameScheduler: RunOnceScheduler;
 		const toDispose = this.session.onDidStop(e => {
 			if (e.body.threadId === threadId || e.body.allThreadsStopped || !threadId) {
-				cancelTransitionToRunningState = true;
+				setNewFocusedStackFrameScheduler.cancel();
 			}
 		});
 
-		// Do not immediatly transition to running state since that might cause unnecessery flickering
-		// of the tree in the debug viewlet. Only transition if no stopped event has arrived in 500ms.
-		setTimeout(() => {
+		this.model.clearThreads(false, threadId);
+
+		// Get a top stack frame of a stopped thread if there is any.
+		const threads = this.model.getThreads();
+		const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
+		const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
+		const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
+		const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
+
+		if (!stoppedThread) {
+			this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
+		}
+
+		// Do not immediatly set a new focused stack frame since that might cause unnecessery flickering
+		// of the tree in the debug viewlet. Only set focused stack frame if no stopped event has arrived in 500ms.
+		setNewFocusedStackFrameScheduler = new RunOnceScheduler(() => {
 			toDispose.dispose();
-			if (!cancelTransitionToRunningState) {
-				aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-				// TODO@Isidor temporary workaround for #1703
-				if (this.session && strings.equalsIgnoreCase(this.session.configuration.type, 'php')) {
-					this.model.clearThreads(false, threadId);
-				} else {
-					this.model.clearThreads(false);
-				}
+			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 
-				// Get a top stack frame of a stopped thread if there is any.
-				const threads = this.model.getThreads();
-				const stoppedReference = Object.keys(threads).filter(ref => threads[ref].stopped).pop();
-				const stoppedThread = stoppedReference ? threads[parseInt(stoppedReference)] : null;
-				const callStack = stoppedThread ? stoppedThread.getCachedCallStack() : null;
-				const stackFrameToFocus = callStack && callStack.length > 0 ? callStack[0] : null;
-
-				this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
-				if (!stoppedThread) {
-					this.setStateAndEmit(this.configurationManager.configuration.noDebug ? debug.State.RunningNoDebug : debug.State.Running);
-				}
-			}
+			this.setFocusedStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 		}, 500);
+		setNewFocusedStackFrameScheduler.schedule();
 	}
 
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {

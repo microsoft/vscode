@@ -83,11 +83,11 @@ abstract class ExtensionManifestHandler {
 class ExtensionManifestParser extends ExtensionManifestHandler {
 	public parse(): TPromise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
-			let errors: string[] = [];
+			let errors: json.ParseError[] = [];
 			let extensionDescription: IExtensionDescription = json.parse(manifestContents.toString(), errors);
 			if (errors.length > 0) {
 				errors.forEach((error) => {
-					this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, error));
+					this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, json.getParseErrorMessage(error.error)));
 				});
 				return null;
 			}
@@ -114,11 +114,11 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					return extensionDescription;
 				}
 				return pfs.readFile(messageBundle).then(messageBundleContent => {
-					let errors: string[] = [];
+					let errors: json.ParseError[] = [];
 					let messages: { [key: string]: string; } = json.parse(messageBundleContent.toString(), errors);
 					if (errors.length > 0) {
 						errors.forEach((error) => {
-							this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", messageBundle, error));
+							this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", messageBundle, json.getParseErrorMessage(error.error)));
 						});
 						return extensionDescription;
 					}

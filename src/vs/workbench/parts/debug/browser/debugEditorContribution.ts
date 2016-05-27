@@ -20,6 +20,7 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import {Range} from 'vs/editor/common/core/range';
 
 const HOVER_DELAY = 300;
 
@@ -30,7 +31,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 	private hoverWidget: DebugHoverWidget;
 	private showHoverScheduler: RunOnceScheduler;
 	private hideHoverScheduler: RunOnceScheduler;
-	private hoverRange: editorcommon.IEditorRange;
+	private hoverRange: Range;
 	private hoveringOver: string;
 
 	static getDebugEditorContribution(editor: editorcommon.ICommonCodeEditor): DebugEditorContribution {
@@ -73,7 +74,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseDown, (e: editorbrowser.IEditorMouseEvent) => {
+		this.toDispose.push(this.editor.onMouseDown((e: editorbrowser.IEditorMouseEvent) => {
 			if (e.target.type !== editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
 				return;
 			}
@@ -82,7 +83,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			}
 
 			const lineNumber = e.target.position.lineNumber;
-			const uri = this.editor.getModel().getAssociatedResource();
+			const uri = this.editor.getModel().uri;
 
 			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
 				const anchor = { x: e.event.posx + 1, y: e.event.posy };
@@ -105,7 +106,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			}
 		}));
 
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IEditorMouseEvent) => {
+		this.toDispose.push(this.editor.onMouseMove((e: editorbrowser.IEditorMouseEvent) => {
 			var showBreakpointHintAtLineNumber = -1;
 			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel())) {
 				if (!e.target.detail) {
@@ -115,25 +116,25 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			}
 			this.ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber);
 		}));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IEditorMouseEvent) => {
+		this.toDispose.push(this.editor.onMouseLeave((e: editorbrowser.IEditorMouseEvent) => {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
 		this.toDispose.push(this.debugService.onDidChangeState(state => this.onDebugStateUpdate(state)));
 
 		// hover listeners & hover widget
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseDown, (e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseDown(e)));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseMove(e)));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IEditorMouseEvent) => this.hoverWidget.hide()));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.KeyDown, (e: keyboard.IKeyboardEvent) => this.onKeyDown(e)));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.ModelChanged, () => this.hideHoverWidget()));
-		this.toDispose.push(this.editor.addListener2('scroll', () => this.hideHoverWidget));
+		this.toDispose.push(this.editor.onMouseDown((e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseDown(e)));
+		this.toDispose.push(this.editor.onMouseMove((e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.toDispose.push(this.editor.onMouseLeave((e: editorbrowser.IEditorMouseEvent) => this.hoverWidget.hide()));
+		this.toDispose.push(this.editor.onKeyDown((e: keyboard.IKeyboardEvent) => this.onKeyDown(e)));
+		this.toDispose.push(this.editor.onDidChangeModel(() => this.hideHoverWidget()));
+		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
 	}
 
 	public getId(): string {
 		return debug.EDITOR_CONTRIBUTION_ID;
 	}
 
-	public showHover(range: editorcommon.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void> {
+	public showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		return this.hoverWidget.showAt(range, hoveringOver, focus);
 	}
 

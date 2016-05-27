@@ -23,7 +23,7 @@ var EntryPoint = (function() {
 		excludes = toArray(excludes);
 		this.result.push({
 			name: moduleId,
-			exclude: ['vs/css', 'vs/nls', 'vs/text'].concat(this.modules).concat(excludes)
+			exclude: ['vs/css', 'vs/nls'].concat(this.modules).concat(excludes)
 		});
 		return new EntryPoint(this.result, this.modules.concat([moduleId].concat(excludes)));
 	};

@@ -17,7 +17,7 @@ import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
 import {IMessage as InputBoxMessage, InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {EventType, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {FIND_IDS, MATCHES_LIMIT} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent} from 'vs/editor/contrib/find/common/findState';
@@ -98,7 +98,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this.focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this.focusTracker.addFocusListener(() => this._reseedFindScope());
 
-		this._register(this._codeEditor.addListener2(EventType.ConfigurationChanged, (e:IConfigurationChangedEvent) => {
+		this._register(this._codeEditor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.readOnly) {
 				if (this._codeEditor.getConfiguration().readOnly) {
 					// Hide replace part if editor becomes read only
@@ -107,7 +107,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				this._updateButtons();
 			}
 		}));
-		this._register(this._codeEditor.addListener2(EventType.CursorSelectionChanged, () => {
+		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
 			if (this._isVisible) {
 				this._updateToggleSelectionFindButton();
 			}

@@ -8,7 +8,6 @@
 import 'vs/css!./media/gotoSymbolHandler';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import arrays = require('vs/base/common/arrays');
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
@@ -24,8 +23,8 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Position} from 'vs/platform/editor/common/editor';
-import {getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import {OutlineRegistry} from 'vs/editor/common/modes';
+import {getDocumentSymbols} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {DocumentSymbolProviderRegistry, SymbolInformation, SymbolKind} from 'vs/editor/common/modes';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -205,7 +204,7 @@ class OutlineModel extends QuickOpenModel {
 
 	private renderGroupLabel(type: string, count: number, outline: Outline): string {
 
-		let pattern = outline.outlineGroupLabel[type] || OutlineModel.getDefaultGroupLabelPatterns()[type];
+		let pattern = OutlineModel.getDefaultGroupLabelPatterns()[type];
 		if (pattern) {
 			return strings.format(pattern, count);
 		}
@@ -361,18 +360,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 }
 
 interface Outline {
-	entries: OutlineNode[];
-	outlineGroupLabel?: { [name: string]: string; };
-}
-
-interface OutlineNode {
-	label: string;
-	containerLabel?: string;
-	type: string;
-	icon?: string;
-	range: IRange;
-	children?: OutlineNode[];
-	parentScope?: string[];
+	entries: SymbolInformation[];
 }
 
 interface IEditorLineDecoration {
@@ -439,7 +427,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
-				canRun = OutlineRegistry.has(<IModel>model);
+				canRun = DocumentSymbolProviderRegistry.has(<IModel>model);
 			}
 		}
 
@@ -460,52 +448,22 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		};
 	}
 
-	private toQuickOpenEntries(outline: Outline): SymbolEntry[] {
+	private toQuickOpenEntries(flattened: SymbolInformation[]): SymbolEntry[] {
 		let results: SymbolEntry[] = [];
-
-		// Flatten
-		let flattened: OutlineNode[] = [];
-		if (outline) {
-			this.flatten(outline.entries, flattened);
-		}
 
 		for (let i = 0; i < flattened.length; i++) {
 			let element = flattened[i];
-			let label = strings.trim(element.label);
+			let label = strings.trim(element.name);
 
 			// Show parent scope as description
-			let description: string = element.containerLabel;
-			if (element.parentScope) {
-				description = arrays.tail(element.parentScope);
-			}
+			let description: string = element.containerName;
 
 			// Add
-			let icon = element.icon || element.type;
-			results.push(new SymbolEntry(i, label, element.type, description, icon, element.range, null, this.editorService, this));
+			let icon = SymbolKind.from(element.kind);
+			results.push(new SymbolEntry(i, label, SymbolKind.from(element.kind), description, icon, element.location.range, null, this.editorService, this));
 		}
 
 		return results;
-	}
-
-	private flatten(outline: OutlineNode[], flattened: OutlineNode[], parentScope?: string[]): void {
-		for (let i = 0; i < outline.length; i++) {
-			let element = outline[i];
-			flattened.push(element);
-
-			if (parentScope) {
-				element.parentScope = parentScope;
-			}
-
-			if (element.children) {
-				let elementScope: string[] = [];
-				if (parentScope) {
-					elementScope = parentScope.slice(0);
-				}
-				elementScope.push(element.label);
-
-				this.flatten(element.children, flattened, elementScope);
-			}
-		}
 	}
 
 	private getActiveOutline(): TPromise<OutlineModel> {
@@ -533,9 +491,9 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return getOutlineEntries(<IModel>model).then(outline => {
+				return getDocumentSymbols(<IModel>model).then(outline => {
 
-					let model = new OutlineModel(outline, this.toQuickOpenEntries(outline));
+					let model = new OutlineModel(outline, this.toQuickOpenEntries(outline.entries));
 
 					this.outlineToModelCache = {}; // Clear cache, only keep 1 outline
 					this.outlineToModelCache[modelId] = model;

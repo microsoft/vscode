@@ -10,6 +10,7 @@ import nodes = require('vs/languages/css/common/parser/cssNodes');
 import parser = require('vs/languages/css/common/parser/cssParser');
 import occurrences = require('vs/languages/css/common/services/occurrences');
 import workerTests = require('./css-worker.test');
+import * as modes from 'vs/editor/common/modes';
 
 export function assertScopesAndSymbols(p: parser.Parser, input:string, expected:string):void {
 	var global = createScope(p, input);
@@ -29,7 +30,7 @@ export function assertOccurrences(p: parser.Parser, input:string, marker:string,
 
 	var nWrites = 0;
 	for (var index = 0; index < os.length; index++) {
-		if (os[index].kind === 'write') {
+		if (os[index].kind === modes.DocumentHighlightKind.Write) {
 			nWrites++;
 		}
 	}
@@ -51,7 +52,7 @@ export function assertSymbolsInScope(p: parser.Parser, input:string, offset:numb
 
 	for (var i = 0; i < selections.length; i++) {
 		var selection =  selections[i];
-		var sym = scope.getSymbol(selection.name, selection.type);
+		var sym = scope.getSymbol(selection.name, selection.type) || global.getSymbol(selection.name, selection.type);
 		assert.ok(!!sym, getErrorMessage(selection.name));
 	}
 }
@@ -166,5 +167,35 @@ suite('CSS - symbols', () => {
 		var p = new parser.Parser();
 		assertOccurrences(p, '@keyframes id {}; #main { animation: /**/id 4s linear 0s infinite alternate; }', '/**/', 2, 1, nodes.ReferenceType.Keyframe);
 		assertOccurrences(p, '@keyframes id {}; #main { animation-name: /**/id; foo: id;}', '/**/', 2, 1, nodes.ReferenceType.Keyframe);
+	});
+
+	test('test variables in root scope', function() {
+		var p = new parser.Parser();
+		assertSymbolsInScope(p, ':root{ --var1: abc; --var2: def; }', 0, {name:'--var1', type:nodes.ReferenceType.Variable}, {name:'--var2', type:nodes.ReferenceType.Variable});
+	});
+
+	test('test variables in local scope', function() {
+		var p = new parser.Parser();
+		assertSymbolsInScope(p, '.a{ --var1: abc; --var2: def; }', 2, {name:'--var1', type:nodes.ReferenceType.Variable}, {name:'--var2', type:nodes.ReferenceType.Variable});
+	});
+
+	test('test variables in local scope get root variables too', function() {
+		var p = new parser.Parser();
+		assertSymbolsInScope(p, '.a{ --var1: abc; } :root{ --var2: abc;}', 2, {name:'--var1', type:nodes.ReferenceType.Variable}, {name:'--var2', type:nodes.ReferenceType.Variable});
+	});
+
+	test('test variables in local scope get root variables and other local variables too', function() {
+		var p = new parser.Parser();
+		assertSymbolsInScope(p, '.a{ --var1: abc; } .b{ --var2: abc; } :root{ --var3: abc;}', 2, {name:'--var1', type:nodes.ReferenceType.Variable}, {name:'--var2', type:nodes.ReferenceType.Variable}, {name:'--var3', type:nodes.ReferenceType.Variable});
+	});
+
+	test('mark occurrences for variable defined in root and used in a rule', function() {
+		var p = new parser.Parser();
+		assertOccurrences(p, '.a{ background: var(--var1); } :root{ --var1: abc;}', '--var1', 2, 1, nodes.ReferenceType.Variable);
+	});
+
+	test('mark occurrences for variable defined in a rule and used in a different rule', function() {
+		var p = new parser.Parser();
+		assertOccurrences(p, '.a{ background: var(--var1); } :b{ --var1: abc;}', '--var1', 2, 1, nodes.ReferenceType.Variable);
 	});
 });

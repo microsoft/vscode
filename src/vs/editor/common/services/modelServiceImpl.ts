@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
@@ -47,12 +47,12 @@ class ModelData implements IDisposable {
 	private _markerDecorations: string[];
 	private _modelEventsListener: IDisposable;
 
-	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: IEmitterEvent[]) => void) {
+	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: EmitterEvent[]) => void) {
 		this.model = model;
 		this.isSyncedToWorkers = false;
 
 		this._markerDecorations = [];
-		this._modelEventsListener = model.addBulkListener2((events) => eventsHandler(this, events));
+		this._modelEventsListener = model.addBulkListener((events) => eventsHandler(this, events));
 	}
 
 	public dispose(): void {
@@ -63,7 +63,7 @@ class ModelData implements IDisposable {
 	}
 
 	public getModelId(): string {
-		return MODEL_ID(this.model.getAssociatedResource());
+		return MODEL_ID(this.model.uri);
 	}
 
 	public acceptMarkerDecorations(newDecorations: editorCommon.IModelDeltaDecoration[]): void {
@@ -90,7 +90,7 @@ class ModelMarkerHandler {
 
 	private static _createDecorationRange(model: editorCommon.IModel, rawMarker: IMarker): editorCommon.IRange {
 		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
-		let ret: editorCommon.IEditorRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+		let ret: Range = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 		if (ret.isEmpty()) {
 			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
@@ -368,7 +368,7 @@ export class ModelServiceImpl implements IModelService {
 	private _createModelData(value: string, modeOrPromise: TPromise<IMode> | IMode, resource: URI): ModelData {
 		// create & save the model
 		let model = new Model(value, this._modelCreationOptions, modeOrPromise, resource);
-		let modelId = MODEL_ID(model.getAssociatedResource());
+		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
 			// There already exists a model with this id => this is a programmer error
@@ -386,7 +386,7 @@ export class ModelServiceImpl implements IModelService {
 
 		// handle markers (marker service => model)
 		if (this._markerService) {
-			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.getAssociatedResource() }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.uri }));
 		}
 
 		if (this._shouldSyncModelToWorkers(modelData.model)) {
@@ -457,20 +457,20 @@ export class ModelServiceImpl implements IModelService {
 			throw new Error('Model is already not being synced to workers!');
 		}
 		modelData.isSyncedToWorkers = false;
-		this._workerHelper.$_acceptDidDisposeModel(modelData.model.getAssociatedResource());
+		this._workerHelper.$_acceptDidDisposeModel(modelData.model.uri);
 	}
 
 	private _onModelDisposing(model: editorCommon.IModel): void {
-		let modelId = MODEL_ID(model.getAssociatedResource());
+		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
 
 		// TODO@Joh why are we removing markers here?
 		if (this._markerService) {
-			var markers = this._markerService.read({ resource: model.getAssociatedResource() }),
+			var markers = this._markerService.read({ resource: model.uri }),
 				owners: { [o: string]: any } = Object.create(null);
 
 			markers.forEach(marker => owners[marker.owner] = this);
-			Object.keys(owners).forEach(owner => this._markerService.changeOne(owner, model.getAssociatedResource(), []));
+			Object.keys(owners).forEach(owner => this._markerService.changeOne(owner, model.uri, []));
 		}
 
 		if (modelData.isSyncedToWorkers) {
@@ -486,14 +486,14 @@ export class ModelServiceImpl implements IModelService {
 
 	private static _getBoundModelData(model: editorCommon.IModel): IRawModelData {
 		return {
-			url: model.getAssociatedResource(),
+			url: model.uri,
 			versionId: model.getVersionId(),
 			value: model.toRawText(),
 			modeId: model.getMode().getId()
 		};
 	}
 
-	private _onModelEvents(modelData: ModelData, events: IEmitterEvent[]): void {
+	private _onModelEvents(modelData: ModelData, events: EmitterEvent[]): void {
 
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
@@ -554,7 +554,7 @@ export class ModelServiceImpl implements IModelService {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
 
-			if (e.getType() === editorCommon.EventType.ModelContentChanged) {
+			if (e.getType() === editorCommon.EventType.ModelRawContentChanged) {
 				eventsForWorkers.contentChanged.push(<editorCommon.IModelContentChangedEvent>e.getData());
 			}
 		}
@@ -583,20 +583,20 @@ export class ModelServiceWorkerHelper {
 	public $_acceptNewModel(data: IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
 		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url);
-		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
+		this._resourceService.insert(mirrorModel.uri, mirrorModel);
 
 		// Block worker execution until the mode is instantiated
 		return this._modeService.getOrCreateMode(data.modeId).then((mode) => {
 			// Changing mode should trigger a remove & an add, therefore:
 
 			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.getAssociatedResource());
+			this._resourceService.remove(mirrorModel.uri);
 
 			// (2) Change mode
 			mirrorModel.setMode(mode);
 
 			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
+			this._resourceService.insert(mirrorModel.uri, mirrorModel);
 		});
 	}
 
@@ -608,13 +608,13 @@ export class ModelServiceWorkerHelper {
 			// Changing mode should trigger a remove & an add, therefore:
 
 			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.getAssociatedResource());
+			this._resourceService.remove(mirrorModel.uri);
 
 			// (2) Change mode
 			mirrorModel.setMode(mode);
 
 			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
+			this._resourceService.insert(mirrorModel.uri, mirrorModel);
 		});
 	}
 

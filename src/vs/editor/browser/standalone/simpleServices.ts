@@ -24,6 +24,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export class SimpleEditor implements IEditor {
 
@@ -39,7 +40,7 @@ export class SimpleEditor implements IEditor {
 
 	public getId():string { return 'editor'; }
 	public getControl():editorCommon.IEditor { return this._widget; }
-	public getSelection():editorCommon.IEditorSelection { return this._widget.getSelection(); }
+	public getSelection():Selection { return this._widget.getSelection(); }
 	public focus():void { this._widget.focus(); }
 
 	public withTypedEditor<T>(codeEditorCallback:(editor:ICodeEditor)=>T, diffEditorCallback:(editor:IDiffEditor)=>T): T {
@@ -139,7 +140,7 @@ export class SimpleEditorService implements IEditorService {
 
 	private findModel(editor:editorCommon.ICommonCodeEditor, data:IResourceInput): editorCommon.IModel {
 		var model = editor.getModel();
-		if(model.getAssociatedResource().toString() !== data.resource.toString()) {
+		if(model.uri.toString() !== data.resource.toString()) {
 			return null;
 		}
 
@@ -301,6 +302,10 @@ export class SimpleConfigurationService extends ConfigurationService {
 			resource: resource,
 			isDirectory: false
 		});
+	}
+
+	setUserConfiguration(key: any, value: any) : Thenable<void> {
+		return TPromise.as(null);
 	}
 
 }

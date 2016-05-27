@@ -18,18 +18,24 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 
+interface RelaxedSymbolInformation {
+	name: string;
+	containerName?: string;
+	kind: Modes.SymbolKind;
+}
 
 suite('JSON - Worker', () => {
 
-	var assertOutline:any = function(actual: Modes.IOutlineEntry[], expected: any[], message: string) {
-		assert.equal(actual.length, expected.length, message);
-		for (var i = 0; i < expected.length; i++) {
-			assert.equal(actual[i].label, expected[i].label, message);
-			assert.equal(actual[i].type, expected[i].type, message);
-			var childrenExpected = expected[i].children || [];
-			var childrenActual = actual[i].children || [];
-			assertOutline(childrenExpected, childrenActual, message);
-		}
+	function toRelaxedSymbolInformation(a: RelaxedSymbolInformation): RelaxedSymbolInformation {
+		return {
+			name: a.name,
+			containerName: a.containerName,
+			kind: a.kind
+		};
+	}
+
+	var assertOutline = function(actual: Modes.SymbolInformation[], expected: RelaxedSymbolInformation[], message?: string) {
+		assert.deepEqual(actual.map(toRelaxedSymbolInformation), expected.map(toRelaxedSymbolInformation), message);
 	};
 
 	function mockWorkerEnv(url: URI, content: string): { worker: jsonworker.JSONWorker; model: EditorCommon.IMirrorModel; } {
@@ -59,14 +65,14 @@ suite('JSON - Worker', () => {
 
 		var idx = stringAfter ? value.indexOf(stringAfter) : 0;
 		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.suggest(url, position).then(result => result[0]);
+		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
-	function testComputeInfo(content:string, schema:jsonSchema.IJSONSchema, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	function testComputeInfo(content:string, schema:jsonSchema.IJSONSchema, position:EditorCommon.IPosition):WinJS.TPromise<Modes.Hover> {
 		var url = URI.parse('test://test.json');
 		var env = mockWorkerEnv(url, content);
 		prepareSchemaServer(schema, env.worker);
-		return env.worker.computeInfo(url, position);
+		return env.worker.provideHover(url, position);
 	}
 
 	var testValueSetFor = function(value:string, schema:jsonSchema.IJSONSchema, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
@@ -80,10 +86,10 @@ suite('JSON - Worker', () => {
 		return env.worker.navigateValueSet(url, range, up);
 	};
 
-	function getOutline(content: string):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	function getOutline(content: string):WinJS.TPromise<Modes.SymbolInformation[]> {
 		var url = URI.parse('test');
 		var workerEnv = mockWorkerEnv(url, content);
-		return workerEnv.worker.getOutline(url);
+		return workerEnv.worker.provideDocumentSymbols(url);
 	};
 
 	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, documentationLabel?: string) {
@@ -96,13 +102,13 @@ suite('JSON - Worker', () => {
 	test('JSON outline - base types', function(testDone) {
 		var content= '{ "key1": 1, "key2": "foo", "key3" : true }';
 
-		var expected= [
-			{ label: 'key1', type: 'number'},
-			{ label: 'key2', type: 'string'},
-			{ label: 'key3', type: 'boolean'},
+		var expected = [
+			{ name: 'key1', kind: Modes.SymbolKind.Number},
+			{ name: 'key2', kind: Modes.SymbolKind.String},
+			{ name: 'key3', kind: Modes.SymbolKind.Boolean},
 		];
 
-		getOutline(content).then((entries: Modes.IOutlineEntry[]) => {
+		getOutline(content).then((entries: Modes.SymbolInformation[]) => {
 			assertOutline(entries, expected);
 		}).done(() => testDone(), (error) => {
 			testDone(error);
@@ -113,12 +119,14 @@ suite('JSON - Worker', () => {
 		var content= '{ "key1": 1, "key2": [ 1, 2, 3 ], "key3" : [ { "k1": 1 }, {"k2": 2 } ] }';
 
 		var expected= [
-			{ label: 'key1', type: 'number'},
-			{ label: 'key2', type: 'array'},
-			{ label: 'key3', type: 'array', children : [ { label: 'k1', type: 'number'}, { label: 'k2', type: 'number'} ]},
+			{ name: 'key1', kind: Modes.SymbolKind.Number},
+			{ name: 'key2', kind: Modes.SymbolKind.Array},
+			{ name: 'key3', kind: Modes.SymbolKind.Array},
+			{ name: 'k1', kind: Modes.SymbolKind.Number, containerName: 'key3'},
+			{ name: 'k2', kind: Modes.SymbolKind.Number, containerName: 'key3'},
 		];
 
-		getOutline(content).then((entries: Modes.IOutlineEntry[]) => {
+		getOutline(content).then((entries: Modes.SymbolInformation[]) => {
 			assertOutline(entries, expected);
 		}).done(() => testDone(), (error) => {
 			testDone(error);
@@ -129,11 +137,13 @@ suite('JSON - Worker', () => {
 		var content= '{ "key1": { "key2": true }, "key3" : { "k1":  { } }';
 
 		var expected= [
-			{ label: 'key1', type: 'object', children : [ { label: 'key2', type: 'boolean'} ] },
-			{ label: 'key3', type: 'object', children : [ { label: 'k1', type: 'object'} ] }
+			{ name: 'key1', kind: Modes.SymbolKind.Module},
+			{ name: 'key2', kind: Modes.SymbolKind.Boolean, containerName: 'key1' },
+			{ name: 'key3', kind: Modes.SymbolKind.Module},
+			{ name: 'k1', kind: Modes.SymbolKind.Module, containerName: 'key3'}
 		];
 
-		getOutline(content).then((entries: Modes.IOutlineEntry[]) => {
+		getOutline(content).then((entries: Modes.SymbolInformation[]) => {
 			assertOutline(entries, expected);
 		}).done(() => testDone(), (error) => {
 			testDone(error);
@@ -144,10 +154,12 @@ suite('JSON - Worker', () => {
 		var content= '{ "key1": { "key2": true, "key3":, "key4": false } }';
 
 		var expected= [
-			{ label: 'key1', type: 'object', children : [ { label: 'key2', type: 'boolean'}, { label: 'key4', type: 'boolean'} ] },
+			{ name: 'key1', kind: Modes.SymbolKind.Module },
+			{ name: 'key2', kind: Modes.SymbolKind.Boolean, containerName: 'key1'},
+			{ name: 'key4', kind: Modes.SymbolKind.Boolean, containerName: 'key1'},
 		];
 
-		getOutline(content).then((entries: Modes.IOutlineEntry[]) => {
+		getOutline(content).then((entries: Modes.SymbolInformation[]) => {
 			assertOutline(entries, expected);
 		}).done(() => testDone(), (error) => {
 			testDone(error);

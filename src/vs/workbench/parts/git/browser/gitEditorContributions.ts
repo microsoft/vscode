@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import ee = require('vs/base/common/eventEmitter');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import common = require('vs/editor/common/editorCommon');
 import git = require('vs/workbench/parts/git/common/git');
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {Disposable} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {RunOnceScheduler} from 'vs/base/common/async';
 
 import IGitService = git.IGitService;
@@ -31,7 +30,7 @@ class MergeDecoratorBoundToModel extends Disposable {
 		this._filePath = filePath;
 		this._decorations = [];
 		this._redecorateSoon = this._register(new RunOnceScheduler(() => this.redecorate(), 300));
-		this._register(this._model.addListener2(common.EventType.ModelContentChanged, () => this._redecorateSoon.schedule()));
+		this._register(this._model.onDidChangeContent(() => this._redecorateSoon.schedule()));
 		this._register(this._gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this._redecorateSoon.schedule()));
 		this._redecorateSoon.schedule();
 	}
@@ -91,7 +90,7 @@ export class MergeDecorator implements common.IEditorContribution {
 	private editor: editorbrowser.ICodeEditor;
 	private gitService: git.IGitService;
 	private contextService: IWorkspaceContextService;
-	private toUnbind: ee.ListenerUnbind[];
+	private toUnbind: IDisposable[];
 
 	private mergeDecorator: MergeDecoratorBoundToModel;
 
@@ -99,7 +98,7 @@ export class MergeDecorator implements common.IEditorContribution {
 		this.gitService = gitService;
 		this.contextService = contextService;
 		this.editor = editor;
-		this.toUnbind = [ this.editor.addListener(common.EventType.ModelChanged, this.onModelChanged.bind(this)) ];
+		this.toUnbind = [ this.editor.onDidChangeModel(() => this.onModelChanged()) ];
 		this.mergeDecorator = null;
 	}
 
@@ -122,7 +121,7 @@ export class MergeDecorator implements common.IEditorContribution {
 			return;
 		}
 
-		var resource = model.getAssociatedResource();
+		var resource = model.uri;
 		if (!resource) {
 			return;
 		}
@@ -140,8 +139,6 @@ export class MergeDecorator implements common.IEditorContribution {
 			this.mergeDecorator.dispose();
 			this.mergeDecorator = null;
 		}
-		while(this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }

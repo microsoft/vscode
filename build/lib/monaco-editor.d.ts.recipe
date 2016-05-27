@@ -1,0 +1,92 @@
+
+declare module monaco.editor {
+
+    export function create(domElement: HTMLElement, options: IEditorConstructionOptions, services?: any): ICodeEditor;
+    export function createDiffEditor(domElement: HTMLElement, options: IDiffEditorConstructionOptions, services?: any): IDiffEditor;
+    export function createModel(value:string, mode:string|ILanguage|IMode, associatedResource?:any|string): IModel;
+    export function getOrCreateMode(modeId: string): TPromise<IMode>;
+    export function createCustomMode(description:ILanguage): TPromise<IMode>;
+    export function colorize(text: string, modeId: string, options: IColorizerOptions): TPromise<string>;
+    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): TPromise<void>;
+//    export function colorizeLine(line: string, tokens: ViewLineToken[], tabSize?: number): string;
+    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
+    export function registerWorkerParticipant(modeId:string, moduleName:string, ctorName:string): void;
+    export function configureMode(modeId: string, options: any): void;
+
+    export interface IColorizerOptions {
+        tabSize?: number;
+    }
+
+    export interface IColorizerElementOptions extends IColorizerOptions {
+        theme?: string;
+        mimeType?: string;
+    }
+
+    export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
+        value?: string;
+        /**
+         * A mode name (such as text/javascript, etc.) or an IMonarchLanguage
+         */
+        mode?: any;
+        enableTelemetry?: boolean;
+    }
+
+    export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+    }
+}
+
+declare module monaco {
+
+    interface Thenable<R> {
+        /**
+         * Attaches callbacks for the resolution and/or rejection of the Promise.
+         * @param onfulfilled The callback to execute when the Promise is resolved.
+         * @param onrejected The callback to execute when the Promise is rejected.
+         * @returns A Promise for the completion of which ever callback is executed.
+         */
+        then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
+        then<TResult>(onfulfilled?: (value: R) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+    }
+
+    export interface IDisposable {
+        dispose(): void;
+    }
+
+#include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, TPromise
+
+#include(vs/base/common/uri): URI
+
+#include(vs/base/common/eventEmitter): EmitterEvent, BulkListenerCallback
+
+#include(vs/base/common/keyCodes): KeyCode, KeyMod
+
+#include(vs/base/common/htmlContent): IHTMLContentElementCode, IHTMLContentElement
+
+#include(vs/base/common/actions): IAction
+
+#include(vs/base/browser/keyboardEvent): IKeyboardEvent
+#include(vs/base/browser/mouseEvent): IMouseEvent
+#include(vs/editor/common/editorCommon): IScrollEvent
+
+#include(vs/editor/common/editorCommon): IPosition, IRange, SelectionDirection, ISelection
+#include(vs/editor/common/core/position): Position
+#include(vs/editor/common/core/range): Range
+#include(vs/editor/common/core/selection): Selection
+}
+
+
+declare module monaco.editor {
+
+#include(vs/editor/common/modes/monarch/monarchTypes): ILanguage, ILanguageBracket
+
+    export interface IMode {
+
+    }
+
+#include(vs/base/browser/ui/scrollbar/scrollableElementOptions): ScrollbarVisibility
+
+#includeAll(vs/editor/common/editorCommon): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
+
+#includeAll(vs/editor/browser/editorBrowser):
+
+}

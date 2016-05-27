@@ -43,8 +43,10 @@ export class MessageService extends WorkbenchMessageService {
 			cancelId: 1
 		};
 
+		// Linux: buttons are swapped
 		if (isLinux) {
-			opts.defaultId = 1; // Linux: buttons are swapped
+			opts.defaultId = 1;
+			opts.cancelId = 0;
 		}
 
 		if (confirmation.detail) {
@@ -62,7 +64,7 @@ export class MessageService extends WorkbenchMessageService {
 
 	private mnemonicLabel(label: string): string {
 		if (!isWindows) {
-			return label.replace(/&&/g, ''); // no mnemonic support on mac/linux in buttons yet
+			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
 		}
 
 		return label.replace(/&&/g, '&');

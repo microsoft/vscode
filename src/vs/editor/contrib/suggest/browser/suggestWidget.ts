@@ -21,7 +21,7 @@ import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableEleme
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {EventType, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY} from '../common/suggest';
 import {CompletionItem, CompletionModel} from './completionModel';
@@ -81,7 +81,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 		configureFont();
 
-		data.disposables.push(this.editor.addListener2(EventType.ConfigurationChanged, (e: IConfigurationChangedEvent) => {
+		data.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				configureFont();
 			}
@@ -231,7 +231,7 @@ class SuggestionDetails {
 
 		this.configureFont();
 
-		this.disposables.push(this.editor.addListener2(EventType.ConfigurationChanged, (e: IConfigurationChangedEvent) => {
+		this.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.configureFont();
 			}
@@ -369,10 +369,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.list = new List(this.listElement, this.delegate, [renderer]);
 
 		this.toDispose = [
-			editor.addListener2(EventType.EditorTextBlur, () => this.onEditorBlur()),
+			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.addListener2(EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
+			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged()),
 			this.model.onDidTrigger(e => this.onDidTrigger(e)),
 			this.model.onDidSuggest(e => this.onDidSuggest(e)),
 			this.model.onDidCancel(e => this.onDidCancel(e))
@@ -484,14 +484,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
 		this.focusedItem = item;
-		this.list.setFocus(index);
 		this.updateWidgetHeight();
 		this.list.reveal(index);
 
-		const resource = this.editor.getModel().getAssociatedResource();
 		const position = this.model.getRequestPosition() || this.editor.getPosition();
 
-		this.currentSuggestionDetails = item.resolveDetails(resource, position)
+		this.currentSuggestionDetails = item.resolveDetails(this.editor.getModel(), position)
 			.then(details => {
 				item.updateDetails(details);
 				this.list.setFocus(index);

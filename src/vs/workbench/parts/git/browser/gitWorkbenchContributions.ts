@@ -166,7 +166,7 @@ class DirtyDiffModelDecorator {
 		this.gitService = gitService;
 
 		this.model = model;
-		this._originalContentsURI = model.getAssociatedResource().withScheme(DirtyDiffModelDecorator.GIT_ORIGINAL_SCHEME);
+		this._originalContentsURI = model.uri.withScheme(DirtyDiffModelDecorator.GIT_ORIGINAL_SCHEME);
 		this.path = path;
 		this.decorations = [];
 
@@ -174,7 +174,7 @@ class DirtyDiffModelDecorator {
 		this.diffDelayer = new async.ThrottledDelayer<void>(200);
 
 		this.toDispose = [];
-		this.toDispose.push(model.addListener2(common.EventType.ModelContentChanged, () => this.triggerDiff()));
+		this.toDispose.push(model.onDidChangeContent(() => this.triggerDiff()));
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this.onChanges()));
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.OPERATION_END, e => {
 			if (e.operation.id !== git.ServiceOperations.BACKGROUND_FETCH) {
@@ -254,7 +254,7 @@ class DirtyDiffModelDecorator {
 				return winjs.TPromise.as<any>([]); // disposed
 			}
 
-			return this.editorWorkerService.computeDirtyDiff(this._originalContentsURI, this.model.getAssociatedResource(), true);
+			return this.editorWorkerService.computeDirtyDiff(this._originalContentsURI, this.model.uri, true);
 		}).then((diff:common.IChange[]) => {
 			if (!this.model || this.model.isDisposed()) {
 				return; // disposed
@@ -368,7 +368,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 
 		// If there is no repository root, just wait until that changes
 		if (typeof repositoryRoot !== 'string') {
-			this.gitService.addOneTimeListener(git.ServiceEvents.STATE_CHANGED, () => this.onEditorInputChange());
+			this.gitService.addOneTimeDisposableListener(git.ServiceEvents.STATE_CHANGED, () => this.onEditorInputChange());
 
 			this.models.forEach(m => this.onModelInvisible(m));
 			this.models = [];
@@ -390,7 +390,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 			.filter((m, i, a) => !!m && a.indexOf(m, i + 1) === -1)
 
 			// get the associated resource
-			.map(m => ({ model: m, resource: m.getAssociatedResource() }))
+			.map(m => ({ model: m, resource: m.uri }))
 
 			// remove nulls
 			.filter(p => !!p.resource &&

@@ -15,7 +15,7 @@ import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actio
 import DOM = require('vs/base/browser/dom');
 import {EventType as CommonEventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
-import {IEventEmitter, EventEmitter, IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {IEventEmitter, EventEmitter, EmitterEvent} from 'vs/base/common/eventEmitter';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
@@ -33,7 +33,7 @@ export interface IActionItem extends IEventEmitter {
 export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public builder: Builder;
-	public _callOnDispose: Function[];
+	public _callOnDispose: lifecycle.IDisposable[];
 	public _context: any;
 	public _action: IAction;
 
@@ -48,7 +48,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		this._action = action;
 
 		if (action instanceof Action) {
-			let l = (<Action>action).addBulkListener((events: IEmitterEvent[]) => {
+			let l = (<Action>action).addBulkListener2((events: EmitterEvent[]) => {
 
 				if (!this.builder) {
 					// we have not been rendered yet, so there
@@ -56,7 +56,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 					return;
 				}
 
-				events.forEach((event: IEmitterEvent) => {
+				events.forEach((event: EmitterEvent) => {
 
 					switch (event.getType()) {
 						case Action.ENABLED:
@@ -170,7 +170,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		// implement in subclass
 	}
 
-	public _updateUnknown(event: IEmitterEvent): void {
+	public _updateUnknown(event: EmitterEvent): void {
 		// can implement in subclass
 	}
 
@@ -187,7 +187,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 			this.gesture = null;
 		}
 
-		lifecycle.cAll(this._callOnDispose);
+		this._callOnDispose = lifecycle.dispose(this._callOnDispose);
 	}
 }
 
@@ -333,13 +333,13 @@ export class ProgressItem extends BaseActionItem {
 		error.textContent = '!';
 		$(error).addClass('tag', 'error');
 
-		this.callOnDispose.push(this.addListener(CommonEventType.BEFORE_RUN, () => {
+		this.callOnDispose.push(this.addListener2(CommonEventType.BEFORE_RUN, () => {
 			$(progress).addClass('active');
 			$(done).removeClass('active');
 			$(error).removeClass('active');
 		}));
 
-		this.callOnDispose.push(this.addListener(CommonEventType.RUN, (result) => {
+		this.callOnDispose.push(this.addListener2(CommonEventType.RUN, (result) => {
 			$(progress).removeClass('active');
 			if (result.error) {
 				$(done).removeClass('active');
@@ -358,7 +358,6 @@ export class ProgressItem extends BaseActionItem {
 	}
 
 	public dispose(): void {
-		lifecycle.cAll(this.callOnDispose);
 		super.dispose();
 	}
 }
@@ -570,7 +569,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			this.addEmitter(item);
+			this.addEmitter2(item);
 			item.render(actionItemElement);
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {

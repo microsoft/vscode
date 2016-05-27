@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {EventType, ICodeEditorWidgetCreationOptions, IConfigurationChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
+import {ICodeEditorWidgetCreationOptions, IConfigurationChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
@@ -35,7 +35,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		// Overwrite parent's options
 		super.updateOptions(this._overwriteOptions);
 
-		this._lifetimeDispose.push(parentEditor.addListener2(EventType.ConfigurationChanged, (e:IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
+		this._lifetimeDispose.push(parentEditor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
 	}
 
 	public getParentEditor(): ICodeEditor {

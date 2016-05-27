@@ -19,7 +19,7 @@ import {IResourceService, ResourceEvents, IResourceChangedEvent} from 'vs/editor
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export interface IJSONSchemaService {
 
@@ -214,20 +214,17 @@ export class JSONSchemaService implements IJSONSchemaService {
 
 	private requestService: IRequestService;
 	private contextService : IWorkspaceContextService;
-	private callOnDispose:Function[];
-	private telemetryService: ITelemetryService;
+	private callOnDispose:IDisposable[];
 
 	constructor(@IRequestService requestService: IRequestService,
-		@ITelemetryService telemetryService?: ITelemetryService,
 		@IWorkspaceContextService contextService?: IWorkspaceContextService,
 		@IResourceService resourceService?: IResourceService) {
 		this.requestService = requestService;
 		this.contextService = contextService;
-		this.telemetryService = telemetryService;
 		this.callOnDispose = [];
 
 		if (resourceService) {
-			this.callOnDispose.push(resourceService.addListener_(ResourceEvents.CHANGED, (e: IResourceChangedEvent) => this.onResourceChange(e)));
+			this.callOnDispose.push(resourceService.addListener2_(ResourceEvents.CHANGED, (e: IResourceChangedEvent) => this.onResourceChange(e)));
 		}
 
 		this.contributionSchemas = {};
@@ -238,9 +235,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	public dispose(): void {
-		while(this.callOnDispose.length > 0) {
-			this.callOnDispose.pop()();
-		}
+		this.callOnDispose = dispose(this.callOnDispose);
 	}
 
 	private onResourceChange(e: IResourceChangedEvent): void {
@@ -327,12 +322,6 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	public loadSchema(url:string) : WinJS.TPromise<UnresolvedSchema> {
-		if (this.telemetryService && Strings.startsWith(url, 'https://schema.management.azure.com')) {
-			this.telemetryService.publicLog('json.schema', {
-				schemaURL: url
-			});
-		}
-
 		return this.requestService.makeRequest({ url: url }).then(
 			request => {
 				var content = request.responseText;
@@ -342,9 +331,9 @@ export class JSONSchemaService implements IJSONSchemaService {
 				}
 
 				var schemaContent: IJSONSchema = {};
-				var jsonErrors = [];
-				schemaContent = Json.parse(content, errors);
-				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), jsonErrors[0])] : [];
+				var jsonErrors: Json.ParseError[] = [];
+				schemaContent = Json.parse(content, jsonErrors);
+				var errors = jsonErrors.length ? [ nls.localize('json.schema.invalidFormat', 'Unable to parse content from \'{0}\': {1}.', toDisplayString(url), Json.getParseErrorMessage(jsonErrors[0].error))] : [];
 				return new UnresolvedSchema(schemaContent, errors);
 			},
 			(error : http.IXHRResponse) => {

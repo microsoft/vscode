@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import { IEventEmitter, EventEmitter, ListenerCallback, IBulkListenerCallback, ListenerUnbind } from 'vs/base/common/eventEmitter';
+import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as Events from 'vs/base/common/events';
 
@@ -196,74 +196,6 @@ export class Action extends EventEmitter implements IAction {
 		} else {
 			return TPromise.as(true);
 		}
-	}
-}
-
-class ProxyAction extends Action implements IEventEmitter {
-
-	constructor(private delegate: Action, private runHandler: (e: any) => void) {
-		super(delegate.id, delegate.label, delegate.class, delegate.enabled, null);
-	}
-
-	public get id(): string {
-		return this.delegate.id;
-	}
-
-	public get label(): string {
-		return this.delegate.label;
-	}
-
-	public set label(value: string) {
-		this.delegate.label = value;
-	}
-
-	public get class(): string {
-		return this.delegate.class;
-	}
-
-	public set class(value: string) {
-		this.delegate.class = value;
-	}
-
-	public get enabled(): boolean {
-		return this.delegate.enabled;
-	}
-
-	public set enabled(value: boolean) {
-		this.delegate.enabled = value;
-	}
-
-	public get checked(): boolean {
-		return this.delegate.checked;
-	}
-
-	public set checked(value: boolean) {
-		this.delegate.checked = value;
-	}
-
-	public run(event?: any): TPromise<any> {
-		this.runHandler(event);
-		return this.delegate.run(event);
-	}
-
-	public addListener(eventType: string, listener: ListenerCallback): ListenerUnbind {
-		return this.delegate.addListener(eventType, listener);
-	}
-
-	public addBulkListener(listener: IBulkListenerCallback): ListenerUnbind {
-		return this.delegate.addBulkListener(listener);
-	}
-
-	public addEmitter(eventEmitter: IEventEmitter, emitterType?: string): ListenerUnbind {
-		return this.delegate.addEmitter(eventEmitter, emitterType);
-	}
-
-	public addEmitterTypeListener(eventType: string, emitterType: string, listener: ListenerCallback): ListenerUnbind {
-		return this.delegate.addEmitterTypeListener(eventType, emitterType, listener);
-	}
-
-	public emit(eventType: string, data?: any): void {
-		this.delegate.emit(eventType, data);
 	}
 }
 

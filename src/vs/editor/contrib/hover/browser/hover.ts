@@ -7,7 +7,6 @@
 
 import 'vs/css!./hover';
 import * as nls from 'vs/nls';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -23,13 +22,14 @@ import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ModesContentHoverWidget} from './modesContentHover';
 import {ModesGlyphHoverWidget} from './modesGlyphHover';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 class ModesHoverController implements editorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.hover';
 
 	private _editor: ICodeEditor;
-	private _toUnhook:ListenerUnbind[];
+	private _toUnhook:IDisposable[];
 
 	private _contentWidget: ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHoverWidget;
@@ -46,13 +46,17 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 		this._toUnhook = [];
 
 		if (editor.getConfiguration().contribInfo.hover) {
-			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.MouseDown, (e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
-			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.MouseMove, (e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
-			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.MouseLeave, (e: IEditorMouseEvent) => this._hideWidgets()));
-			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.KeyDown, (e:IKeyboardEvent) => this._onKeyDown(e)));
-			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.ModelChanged, () => this._hideWidgets()));
-			this._toUnhook.push(this._editor.addListener(editorCommon.EventType.ModelDecorationsChanged, () => this._onModelDecorationsChanged()));
-			this._toUnhook.push(this._editor.addListener('scroll', () => this._hideWidgets()));
+			this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+			this._toUnhook.push(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
+			this._toUnhook.push(this._editor.onMouseLeave((e: IEditorMouseEvent) => this._hideWidgets()));
+			this._toUnhook.push(this._editor.onKeyDown((e:IKeyboardEvent) => this._onKeyDown(e)));
+			this._toUnhook.push(this._editor.onDidChangeModel(() => this._hideWidgets()));
+			this._toUnhook.push(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
+			this._toUnhook.push(this._editor.onDidScrollChange((e) => {
+				if (e.scrollTopChanged || e.scrollLeftChanged) {
+					this._hideWidgets();
+				}
+			}));
 
 			this._contentWidget = new ModesContentHoverWidget(editor, openerService);
 			this._glyphWidget = new ModesGlyphHoverWidget(editor);
@@ -118,7 +122,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 		this._contentWidget.hide();
 	}
 
-	public showContentHover(range: editorCommon.IEditorRange, focus: boolean): void {
+	public showContentHover(range: Range, focus: boolean): void {
 		this._contentWidget.startShowingAt(range, focus);
 	}
 
@@ -127,9 +131,7 @@ class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		while(this._toUnhook.length > 0) {
-			this._toUnhook.pop()();
-		}
+		this._toUnhook = dispose(this._toUnhook);
 		if (this._glyphWidget) {
 			this._glyphWidget.dispose();
 			this._glyphWidget = null;

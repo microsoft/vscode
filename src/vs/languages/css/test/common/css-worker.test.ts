@@ -74,7 +74,7 @@ suite('Validation - CSS', () => {
 
 		var idx = stringBefore ? value.indexOf(stringBefore) + stringBefore.length : 0;
 		var position = env.model.getPositionFromOffset(idx);
-		return env.worker.suggest(url, position).then(result => result[0]);
+		return env.worker.provideCompletionItems(url, position).then(result => result[0]);
 	};
 
 	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
@@ -87,13 +87,13 @@ suite('Validation - CSS', () => {
 		return env.worker.navigateValueSet(url, range, up);
 	};
 
-	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {
+	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.DocumentHighlight[]; model: mm.MirrorModel; }> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
 		var pos = env.model.getPositionFromOffset(value.indexOf(tokenBefore) + tokenBefore.length);
 
-		return env.worker.findOccurrences(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
+		return env.worker.provideDocumentHighlights(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
 	};
 
 	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.IQuickFix[]; model: mm.MirrorModel; }> {
@@ -105,7 +105,7 @@ suite('Validation - CSS', () => {
 		var markers = env.markers.filter((m) => m.startColumn === pos.column && m.startLineNumber === pos.lineNumber);
 		assert.equal(1, markers.length, 'No marker at pos: ' + JSON.stringify({ pos: pos, markers: env.markers }));
 
-		return env.worker.getQuickFixes(url, markers[0]).then((fixes) => { return { fixes: fixes, model: env.model}; });
+		return env.worker.provideCodeActions(url, markers[0]).then((fixes) => { return { fixes: fixes, model: env.model}; });
 	};
 
 	var assertSuggestion= function(completion:Modes.ISuggestResult, label:string, type?:string) {
@@ -121,7 +121,7 @@ suite('Validation - CSS', () => {
 		assert.equal(result.value, expected);
 	};
 
-	var assertOccurrences= function(occurrences: Modes.IOccurence[], model: mm.MirrorModel , expectedNumber:number, expectedContent:string) {
+	var assertOccurrences= function(occurrences: Modes.DocumentHighlight[], model: mm.MirrorModel , expectedNumber:number, expectedContent:string) {
 		assert.equal(occurrences.length, expectedNumber);
 		occurrences.forEach((occurrence) => {
 			assert.equal(model.getValueInRange(occurrence.range), expectedContent);

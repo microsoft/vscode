@@ -9,11 +9,12 @@ import Event, { Emitter } from 'vs/base/common/event';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition, CursorChangeReason} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason} from 'vs/editor/common/editorCommon';
 import {ISuggestSupport, ISuggestion, SuggestRegistry} from 'vs/editor/common/modes';
 import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
-import {ISuggestResult2, suggest} from '../common/suggest';
+import {ISuggestResult2, provideCompletionItems} from '../common/suggest';
 import {CompletionModel} from './completionModel';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -80,10 +81,8 @@ class Context {
 			}
 		}
 
-		const lineContext = model.getLineContext(position.lineNumber);
-		const character = model.getLineContent(position.lineNumber).charAt(position.column - 1);
 		const supports = SuggestRegistry.all(model);
-		this.isAutoTriggerEnabled = supports.some(s => s.shouldAutotriggerSuggest(lineContext, position.column - 1, character));
+		this.isAutoTriggerEnabled = (supports.length > 0);
 	}
 
 	public shouldAutoTrigger(): boolean {
@@ -197,9 +196,9 @@ export class SuggestModel implements IDisposable {
 		this.context = null;
 
 		this.toDispose = [];
-		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
-		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
-		this.toDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.cancel()));
+		this.toDispose.push(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
+		this.toDispose.push(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
+		this.toDispose.push(this.editor.onDidChangeModel(() => this.cancel()));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.onSuggestRegistryChange, this));
 		this.onEditorConfigurationChange();
 	}
@@ -230,15 +229,12 @@ export class SuggestModel implements IDisposable {
 		return actuallyCanceled;
 	}
 
-	public getRequestPosition(): IPosition {
+	public getRequestPosition(): Position {
 		if (!this.context) {
 			return null;
 		}
 
-		return {
-			lineNumber: this.context.lineNumber,
-			column: this.context.column
-		};
+		return new Position(this.context.lineNumber, this.context.column);
 	}
 
 	private isAutoSuggest(): boolean {
@@ -325,7 +321,7 @@ export class SuggestModel implements IDisposable {
 
 		const position = this.editor.getPosition();
 
-		this.requestPromise = suggest(model, position, triggerCharacter, groups).then(all => {
+		this.requestPromise = provideCompletionItems(model, position, groups).then(all => {
 			this.requestPromise = null;
 
 			if (this.state === State.Idle) {

@@ -7,12 +7,15 @@
 import 'vs/editor/standalone-languages/all';
 import './standaloneSchemas';
 import 'vs/css!./media/standalone-tokens';
+import {Emitter} from 'vs/base/common/event';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ClassNames, ContentWidgetPositionPreference, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import * as standaloneCodeEditor from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import {ILanguageDef} from 'vs/editor/standalone-languages/types';
+// import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
+import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 
 var global:any = self;
 if (!global.Monaco) {
@@ -77,3 +80,34 @@ if (!Monaco.Languages) {
 	Monaco.Languages = {};
 }
 Monaco.Languages.register = standaloneCodeEditor.registerStandaloneLanguage;
+Monaco.Languages.register2 = standaloneCodeEditor.registerStandaloneLanguage2;
+Monaco.Languages.onLanguage = (languageId:string, callback:()=>void) => {
+	let isDisposed = false;
+	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
+		if (!isDisposed) {
+			callback();
+		}
+	});
+	return {
+		dispose: () => { isDisposed = true; }
+	};
+};
+Monaco.createWebWorker = standaloneCodeEditor.createWebWorker;
+Monaco.Languages.registerTokensProvider = standaloneCodeEditor.registerTokensProvider;
+Monaco.Languages.registerHoverProvider = standaloneCodeEditor.registerHoverProvider;
+Monaco.Emitter = Emitter;
+// let handlePlugin = (plugin) => {
+// 	if (Array.isArray(plugin.languages)) {
+// 		ModesRegistry.registerLanguages(plugin.languages);
+// 	}
+// 	if (plugin.activate) {
+// 		try {
+// 			plugin.activate();
+// 		} catch(err) {
+// 			console.error(err);
+// 		}
+// 	}
+// };
+// let MonacoPlugins = this.MonacoPlugins || [];
+// MonacoPlugins.forEach(handlePlugin);
+// this.MonacoPlugins = { push: handlePlugin };

@@ -9,10 +9,12 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IFilter} from 'vs/base/common/filters';
-import {IMarker} from 'vs/platform/markers/common/markers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface ITokenizationResult {
 	type?:string;
@@ -165,6 +167,21 @@ export interface ILineContext {
 	findIndexOfOffset(offset:number): number;
 }
 
+export enum MutableSupport {
+	RichEditSupport = 1,
+	TokenizationSupport = 2
+}
+export function mutableSupportToString(registerableSupport:MutableSupport) {
+	if (registerableSupport === MutableSupport.RichEditSupport) {
+		return 'richEditSupport';
+	}
+	if (registerableSupport === MutableSupport.TokenizationSupport) {
+		return 'tokenizationSupport';
+	}
+	throw new Error('Illegal argument!');
+}
+
+
 export interface IMode {
 
 	getId(): string;
@@ -179,52 +196,12 @@ export interface IMode {
 	/**
 	 * Register a support by name. Only optional.
 	 */
-	registerSupport?<T>(support:string, callback:(mode:IMode)=>T): IDisposable;
+	registerSupport?<T>(support:MutableSupport, callback:(mode:IMode)=>T): IDisposable;
 
 	/**
 	 * Optional adapter to support tokenization.
 	 */
 	tokenizationSupport?: ITokenizationSupport;
-
-	/**
-	 * Optional adapter to support showing occurrences of words or such.
-	 */
-	occurrencesSupport?:IOccurrencesSupport;
-
-	/**
-	 * Optional adapter to support revealing the declaration of a symbol.
-	 */
-	declarationSupport?: IDeclarationSupport;
-
-	/**
-	 * Optional adapter to support finding references to a symbol.
-	 */
-	referenceSupport?:IReferenceSupport;
-
-	/**
-	 * Optional adapter to support intellisense.
-	 */
-	suggestSupport?:ISuggestSupport;
-
-	/**
-	 * Optional adapter to support intellisense.
-	 */
-	parameterHintsSupport?:IParameterHintsSupport;
-
-	/**
-	 * Optional adapter to support showing extra info in tokens.
-	 */
-	extraInfoSupport?:IExtraInfoSupport;
-
-	/**
-	 * Optional adapter to support showing an outline.
-	 */
-	outlineSupport?:IOutlineSupport;
-
-	/**
-	 * Optional adapter to support formatting.
-	 */
-	formattingSupport?:IFormattingSupport;
 
 	/**
 	 * Optional adapter to support inplace-replace.
@@ -237,34 +214,9 @@ export interface IMode {
 	emitOutputSupport?:IEmitOutputSupport;
 
 	/**
-	 * Optional adapter to support detecting links.
-	 */
-	linkSupport?:ILinkSupport;
-
-	/**
 	 * Optional adapter to support configuring this mode.
 	 */
 	configSupport?:IConfigurationSupport;
-
-	/**
-	 * Optional adapter to support quick fix of typing errors.
-	 */
-	quickFixSupport?:IQuickFixSupport;
-
-	/**
-	 * Optional adapter to show code lens
-	 */
-	codeLensSupport?:ICodeLensSupport;
-
-	/**
-	 * Optional adapter to support renaming
-	 */
-	renameSupport?: IRenameSupport;
-
-	/**
-	 * Optional adapter to support task running
-	 */
-	taskSupport?: ITaskSupport;
 
 	/**
 	 * Optional adapter to support rich editing.
@@ -304,17 +256,44 @@ export interface ITokenizationSupport {
 	tokenize(line:string, state:IState, offsetDelta?:number, stopAtOffset?:number):ILineTokens;
 }
 
-/**
- * Interface used to get extra info for a symbol
- */
-export interface IComputeExtraInfoResult {
-	range: editorCommon.IRange;
-	value?: string;
-	htmlContent?: IHTMLContentElement[];
-	className?: string;
+export interface IToken2 {
+	startIndex: number;
+	scopes: string|string[];
 }
-export interface IExtraInfoSupport {
-	computeInfo(resource:URI, position:editorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
+export interface ILineTokens2 {
+	tokens: IToken2[];
+	endState: IState2;
+	retokenize?: TPromise<void>;
+}
+export interface IState2 {
+	clone():IState2;
+	equals(other:IState2):boolean;
+}
+export interface ITokenizationSupport2 {
+	getInitialState(): IState2;
+	tokenize(line:string, state:IState2): ILineTokens2;
+}
+
+/**
+ * A hover represents additional information for a symbol or word. Hovers are
+ * rendered in a tooltip-like widget.
+ */
+export interface Hover {
+	/**
+	 * The contents of this hover.
+	 */
+	htmlContent: IHTMLContentElement[];
+
+	/**
+	 * The range to which this hover applies. When missing, the
+	 * editor will use the range at the current position or the
+	 * current position itself.
+	 */
+	range: editorCommon.IRange;
+}
+
+export interface HoverProvider {
+	provideHover(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Hover | Thenable<Hover>;
 }
 
 export type SuggestionType = 'method'
@@ -356,24 +335,15 @@ export interface ISuggestResult {
 	incomplete?: boolean;
 }
 
-/**
- * Interface used to get completion suggestions at a specific location.
- */
 export interface ISuggestSupport {
 
-	/**
-	 * Compute all completions for the given resource at the given position.
-	 */
-	suggest(resource: URI, position: editorCommon.IPosition, triggerCharacter?: string): TPromise<ISuggestResult[]>;
-
-	/**
-	 * Compute more details for the given suggestion.
-	 */
-	getSuggestionDetails?: (resource: URI, position: editorCommon.IPosition, suggestion: ISuggestion) => TPromise<ISuggestion>;
+	triggerCharacters: string[];
 
 	filter?: IFilter;
-	getTriggerCharacters(): string[];
-	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean;
+
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;
+
+	resolveCompletionItem?(model:editorCommon.IReadOnlyModel, position:Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
 /**
@@ -383,109 +353,185 @@ export interface IQuickFix {
 	command: ICommand;
 	score: number;
 }
-
-export interface IQuickFixResult {
-	edits?: IResourceEdit[];
-	message?: string;
-}
-
-export interface IQuickFixSupport {
-	getQuickFixes(resource: URI, range: IMarker | editorCommon.IRange): TPromise<IQuickFix[]>;
-	//TODO@joh this should be removed in the furture such that we can trust the command and it's args
-	runQuickFixAction(resource: URI, range: editorCommon.IRange, quickFix: IQuickFix):TPromise<IQuickFixResult>;
-}
-
-export interface IParameter {
-	label:string;
-	documentation?:string;
-	signatureLabelOffset?:number;
-	signatureLabelEnd?:number;
-}
-
-export interface ISignature {
-	label:string;
-	documentation?:string;
-	parameters:IParameter[];
-}
-
-export interface IParameterHints {
-	currentSignature:number;
-	currentParameter:number;
-	signatures:ISignature[];
-}
-
-/**
- * Interface used to get parameter hints.
- */
-export interface IParameterHintsSupport {
-	getParameterHintsTriggerCharacters(): string[];
-	shouldTriggerParameterHints(context: ILineContext, offset: number): boolean;
-	getParameterHints(resource: URI, position: editorCommon.IPosition, triggerCharacter?: string): TPromise<IParameterHints>;
+export interface CodeActionProvider {
+	provideCodeActions(model:editorCommon.IReadOnlyModel, range:Range, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
 }
 
 
-export interface IOccurence {
-	kind?: 'write' | 'text' | string;
-	range: editorCommon.IRange;
-}
-
-/**
- * Interface used to find occurrences of a symbol
- */
-export interface IOccurrencesSupport {
-	findOccurrences(resource:URI, position:editorCommon.IPosition, strict?:boolean):TPromise<IOccurence[]>;
-}
-
-
-/**
- * Interface used to find declarations on a symbol
- */
-export interface IReference {
-	resource: URI;
-	range: editorCommon.IRange;
-}
-
-/**
- * Interface used to find references to a symbol
- */
-export interface IReferenceSupport {
-
-	/**
-	 * @returns true if on the given line (and its tokens) at the given
-	 * 	offset reference search can be invoked.
-	 */
-	canFindReferences(context:ILineContext, offset:number):boolean;
-
-	/**
-	 * @returns a list of reference of the symbol at the position in the
-	 * 	given resource.
-	 */
-	findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean):TPromise<IReference[]>;
-}
-
-/**
- * Interface used to find declarations on a symbol
- */
-export interface IDeclarationSupport {
-	canFindDeclaration(context:ILineContext, offset:number):boolean;
-	findDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference|IReference[]>;
-}
-
-/**
- * Interface used to compute an outline
- */
-export interface IOutlineEntry {
+export interface ParameterInformation {
 	label: string;
-	containerLabel?: string;
-	type: string;
-	icon?: string; // icon class or null to use the default images based on the type
-	range: editorCommon.IRange;
-	children?: IOutlineEntry[];
+	documentation: string;
+}
+export interface SignatureInformation {
+	label: string;
+	documentation: string;
+	parameters: ParameterInformation[];
+}
+export interface SignatureHelp {
+	signatures: SignatureInformation[];
+	activeSignature: number;
+	activeParameter: number;
+}
+export interface SignatureHelpProvider {
+
+	signatureHelpTriggerCharacters: string[];
+
+	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
 }
 
-export interface IOutlineSupport {
-	getOutline(resource:URI):TPromise<IOutlineEntry[]>;
-	outlineGroupLabel?: { [name: string]: string; };
+
+export enum DocumentHighlightKind {
+	Text,
+	Read,
+	Write
+}
+export interface DocumentHighlight {
+	range: editorCommon.IRange;
+	kind: DocumentHighlightKind;
+}
+export interface DocumentHighlightProvider {
+	provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
+}
+
+
+export interface ReferenceContext {
+	includeDeclaration: boolean;
+}
+export interface ReferenceProvider {
+	provideReferences(model:editorCommon.IReadOnlyModel, position:Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+}
+
+
+export class Location {
+	uri: URI;
+	range: editorCommon.IRange;
+}
+export type Definition = Location | Location[];
+export interface DefinitionProvider {
+	provideDefinition(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Definition | Thenable<Definition>;
+}
+
+export enum SymbolKind {
+	File,
+	Module,
+	Namespace,
+	Package,
+	Class,
+	Method,
+	Property,
+	Field,
+	Constructor,
+	Enum,
+	Interface,
+	Function,
+	Variable,
+	Constant,
+	String,
+	Number,
+	Boolean,
+	Array,
+	Object,
+	Key,
+	Null
+}
+export namespace SymbolKind {
+
+	export function from(kind: number | SymbolKind): string {
+		switch (kind) {
+			case SymbolKind.Method:
+				return 'method';
+			case SymbolKind.Function:
+				return 'function';
+			case SymbolKind.Constructor:
+				return 'constructor';
+			case SymbolKind.Variable:
+				return 'variable';
+			case SymbolKind.Class:
+				return 'class';
+			case SymbolKind.Interface:
+				return 'interface';
+			case SymbolKind.Namespace:
+				return 'namespace';
+			case SymbolKind.Package:
+				return 'package';
+			case SymbolKind.Module:
+				return 'module';
+			case SymbolKind.Property:
+				return 'property';
+			case SymbolKind.Enum:
+				return 'enum';
+			case SymbolKind.String:
+				return 'string';
+			case SymbolKind.File:
+				return 'file';
+			case SymbolKind.Array:
+				return 'array';
+			case SymbolKind.Number:
+				return 'number';
+			case SymbolKind.Boolean:
+				return 'boolean';
+			case SymbolKind.Object:
+				return 'object';
+			case SymbolKind.Key:
+				return 'key';
+			case SymbolKind.Null:
+				return 'null';
+		}
+		return 'property';
+	}
+
+	export function to(type: string): SymbolKind {
+		switch (type) {
+			case 'method':
+				return SymbolKind.Method;
+			case 'function':
+				return SymbolKind.Function;
+			case 'constructor':
+				return SymbolKind.Constructor;
+			case 'variable':
+				return SymbolKind.Variable;
+			case 'class':
+				return SymbolKind.Class;
+			case 'interface':
+				return SymbolKind.Interface;
+			case 'namespace':
+				return SymbolKind.Namespace;
+			case 'package':
+				return SymbolKind.Package;
+			case 'module':
+				return SymbolKind.Module;
+			case 'property':
+				return SymbolKind.Property;
+			case 'enum':
+				return SymbolKind.Enum;
+			case 'string':
+				return SymbolKind.String;
+			case 'file':
+				return SymbolKind.File;
+			case 'array':
+				return SymbolKind.Array;
+			case 'number':
+				return SymbolKind.Number;
+			case 'boolean':
+				return SymbolKind.Boolean;
+			case 'object':
+				return SymbolKind.Object;
+			case 'key':
+				return SymbolKind.Key;
+			case 'null':
+				return SymbolKind.Null;
+		}
+		return SymbolKind.Property;
+	}
+}
+export interface SymbolInformation {
+	name: string;
+	containerName?: string;
+	kind: SymbolKind;
+	location: Location;
+}
+export interface DocumentSymbolProvider {
+	provideDocumentSymbols(model:editorCommon.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
 }
 
 /**
@@ -496,23 +542,18 @@ export interface IFormattingOptions {
 	insertSpaces:boolean;
 }
 
-/**
- * Supports to format source code. There are three levels
- * on which formatting can be offered:
- * (1) format a document
- * (2) format a selectin
- * (3) format on keystroke
- */
-export interface IFormattingSupport {
 
-	formatDocument?: (resource: URI, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
-
-	formatRange?: (resource: URI, range: editorCommon.IRange, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
-
-	autoFormatTriggerCharacters?: string[];
-
-	formatAfterKeystroke?: (resource: URI, position: editorCommon.IPosition, ch: string, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
+export interface DocumentFormattingEditProvider {
+	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
+export interface DocumentRangeFormattingEditProvider {
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+}
+export interface OnTypeFormattingEditProvider {
+	autoFormatTriggerCharacters: string[];
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
+}
+
 
 export interface IInplaceReplaceSupportResult {
 	value: string;
@@ -538,25 +579,15 @@ export interface IEmitOutput {
 	content:string;
 }
 
-/**
- * Interface used to detect links.
- */
+
 export interface ILink {
-
 	range: editorCommon.IRange;
-
-	/**
-	 * The url of the link.
-	 * The url should be absolute and will not get any special treatment.
-	 */
 	url: string;
-
-	extraInlineClassName?: string;
+}
+export interface LinkProvider {
+	provideLinks(model: editorCommon.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
 }
 
-export interface ILinkSupport {
-	computeLinks(resource:URI):TPromise<ILink[]>;
-}
 
 /**
  * Interface used to define a configurable editor mode.
@@ -565,59 +596,36 @@ export interface IConfigurationSupport {
 	configure(options:any):TPromise<void>;
 }
 
+
 export interface IResourceEdit {
 	resource: URI;
-	range?: editorCommon.IRange;
+	range: editorCommon.IRange;
 	newText: string;
 }
-
-export interface IRenameResult {
-	currentName: string;
+export interface WorkspaceEdit {
 	edits: IResourceEdit[];
 	rejectReason?: string;
 }
-
-/**
- * Interface used to support renaming of symbols
- */
-export interface IRenameSupport {
-
-	filter?: string[];
-
-	rename(resource: URI, position: editorCommon.IPosition, newName: string): TPromise<IRenameResult>;
+export interface RenameProvider {
+	provideRenameEdits(model:editorCommon.IReadOnlyModel, position:Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
 }
+
 
 export interface ICommand {
 	id: string;
 	title: string;
 	arguments?: any[];
 }
-
 export interface ICodeLensSymbol {
 	range: editorCommon.IRange;
 	id?: string;
 	command?: ICommand;
 }
-
-/**
- * Interface used for the code lense support
- */
-export interface ICodeLensSupport {
-	findCodeLensSymbols(resource: URI): TPromise<ICodeLensSymbol[]>;
-	resolveCodeLensSymbol(resource: URI, symbol: ICodeLensSymbol): TPromise<ICodeLensSymbol>;
+export interface CodeLensProvider {
+	provideCodeLenses(model:editorCommon.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
+	resolveCodeLens?(model:editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 }
 
-export interface ITaskSummary {
-}
-
-/**
- * Interface to support building via a langauge service
- */
-export interface ITaskSupport {
-	build?():TPromise<ITaskSummary>;
-	rebuild?():TPromise<ITaskSummary>;
-	clean?():TPromise<void>;
-}
 
 export type CharacterPair = [string, string];
 
@@ -733,26 +741,30 @@ export interface IRichEditSupport {
 
 // --- feature registries ------
 
-export const ReferenceSearchRegistry = new LanguageFeatureRegistry<IReferenceSupport>('referenceSupport');
+export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
 
-export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
+export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider>();
 
-export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>('suggestSupport');
+export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>();
 
-export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>('parameterHintsSupport');
+export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>();
 
-export const ExtraInfoRegistry = new LanguageFeatureRegistry<IExtraInfoSupport>('extraInfoSupport');
+export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
 
-export const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
+export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
 
-export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
+export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
 
-export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
+export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
 
-export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>('codeLensSupport');
+export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
 
-export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>('quickFixSupport');
+export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
-export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
+export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
 
-export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
+export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
+
+export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
+
+export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();

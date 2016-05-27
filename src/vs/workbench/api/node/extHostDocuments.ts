@@ -5,7 +5,7 @@
 'use strict';
 
 import {toErrorMessage, onUnexpectedError} from 'vs/base/common/errors';
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
@@ -519,11 +519,11 @@ export class MainThreadDocuments {
 			// don't synchronize too large models
 			return null;
 		}
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
-		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener2((events) => this._onModelEvents(modelUrl, events));
+		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
 		this._proxy._acceptModelAdd({
-			url: model.getAssociatedResource(),
+			url: model.uri,
 			versionId: model.getVersionId(),
 			value: model.toRawText(),
 			modeId: model.getMode().getId(),
@@ -533,15 +533,15 @@ export class MainThreadDocuments {
 
 	private _onModelModeChanged(event: { model: EditorCommon.IModel; oldModeId: string; }): void {
 		let {model, oldModeId} = event;
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy._acceptModelModeChanged(model.getAssociatedResource().toString(), oldModeId, model.getMode().getId());
+		this._proxy._acceptModelModeChanged(model.uri.toString(), oldModeId, model.getMode().getId());
 	}
 
 	private _onModelRemoved(model: EditorCommon.IModel): void {
-		let modelUrl = model.getAssociatedResource();
+		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
@@ -551,7 +551,7 @@ export class MainThreadDocuments {
 		this._proxy._acceptModelRemoved(modelUrl.toString());
 	}
 
-	private _onModelEvents(modelUrl: URI, events: IEmitterEvent[]): void {
+	private _onModelEvents(modelUrl: URI, events: EmitterEvent[]): void {
 		let changedEvents: EditorCommon.IModelContentChangedEvent2[] = [];
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
@@ -631,7 +631,7 @@ export class MainThreadDocuments {
 		this._resourceContentProvider[handle] = ResourceEditorInput.registerResourceContentProvider(scheme, {
 			provideTextContent: (uri: URI): TPromise<EditorCommon.IModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
-					if (value) {
+					if (typeof value === 'string') {
 						this._virtualDocumentSet[uri.toString()] = true;
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
 						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);

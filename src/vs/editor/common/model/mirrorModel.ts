@@ -58,7 +58,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 		super.dispose();
 	}
 
-	public getAssociatedResource(): URI {
+	public get uri(): URI {
 		return this._associatedResource;
 	}
 
@@ -284,14 +284,12 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 	public dispose(): void {
 		super.dispose();
 		var embeddedModels = Object.keys(this._embeddedModels).map((modeId) => this._embeddedModels[modeId]);
-		embeddedModels.forEach((embeddedModel) => this._resourceService.remove(embeddedModel.getAssociatedResource()));
+		embeddedModels.forEach((embeddedModel) => this._resourceService.remove(embeddedModel.uri));
 		dispose(embeddedModels);
 		this._embeddedModels = {};
 	}
 
-	public setMode(newMode:IMode): void;
-	public setMode(newModePromise:TPromise<IMode>): void;
-	public setMode(newModeOrPromise:any): void {
+	public setMode(newModeOrPromise:IMode|TPromise<IMode>): void {
 		super.setMode(newModeOrPromise);
 		this._updateEmbeddedModels();
 	}
@@ -378,9 +376,9 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 				this._embeddedModels[newNestedModeId].setIncludedRanges(newModesRanges[newNestedModeId].ranges);
 			} else {
 				// TODO@Alex: implement derived resources (embedded mirror models) better
-				var embeddedModelUrl = this.getAssociatedResource().withFragment(this.getAssociatedResource().fragment + 'URL_MARSHAL_REMOVE' + newNestedModeId);
+				var embeddedModelUrl = this.uri.withFragment(this.uri.fragment + 'URL_MARSHAL_REMOVE' + newNestedModeId);
 				this._embeddedModels[newNestedModeId] = new MirrorModelEmbedded(this, newModesRanges[newNestedModeId].ranges, newModesRanges[newNestedModeId].mode, embeddedModelUrl);
-				this._resourceService.insert(this._embeddedModels[newNestedModeId].getAssociatedResource(), this._embeddedModels[newNestedModeId]);
+				this._resourceService.insert(this._embeddedModels[newNestedModeId].uri, this._embeddedModels[newNestedModeId]);
 			}
 		}
 
@@ -397,22 +395,22 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 
 			this._setVersionId(contentChangedEvent.versionId);
 			switch (contentChangedEvent.changeType) {
-				case editorCommon.EventType.ModelContentChangedFlush:
+				case editorCommon.EventType.ModelRawContentChangedFlush:
 					this._onLinesFlushed(<editorCommon.IModelContentChangedFlushEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case editorCommon.EventType.ModelContentChangedLinesDeleted:
+				case editorCommon.EventType.ModelRawContentChangedLinesDeleted:
 					this._onLinesDeleted(<editorCommon.IModelContentChangedLinesDeletedEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case editorCommon.EventType.ModelContentChangedLinesInserted:
+				case editorCommon.EventType.ModelRawContentChangedLinesInserted:
 					this._onLinesInserted(<editorCommon.IModelContentChangedLinesInsertedEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case editorCommon.EventType.ModelContentChangedLineChanged:
+				case editorCommon.EventType.ModelRawContentChangedLineChanged:
 					this._onLineChanged(<editorCommon.IModelContentChangedLineChangedEvent>contentChangedEvent);
 					changed = true;
 					break;

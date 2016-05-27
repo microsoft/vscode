@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ISuggestion} from 'vs/editor/common/modes';
-
 /*
  * Interface types for Monarch language definitions
  * These descriptions are really supposed to be JSON values but if using typescript
@@ -79,13 +77,6 @@ export interface ILanguage {
 	//  * Advanced auto completion, auto indenting, and bracket matching
 	//  */
 	// enhancedBrackets?: IRegexBracketPair[];
-
-	suggestSupport?: {
-		textualCompletions?: boolean;
-		disableAutoTrigger?: boolean;
-		triggerCharacters?: string[];
-		snippets?: ISuggestion[];
-	};
 }
 
 /**

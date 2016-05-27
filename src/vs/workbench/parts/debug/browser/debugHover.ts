@@ -12,13 +12,15 @@ import * as nls from 'vs/nls';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { DefaultController, ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
-import { EventType, IConfigurationChangedEvent, IEditorPosition, IEditorRange } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 const $ = dom.emmet;
 const debugTreeOptions = {
@@ -38,7 +40,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private domNode: HTMLElement;
 	public isVisible: boolean;
 	private tree: ITree;
-	private showAtPosition: IEditorPosition;
+	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
 	private valueContainer: HTMLElement;
@@ -83,7 +85,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				this.hide();
 			}
 		}));
-		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, (e: IConfigurationChangedEvent) => {
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this.editor.applyFontInfo(this.domNode);
 			}
@@ -98,11 +100,11 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
-	public showAt(range: IEditorRange, hoveringOver: string, focus: boolean): TPromise<void> {
+	public showAt(range: Range, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
 		const model = this.editor.getModel();
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
+		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== model.uri.toString())) {
 			return;
 		}
 
@@ -175,7 +177,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}).then(() => variables.length === 1 ? TPromise.as(variables[0]) : TPromise.as(null));
 	}
 
-	private doShow(position: IEditorPosition, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
+	private doShow(position: Position, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
 		this.showAtPosition = position;
 		this.isVisible = true;
 		this.stoleFocus = focus;

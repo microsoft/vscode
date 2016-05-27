@@ -6,10 +6,15 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventType, IModel, ITextModelCreationOptions} from 'vs/editor/common/editorCommon';
+import {
+	EventType, IModel, ITextModelCreationOptions, IModeSupportChangedEvent, IModelDecorationsChangedEvent,
+	IModelOptionsChangedEvent, IModelModeChangedEvent
+} from 'vs/editor/common/editorCommon';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {IMode} from 'vs/editor/common/modes';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {BulkListenerCallback} from 'vs/base/common/eventEmitter';
 
 // The hierarchy is:
 // Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
@@ -30,6 +35,26 @@ var aliveModels:{[modelId:string]:boolean;} = {};
 // }, 100);
 
 export class Model extends EditableTextModel implements IModel {
+
+	public onDidChangeModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable {
+		return this.addListener2(EventType.ModelModeSupportChanged, listener);
+	}
+	public onDidChangeDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable {
+		return this.addListener2(EventType.ModelDecorationsChanged, listener);
+	}
+	public onDidChangeOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable {
+		return this.addListener2(EventType.ModelOptionsChanged, listener);
+	}
+	public onWillDispose(listener: ()=>void): IDisposable {
+		return this.addListener2(EventType.ModelDispose, listener);
+	}
+	public onDidChangeMode(listener: (e:IModelModeChangedEvent)=>void): IDisposable {
+		return this.addListener2(EventType.ModelModeChanged, listener);
+	}
+
+	public addBulkListener(listener:BulkListenerCallback):IDisposable {
+		return super.addBulkListener(listener);
+	}
 
 	public static DEFAULT_CREATION_OPTIONS: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS;
 
@@ -111,7 +136,7 @@ export class Model extends EditableTextModel implements IModel {
 		return this._attachedEditorCount > 0;
 	}
 
-	public getAssociatedResource(): URI {
+	public get uri(): URI {
 		return this._associatedResource;
 	}
 }

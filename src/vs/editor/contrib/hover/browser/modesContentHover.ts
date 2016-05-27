@@ -11,26 +11,27 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {IOpenerService, NullOpenerService} from 'vs/platform/opener/common/opener';
 import {Range} from 'vs/editor/common/core/range';
-import {IEditorRange, IRange} from 'vs/editor/common/editorCommon';
-import {ExtraInfoRegistry, IComputeExtraInfoResult, IMode} from 'vs/editor/common/modes';
+import {Position} from 'vs/editor/common/core/position';
+import {IRange} from 'vs/editor/common/editorCommon';
+import {HoverProviderRegistry, Hover, IMode} from 'vs/editor/common/modes';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {getExtraInfoAtPosition} from '../common/hover';
+import {getHover} from '../common/hover';
 import {HoverOperation, IHoverComputer} from './hoverOperation';
 import {ContentHoverWidget} from './hoverWidgets';
 
-class ModesContentComputer implements IHoverComputer<IComputeExtraInfoResult[]> {
+class ModesContentComputer implements IHoverComputer<Hover[]> {
 
 	private _editor: ICodeEditor;
-	private _result: IComputeExtraInfoResult[];
-	private _range: IEditorRange;
+	private _result: Hover[];
+	private _range: Range;
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._range = null;
 	}
 
-	public setRange(range: IEditorRange): void {
+	public setRange(range: Range): void {
 		this._range = range;
 		this._result = [];
 	}
@@ -39,21 +40,21 @@ class ModesContentComputer implements IHoverComputer<IComputeExtraInfoResult[]> 
 		this._result = [];
 	}
 
-	public computeAsync(): TPromise<IComputeExtraInfoResult[]> {
+	public computeAsync(): TPromise<Hover[]> {
 
 		let model = this._editor.getModel();
-		if (!ExtraInfoRegistry.has(model)) {
+		if (!HoverProviderRegistry.has(model)) {
 			return TPromise.as(null);
 		}
 
-		return getExtraInfoAtPosition(model, {
-			lineNumber: this._range.startLineNumber,
-			column: this._range.startColumn
-		});
+		return getHover(model, new Position(
+			this._range.startLineNumber,
+			this._range.startColumn
+		));
 	}
 
-	public computeSync(): IComputeExtraInfoResult[] {
-		var result:IComputeExtraInfoResult[] = [];
+	public computeSync(): Hover[] {
+		var result:Hover[] = [];
 		var lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
@@ -68,12 +69,15 @@ class ModesContentComputer implements IHoverComputer<IComputeExtraInfoResult[]> 
 			var endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
 			if (startColumn <= this._range.startColumn && this._range.endColumn <= endColumn && (d.options.hoverMessage || (d.options.htmlMessage && d.options.htmlMessage.length > 0))) {
-				var obj:IComputeExtraInfoResult = {
-					value: d.options.hoverMessage,
+				var obj:Hover = {
+					htmlContent: [],
 					range: new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn)
 				};
-				if(d.options.htmlMessage) {
-					obj.htmlContent = d.options.htmlMessage;
+				if (d.options.hoverMessage) {
+					obj.htmlContent.push({ text: d.options.hoverMessage });
+				}
+				if (d.options.htmlMessage) {
+					obj.htmlContent = obj.htmlContent.concat(d.options.htmlMessage);
 				}
 				result.push(obj);
 			}
@@ -81,7 +85,7 @@ class ModesContentComputer implements IHoverComputer<IComputeExtraInfoResult[]> 
 		return result;
 	}
 
-	public onResult(result: IComputeExtraInfoResult[], isFromSynchronousComputation: boolean): void {
+	public onResult(result: Hover[], isFromSynchronousComputation: boolean): void {
 		// Always put synchronous messages before asynchronous ones
 		if (isFromSynchronousComputation) {
 			this._result = result.concat(this._result);
@@ -90,15 +94,15 @@ class ModesContentComputer implements IHoverComputer<IComputeExtraInfoResult[]> 
 		}
 	}
 
-	public getResult(): IComputeExtraInfoResult[] {
+	public getResult(): Hover[] {
 		return this._result.slice(0);
 	}
 
-	public getResultWithLoadingMessage(): IComputeExtraInfoResult[] {
+	public getResultWithLoadingMessage(): Hover[] {
 		return this._result.slice(0).concat([this._getLoadingMessage()]);
 	}
 
-	private _getLoadingMessage(): IComputeExtraInfoResult {
+	private _getLoadingMessage(): Hover {
 		return {
 			range: this._range,
 			htmlContent: [{
@@ -115,10 +119,10 @@ class ModesContentComputer implements IHoverComputer<IComputeExtraInfoResult[]> 
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static ID = 'editor.contrib.modesContentHoverWidget';
-	private _messages: IComputeExtraInfoResult[];
-	private _lastRange: IEditorRange;
+	private _messages: Hover[];
+	private _lastRange: Range;
 	private _computer: ModesContentComputer;
-	private _hoverOperation: HoverOperation<IComputeExtraInfoResult[]>;
+	private _hoverOperation: HoverOperation<Hover[]>;
 	private _highlightDecorations:string[];
 	private _isChangingDecorations: boolean;
 	private _openerService: IOpenerService;
@@ -134,7 +138,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
-			(result:IComputeExtraInfoResult[]) => this._withResult(result, true),
+			(result:Hover[]) => this._withResult(result, true),
 			null,
 			(result:any) => this._withResult(result, false)
 		);
@@ -153,7 +157,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	public startShowingAt(range: IEditorRange, focus: boolean): void {
+	public startShowingAt(range: Range, focus: boolean): void {
 		if (this._lastRange) {
 			if (this._lastRange.equalsRange(range)) {
 				// We have to show the widget at the exact same range as before, so no work is needed
@@ -170,7 +174,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
-				var filteredMessages: IComputeExtraInfoResult[] = [];
+				var filteredMessages: Hover[] = [];
 				for (var i = 0, len = this._messages.length; i < len; i++) {
 					var msg = this._messages[i];
 					var rng = msg.range;
@@ -201,7 +205,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = false;
 	}
 
-	public _withResult(result: IComputeExtraInfoResult[], complete:boolean): void {
+	public _withResult(result: Hover[], complete:boolean): void {
 		this._messages = result;
 
 		if (this._lastRange && this._messages.length > 0) {
@@ -211,8 +215,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	// TODO@Alex: pull this out into a common utility class
-	private _renderMessages(renderRange: IRange, messages: IComputeExtraInfoResult[]): void {
+	private _renderMessages(renderRange: IRange, messages: Hover[]): void {
 
 		// update column from which to show
 		var renderColumn = Number.MAX_VALUE,
@@ -228,17 +231,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
 			var row:HTMLElement = document.createElement('div');
-			var span:HTMLElement = null;
 			var container = row;
 
-			if (msg.className) {
-				span = document.createElement('span');
-				span.className = msg.className;
-				container = span;
-				row.appendChild(span);
-			}
-
-			if(msg.htmlContent && msg.htmlContent.length > 0) {
+			if (msg.htmlContent && msg.htmlContent.length > 0) {
 				msg.htmlContent.forEach((content) => {
 					container.appendChild(renderHtml(content, {
 						actionCallback: (content) => {
@@ -254,8 +249,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 						}
 					}));
 				});
-			} else {
-				container.textContent = msg.value;
 			}
 
 			fragment.appendChild(row);

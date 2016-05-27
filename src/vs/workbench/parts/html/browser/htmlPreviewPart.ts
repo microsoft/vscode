@@ -8,7 +8,7 @@
 import {localize} from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, EventType} from 'vs/editor/common/editorCommon';
+import {IModel} from 'vs/editor/common/editorCommon';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
@@ -114,7 +114,7 @@ export class HtmlPreviewPart extends BaseEditor {
 			this.webview.style(this._themeService.getTheme());
 
 			if (this._model) {
-				this._modelChangeSubscription = this._model.addListener2(EventType.ModelContentChanged2, () => this.webview.contents = this._model.getLinesContent());
+				this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
 				this.webview.contents = this._model.getLinesContent();
 			}
 		}
@@ -122,7 +122,8 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	public layout(dimension: Dimension): void {
 		const {width, height} = dimension;
-		this._container.style.width = `${width}px`;
+		// we take the padding we set on create into account
+		this._container.style.width = `${Math.max(width - 20, 0)}px`;
 		this._container.style.height = `${height}px`;
 	}
 
@@ -150,7 +151,7 @@ export class HtmlPreviewPart extends BaseEditor {
 			if (!this._model) {
 				return TPromise.wrapError<void>(localize('html.voidInput', "Invalid editor input."));
 			}
-			this._modelChangeSubscription = this._model.addListener2(EventType.ModelContentChanged2, () => this.webview.contents = this._model.getLinesContent());
+			this._modelChangeSubscription = this._model.onDidChangeContent(() => this.webview.contents = this._model.getLinesContent());
 			this.webview.contents = this._model.getLinesContent();
 			return super.setInput(input, options);
 		});

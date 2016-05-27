@@ -9,8 +9,8 @@ import winjs = require('vs/base/common/winjs.base');
 import beautifyHTML = require('vs/languages/lib/common/beautify-html');
 import htmlTags = require('vs/languages/html/common/htmlTags');
 import network = require('vs/base/common/network');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import editorCommon = require('vs/editor/common/editorCommon');
+import modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
 import {Position} from 'vs/editor/common/core/position';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -21,6 +21,9 @@ import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} 
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import paths = require('vs/base/common/paths');
+import {getHover} from 'vs/editor/contrib/hover/common/hover';
+import {provideReferences} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import {provideCompletionItems} from 'vs/editor/contrib/suggest/common/suggest';
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -28,7 +31,7 @@ enum LinkDetectionState {
 }
 
 interface IColorRange {
-	range:EditorCommon.IRange;
+	range:editorCommon.IRange;
 	value:string;
 }
 
@@ -64,17 +67,11 @@ export class HTMLWorker {
 		providers.push(htmlTags.getIonicTagProvider());
 	}
 
-	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
-		return this._delegateToModeAtPosition(resource, Position.startPosition(range), (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().formattingSupport) {
-				return model.getMode().formattingSupport.formatRange(model.getAssociatedResource(), range, options);
-			}
-
-			return this.formatHTML(resource, range, options);
-		});
+	public provideDocumentRangeFormattingEdits(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
+		return this.formatHTML(resource, range, options);
 	}
 
-	private formatHTML(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
+	private formatHTML(resource: URI, range: editorCommon.IRange, options: modes.IFormattingOptions): winjs.TPromise<editorCommon.ISingleEditOperation[]> {
 		let model = this.resourceService.get(resource);
 		let value = range ? model.getValueInRange(range) : model.getValue();
 
@@ -111,8 +108,11 @@ export class HTMLWorker {
 
 	private getTagsFormatOption(key: string, dflt: string[]): string[] {
 		let list = <string> this.getFormatOption(key, null);
-		if (list) {
-			return list.split(',').map(t => t.trim().toLowerCase());
+		if (typeof list === 'string') {
+			if (list.length > 0) {
+				return list.split(',').map(t => t.trim().toLowerCase());
+			}
+			return [];
 		}
 		return dflt;
 	}
@@ -122,7 +122,7 @@ export class HTMLWorker {
 		return winjs.TPromise.as(null);
 	}
 
-	_delegateToModeAtPosition<T>(resource:URI, position:EditorCommon.IPosition, callback:(isEmbeddedMode:boolean, model:EditorCommon.IMirrorModel) => T): T {
+	_delegateToModeAtPosition<T>(resource:URI, position:editorCommon.IPosition, callback:(isEmbeddedMode:boolean, model:editorCommon.IMirrorModel) => T): T {
 		let model = this.resourceService.get(resource);
 
 		if (!model) {
@@ -140,7 +140,7 @@ export class HTMLWorker {
 		return callback(modeAtPosition.getId() !== this._modeId, modelAtPosition);
 	}
 
-	_delegateToAllModes<T>(resource:URI, callback:(models:EditorCommon.IMirrorModel[]) => T): T {
+	_delegateToAllModes<T>(resource:URI, callback:(models:editorCommon.IMirrorModel[]) => T): T {
 		let model = this.resourceService.get(resource);
 
 		if (!model) {
@@ -150,37 +150,31 @@ export class HTMLWorker {
 		return callback(model.getAllEmbedded());
 	}
 
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
+	public provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().extraInfoSupport) {
-				return model.getMode().extraInfoSupport.computeInfo(model.getAssociatedResource(), position);
+			if (isEmbeddedMode) {
+				return getHover(model, Position.lift(position)).then((r) => {
+					return (r.length > 0 ? r[0] : null);
+				});
 			}
 		});
 	}
 
-	public findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean): winjs.TPromise<Modes.IReference[]> {
+	public provideReferences(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Location[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().referenceSupport) {
-				return model.getMode().referenceSupport.findReferences(model.getAssociatedResource(), position, includeDeclaration);
+			if (isEmbeddedMode) {
+				return provideReferences(model, Position.lift(position));
 			}
 		});
 	}
 
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().declarationSupport) {
-				return model.getMode().declarationSupport.findDeclaration(model.getAssociatedResource(), position);
-			}
-		});
-	}
-
-	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:editorCommon.IRange; value:string; }[]> {
 		return this._delegateToAllModes(resource, (models) => {
 			let allPromises: winjs.TPromise<IColorRange[]>[] = [];
 
 			allPromises = models
 				.filter((model) => (typeof model.getMode()['findColorDeclarations'] === 'function'))
-				.map((model) => model.getMode()['findColorDeclarations'](model.getAssociatedResource()));
+				.map((model) => model.getMode()['findColorDeclarations'](model.uri));
 
 			return winjs.TPromise.join(allPromises).then((results:IColorRange[][]) => {
 				let result:IColorRange[] = [];
@@ -189,14 +183,6 @@ export class HTMLWorker {
 
 				return result;
 			});
-		});
-	}
-
-	public getParameterHints(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IParameterHints> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().parameterHintsSupport) {
-				return model.getMode().parameterHintsSupport.getParameterHints(model.getAssociatedResource(), position);
-			}
 		});
 	}
 
@@ -223,7 +209,7 @@ export class HTMLWorker {
 		return null;
 	}
 
-	private collectTagSuggestions(scanner: IHTMLScanner, position: EditorCommon.IPosition, suggestions: Modes.ISuggestResult): void {
+	private collectTagSuggestions(scanner: IHTMLScanner, position: editorCommon.IPosition, suggestions: modes.ISuggestResult): void {
 		let model = scanner.getModel();
 		let currentLine = model.getLineContent(position.lineNumber);
 		let contentAfter = currentLine.substr(position.column - 1);
@@ -233,7 +219,7 @@ export class HTMLWorker {
 			let endPosition = scanner.getTokenPosition();
 			let matchingTag = this.findMatchingOpenTag(scanner);
 			if (matchingTag) {
-				let suggestion : Modes.ISuggestion = {
+				let suggestion : modes.ISuggestion = {
 					label: '/' + matchingTag,
 					codeSnippet: '/' + matchingTag + closeTag,
 					overwriteBefore: overwriteBefore,
@@ -290,11 +276,11 @@ export class HTMLWorker {
 
 	}
 
-	private collectContentSuggestions(suggestions: Modes.ISuggestResult): void {
+	private collectContentSuggestions(suggestions: modes.ISuggestResult): void {
 		// disable the simple snippets in favor of the emmet templates
 	}
 
-	private collectAttributeSuggestions(scanner: IHTMLScanner, suggestions: Modes.ISuggestResult): void {
+	private collectAttributeSuggestions(scanner: IHTMLScanner, suggestions: modes.ISuggestResult): void {
 		let parentTag: string = null;
 		do {
 			if (isTag(scanner.getTokenType())) {
@@ -321,7 +307,7 @@ export class HTMLWorker {
 		});
 	}
 
-	private collectAttributeValueSuggestions(scanner: IHTMLScanner, suggestions:  Modes.ISuggestResult): void {
+	private collectAttributeValueSuggestions(scanner: IHTMLScanner, suggestions:  modes.ISuggestResult): void {
 		let needsQuotes = scanner.getTokenType() === DELIM_ASSIGN;
 
 		let attribute: string = null;
@@ -353,26 +339,26 @@ export class HTMLWorker {
 		});
 	}
 
-	public suggest(resource:URI, position:EditorCommon.IPosition, triggerCharacter?:string):winjs.TPromise<Modes.ISuggestResult[]> {
+	public provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
 		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().suggestSupport) {
-				return model.getMode().suggestSupport.suggest(model.getAssociatedResource(), position, triggerCharacter);
+			if (isEmbeddedMode) {
+				return provideCompletionItems(model, Position.lift(position));
 			}
 
 			return this.suggestHTML(resource, position);
 		});
 	}
 
-	private suggestHTML(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+	private suggestHTML(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
 		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 
-	private doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
+	private doSuggest(resource: URI, position: editorCommon.IPosition): winjs.TPromise<modes.ISuggestResult> {
 
 		let model = this.resourceService.get(resource),
 			currentWord = model.getWordUntilPosition(position).word;
 
-		let suggestions: Modes.ISuggestResult = {
+		let suggestions: modes.ISuggestResult = {
 			currentWord: currentWord,
 			suggestions: [],
 		};
@@ -434,7 +420,7 @@ export class HTMLWorker {
 		return winjs.TPromise.as(suggestions);
 	}
 
-	private findMatchingBracket(tagname: string, scanner: IHTMLScanner) : EditorCommon.IRange {
+	private findMatchingBracket(tagname: string, scanner: IHTMLScanner) : editorCommon.IRange {
 		if (isEmptyElement(tagname)) {
 			return null;
 		}
@@ -490,34 +476,25 @@ export class HTMLWorker {
 
 	}
 
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): winjs.TPromise<Modes.IOccurence[]> {
-		return this._delegateToModeAtPosition(resource, position, (isEmbeddedMode, model) => {
-			if (isEmbeddedMode && model.getMode().occurrencesSupport) {
-				return model.getMode().occurrencesSupport.findOccurrences(model.getAssociatedResource(), position, strict);
-			}
-
-			return this.findOccurrencesHTML(resource, position, strict);
-		});
-	}
-
-	public findOccurrencesHTML(resource:URI, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
-
+	public provideDocumentHighlights(resource:URI, position:editorCommon.IPosition, strict:boolean = false): winjs.TPromise<modes.DocumentHighlight[]> {
 		let model = this.resourceService.get(resource),
 			wordAtPosition = model.getWordAtPosition(position),
 			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
-			result:Modes.IOccurence[] = [];
+			result:modes.DocumentHighlight[] = [];
 
 
 		let scanner = getScanner(model, position);
 		if (isTag(scanner.getTokenType())) {
 			let tagname = scanner.getTokenContent();
 			result.push({
-				range: scanner.getTokenRange()
+				range: scanner.getTokenRange(),
+				kind: modes.DocumentHighlightKind.Read
 			});
 			let range = this.findMatchingBracket(tagname, scanner);
 			if (range) {
 				result.push({
-					range: range
+					range: range,
+					kind: modes.DocumentHighlightKind.Read
 				});
 			}
 		} else {
@@ -527,7 +504,8 @@ export class HTMLWorker {
 			for(let i = 0; i < upperBound; i++) {
 				if(words[i].text === currentWord) {
 					result.push({
-						range: words[i].range
+						range: words[i].range,
+					kind: modes.DocumentHighlightKind.Read
 					});
 				}
 			}
@@ -587,7 +565,7 @@ export class HTMLWorker {
 		return potentialResult;
 	}
 
-	private createLink(modelAbsoluteUrl: URI, rootAbsoluteUrl: URI, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): Modes.ILink {
+	private createLink(modelAbsoluteUrl: URI, rootAbsoluteUrl: URI, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): modes.ILink {
 		let workspaceUrl = HTMLWorker._getWorkspaceUrl(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent);
 		if (!workspaceUrl) {
 			return null;
@@ -605,21 +583,21 @@ export class HTMLWorker {
 		};
 	}
 
-	private _computeHTMLLinks(model: EditorCommon.IMirrorModel): Modes.ILink[] {
+	private _computeHTMLLinks(model: editorCommon.IMirrorModel): modes.ILink[] {
 		let lineCount = model.getLineCount(),
-			newLinks: Modes.ILink[] = [],
+			newLinks: modes.ILink[] = [],
 			state: LinkDetectionState = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC,
-			modelAbsoluteUrl = model.getAssociatedResource(),
+			modelAbsoluteUrl = model.uri,
 			lineNumber: number,
 			lineContent: string,
 			lineContentLength: number,
-			tokens: EditorCommon.ILineTokens,
+			tokens: editorCommon.ILineTokens,
 			tokenType: string,
 			tokensLength: number,
 			i: number,
 			nextTokenEndIndex: number,
 			tokenContent: string,
-			link: Modes.ILink;
+			link: modes.ILink;
 
 		let rootAbsoluteUrl: URI = null;
 		let workspace = this._contextService.getWorkspace();
@@ -684,7 +662,7 @@ export class HTMLWorker {
 		return newLinks;
 	}
 
-	public computeLinks(resource: URI): winjs.TPromise<Modes.ILink[]> {
+	public provideLinks(resource: URI): winjs.TPromise<modes.ILink[]> {
 		let model = this.resourceService.get(resource);
 		return winjs.TPromise.as(this._computeHTMLLinks(model));
 	}

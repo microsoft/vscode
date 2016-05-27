@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IConfigurationChangedEvent, OverviewRulerPosition, IScrollEvent} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, OverviewRulerPosition, OverviewRulerZone, IScrollEvent} from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IOverviewRuler, OverviewRulerZone} from 'vs/editor/browser/editorBrowser';
+import {IOverviewRuler} from 'vs/editor/browser/editorBrowser';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import {ViewContext} from 'vs/editor/common/view/viewContext';
 

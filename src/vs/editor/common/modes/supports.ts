@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, IPosition} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
@@ -69,42 +69,6 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 	var firstTokenCharacterOffset = context.getTokenStartIndex(firstTokenInModeIndex);
 	var newCtx = new FilteredLineContext(context, nestedMode, firstTokenInModeIndex, nextTokenAfterMode, firstTokenCharacterOffset, nextCharacterAfterModeIndex);
 	return runner(nestedMode, newCtx, offset - firstTokenCharacterOffset);
-}
-
-/**
- * Returns {{true}} if the line token at the specified
- * offset matches one of the provided types. Matching
- * happens on a substring start from the end, unless
- * anywhereInToken is set to true in which case matches
- * happen on a substring at any position.
- */
-export function isLineToken(context:modes.ILineContext, offset:number, types:string[], anywhereInToken:boolean = false):boolean {
-
-	if (!Array.isArray(types) || types.length === 0) {
-		return false;
-	}
-
-	if (context.getLineContent().length <= offset) {
-		return false;
-	}
-
-	var tokenIdx = context.findIndexOfOffset(offset);
-	var type = context.getTokenType(tokenIdx);
-
-	for (var i = 0, len = types.length; i < len; i++) {
-		if (anywhereInToken) {
-			if (type.indexOf(types[i]) >= 0) {
-				return true;
-			}
-		}
-		else {
-			if (strings.endsWith(type, types[i])) {
-				return true;
-			}
-		}
-	}
-
-	return false;
 }
 
 export class FilteredLineContext implements modes.ILineContext {
@@ -185,7 +149,7 @@ export class SnippetsRegistry {
 	}
 
 	// the previous
-	private static getNonWhitespacePrefix(model: IModel, position: IPosition) {
+	private static getNonWhitespacePrefix(model: IReadOnlyModel, position: IPosition) {
 		let line = model.getLineContent(position.lineNumber);
 		let match = line.match(/[^\s]+$/);
 		if (match) {
@@ -194,7 +158,7 @@ export class SnippetsRegistry {
 		return '';
 	}
 
-	public static getSnippets(model: IModel, position: IPosition): modes.ISuggestResult {
+	public static getSnippets(model: IReadOnlyModel, position: IPosition): modes.ISuggestResult {
 		let word = model.getWordAtPosition(position);
 		let currentWord = word ? word.word.substring(0, position.column - word.startColumn).toLowerCase() : '';
 		let currentFullWord = SnippetsRegistry.getNonWhitespacePrefix(model, position).toLowerCase();
@@ -203,7 +167,7 @@ export class SnippetsRegistry {
 			suggestions: []
 		};
 
-		let modeId = model.getMode().getId();
+		let modeId = model.getModeId();
 		let snippets : modes.ISuggestion[]= [];
 		let snipppetsByMode = this._snippets[modeId];
 		if (snipppetsByMode) {

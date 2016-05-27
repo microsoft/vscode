@@ -55,10 +55,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		});
 
 		this._disposables.push(this._modelService.onModelAdded(model => {
-			this._suggest(model.getAssociatedResource());
+			this._suggest(model.uri);
 		}));
 		for (let model of this._modelService.getModels()) {
-			this._suggest(model.getAssociatedResource());
+			this._suggest(model.uri);
 		}
 	}
 

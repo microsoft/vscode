@@ -671,7 +671,7 @@ exports.data ={
 				"browsers": "E13,C,O15,S6"
 			},
 			{
-				"name": "::-webkit-ouer-spin-button",
+				"name": "::-webkit-outer-spin-button",
 				"browsers": "C,O,S6"
 			},
 			{
@@ -3978,7 +3978,7 @@ exports.data ={
 			},
 			{
 				"name": "margin",
-				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
+				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top.",
 				"restriction": "length, percentage",
 				"values": [
 					{
@@ -4010,7 +4010,7 @@ exports.data ={
 			},
 			{
 				"name": "margin-bottom",
-				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
+				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top.",
 				"restriction": "length, percentage",
 				"values": [
 					{
@@ -4042,7 +4042,7 @@ exports.data ={
 			},
 			{
 				"name": "margin-left",
-				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
+				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top.",
 				"restriction": "length, percentage",
 				"values": [
 					{
@@ -4052,7 +4052,7 @@ exports.data ={
 			},
 			{
 				"name": "margin-right",
-				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
+				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top.",
 				"restriction": "length, percentage",
 				"values": [
 					{
@@ -4062,7 +4062,7 @@ exports.data ={
 			},
 			{
 				"name": "margin-top",
-				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top. The value may not be negative.",
+				"desc": "Shorthand property to set values the thickness of the margin area. If left is omitted, it is the same as right. If bottom is omitted it is the same as top, if right is omitted it is the same as top.",
 				"restriction": "length, percentage",
 				"values": [
 					{

@@ -119,7 +119,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 		let input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
 
 		// Remove from cache on dispose
-		input.addOneTimeListener(EventType.DISPOSE, () => {
+		input.addOneTimeDisposableListener(EventType.DISPOSE, () => {
 			delete UntitledEditorService.CACHE[input.getResource().toString()];
 			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
 		});

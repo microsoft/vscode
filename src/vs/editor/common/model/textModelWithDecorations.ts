@@ -8,7 +8,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {IHTMLContentElement, htmlContentElementArrEquals} from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IdGenerator} from 'vs/editor/common/core/idGenerator';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {TextModelWithTrackedRanges} from 'vs/editor/common/model/textModelWithTrackedRanges';
@@ -82,7 +82,7 @@ interface IRangeIdToDecorationIdMap {
 }
 
 interface IOldDecoration {
-	range: editorCommon.IEditorRange;
+	range: Range;
 	options: ModelDecorationOptions;
 	id: string;
 }
@@ -187,7 +187,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return null;
 	}
 
-	public getDecorationRange(decorationId:string): editorCommon.IEditorRange {
+	public getDecorationRange(decorationId:string): Range {
 		if (this.decorations.hasOwnProperty(decorationId)) {
 			var decoration = this.decorations[decorationId];
 			return this.getTrackedRange(decoration.rangeId);
@@ -412,10 +412,10 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return result;
 	}
 
-	private _addDecorationImpl(eventBuilder:DeferredEventsBuilder, ownerId:number, range:editorCommon.IEditorRange, options:ModelDecorationOptions): string {
+	private _addDecorationImpl(eventBuilder:DeferredEventsBuilder, ownerId:number, range:Range, options:ModelDecorationOptions): string {
 		var rangeId = this.addTrackedRange(range, options.stickiness);
 
-		var decoration = new ModelInternalDecoration(this._decorationIdGenerator.generate(), ownerId, rangeId, options);
+		var decoration = new ModelInternalDecoration(this._decorationIdGenerator.nextId(), ownerId, rangeId, options);
 
 		this.decorations[decoration.id] = decoration;
 		this.rangeIdToDecorationId[rangeId] = decoration.id;
@@ -432,7 +432,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		for (let i = 0, len = newDecorations.length; i < len; i++) {
 			let rangeId = rangeIds[i];
 
-			var decoration = new ModelInternalDecoration(this._decorationIdGenerator.generate(), ownerId, rangeId, newDecorations[i].options);
+			var decoration = new ModelInternalDecoration(this._decorationIdGenerator.nextId(), ownerId, rangeId, newDecorations[i].options);
 
 			this.decorations[decoration.id] = decoration;
 			this.rangeIdToDecorationId[rangeId] = decoration.id;
@@ -445,7 +445,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return result;
 	}
 
-	private _changeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string, newRange:editorCommon.IEditorRange): void {
+	private _changeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string, newRange:Range): void {
 		if (this.decorations.hasOwnProperty(id)) {
 			var decoration = this.decorations[id];
 			var oldRange = this.getTrackedRange(decoration.rangeId);
@@ -474,7 +474,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	private _removeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string): void {
 		if (this.decorations.hasOwnProperty(id)) {
 			var decoration = this.decorations[id];
-			var oldRange:editorCommon.IEditorRange = null;
+			var oldRange:Range = null;
 			if (eventBuilder) {
 				oldRange = this.getTrackedRange(decoration.rangeId);
 			}
@@ -694,10 +694,10 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
 
 	index: number;
-	range: editorCommon.IEditorRange;
+	range: Range;
 	options: ModelDecorationOptions;
 
-	constructor(index: number, range: editorCommon.IEditorRange, options: ModelDecorationOptions) {
+	constructor(index: number, range: Range, options: ModelDecorationOptions) {
 		this.index = index;
 		this.range = range;
 		this.options = options;

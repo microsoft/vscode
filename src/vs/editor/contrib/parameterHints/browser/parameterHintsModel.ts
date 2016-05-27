@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ThrottledDelayer} from 'vs/base/common/async';
+import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
-import {ParameterHintsRegistry, IParameterHints} from 'vs/editor/common/modes';
-import {getParameterHints} from '../common/parameterHints';
+import {ICommonCodeEditor, ICursorSelectionChangedEvent} from 'vs/editor/common/editorCommon';
+import {SignatureHelpProviderRegistry, SignatureHelp} from 'vs/editor/common/modes';
+import {provideSignatureHelp} from '../common/parameterHints';
 
 export interface IHintEvent {
-	hints: IParameterHints;
+	hints: SignatureHelp;
 }
 
 export class ParameterHintsModel extends Disposable {
@@ -31,7 +30,7 @@ export class ParameterHintsModel extends Disposable {
 	private triggerCharactersListeners: IDisposable[];
 
 	private active: boolean;
-	private throttledDelayer: ThrottledDelayer<boolean>;
+	private throttledDelayer: RunOnceScheduler;
 
 	constructor(editor:ICommonCodeEditor) {
 		super();
@@ -39,15 +38,14 @@ export class ParameterHintsModel extends Disposable {
 		this.editor = editor;
 		this.triggerCharactersListeners = [];
 
-		this.throttledDelayer = new ThrottledDelayer<boolean>(ParameterHintsModel.DELAY);
+		this.throttledDelayer = new RunOnceScheduler(() => this.doTrigger(), ParameterHintsModel.DELAY);
 
 		this.active = false;
 
-		this._register(this.editor.addListener2(EventType.ModelChanged, e => this.onModelChanged()));
-		this._register(this.editor.addListener2(EventType.ModelModeChanged, _ => this.onModelChanged()));
-		this._register(this.editor.addListener2(EventType.ModelModeSupportChanged, e => this.onModeChanged(e)));
-		this._register(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
-		this._register(ParameterHintsRegistry.onDidChange(this.onModelChanged, this));
+		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
+		this._register(this.editor.onDidChangeModelMode(_ => this.onModelChanged()));
+		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
+		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 		this.onModelChanged();
 	}
 
@@ -61,18 +59,18 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
-	public trigger(triggerCharacter?: string, delay: number = ParameterHintsModel.DELAY): TPromise<boolean> {
-		if (!ParameterHintsRegistry.has(this.editor.getModel())) {
+	public trigger(delay = ParameterHintsModel.DELAY): void {
+		if (!SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
 		this.cancel(true);
-		return this.throttledDelayer.trigger(() => this.doTrigger(triggerCharacter), delay);
+		return this.throttledDelayer.schedule(delay);
 	}
 
-	private doTrigger(triggerCharacter: string): TPromise<boolean> {
-		return getParameterHints(this.editor.getModel(), this.editor.getPosition(), triggerCharacter)
-			.then<IParameterHints>(null, onUnexpectedError)
+	private doTrigger(): void {
+		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
+			.then<SignatureHelp>(null, onUnexpectedError)
 			.then(result => {
 				if (!result || result.signatures.length === 0) {
 					this.cancel();
@@ -89,7 +87,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	public isTriggered():boolean {
-		return this.active || this.throttledDelayer.isTriggered();
+		return this.active || this.throttledDelayer.isScheduled();
 	}
 
 	private onModelChanged(): void {
@@ -103,31 +101,16 @@ export class ParameterHintsModel extends Disposable {
 			return;
 		}
 
-		let support = ParameterHintsRegistry.ordered(model)[0];
+		let support = SignatureHelpProviderRegistry.ordered(model)[0];
 		if (!support) {
 			return;
 		}
 
-		this.triggerCharactersListeners = support.getParameterHintsTriggerCharacters().map((ch) => {
-			let listener = this.editor.addTypingListener(ch, () => {
-				let position = this.editor.getPosition();
-				let lineContext = model.getLineContext(position.lineNumber);
-
-				if (!support.shouldTriggerParameterHints(lineContext, position.column - 1)) {
-					return;
-				}
-
-				this.trigger(ch);
+		this.triggerCharactersListeners = support.signatureHelpTriggerCharacters.map((ch) => {
+			return this.editor.addTypingListener(ch, () => {
+				this.trigger();
 			});
-
-			return { dispose: listener };
 		});
-	}
-
-	private onModeChanged(e: IModeSupportChangedEvent): void {
-		if (e.parameterHintsSupport) {
-			this.onModelChanged();
-		}
 	}
 
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {

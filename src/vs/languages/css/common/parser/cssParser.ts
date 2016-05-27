@@ -49,7 +49,7 @@ export class Parser {
 		return true;
 	}
 
-	public peekRegEx(type:scanner.TokenType, regEx: RegExp): boolean {
+	public peekRegExp(type:scanner.TokenType, regEx: RegExp): boolean {
 		if (type !== this.token.type) {
 			return false;
 		}
@@ -88,7 +88,6 @@ export class Parser {
 		}
 		return false;
 	}
-
 
 	public accept(type: scanner.TokenType, text?: string, ignoreCase:boolean=true): boolean {
 		if(this.peek(type, text, ignoreCase)) {
@@ -955,7 +954,6 @@ export class Parser {
 		return null;
 	}
 
-
 	public _parseFunction(): nodes.Function {
 
 		var pos = this.mark();
@@ -964,16 +962,16 @@ export class Parser {
 		if (!node.setIdentifier(this._parseFunctionIdentifier())) {
 			return null;
 		}
+
 		if (this.hasWhitespace() || !this.accept(scanner.TokenType.ParenthesisL)) {
 			this.restoreAtMark(pos);
 			return null;
 		}
 
-		// arguments
 		if (node.getArguments().addChild(this._parseFunctionArgument())) {
 			while (this.accept(scanner.TokenType.Comma)) {
 				if (!node.getArguments().addChild(this._parseFunctionArgument())) {
-					return this.finish(node, errors.ParseError.ExpressionExpected);
+					this.markError(node, errors.ParseError.ExpressionExpected);
 				}
 			}
 		}
@@ -987,6 +985,7 @@ export class Parser {
 	public _parseFunctionIdentifier(): nodes.Identifier {
 		var node = <nodes.Identifier> this.create(nodes.Identifier);
 		node.referenceTypes = [ nodes.ReferenceType.Function ];
+
 		if (this.accept(scanner.TokenType.Ident, 'progid')) {
 			// support for IE7 specific filters: 'progid:DXImageTransform.Microsoft.MotionBlur(strength=13, direction=310)'
 			if (this.accept(scanner.TokenType.Colon)) {
@@ -1010,8 +1009,8 @@ export class Parser {
 	}
 
 	public _parseHexColor(): nodes.Node {
-		var node = this.create(nodes.HexColorValue);
-		if (this.peekRegEx(scanner.TokenType.Hash, /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/g)) {
+		if (this.peekRegExp(scanner.TokenType.Hash, /^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$/g)) {
+			var node = this.create(nodes.HexColorValue);
 			this.consumeToken();
 			return this.finish(node);
 		} else {

@@ -294,6 +294,23 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('registerTextDocumentContentProvider, empty doc', function () {
+
+		let registration = workspace.registerTextDocumentContentProvider('foo', {
+			provideTextDocumentContent(uri) {
+				return '';
+			}
+		});
+
+		const uri = Uri.parse('foo:doc/empty');
+
+		return workspace.openTextDocument(uri).then(doc => {
+			assert.equal(doc.getText(), '');
+			assert.equal(doc.uri.toString(), uri.toString());
+			registration.dispose();
+		});
+	});
+
 	test('registerTextDocumentContentProvider, change event', function () {
 
 		let callCount = 0;

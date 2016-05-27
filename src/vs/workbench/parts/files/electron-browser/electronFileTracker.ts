@@ -23,6 +23,7 @@ import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 import {ipcRenderer as ipc} from 'electron';
 
@@ -42,7 +43,7 @@ export interface IOpenFileRequest {
 export class FileTracker implements IWorkbenchContribution {
 	private activeOutOfWorkspaceWatchers: { [resource: string]: boolean; };
 	private isDocumentedEdited: boolean;
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -71,12 +72,12 @@ export class FileTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Local text file changes
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DELETED, () => this.onUntitledDeletedEvent()));
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.onUntitledDirtyEvent()));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, () => this.onUntitledDeletedEvent()));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.onUntitledDirtyEvent()));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
 
 		// Support openFiles event for existing and new files
 		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => {
@@ -104,7 +105,7 @@ export class FileTracker implements IWorkbenchContribution {
 		});
 
 		// Editor input changes
-		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -205,9 +206,7 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = dispose(this.toUnbind);
 
 		// Dispose watchers if any
 		for (let key in this.activeOutOfWorkspaceWatchers) {

@@ -713,7 +713,10 @@ suite('TelemetryService', () => {
 				loadConfiguration() {
 					return TPromise.as(this.getConfiguration());
 				},
-				onDidUpdateConfiguration: emitter.event
+				onDidUpdateConfiguration: emitter.event,
+				setUserConfiguration(key: any, value: any) {
+					return TPromise.as(null);
+				}
 		});
 
 		assert.equal(service.isOptedIn, false);

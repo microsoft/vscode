@@ -8,27 +8,31 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import * as editor from 'vs/editor/common/editorCommon';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import matches from 'vs/editor/common/modes/languageSelector';
 import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {TypeScriptWorkerProtocol, LanguageServiceDefaults} from 'vs/languages/typescript/common/typescript';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import {CancellationToken} from 'vs/base/common/cancellation';
+import {wireCancellationToken} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 
 export function register(modelService: IModelService, markerService: IMarkerService,
 	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
 
 	const disposables: lifecycle.IDisposable[] = [];
-	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
-	disposables.push(modes.ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
-	disposables.push(modes.ExtraInfoRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
-	disposables.push(modes.OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
-	disposables.push(modes.DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
-	disposables.push(modes.ReferenceSearchRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
-	disposables.push(modes.OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
-	disposables.push(modes.FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
-	disposables.push(modes.FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
+	disposables.push(modes.SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker), true));
+	disposables.push(modes.SignatureHelpProviderRegistry.register(selector, new SignatureHelpAdapter(modelService, worker), true));
+	disposables.push(modes.HoverProviderRegistry.register(selector, new QuickInfoAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentHighlightProviderRegistry.register(selector, new OccurrencesAdapter(modelService, worker), true));
+	disposables.push(modes.DefinitionProviderRegistry.register(selector, new DefinitionAdapter(modelService, worker), true));
+	disposables.push(modes.ReferenceProviderRegistry.register(selector, new ReferenceAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentSymbolProviderRegistry.register(selector, new OutlineAdapter(modelService, worker), true));
+	disposables.push(modes.DocumentRangeFormattingEditProviderRegistry.register(selector, new FormatAdapter(modelService, worker), true));
+	disposables.push(modes.OnTypeFormattingEditProviderRegistry.register(selector, new FormatOnTypeAdapter(modelService, worker), true));
 	disposables.push(new DiagnostcsAdapter(defaults, selector, markerService, modelService, worker));
 
 	return lifecycle.combinedDisposable(disposables);
@@ -40,7 +44,7 @@ abstract class Adapter {
 
 	}
 
-	protected _positionToOffset(resource: URI, position: editor.IPosition): number {
+	protected _positionToOffset(resource: URI, position: editorCommon.IPosition): number {
 		const model = this._modelService.getModel(resource);
 		let result = position.column - 1;
 		for (let i = 1; i < position.lineNumber; i++) {
@@ -49,7 +53,7 @@ abstract class Adapter {
 		return result;
 	}
 
-	protected _offsetToPosition(resource: URI, offset: number): editor.IPosition {
+	protected _offsetToPosition(resource: URI, offset: number): editorCommon.IPosition {
 		const model = this._modelService.getModel(resource);
 		let lineNumber = 1;
 		while (true) {
@@ -63,7 +67,7 @@ abstract class Adapter {
 		return { lineNumber, column: 1 + offset };
 	}
 
-	protected _textSpanToRange(resource: URI, span: ts.TextSpan): editor.IRange {
+	protected _textSpanToRange(resource: URI, span: ts.TextSpan): editorCommon.IRange {
 		let p1 = this._offsetToPosition(resource, span.start);
 		let p2 = this._offsetToPosition(resource, span.start + span.length);
 		let {lineNumber: startLineNumber, column: startColumn} = p1;
@@ -85,22 +89,22 @@ class DiagnostcsAdapter extends Adapter {
 	) {
 		super(modelService, worker);
 
-		const onModelAdd = (model: editor.IModel): void => {
-			if (!matches(_selector, model.getAssociatedResource(), model.getModeId())) {
+		const onModelAdd = (model: editorCommon.IModel): void => {
+			if (!matches(_selector, model.uri, model.getModeId())) {
 				return;
 			}
 
 			let handle: number;
-			this._listener[model.getAssociatedResource().toString()] = model.addListener2(editor.EventType.ModelContentChanged2, () => {
+			this._listener[model.uri.toString()] = model.onDidChangeContent(() => {
 				clearTimeout(handle);
-				handle = setTimeout(() => this._doValidate(model.getAssociatedResource()), 500);
+				handle = setTimeout(() => this._doValidate(model.uri), 500);
 			});
 
-			this._doValidate(model.getAssociatedResource());
+			this._doValidate(model.uri);
 		};
 
-		const onModelRemoved = (model: editor.IModel): void => {
-			delete this._listener[model.getAssociatedResource().toString()];
+		const onModelRemoved = (model: editorCommon.IModel): void => {
+			delete this._listener[model.uri.toString()];
 		};
 
 		this._disposables.push(modelService.onModelAdded(onModelAdd));
@@ -164,13 +168,16 @@ class DiagnostcsAdapter extends Adapter {
 
 class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 
-	suggest(resource: URI, position: editor.IPosition, triggerCharacter?: string) {
+	public get triggerCharacters(): string[] {
+		return ['.'];
+	}
 
-		const model = this._modelService.getModel(resource);
+	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		const wordInfo = model.getWordUntilPosition(position);
+		const resource = model.uri;
 		const offset = this._positionToOffset(resource, position);
 
-		return this._worker(resource).then(worker => {
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getCompletionsAtPosition(resource.toString(), offset);
 		}).then(info => {
 			if (!info) {
@@ -188,12 +195,13 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 				currentWord: wordInfo && wordInfo.word,
 				suggestions
 			}];
-		});
+		}));
 	}
 
-	getSuggestionDetails(resource: URI, position: editor.IPosition, suggestion: modes.ISuggestion) {
+	resolveCompletionItem(model:editorCommon.IReadOnlyModel, position:Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+		const resource = model.uri;
 
-		return this._worker(resource).then(worker => {
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getCompletionEntryDetails(resource.toString(),
 				this._positionToOffset(resource, position),
 				suggestion.label);
@@ -209,7 +217,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 				typeLabel: ts.displayPartsToString(details.displayParts),
 				documentationLabel: ts.displayPartsToString(details.documentation)
 			};
-		});
+		}));
 	}
 
 	static asType(kind: string): modes.SuggestionType{
@@ -231,42 +239,29 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 
 		return 'variable';
 	}
-
-	getTriggerCharacters(): string[] {
-		return ['.'];
-	}
-
-	shouldAutotriggerSuggest(context: modes.ILineContext, offset: number, triggeredByCharacter: string): boolean {
-		return true;
-	}
 }
 
-class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupport {
+class SignatureHelpAdapter extends Adapter implements modes.SignatureHelpProvider {
 
-	getParameterHintsTriggerCharacters(): string[] {
-		return ['(', ','];
-	}
+	public signatureHelpTriggerCharacters = ['(', ','];
 
-	shouldTriggerParameterHints(context: modes.ILineContext, offset: number): boolean {
-		return true;
-	}
-
-	getParameterHints(resource: URI, position: editor.IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
-		return this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
+	provideSignatureHelp(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.SignatureHelp> {
+		let resource = model.uri;
+		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
 			if (!info) {
 				return;
 			}
 
-			let ret = <modes.IParameterHints>{
-				currentSignature: info.selectedItemIndex,
-				currentParameter: info.argumentIndex,
+			let ret:modes.SignatureHelp = {
+				activeSignature: info.selectedItemIndex,
+				activeParameter: info.argumentIndex,
 				signatures: []
 			};
 
 			info.items.forEach(item => {
 
-				let signature = <modes.ISignature>{
+				let signature:modes.SignatureInformation = {
 					label: '',
 					documentation: null,
 					parameters: []
@@ -275,11 +270,9 @@ class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupp
 				signature.label += ts.displayPartsToString(item.prefixDisplayParts);
 				item.parameters.forEach((p, i, a) => {
 					let label = ts.displayPartsToString(p.displayParts);
-					let parameter = <modes.IParameter>{
+					let parameter:modes.ParameterInformation = {
 						label: label,
-						documentation: ts.displayPartsToString(p.documentation),
-						signatureLabelOffset: signature.label.length,
-						signatureLabelEnd: signature.label.length + label.length
+						documentation: ts.displayPartsToString(p.documentation)
 					};
 					signature.label += label;
 					signature.parameters.push(parameter);
@@ -293,175 +286,200 @@ class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupp
 
 			return ret;
 
-		});
+		}));
 	}
 }
 
 // --- hover ------
 
-class QuickInfoAdapter extends Adapter implements modes.IExtraInfoSupport {
+class QuickInfoAdapter extends Adapter implements modes.HoverProvider {
 
-	computeInfo(resource: URI, position: editor.IPosition): TPromise<modes.IComputeExtraInfoResult> {
-		return this._worker(resource).then(worker => {
+	provideHover(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.Hover> {
+		let resource = model.uri;
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getQuickInfoAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(info => {
 			if (!info) {
 				return;
 			}
-			return <modes.IComputeExtraInfoResult>{
+			return <modes.Hover>{
 				range: this._textSpanToRange(resource, info.textSpan),
-				value: ts.displayPartsToString(info.displayParts)
+				htmlContent: [{ text: ts.displayPartsToString(info.displayParts) }]
 			};
-		});
+		}));
 	}
 }
 
 // --- occurrences ------
 
-class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
+class OccurrencesAdapter extends Adapter implements modes.DocumentHighlightProvider {
 
-	findOccurrences(resource: URI, position: editor.IPosition, strict?: boolean): TPromise<modes.IOccurence[]> {
-		return this._worker(resource).then(worker => {
+	public provideDocumentHighlights(model: editorCommon.IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.DocumentHighlight[]> {
+		const resource = model.uri;
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getOccurrencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
 				return;
 			}
 			return entries.map(entry => {
-				return <modes.IOccurence>{
+				return <modes.DocumentHighlight>{
 					range: this._textSpanToRange(resource, entry.textSpan),
-					kind: entry.isWriteAccess ? 'write' : 'text'
+					kind: entry.isWriteAccess ? modes.DocumentHighlightKind.Write : modes.DocumentHighlightKind.Text
 				};
 			});
-		});
+		}));
 	}
 }
 
 // --- definition ------
 
-class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
+class DefinitionAdapter extends Adapter {
 
-	canFindDeclaration(context: modes.ILineContext, offset: number): boolean {
-		return true;
-	}
+	public provideDefinition(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.Definition> {
+		const resource = model.uri;
 
-	findDeclaration(resource: URI, position: editor.IPosition): TPromise<modes.IReference[]> {
-		return this._worker(resource).then(worker => {
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
 				return;
 			}
-			const result: modes.IReference[] = [];
+			const result: modes.Location[] = [];
 			for (let entry of entries) {
 				const uri = URI.parse(entry.fileName);
 				if (this._modelService.getModel(uri)) {
 					result.push({
-						resource: uri,
+						uri: uri,
 						range: this._textSpanToRange(uri, entry.textSpan)
 					});
 				}
 			}
 			return result;
-		});
+		}));
 	}
 }
 
 // --- references ------
 
-class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
+class ReferenceAdapter extends Adapter implements modes.ReferenceProvider {
 
-	canFindReferences(context: modes.ILineContext, offset: number): boolean {
-		return true;
-	}
+	provideReferences(model:editorCommon.IReadOnlyModel, position:Position, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> {
+		const resource = model.uri;
 
-	findReferences(resource: URI, position: editor.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
-		return this._worker(resource).then(worker => {
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
 				return;
 			}
-			const result: modes.IReference[] = [];
+			const result: modes.Location[] = [];
 			for (let entry of entries) {
 				const uri = URI.parse(entry.fileName);
 				if (this._modelService.getModel(uri)) {
 					result.push({
-						resource: uri,
+						uri: uri,
 						range: this._textSpanToRange(uri, entry.textSpan)
 					});
 				}
 			}
 			return result;
-		});
+		}));
 	}
 }
 
 // --- outline ------
 
-class OutlineAdapter extends Adapter implements modes.IOutlineSupport {
+class OutlineAdapter extends Adapter implements modes.DocumentSymbolProvider {
 
-	getOutline(resource: URI): TPromise<modes.IOutlineEntry[]> {
-		return this._worker(resource).then(worker => worker.getNavigationBarItems(resource.toString())).then(items => {
+	public provideDocumentSymbols(model:editorCommon.IReadOnlyModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> {
+		const resource = model.uri;
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => worker.getNavigationBarItems(resource.toString())).then(items => {
 			if (!items) {
 				return;
 			}
 
-			const convert = (item: ts.NavigationBarItem): modes.IOutlineEntry => {
-				return {
-					label: item.text,
-					type: item.kind,
-					range: this._textSpanToRange(resource, item.spans[0]),
-					children: item.childItems && item.childItems.map(convert)
+			function convert(bucket: modes.SymbolInformation[], item: ts.NavigationBarItem, containerLabel?: string): void {
+				let result: modes.SymbolInformation = {
+					name: item.text,
+					kind: outlineTypeTable[item.kind] || modes.SymbolKind.Variable,
+					location: {
+						uri: resource,
+						range: this._textSpanToRange(resource, item.spans[0])
+					},
+					containerName: containerLabel
 				};
-			};
 
-			return items.map(convert);
-		});
+				if (item.childItems && item.childItems.length > 0) {
+					for (let child of item.childItems) {
+						convert(bucket, child, result.name);
+					}
+				}
+
+				bucket.push(result);
+			}
+
+			let result: modes.SymbolInformation[] = [];
+			items.forEach(item => convert(result, item));
+			return result;
+		}));
 	}
 }
 
+export class Kind {
+	public static unknown:string = '';
+	public static keyword:string = 'keyword';
+	public static script:string = 'script';
+	public static module:string = 'module';
+	public static class:string = 'class';
+	public static interface:string = 'interface';
+	public static type:string = 'type';
+	public static enum:string = 'enum';
+	public static variable:string = 'var';
+	public static localVariable:string = 'local var';
+	public static function:string = 'function';
+	public static localFunction:string = 'local function';
+	public static memberFunction:string = 'method';
+	public static memberGetAccessor:string = 'getter';
+	public static memberSetAccessor:string = 'setter';
+	public static memberVariable:string = 'property';
+	public static constructorImplementation:string = 'constructor';
+	public static callSignature:string = 'call';
+	public static indexSignature:string = 'index';
+	public static constructSignature:string = 'construct';
+	public static parameter:string = 'parameter';
+	public static typeParameter:string = 'type parameter';
+	public static primitiveType:string = 'primitive type';
+	public static label:string = 'label';
+	public static alias:string = 'alias';
+	public static const:string = 'const';
+	public static let:string = 'let';
+	public static warning:string = 'warning';
+}
+
+let outlineTypeTable: { [kind: string]: modes.SymbolKind } = Object.create(null);
+outlineTypeTable[Kind.module] = modes.SymbolKind.Module;
+outlineTypeTable[Kind.class] = modes.SymbolKind.Class;
+outlineTypeTable[Kind.enum] = modes.SymbolKind.Enum;
+outlineTypeTable[Kind.interface] = modes.SymbolKind.Interface;
+outlineTypeTable[Kind.memberFunction] = modes.SymbolKind.Method;
+outlineTypeTable[Kind.memberVariable] = modes.SymbolKind.Property;
+outlineTypeTable[Kind.memberGetAccessor] = modes.SymbolKind.Property;
+outlineTypeTable[Kind.memberSetAccessor] = modes.SymbolKind.Property;
+outlineTypeTable[Kind.variable] = modes.SymbolKind.Variable;
+outlineTypeTable[Kind.const] = modes.SymbolKind.Variable;
+outlineTypeTable[Kind.localVariable] = modes.SymbolKind.Variable;
+outlineTypeTable[Kind.variable] = modes.SymbolKind.Variable;
+outlineTypeTable[Kind.function] = modes.SymbolKind.Function;
+outlineTypeTable[Kind.localFunction] = modes.SymbolKind.Function;
+
 // --- formatting ----
 
-class FormatAdapter extends Adapter implements modes.IFormattingSupport {
-
-	formatRange(resource: URI, range: editor.IRange, options: modes.IFormattingOptions): TPromise<editor.ISingleEditOperation[]>{
-		return this._worker(resource).then(worker => {
-			return worker.getFormattingEditsForRange(resource.toString(),
-				this._positionToOffset(resource, { lineNumber: range.startLineNumber, column: range.startColumn }),
-				this._positionToOffset(resource, { lineNumber: range.endLineNumber, column: range.endColumn }),
-				FormatAdapter._convertOptions(options));
-		}).then(edits => {
-			if (edits) {
-				return edits.map(edit => this._convertTextChanges(resource, edit));
-			}
-		});
-	}
-
-	get autoFormatTriggerCharacters() {
-		return [';', '}', '\n'];
-	}
-
-	formatAfterKeystroke(resource: URI, position: editor.IPosition, ch: string, options: modes.IFormattingOptions): TPromise<editor.ISingleEditOperation[]> {
-		return this._worker(resource).then(worker => {
-			return worker.getFormattingEditsAfterKeystroke(resource.toString(),
-				this._positionToOffset(resource, position),
-				ch, FormatAdapter._convertOptions(options));
-		}).then(edits => {
-			if (edits) {
-				return edits.map(edit => this._convertTextChanges(resource, edit));
-			}
-		});
-	}
-
-	private _convertTextChanges(resource: URI, change: ts.TextChange): editor.ISingleEditOperation {
-		return <editor.ISingleEditOperation>{
-			text: change.newText,
-			range: this._textSpanToRange(resource, change.span)
-		};
-	}
-
-	private static _convertOptions(options: modes.IFormattingOptions): ts.FormatCodeOptions {
+abstract class FormatHelper extends Adapter {
+	protected static _convertOptions(options: modes.IFormattingOptions): ts.FormatCodeOptions {
 		return {
 			ConvertTabsToSpaces: options.insertSpaces,
 			TabSize: options.tabSize,
@@ -479,5 +497,51 @@ class FormatAdapter extends Adapter implements modes.IFormattingSupport {
 			PlaceOpenBraceOnNewLineForControlBlocks: false,
 			PlaceOpenBraceOnNewLineForFunctions: false
 		};
+	}
+
+	protected _convertTextChanges(resource: URI, change: ts.TextChange): editorCommon.ISingleEditOperation {
+		return <editorCommon.ISingleEditOperation>{
+			text: change.newText,
+			range: this._textSpanToRange(resource, change.span)
+		};
+	}
+}
+
+class FormatAdapter extends FormatHelper implements modes.DocumentRangeFormattingEditProvider {
+
+	provideDocumentRangeFormattingEdits(model: editorCommon.IReadOnlyModel, range: Range, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
+		const resource = model.uri;
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
+			return worker.getFormattingEditsForRange(resource.toString(),
+				this._positionToOffset(resource, { lineNumber: range.startLineNumber, column: range.startColumn }),
+				this._positionToOffset(resource, { lineNumber: range.endLineNumber, column: range.endColumn }),
+				FormatHelper._convertOptions(options));
+		}).then(edits => {
+			if (edits) {
+				return edits.map(edit => this._convertTextChanges(resource, edit));
+			}
+		}));
+	}
+}
+
+class FormatOnTypeAdapter extends FormatHelper implements modes.OnTypeFormattingEditProvider {
+
+	get autoFormatTriggerCharacters() {
+		return [';', '}', '\n'];
+	}
+
+	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: modes.IFormattingOptions, token: CancellationToken): Thenable<editorCommon.ISingleEditOperation[]> {
+		const resource = model.uri;
+
+		return wireCancellationToken(token, this._worker(resource).then(worker => {
+			return worker.getFormattingEditsAfterKeystroke(resource.toString(),
+				this._positionToOffset(resource, position),
+				ch, FormatHelper._convertOptions(options));
+		}).then(edits => {
+			if (edits) {
+				return edits.map(edit => this._convertTextChanges(resource, edit));
+			}
+		}));
 	}
 }

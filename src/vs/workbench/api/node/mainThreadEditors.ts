@@ -11,6 +11,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {RunOnceScheduler} from 'vs/base/common/async';
+import {IdGenerator} from 'vs/base/common/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {EndOfLine} from 'vs/workbench/api/node/extHostTypes';
@@ -64,10 +65,10 @@ export class MainThreadTextEditor {
 	private _focusTracker: IFocusTracker;
 	private _codeEditorListeners: IDisposable[];
 
-	private _lastSelection: EditorCommon.IEditorSelection[];
+	private _lastSelection: Selection[];
 	private _configuration: IResolvedTextEditorConfiguration;
 
-	private _onSelectionChanged: Emitter<EditorCommon.IEditorSelection[]>;
+	private _onSelectionChanged: Emitter<Selection[]>;
 	private _onConfigurationChanged: Emitter<IResolvedTextEditorConfiguration>;
 
 	constructor(
@@ -84,13 +85,13 @@ export class MainThreadTextEditor {
 		this._modelService = modelService;
 		this._codeEditorListeners = [];
 
-		this._onSelectionChanged = new Emitter<EditorCommon.IEditorSelection[]>();
+		this._onSelectionChanged = new Emitter<Selection[]>();
 		this._onConfigurationChanged = new Emitter<IResolvedTextEditorConfiguration>();
 
 		this._lastSelection = [ new Selection(1,1,1,1) ];
 		this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 		this._modelListeners = [];
-		this._modelListeners.push(this._model.addListener2(EditorCommon.EventType.ModelOptionsChanged, (e) => {
+		this._modelListeners.push(this._model.onDidChangeOptions((e) => {
 			this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 		}));
 
@@ -127,7 +128,7 @@ export class MainThreadTextEditor {
 		if (this._codeEditor) {
 
 			// Catch early the case that this code editor gets a different model set and disassociate from this model
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.ModelChanged, () => {
+			this._codeEditorListeners.push(this._codeEditor.onDidChangeModel(() => {
 				this.setCodeEditor(null);
 			}));
 
@@ -135,17 +136,17 @@ export class MainThreadTextEditor {
 				this._lastSelection = this._codeEditor.getSelections();
 				this._onSelectionChanged.fire(this._lastSelection);
 			};
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.CursorSelectionChanged, forwardSelection));
+			this._codeEditorListeners.push(this._codeEditor.onDidChangeCursorSelection(forwardSelection));
 			if (!Selection.selectionsArrEqual(this._lastSelection, this._codeEditor.getSelections())) {
 				forwardSelection();
 			}
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.EditorFocus, () => {
+			this._codeEditorListeners.push(this._codeEditor.onDidFocusEditor(() => {
 				this._focusTracker.onGainedFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.EditorBlur, () => {
+			this._codeEditorListeners.push(this._codeEditor.onDidBlurEditor(() => {
 				this._focusTracker.onLostFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => {
+			this._codeEditorListeners.push(this._codeEditor.onDidChangeConfiguration(() => {
 				this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
 			}));
 			this._setConfiguration(this._readConfiguration(this._model, this._codeEditor));
@@ -156,7 +157,7 @@ export class MainThreadTextEditor {
 		return !!this._codeEditor;
 	}
 
-	public get onSelectionChanged(): Event<EditorCommon.IEditorSelection[]> {
+	public get onSelectionChanged(): Event<Selection[]> {
 		return this._onSelectionChanged.event;
 	}
 
@@ -164,7 +165,7 @@ export class MainThreadTextEditor {
 		return this._onConfigurationChanged.event;
 	}
 
-	public getSelections(): EditorCommon.IEditorSelection[] {
+	public getSelections(): Selection[] {
 		if (this._codeEditor) {
 			return this._codeEditor.getSelections();
 		}
@@ -341,10 +342,7 @@ export class MainThreadTextEditor {
  */
 export class MainThreadEditorsTracker {
 
-	private static _LAST_TEXT_EDITOR_ID = 0;
-	private _nextId(): string {
-		return String(++MainThreadEditorsTracker._LAST_TEXT_EDITOR_ID);
-	}
+	private static _Ids = new IdGenerator('');
 
 	private _toDispose: IDisposable[];
 	private _codeEditorService: ICodeEditorService;
@@ -407,7 +405,7 @@ export class MainThreadEditorsTracker {
 	}
 
 	private _onCodeEditorAdd(codeEditor: EditorCommon.ICommonCodeEditor): void {
-		this._editorModelChangeListeners[codeEditor.getId()] = codeEditor.addListener2(EditorCommon.EventType.ModelChanged, _ => this._updateMapping.schedule());
+		this._editorModelChangeListeners[codeEditor.getId()] = codeEditor.onDidChangeModel(_ => this._updateMapping.schedule());
 		this._updateMapping.schedule();
 	}
 
@@ -423,7 +421,7 @@ export class MainThreadEditorsTracker {
 		allModels = allModels.filter((model) => !model.isTooLargeForHavingARichMode());
 		let allModelsMap: { [modelUri:string]: EditorCommon.IModel; } = Object.create(null);
 		allModels.forEach((model) => {
-			allModelsMap[model.getAssociatedResource().toString()] = model;
+			allModelsMap[model.uri.toString()] = model;
 		});
 
 		// Remove text editors for models that no longer exist
@@ -467,7 +465,7 @@ export class MainThreadEditorsTracker {
 
 			// Create new editors as needed
 			for (let i = existingTextEditors.length; i < codeEditors.length; i++) {
-				let newTextEditor = new MainThreadTextEditor(this._nextId(), model, codeEditors[i], this._focusTracker, this._modelService);
+				let newTextEditor = new MainThreadTextEditor(MainThreadEditorsTracker._Ids.nextId(), model, codeEditors[i], this._focusTracker, this._modelService);
 				existingTextEditors.push(newTextEditor);
 				this._onTextEditorAdd.fire(newTextEditor);
 			}
@@ -475,7 +473,7 @@ export class MainThreadEditorsTracker {
 
 		// Handle all not visible models
 		allModels.forEach((model) => {
-			let modelUri = model.getAssociatedResource().toString();
+			let modelUri = model.uri.toString();
 
 			if (visibleModels[modelUri]) {
 				// model is visible, already handled above
@@ -496,7 +494,7 @@ export class MainThreadEditorsTracker {
 
 			// Create new editor if needed or adjust it
 			if (existingTextEditors.length === 0) {
-				let newTextEditor = new MainThreadTextEditor(this._nextId(), model, null, this._focusTracker, this._modelService);
+				let newTextEditor = new MainThreadTextEditor(MainThreadEditorsTracker._Ids.nextId(), model, null, this._focusTracker, this._modelService);
 				existingTextEditors.push(newTextEditor);
 				this._onTextEditorAdd.fire(newTextEditor);
 			} else {
@@ -584,7 +582,7 @@ export class MainThreadEditorsTracker {
 				return;
 			}
 
-			let modelUri = model.getAssociatedResource().toString();
+			let modelUri = model.uri.toString();
 			r[modelUri] = r[modelUri] || {
 				model: model,
 				codeEditors: []

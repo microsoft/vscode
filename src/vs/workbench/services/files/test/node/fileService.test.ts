@@ -443,7 +443,7 @@ suite('FileService', () => {
 
 		service.watchFileChanges(toWatch);
 
-		events.on(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
+		events.addListener2(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
 			assert.ok(e);
 
 			service.unwatchFileChanges(toWatch);

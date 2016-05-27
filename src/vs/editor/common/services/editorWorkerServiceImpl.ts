@@ -174,13 +174,13 @@ export class EditorModelManager extends Disposable {
 		}
 
 		this._proxy.acceptNewModel({
-			url: model.getAssociatedResource().toString(),
+			url: model.uri.toString(),
 			value: model.toRawText(),
 			versionId: model.getVersionId()
 		});
 
 		let toDispose:IDisposable[] = [];
-		toDispose.push(model.addBulkListener2((events) => {
+		toDispose.push(model.addBulkListener((events) => {
 			let changedEvents: editorCommon.IModelContentChangedEvent2[] = [];
 			for (let i = 0, len = events.length; i < len; i++) {
 				let e = events[i];

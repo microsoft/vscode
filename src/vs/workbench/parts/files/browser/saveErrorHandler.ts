@@ -44,8 +44,8 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 	}
 
 	private registerListeners(): void {
-		this.eventService.addListener(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
-		this.eventService.addListener(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
+		this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
+		this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onFileSavedOrReverted(e.resource));
 	}
 
 	private onFileSavedOrReverted(resource: URI): void {

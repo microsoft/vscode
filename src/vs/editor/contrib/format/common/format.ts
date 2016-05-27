@@ -9,46 +9,48 @@ import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
-import {IModel, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IReadOnlyModel, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {FormatRegistry, FormatOnTypeRegistry, IFormattingOptions} from 'vs/editor/common/modes';
+import {DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, IFormattingOptions} from 'vs/editor/common/modes';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {asWinJsPromise} from 'vs/base/common/async';
+import {Position} from 'vs/editor/common/core/position';
 
-export function formatRange(model: IModel, range: IRange, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
-	const [support] = FormatRegistry.ordered(model)
-		.filter(s => typeof s.formatRange === 'function');
+export function getDocumentRangeFormattingEdits(model: IReadOnlyModel, range: Range, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+	const [support] = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 
 	if (!support) {
 		return TPromise.as(undefined);
 	}
-	return support.formatRange(model.getAssociatedResource(), range, options);
+
+	return asWinJsPromise((token) => {
+		return support.provideDocumentRangeFormattingEdits(model, range, options, token);
+	});
 }
 
-export function formatDocument(model: IModel, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
-	const [support] = FormatRegistry.ordered(model);
+export function getDocumentFormattingEdits(model: IReadOnlyModel, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+	const [support] = DocumentFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
-		return TPromise.as(undefined);
-	}
-	if (typeof support.formatDocument !== 'function') {
-		if (typeof support.formatRange === 'function') {
-			return formatRange(model, model.getFullModelRange(), options);
-		} else {
-			return TPromise.as(undefined);
-		}
+		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options);
 	}
 
-	return support.formatDocument(model.getAssociatedResource(), options);
+	return asWinJsPromise((token) => {
+		return support.provideDocumentFormattingEdits(model, options, token);
+	});
 }
 
-export function formatAfterKeystroke(model: IModel, position: IPosition, ch: string, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
-	const [support] = FormatOnTypeRegistry.ordered(model);
+export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions): TPromise<ISingleEditOperation[]> {
+	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
 		return TPromise.as(undefined);
 	}
 	if (support.autoFormatTriggerCharacters.indexOf(ch) < 0) {
 		return TPromise.as(undefined);
 	}
-	return support.formatAfterKeystroke(model.getAssociatedResource(), position, ch, options);
+
+	return asWinJsPromise((token) => {
+		return support.provideOnTypeFormattingEdits(model, position, ch, options, token);
+	});
 }
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', function(accessor, args) {
@@ -60,7 +62,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', func
 	if (!model) {
 		throw illegalArgument('resource');
 	}
-	return formatRange(model, range, options);
+	return getDocumentRangeFormattingEdits(model, Range.lift(range), options);
 });
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', function(accessor, args) {
@@ -73,7 +75,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', f
 		throw illegalArgument('resource');
 	}
 
-	return formatDocument(model, options);
+	return getDocumentFormattingEdits(model, options);
 });
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function(model, position, args) {
@@ -81,5 +83,5 @@ CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvide
 	if (typeof ch !== 'string') {
 		throw illegalArgument('ch');
 	}
-	return formatAfterKeystroke(model, position, ch, options);
+	return getOnTypeFormattingEdits(model, position, ch, options);
 });

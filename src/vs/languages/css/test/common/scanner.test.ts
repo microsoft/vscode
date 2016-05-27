@@ -280,4 +280,5 @@ suite('CSS - Token Sequences', () => {
 	//		assert.equal(tokCount, input.length);
 	//		assert.ok(d < 500, 'scanner fast? took ms' + d + ', token count ' + tokCount + ', input length: ' + inputText.length);
 	//	});
+
 });

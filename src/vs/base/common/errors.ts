@@ -380,8 +380,10 @@ export function illegalState(name?: string): Error {
 	}
 }
 
-export function readonly(): Error {
-	return new Error('readonly property cannot be changed');
+export function readonly(name?: string): Error {
+	return name
+		? new Error(`readonly property '${name} cannot be changed'`)
+		: new Error('readonly property cannot be changed');
 }
 
 export function loaderError(err: Error): Error {

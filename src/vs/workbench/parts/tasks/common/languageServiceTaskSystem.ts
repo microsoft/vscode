@@ -35,25 +35,19 @@ export class LanguageServiceTaskSystem extends EventEmitter implements ITaskSyst
 
 	public build(): ITaskRunResult {
 		return this.processMode((mode) => {
-			return mode.taskSupport && mode.taskSupport.build
-				? mode.taskSupport.build()
-				: null;
+			return null;
 		}, 'build', Triggers.shortcut);
 	}
 
 	public rebuild(): ITaskRunResult {
 		return this.processMode((mode) => {
-			return mode.taskSupport && mode.taskSupport.rebuild
-				? mode.taskSupport.rebuild()
-				: null;
+			return null;
 		}, 'rebuild', Triggers.shortcut);
 	}
 
 	public clean(): ITaskRunResult {
 		return this.processMode((mode) => {
-			return mode.taskSupport && mode.taskSupport.clean
-				? mode.taskSupport.clean()
-				: null;
+			return null;
 		}, 'clean', Triggers.shortcut);
 	}
 

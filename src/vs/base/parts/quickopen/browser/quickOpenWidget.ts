@@ -80,7 +80,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private visible: boolean;
 	private isLoosingFocus: boolean;
 	private callbacks: IQuickOpenCallbacks;
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 	private currentInputToken: string;
 	private quickNavigateConfiguration: IQuickNavigateConfiguration;
 	private container: HTMLElement;
@@ -111,7 +111,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.builder = $().div((div: Builder) => {
 
 			// Eventing
-			div.on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+			div.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
@@ -141,7 +141,6 @@ export class QuickOpenWidget implements IModelProvider {
 				this.inputElement.setAttribute('aria-haspopup', 'false');
 				this.inputElement.setAttribute('aria-autocomplete', 'list');
 
-				// Listen to some keys on key-down for faster type feedback
 				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
 
@@ -157,23 +156,19 @@ export class QuickOpenWidget implements IModelProvider {
 						this.navigateInTree(keyboardEvent.keyCode, keyboardEvent.shiftKey);
 					}
 
-					// Bug in IE 9: onInput is not fired for Backspace or Delete keys
-					else if (browser.isIE9 && (keyboardEvent.keyCode === KeyCode.Backspace || keyboardEvent.keyCode === KeyCode.Delete)) {
-						this.onType();
-					}
-				});
-
-				DOM.addDisposableListener(this.inputBox.inputElement, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-					let keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
-
 					// Select element on Enter
-					if (keyboardEvent.keyCode === KeyCode.Enter) {
+					else if (keyboardEvent.keyCode === KeyCode.Enter) {
 						DOM.EventHelper.stop(e, true);
 
 						let focus = this.tree.getFocus();
 						if (focus) {
 							this.elementSelected(focus, e);
 						}
+					}
+
+					// Bug in IE 9: onInput is not fired for Backspace or Delete keys
+					else if (browser.isIE9 && (keyboardEvent.keyCode === KeyCode.Backspace || keyboardEvent.keyCode === KeyCode.Delete)) {
+						this.onType();
 					}
 				});
 
@@ -203,11 +198,11 @@ export class QuickOpenWidget implements IModelProvider {
 				this.treeElement = this.tree.getHTMLElement();
 
 				// Handle Focus and Selection event
-				this.toUnbind.push(this.tree.addListener(EventType.FOCUS, (event: IFocusEvent) => {
+				this.toUnbind.push(this.tree.addListener2(EventType.FOCUS, (event: IFocusEvent) => {
 					this.elementFocused(event.focus, event);
 				}));
 
-				this.toUnbind.push(this.tree.addListener(EventType.SELECTION, (event: ISelectionEvent) => {
+				this.toUnbind.push(this.tree.addListener2(EventType.SELECTION, (event: ISelectionEvent) => {
 					if (event.selection && event.selection.length > 0) {
 						this.elementSelected(event.selection[0], event);
 					}
@@ -840,9 +835,7 @@ export class QuickOpenWidget implements IModelProvider {
 	}
 
 	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = dispose(this.toUnbind);
 
 		this.progressBar.dispose();
 		this.inputBox.dispose();

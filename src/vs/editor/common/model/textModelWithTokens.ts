@@ -24,6 +24,7 @@ import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {LineToken} from 'vs/editor/common/model/lineToken';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
+import {Position} from 'vs/editor/common/core/position';
 
 class ModeToModelBinder implements IDisposable {
 
@@ -169,8 +170,6 @@ class LineContext implements ILineContext {
 export class TextModelWithTokens extends TextModel implements editorCommon.ITokenizedModel {
 
 	private static MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
-	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
-	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 
 	private _shouldAutoTokenize:boolean;
 	private _mode: IMode;
@@ -184,9 +183,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _revalidateTokensTimeout:number;
 	private _scheduleRetokenizeNow: RunOnceScheduler;
 	private _retokenizers:IRetokenizeRequest[];
-
-	private _shouldSimplifyMode: boolean;
-	private _shouldDenyMode: boolean;
 
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, shouldAutoTokenize:boolean, modeOrPromise:IMode|TPromise<IMode>) {
 		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
@@ -206,9 +202,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._revalidateTokensTimeout = -1;
 		this._scheduleRetokenizeNow = null;
 		this._retokenizers = null;
-
-		this._shouldSimplifyMode = (rawText.length > TextModelWithTokens.MODEL_SYNC_LIMIT);
-		this._shouldDenyMode = (rawText.length > TextModelWithTokens.MODEL_TOKENIZATION_LIMIT);
 
 		if (!modeOrPromise) {
 			this._mode = new NullMode();
@@ -251,14 +244,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._scheduleRetokenizeNow.dispose();
 
 		super.dispose();
-	}
-
-	public isTooLargeForHavingAMode(): boolean {
-		return this._shouldDenyMode;
-	}
-
-	public isTooLargeForHavingARichMode(): boolean {
-		return this._shouldSimplifyMode;
 	}
 
 	private _massageMode(mode: IMode): IMode {
@@ -427,62 +412,32 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._lines[lineNumber - 1].getTokens();
 	}
 
-	public setValue(value:string, newMode?:IMode): void;
-	public setValue(value:string, newModePromise?:TPromise<IMode>): void;
-	public setValue(value:string, newModeOrPromise:any=null): void {
-		let rawText: editorCommon.IRawText = null;
-		if (value !== null) {
-			rawText = TextModel.toRawText(value, {
-				tabSize: this._options.tabSize,
-				insertSpaces: this._options.insertSpaces,
-				detectIndentation: false,
-				defaultEOL: this._options.defaultEOL,
-				trimAutoWhitespace: this._options.trimAutoWhitespace
-			});
-		}
-		this.setValueFromRawText(rawText, newModeOrPromise);
-	}
-
-	public setValueFromRawText(value:editorCommon.IRawText, newMode?:IMode): void;
-	public setValueFromRawText(value:editorCommon.IRawText, newModePromise?:TPromise<IMode>): void;
-	public setValueFromRawText(value:editorCommon.IRawText, newModeOrPromise:any=null): void {
-		if (value !== null) {
-			super.setValueFromRawText(value);
-		}
-
-		if (newModeOrPromise) {
-			if (this._modeToModelBinder) {
-				this._modeToModelBinder.dispose();
-				this._modeToModelBinder = null;
-			}
-			if (TPromise.is(newModeOrPromise)) {
-				this._modeToModelBinder = new ModeToModelBinder(<TPromise<IMode>>newModeOrPromise, this);
-			} else {
-				var actualNewMode = this._massageMode(<IMode>newModeOrPromise);
-				if (this._mode !== actualNewMode) {
-					var e2:editorCommon.IModelModeChangedEvent = {
-						oldMode: this._mode,
-						newMode: actualNewMode
-					};
-					this._resetMode(e2, actualNewMode);
-					this._emitModelModeChangedEvent(e2);
-				}
-			}
-		}
-	}
-
 	public getMode(): IMode {
 		return this._mode;
 	}
 
-	public setMode(newMode:IMode): void;
-	public setMode(newModePromise:TPromise<IMode>): void;
-	public setMode(newModeOrPromise:any): void {
+	public setMode(newModeOrPromise:IMode|TPromise<IMode>): void {
 		if (!newModeOrPromise) {
 			// There's nothing to do
 			return;
 		}
-		this.setValueFromRawText(null, newModeOrPromise);
+		if (this._modeToModelBinder) {
+			this._modeToModelBinder.dispose();
+			this._modeToModelBinder = null;
+		}
+		if (TPromise.is(newModeOrPromise)) {
+			this._modeToModelBinder = new ModeToModelBinder(<TPromise<IMode>>newModeOrPromise, this);
+		} else {
+			var actualNewMode = this._massageMode(<IMode>newModeOrPromise);
+			if (this._mode !== actualNewMode) {
+				var e2:editorCommon.IModelModeChangedEvent = {
+					oldMode: this._mode,
+					newMode: actualNewMode
+				};
+				this._resetMode(e2, actualNewMode);
+				this._emitModelModeChangedEvent(e2);
+			}
+		}
 	}
 
 	public getModeAtPosition(_lineNumber:number, _column:number): IMode {
@@ -801,7 +756,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return result;
 	}
 
-	public findMatchingBracketUp(bracket:string, _position:editorCommon.IPosition): editorCommon.IEditorRange {
+	public findMatchingBracketUp(bracket:string, _position:editorCommon.IPosition): Range {
 		let position = this.validatePosition(_position);
 		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this._mode);
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
@@ -821,11 +776,11 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._findMatchingBracketUp(data, position);
 	}
 
-	public matchBracket(position:editorCommon.IPosition): [editorCommon.IEditorRange,editorCommon.IEditorRange] {
+	public matchBracket(position:editorCommon.IPosition): [Range,Range] {
 		return this._matchBracket(this.validatePosition(position));
 	}
 
-	private _matchBracket(position:editorCommon.IEditorPosition): [editorCommon.IEditorRange,editorCommon.IEditorRange] {
+	private _matchBracket(position:Position): [Range,Range] {
 		let lineNumber = position.lineNumber;
 		let lineText = this._lines[lineNumber - 1].text;
 
@@ -913,7 +868,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _matchFoundBracket(foundBracket:Range, data:editorCommon.IRichEditBracket, isOpen:boolean): [editorCommon.IEditorRange,editorCommon.IEditorRange] {
+	private _matchFoundBracket(foundBracket:Range, data:editorCommon.IRichEditBracket, isOpen:boolean): [Range,Range] {
 		if (isOpen) {
 			let matched = this._findMatchingBracketDown(data, foundBracket.getEndPosition());
 			if (matched) {
@@ -929,7 +884,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _findMatchingBracketUp(bracket:editorCommon.IRichEditBracket, position:editorCommon.IEditorPosition): Range {
+	private _findMatchingBracketUp(bracket:editorCommon.IRichEditBracket, position:Position): Range {
 		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		let modeId = bracket.modeId;
@@ -996,7 +951,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	private _findMatchingBracketDown(bracket:editorCommon.IRichEditBracket, position:editorCommon.IEditorPosition): Range {
+	private _findMatchingBracketDown(bracket:editorCommon.IRichEditBracket, position:Position): Range {
 		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		let modeId = bracket.modeId;

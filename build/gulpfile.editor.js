@@ -34,8 +34,7 @@ var editorResources = [
 
 var editorOtherSources = [
 	'out-build/vs/css.js',
-	'out-build/vs/nls.js',
-	'out-build/vs/text.js'
+	'out-build/vs/nls.js'
 ];
 
 var BUNDLED_FILE_HEADER = [

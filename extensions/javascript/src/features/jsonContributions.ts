@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Location, getLocation, createScanner, SyntaxKind} from 'jsonc-parser';
+import {Location, getLocation, createScanner, SyntaxKind, ScanError} from 'jsonc-parser';
 import {basename} from 'path';
 import {BowerJSONContribution} from './bowerJSONContribution';
 import {PackageJSONContribution} from './packageJSONContribution';
@@ -122,10 +122,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 
 		if (location.isAtPropertyKey) {
 			let addValue = !location.previousNode || !location.previousNode.columnOffset;
-			let scanner = createScanner(document.getText(), true);
-			scanner.setPosition(offset);
-			scanner.scan();
-			let isLast = scanner.getToken() === SyntaxKind.CloseBraceToken || scanner.getToken() === SyntaxKind.EOF;
+			let isLast = this.isLast(document, position);
 			collectPromise = this.jsonContribution.collectPropertySuggestions(fileName, location, currentWord, addValue, isLast, collector);
 		} else {
 			if (location.path.length === 0) {
@@ -152,5 +149,15 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			i--;
 		}
 		return text.substring(i+1, position.character);
+	}
+
+	private isLast(document: TextDocument, position: Position):boolean {
+		let scanner = createScanner(document.getText(), true);
+		scanner.setPosition(document.offsetAt(position));
+		let nextToken = scanner.scan();
+		if (nextToken === SyntaxKind.StringLiteral && scanner.getTokenError() === ScanError.UnexpectedEndOfString) {
+			nextToken= scanner.scan();
+		}
+		return nextToken === SyntaxKind.CloseBraceToken || nextToken === SyntaxKind.EOF;
 	}
 }

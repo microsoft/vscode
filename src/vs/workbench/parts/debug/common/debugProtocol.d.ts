@@ -301,11 +301,15 @@ declare module DebugProtocol {
 	}
 	/** Arguments for "continue" request. */
 	export interface ContinueArguments {
-		/** continue execution for this thread. */
+		/** Continue execution for the specified thread (if possible). If the backend cannot continue on a single thread but will continue on all threads, it should set the allThreadsContinued attribute in the response to true. */
 		threadId: number;
 	}
-	/** Response to "continue" request. This is just an acknowledgement, so no body field is required. */
+	/** Response to "continue" request. */
 	export interface ContinueResponse extends Response {
+		body: {
+			/** If true, the continue request has ignored the specified thread and continued all threads instead. If this attribute is missing a value of 'true' is assumed for backward compatibility. */
+			allThreadsContinued?: boolean;
+		};
 	}
 
 	/** Next request; value of command field is "next".

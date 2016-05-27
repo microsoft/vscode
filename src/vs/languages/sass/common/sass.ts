@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Monarch = require('vs/editor/common/modes/monarch/monarch');
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import winjs = require('vs/base/common/winjs.base');
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import editorCommon = require('vs/editor/common/editorCommon');
+import modes = require('vs/editor/common/modes');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
-import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {ModeWorkerManager, AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
-import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {wireCancellationToken} from 'vs/base/common/async';
+import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
+import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export var language = <Types.ILanguage>{
 	displayName: 'Sass',
@@ -278,49 +278,70 @@ export var language = <Types.ILanguage>{
 	}
 };
 
-export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
+export class SASSMode extends AbstractMode {
 
-	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public configSupport:Modes.IConfigurationSupport;
-	public referenceSupport: Modes.IReferenceSupport;
-	public extraInfoSupport: Modes.IExtraInfoSupport;
-	public outlineSupport: Modes.IOutlineSupport;
-	public declarationSupport: Modes.IDeclarationSupport;
-	public suggestSupport: Modes.ISuggestSupport;
+	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
+	public configSupport:modes.IConfigurationSupport;
+	public tokenizationSupport: modes.ITokenizationSupport;
+	public richEditSupport: modes.IRichEditSupport;
 
 	private modeService: IModeService;
 	private _modeWorkerManager: ModeWorkerManager<sassWorker.SassWorker>;
 	private _threadService:IThreadService;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
+		super(descriptor.id);
+		let lexer = Compile.compile(language);
 		this._modeWorkerManager = new ModeWorkerManager<sassWorker.SassWorker>(descriptor, 'vs/languages/sass/common/sassWorker', 'SassWorker', 'vs/languages/css/common/cssWorker', instantiationService);
 		this._threadService = threadService;
 
 		this.modeService = modeService;
 
-		this.extraInfoSupport = this;
-		this.inplaceReplaceSupport = this;
-		this.configSupport = this;
-		this.referenceSupport = new ReferenceSupport(this.getId(), {
-			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
-			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
-		this.declarationSupport = new DeclarationSupport(this.getId(), {
-			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
-			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
-		this.outlineSupport = this;
+		modes.HoverProviderRegistry.register(this.getId(), {
+			provideHover: (model, position, token): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
+			}
+		}, true);
 
-		this.suggestSupport = new SuggestSupport(this.getId(), {
+		this.inplaceReplaceSupport = this;
+
+		this.configSupport = this;
+
+		modes.ReferenceProviderRegistry.register(this.getId(), {
+			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._provideReferences(model.uri, position));
+			}
+		}, true);
+
+		modes.DefinitionProviderRegistry.register(this.getId(), {
+			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
+				return wireCancellationToken(token, this._provideDefinition(model.uri, position));
+			}
+		}, true);
+
+		modes.DocumentSymbolProviderRegistry.register(this.getId(), {
+			provideDocumentSymbols: (model, token): Thenable<modes.SymbolInformation[]> => {
+				return wireCancellationToken(token, this._provideDocumentSymbols(model.uri));
+			}
+		}, true);
+
+		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
-			excludeTokens: ['comment.sass', 'string.sass'],
-			suggest: (resource, position) => this.suggest(resource, position)});
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
+			}
+		}, true);
+
+		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
+
+		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 	}
 
 	public creationDone(): void {
@@ -348,7 +369,7 @@ export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 	}
 
 	static $navigateValueSet = OneWorkerAttr(SASSMode, SASSMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, position:editorCommon.IRange, up:boolean):winjs.TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
@@ -357,33 +378,33 @@ export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSup
 		return this._worker((w) => w.enableValidator());
 	}
 
-	static $findReferences = OneWorkerAttr(SASSMode, SASSMode.prototype.findReferences);
-	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
-		return this._worker((w) => w.findReferences(resource, position));
+	static $_provideReferences = OneWorkerAttr(SASSMode, SASSMode.prototype._provideReferences);
+	private _provideReferences(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Location[]> {
+		return this._worker((w) => w.provideReferences(resource, position));
 	}
 
-	static $suggest = OneWorkerAttr(SASSMode, SASSMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
+	static $_provideCompletionItems = OneWorkerAttr(SASSMode, SASSMode.prototype._provideCompletionItems);
+	private _provideCompletionItems(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.ISuggestResult[]> {
+		return this._worker((w) => w.provideCompletionItems(resource, position));
 	}
 
-	static $computeInfo = OneWorkerAttr(SASSMode, SASSMode.prototype.computeInfo);
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): winjs.TPromise<Modes.IComputeExtraInfoResult> {
-		return this._worker((w) => w.computeInfo(resource, position));
+	static $_provideHover = OneWorkerAttr(SASSMode, SASSMode.prototype._provideHover);
+	private _provideHover(resource:URI, position:editorCommon.IPosition): winjs.TPromise<modes.Hover> {
+		return this._worker((w) => w.provideHover(resource, position));
 	}
 
-	static $getOutline = OneWorkerAttr(SASSMode, SASSMode.prototype.getOutline);
-	public getOutline(resource:URI):winjs.TPromise<Modes.IOutlineEntry[]> {
-		return this._worker((w) => w.getOutline(resource));
+	static $_provideDocumentSymbols = OneWorkerAttr(SASSMode, SASSMode.prototype._provideDocumentSymbols);
+	private _provideDocumentSymbols(resource:URI):winjs.TPromise<modes.SymbolInformation[]> {
+		return this._worker((w) => w.provideDocumentSymbols(resource));
 	}
 
-	static $findDeclaration = OneWorkerAttr(SASSMode, SASSMode.prototype.findDeclaration);
-	public findDeclaration(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference> {
-		return this._worker((w) => w.findDeclaration(resource, position));
+	static $_provideDefinition = OneWorkerAttr(SASSMode, SASSMode.prototype._provideDefinition);
+	private _provideDefinition(resource:URI, position:editorCommon.IPosition):winjs.TPromise<modes.Definition> {
+		return this._worker((w) => w.provideDefinition(resource, position));
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(SASSMode, SASSMode.prototype.findColorDeclarations);
-	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
+	public findColorDeclarations(resource:URI):winjs.TPromise<{range:editorCommon.IRange; value:string; }[]> {
 		return this._worker((w) => w.findColorDeclarations(resource));
 	}
 }

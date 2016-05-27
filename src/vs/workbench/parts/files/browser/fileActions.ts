@@ -29,7 +29,6 @@ import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -49,6 +48,7 @@ import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instant
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
+import {Selection} from 'vs/editor/common/core/selection';
 
 import ITextFileService = Files.ITextFileService;
 
@@ -66,7 +66,7 @@ export interface IFileViewletState {
 
 export class BaseFileAction extends Action {
 	private _element: FileStat;
-	private listenerToUnbind: () => void;
+	private listenerToUnbind: IDisposable;
 
 	constructor(
 		id: string,
@@ -83,7 +83,7 @@ export class BaseFileAction extends Action {
 		this.enabled = false;
 
 		// update enablement when options change
-		this.listenerToUnbind = this._eventService.addListener(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, () => this._updateEnablement());
+		this.listenerToUnbind = this._eventService.addListener2(WorkbenchEventType.WORKBENCH_OPTIONS_CHANGED, () => this._updateEnablement());
 	}
 
 	public get contextService() {
@@ -170,7 +170,7 @@ export class BaseFileAction extends Action {
 	}
 
 	public dispose(): void {
-		this.listenerToUnbind();
+		this.listenerToUnbind.dispose();
 
 		super.dispose();
 	}
@@ -241,11 +241,11 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		this.tree.refresh(stat, false).then(() => {
 			this.tree.setHighlight(stat);
 
-			let unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+			let unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 				if (!e.highlight) {
 					viewletState.clearEditable(stat);
 					this.tree.refresh(stat).done(null, errors.onUnexpectedError);
-					unbind();
+					unbind.dispose();
 				}
 			});
 		}).done(null, errors.onUnexpectedError);
@@ -453,11 +453,11 @@ export class BaseNewAction extends BaseFileAction {
 						return this.tree.reveal(stat, 0.5).then(() => {
 							this.tree.setHighlight(stat);
 
-							let unbind: () => void = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+							let unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 								if (!e.highlight) {
 									stat.destroy();
 									this.tree.refresh(folder).done(null, errors.onUnexpectedError);
-									unbind();
+									unbind.dispose();
 								}
 							});
 						});
@@ -1237,8 +1237,8 @@ export class GlobalCompareResourcesAction extends Action {
 			globalResourceToCompare = fileInput.getResource();
 
 			// Listen for next editor to open
-			let unbind = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_OPENING, (e: EditorEvent) => {
-				unbind(); // listen once
+			let unbind = this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_OPENING, (e: EditorEvent) => {
+				unbind.dispose(); // listen once
 
 				let otherFileInput = asFileEditorInput(e.editorInput);
 				if (otherFileInput) {
@@ -1255,7 +1255,7 @@ export class GlobalCompareResourcesAction extends Action {
 
 			// Bring up quick open
 			this.quickOpenService.show().then(() => {
-				unbind(); // make sure to unbind if quick open is closing
+				unbind.dispose(); // make sure to unbind if quick open is closing
 			});
 
 		} else {
@@ -1433,11 +1433,11 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
 				}
 
-				let selectionOfSource: IEditorSelection;
+				let selectionOfSource: Selection;
 				if (positionsOfSource.length) {
 					const activeEditor = this.editorService.getActiveEditor();
 					if (activeEditor instanceof BaseTextEditor && positionsOfSource.indexOf(activeEditor.position) >= 0) {
-						selectionOfSource = <IEditorSelection>activeEditor.getSelection();
+						selectionOfSource = <Selection>activeEditor.getSelection();
 					}
 				}
 
@@ -1794,9 +1794,9 @@ export class ReopenClosedFileAction extends Action {
 			return TPromise.as(true);
 		}
 
-		// If the current resource is the recently closed resource, run action again
-		let activeResource = getUntitledOrFileResource(this.editorService.getActiveEditorInput());
-		if (activeResource && activeResource.path === entry.resource.path) {
+		// If the recently closed resource is currently in the working files list, run action again
+		let workingFileEntries = workingFilesModel.getEntries();
+		if (workingFileEntries.some((f) => { return f.resource.path === entry.resource.path; })) {
 			return this.run();
 		}
 

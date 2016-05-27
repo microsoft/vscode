@@ -5,103 +5,80 @@
 'use strict';
 
 import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
 
 export enum Language {
 	TypeScript,
 	EcmaScript5
 }
 
-export function createTokenizationSupport(mode:Modes.IMode, language:Language):Modes.ITokenizationSupport {
+export function createTokenizationSupport2(language:Language):Modes.ITokenizationSupport2 {
 
 	var classifier = ts.createClassifier(),
 		bracketTypeTable = language === Language.TypeScript ? tsBracketTypeTable : jsBracketTypeTable,
 		tokenTypeTable = language === Language.TypeScript ? tsTokenTypeTable : jsTokenTypeTable;
 
 	return {
-		shouldGenerateEmbeddedModels: false,
-		getInitialState: () => new State(mode, null, language, ts.EndOfLineState.None, false),
-		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenize(bracketTypeTable, tokenTypeTable, classifier, <State> state, line, offsetDelta, stopAtOffset)
+		getInitialState: () => new State2(language, ts.EndOfLineState.None, false),
+		tokenize: (line, state) => tokenize2(bracketTypeTable, tokenTypeTable, classifier, <State2> state, line)
 	};
 }
 
-class State implements Modes.IState {
-
-	private _mode: Modes.IMode;
-	private _state: Modes.IState;
+class State2 implements Modes.IState2 {
 
 	public language: Language;
 	public eolState: ts.EndOfLineState;
 	public inJsDocComment: boolean;
 
-	constructor(mode: Modes.IMode, state: Modes.IState, language:Language, eolState: ts.EndOfLineState, inJsDocComment: boolean) {
-		this._mode = mode;
-		this._state = state;
+	constructor(language:Language, eolState: ts.EndOfLineState, inJsDocComment: boolean) {
 		this.language = language;
 		this.eolState = eolState;
 		this.inJsDocComment = inJsDocComment;
 	}
 
-	public clone(): State {
-		return new State(this._mode, AbstractState.safeClone(this._state), this.language, this.eolState, this.inJsDocComment);
+	public clone(): State2 {
+		return new State2(this.language, this.eolState, this.inJsDocComment);
 	}
 
-	public equals(other:Modes.IState):boolean {
+	public equals(other:Modes.IState2):boolean {
 		if(other === this) {
 			return true;
 		}
-		if(!other || !(other instanceof State)) {
+		if(!other || !(other instanceof State2)) {
 			return false;
 		}
-		if (this.eolState !== (<State> other).eolState) {
+		if (this.eolState !== (<State2> other).eolState) {
 			return false;
 		}
-		if(this.inJsDocComment !== (<State> other).inJsDocComment) {
+		if(this.inJsDocComment !== (<State2> other).inJsDocComment) {
 			return false;
 		}
-		return AbstractState.safeEquals(this._state, (<State> other)._state);
-	}
-
-	public getMode():Modes.IMode {
-		return this._mode;
-	}
-
-	public tokenize(stream:any):Modes.ITokenizationResult {
-		throw new Error();
-	}
-
-	public getStateData():Modes.IState {
-		return this._state;
-	}
-
-	public setStateData(state:Modes.IState):void {
-		this._state = state;
+		return true;
 	}
 }
 
-function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [i: number]: string },
-	classifier: ts.Classifier, state: State, text: string, offsetDelta: number = 0, stopAtOffset?: number): Modes.ILineTokens {
+function tokenize2(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [i: number]: string },
+	classifier: ts.Classifier, state: State2, text: string): Modes.ILineTokens2 {
 
 	// Create result early and fill in tokens
 	var ret = {
-		tokens: <Modes.IToken[]>[],
-		actualStopOffset: offsetDelta + text.length,
-		endState: new State(state.getMode(), state.getStateData(), state.language, ts.EndOfLineState.None, false),
-		modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
+		tokens: <Modes.IToken2[]>[],
+		endState: new State2(state.language, ts.EndOfLineState.None, false)
 	};
 
 	function appendFn(startIndex:number, type:string):void {
-		if(ret.tokens.length === 0 || ret.tokens[ret.tokens.length - 1].type !== type) {
-			ret.tokens.push(new supports.Token(startIndex, type));
+		if(ret.tokens.length === 0 || ret.tokens[ret.tokens.length - 1].scopes !== type) {
+			ret.tokens.push({
+				startIndex: startIndex,
+				scopes: type
+			});
 		}
 	}
 
 	var isTypeScript = state.language === Language.TypeScript;
 
 	// shebang statement, #! /bin/node
-	if (!isTypeScript && checkSheBang(state, offsetDelta, text, appendFn)) {
+	if (!isTypeScript && checkSheBang(0, text, appendFn)) {
 		return ret;
 	}
 
@@ -119,18 +96,18 @@ function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [
 			// punctions: check for brackets: (){}[]
 			var ch = text.charCodeAt(offset);
 			type = bracketTypeTable[ch] || tokenTypeTable[entry.classification];
-			appendFn(offset + offsetDelta, type);
+			appendFn(offset, type);
 
 		} else if (entry.classification === ts.TokenClass.Comment) {
 			// comments: check for JSDoc, block, and line comments
 			if (ret.endState.inJsDocComment || /\/\*\*.*\*\//.test(text.substr(offset, entry.length))) {
-				appendFn(offset + offsetDelta, isTypeScript ? 'comment.doc.ts' : 'comment.doc.js');
+				appendFn(offset, isTypeScript ? 'comment.doc.ts' : 'comment.doc.js');
 			} else {
-				appendFn(offset + offsetDelta, isTypeScript ? 'comment.ts' : 'comment.js');
+				appendFn(offset, isTypeScript ? 'comment.ts' : 'comment.js');
 			}
 		} else {
 			// everything else
-			appendFn(offset + offsetDelta,
+			appendFn(offset,
 				tokenTypeTable[entry.classification] || '');
 		}
 
@@ -179,7 +156,7 @@ jsTokenTypeTable[ts.TokenClass.RegExpLiteral] = 'regexp.js';
 jsTokenTypeTable[ts.TokenClass.StringLiteral] = 'string.js';
 
 
-function checkSheBang(state: State, deltaOffset: number, line: string, appendFn: (startIndex: number, type: string) => void): boolean {
+function checkSheBang(deltaOffset: number, line: string, appendFn: (startIndex: number, type: string) => void): boolean {
 	if (line.indexOf('#!') === 0) {
 		appendFn(deltaOffset, 'comment.shebang');
 		return true;

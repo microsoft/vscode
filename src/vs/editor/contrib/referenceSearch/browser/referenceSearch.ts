@@ -18,9 +18,9 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {IReference, ReferenceSearchRegistry} from 'vs/editor/common/modes';
+import {Location, ReferenceProviderRegistry} from 'vs/editor/common/modes';
 import {IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import {findReferences} from '../common/referenceSearch';
+import {provideReferences} from '../common/referenceSearch';
 import {ReferenceWidget} from './referencesWidget';
 import {ReferencesController, RequestOptions, ctxReferenceSearchVisible} from './referencesController';
 import {ReferencesModel} from './referencesModel';
@@ -61,7 +61,7 @@ export class ReferenceAction extends EditorAction {
 	}
 
 	public isSupported():boolean {
-		return ReferenceSearchRegistry.has(this.editor.getModel()) && super.isSupported();
+		return ReferenceProviderRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
 	public getEnablementState():boolean {
@@ -69,20 +69,13 @@ export class ReferenceAction extends EditorAction {
 			return false;
 		}
 
-		let model = this.editor.getModel();
-		let position = this.editor.getSelection().getStartPosition();
-		let context = model.getLineContext(position.lineNumber);
-		let offset = position.column - 1;
-
-		return ReferenceSearchRegistry.all(model).some(support => {
-			return support.canFindReferences(context, offset);
-		});
+		return ReferenceProviderRegistry.has(this.editor.getModel());
 	}
 
 	public run():TPromise<boolean> {
 		let range = this.editor.getSelection();
 		let model = this.editor.getModel();
-		let references = findReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
+		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
 		let controller = ReferencesController.getController(this.editor);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions)).then(() => true);
 	}
@@ -104,14 +97,14 @@ let findReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 			return;
 		}
 
-		let references = findReferences(control.getModel(), position).then(references => new ReferencesModel(references));
+		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
 		let controller = ReferencesController.getController(control);
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
 };
 
-let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resource:URI, position:editorCommon.IPosition, references:IReference[]) => {
+let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resource:URI, position:editorCommon.IPosition, references:Location[]) => {
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri expected');
 	}
@@ -176,7 +169,7 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: CommonEditorRegistry.commandWeight(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(KbExpr.has(ctxReferenceSearchVisible), KbExpr.has('config.editor.dismissPeekOnEsc')),
+	when: KbExpr.and(KbExpr.has(ctxReferenceSearchVisible), KbExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });
 
@@ -185,6 +178,6 @@ KeybindingsRegistry.registerCommandDesc({
 	weight: CommonEditorRegistry.commandWeight(-101),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: KbExpr.and(KbExpr.has(ReferenceWidget.INNER_EDITOR_CONTEXT_KEY), KbExpr.has('config.editor.dismissPeekOnEsc')),
+	when: KbExpr.and(KbExpr.has(ReferenceWidget.INNER_EDITOR_CONTEXT_KEY), KbExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });

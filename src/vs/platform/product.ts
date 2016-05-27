@@ -21,7 +21,6 @@ export interface IProductConfiguration {
 	date: string;
 	extensionsGallery: {
 		serviceUrl: string;
-		cacheUrl: string;
 		itemUrl: string;
 	};
 	extensionTips: { [id: string]: string; };

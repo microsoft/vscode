@@ -10,7 +10,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import HtmlContent = require('vs/base/common/htmlContent');
 import Parser = require('./parser/jsonParser');
-import JSONFormatter = require('vs/languages/json/common/features/jsonFormatter');
+import JSONFormatter = require('vs/base/common/jsonFormatter');
 import SchemaService = require('./jsonSchemaService');
 import JSONSchema = require('vs/base/common/jsonSchema');
 import JSONIntellisense = require('./jsonIntellisense');
@@ -68,7 +68,7 @@ export interface IJSONWorkerContribution {
 	collectDefaultSuggestions(resource: URI, result: ISuggestionsCollector): WinJS.Promise;
 }
 
-export class JSONWorker implements Modes.IExtraInfoSupport {
+export class JSONWorker {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private requestService: IRequestService;
@@ -265,7 +265,7 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 
 	}
 
-	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+	public provideCompletionItems(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
 		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 
@@ -275,7 +275,7 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 		return this.jsonIntellisense.doSuggest(resource, modelMirror, position);
 	}
 
-	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
+	public provideHover(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.Hover> {
 
 		var modelMirror = this.resourceService.get(resource);
 
@@ -333,11 +333,10 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 		});
 	}
 
-	private createInfoResult(htmlContent : HtmlContent.IHTMLContentElement[], node: Parser.ASTNode, modelMirror: EditorCommon.IMirrorModel) : Modes.IComputeExtraInfoResult {
+	private createInfoResult(htmlContent : HtmlContent.IHTMLContentElement[], node: Parser.ASTNode, modelMirror: EditorCommon.IMirrorModel) : Modes.Hover {
 		var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
 
-		var result:Modes.IComputeExtraInfoResult = {
-			value: '',
+		var result:Modes.Hover = {
 			htmlContent: htmlContent,
 			range: range
 		};
@@ -345,7 +344,7 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 	}
 
 
-	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
+	public provideDocumentSymbols(resource:URI):WinJS.TPromise<Modes.SymbolInformation[]> {
 		var modelMirror = this.resourceService.get(resource);
 
 		var parser = new Parser.JSONParser();
@@ -359,13 +358,20 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 		var resourceString = resource.toString();
 		if ((resourceString === 'vscode://defaultsettings/keybindings.json') || Strings.endsWith(resourceString.toLowerCase(), '/user/keybindings.json')) {
 			if (root.type === 'array') {
-				var result : Modes.IOutlineEntry[] = [];
+				var result : Modes.SymbolInformation[] = [];
 				(<Parser.ArrayASTNode> root).items.forEach((item) => {
 					if (item.type === 'object') {
 						var property = (<Parser.ObjectASTNode> item).getFirstProperty('key');
 						if (property && property.value) {
 							var range = modelMirror.getRangeFromOffsetAndLength(item.start, item.end - item.start);
-							result.push({ label: property.value.getValue(), icon: 'function', type: 'string', range: range, children: []});
+							result.push({
+								name: property.value.getValue(),
+								kind: Modes.SymbolKind.String,
+								location: {
+									uri: resource,
+									range: range
+								}
+							});
 						}
 					}
 				});
@@ -373,10 +379,10 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 			}
 		}
 
-		function collectOutlineEntries(result: Modes.IOutlineEntry[], node: Parser.ASTNode): Modes.IOutlineEntry[] {
+		function collectOutlineEntries(result: Modes.SymbolInformation[], node: Parser.ASTNode, containerName: string): Modes.SymbolInformation[] {
 			if (node.type === 'array') {
 				(<Parser.ArrayASTNode>node).items.forEach((node:Parser.ASTNode) => {
-					collectOutlineEntries(result, node);
+					collectOutlineEntries(result, node, containerName);
 				});
 			} else if (node.type === 'object') {
 				var objectNode = <Parser.ObjectASTNode>node;
@@ -385,20 +391,48 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 					var range = modelMirror.getRangeFromOffsetAndLength(property.start, property.end - property.start);
 					var valueNode = property.value;
 					if (valueNode) {
-						var children = collectOutlineEntries([], valueNode);
-						var icon = valueNode.type === 'object' ? 'module' : valueNode.type;
-						result.push({ label: property.key.getValue(), icon: icon, type: valueNode.type, range: range, children: children});
+						let childContainerName = containerName ? containerName + '.' + property.key.name : property.key.name;
+						result.push({
+							name: property.key.getValue(),
+							kind: getSymbolKind(valueNode.type),
+							location: {
+								uri: resource,
+								range: range,
+							},
+							containerName: containerName
+						});
+						collectOutlineEntries(result, valueNode, childContainerName);
 					}
 				});
 			}
 			return result;
 		}
-		var result = collectOutlineEntries([], root);
+		var result = collectOutlineEntries([], root, void 0);
 		return WinJS.TPromise.as(result);
 	}
 
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
-		var model = this.resourceService.get(resource);
-		return WinJS.TPromise.as(JSONFormatter.format(model, range, options));
+		let model = this.resourceService.get(resource);
+		let formatRange = range ? model.getOffsetAndLengthFromRange(range) : void 0;
+		let edits = JSONFormatter.format(model.getValue(), formatRange, { insertSpaces: options.insertSpaces, tabSize: options.tabSize, eol: model.getEOL() });
+		let operations = edits.map(e => ({ range: model.getRangeFromOffsetAndLength(e.offset, e.length), text: e.content }));
+		return WinJS.TPromise.as(operations);
+	}
+}
+
+function getSymbolKind(nodeType: string): Modes.SymbolKind {
+	switch (nodeType) {
+		case 'object':
+			return Modes.SymbolKind.Module;
+		case 'string':
+			return Modes.SymbolKind.String;
+		case 'number':
+			return Modes.SymbolKind.Number;
+		case 'array':
+			return Modes.SymbolKind.Array;
+		case 'boolean':
+			return Modes.SymbolKind.Boolean;
+		default: // 'null'
+			return Modes.SymbolKind.Variable;
 	}
 }

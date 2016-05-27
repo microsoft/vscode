@@ -8,7 +8,7 @@ import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Position} from 'vs/editor/common/core/position';
-import {IEditorPosition, IPosition, EventType, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {IPosition, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {Widget} from 'vs/base/browser/ui/widget';
 
@@ -19,7 +19,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	protected _isVisible: boolean;
 	private _containerDomNode: HTMLElement;
 	protected _domNode: HTMLElement;
-	protected _showAtPosition: IEditorPosition;
+	protected _showAtPosition: Position;
 	private _stoleFocus: boolean;
 
 	// Editor.IContentWidget.allowEditorOverflow
@@ -45,7 +45,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		});
 
 		this._editor.applyFontInfo(this._domNode);
-		this._register(this._editor.addListener2(EventType.ConfigurationChanged, (e:IConfigurationChangedEvent) => {
+		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this._editor.applyFontInfo(this._domNode);
 			}
@@ -144,7 +144,7 @@ export class GlyphHoverWidget extends Widget implements editorBrowser.IOverlayWi
 		this._showAtLineNumber = -1;
 
 		this._editor.applyFontInfo(this._domNode);
-		this._register(this._editor.addListener2(EventType.ConfigurationChanged, (e:IConfigurationChangedEvent) => {
+		this._register(this._editor.onDidChangeConfiguration((e:IConfigurationChangedEvent) => {
 			if (e.fontInfo) {
 				this._editor.applyFontInfo(this._domNode);
 			}

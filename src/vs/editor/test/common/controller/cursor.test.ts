@@ -722,10 +722,10 @@ suite('Editor Controller - Cursor', () => {
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
-		thisCursor.addListener(EventType.CursorPositionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorPositionChanged, (e) => {
 			assert.ok(false, 'was not expecting event');
 		});
-		thisCursor.addListener(EventType.CursorSelectionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorSelectionChanged, (e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		moveTo(thisCursor, 1, 1);
@@ -733,11 +733,11 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move eventing', () => {
 		let events = 0;
-		thisCursor.addListener(EventType.CursorPositionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorPositionChanged, (e) => {
 			events++;
 			positionEqual(e.position, 1, 2);
 		});
-		thisCursor.addListener(EventType.CursorSelectionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorSelectionChanged, (e) => {
 			events++;
 			selectionEqual(e.selection, 1, 2, 1, 2);
 		});
@@ -747,11 +747,11 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move in selection mode eventing', () => {
 		let events = 0;
-		thisCursor.addListener(EventType.CursorPositionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorPositionChanged, (e) => {
 			events++;
 			positionEqual(e.position, 1, 2);
 		});
-		thisCursor.addListener(EventType.CursorSelectionChanged, (e) => {
+		thisCursor.addListener2(EventType.CursorSelectionChanged, (e) => {
 			events++;
 			selectionEqual(e.selection, 1, 2, 1, 1);
 		});
@@ -1420,7 +1420,7 @@ suite('Editor Controller - Regression tests', () => {
 			moveTo(cursor, 3, 4, true);
 
 			let isFirst = true;
-			model.addListener2(EventType.ModelContentChanged, (e) => {
+			model.onDidChangeContent(() => {
 				if (isFirst) {
 					isFirst = false;
 					cursorCommand(cursor, H.Type, { text: '\t' }, 'keyboard');
@@ -1550,6 +1550,42 @@ suite('Editor Controller - Regression tests', () => {
 			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '3 */  ', '011');
 			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' */  ', '012');
 			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '  ', '013');
+		});
+	});
+
+	test('issue #3882: deleteWordRight', () => {
+		usingCursor({
+			text: [
+				'public void Add( int x,',
+				'                 int y )'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 24, false);
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+		});
+	});
+
+	test('issue #3882: deleteWordStartRight', () => {
+		usingCursor({
+			text: [
+				'public void Add( int x,',
+				'                 int y )'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 24, false);
+			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+		});
+	});
+
+	test('issue #3882: deleteWordEndRight', () => {
+		usingCursor({
+			text: [
+				'public void Add( int x,',
+				'                 int y )'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 24, false);
+			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
 		});
 	});
 
@@ -1844,7 +1880,7 @@ suite('Editor Controller - Regression tests', () => {
 			],
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 18, false);
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'A line with text.And another one', '001');
 		});
 	});
 

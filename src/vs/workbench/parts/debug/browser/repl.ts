@@ -106,7 +106,9 @@ export class Repl extends Panel {
 					const elements = this.debugService.getModel().getReplElements();
 					const lastElement = elements.length > 0 ? elements[elements.length - 1] : null;
 					if (lastElement instanceof Expression && lastElement.reference > 0) {
-						return this.tree.expand(elements[elements.length - 1]);
+						return this.tree.expand(elements[elements.length - 1]).then(() =>
+							this.tree.reveal(elements[elements.length - 1], 0)
+						);
 					}
 				}, errors.onUnexpectedError);
 			}, Repl.REFRESH_DELAY);

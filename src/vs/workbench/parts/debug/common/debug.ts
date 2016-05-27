@@ -12,6 +12,7 @@ import { IViewletView } from 'vs/workbench/browser/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {Range} from 'vs/editor/common/core/range';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
@@ -408,7 +409,7 @@ export interface IDebugService {
 
 // Editor interfaces
 export interface IDebugEditorContribution extends editor.IEditorContribution {
-	showHover(range: editor.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void>;
+	showHover(range: Range, hoveringOver: string, focus: boolean): TPromise<void>;
 }
 
 // Debug view registration

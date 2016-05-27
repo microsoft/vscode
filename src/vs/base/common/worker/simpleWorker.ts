@@ -157,9 +157,10 @@ class SimpleWorkerProtocol {
 export class SimpleWorkerClient<T> extends Disposable {
 
 	private _worker:IWorker;
-	private _onModuleLoaded:TPromise<void>;
+	private _onModuleLoaded:TPromise<string[]>;
 	private _protocol: SimpleWorkerProtocol;
 	private _proxy: T;
+	private _lazyProxy: TPromise<T>;
 	private _lastRequestTimestamp = -1;
 
 	constructor(workerFactory:IWorkerFactory, moduleId:string, ctor:any) {
@@ -190,13 +191,30 @@ export class SimpleWorkerClient<T> extends Disposable {
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
 
+		let lazyProxyFulfill : (v:T)=>void = null;
+		let lazyProxyReject: (err:any)=>void = null;
+
+		this._lazyProxy = new TPromise((c, e, p) => {
+			lazyProxyFulfill = c;
+			lazyProxyReject = e;
+		}, () => { /* no cancel */ });
+
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
 			this._worker.getId(),
 			moduleId,
 			loaderConfiguration
 		]);
-		this._onModuleLoaded.then(null, (e) => this._onError('Worker failed to load ' + moduleId, e));
+		this._onModuleLoaded.then((availableMethods:string[]) => {
+			let proxy = <T><any>{};
+			for (let i = 0; i < availableMethods.length; i++) {
+				proxy[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
+			}
+			lazyProxyFulfill(proxy);
+		}, (e) => {
+			lazyProxyReject(e);
+			this._onError('Worker failed to load ' + moduleId, e);
+		});
 
 		// Create proxy to loaded code
 		let proxyMethodRequest = (method:string, args:any[]):TPromise<any> => {
@@ -211,10 +229,13 @@ export class SimpleWorkerClient<T> extends Disposable {
 		};
 
 		this._proxy = <T><any>{};
-		for (let prop in ctor.prototype) {
-			if (ctor.prototype.hasOwnProperty(prop)) {
-				if (typeof ctor.prototype[prop] === 'function') {
-					this._proxy[prop] = createProxyMethod(prop, proxyMethodRequest);
+		if (ctor) {
+			// console.warn('deprecated');
+			for (let prop in ctor.prototype) {
+				if (ctor.prototype.hasOwnProperty(prop)) {
+					if (typeof ctor.prototype[prop] === 'function') {
+						this._proxy[prop] = createProxyMethod(prop, proxyMethodRequest);
+					}
 				}
 			}
 		}
@@ -222,6 +243,10 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 	public get(): T {
 		return this._proxy;
+	}
+
+	public getProxyObject(): TPromise<T> {
+		return this._lazyProxy;
 	}
 
 	public getLastRequestTimestamp(): number {
@@ -323,7 +348,15 @@ export class SimpleWorkerServer {
 		require([moduleId], (...result:any[]) => {
 			let handlerModule = result[0];
 			this._requestHandler = handlerModule.create();
-			cc(null);
+
+			let methods: string[] = [];
+			for (let prop in this._requestHandler) {
+				if (typeof this._requestHandler[prop] === 'function') {
+					methods.push(prop);
+				}
+			}
+
+			cc(methods);
 		}, ee);
 
 		return r;

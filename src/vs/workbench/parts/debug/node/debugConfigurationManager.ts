@@ -173,7 +173,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 			extensions.forEach(extension => {
 				extension.value.forEach(rawAdapter => {
-					const adapter = new Adapter(rawAdapter, this.systemVariables, extension.description.extensionFolderPath);
+					const adapter = new Adapter(rawAdapter, this.systemVariables, extension.description);
 					const duplicate = this.adapters.filter(a => a.type === adapter.type)[0];
 					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
 						extension.collector.error(nls.localize('debugNoType', "Debug adapter 'type' can not be omitted and must be of type 'string'."));
@@ -184,7 +184,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 							if (adapter[attribute]) {
 								if (attribute === 'enableBreakpointsFor') {
 									Object.keys(adapter.enableBreakpointsFor).forEach(languageId => duplicate.enableBreakpointsFor[languageId] = true);
-								} else if (duplicate[attribute] && attribute !== 'type') {
+								} else if (duplicate[attribute] && attribute !== 'type' && attribute !== 'extensionDescription') {
 									// give priority to the later registered extension.
 									duplicate[attribute] = adapter[attribute];
 									extension.collector.error(nls.localize('duplicateDebuggerType', "Debug type '{0}' is already registered and has attribute '{1}', ignoring attribute '{1}'.", adapter.type, attribute));
@@ -225,34 +225,39 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public get adapter(): Adapter {
+		if (!this.configuration || !this.configuration.type) {
+			return null;
+		}
+
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
 	}
 
-	public setConfiguration(name: string): TPromise<void> {
+	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
-			if (!config || !config.configurations) {
+			if (typeof nameOrConfig === 'string' && (!config || !config.configurations)) {
 				this.configuration = null;
 				return;
 			}
 
-			// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
-			const filtered = name ? config.configurations.filter(cfg => cfg.name === name) : [config.configurations[0]];
+			if (typeof nameOrConfig === 'string') {
+				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
+				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
+
+				this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
+				if (config && this.configuration) {
+					this.configuration.debugServer = config.debugServer;
+				}
+			} else {
+				this.configuration = objects.deepClone(nameOrConfig);
+			}
 
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			this.configuration = filtered.length === 1 ? objects.deepClone(filtered[0]) : null;
-			if (this.configuration) {
-				this.resloveConfiguration(this.configuration);
-				this.configuration.debugServer = config.debugServer;
+			if (this.configuration && this.systemVariables) {
+				Object.keys(this.configuration).forEach(key => {
+					this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
+				});
 			}
 		}).then(() => this._onDidConfigurationChange.fire(this.configurationName));
-	}
-
-	public resloveConfiguration(configuration: debug.IConfig) {
-		if (this.systemVariables && configuration) {
-			Object.keys(configuration).forEach(key => {
-				configuration[key] = this.systemVariables.resolveAny(configuration[key]);
-			});
-		}
 	}
 
 	public openConfigFile(sideBySide: boolean): TPromise<boolean> {
@@ -336,7 +341,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	public canSetBreakpointsIn(model: editor.IModel): boolean {
-		if (model.getAssociatedResource().scheme === Schemas.inMemory) {
+		if (model.uri.scheme === Schemas.inMemory) {
 			return false;
 		}
 

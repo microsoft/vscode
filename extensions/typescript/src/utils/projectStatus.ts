@@ -100,7 +100,7 @@ export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>P
 									projectHinted[configFileName] = true;
 									item.hide();
 
-									return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath, 'jsconfig.json')))
+									return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + encodeURIComponent(join(vscode.workspace.rootPath, 'jsconfig.json'))))
 										.then(doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.Three))
 										.then(editor => editor.edit(builder => builder.insert(new vscode.Position(0, 0), defaultConfig)));
 								}

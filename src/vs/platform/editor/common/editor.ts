@@ -77,6 +77,10 @@ export interface IResourceInput {
 	};
 }
 
+export interface IEditorControl {
+
+}
+
 export interface IEditor {
 
 	/**
@@ -102,7 +106,7 @@ export interface IEditor {
 	/**
 	 * Returns the underlying control of this editor.
 	 */
-	getControl(): IEventEmitter;
+	getControl(): IEditorControl;
 
 	/**
 	 * Asks the underlying control to focus.

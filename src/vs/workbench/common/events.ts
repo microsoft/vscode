@@ -6,10 +6,10 @@
 
 import URI from 'vs/base/common/uri';
 import {Event} from 'vs/base/common/events';
-import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {IEditor} from 'vs/platform/editor/common/editor';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {Position} from 'vs/platform/editor/common/editor';
+import {Selection} from 'vs/editor/common/core/selection';
 
 /**
  * All workbench events are listed here.
@@ -182,9 +182,9 @@ export class EditorInputEvent extends Event {
  * A subclass of EditorEvent for text editor selection changes.
  */
 export class TextEditorSelectionEvent extends EditorEvent {
-	public selection: IEditorSelection;
+	public selection: Selection;
 
-	constructor(selection: IEditorSelection, editor: IEditor, editorId: string, editorInput: EditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
+	constructor(selection: Selection, editor: IEditor, editorId: string, editorInput: EditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
 		super(editor, editorId, editorInput, editorOptions, position, originalEvent);
 
 		this.selection = selection;

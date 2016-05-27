@@ -37,7 +37,7 @@ export function testApplyEditsWithSyncedModels(original:string[], edits:editorCo
 	});
 }
 
-export  function assertSyncedModels(text:string, callback:(model:EditableTextModel, assertMirrorModels:()=>void)=>void, setup:(model:EditableTextModel)=>void = null): void {
+export function assertSyncedModels(text:string, callback:(model:EditableTextModel, assertMirrorModels:()=>void)=>void, setup:(model:EditableTextModel)=>void = null): void {
 	var model = new EditableTextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS), null);
 	model.setEOL(editorCommon.EndOfLineSequence.LF);
 
@@ -51,7 +51,7 @@ export  function assertSyncedModels(text:string, callback:(model:EditableTextMod
 	var mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.addListener(editorCommon.EventType.ModelContentChanged, (e:editorCommon.IModelContentChangedEvent) => {
+	model.onDidChangeRawContent((e:editorCommon.IModelContentChangedEvent) => {
 		let versionId = e.versionId;
 		if (versionId < mirrorModel1PrevVersionId) {
 			console.warn('Model version id did not advance between edits (1)');
@@ -63,7 +63,7 @@ export  function assertSyncedModels(text:string, callback:(model:EditableTextMod
 		mirrorModel1.onEvents(mirrorModelEvents);
 	});
 
-	model.addListener(editorCommon.EventType.ModelContentChanged2, (e:editorCommon.IModelContentChangedEvent2) => {
+	model.onDidChangeContent((e:editorCommon.IModelContentChangedEvent2) => {
 		let versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');

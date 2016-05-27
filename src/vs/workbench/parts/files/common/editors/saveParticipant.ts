@@ -10,7 +10,7 @@ import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {TextFileChangeEvent, EventType} from 'vs/workbench/parts/files/common/files';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {IPosition, IEditorSelection, IModel} from 'vs/editor/common/editorCommon';
+import {IPosition, IModel} from 'vs/editor/common/editorCommon';
 import {Selection} from 'vs/editor/common/core/selection';
 import {trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -58,7 +58,7 @@ export class SaveParticipant implements IWorkbenchContribution {
 	 * Trim trailing whitespace on a model and ignore lines on which cursors are sitting if triggered via auto save.
 	 */
 	private doTrimTrailingWhitespace(model: IModel, isAutoSaved: boolean): void {
-		let prevSelection: IEditorSelection[] = [Selection.createSelection(1, 1, 1, 1)];
+		let prevSelection: Selection[] = [Selection.createSelection(1, 1, 1, 1)];
 		let cursors: IPosition[] = [];
 
 		// If this is auto save, try to find active cursors to prevent removing

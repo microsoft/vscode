@@ -12,11 +12,13 @@ import {ILineEdit, ILineMarker, ModelLine} from 'vs/editor/common/model/modelLin
 import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
 import * as strings from 'vs/base/common/strings';
+import {Selection} from 'vs/editor/common/core/selection';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
 	identifier: editorCommon.ISingleEditOperationIdentifier;
-	range: editorCommon.IEditorRange;
+	range: Range;
 	rangeLength: number;
 	lines: string[];
 	forceMoveMarkers: boolean;
@@ -28,6 +30,13 @@ interface IIdentifiedLineEdit extends ILineEdit{
 }
 
 export class EditableTextModel extends TextModelWithDecorations implements editorCommon.IEditableTextModel {
+
+	public onDidChangeRawContent(listener: (e:editorCommon.IModelContentChangedEvent)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
+	}
+	public onDidChangeContent(listener: (e:editorCommon.IModelContentChangedEvent2)=>void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
+	}
 
 	private _commandManager:EditStack;
 
@@ -42,7 +51,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	private _trimAutoWhitespaceLines: number[];
 
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
-		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged);
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged2);
 		super(allowedEventTypes, rawText, modeOrPromise);
 
@@ -75,7 +84,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		this._commandManager.pushStackElement();
 	}
 
-	public pushEditOperations(beforeCursorState:editorCommon.IEditorSelection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): editorCommon.IEditorSelection[] {
+	public pushEditOperations(beforeCursorState:Selection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): Selection[] {
 		return this.deferredEmit(() => {
 			if (this._options.trimAutoWhitespace && this._trimAutoWhitespaceLines) {
 				// Go through each saved line number and insert a trim whitespace edit
@@ -336,8 +345,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	/**
 	 * Assumes `operations` are validated and sorted ascending
 	 */
-	public static _getInverseEditRanges(operations:IValidatedEditOperation[]): editorCommon.IEditorRange[] {
-		let result:editorCommon.IEditorRange[] = [];
+	public static _getInverseEditRanges(operations:IValidatedEditOperation[]): Range[] {
+		let result:Range[] = [];
 
 		let prevOpEndLineNumber: number;
 		let prevOpEndColumn: number;
@@ -361,7 +370,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				startColumn = op.range.startColumn;
 			}
 
-			let resultRange: editorCommon.IEditorRange;
+			let resultRange: Range;
 
 			if (op.lines && op.lines.length > 0) {
 				// the operation inserts something
@@ -593,7 +602,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				for (let i = 0, len = contentChangedEvents.length; i < len; i++) {
-					this.emit(editorCommon.EventType.ModelContentChanged, contentChangedEvents[i]);
+					this.emit(editorCommon.EventType.ModelRawContentChanged, contentChangedEvents[i]);
 				}
 				for (let i = 0, len = contentChanged2Events.length; i < len; i++) {
 					this.emit(editorCommon.EventType.ModelContentChanged2, contentChanged2Events[i]);
@@ -631,7 +640,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		}
 	}
 
-	public undo(): editorCommon.IEditorSelection[] {
+	public undo(): Selection[] {
 		return this._withDeferredEvents(() => {
 			this._isUndoing = true;
 			let r = this._commandManager.undo();
@@ -647,7 +656,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		});
 	}
 
-	public redo(): editorCommon.IEditorSelection[] {
+	public redo(): Selection[] {
 		return this._withDeferredEvents(() => {
 			this._isRedoing = true;
 			let r = this._commandManager.redo();
@@ -681,7 +690,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return this._hasEditableRange;
 	}
 
-	public getEditableRange(): editorCommon.IEditorRange {
+	public getEditableRange(): Range {
 		if (this._hasEditableRange) {
 			return this.getTrackedRange(this._editableRangeId);
 		} else {
@@ -691,7 +700,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _createLineChangedEvent(lineNumber: number): editorCommon.IModelContentChangedLineChangedEvent {
 		return {
-			changeType: editorCommon.EventType.ModelContentChangedLineChanged,
+			changeType: editorCommon.EventType.ModelRawContentChangedLineChanged,
 			lineNumber: lineNumber,
 			detail: this._lines[lineNumber - 1].text,
 			versionId: -1,
@@ -702,7 +711,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
 		return {
-			changeType: editorCommon.EventType.ModelContentChangedLinesDeleted,
+			changeType: editorCommon.EventType.ModelRawContentChangedLinesDeleted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
 			versionId: -1,
@@ -713,7 +722,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _createLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): editorCommon.IModelContentChangedLinesInsertedEvent {
 		return {
-			changeType: editorCommon.EventType.ModelContentChangedLinesInserted,
+			changeType: editorCommon.EventType.ModelRawContentChangedLinesInserted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
 			detail: newLinesContent,

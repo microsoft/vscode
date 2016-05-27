@@ -18,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {FIND_IDS, FindModelBoundToEditorModel} from 'vs/editor/contrib/find/common/findModel';
 import {FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState} from 'vs/editor/contrib/find/common/findState';
-import {OccurrencesRegistry} from 'vs/editor/common/modes';
+import {DocumentHighlightProviderRegistry} from 'vs/editor/common/modes';
 import {RunOnceScheduler} from 'vs/base/common/async';
 
 export enum FindStartFocusAction {
@@ -60,7 +60,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 		this._model = null;
 
-		this._register(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => {
+		this._register(this._editor.onDidChangeModel(() => {
 			let shouldRestartFind = (this._editor.getModel() && this._state.isRevealed);
 
 			this.disposeModel();
@@ -353,14 +353,14 @@ export interface IMultiCursorFindResult {
 	matchCase:boolean;
 	wholeWord:boolean;
 
-	nextMatch: editorCommon.IEditorSelection;
+	nextMatch: Selection;
 }
 
 function multiCursorFind(editor:editorCommon.ICommonCodeEditor, changeFindSearchString:boolean): IMultiCursorFindResult {
 	let controller = CommonFindController.getFindController(editor);
 	let state = controller.getState();
 	let searchText: string,
-		nextMatch: editorCommon.IEditorSelection;
+		nextMatch: Selection;
 
 	// In any case, if the find widget was ever opened, the options are taken from it
 	let wholeWord = state.wholeWord;
@@ -411,7 +411,7 @@ export class SelectNextFindMatchAction extends EditorAction {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
 
-	protected _getNextMatch(): editorCommon.IEditorSelection {
+	protected _getNextMatch(): Selection {
 		let r = multiCursorFind(this.editor, true);
 		if (!r) {
 			return null;
@@ -514,7 +514,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	private editor: editorCommon.ICommonCodeEditor;
 	private decorations: string[];
 	private updateSoon: RunOnceScheduler;
-	private lastWordUnderCursor: editorCommon.IEditorRange;
+	private lastWordUnderCursor: Range;
 
 	constructor(editor:editorCommon.ICommonCodeEditor) {
 		super();
@@ -523,7 +523,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.lastWordUnderCursor = null;
 
-		this._register(editor.addListener2(editorCommon.EventType.CursorSelectionChanged, (e: editorCommon.ICursorSelectionChangedEvent) => {
+		this._register(editor.onDidChangeCursorSelection((e: editorCommon.ICursorSelectionChangedEvent) => {
 			if (e.selection.isEmpty()) {
 				if (e.reason === editorCommon.CursorChangeReason.Explicit) {
 					if (!this.lastWordUnderCursor || !this.lastWordUnderCursor.containsPosition(e.selection.getStartPosition())) {
@@ -539,7 +539,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 				this._update();
 			}
 		}));
-		this._register(editor.addListener2(editorCommon.EventType.ModelChanged, (e) => {
+		this._register(editor.onDidChangeModel((e) => {
 			this.removeDecorations();
 		}));
 		this._register(CommonFindController.getFindController(editor).getState().addChangeListener((e) => {
@@ -575,7 +575,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			return;
 		}
 
-		let hasFindOccurences = OccurrencesRegistry.has(model);
+		let hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
 		if (r.nextMatch) {
 			// This is an empty selection
 			if (hasFindOccurences) {
@@ -614,7 +614,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		selections.sort(Range.compareRangesUsingStarts);
 
 		// do not overlap with selection (issue #64 and #512)
-		let matches: editorCommon.IEditorRange[] = [];
+		let matches: Range[] = [];
 		for (let i = 0, j = 0, len = allMatches.length, lenJ = selections.length; i < len; ) {
 			let match = allMatches[i];
 
@@ -736,10 +736,10 @@ registerFindCommand(FIND_IDS.ToggleRegexCommand, x => x.toggleRegex(), {
 });
 registerFindCommand(FIND_IDS.ReplaceOneAction, x => x.replace(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);
 registerFindCommand(FIND_IDS.ReplaceAllAction, x => x.replaceAll(), {
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);
 registerFindCommand(FIND_IDS.SelectAllMatchesAction, x => x.selectAllMatches(), {
 	primary: KeyMod.Alt | KeyCode.Enter
-});
+}, CONTEXT_FIND_WIDGET_VISIBLE);

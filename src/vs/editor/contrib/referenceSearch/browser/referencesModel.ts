@@ -9,12 +9,12 @@ import Event, {fromEventEmitter} from 'vs/base/common/event';
 import {basename, dirname} from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import {generateUuid} from 'vs/base/common/uuid';
+import {defaultGenerator} from 'vs/base/common/idGenerator';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {Range} from 'vs/editor/common/core/range';
 import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
-import {IReference} from 'vs/editor/common/modes';
+import {Location} from 'vs/editor/common/modes';
 
 export class OneReference {
 
@@ -25,7 +25,7 @@ export class OneReference {
 		private _range: IRange,
 		private _eventBus: EventEmitter
 	) {
-		this._id = generateUuid();
+		this._id = defaultGenerator.nextId();
 	}
 
 	public get id(): string {
@@ -40,8 +40,8 @@ export class OneReference {
 		return this._parent;
 	}
 
-	public get resource(): URI {
-		return this._parent.resource;
+	public get uri(): URI {
+		return this._parent.uri;
 	}
 
 	public get name(): string {
@@ -96,12 +96,12 @@ export class FileReferences {
 	private _preview: FilePreview;
 	private _resolved: boolean;
 
-	constructor(private _parent: ReferencesModel, private _resource: URI) {
+	constructor(private _parent: ReferencesModel, private _uri: URI) {
 		this._children = [];
 	}
 
 	public get id(): string {
-		return this._resource.toString();
+		return this._uri.toString();
 	}
 
 	public get parent(): ReferencesModel {
@@ -112,16 +112,16 @@ export class FileReferences {
 		return this._children;
 	}
 
-	public get resource(): URI {
-		return this._resource;
+	public get uri(): URI {
+		return this._uri;
 	}
 
 	public get name(): string {
-		return basename(this.resource.fsPath);
+		return basename(this.uri.fsPath);
 	}
 
 	public get directory(): string {
-		return dirname(this.resource.fsPath);
+		return dirname(this.uri.fsPath);
 	}
 
 	public get preview(): FilePreview {
@@ -134,7 +134,7 @@ export class FileReferences {
 			return TPromise.as(this);
 		}
 
-		return editorService.resolveEditorModel({ resource: this._resource }).then(model => {
+		return editorService.resolveEditorModel({ resource: this._uri }).then(model => {
 			this._preview = new FilePreview((<IModel>model.textEditorModel).getValue());
 			this._resolved = true;
 			return this;
@@ -150,16 +150,16 @@ export class ReferencesModel {
 
 	onDidChangeReferenceRange: Event<OneReference> = fromEventEmitter<OneReference>(this._eventBus, 'ref/changed');
 
-	constructor(references: IReference[]) {
+	constructor(references: Location[]) {
 
 		// grouping and sorting
 		references.sort(ReferencesModel._compareReferences);
 
 		let current: FileReferences;
 		for (let ref of references) {
-			if (!current || current.resource.toString() !== ref.resource.toString()) {
+			if (!current || current.uri.toString() !== ref.uri.toString()) {
 				// new group
-				current = new FileReferences(this, ref.resource);
+				current = new FileReferences(this, ref.uri);
 				this.groups.push(current);
 			}
 
@@ -206,7 +206,7 @@ export class ReferencesModel {
 		let candidate: OneReference;
 		let candiateDist: number;
 		for (let ref of this._references) {
-			if (ref.resource.toString() !== resource.toString()) {
+			if (ref.uri.toString() !== resource.toString()) {
 				continue;
 			}
 
@@ -227,10 +227,10 @@ export class ReferencesModel {
 		return candidate || this._references[0];
 	}
 
-	private static _compareReferences(a: IReference, b: IReference): number {
-		if (a.resource.toString() < b.resource.toString()) {
+	private static _compareReferences(a: Location, b: Location): number {
+		if (a.uri.toString() < b.uri.toString()) {
 			return -1;
-		} else if (a.resource.toString() > b.resource.toString()) {
+		} else if (a.uri.toString() > b.uri.toString()) {
 			return 1;
 		} else {
 			return Range.compareRangesUsingStarts(a.range, b.range);

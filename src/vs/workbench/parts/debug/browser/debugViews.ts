@@ -16,7 +16,7 @@ import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import splitview = require('vs/base/browser/ui/splitview/splitview');
 import viewlet = require('vs/workbench/browser/viewlet');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import { StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
+import { StackFrame, Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -168,7 +168,7 @@ export class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-				this.tree.addOneTimeListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+				this.tree.addOneTimeDisposableListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
 					}
@@ -224,47 +224,8 @@ export class CallStackView extends viewlet.CollapsibleViewletView {
 			dataSource: this.instantiationService.createInstance(viewer.CallStackDataSource),
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider),
-			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, actionProvider)
+			controller: new viewer.CallStackController(this.debugService, this.contextMenuService, actionProvider)
 		}, debugTreeOptions(nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel'}, "Debug Call Stack")));
-
-		this.toDispose.push(this.tree.addListener2('selection', (e: tree.ISelectionEvent) => {
-			if (!e.selection.length || !e.payload) {
-				// Ignore the event if it was not initated by user.
-				// Debug sometimes automaticaly sets the selected frame, and those events we need to ignore.
-				return;
-			}
-			const element = e.selection[0];
-
-			if (element instanceof StackFrame) {
-				const stackFrame = <debug.IStackFrame> element;
-				this.debugService.setFocusedStackFrameAndEvaluate(stackFrame).done(null, errors.onUnexpectedError);
-
-				const isMouse = (e.payload && e.payload.origin === 'mouse');
-				let preserveFocus = isMouse;
-
-				const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
-				if (originalEvent && isMouse && originalEvent.detail === 2) {
-					preserveFocus = false;
-					originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
-				}
-
-				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-			}
-
-			// user clicked on 'Load More Stack Frames', get those stack frames and refresh the tree.
-			if (typeof element === 'number') {
-				const thread = this.debugService.getModel().getThreads()[element];
-				if (thread) {
-					thread.getCallStack(this.debugService, true)
-					.then(() => this.tree.refresh())
-					.then(() => {
-						this.tree.clearFocus();
-						this.tree.clearSelection();
-					}).done(null, errors.onUnexpectedError);
-				}
-			}
-		}));
 
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
 			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
@@ -386,31 +347,6 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 
 		this.tree.setInput(debugModel);
 
-		this.toDispose.push(this.tree.addListener2('selection', (e: tree.ISelectionEvent) => {
-			if (!e.selection.length) {
-				return;
-			}
-			const element = e.selection[0];
-			if (!(element instanceof Breakpoint)) {
-				return;
-			}
-
-			const breakpoint = <debug.IBreakpoint> element;
-			if (!breakpoint.source.inMemory) {
-				const isMouse = (e.payload.origin === 'mouse');
-				let preserveFocus = isMouse;
-
-				const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
-				if (originalEvent && isMouse && originalEvent.detail === 2) {
-					preserveFocus = false;
-					originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
-				}
-
-				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				this.debugService.openOrRevealSource(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-			}
-		}));
-
 		this.toDispose.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(fbp => {
 			if (!fbp || !(fbp instanceof FunctionBreakpoint)) {
 				return;
@@ -418,7 +354,7 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 
 			this.tree.refresh(fbp, false).then(() => {
 				this.tree.setHighlight(fbp);
-				this.tree.addOneTimeListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+				this.tree.addOneTimeDisposableListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedFunctionBreakpoint(null);
 					}

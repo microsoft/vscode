@@ -340,6 +340,11 @@
       "from": "preserve@>=0.2.0 <0.3.0",
       "resolved": "https://registry.npmjs.org/preserve/-/preserve-0.2.0.tgz"
     },
+    "pty.js": {
+      "version": "0.3.0",
+      "from": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d",
+      "resolved": "https://github.com/Tyriar/pty.js/tarball/fffbf86eb9e8051b5b2be4ba9c7b07faa018ce8d"
+    },
     "randomatic": {
       "version": "1.1.5",
       "from": "randomatic@>=1.1.3 <2.0.0",
@@ -390,20 +395,25 @@
       "from": "string_decoder@>=0.10.0 <0.11.0",
       "resolved": "https://registry.npmjs.org/string_decoder/-/string_decoder-0.10.31.tgz"
     },
+    "term.js": {
+      "version": "0.0.7",
+      "from": "https://github.com/jeremyramin/term.js/tarball/master",
+      "resolved": "https://github.com/jeremyramin/term.js/tarball/master"
+    },
     "typechecker": {
       "version": "2.0.8",
       "from": "typechecker@>=2.0.1 <2.1.0",
       "resolved": "https://registry.npmjs.org/typechecker/-/typechecker-2.0.8.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.8.0",
-      "from": "vscode-debugprotocol@1.8.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.8.0.tgz"
+      "version": "1.9.0",
+      "from": "vscode-debugprotocol@1.9.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.9.0.tgz"
     },
     "vscode-textmate": {
-      "version": "1.0.11",
-      "from": "vscode-textmate@1.0.11",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.0.11.tgz"
+      "version": "1.1.0",
+      "from": "vscode-textmate@1.1.0",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-1.1.0.tgz"
     },
     "windows-mutex": {
       "version": "0.2.0",

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
+import modes = require('vs/editor/common/modes');
 import htmlMode = require('vs/languages/html/common/html');
 import csharpTokenization = require('vs/languages/razor/common/csharpTokenization');
 import {createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
@@ -15,12 +15,13 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
 class RAZORState extends htmlMode.State {
 
-	constructor(mode:Modes.IMode, kind:htmlMode.States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValue:string) {
+	constructor(mode:modes.IMode, kind:htmlMode.States, lastTagName:string, lastAttributeName:string, embeddedContentType:string, attributeValueQuote:string, attributeValue:string) {
 		super(mode, kind, lastTagName, lastAttributeName, embeddedContentType, attributeValueQuote, attributeValue);
 	}
 
@@ -28,7 +29,7 @@ class RAZORState extends htmlMode.State {
 		return new RAZORState(this.getMode(), this.kind, this.lastTagName, this.lastAttributeName, this.embeddedContentType, this.attributeValueQuote, this.attributeValue);
 	}
 
-	public equals(other:Modes.IState):boolean {
+	public equals(other:modes.IState):boolean {
 		if (other instanceof RAZORState) {
 			return (
 				super.equals(other)
@@ -37,7 +38,7 @@ class RAZORState extends htmlMode.State {
 		return false;
 	}
 
-	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
+	public tokenize(stream:modes.IStream):modes.ITokenizationResult {
 
 		if (!stream.eos() && stream.peek() === '@') {
 			stream.next();
@@ -56,21 +57,52 @@ class RAZORState extends htmlMode.State {
 export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModeService modeService: IModeService,
 		@IThreadService threadService: IThreadService
 	) {
 		super(descriptor, instantiationService, modeService, threadService);
-
-		this.formattingSupport = null;
 	}
 
-	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {
+	protected _registerSupports(): void {
+		modes.HoverProviderRegistry.register(this.getId(), {
+			provideHover: (model, position, token): Thenable<modes.Hover> => {
+				return wireCancellationToken(token, this._provideHover(model.uri, position));
+			}
+		}, true);
+
+		modes.ReferenceProviderRegistry.register(this.getId(), {
+			provideReferences: (model, position, context, token): Thenable<modes.Location[]> => {
+				return wireCancellationToken(token, this._provideReferences(model.uri, position, context));
+			}
+		}, true);
+
+		modes.SuggestRegistry.register(this.getId(), {
+			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
+			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
+				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
+			}
+		}, true);
+
+		modes.DocumentHighlightProviderRegistry.register(this.getId(), {
+			provideDocumentHighlights: (model, position, token): Thenable<modes.DocumentHighlight[]> => {
+				return wireCancellationToken(token, this._provideDocumentHighlights(model.uri, position));
+			}
+		}, true);
+
+		modes.LinkProviderRegistry.register(this.getId(), {
+			provideLinks: (model, token): Thenable<modes.ILink[]> => {
+				return wireCancellationToken(token, this._provideLinks(model.uri));
+			}
+		}, true);
+	}
+
+	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {
 		return new ModeWorkerManager<RAZORWorker>(descriptor, 'vs/languages/razor/common/razorWorker', 'RAZORWorker', 'vs/languages/html/common/htmlWorker', instantiationService);
 	}
 
-	protected _createRichEditSupport(): Modes.IRichEditSupport {
+	protected _createRichEditSupport(): modes.IRichEditSupport {
 		return new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('#?%'),
@@ -108,21 +140,21 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 				{
 					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
-					action: { indentAction: Modes.IndentAction.IndentOutdent }
+					action: { indentAction: modes.IndentAction.IndentOutdent }
 				},
 				{
 					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					action: { indentAction: Modes.IndentAction.Indent }
+					action: { indentAction: modes.IndentAction.Indent }
 				}
 			],
 		});
 	}
 
-	public getInitialState(): Modes.IState {
+	public getInitialState(): modes.IState {
 		return new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState): ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:modes.IState): ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
 			leavingNestedModeData.stateAfterNestedMode = new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');
