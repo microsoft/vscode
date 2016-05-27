@@ -17,7 +17,7 @@ export interface CommentRule {
 	blockComment?: CharacterPair;
 }
 
-export interface IRichEditConfiguration {
+export interface IRichLanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
 	wordPattern?: RegExp;
@@ -29,7 +29,7 @@ export interface IRichEditConfiguration {
 
 export class RichEditSupport implements IRichEditSupport {
 
-	private _conf: IRichEditConfiguration;
+	private _conf: IRichLanguageConfiguration;
 
 	public electricCharacter: BracketElectricCharacterSupport;
 	public comments: ICommentsConfiguration;
@@ -38,9 +38,9 @@ export class RichEditSupport implements IRichEditSupport {
 	public onEnter: IRichEditOnEnter;
 	public brackets: IRichEditBrackets;
 
-	constructor(modeId:string, previous:IRichEditSupport, rawConf:IRichEditConfiguration) {
+	constructor(modeId:string, previous:IRichEditSupport, rawConf:IRichLanguageConfiguration) {
 
-		let prev:IRichEditConfiguration = null;
+		let prev:IRichLanguageConfiguration = null;
 		if (previous instanceof RichEditSupport) {
 			prev = previous._conf;
 		}
@@ -66,7 +66,7 @@ export class RichEditSupport implements IRichEditSupport {
 		this.wordDefinition = this._conf.wordPattern || NullMode.DEFAULT_WORD_REGEXP;
 	}
 
-	private static _mergeConf(prev:IRichEditConfiguration, current:IRichEditConfiguration): IRichEditConfiguration {
+	private static _mergeConf(prev:IRichLanguageConfiguration, current:IRichLanguageConfiguration): IRichLanguageConfiguration {
 		return {
 			comments: (prev ? current.comments || prev.comments : current.comments),
 			brackets: (prev ? current.brackets || prev.brackets : current.brackets),
@@ -78,7 +78,7 @@ export class RichEditSupport implements IRichEditSupport {
 		};
 	}
 
-	private _handleOnEnter(modeId:string, conf:IRichEditConfiguration): void {
+	private _handleOnEnter(modeId:string, conf:IRichLanguageConfiguration): void {
 		// on enter
 		let onEnter: IOnEnterSupportOptions = {};
 		let empty = true;
@@ -101,7 +101,7 @@ export class RichEditSupport implements IRichEditSupport {
 		}
 	}
 
-	private _handleComments(modeId:string, conf:IRichEditConfiguration): void {
+	private _handleComments(modeId:string, conf:IRichLanguageConfiguration): void {
 		let commentRule = conf.comments;
 
 		// comment configuration

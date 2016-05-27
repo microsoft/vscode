@@ -93,6 +93,11 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 	}
 
+	public dispose(): void {
+		this._hoverOperation.cancel();
+		super.dispose();
+	}
+
 	public onModelDecorationsChanged(): void {
 		if (this._isVisible) {
 			// The decorations have changed and the hover is visible,

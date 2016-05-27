@@ -429,7 +429,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 	private renderError(element: string, data: IErrorTemplateData) {
 		data.label.textContent = element;
-		data.label.title = nls.localize('stackFrameError', "An error occurred while requesting the stack trace");
+		data.label.title = element;
 	}
 
 	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {

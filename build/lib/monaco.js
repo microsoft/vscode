@@ -32,7 +32,8 @@ function isDeclaration(a) {
         || a.kind === ts.SyntaxKind.EnumDeclaration
         || a.kind === ts.SyntaxKind.ClassDeclaration
         || a.kind === ts.SyntaxKind.TypeAliasDeclaration
-        || a.kind === ts.SyntaxKind.FunctionDeclaration);
+        || a.kind === ts.SyntaxKind.FunctionDeclaration
+        || a.kind === ts.SyntaxKind.ModuleDeclaration);
 }
 function visitTopLevelDeclarations(sourceFile, visitor) {
     var stop = false;
@@ -47,10 +48,11 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
             case ts.SyntaxKind.VariableStatement:
             case ts.SyntaxKind.TypeAliasDeclaration:
             case ts.SyntaxKind.FunctionDeclaration:
+            case ts.SyntaxKind.ModuleDeclaration:
                 stop = visitor(node);
         }
         // if (node.kind !== ts.SyntaxKind.SourceFile) {
-        // 	if (getNodeText(sourceFile, node).indexOf('Handler') >= 0) {
+        // 	if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
         // 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
         // 		console.log(getNodeText(sourceFile, node));
         // 	}
@@ -65,11 +67,15 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
 function getAllTopLevelDeclarations(sourceFile) {
     var all = [];
     visitTopLevelDeclarations(sourceFile, function (node) {
-        if (node.kind === ts.SyntaxKind.InterfaceDeclaration) {
+        if (node.kind === ts.SyntaxKind.InterfaceDeclaration || node.kind === ts.SyntaxKind.ClassDeclaration || node.kind === ts.SyntaxKind.ModuleDeclaration) {
             var interfaceDeclaration = node;
             var triviaStart = interfaceDeclaration.pos;
             var triviaEnd = interfaceDeclaration.name.pos;
             var triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
+            // // let nodeText = getNodeText(sourceFile, node);
+            // if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
+            // 	console.log('TRIVIA: ', triviaText);
+            // }
             if (triviaText.indexOf('@internal') === -1) {
                 all.push(node);
             }
@@ -111,6 +117,10 @@ function getNodeText(sourceFile, node) {
 }
 function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
     var result = getNodeText(sourceFile, declaration);
+    // if (result.indexOf('MonacoWorker') >= 0) {
+    // 	console.log('here!');
+    // 	// console.log(ts.SyntaxKind[declaration.kind]);
+    // }
     if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
         var interfaceDeclaration = declaration;
         var members = interfaceDeclaration.members;
@@ -179,29 +189,53 @@ function format(text) {
 var recipe = fs.readFileSync(path.join(__dirname, './monaco-editor.d.ts.recipe')).toString();
 var lines = recipe.split(/\r\n|\n|\r/);
 var result = [];
+function createReplacer(data) {
+    data = data || '';
+    var rawDirectives = data.split(';');
+    var directives = [];
+    rawDirectives.forEach(function (rawDirective) {
+        if (rawDirective.length === 0) {
+            return;
+        }
+        var pieces = rawDirective.split('=>');
+        var findStr = pieces[0];
+        var replaceStr = pieces[1];
+        findStr = findStr.replace(/[\-\\\{\}\*\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&');
+        findStr = '\\b' + findStr + '\\b';
+        directives.push([new RegExp(findStr, 'g'), replaceStr]);
+    });
+    return function (str) {
+        for (var i = 0; i < directives.length; i++) {
+            str = str.replace(directives[i][0], directives[i][1]);
+        }
+        return str;
+    };
+}
 lines.forEach(function (line) {
-    var m1 = line.match(/^\s*#include\(([^\)]*)\)\:(.*)$/);
+    var m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
     if (m1) {
         console.log('HANDLING META: ' + line);
         var moduleId = m1[1];
         var sourceFile_1 = getSourceFile(moduleId);
-        var typeNames = m1[2].split(/,/);
+        var replacer_1 = createReplacer(m1[2]);
+        var typeNames = m1[3].split(/,/);
         typeNames.forEach(function (typeName) {
             typeName = typeName.trim();
             if (typeName.length === 0) {
                 return;
             }
             var declaration = getTopLevelDeclaration(sourceFile_1, typeName);
-            result.push(getMassagedTopLevelDeclarationText(sourceFile_1, declaration));
+            result.push(replacer_1(getMassagedTopLevelDeclarationText(sourceFile_1, declaration)));
         });
         return;
     }
-    var m2 = line.match(/^\s*#includeAll\(([^\)]*)\)\:(.*)$/);
+    var m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
     if (m2) {
         console.log('HANDLING META: ' + line);
         var moduleId = m2[1];
         var sourceFile_2 = getSourceFile(moduleId);
-        var typeNames = m2[2].split(/,/);
+        var replacer_2 = createReplacer(m2[2]);
+        var typeNames = m2[3].split(/,/);
         var typesToExcludeMap_1 = {};
         var typesToExcludeArr_1 = [];
         typeNames.forEach(function (typeName) {
@@ -227,16 +261,16 @@ lines.forEach(function (line) {
                     }
                 }
             }
-            result.push(getMassagedTopLevelDeclarationText(sourceFile_2, declaration));
+            result.push(replacer_2(getMassagedTopLevelDeclarationText(sourceFile_2, declaration)));
         });
         return;
     }
     result.push(line);
 });
 var resultTxt = result.join('\n');
-resultTxt = resultTxt.replace(/\beditorCommon\./g, '');
-resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
 resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
+resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
+resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
 resultTxt = format(resultTxt);
 resultTxt = resultTxt.replace(/\r\n/g, '\n');
 fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), resultTxt);

@@ -389,6 +389,12 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
 		}
 
+		let disableTranslate3d = toBoolean(opts.disableTranslate3d);
+		let canUseTranslate3d = this._getCanUseTranslate3d();
+		if (disableTranslate3d) {
+			canUseTranslate3d = false;
+		}
+
 		return InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),
 			this.getOuterHeight(),
@@ -401,7 +407,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			editorClassName,
 			this._isDominatedByLongLines,
 			this._lineCount,
-			this._getCanUseTranslate3d()
+			canUseTranslate3d
 		);
 	}
 

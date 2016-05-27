@@ -16,7 +16,7 @@
 	"vscode.extension.contributes.keybindings.command": "키 바인딩이 트리거될 때 실행할 명령의 식별자입니다.",
 	"vscode.extension.contributes.keybindings.key": "키 또는 키 시퀀스(더하기 기호가 있는 개별 키, 공백이 있는 시퀀스, 예: Ctrl+O 및 Ctrl+L L을 동시에 누름)",
 	"vscode.extension.contributes.keybindings.linux": "Linux 특정 키 또는 키 시퀀스",
-	"vscode.extension.contributes.keybindings.mac": "Mac 특정 키 또는 키 시퀀스",
+	"vscode.extension.contributes.keybindings.mac": "Mac 특정 키 또는 키 시퀀스입니다.",
 	"vscode.extension.contributes.keybindings.when": "키가 활성화되는 조건입니다.",
 	"vscode.extension.contributes.keybindings.win": "Windows 특정 키 또는 키 시퀀스"
 }

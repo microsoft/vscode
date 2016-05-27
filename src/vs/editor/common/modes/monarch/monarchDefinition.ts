@@ -10,9 +10,9 @@
  */
 
 import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
-import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IRichLanguageConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 
-export function createRichEditSupport(lexer: ILexer): IRichEditConfiguration {
+export function createRichEditSupport(lexer: ILexer): IRichLanguageConfiguration {
 
 	return {
 

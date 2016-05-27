@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "Abilita/Disabilita la convalida JavaScript",
 	"typescript.reloadProjects.title": "Ricarica progetto TypeScript",
 	"typescript.tsdk.desc": "Specifica il percorso della cartella che contiene i file tsserver e lib*.d.ts da usare.",
+	"typescript.tsserver.trace": "Consente la traccia dell'invio dei messaggi al server di Servizi terminal",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Completare le funzioni con la relativa firma del parametro.",
 	"typescript.validate.enable": "Abilita/Disabilita la convalida TypeScript"
 }

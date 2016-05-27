@@ -8,7 +8,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import {createTokenizationSupport2, Language} from 'vs/languages/typescript/common/tokenization';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
-import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -38,7 +38,7 @@ function setupMode(modelService:IModelService, markerService:IMarkerService, mod
 	disposables.push(modeService.registerTokenizationSupport2(modeId, createTokenizationSupport2(language)));
 }
 
-const richEditConfiguration:IRichEditConfiguration = {
+const richEditConfiguration:IRichLanguageConfiguration = {
 	wordPattern: createWordRegExp('$'),
 
 	comments: {
@@ -72,6 +72,11 @@ const richEditConfiguration:IRichEditConfiguration = {
 		{
 			// e.g.  */|
 			beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+			action: { indentAction: modes.IndentAction.None, removeText: 1 }
+		},
+		{
+			// e.g.  *-----*/|
+			beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
 			action: { indentAction: modes.IndentAction.None, removeText: 1 }
 		}
 	],

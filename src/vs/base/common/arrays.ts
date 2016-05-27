@@ -170,6 +170,21 @@ export function distinct<T>(array: T[], keyFn?: (t: T) => string): T[] {
 	});
 }
 
+export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
+	const seen: { [key: string]: boolean; } = Object.create(null);
+
+	return element => {
+		const key = keyFn(element);
+
+		if (seen[key]) {
+			return false;
+		}
+
+		seen[key] = true;
+		return true;
+	};
+}
+
 export function firstIndex<T>(array: T[], fn: (item: T) => boolean): number {
 	for (let i = 0; i < array.length; i++) {
 		const element = array[i];

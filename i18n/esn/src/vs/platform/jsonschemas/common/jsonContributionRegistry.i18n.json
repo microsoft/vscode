@@ -12,7 +12,7 @@
 	"schema.json.anyOf": "Una matriz de esquemas, donde al menos uno debe coincidir.",
 	"schema.json.default": "Un valor predeterminado. Lo usan las sugerencias.",
 	"schema.json.definitions": "No se usa para validar. Coloque aquí los esquemas secundarios a los que desee hacer referencia en línea con $ref",
-	"schema.json.dependencies": "Mapa de nombres de propiedad para una matriz de nombres de propiedad o un esquema. Una matriz de nombres de propiedad significa que, para que sea válida, la propiedad denominada en la clave va a depender de las propiedades de la matriz que se encuentre en el objeto. Si el valor es un esquema, este se aplica solamente al objeto si la propiedad en la clave existe en el objeto.",
+	"schema.json.dependencies": "Asignación de nombres de propiedad a una matriz de nombres de propiedad o a un esquema. Una matriz de nombres de propiedad implica que, para que sea válida, la propiedad nombrada en la clave depende de las propiedades de la matriz que se encuentren en el objeto. Si el valor es un esquema, este se aplica solamente al objeto si la propiedad en la clave existe en el objeto.",
 	"schema.json.description": "Una descripción larga del elemento. Se usa en menús y sugerencias que aparecen al mantener el puntero.",
 	"schema.json.enum": "El conjunto de valores literales que son válidos",
 	"schema.json.exclusiveMaximum": "Hace exclusiva la propiedad maximum.",

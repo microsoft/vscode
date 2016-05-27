@@ -64,6 +64,11 @@ class DocBlockCommentMode extends MockMode {
 					// e.g.  */|
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 					action: { indentAction: IndentAction.None, removeText: 1 }
+				},
+				{
+					// e.g.  *-----*/|
+					beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+					action: { indentAction: IndentAction.None, removeText: 1 }
 				}
 			]
 		});

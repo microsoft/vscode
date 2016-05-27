@@ -23,7 +23,7 @@
 	"schema.json.maxItems": "配列内に含めることのできる項目の最大数 (その値を含む)。",
 	"schema.json.maxLength": "文字列の最大長。",
 	"schema.json.maxProperties": "オブジェクトに含めることのできるプロパティの最大数 (その値を含む)。",
-	"schema.json.maximum": "最大数値 (既定で含む)。",
+	"schema.json.maximum": "最大数値 (既定でその値を含む)。",
 	"schema.json.minItems": "配列内に含めることのできる項目の最小数 (その値を含む)。",
 	"schema.json.minLength": "文字列の最小長。",
 	"schema.json.minProperties": "オブジェクトに含めることのできるプロパティの最小数 (その値を含む)。",

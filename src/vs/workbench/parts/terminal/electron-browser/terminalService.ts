@@ -6,7 +6,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/common/terminal';
+import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 
 export class TerminalService implements ITerminalService {
 	public serviceId = ITerminalService;

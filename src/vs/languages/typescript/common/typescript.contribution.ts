@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {registerStandaloneLanguage} from 'vs/editor/browser/standalone/standaloneCodeEditor';
+import {registerStandaloneLanguage} from 'vs/editor/browser/standalone/standaloneLanguages';
 
 // ----- Registration and Configuration --------------------------------------------------------
 

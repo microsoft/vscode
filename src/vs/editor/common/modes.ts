@@ -16,12 +16,18 @@ import {CancellationToken} from 'vs/base/common/cancellation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 
+/**
+ * @internal
+ */
 export interface ITokenizationResult {
 	type?:string;
 	dontMergeWithPrev?:boolean;
 	nextState?:IState;
 }
 
+/**
+ * @internal
+ */
 export interface IState {
 	clone():IState;
 	equals(other:IState):boolean;
@@ -35,6 +41,7 @@ export interface IState {
  * An IStream is a character & token stream abstraction over a line of text. It
  *  is never multi-line. The stream can be navigated character by character, or
  *  token by token, given some token rules.
+ * @internal
  */
 export interface IStream {
 
@@ -150,10 +157,16 @@ export interface IStream {
 	skipWhitespace2(): number;
 }
 
+/**
+ * @internal
+ */
 export interface IModeDescriptor {
 	id:string;
 }
 
+/**
+ * @internal
+ */
 export interface ILineContext {
 	getLineContent(): string;
 
@@ -167,10 +180,17 @@ export interface ILineContext {
 	findIndexOfOffset(offset:number): number;
 }
 
+/**
+ * @internal
+ */
 export enum MutableSupport {
 	RichEditSupport = 1,
 	TokenizationSupport = 2
 }
+
+/**
+ * @internal
+ */
 export function mutableSupportToString(registerableSupport:MutableSupport) {
 	if (registerableSupport === MutableSupport.RichEditSupport) {
 		return 'richEditSupport';
@@ -188,55 +208,72 @@ export interface IMode {
 
 	/**
 	 * Return a mode "similar" to this one that strips any "smart" supports.
+	 * @internal
 	 */
 	toSimplifiedMode(): IMode;
 
+	/**
+	 * @internal
+	 */
 	addSupportChangedListener?(callback: (e: editorCommon.IModeSupportChangedEvent) => void): IDisposable;
 
 	/**
 	 * Register a support by name. Only optional.
+	 * @internal
 	 */
 	registerSupport?<T>(support:MutableSupport, callback:(mode:IMode)=>T): IDisposable;
 
 	/**
 	 * Optional adapter to support tokenization.
+	 * @internal
 	 */
 	tokenizationSupport?: ITokenizationSupport;
 
 	/**
 	 * Optional adapter to support inplace-replace.
+	 * @internal
 	 */
 	inplaceReplaceSupport?:IInplaceReplaceSupport;
 
 	/**
 	 * Optional adapter to support output for a model (e.g. markdown -> html)
+	 * @internal
 	 */
 	emitOutputSupport?:IEmitOutputSupport;
 
 	/**
 	 * Optional adapter to support configuring this mode.
+	 * @internal
 	 */
 	configSupport?:IConfigurationSupport;
 
 	/**
 	 * Optional adapter to support rich editing.
+	 * @internal
 	 */
 	richEditSupport?: IRichEditSupport;
 }
 
 /**
  * Interface used for tokenization
+ * @internal
  */
 export interface IToken {
 	startIndex:number;
 	type:string;
 }
 
+/**
+ * @internal
+ */
 export interface IModeTransition {
 	startIndex: number;
 	mode: IMode;
 }
 
+/**
+ * @internal
+ */
 export interface ILineTokens {
 	tokens: IToken[];
 	actualStopOffset: number;
@@ -245,6 +282,9 @@ export interface ILineTokens {
 	retokenize?:TPromise<void>;
 }
 
+/**
+ * @internal
+ */
 export interface ITokenizationSupport {
 
 	shouldGenerateEmbeddedModels: boolean;
@@ -269,7 +309,7 @@ export interface IState2 {
 	clone():IState2;
 	equals(other:IState2):boolean;
 }
-export interface ITokenizationSupport2 {
+export interface TokensProvider {
 	getInitialState(): IState2;
 	tokenize(line:string, state:IState2): ILineTokens2;
 }
@@ -296,6 +336,9 @@ export interface HoverProvider {
 	provideHover(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Hover | Thenable<Hover>;
 }
 
+/**
+ * @internal
+ */
 export type SuggestionType = 'method'
 	| 'function'
 	| 'constructor'
@@ -316,6 +359,9 @@ export type SuggestionType = 'method'
 	| 'reference'
 	| 'customcolor';
 
+/**
+ * @internal
+ */
 export interface ISuggestion {
 	label: string;
 	codeSnippet: string;
@@ -329,12 +375,18 @@ export interface ISuggestion {
 	overwriteAfter?: number;
 }
 
+/**
+ * @internal
+ */
 export interface ISuggestResult {
 	currentWord: string;
 	suggestions:ISuggestion[];
 	incomplete?: boolean;
 }
 
+/**
+ * @internal
+ */
 export interface ISuggestSupport {
 
 	triggerCharacters: string[];
@@ -411,6 +463,7 @@ export interface DefinitionProvider {
 	provideDefinition(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Definition | Thenable<Definition>;
 }
 
+
 export enum SymbolKind {
 	File,
 	Module,
@@ -434,8 +487,14 @@ export enum SymbolKind {
 	Key,
 	Null
 }
+/**
+ * @internal
+ */
 export namespace SymbolKind {
 
+	/**
+	 * @internal
+	 */
 	export function from(kind: number | SymbolKind): string {
 		switch (kind) {
 			case SymbolKind.Method:
@@ -480,6 +539,9 @@ export namespace SymbolKind {
 		return 'property';
 	}
 
+	/**
+	 * @internal
+	 */
 	export function to(type: string): SymbolKind {
 		switch (type) {
 			case 'method':
@@ -541,8 +603,6 @@ export interface IFormattingOptions {
 	tabSize:number;
 	insertSpaces:boolean;
 }
-
-
 export interface DocumentFormattingEditProvider {
 	provideDocumentFormattingEdits(model: editorCommon.IReadOnlyModel, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
@@ -554,7 +614,9 @@ export interface OnTypeFormattingEditProvider {
 	provideOnTypeFormattingEdits(model: editorCommon.IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions, token: CancellationToken): editorCommon.ISingleEditOperation[] | Thenable<editorCommon.ISingleEditOperation[]>;
 }
 
-
+/**
+ * @internal
+ */
 export interface IInplaceReplaceSupportResult {
 	value: string;
 	range:editorCommon.IRange;
@@ -562,6 +624,7 @@ export interface IInplaceReplaceSupportResult {
 
 /**
  * Interface used to navigate with a value-set.
+ * @internal
  */
 export interface IInplaceReplaceSupport {
 	navigateValueSet(resource:URI, range:editorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
@@ -569,11 +632,14 @@ export interface IInplaceReplaceSupport {
 
 /**
  * Interface used to get output for a language that supports transformation (e.g. markdown -> html)
+ * @internal
  */
 export interface IEmitOutputSupport {
 	getEmitOutput(resource:URI):TPromise<IEmitOutput>;
 }
-
+/**
+ * @internal
+ */
 export interface IEmitOutput {
 	filename?:string;
 	content:string;
@@ -591,6 +657,7 @@ export interface LinkProvider {
 
 /**
  * Interface used to define a configurable editor mode.
+ * @internal
  */
 export interface IConfigurationSupport {
 	configure(options:any):TPromise<void>;
@@ -626,7 +693,6 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model:editorCommon.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
 }
 
-
 export type CharacterPair = [string, string];
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
@@ -635,6 +701,7 @@ export interface IAutoClosingPairConditional extends IAutoClosingPair {
 
 /**
  * Interface used to support electric characters
+ * @internal
  */
 export interface IElectricAction {
 	// Only one of the following properties should be defined:
@@ -666,18 +733,25 @@ export interface IEnterAction {
 	removeText?:number;
 }
 
+/**
+ * @internal
+ */
 export interface IRichEditElectricCharacter {
 	getElectricCharacters():string[];
 	// Should return opening bracket type to match indentation with
 	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
 }
 
+/**
+ * @internal
+ */
 export interface IRichEditOnEnter {
 	onEnter(model:editorCommon.ITokenizedModel, position: editorCommon.IPosition): IEnterAction;
 }
 
 /**
  * Interface used to support insertion of mode specific comments.
+ * @internal
  */
 export interface ICommentsConfiguration {
 	lineCommentToken?:string;
@@ -685,19 +759,23 @@ export interface ICommentsConfiguration {
 	blockCommentEndToken?:string;
 }
 
-/**
- * Interface used to support insertion of matching characters like brackets and quotes.
- */
 export interface IAutoClosingPair {
 	open:string;
 	close:string;
 }
+
+/**
+ * @internal
+ */
 export interface IRichEditCharacterPair {
 	getAutoClosingPairs():IAutoClosingPairConditional[];
 	shouldAutoClosePair(character:string, context:ILineContext, offset:number):boolean;
 	getSurroundingPairs():IAutoClosingPair[];
 }
 
+/**
+ * @internal
+ */
 export interface IRichEditBrackets {
 	maxBracketLength: number;
 	forwardRegex: RegExp;
@@ -707,6 +785,9 @@ export interface IRichEditBrackets {
 	textIsOpenBracket: {[text:string]:boolean;};
 }
 
+/**
+ * @internal
+ */
 export interface IRichEditSupport {
 	/**
 	 * Optional adapter for electric characters.
@@ -741,30 +822,72 @@ export interface IRichEditSupport {
 
 // --- feature registries ------
 
+/**
+ * @internal
+ */
 export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
 
+/**
+ * @internal
+ */
 export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider>();
 
+/**
+ * @internal
+ */
 export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>();
 
+/**
+ * @internal
+ */
 export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>();
 
+/**
+ * @internal
+ */
 export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
 
+/**
+ * @internal
+ */
 export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
 
+/**
+ * @internal
+ */
 export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
 
+/**
+ * @internal
+ */
 export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
 
+/**
+ * @internal
+ */
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
 
+/**
+ * @internal
+ */
 export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
 
+/**
+ * @internal
+ */
 export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
 
+/**
+ * @internal
+ */
 export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
 
+/**
+ * @internal
+ */
 export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
 
+/**
+ * @internal
+ */
 export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();

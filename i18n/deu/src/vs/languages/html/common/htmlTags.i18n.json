@@ -40,7 +40,7 @@
 	"tags.figcaption": "Das figcaption-Element stellt einen Titel oder eine Legende für den restlichen Inhalt des übergeordneten figure-Elements des figcaption-Elements dar (wenn vorhanden).",
 	"tags.figure": "Das figure-Element stellt Flussinhalt (optional mit einem Titel) dar, der eigenständig ist (wie ein vollständiger Satz) und auf den normalerweise aus dem Hauptfluss des Dokuments als einzelne Einheit verwiesen wird.",
 	"tags.footer": "Das footer-Element stellt eine Fußzeile für seinen nächsten Vorgänger mit unterteilendem Inhalt oder das unterteilende Stammelement dar. Ein footer-Element enthält normalerweise Informationen zu seinem Abschnitt, z. B. zum Autor, Links zu verwandten Dokumenten, Copyrightinformationen usw.",
-	"tags.form": "Das form-Element stellt eine Auflistung von Elementen dar, die einem Formular zugeordnet sind. Einige dieser Elemente können bearbeitbare Werte darstellen, die an einen Server für die Verarbeitung übermittelt werden können.",
+	"tags.form": "Das form-Element stellt eine Sammlung von Elementen dar, die einem Formular zugeordnet sind. Einige dieser Elemente können bearbeitbare Werte darstellen, die an einen Server für die Verarbeitung übermittelt werden können.",
 	"tags.h1": "Das h1-Element stellt eine Abschnittsüberschrift dar.",
 	"tags.h2": "Das h2-Element stellt eine Abschnittsüberschrift dar.",
 	"tags.h3": "Das h3-Element stellt eine Abschnittsüberschrift dar.",

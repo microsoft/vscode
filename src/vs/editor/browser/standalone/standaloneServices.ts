@@ -48,27 +48,93 @@ export interface IEditorContextViewService extends IContextViewService {
 }
 
 export interface IEditorOverrideServices {
+	/**
+	 * @internal
+	 */
 	threadService?:IThreadService;
+	/**
+	 * @internal
+	 */
 	modeService?: IModeService;
+	/**
+	 * @internal
+	 */
 	extensionService?:IExtensionService;
+	/**
+	 * @internal
+	 */
 	instantiationService?:IInstantiationService;
+	/**
+	 * @internal
+	 */
 	messageService?:IMessageService;
+	/**
+	 * @internal
+	 */
 	markerService?:IMarkerService;
+	/**
+	 * @internal
+	 */
 	editorService?:IEditorService;
+	/**
+	 * @internal
+	 */
 	requestService?:IRequestService;
+	/**
+	 * @internal
+	 */
 	keybindingService?:IKeybindingService;
+	/**
+	 * @internal
+	 */
 	contextService?:IWorkspaceContextService;
+	/**
+	 * @internal
+	 */
 	contextViewService?:IEditorContextViewService;
+	/**
+	 * @internal
+	 */
 	contextMenuService?:IContextMenuService;
+	/**
+	 * @internal
+	 */
 	telemetryService?:ITelemetryService;
+	/**
+	 * @internal
+	 */
 	eventService?:IEventService;
+	/**
+	 * @internal
+	 */
 	storageService?:IStorageService;
+	/**
+	 * @internal
+	 */
 	searchService?:ISearchService;
+	/**
+	 * @internal
+	 */
 	configurationService?:IConfigurationService;
+	/**
+	 * @internal
+	 */
 	progressService?:IProgressService;
+	/**
+	 * @internal
+	 */
 	fileService?:IFileService;
+	/**
+	 * @internal
+	 */
 	modelService?: IModelService;
+	/**
+	 * @internal
+	 */
 	codeEditorService?: ICodeEditorService;
+	/**
+	 * @internal
+	 */
 	editorWorkerService?: IEditorWorkerService;
 }
 
@@ -174,7 +240,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		console.warn('standaloneEditorTelemetryEndpoint is obsolete');
 	}
 
-	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 2);
+	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
 	let messageService = services.messageService || new SimpleMessageService();
 	let extensionService = services.extensionService || new SimpleExtensionService();
 	let markerService = services.markerService || new MainProcessMarkerService(threadService);

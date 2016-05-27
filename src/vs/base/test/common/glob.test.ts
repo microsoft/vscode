@@ -210,6 +210,19 @@ suite('Glob', () => {
 		assert(!glob.match(p, '/some.js/test'));
 		assert(!glob.match(p, '\\some.js\\test'));
 
+		p = '**/project.json';
+
+		assert(glob.match(p, 'project.json'));
+		assert(glob.match(p, '/project.json'));
+		assert(glob.match(p, 'some/folder/project.json'));
+		assert(!glob.match(p, 'some/folder/file_project.json'));
+		assert(!glob.match(p, 'some/folder/fileproject.json'));
+		assert(!glob.match(p, '/rrproject.json'));
+		assert(!glob.match(p, 'some/rrproject.json'));
+		assert(!glob.match(p, 'rrproject.json'));
+		assert(!glob.match(p, '\\rrproject.json'));
+		assert(!glob.match(p, 'some\\rrproject.json'));
+
 		p = 'test/**';
 		assert(glob.match(p, 'test'));
 		assert(glob.match(p, 'test/foo.js'));

@@ -6,5 +6,5 @@
 {
 	"emmetConfigurationTitle": "Configuración de Emmet",
 	"expandAbbreviationAction": "Emmet: Expandir abreviatura",
-	"triggerExpansionOnTab": "Si está habilitada, se expanden la abreviaturas de Emmet cuando se presiona la tecla TAB."
+	"triggerExpansionOnTab": "Cuando se habilita, se expanden la abreviaturas de Emmet al presionar la tecla TAB."
 }

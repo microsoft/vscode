@@ -5,57 +5,32 @@
 
 'use strict';
 
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {IInstantiationService, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {Registry} from 'vs/platform/platform';
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/remoteTelemetryService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType} from 'vs/editor/common/editorCommon';
-import {HoverProvider, IMode} from 'vs/editor/common/modes';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
-import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
-import {SimpleEditorService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
-import {IEditorContextViewService, IEditorOverrideServices, ensureDynamicPlatformServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
+import {StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {IEditorContextViewService, IEditorOverrideServices, ensureStaticPlatformServices, getOrCreateStaticServices} from 'vs/editor/browser/standalone/standaloneServices';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
-import * as modes from 'vs/editor/common/modes';
-import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
-import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
-import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
-import {StandaloneWorker} from 'vs/editor/browser/standalone/standaloneWorker';
-
-// Set defaults for standalone editor
-DefaultConfig.editor.wrappingIndent = 'none';
-DefaultConfig.editor.folding = false;
 
 export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
 	value?: string;
 	mode?: string;
 }
+
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 }
 
-class StandaloneEditor extends CodeEditorWidget {
+export class StandaloneEditor extends CodeEditorWidget {
 
 	private _editorService:IEditorService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
@@ -94,7 +69,7 @@ class StandaloneEditor extends CodeEditorWidget {
 
 		let model: IModel = null;
 		if (typeof options.model === 'undefined') {
-			model = (<any>self).Monaco.Editor.createModel(options.value || '', options.mode || 'text/plain');
+			model = (<any>self).monaco.editor.createModel(options.value || '', options.mode || 'text/plain');
 			this._ownsModel = true;
 		} else {
 			model = options.model;
@@ -181,7 +156,7 @@ class StandaloneEditor extends CodeEditorWidget {
 	}
 }
 
-class StandaloneDiffEditor extends DiffEditorWidget {
+export class StandaloneDiffEditor extends DiffEditorWidget {
 
 	private _contextViewService:IEditorContextViewService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
@@ -271,7 +246,7 @@ class StandaloneDiffEditor extends DiffEditorWidget {
 	}
 }
 
-var startup = (function() {
+export var startup = (function() {
 
 	var modesRegistryInitialized = false;
 	var setupServicesCalled = false;
@@ -290,12 +265,12 @@ var startup = (function() {
 
 		setupServices: function(services: IEditorOverrideServices): IEditorOverrideServices {
 			if (setupServicesCalled) {
-				console.error('Call to Monaco.Editor.setupServices is ignored because it was called before');
+				console.error('Call to monaco.editor.setupServices is ignored because it was called before');
 				return;
 			}
 			setupServicesCalled = true;
 			if (modesRegistryInitialized) {
-				console.error('Call to Monaco.Editor.setupServices is ignored because other API was called before');
+				console.error('Call to monaco.editor.setupServices is ignored because other API was called before');
 				return;
 			}
 
@@ -304,306 +279,3 @@ var startup = (function() {
 	};
 
 })();
-
-function shallowClone<T>(obj:T): T {
-	let r:T = <any>{};
-	if (obj) {
-		let keys = Object.keys(obj);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let key = keys[i];
-			r[key] = obj[key];
-		}
-	}
-	return r;
-}
-
-export var setupServices = startup.setupServices;
-
-export function create(domElement:HTMLElement, options:IEditorConstructionOptions, services:IEditorOverrideServices):ICodeEditor {
-	startup.initStaticServicesIfNecessary();
-
-	services = shallowClone(services);
-	var editorService: SimpleEditorService = null;
-	if (!services || !services.editorService) {
-		editorService = new SimpleEditorService();
-		services.editorService = editorService;
-	}
-
-	var t = prepareServices(domElement, services);
-	var result = t.ctx.instantiationService.createInstance(StandaloneEditor, domElement, options, t.toDispose);
-
-	if (editorService) {
-		editorService.setEditor(result);
-	}
-
-	return result;
-}
-
-export function createDiffEditor(domElement:HTMLElement, options:IDiffEditorConstructionOptions, services: IEditorOverrideServices):IDiffEditor {
-	startup.initStaticServicesIfNecessary();
-
-	services = shallowClone(services);
-	var editorService: SimpleEditorService = null;
-	if (!services || !services.editorService) {
-		editorService = new SimpleEditorService();
-		services.editorService = editorService;
-	}
-
-	var t = prepareServices(domElement, services);
-	var result = t.ctx.instantiationService.createInstance(StandaloneDiffEditor, domElement, options, t.toDispose);
-
-	if (editorService) {
-		editorService.setEditor(result);
-	}
-
-	return result;
-}
-
-function prepareServices(domElement: HTMLElement, services: IEditorOverrideServices): { ctx: IEditorOverrideServices; toDispose: IDisposable[]; } {
-	services = ensureStaticPlatformServices(services);
-	var toDispose = ensureDynamicPlatformServices(domElement, services);
-
-	var collection = new ServiceCollection();
-	for (var legacyServiceId in services) {
-		if (services.hasOwnProperty(legacyServiceId)) {
-			let id = createDecorator(legacyServiceId);
-			let service = services[legacyServiceId];
-			collection.set(id, service);
-		}
-	}
-	services.instantiationService = new InstantiationService(collection);
-
-	return {
-		ctx: services,
-		toDispose: toDispose
-	};
-}
-
-function createModelWithRegistryMode(modelService:IModelService, modeService:IModeService, value:string, modeName:string, associatedResource?:URI): IModel {
-	var modeInformation = modeService.lookup(modeName);
-	if (modeInformation.length > 0) {
-		// Force usage of the first existing mode
-		modeName = modeInformation[0].modeId;
-	} else {
-		// Fall back to plain/text
-		modeName = 'plain/text';
-	}
-	var mode = modeService.getMode(modeName);
-	if (mode) {
-		return modelService.createModel(value, mode, associatedResource);
-	}
-	return modelService.createModel(value, modeService.getOrCreateMode(modeName), associatedResource);
-}
-
-export function createModel(value:string, mode:string|ILanguage|IMode, associatedResource?:URI|string): IModel {
-	startup.initStaticServicesIfNecessary();
-	var modelService = ensureStaticPlatformServices(null).modelService;
-
-	var resource:URI;
-	if (typeof associatedResource === 'string') {
-		resource = URI.parse(associatedResource);
-	} else {
-		// must be a URL
-		resource = associatedResource;
-	}
-
-	if (typeof (<IMode>mode).getId === 'function') {
-		// mode is an IMode
-		return modelService.createModel(value, <IMode>mode, resource);
-	}
-
-	if (typeof mode === 'string') {
-		// mode is a string
-		var modeService = ensureStaticPlatformServices(null).modeService;
-		return createModelWithRegistryMode(modelService, modeService, value, mode, resource);
-	}
-
-	// mode must be an ILanguage
-	return modelService.createModel(value, createCustomMode(<ILanguage>mode), resource);
-}
-
-export function getOrCreateMode(mimetypes: string):TPromise<IMode> {
-	startup.initStaticServicesIfNecessary();
-	var modeService = ensureStaticPlatformServices(null).modeService;
-
-	return modeService.getOrCreateMode(mimetypes);
-}
-
-export function configureMode(modeId: string, options: any): void {
-	startup.initStaticServicesIfNecessary();
-	var modeService = ensureStaticPlatformServices(null).modeService;
-
-	modeService.configureModeById(modeId, options);
-}
-
-export function createCustomMode(language:ILanguage): TPromise<IMode> {
-	startup.initStaticServicesIfNecessary();
-	let staticPlatformServices = ensureStaticPlatformServices(null);
-	let modeService = staticPlatformServices.modeService;
-	let modelService = staticPlatformServices.modelService;
-	let editorWorkerService = staticPlatformServices.editorWorkerService;
-
-	let modeId = language.name;
-	let name = language.name;
-
-	ModesRegistry.registerLanguage({
-		id: modeId,
-		aliases: [name]
-	});
-
-	let disposable = modeService.onDidCreateMode((mode) => {
-		if (mode.getId() !== modeId) {
-			return;
-		}
-		modeService.registerMonarchDefinition(modelService, editorWorkerService, modeId, language);
-		disposable.dispose();
-	});
-
-	return modeService.getOrCreateMode(modeId);
-}
-
-export function registerTokensProvider(languageId:string, support:modes.ITokenizationSupport2): IDisposable {
-	startup.initStaticServicesIfNecessary();
-	let staticPlatformServices = ensureStaticPlatformServices(null);
-
-	return staticPlatformServices.modeService.registerTokenizationSupport2(languageId, support);
-}
-
-export function registerHoverProvider(languageId:string, support:HoverProvider): IDisposable {
-	return modes.HoverProviderRegistry.register(languageId, support);
-}
-
-interface IMonacoWebWorkerState<T> {
-	myProxy:StandaloneWorker;
-	foreignProxy:T;
-	modelMananger: EditorModelManager;
-}
-
-export class MonacoWebWorker<T> {
-
-	private _loaded: TPromise<IMonacoWebWorkerState<T>>;
-	private _client: SimpleWorkerClient<StandaloneWorker>;
-
-	constructor(modelService: IModelService, opts:IWebWorkerOptions) {
-		this._client = new SimpleWorkerClient<StandaloneWorker>(new DefaultWorkerFactory(), 'vs/editor/browser/standalone/standaloneWorker', null);
-
-		this._loaded = this._client.getProxyObject().then((proxy) => {
-
-			let proxyMethodRequest = (method:string, args:any[]): TPromise<any> => {
-				return proxy.fmr(method, args);
-			};
-
-			let createProxyMethod = (method:string, proxyMethodRequest:(method:string, args:any[])=>TPromise<any>): Function => {
-				return function () {
-					let args = Array.prototype.slice.call(arguments, 0);
-					return proxyMethodRequest(method, args);
-				};
-			};
-
-			const manager = new EditorModelManager(proxy, modelService, true);
-
-			return proxy.loadModule(opts.moduleId).then((foreignMethods): IMonacoWebWorkerState<T> => {
-
-				let foreignProxy = <T><any>{};
-				for (let i = 0; i < foreignMethods.length; i++) {
-					foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
-				}
-
-				return {
-					myProxy: proxy,
-					foreignProxy: foreignProxy,
-					modelMananger: manager
-				};
-			});
-		});
-	}
-
-	public dispose(): void {
-		console.log('TODO: I should dispose now');
-	}
-
-	public getProxy(): TPromise<T> {
-		return this._loaded.then(data => data.foreignProxy);
-	}
-
-	public withSyncedResources(resources: URI[]): TPromise<void> {
-		return this._loaded.then(data => data.modelMananger.withSyncedResources(resources));
-	}
-}
-
-export interface IWebWorkerOptions {
-	moduleId: string;
-}
-
-export function createWebWorker<T>(opts:IWebWorkerOptions): MonacoWebWorker<T> {
-	startup.initStaticServicesIfNecessary();
-	let staticPlatformServices = ensureStaticPlatformServices(null);
-	let modelService = staticPlatformServices.modelService;
-
-	return new MonacoWebWorker(modelService, opts);
-}
-
-export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
-	ModesRegistry.registerLanguage(language);
-
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
-		require([defModule], (value:{language:ILanguage}) => {
-			if (!value.language) {
-				console.error('Expected ' + defModule + ' to export a `language`');
-				return;
-			}
-
-			startup.initStaticServicesIfNecessary();
-			let staticPlatformServices = ensureStaticPlatformServices(null);
-			let modeService = staticPlatformServices.modeService;
-			let modelService = staticPlatformServices.modelService;
-			let editorWorkerService = staticPlatformServices.editorWorkerService;
-
-			modeService.registerMonarchDefinition(modelService, editorWorkerService, language.id, value.language);
-		}, (err) => {
-			console.error('Cannot find module ' + defModule, err);
-		});
-	});
-}
-
-export function registerStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
-	ModesRegistry.registerLanguage(language);
-
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
-		require([defModule], (value:{activate:()=>void}) => {
-			if (!value.activate) {
-				console.error('Expected ' + defModule + ' to export an `activate` function');
-				return;
-			}
-
-			startup.initStaticServicesIfNecessary();
-			let staticPlatformServices = ensureStaticPlatformServices(null);
-			let instantiationService = staticPlatformServices.instantiationService;
-
-			instantiationService.invokeFunction(value.activate);
-		}, (err) => {
-			console.error('Cannot find module ' + defModule, err);
-		});
-	});
-}
-
-export function registerStandaloneLanguage2(language:ILanguageExtensionPoint, defModule:string): void {
-	ModesRegistry.registerLanguage(language);
-}
-
-export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
-	let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
-	schemaRegistry.registerSchema(uri, schema);
-}
-
-export function colorizeElement(domNode:HTMLElement, options:IColorizerElementOptions): TPromise<void> {
-	startup.initStaticServicesIfNecessary();
-	var modeService = ensureStaticPlatformServices(null).modeService;
-	return Colorizer.colorizeElement(modeService, domNode, options);
-}
-
-export function colorize(text:string, mimeType:string, options:IColorizerOptions): TPromise<string> {
-	startup.initStaticServicesIfNecessary();
-	var modeService = ensureStaticPlatformServices(null).modeService;
-	return Colorizer.colorize(modeService, text, mimeType, options);
-}

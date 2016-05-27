@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
 import {IAction, IActionProvider, isAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
@@ -148,7 +147,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		if (typeof options.ariaLabel === 'undefined') {
 			options.ariaLabel = DefaultConfig.editor.ariaLabel;
 		}
-		options.ariaLabel += this._ariaLabelAppendMessage();
 
 		this._configuration = this._createConfiguration(options);
 		if (this._configuration.editor.tabFocusMode) {
@@ -207,18 +205,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		return new EditorState(this, flags);
 	}
 
-	private _ariaLabelAppendMessage(): string {
-		let keybindings = this._keybindingService.lookupKeybindings(editorCommon.SHOW_ACCESSIBILITY_HELP_ACTION_ID);
-		if (keybindings.length > 0) {
-			return nls.localize('showAccessibilityHelp', "Press {0} if you are using a screen reader.", this._keybindingService.getAriaLabelFor(keybindings[0]));
-		}
-		return '';
-	}
-
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
-		if (typeof newOptions.ariaLabel !== 'undefined') {
-			newOptions.ariaLabel += this._ariaLabelAppendMessage();
-		}
 		this._configuration.updateOptions(newOptions);
 		if (this._configuration.editor.tabFocusMode) {
 			this._editorTabMovesFocusKey.set(true);
@@ -621,9 +608,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			// read only editor => sorry!
 			return false;
 		}
+		this.model.pushStackElement();
 		this.model.pushEditOperations(this.cursor.getSelections(), edits, () => {
 			return this.cursor.getSelections();
 		});
+		this.model.pushStackElement();
 		return true;
 	}
 

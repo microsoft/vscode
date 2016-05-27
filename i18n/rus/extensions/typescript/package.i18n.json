@@ -18,6 +18,7 @@
 	"javascript.validate.enable": "Включить или отключить проверку JavaScript",
 	"typescript.reloadProjects.title": "Перезагрузка проекта TypeScript",
 	"typescript.tsdk.desc": "Указывает путь к папке, содержащей файлы tsserver и lib*.d.ts, которые необходимо использовать.",
+	"typescript.tsserver.trace": "Включение трассировки сообщений, отправленных на сервер TS",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Дополните функции сигнатурами их параметров.",
 	"typescript.validate.enable": "Включить или отключить проверку TypeScript"
 }

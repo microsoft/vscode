@@ -46,7 +46,7 @@
 	white-space: nowrap;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .text {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .text > .main {
 	overflow: hidden;
 	text-overflow: ellipsis;
 }

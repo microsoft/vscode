@@ -400,7 +400,7 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
 		let text:string = null;
-		if (selectionStartPage <= selectionEndPage) {
+		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection
 			text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		} else {
@@ -411,6 +411,19 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 				+ String.fromCharCode(8230)
 				+ model.getValueInRange(selectionRange2, EndOfLinePreference.LF)
 			);
+		}
+
+		// Chromium handles very poorly text even of a few thousand chars
+		// Cut text to avoid stalling the entire UI
+		const LIMIT_CHARS = 500;
+		if (pretext.length > LIMIT_CHARS) {
+			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
+		}
+		if (posttext.length > LIMIT_CHARS) {
+			posttext = posttext.substring(0, LIMIT_CHARS);
+		}
+		if (text.length > 2 * LIMIT_CHARS) {
+			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
 		return new NVDAPagedTextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false);
