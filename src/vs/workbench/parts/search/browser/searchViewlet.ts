@@ -8,6 +8,7 @@
 import 'vs/css!./media/searchviewlet';
 import {TPromise, PPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
+import platform = require('vs/base/common/platform');
 import {EditorType} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
@@ -160,11 +161,16 @@ class SearchController extends DefaultController {
 	constructor(private viewlet: SearchViewlet) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
-		this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+		if (platform.isMacintosh) {
+			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+		} else {
+			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+		}
+
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
-	protected onEscape(tree: ITree, event:IKeyboardEvent):boolean {
+	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
 		if (this.viewlet.cancelSearch()) {
 			return true;
 		}
@@ -174,13 +180,10 @@ class SearchController extends DefaultController {
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
 		let result = false;
-		let elements = tree.getSelection();
-		for (let i = 0; i < elements.length; i++) {
-			let element = elements[i];
-			if (element instanceof FileMatch) {
-				new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
-				result = true;
-			}
+		let element = tree.getFocus();
+		if (element instanceof FileMatch) {
+			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
+			result = true;
 		}
 
 		return result;
