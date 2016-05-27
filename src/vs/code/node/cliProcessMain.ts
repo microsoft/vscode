@@ -66,7 +66,7 @@ class Main {
 
 				if (isInstalled) {
 					console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
-					return;
+					return TPromise.as(null);
 				}
 
 				return this.extensionGalleryService.query({ ids: [id] }).then(result => {
