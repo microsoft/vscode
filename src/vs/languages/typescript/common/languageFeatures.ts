@@ -172,6 +172,10 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return ['.'];
 	}
 
+	public get shouldAutotriggerSuggest(): boolean {
+		return true;
+	}
+
 	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): Thenable<modes.ISuggestResult[]> {
 		const wordInfo = model.getWordUntilPosition(position);
 		const resource = model.uri;
