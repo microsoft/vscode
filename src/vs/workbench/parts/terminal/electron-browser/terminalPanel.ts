@@ -202,6 +202,12 @@ export class TerminalPanel extends Panel {
 					this.focusTerminal();
 				}
 			}));
+			this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'keyup', (event: KeyboardEvent) => {
+				// Keep terminal open on escape
+				if (event.keyCode === 27) {
+					event.stopPropagation();
+				}
+			}));
 			this.toDispose.push(this.themeService.onDidThemeChange((themeId) => {
 				this.setTerminalTheme(themeId);
 			}));
