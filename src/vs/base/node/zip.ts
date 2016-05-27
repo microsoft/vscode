@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import * as path from 'path';
 import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
-import { nfcall, ninvoke, sequence } from 'vs/base/common/async';
+import { nfcall, ninvoke, SimpleThrottler } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { open as openZip, Entry, ZipFile } from 'yauzl';
@@ -50,10 +50,11 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Promise {
 	return new Promise((c, e) => {
-		const promiseFactory: { (): Promise; }[] = [];
+		const throttler = new SimpleThrottler();
+		let last = TPromise.as(null);
 
 		zipfile.once('error', e);
-		zipfile.once('close', () => sequence(promiseFactory).then(c, e));
+		zipfile.once('close', () => last.then(c, e));
 		zipfile.on('entry', (entry: Entry) => {
 			if (!options.sourcePathRegex.test(entry.fileName)) {
 				return;
@@ -63,7 +64,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Pr
 			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
 			const mode = modeFromEntry(entry);
 
-			promiseFactory.push(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
+			last = throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options)));
 		});
 	});
 }
