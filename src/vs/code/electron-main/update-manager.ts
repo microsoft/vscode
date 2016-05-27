@@ -175,7 +175,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		const channel = this.getUpdateChannel();
 		const feedUrl = this.getUpdateFeedUrl(channel);
 
-		if (feedUrl || !feedUrl) {
+		if (!feedUrl) {
 			return; // updates not available
 		}
 
