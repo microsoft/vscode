@@ -391,6 +391,8 @@ export interface ISuggestSupport {
 
 	triggerCharacters: string[];
 
+	shouldAutotriggerSuggest: boolean;
+
 	filter?: IFilter;
 
 	provideCompletionItems(model:editorCommon.IReadOnlyModel, position:Position, token:CancellationToken): ISuggestResult[] | Thenable<ISuggestResult[]>;

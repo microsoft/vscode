@@ -64,7 +64,8 @@ class Main {
 				const isInstalled = installed.some(e => getExtensionId(e) === id);
 
 				if (isInstalled) {
-					return TPromise.wrapError(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+					console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
+					return TPromise.as(null);
 				}
 
 				return this.extensionGalleryService.query({ ids: [id] })

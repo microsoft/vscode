@@ -36,6 +36,7 @@ export class NormalizedKeybindingItem {
 	command: string;
 	when: KbExpr;
 	isDefault: boolean;
+	actualCommand: string;
 
 	public static fromKeybindingItem(source:IKeybindingItem, isDefault:boolean): NormalizedKeybindingItem {
 		let when: KbExpr = null;
@@ -48,6 +49,7 @@ export class NormalizedKeybindingItem {
 	constructor(keybinding: number, command: string, when: KbExpr, isDefault: boolean) {
 		this.keybinding = keybinding;
 		this.command = command;
+		this.actualCommand = this.command ? this.command.replace(/^\^/, '') : this.command;
 		this.when = when;
 		this.isDefault = isDefault;
 	}
@@ -115,7 +117,7 @@ export class KeybindingResolver {
 	}
 
 	private static _isTargetedForRemoval(defaultKb:NormalizedKeybindingItem, keybinding:number, command:string, when:KbExpr): boolean {
-		if (defaultKb.command !== command) {
+		if (defaultKb.actualCommand !== command) {
 			return false;
 		}
 		if (keybinding) {

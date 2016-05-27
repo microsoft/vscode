@@ -271,6 +271,33 @@ suite('Keybinding Service', () => {
 		]);
 	});
 
+	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function() {
+		let defaults:IKeybindingItem[] = [{
+			command: '^yes1',
+			when: KbExpr.equals('1', 'a'),
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}, {
+			command: 'yes2',
+			when: KbExpr.equals('2', 'b'),
+			keybinding: KeyCode.KEY_B,
+			weight1: 0,
+			weight2: 0
+		}];
+		let overrides:IKeybindingItem[] = [{
+			command: '-yes1',
+			when: null,
+			keybinding: KeyCode.KEY_A,
+			weight1: 0,
+			weight2: 0
+		}];
+		let actual = KeybindingResolver.combine(defaults, overrides);
+		assert.deepEqual(actual, [
+			new NormalizedKeybindingItem(KeyCode.KEY_B, 'yes2', KbExpr.equals('2', 'b'), true)
+		]);
+	});
+
 	test('normalizeRule', function() {
 		let key1IsTrue = KbExpr.equals('key1', true);
 		let key1IsNotFalse = KbExpr.notEquals('key1', false);

@@ -22,7 +22,7 @@ import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMo
 import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
 	<Types.ILanguage>{
@@ -235,9 +235,13 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 
-		Modes.SuggestRegistry.register(this.getId(),
-			new TextualSuggestSupport(editorWorkerService, configurationService),
-			true);
+		Modes.SuggestRegistry.register(this.getId(), {
+			triggerCharacters: [],
+			shouldAutotriggerSuggest: false,
+			provideCompletionItems: (model, position, token) => {
+				return wireCancellationToken(token, editorWorkerService.textualSuggest(model.uri, position));
+			}
+		}, true);
 	}
 
 	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {

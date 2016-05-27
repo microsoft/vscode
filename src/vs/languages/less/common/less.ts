@@ -233,6 +233,7 @@ export class LESSMode extends AbstractMode {
 
 		modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],
+			shouldAutotriggerSuggest: true,
 			provideCompletionItems: (model, position, token): Thenable<modes.ISuggestResult[]> => {
 				return wireCancellationToken(token, this._provideCompletionItems(model.uri, position));
 			}

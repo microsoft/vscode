@@ -128,7 +128,26 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 
 		return this.ensureFormatOptions(document, options, token).then(() => {
 			return this.client.execute('formatonkey', args, token).then((response): TextEdit[] => {
-				return response.body.map(this.codeEdit2SingleEditOperation);
+				let edits = response.body;
+				let result: TextEdit[] = [];
+				for (let edit of edits) {
+					let textEdit = this.codeEdit2SingleEditOperation(edit);
+					let range = textEdit.range;
+					// Work around for https://github.com/Microsoft/TypeScript/issues/6700.
+					// Check if we have an edit at the beginning of the line which only removes white spaces and leaves
+					// an empty line. Drop those edits
+					if (range.start.character === 0 && range.start.line === range.end.line && textEdit.newText === '') {
+						let lText = document.lineAt(range.start.line).text;
+						// If the edit leaves something on the line keep the edit (note that the end character is exclusive).
+						// Keep it also if it removes something else than whitespace
+						if (lText.trim().length > 0 || lText.length > range.end.character) {
+							result.push(textEdit);
+						}
+					} else {
+						result.push(textEdit);
+					}
+				}
+				return result;
 			}, (err: any) => {
 				return [];
 			});
