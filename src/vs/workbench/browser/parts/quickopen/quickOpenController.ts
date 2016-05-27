@@ -13,7 +13,7 @@ import strings = require('vs/base/common/strings');
 import filters = require('vs/base/common/filters');
 import uuid = require('vs/base/common/uuid');
 import types = require('vs/base/common/types');
-import {Mode, IContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
+import {Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryItem, QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenWidget} from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
@@ -270,9 +270,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				return item && isAboutStrings ? item.label : item;
 			}
 
-			this.doPick(entryPromise, options).then(item => resolve(onItem(item)),
-				err => reject(err),
-				item => progress(onItem(item)));
+			this.doPick(entryPromise, options).then(item => resolve(onItem(item)), err => reject(err), item => progress(onItem(item)));
 		});
 	}
 
@@ -334,7 +332,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			let picksPromiseDone = false;
 
 			// Resolve picks
-			picksPromise.then((picks) => {
+			picksPromise.then(picks => {
 				if (this.currentPickerToken !== currentPickerToken) {
 					return; // Return if another request came after
 				}
@@ -364,19 +362,26 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				// Handlers
 				this.pickOpenWidget.setCallbacks({
 					onOk: () => {
-
 						if (picks.length === 0) {
 							return complete(null);
 						}
 
 						let index = -1;
+						let context: IEntryRunContext;
 						entries.forEach((entry, i) => {
-							if (entry.selected) {
+							if (entry.shouldRunWithContext) {
 								index = i;
+								context = entry.shouldRunWithContext;
 							}
 						});
 
-						complete(picks[index] || null);
+						const selectedPick = picks[index];
+
+						if (typeof selectedPick.run === 'function') {
+							selectedPick.run(context);
+						}
+
+						complete(selectedPick || null);
 					},
 					onCancel: () => complete(void 0),
 					onFocusLost: () => options.ignoreFocusLost,
@@ -406,11 +411,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						else {
 							entries.forEach((entry) => {
 								let labelHighlights = filters.matchesFuzzy(value, entry.getLabel());
-								let descriptionHighlights = options.matchOnDescription
-									&& filters.matchesFuzzy(value, entry.getDescription());
-
-								let detailHighlights = options.matchOnDetail && entry.getDetail()
-									&& filters.matchesFuzzy(value, entry.getDetail());
+								let descriptionHighlights = options.matchOnDescription && filters.matchesFuzzy(value, entry.getDescription());
+								let detailHighlights = options.matchOnDetail && entry.getDetail() && filters.matchesFuzzy(value, entry.getDetail());
 
 								if (labelHighlights || descriptionHighlights || detailHighlights) {
 									entry.setHighlights(labelHighlights, descriptionHighlights, detailHighlights);
@@ -918,7 +920,7 @@ class PlaceholderQuickOpenEntry extends QuickOpenEntryGroup {
 }
 
 class PickOpenEntry extends PlaceholderQuickOpenEntry {
-	private _selected: boolean;
+	private _shouldRunWithContext: IEntryRunContext;
 	private description: string;
 	private detail: string;
 
@@ -929,8 +931,8 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		this.detail = detail;
 	}
 
-	public get selected(): boolean {
-		return this._selected;
+	public get shouldRunWithContext(): IEntryRunContext {
+		return this._shouldRunWithContext;
 	}
 
 	public getDescription(): string {
@@ -949,9 +951,9 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 		return this.separatorLabel;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			this._selected = true;
+			this._shouldRunWithContext = context;
 
 			return true;
 		}
@@ -965,7 +967,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 }
 
 class PickOpenItem extends QuickOpenEntryItem {
-	private _selected: boolean;
+	private _shouldRunWithContext: IEntryRunContext;
 
 	constructor(private label: string, private description: string, private height: number, private renderFn: (tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback) => IElementCallback, private onPreview?: () => void) {
 		super();
@@ -979,8 +981,8 @@ class PickOpenItem extends QuickOpenEntryItem {
 		return this.renderFn(tree, container, previousCleanupFn);
 	}
 
-	public get selected(): boolean {
-		return this._selected;
+	public get shouldRunWithContext(): IEntryRunContext {
+		return this._shouldRunWithContext;
 	}
 
 	public getLabel(): string {
@@ -991,9 +993,9 @@ class PickOpenItem extends QuickOpenEntryItem {
 		return this.description;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			this._selected = true;
+			this._shouldRunWithContext = context;
 
 			return true;
 		}

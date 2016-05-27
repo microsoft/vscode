@@ -14,7 +14,7 @@ import {language, LANGUAGE_DEFAULT} from 'vs/base/common/platform';
 import strings = require('vs/base/common/strings');
 import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
-import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
+import {Mode, IEntryRunContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {SyncActionDescriptor, IActionsService} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -148,7 +148,7 @@ class CommandEntry extends BaseCommandEntry {
 		this.actionDescriptor = actionDescriptor;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			let action = <Action>this.instantiationService.createInstance(this.actionDescriptor.syncDescriptor);
 			this.runAction(action);
@@ -180,7 +180,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		this.action = action;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			this.runAction(this.action);
 
@@ -211,7 +211,7 @@ class ActionCommandEntry extends BaseCommandEntry {
 		this.action = action;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			this.runAction(this.action);
 

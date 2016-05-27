@@ -13,7 +13,7 @@ import {EventType} from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import uuid = require('vs/base/common/uuid');
-import {IQuickNavigateConfiguration, IAutoFocus, IContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
+import {IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider} from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
@@ -25,7 +25,7 @@ import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeDefaults';
 import DOM = require('vs/base/browser/dom');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 
@@ -395,7 +395,7 @@ export class QuickOpenWidget implements IModelProvider {
 		// ARIA
 		this.inputElement.setAttribute('aria-activedescendant', this.treeElement.getAttribute('aria-activedescendant'));
 
-		const context: IContext = { event: event, quickNavigateConfiguration: this.quickNavigateConfiguration };
+		const context: IEntryRunContext = { event: event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 		this.model.runner.run(value, Mode.PREVIEW, context);
 	}
 
@@ -404,7 +404,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Trigger open of element on selection
 		if (this.isVisible()) {
-			const context: IContext = { event: event, quickNavigateConfiguration: this.quickNavigateConfiguration };
+			const context: IEntryRunContext = { event: event, keymods: this.extractKeyMods(event), quickNavigateConfiguration: this.quickNavigateConfiguration };
 			hide = this.model.runner.run(value, Mode.OPEN, context);
 		}
 
@@ -421,6 +421,12 @@ export class QuickOpenWidget implements IModelProvider {
 			this.hide();
 		}
 	}
+
+	private extractKeyMods(event: any): number[] {
+		const isCtrlCmd = event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey)));
+
+		return isCtrlCmd ? [KeyMod.CtrlCmd] : [];
+}
 
 	public show(prefix: string, options?: IShowOptions): void;
 	public show(input: IModel<any>, options?: IShowOptions): void;

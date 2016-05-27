@@ -11,7 +11,7 @@ import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import {IAutoFocus, Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
+import {IAutoFocus, Mode, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import scorer = require('vs/base/common/scorer');
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
@@ -65,7 +65,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		return this._group.isPreview(this.editor) ? 'editor-preview' : '';
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -73,7 +73,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		return super.run(mode, context);
 	}
 
-	private runOpen(context: IContext): boolean {
+	private runOpen(context: IEntryRunContext): boolean {
 		this.editorService.openEditor(this.editor, null, this.stacks.positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
 
 		return true;

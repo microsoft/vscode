@@ -14,11 +14,12 @@ import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import labels = require('vs/base/common/labels');
 import {EventType} from 'vs/base/common/events';
-import {Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
+import {Mode, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import {KeyMod} from 'vs/base/common/keyCodes';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -90,11 +91,9 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.input.matches(input);
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			let event = context.event;
-			let ctrlMetaKeyPressed = event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey)));
-			let sideBySide = !context.quickNavigateConfiguration && ctrlMetaKeyPressed;
+			let sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 			this.editorService.openEditor(this.input, null, sideBySide).done(() => {
 				if (!this.input.matches(this.editorService.getActiveEditorInput())) {
 					this.model.remove(this.input); // Automatically clean up stale history entries when the input can not be opened

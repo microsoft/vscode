@@ -5,7 +5,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { PagedModel } from 'vs/base/common/paging';
-import { Mode, IModel, IDataSource, IRenderer, IRunner, IContext } from 'vs/base/parts/quickopen/common/quickOpen';
+import { Mode, IModel, IDataSource, IRenderer, IRunner, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 
 interface IStubTemplateData<T> {
 	data: T;
@@ -80,7 +80,7 @@ class PagedRunner<T> implements IRunner<IStub> {
 		private runner: IRunner<T>
 	) {}
 
-	run({ index }: IStub, mode: Mode, context: IContext): boolean {
+	run({ index }: IStub, mode: Mode, context: IEntryRunContext): boolean {
 		if (this.model.isResolved(index)) {
 			return this.runner.run(this.model.get(index), mode, context);
 		}

@@ -12,7 +12,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IContext, IAccessiblityProvider } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IEntryRunContext, IAccessiblityProvider } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenPagedModel, IPagedRenderer } from 'vs/base/parts/quickopen/common/quickOpenPaging';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -157,7 +157,7 @@ class InstallRunner implements IRunner<IExtensionEntry> {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {}
 
-	run(entry: IExtensionEntry, mode: Mode, context: IContext): boolean {
+	run(entry: IExtensionEntry, mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;
 		}

@@ -18,7 +18,8 @@ import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {KeyMod} from 'vs/base/common/keyCodes';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
@@ -385,21 +386,23 @@ export class OpenRecentAction extends Action {
 		const recentFolders = this.contextService.getConfiguration().env.recentFolders;
 		const recentFiles = this.contextService.getConfiguration().env.recentFiles;
 
-		let folderPicks = recentFolders.map((p, index) => {
+		let folderPicks: IPickOpenEntry[] = recentFolders.map((p, index) => {
 			return {
 				label: paths.basename(p),
 				description: paths.dirname(p),
 				path: p,
-				separator: index === 0 ? { label: nls.localize('folders', "folders") } : void 0
+				separator: index === 0 ? { label: nls.localize('folders', "folders") } : void 0,
+				run: (context) => this.runPick(p, context)
 			};
 		});
 
-		let filePicks = recentFiles.map((p, index) => {
+		let filePicks: IPickOpenEntry[] = recentFiles.map((p, index) => {
 			return {
 				label: paths.basename(p),
 				description: paths.dirname(p),
 				path: p,
-				separator: index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0
+				separator: index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0,
+				run: (context) => this.runPick(p, context)
 			};
 		});
 
@@ -409,13 +412,13 @@ export class OpenRecentAction extends Action {
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: nls.localize('openRecentPlaceHolder', "Select a path to open"),
 			matchOnDescription: true
-		}).then(p => {
-			if (p) {
-				ipc.send('vscode:windowOpen', [p.path]);
-			}
+		}).then(p => true);
+	}
 
-			return true;
-		});
+	private runPick(path, context): void {
+		let newWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+
+		ipc.send('vscode:windowOpen', [path], newWindow);
 	}
 }
 

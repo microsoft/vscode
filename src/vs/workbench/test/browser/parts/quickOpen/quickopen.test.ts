@@ -71,8 +71,8 @@ suite('Workbench QuickOpen', () => {
 		assert(!entry1.matches(entry2.getInput()));
 		assert(entry1.matches(entry1.getInput()));
 
-		assert(entry1.run(Mode.OPEN, { event: null, quickNavigateConfiguration: null }));
-		assert(!entry2.run(Mode.PREVIEW, { event: null, quickNavigateConfiguration: null }));
+		assert(entry1.run(Mode.OPEN, { event: null, quickNavigateConfiguration: null, keymods: [] }));
+		assert(!entry2.run(Mode.PREVIEW, { event: null, quickNavigateConfiguration: null, keymods: [] }));
 	});
 
 	test('EditorHistoryEntry is removed when open fails', () => {
@@ -88,7 +88,7 @@ suite('Workbench QuickOpen', () => {
 
 		assert.equal(1, model.getEntries().length);
 
-		assert(model.getEntries()[0].run(Mode.OPEN, { event: null, quickNavigateConfiguration: null }));
+		assert(model.getEntries()[0].run(Mode.OPEN, { event: null, quickNavigateConfiguration: null, keymods: [] }));
 
 		assert.equal(0, model.getEntries().length);
 	});
