@@ -13,6 +13,7 @@ import {Action} from 'vs/base/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {EditorInput} from 'vs/workbench/common/editor';
+import {isMacintosh} from 'vs/base/common/platform';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -410,7 +411,7 @@ export class OpenRecentAction extends Action {
 
 		return this.quickOpenService.pick(folderPicks.concat(...filePicks), {
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
-			placeHolder: nls.localize('openRecentPlaceHolder', "Select a path to open"),
+			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select a path (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select a path to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true
 		}).then(p => true);
 	}

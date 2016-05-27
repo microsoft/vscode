@@ -377,7 +377,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 						const selectedPick = picks[index];
 
-						if (typeof selectedPick.run === 'function') {
+						if (selectedPick && typeof selectedPick.run === 'function') {
 							selectedPick.run(context);
 						}
 
