@@ -136,7 +136,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Untyped Text Editor Support (required for code that uses this service below workbench level)
 		let textInput = <IResourceInput>input;
-		return this.inputToType(textInput).then((typedFileInput: EditorInput) => {
+		return this.createInput(textInput).then((typedFileInput: EditorInput) => {
 			if (typedFileInput) {
 				return this.doOpenEditor(typedFileInput, TextEditorOptions.from(textInput), arg2);
 			}
@@ -157,7 +157,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditors(editors: { input: IResourceInput, position: Position }[]): TPromise<IEditor[]>;
 	public openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions }[]): TPromise<IEditor[]>;
 	public openEditors(editors: any[]): TPromise<IEditor[]> {
-		return TPromise.join(editors.map(editor => this.inputToType(editor.input))).then(inputs => {
+		return TPromise.join(editors.map(editor => this.createInput(editor.input))).then(inputs => {
 			const typedInputs: { input: EditorInput, position: Position, options?: EditorOptions }[] = inputs.map((input, index) => {
 				return {
 					input,
@@ -173,8 +173,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public replaceEditors(editors: { toReplace: IResourceInput, replaceWith: IResourceInput }[]): TPromise<BaseEditor[]>;
 	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
 	public replaceEditors(editors: any[]): TPromise<BaseEditor[]> {
-		return TPromise.join(editors.map(editor => this.inputToType(editor.toReplace))).then(toReplaceInputs => {
-			return TPromise.join(editors.map(editor => this.inputToType(editor.replaceWith))).then(replaceWithInputs => {
+		return TPromise.join(editors.map(editor => this.createInput(editor.toReplace))).then(toReplaceInputs => {
+			return TPromise.join(editors.map(editor => this.createInput(editor.replaceWith))).then(replaceWithInputs => {
 				const typedReplacements: { toReplace: EditorInput, replaceWith: EditorInput, options?: EditorOptions }[] = editors.map((editor, index) => {
 					return {
 						toReplace: toReplaceInputs[index],
@@ -219,7 +219,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
-		return this.inputToType(input).then((workbenchInput: IEditorInput) => {
+		return this.createInput(input).then((workbenchInput: IEditorInput) => {
 			if (workbenchInput) {
 
 				// Resolve if applicable
@@ -232,9 +232,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		});
 	}
 
-	public inputToType(input: EditorInput): TPromise<EditorInput>;
-	public inputToType(input: IResourceInput): TPromise<EditorInput>;
-	public inputToType(input: any): TPromise<IEditorInput> {
+	public createInput(input: EditorInput): TPromise<EditorInput>;
+	public createInput(input: IResourceInput): TPromise<EditorInput>;
+	public createInput(input: any): TPromise<IEditorInput> {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {

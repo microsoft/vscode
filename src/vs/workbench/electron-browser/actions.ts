@@ -476,7 +476,7 @@ KeybindingsRegistry.registerCommandDesc({
 			label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", left.toString(true), right.toString(true));
 		}
 
-		return TPromise.join([editorService.inputToType({ resource: left }), editorService.inputToType({ resource: right })]).then(inputs => {
+		return TPromise.join([editorService.createInput({ resource: left }), editorService.createInput({ resource: right })]).then(inputs => {
 			const [left, right] = inputs;
 
 			const diff = new DiffEditorInput(label, undefined, <EditorInput>left, <EditorInput>right);

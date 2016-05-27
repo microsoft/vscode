@@ -392,7 +392,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.callback('focusGroup');
 	}
 
-	public inputToType(input: IResourceInput): TPromise<IEditorInput> {
+	public createInput(input: IResourceInput): TPromise<IEditorInput> {
 		return TPromise.as(null);
 	}
 

@@ -60,7 +60,7 @@ export class BaseTwoEditorsAction extends Action {
 
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
-			return this.editorService.inputToType({ resource: editableResource }).then((typedRightHandEditableInput) => {
+			return this.editorService.createInput({ resource: editableResource }).then((typedRightHandEditableInput) => {
 				const editors = [
 					{ input: leftHandDefaultInput, position: Position.LEFT },
 					{ input: typedRightHandEditableInput, position: Position.CENTER }
@@ -133,7 +133,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 					new Action('open.workspaceSettings', nls.localize('openWorkspaceSettings', "Open Workspace Settings"), null, true, () => {
 						let editorCount = this.editorService.getVisibleEditors().length;
 
-						return this.editorService.inputToType({ resource: this.contextService.toResource('.vscode/settings.json') }).then((typedInput) => {
+						return this.editorService.createInput({ resource: this.contextService.toResource('.vscode/settings.json') }).then((typedInput) => {
 							return this.editorService.openEditor(typedInput, null, editorCount === 2 ? Position.RIGHT : editorCount === 1 ? Position.CENTER : void 0);
 						});
 					})

@@ -367,7 +367,7 @@ export class OpenToSideAction extends Action {
 			if (input instanceof EditorInput) {
 				typedInputPromise = TPromise.as(input);
 			} else {
-				typedInputPromise = this.editorService.inputToType(input);
+				typedInputPromise = this.editorService.createInput(input);
 			}
 
 			return typedInputPromise.then(typedInput => this.editorService.openEditor(typedInput, entry.getOptions(), true));

@@ -140,7 +140,7 @@ export interface IWorkbenchEditorService extends IEditorService {
 	/**
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input
 	 */
-	inputToType(input: IResourceInput): TPromise<IEditorInput>;
+	createInput(input: IResourceInput): TPromise<IEditorInput>;
 
 	/**
 	 * Provides access to the editor stacks model

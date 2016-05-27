@@ -124,7 +124,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 				// In diffMode we open 2 resources as diff
 				if (diffMode) {
-					return TPromise.join(resources.map(f => this.editorService.inputToType(f))).then((inputs: EditorInput[]) => {
+					return TPromise.join(resources.map(f => this.editorService.createInput(f))).then((inputs: EditorInput[]) => {
 						return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(resources[0].resource, resources[1].resource, this.contextService), null, inputs[0], inputs[1]));
 					});
 				}
