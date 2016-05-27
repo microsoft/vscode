@@ -30,7 +30,7 @@ export class WinTerminalService implements ITerminalService {
 	}
 
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, command: string, path?: string): TPromise<void> {
-		let terminalConfig = configuration.externalTerminal;
+		let terminalConfig = configuration.terminal.external;
 		let exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
 		// The '""' argument is the window title. Without this, exec doesn't work when the path
 		// contains spaces
@@ -109,7 +109,7 @@ export class LinuxTerminalService implements ITerminalService {
 	}
 
 	private spawnTerminal(spawner, configuration: ITerminalConfiguration, path?: string): TPromise<void> {
-		let terminalConfig = configuration.externalTerminal;
+		let terminalConfig = configuration.terminal.external;
 		let exec = terminalConfig.linuxExec || DEFAULT_TERMINAL_LINUX;
 		let env = path ? { cwd: path } : void 0;
 

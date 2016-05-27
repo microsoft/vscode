@@ -23,8 +23,10 @@ export const DEFAULT_TERMINAL_LINUX = defaultTerminalLinux;
 export const DEFAULT_TERMINAL_WINDOWS = 'cmd';
 
 export interface ITerminalConfiguration {
-	externalTerminal: {
-		linuxExec: string,
-		windowsExec: string
+	terminal: {
+		external: {
+			linuxExec: string,
+			windowsExec: string
+		}
 	};
 }
