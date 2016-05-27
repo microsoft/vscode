@@ -200,8 +200,8 @@ class InternalEditorOptionsHelper {
 		} else if (wrappingColumn > 0) {
 			// Wrapping is enabled
 			bareWrappingInfo = {
-				isViewportWrapping: false,
-				wrappingColumn: wrappingColumn
+				isViewportWrapping: true,
+				wrappingColumn: Math.min(80, Math.floor((layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth) / fontInfo.typicalHalfwidthCharacterWidth))
 			};
 		} else {
 			bareWrappingInfo = {
