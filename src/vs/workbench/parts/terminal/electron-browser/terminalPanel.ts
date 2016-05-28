@@ -101,6 +101,7 @@ export class TerminalPanel extends Panel {
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
 		this.toDispose = [];
+		configurationService.onDidUpdateConfiguration(e => this.applyColors());
 	}
 
 	public layout(dimension: Dimension): void {
@@ -151,11 +152,21 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
+	private applyColors() {
+		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
+
+		let foreground: string = config.terminal.integrated.foreground;
+		let background: string = config.terminal.integrated.background;
+		this.parentDomElement.style.color = foreground ? (foreground) : null;
+		this.parentDomElement.style.background = background ? (background) : null;
+	}
+
 	private createTerminal(): TPromise<void> {
 		return new TPromise<void>(resolve => {
 			this.parentDomElement.innerHTML = '';
 			this.ptyProcess = this.createTerminalProcess();
 			this.terminalDomElement = document.createElement('div');
+			this.applyColors();
 			this.parentDomElement.classList.add('integrated-terminal');
 			let terminalScrollbar = new DomScrollableElement(this.terminalDomElement, {
 				canUseTranslate3d: false,

@@ -42,6 +42,16 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.fontFamily', "The font family used by the terminal (CSS font-family format)."),
 			'type': 'string',
 			'default': 'Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback"'
+		},
+		'terminal.integrated.foreground': {
+			'description': nls.localize('terminal.integrated.foreground', "The font color used by the terminal (CSS color format)."),
+			'type': 'string',
+			'default': ''
+		},
+		'terminal.integrated.background': {
+			'description': nls.localize('terminal.integrated.background', "The background color used by the terminal (CSS color format)."),
+			'type': 'string',
+			'default': ''
 		}
 	}
 });
