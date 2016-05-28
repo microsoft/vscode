@@ -15,6 +15,7 @@ import {DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE, GOLDEN
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import * as browser from 'vs/base/browser/browser';
 
 /**
  * Experimental screen reader support toggle
@@ -388,6 +389,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		if (lineHeight === 0) {
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
 		}
+		let editorZoomLevelMultiplier = 1 + (browser.getEditorZoomLevel() * 0.1);
+		fontSize *= editorZoomLevelMultiplier;
+		lineHeight *= editorZoomLevelMultiplier;
 
 		return InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),

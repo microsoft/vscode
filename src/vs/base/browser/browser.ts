@@ -14,11 +14,15 @@ class ZoomManager {
 	public static INSTANCE = new ZoomManager();
 
 	private _zoomLevel: number = 0;
+	private _editorZoomLevel: number = 0;
 	private _pixelRatioCache: number = 0;
 	private _pixelRatioComputed: boolean = false;
 
 	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
 	public onDidChangeZoomLevel:Event<number> = this._onDidChangeZoomLevel.event;
+
+	private _onDidChangeEditorZoomLevel: Emitter<number> = new Emitter<number>();
+	public onDidChangeEditorZoomLevel:Event<number> = this._onDidChangeEditorZoomLevel.event;
 
 	public getZoomLevel(): number {
 		return this._zoomLevel;
@@ -32,6 +36,19 @@ class ZoomManager {
 		this._zoomLevel = zoomLevel;
 		this._pixelRatioComputed = false;
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+	}
+
+	public getEditorZoomLevel(): number {
+		return this._editorZoomLevel;
+	}
+
+	public setEditorZoomLevel(zoomLevel:number): void {
+		if (this._editorZoomLevel === zoomLevel) {
+			return;
+		}
+
+		this._editorZoomLevel = zoomLevel;
+		this._onDidChangeZoomLevel.fire(this._editorZoomLevel);
 	}
 
 	public getPixelRatio(): number {
@@ -65,6 +82,16 @@ export function setZoomLevel(zoomLevel:number): void {
 }
 export function onDidChangeZoomLevel(callback:(zoomLevel:number)=>void): IDisposable {
 	return ZoomManager.INSTANCE.onDidChangeZoomLevel(callback);
+}
+export function getEditorZoomLevel(): number {
+	return ZoomManager.INSTANCE.getEditorZoomLevel();
+}
+export function setEditorZoomLevel(zoomLevel:number): void {
+	let zoomLevelNormalized = Math.min(Math.max(-9, zoomLevel), 9);
+	ZoomManager.INSTANCE.setEditorZoomLevel(zoomLevelNormalized);
+}
+export function onDidChangeEditorZoomLevel(callback:(zoomLevel:number)=>void): IDisposable {
+	return ZoomManager.INSTANCE.onDidChangeEditorZoomLevel(callback);
 }
 
 const userAgent = navigator.userAgent;

@@ -221,6 +221,14 @@ export class ScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardMouseWheelEvent): void {
+		let browserEvent = e.browserEvent;
+		if (browserEvent.ctrlKey){
+			let zoomLevel:number = Browser.getEditorZoomLevel();
+			let delta = e.deltaY > 0 ? 1 : -1;
+			zoomLevel += delta;
+			Browser.setEditorZoomLevel(zoomLevel);
+			return;
+		}
 		if (Platform.isMacintosh && e.browserEvent && this._options.saveLastScrollTimeOnClassName) {
 			// Mark dom node with timestamp of wheel event
 			let target = <HTMLElement>e.browserEvent.target;

@@ -243,6 +243,7 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
+		this._register(browser.onDidChangeEditorZoomLevel(_ => this._recomputeOptions()));
 	}
 
 	private _onReferenceDomElementSizeChanged(): void {
