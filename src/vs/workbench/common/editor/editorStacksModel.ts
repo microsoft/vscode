@@ -6,7 +6,8 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {EditorInput} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
+import URI from 'vs/base/common/uri';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
@@ -16,6 +17,9 @@ import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/bas
 import {Registry} from 'vs/platform/platform';
 import {Position, Direction} from 'vs/platform/editor/common/editor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+
+// TODO@Ben currently only files and untitled editors are tracked with their resources in the stacks model
+// Once the resource is a base concept of all editor inputs, every resource should be tracked for any editor
 
 export interface IEditorGroup {
 
@@ -35,7 +39,9 @@ export interface IEditorGroup {
 
 	getEditor(index: number): EditorInput;
 	indexOf(editor: EditorInput): number;
+
 	contains(editor: EditorInput): boolean;
+	contains(resource: URI): boolean;
 
 	getEditors(mru?: boolean): EditorInput[];
 	isActive(editor: EditorInput): boolean;
@@ -71,6 +77,9 @@ export interface IEditorStacksModel {
 
 	popLastClosedEditor(): EditorInput;
 	clearLastClosedEditors(): void;
+
+	isOpen(editor: EditorInput): boolean;
+	isOpen(resource: URI): boolean;
 
 	toString(): string;
 }
@@ -114,6 +123,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private editors: EditorInput[];
 	private mru: EditorInput[];
+	private mapResourceToEditor: { [resource: string]: EditorInput };
 
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
@@ -138,6 +148,7 @@ export class EditorGroup implements IEditorGroup {
 		this.editors = [];
 		this.mru = [];
 		this.toDispose = [];
+		this.mapResourceToEditor = Object.create(null);
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
@@ -453,7 +464,7 @@ export class EditorGroup implements IEditorGroup {
 		if (index === -1) {
 			return; // not found
 		}
-		
+
 		if (!this.isPinned(editor)) {
 			return; // can only unpin a pinned editor
 		}
@@ -488,34 +499,45 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
+		const editorToDeleteOrReplace = this.editors[index];
 
-		// Perform on editors array
 		const args: any[] = [index, del ? 1 : 0];
 		if (editor) {
 			args.push(editor);
 		}
 
-		const editorToDeleteOrReplace = this.editors[index];
+		// Perform on editors array
 		this.editors.splice.apply(this.editors, args);
 
-		// Add: make it LRU editor
+		// Add
 		if (!del && editor) {
-			this.mru.push(editor);
+			this.mru.push(editor); // make it LRU editor
+			this.updateResourceMap(editor, false /* add */); // add new to resource map
 		}
 
 		// Remove / Replace
 		else {
 			const indexInMRU = this.indexOf(editorToDeleteOrReplace, this.mru);
 
-			// Remove: remove from MRU
+			// Remove
 			if (del && !editor) {
-				this.mru.splice(indexInMRU, 1);
+				this.mru.splice(indexInMRU, 1); // remove from MRU
+				this.updateResourceMap(editorToDeleteOrReplace, true /* delete */); // remove from resource map
 			}
 
-			// Replace: replace MRU at location
+			// Replace
 			else {
-				this.mru.splice(indexInMRU, 1, editor);
+				this.mru.splice(indexInMRU, 1, editor); // replace MRU at location
+				this.updateResourceMap(editor, false /* add */); // add new to resource map
+				this.updateResourceMap(editorToDeleteOrReplace, true /* delete */); // remove replaced from resource map
 			}
+		}
+	}
+
+	private updateResourceMap(editor: EditorInput, remove: boolean): void {
+		const resource = getUntitledOrFileResource(editor);
+		if (resource) {
+			this.mapResourceToEditor[resource.toString()] = remove ? void 0 : editor;
 		}
 	}
 
@@ -533,8 +555,14 @@ export class EditorGroup implements IEditorGroup {
 		return -1;
 	}
 
-	public contains(candidate: EditorInput): boolean {
-		return this.indexOf(candidate) >= 0;
+	public contains(candidate: EditorInput): boolean;
+	public contains(resource: URI): boolean;
+	public contains(arg1: any): boolean {
+		if (arg1 instanceof EditorInput) {
+			return this.indexOf(arg1) >= 0;
+		}
+
+		return !!this.mapResourceToEditor[(<URI>arg1).toString()];
 	}
 
 	private setMostRecentlyUsed(editor: EditorInput): void {
@@ -1118,8 +1146,14 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}
 	}
 
-	private isOpen(editor: EditorInput): boolean {
-		return this._groups.some(g => g.indexOf(editor) >= 0);
+	public isOpen(resource: URI): boolean;
+	public isOpen(editor: EditorInput): boolean;
+	public isOpen(arg1: any): boolean {
+		if (arg1 instanceof EditorInput) {
+			return this._groups.some(g => g.indexOf(arg1) >= 0);
+		}
+
+		return this._groups.some(group => group.contains(<URI>arg1));
 	}
 
 	private onShutdown(): void {

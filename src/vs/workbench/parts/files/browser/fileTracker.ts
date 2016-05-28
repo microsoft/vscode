@@ -29,6 +29,7 @@ import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/comm
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 // This extension tracks files for changes to update editors and inputs accordingly.
 export class FileTracker implements IWorkbenchContribution {
@@ -38,7 +39,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private static FILE_CHANGE_UPDATE_DELAY = 2000;
 
 	private lastDirtyCount: number;
-
+	private stacks: IEditorStacksModel;
 	private toUnbind: IDisposable[];
 
 	constructor(
@@ -51,6 +52,7 @@ export class FileTracker implements IWorkbenchContribution {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		this.toUnbind = [];
+		this.stacks = editorService.getStacksModel();
 
 		this.registerListeners();
 	}
@@ -62,6 +64,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Update editors and inputs from local changes and saves
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorInputEvent) => this.onEditorInputChanged(e)));
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledEditorDeleted(e)));
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledEditorDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
@@ -72,6 +75,10 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Update editors and inputs from disk changes
 		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+	}
+
+	private onEditorInputChanged(e: EditorInputEvent): void {
+		this.disposeUnusedTextFileModels();
 	}
 
 	private onTextFileDirty(e: TextFileChangeEvent): void {
@@ -141,7 +148,7 @@ export class FileTracker implements IWorkbenchContribution {
 		// Find all file editor inputs that are open from the given file resource and emit a editor input state change event.
 		// We could do all of this within the file editor input but having all the file change listeners in
 		// one place is more elegant and keeps the logic together at once place.
-		const editors = arrays.flatten(this.editorService.getStacksModel().groups.map(g => g.getEditors()));
+		const editors = arrays.flatten(this.stacks.groups.map(g => g.getEditors()));
 		editors.forEach(input => {
 			if (this.matchesResource(input, resource)) {
 				this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, new EditorInputEvent(input));
@@ -396,7 +403,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Collect from history and opened editors and see which ones to pick
 		const candidates = this.quickOpenService.getEditorHistory();
-		this.editorService.getStacksModel().groups.forEach(group => candidates.push(...group.getEditors()));
+		this.stacks.groups.forEach(group => candidates.push(...group.getEditors()));
 		candidates.forEach(input => {
 			if (input instanceof DiffEditorInput) {
 				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, deletedResource);
@@ -448,6 +455,21 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		return false;
+	}
+
+	private disposeUnusedTextFileModels(): void {
+
+		// To not grow our text file model cache infinitly, we dispose models that
+		// are not showing up in any opened editor.
+
+		// Get all cached file models
+		CACHE.getAll()
+
+			// Only take text file models and remove those that are under working files or opened
+			.filter((model) => !this.stacks.isOpen(model.getResource()) && this.canDispose(model))
+
+			// Dispose
+			.forEach((model) => CACHE.dispose(model.getResource()));
 	}
 
 	private canDispose(textModel: TextFileEditorModel): boolean {

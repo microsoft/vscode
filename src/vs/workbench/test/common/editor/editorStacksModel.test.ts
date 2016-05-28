@@ -7,7 +7,8 @@
 
 import * as assert from 'assert';
 import {EditorStacksModel, IEditorIdentifier, IEditorGroup, EditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
-import {EditorInput} from 'vs/workbench/common/editor';
+import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
+import URI from 'vs/base/common/uri';
 import {TestStorageService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
@@ -114,7 +115,48 @@ class NonSerializableTestEditorInput extends EditorInput {
 	}
 }
 
-function input(id = String(index++), nonSerializable?: boolean): EditorInput {
+class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+	constructor(public id: string, private resource: URI) {
+		super();
+	}
+	public getTypeId() { return 'testFileEditorInput'; }
+	public resolve() { return null; }
+
+	public matches(other: TestEditorInput): boolean {
+		return other && this.id === other.id && other instanceof TestFileEditorInput;
+	}
+
+	public setResource(r: URI): void {
+	}
+
+	public setMime(mime: string) {
+	}
+
+	public setEncoding(encoding: string) {
+	}
+
+	public getEncoding(): string {
+		return null;
+	}
+
+	public setPreferredEncoding(encoding: string) {
+	}
+
+	public getResource(): URI {
+		return this.resource;
+	}
+
+	public getMime(): string {
+		return null;
+	}
+}
+
+function input(id = String(index++), nonSerializable?: boolean, resource?: URI): EditorInput {
+	if (resource) {
+		return new TestFileEditorInput(id, resource);
+	}
+
 	return nonSerializable ? new NonSerializableTestEditorInput(id) : new TestEditorInput(id);
 }
 
@@ -1398,6 +1440,69 @@ suite('Editor Stacks Model', () => {
 		previous = model.previous();
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
+	});
+
+	test('Stack - Multiple Editors - Resources', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		assert.ok(!model.isOpen(URI.file('/hello/world.txt')));
+
+		const input1Resource = URI.file('/hello/world.txt');
+		const input1 = input(void 0, false, input1Resource);
+		group1.openEditor(input1);
+
+		assert.ok(model.isOpen(input1Resource));
+		assert.ok(group1.contains(input1Resource));
+
+		group2.openEditor(input1);
+		group1.closeEditor(input1);
+
+		assert.ok(model.isOpen(input1Resource));
+		assert.ok(!group1.contains(input1Resource));
+		assert.ok(group2.contains(input1Resource));
+
+		const input1ResourceClone = URI.file('/hello/world.txt');
+		const input1Clone = input(void 0, false, input1ResourceClone);
+		group1.openEditor(input1Clone);
+
+		assert.ok(group1.contains(input1Resource));
+
+		group2.closeEditor(input1);
+
+		assert.ok(model.isOpen(input1Resource));
+		assert.ok(group1.contains(input1Resource));
+		assert.ok(!group2.contains(input1Resource));
+
+		group1.closeEditor(input1Clone);
+
+		assert.ok(!model.isOpen(input1Resource));
+		assert.ok(!group1.contains(input1Resource));
+
+		group1.openEditor(input1);
+
+		const input2Resource = URI.file('/hello/world_other.txt');
+		const input2 = input(void 0, false, input2Resource);
+
+		const input3Resource = URI.file('/hello/world_different.txt');
+		const input3 = input(void 0, false, input3Resource);
+
+		group1.openEditor(input2);
+
+		assert.ok(model.isOpen(input2Resource));
+		assert.ok(!model.isOpen(input1Resource));
+
+		group1.openEditor(input3, {pinned: true});
+
+		assert.ok(model.isOpen(input2Resource));
+		assert.ok(model.isOpen(input3Resource));
+
+		model.closeGroups();
+
+		assert.ok(!model.isOpen(input2Resource));
+		assert.ok(!model.isOpen(input3Resource));
 	});
 
 	test('Stack - Multiple Editors - Editor Dispose', function () {

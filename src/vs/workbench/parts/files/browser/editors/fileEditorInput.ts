@@ -253,15 +253,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 		});
 	}
 
-	public close(): void {
-		let inputs: FileEditorInput[] = [this, ...FileEditorInput.getAll(this.resource)];
-		inputs.forEach(input => {
-			if (!input.isDisposed()) {
-				input.dispose(true);
-			}
-		});
-	}
-
 	private indexOfClient(): number {
 		if (!types.isUndefinedOrNull(FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()])) {
 			for (let i = 0; i < FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].length; i++) {
@@ -310,11 +301,6 @@ export class FileEditorInput extends CommonFileEditorInput {
 
 				// Remove from Clients List
 				FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].splice(index, 1);
-
-				// Still clients around, thereby do not dispose yet
-				if (!force && FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].length > 0) {
-					return;
-				}
 
 				// We typically never want to dispose a file editor model because this means loosing undo/redo history.
 				// For that, we will keep the model around unless someone forces a dispose on the input. A forced dispose
