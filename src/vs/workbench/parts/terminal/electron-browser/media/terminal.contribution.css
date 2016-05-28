@@ -9,7 +9,6 @@
 }
 
 .monaco-workbench .integrated-terminal {
-	background-color: transparent!important;
 	color: #333;
 	-webkit-user-select: initial;
 	overflow: hidden; /* prevents the terminal output being incorrectly placed over the title */
