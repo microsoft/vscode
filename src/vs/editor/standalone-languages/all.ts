@@ -39,7 +39,7 @@ MonacoEditorLanguages.push({
 MonacoEditorLanguages.push({
 	id: 'csharp',
 	extensions: [ '.cs', '.csx' ],
-	aliases: [ 'C#', 'csharp' ],
+	aliases: [ 'C#', 'cs', 'csharp' ],
 	defModule: 'vs/editor/standalone-languages/csharp'
 });
 MonacoEditorLanguages.push({
