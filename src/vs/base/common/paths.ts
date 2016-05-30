@@ -5,7 +5,6 @@
 'use strict';
 
 import {isLinux, isWindows} from 'vs/base/common/platform';
-import {endsWith} from 'vs/base/common/strings';
 
 /**
  * The forward slash path separator.
@@ -316,7 +315,7 @@ export function isValidBasename(name: string): boolean {
 		return false; // check for reserved values
 	}
 
-	if (isWindows && endsWith(name, '.')) {
+	if (isWindows && name[name.length - 1] === '.') {
 		return false; // Windows: file cannot end with a "."
 	}
 
