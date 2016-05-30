@@ -135,7 +135,14 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public onClick(event: Event): void {
 		DOM.EventHelper.stop(event, true);
-		const context = (this._context === null || this._context === undefined) ? event : this._context;
+		let context: any;
+		if (types.isUndefinedOrNull(this._context)) {
+			context = event;
+		} else {
+			context = this._context;
+			context.event = event;
+		}
+
 		this._actionRunner.run(this._action, context);
 	}
 
