@@ -109,7 +109,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 				// skip current and remove parent (if there is already something)
 				let prev_start = res.lastIndexOf(sep);
 				let prev_part = res.slice(prev_start + 1);
-				if (prev_part.length > 0 && prev_part !== '..') {
+				if ((root || prev_part.length > 0) && prev_part !== '..') {
 					res = prev_start === -1 ? '' : res.slice(0, prev_start);
 					continue;
 				}

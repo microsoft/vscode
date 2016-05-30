@@ -39,13 +39,14 @@ suite('Paths', () => {
 		assert.equal(paths.normalize('./ff/./'), 'ff/');
 		assert.equal(paths.normalize('./foo'), 'foo');
 		assert.equal(paths.normalize('/'), '/');
+		assert.equal(paths.normalize('/..'), '/');
 		assert.equal(paths.normalize('///'), '/');
 		assert.equal(paths.normalize('//foo'), '/foo');
 		assert.equal(paths.normalize('//foo//'), '/foo/');
 		assert.equal(paths.normalize('/foo'), '/foo');
 		assert.equal(paths.normalize('/foo/bar.test'), '/foo/bar.test');
 		assert.equal(paths.normalize('\\\\\\'), '/');
-		assert.equal(paths.normalize('c:/../ff'), 'c:/../ff');
+		assert.equal(paths.normalize('c:/../ff'), 'c:/ff');
 		assert.equal(paths.normalize('c:\\./'), 'c:/');
 		assert.equal(paths.normalize('foo/'), 'foo/');
 		assert.equal(paths.normalize('foo/../../bar'), '../bar');
