@@ -75,28 +75,6 @@ export function normalize(path: string, toOSPath?: boolean): string {
 	return parts.join(toOSPath ? nativeSep : sep);
 }
 
-export function dirnames(path: string): { next: () => { done: boolean; value: string; } } {
-
-	var value = path,
-		done = false;
-
-	function next() {
-		if (value === '.' || value === '/' || value === '\\') {
-			value = undefined;
-			done = true;
-		} else {
-			value = dirname(value);
-		}
-		return {
-			value,
-			done
-		};
-	}
-	return {
-		next
-	};
-}
-
 /**
  * @returns the directory name of a path.
  */

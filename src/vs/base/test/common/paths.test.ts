@@ -27,45 +27,6 @@ suite('Paths', () => {
 		assert.equal(paths.dirname('foo'), '.');
 	});
 
-	test('dirnames', () => {
-
-		var iter = paths.dirnames('foo/bar');
-		var next = iter.next();
-		assert.equal(next.value, 'foo');
-		assert.equal(next.done, false);
-		next = iter.next();
-		assert.equal(next.value, '.');
-		assert.equal(next.done, false);
-		next = iter.next();
-		assert.equal(next.value, undefined);
-		assert.equal(next.done, true);
-
-		iter = paths.dirnames('/foo/bar');
-		next = iter.next();
-		assert.equal(next.value, '/foo');
-		assert.equal(next.done, false);
-		next = iter.next();
-		assert.equal(next.value, '/');
-		assert.equal(next.done, false);
-		next = iter.next();
-		assert.equal(next.value, undefined);
-		assert.equal(next.done, true);
-
-		iter = paths.dirnames('c:\\far\\boo');
-		next = iter.next();
-		assert.equal(next.value, 'c:\\far');
-		assert.equal(next.done, false);
-		next = iter.next();
-		assert.equal(next.value, 'c:');
-		assert.equal(next.done, false);
-		next = iter.next();
-		assert.equal(next.value, '.');
-		assert.equal(next.done, false);
-		next = iter.next();
-		assert.equal(next.value, undefined);
-		assert.equal(next.done, true);
-	});
-
 	test('normalize', () => {
 		assert.equal(paths.normalize('.'), '.');
 		assert.equal(paths.normalize('/'), '/');
