@@ -310,8 +310,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 	private repositoryRoot: string;
 	private status: Git.IStatusModel;
 	private HEAD: Git.IBranch;
-	private heads: Git.IBranch[];
-	private tags: Git.ITag[];
+	private refs: Git.IRef[];
 	private remotes: Git.IRemote[];
 	private toDispose: Lifecycle.IDisposable[];
 
@@ -325,8 +324,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		this.toDispose.push(this.addEmitter2(this.status));
 
 		this.HEAD = null;
-		this.heads = [];
-		this.tags = [];
+		this.refs = [];
 		this.remotes = [];
 	}
 
@@ -342,12 +340,8 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		return this.HEAD;
 	}
 
-	public getHeads(): Git.IBranch[] {
-		return this.heads;
-	}
-
-	public getTags(): Git.ITag[] {
-		return this.tags;
+	public getRefs(): Git.IRef[] {
+		return this.refs;
 	}
 
 	public getRemotes(): Git.IRemote[] {
@@ -360,8 +354,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 				repositoryRoot: null,
 				status: [],
 				HEAD: null,
-				heads: [],
-				tags: [],
+				refs: [],
 				remotes: []
 			};
 		}
@@ -372,11 +365,8 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 		this.HEAD = status.HEAD;
 		this.emit(Git.ModelEvents.HEAD_UPDATED);
 
-		this.heads = status.heads;
-		this.emit(Git.ModelEvents.HEADS_UPDATED);
-
-		this.tags = status.tags;
-		this.emit(Git.ModelEvents.TAGS_UPDATED);
+		this.refs = status.refs;
+		this.emit(Git.ModelEvents.REFS_UPDATED);
 
 		this.remotes = status.remotes;
 		this.emit(Git.ModelEvents.REMOTES_UPDATED);

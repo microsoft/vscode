@@ -26,20 +26,23 @@ export interface IRemote {
 	url: string;
 }
 
-export interface IHead {
-	name?: string;
-	commit?: string;
+export enum RefType {
+	Head,
+	RemoteHead,
+	Tag
 }
 
-export interface IBranch extends IHead {
+export interface IRef {
+	name: string;
+	commit: string;
+	type: RefType;
+	remote?: string;
+}
+
+export interface IBranch extends IRef {
 	upstream?: string;
 	ahead?: number;
 	behind?: number;
-}
-
-export interface ITag {
-	name: string;
-	commit: string;
 }
 
 export interface IRawStatus {
@@ -47,8 +50,7 @@ export interface IRawStatus {
 	state?: ServiceState;
 	status: IRawFileStatus[];
 	HEAD: IBranch;
-	heads: IBranch[];
-	tags: ITag[];
+	refs: IRef[];
 	remotes: IRemote[];
 }
 
@@ -87,8 +89,7 @@ export var ModelEvents = {
 	MODEL_UPDATED: 'ModelUpdated',
 	STATUS_MODEL_UPDATED: 'StatusModelUpdated',
 	HEAD_UPDATED: 'HEADUpdated',
-	HEADS_UPDATED: 'HEADSUpdated',
-	TAGS_UPDATED: 'TagsUpdated',
+	REFS_UPDATED: 'RefsUpdated',
 	REMOTES_UPDATED: 'RemotesUpdated'
 };
 
@@ -133,8 +134,7 @@ export interface IModel extends EventEmitter.IEventEmitter {
 	getRepositoryRoot(): string;
 	getStatus(): IStatusModel;
 	getHEAD(): IBranch;
-	getHeads(): IBranch[];
-	getTags(): ITag[];
+	getRefs(): IRef[];
 	getRemotes(): IRemote[];
 	update(status: IRawStatus): void;
 	getPS1(): string;

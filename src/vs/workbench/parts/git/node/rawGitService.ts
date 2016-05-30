@@ -9,7 +9,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/node/mime');
 import pfs = require('vs/base/node/pfs');
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
-import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import Event, { Emitter } from 'vs/base/common/event';
 
 export class RawGitService implements IRawGitService {
@@ -59,15 +59,14 @@ export class RawGitService implements IRawGitService {
 					} else {
 						return HEAD;
 					}
-				}, (): IHead => null)
-				.then(HEAD => Promise.join([this.getRepositoryRoot(), this.repo.getHeads(), this.repo.getTags(), this.repo.getRemotes()]).then(r => {
+				}, (): IRef => null)
+				.then(HEAD => Promise.join([this.getRepositoryRoot(), this.repo.getRefs(), this.repo.getRemotes()]).then(r => {
 					return {
 						repositoryRoot: r[0],
 						status: status,
 						HEAD: HEAD,
-						heads: r[1],
-						tags: r[2],
-						remotes: r[3]
+						refs: r[1],
+						remotes: r[2]
 					};
 				})))
 			.then(null, (err) => {

@@ -12,7 +12,7 @@ import uuid = require('vs/base/common/uuid');
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { uniqueFilter } from 'vs/base/common/arrays';
-import { IRawFileStatus, IHead, ITag, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
+import { IRawFileStatus, RefType, IRef, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import { detectMimesFromStream } from 'vs/base/node/mime';
 import files = require('vs/platform/files/common/files');
 import { spawn, ChildProcess } from 'child_process';
@@ -601,39 +601,42 @@ export class Repository {
 		});
 	}
 
-	public getHEAD(): TPromise<IHead> {
+	public getHEAD(): TPromise<IRef> {
 		return this.run(['symbolic-ref', '--short', 'HEAD'], { log: false }).then((result) => {
 			if (!result.stdout) {
-				return TPromise.wrapError<IHead>(new Error('Not in a branch'));
+				return TPromise.wrapError<IRef>(new Error('Not in a branch'));
 			}
 
-			return TPromise.as<IHead>({ name: result.stdout.trim() });
+			return TPromise.as<IRef>({ name: result.stdout.trim(), commit: void 0, type: RefType.Head });
 		}, (err) => {
 			return this.run(['rev-parse', 'HEAD'], { log: false }).then((result) => {
 				if (!result.stdout) {
-					return TPromise.wrapError<IHead>(new Error('Error parsing HEAD'));
+					return TPromise.wrapError<IRef>(new Error('Error parsing HEAD'));
 				}
 
-				return TPromise.as<IHead>({ commit: result.stdout.trim() });
+				return TPromise.as<IRef>({ name: void 0, commit: result.stdout.trim(), type: RefType.Head });
 			});
 		});
 	}
 
-	public getHeads(): TPromise<ITag[]> {
-		return this.run(['for-each-ref', '--format', '%(refname:short) %(objectname)', 'refs/heads/'], { log: false }).then((result) => {
+	public getRefs(): TPromise<IRef[]> {
+		return this.run(['for-each-ref', '--format', '%(refname) %(objectname)'], { log: false }).then(result => {
 			return result.stdout.trim().split('\n')
-				.filter(b => !!b)
-				.map(b => b.trim().split(' '))
-				.map(a => ({ name: a[0], commit: a[1] }));
-		});
-	}
+				.filter(line => !!line)
+				.map(line => {
+					let match: RegExpExecArray;
 
-	public getTags(): TPromise<IHead[]> {
-		return this.run(['for-each-ref', '--format', '%(refname:short) %(objectname)', 'refs/tags/'], { log: false }).then((result) => {
-			return result.stdout.trim().split('\n')
-				.filter(b => !!b)
-				.map(b => b.trim().split(' '))
-				.map(a => ({ name: a[0], commit: a[1] }));
+					if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
+						return { name: match[1], commit: match[2], type: RefType.Head };
+					} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
+						return { name: `${ match[1] }/${ match[2] }`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
+					} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
+						return { name: match[1], commit: match[2], type: RefType.Tag };
+					}
+
+					return null;
+				})
+				.filter(ref => !!ref);
 		});
 	}
 

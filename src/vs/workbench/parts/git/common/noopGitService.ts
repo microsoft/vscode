@@ -18,8 +18,7 @@ export class NoOpGitService implements git.IRawGitService {
 		state: git.ServiceState.NotAWorkspace,
 		status: [],
 		HEAD: null,
-		heads: [],
-		tags: [],
+		refs: [],
 		remotes: []
 	};
 
