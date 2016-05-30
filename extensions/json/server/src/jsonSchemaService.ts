@@ -206,7 +206,7 @@ export interface ITelemetryService {
 }
 
 export interface IWorkspaceContextService {
-	toResource(workspaceRelativePath: string): string;
+	resolveRelativePath(relativePath: string, resource: string): string;
 }
 
 export interface IRequestService {
@@ -473,13 +473,8 @@ export class JSONSchemaService implements IJSONSchemaService {
 			let schemaProperties = (<Parser.ObjectASTNode>document.root).properties.filter((p) => (p.key.value === '$schema') && !!p.value);
 			if (schemaProperties.length > 0) {
 				let schemeId = <string>schemaProperties[0].value.getValue();
-				if (!Strings.startsWith(schemeId, 'http://') && !Strings.startsWith(schemeId, 'https://') && !Strings.startsWith(schemeId, 'file://')) {
-					if (this.contextService) {
-						let resourceURL = this.contextService.toResource(schemeId);
-						if (resourceURL) {
-							schemeId = resourceURL.toString();
-						}
-					}
+				if (Strings.startsWith(schemeId, '.') && this.contextService) {
+					schemeId = this.contextService.resolveRelativePath(schemeId, resource);
 				}
 				if (schemeId) {
 					let id = this.normalizeId(schemeId);

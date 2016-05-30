@@ -78,11 +78,12 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 });
 
 let workspaceContext = {
-	toResource: (workspaceRelativePath: string) => {
-		if (typeof workspaceRelativePath === 'string' && workspaceRoot) {
-			return URI.file(path.join(workspaceRoot.fsPath, workspaceRelativePath)).toString();
+	resolveRelativePath: (relativePath: string, resource: string) => {
+		if (typeof relativePath === 'string' && resource) {
+			let resourceURI = URI.parse(resource);
+			return URI.file(path.normalize(path.join(path.dirname(resourceURI.fsPath), relativePath))).toString();
 		}
-		return workspaceRelativePath;
+		return void 0;
 	}
 };
 
@@ -192,11 +193,9 @@ function updateConfiguration() {
 						url = 'vscode://schemas/custom/' + encodeURIComponent(schema.fileMatch.join('&'));
 					}
 				}
-				if (!Strings.startsWith(url, 'http://') && !Strings.startsWith(url, 'https://') && !Strings.startsWith(url, 'file://')) {
-					let resourceURL = workspaceContext.toResource(url);
-					if (resourceURL) {
-						url = resourceURL.toString();
-					}
+				if (Strings.startsWith(url, '.') && workspaceRoot) {
+					// workspace relative path
+					url = URI.file(path.normalize(path.join(workspaceRoot.fsPath, url))).toString();
 				}
 				if (url) {
 					jsonSchemaService.registerExternalSchema(url, schema.fileMatch, schema.schema);
