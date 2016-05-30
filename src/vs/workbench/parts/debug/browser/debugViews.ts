@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import paths = require('vs/base/common/paths');
 import dom = require('vs/base/browser/dom');
 import builder = require('vs/base/browser/builder');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -335,12 +336,12 @@ export class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					if (first instanceof FunctionBreakpoint) {
 						return -1;
 					}
-					if(second instanceof FunctionBreakpoint) {
+					if (second instanceof FunctionBreakpoint) {
 						return 1;
 					}
 
 					if (first.source.uri.toString() !== second.source.uri.toString()) {
-						return first.source.uri.toString().localeCompare(second.source.uri.toString());
+						return paths.basename(first.source.uri.fsPath).localeCompare(paths.basename(second.source.uri.fsPath));
 					}
 
 					return first.desiredLineNumber - second.desiredLineNumber;

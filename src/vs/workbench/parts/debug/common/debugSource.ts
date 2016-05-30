@@ -50,13 +50,8 @@ export class Source {
 		}
 
 		// did not find the raw source amongst the stack frames, construct the raw stack frame from the limited data you have.
-		return Source.isInMemory(uri) ? { name: Source.getName(uri) } :
-			{ path: paths.normalize(uri.fsPath, true) };
-	}
-
-	private static getName(uri: uri): string {
-		const uriStr = uri.toString();
-		return uriStr.substr(uriStr.lastIndexOf('/') + 1);
+		return Source.isInMemory(uri) ? { name: paths.basename(uri.toString()) } :
+			{ path: paths.normalize(uri.fsPath, true), name: paths.basename(uri.fsPath) };
 	}
 
 	private static isInMemory(uri: uri): boolean {
