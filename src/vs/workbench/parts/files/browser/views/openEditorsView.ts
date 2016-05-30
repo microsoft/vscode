@@ -79,7 +79,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 					this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
 				}
 			}
-		}, 0);
+		}, 250);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -239,6 +239,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private getExpandedBodySize(model: IEditorStacksModel): number {
+		console.log('getting expanded body size');
 		return OpenEditorsView.computeExpandedBodySize(model, this.maxVisibleOpenEditors, this.dynamicHeight);
 	}
 
