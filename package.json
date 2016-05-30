@@ -4,7 +4,7 @@
   "description": "Linting, Debugging (multi-threaded, remote), Intellisense, auto-completion, code formatting, snippets, and more.",
   "version": "0.3.9",
   "publisher": "donjayamanne",
-  "license": "SEE LICENSE IN LICENSE or README.MD",
+  "license": "MIT",
   "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
   "repository": {
     "type": "git",
