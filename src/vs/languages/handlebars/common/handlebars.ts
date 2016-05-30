@@ -169,20 +169,19 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},
 
-			__characterPairSupport: {
-				autoClosingPairs: [
-					{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"' },
-					{ open: '\'', close: '\'' }
-				],
-				surroundingPairs: [
-					{ open: '<', close: '>' },
-					{ open: '"', close: '"' },
-					{ open: '\'', close: '\'' }
-				]
-			},
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+				{ open: '"', close: '"' },
+				{ open: '\'', close: '\'' }
+			],
+			
+			surroundingPairs: [
+				{ open: '<', close: '>' },
+				{ open: '"', close: '"' },
+				{ open: '\'', close: '\'' }
+			],
 
 			onEnterRules: [
 				{

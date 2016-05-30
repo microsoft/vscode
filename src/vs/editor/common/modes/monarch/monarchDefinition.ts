@@ -25,14 +25,12 @@ export function createRichEditSupport(lexer: ILexer): IRichLanguageConfiguration
 
 		brackets: lexer.standardBrackets,
 
+		autoClosingPairs: lexer.autoClosingPairs,
+
 		__electricCharacterSupport: {
 			// regexBrackets: lexer.enhancedBrackets,
 			caseInsensitive: lexer.ignoreCase,
 			embeddedElectricCharacters: lexer.outdentTriggers.split('')
-		},
-
-		__characterPairSupport: {
-			autoClosingPairs: lexer.autoClosingPairs
 		}
 	};
 }

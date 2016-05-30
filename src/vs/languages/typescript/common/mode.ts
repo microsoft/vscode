@@ -85,16 +85,14 @@ const richEditConfiguration:IRichLanguageConfiguration = {
 		docComment: {scope:'comment.doc', open:'/**', lineStart:' * ', close:' */'}
 	},
 
-	__characterPairSupport: {
-		autoClosingPairs: [
-			{ open: '{', close: '}' },
-			{ open: '[', close: ']' },
-			{ open: '(', close: ')' },
-			{ open: '"', close: '"', notIn: ['string'] },
-			{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-			{ open: '`', close: '`' }
-		]
-	}
+	autoClosingPairs: [
+		{ open: '{', close: '}' },
+		{ open: '[', close: ']' },
+		{ open: '(', close: ')' },
+		{ open: '"', close: '"', notIn: ['string'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '`', close: '`' }
+	]
 };
 
 export function createRichEditSupport(modeId:string): RichEditSupport {

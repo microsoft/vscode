@@ -313,15 +313,13 @@ export class CSSMode extends AbstractMode {
 				['(', ')']
 			],
 
-			__characterPairSupport: {
-				autoClosingPairs: [
-					{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"', notIn: ['string'] },
-					{ open: '\'', close: '\'', notIn: ['string'] }
-				]
-			}
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+				{ open: '"', close: '"', notIn: ['string'] },
+				{ open: '\'', close: '\'', notIn: ['string'] }
+			]
 		});
 
 		this.inplaceReplaceSupport = this;

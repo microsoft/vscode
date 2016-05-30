@@ -419,6 +419,12 @@ export class ExtHostAPIImplementation {
 			setWordDefinitionFor(modeId, null);
 		}
 
+		// backward compatibility, migrate deprecated setting
+		if (configuration.__characterPairSupport && !configuration.autoClosingPairs) {
+			configuration.autoClosingPairs = configuration.__characterPairSupport.autoClosingPairs;
+			delete configuration.__characterPairSupport;
+		}
+
 		return this.Modes_RichEditSupport_register(modeId, configuration);
 	}
 

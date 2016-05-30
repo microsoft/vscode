@@ -4,13 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IMode, IRichEditCharacterPair} from 'vs/editor/common/modes';
+import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IMode, IRichEditCharacterPair, CharacterPair} from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
-
-export interface ICharacterPairContribution {
-	autoClosingPairs: IAutoClosingPairConditional[];
-	surroundingPairs?: IAutoClosingPair[];
-}
 
 export class CharacterPairSupport implements IRichEditCharacterPair {
 
@@ -18,10 +13,13 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 	private _autoClosingPairs: IAutoClosingPairConditional[];
 	private _surroundingPairs: IAutoClosingPair[];
 
-	constructor(modeId: string, contribution: ICharacterPairContribution) {
+	constructor(modeId: string, config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[]}) {
 		this._modeId = modeId;
-		this._autoClosingPairs = contribution.autoClosingPairs;
-		this._surroundingPairs = Array.isArray(contribution.surroundingPairs) ? contribution.surroundingPairs : contribution.autoClosingPairs;
+		this._autoClosingPairs = config.autoClosingPairs;
+		if (!this._autoClosingPairs) {
+			this._autoClosingPairs = config.brackets ? config.brackets.map(b => ({ open: b[0], close: b[1] })) : [];
+		}
+		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
 	}
 
 	public getAutoClosingPairs(): IAutoClosingPair[] {

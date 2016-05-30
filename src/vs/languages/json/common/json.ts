@@ -54,13 +54,11 @@ export class JSONMode extends AbstractMode {
 				['[', ']']
 			],
 
-			__characterPairSupport: {
-				autoClosingPairs: [
-					{ open: '{', close: '}', notIn: ['string'] },
-					{ open: '[', close: ']', notIn: ['string'] },
-					{ open: '"', close: '"', notIn: ['string'] }
-				]
-			}
+			autoClosingPairs: [
+				{ open: '{', close: '}', notIn: ['string'] },
+				{ open: '[', close: ']', notIn: ['string'] },
+				{ open: '"', close: '"', notIn: ['string'] }
+			]
 		});
 
 		modes.HoverProviderRegistry.register(this.getId(), {

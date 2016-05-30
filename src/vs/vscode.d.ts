@@ -2301,6 +2301,26 @@ declare namespace vscode {
 		onEnterRules?: OnEnterRule[];
 
 		/**
+		 * The language's auto closing pairs. The 'close' character is automatically inserted with the
+		 * 'open' character is typed. If not set, the configured brackets will be used.
+		 */
+		autoClosingPairs?: {
+			open: string;
+			close: string;
+			notIn?: string[];
+		}[];
+
+		/**
+		 * The language's surrounding pairs. When the 'open' character is typed on a selection, the
+		 * selected string is surrounded by the open and close characters. If not set, the autoclosing pairs
+		 * settings will be used.
+		 */
+		surroundingPairs?: {
+			open: string;
+			close: string;
+		}[];
+
+		/**
 		 * **Deprecated** Do not use.
 		 *
 		 * @deprecated Will be replaced by a better API soon.
@@ -2323,7 +2343,7 @@ declare namespace vscode {
 		/**
 		 * **Deprecated** Do not use.
 		 *
-		 * @deprecated Will be replaced by a better API soon.
+		 * @deprecated Use autoClosingPairs and surroundingPairs instead.
 		 */
 		__characterPairSupport?: {
 			autoClosingPairs: {

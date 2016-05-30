@@ -81,17 +81,11 @@ export class LanguageConfigurationFileHandler {
 		}
 
 		if (configuration.autoClosingPairs) {
-			richEditConfig.__characterPairSupport = {
-				autoClosingPairs: this._mapCharacterPairs(configuration.autoClosingPairs)
-			};
-		} else if (configuration.brackets) {
-			richEditConfig.__characterPairSupport = {
-				autoClosingPairs: this._mapCharacterPairs(configuration.brackets)
-			};
+			richEditConfig.autoClosingPairs = this._mapCharacterPairs(configuration.autoClosingPairs);
 		}
 
-		if (richEditConfig.__characterPairSupport && configuration.surroundingPairs) {
-			richEditConfig.__characterPairSupport.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
+		if (configuration.surroundingPairs) {
+			richEditConfig.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
 		}
 
 		this._modeService.registerRichEditSupport(modeId, richEditConfig);

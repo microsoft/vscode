@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IRichEditOnEnter, IRichEditSupport, CharacterPair} from 'vs/editor/common/modes';
+import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IAutoClosingPair,
+	IAutoClosingPairConditional, IRichEditOnEnter, IRichEditSupport, CharacterPair} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
-import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
 import {IIndentationRules, IOnEnterRegExpRules, IOnEnterSupportOptions, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {RichEditBrackets} from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -23,8 +23,9 @@ export interface IRichLanguageConfiguration {
 	wordPattern?: RegExp;
 	indentationRules?: IIndentationRules;
 	onEnterRules?: IOnEnterRegExpRules[];
+	autoClosingPairs?: IAutoClosingPairConditional[];
+	surroundingPairs?: IAutoClosingPair[];
 	__electricCharacterSupport?: IBracketElectricCharacterContribution;
-	__characterPairSupport?: ICharacterPairContribution;
 }
 
 export class RichEditSupport implements IRichEditSupport {
@@ -55,8 +56,8 @@ export class RichEditSupport implements IRichEditSupport {
 
 		this._handleComments(modeId, this._conf);
 
-		if (this._conf.__characterPairSupport) {
-			this.characterPair = new CharacterPairSupport(modeId, this._conf.__characterPairSupport);
+		if (this._conf.autoClosingPairs) {
+			this.characterPair = new CharacterPairSupport(modeId, this._conf);
 		}
 
 		if (this._conf.__electricCharacterSupport || this._conf.brackets) {
@@ -73,8 +74,9 @@ export class RichEditSupport implements IRichEditSupport {
 			wordPattern: (prev ? current.wordPattern || prev.wordPattern : current.wordPattern),
 			indentationRules: (prev ? current.indentationRules || prev.indentationRules : current.indentationRules),
 			onEnterRules: (prev ? current.onEnterRules || prev.onEnterRules : current.onEnterRules),
+			autoClosingPairs: (prev ? current.autoClosingPairs || prev.autoClosingPairs : current.autoClosingPairs),
+			surroundingPairs: (prev ? current.surroundingPairs || prev.surroundingPairs : current.surroundingPairs),
 			__electricCharacterSupport: (prev ? current.__electricCharacterSupport || prev.__electricCharacterSupport : current.__electricCharacterSupport),
-			__characterPairSupport: (prev ? current.__characterPairSupport || prev.__characterPairSupport : current.__characterPairSupport),
 		};
 	}
 

@@ -482,15 +482,13 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 				['(', ')']
 			],
 
-			__characterPairSupport: {
-				autoClosingPairs: [
-					{ open: '{', close: '}', notIn: ['string.php'] },
-					{ open: '[', close: ']', notIn: ['string.php'] },
-					{ open: '(', close: ')', notIn: ['string.php'] },
-					{ open: '"', close: '"', notIn: ['string.php'] },
-					{ open: '\'', close: '\'', notIn: ['string.php'] }
-				]
-			}
+			autoClosingPairs: [
+				{ open: '{', close: '}', notIn: ['string.php'] },
+				{ open: '[', close: ']', notIn: ['string.php'] },
+				{ open: '(', close: ')', notIn: ['string.php'] },
+				{ open: '"', close: '"', notIn: ['string.php'] },
+				{ open: '\'', close: '\'', notIn: ['string.php'] }
+			]
 		});
 
 		if (editorWorkerService) {
