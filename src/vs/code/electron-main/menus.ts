@@ -360,6 +360,7 @@ export class VSCodeMenu {
 		let kebindingSettings = this.createMenuItem(nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
 		let snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');
 		let themeSelection = this.createMenuItem(nls.localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme"), 'workbench.action.selectTheme');
+
 		let preferencesMenu = new Menu();
 		preferencesMenu.append(userSettings);
 		preferencesMenu.append(workspaceSettings);
@@ -498,12 +499,31 @@ export class VSCodeMenu {
 		let git = this.createMenuItem(nls.localize({ key: 'miViewGit', comment: ['&& denotes a mnemonic'] }, "&&Git"), 'workbench.view.git');
 		let debug = this.createMenuItem(nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"), 'workbench.view.debug');
 
+		let viewsMenu = new Menu();
+		[
+			explorer,
+			search,
+			git,
+			debug
+		].forEach(item => viewsMenu.append(item));
+
+		let viewsItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miView', comment: ['&& denotes a mnemonic'] }, "&&Views")), submenu: viewsMenu, enabled: true });
+
+		let output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
+		let debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"), 'workbench.debug.action.toggleRepl');
+		let integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
+
+		let panelsMenu = new Menu();
+		[
+			output,
+			debugConsole,
+			integratedTerminal
+		].forEach(item => panelsMenu.append(item));
+
+		let panelsItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPanels', comment: ['&& denotes a mnemonic'] }, "&&Panels")), submenu: panelsMenu, enabled: true });
+
 		let commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
 		let markers = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Errors and Warnings..."), 'workbench.action.showErrorsWarnings');
-
-		let output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "Toggle &&Output"), 'workbench.action.output.toggleOutput');
-		let debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "Toggle De&&bug Console"), 'workbench.debug.action.toggleRepl');
-		let integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "Toggle &&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
 
 		let fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsManager.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsManager.getWindowCount() > 0 });
 		let toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
@@ -517,33 +537,29 @@ export class VSCodeMenu {
 
 		let zoomIn = this.createMenuItem(nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "Zoom O&&ut"), 'workbench.action.zoomOut');
+		let resetZoom = this.createMenuItem(nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"), 'workbench.action.zoomReset');
 
 		arrays.coalesce([
-			explorer,
-			search,
-			git,
-			debug,
+			viewsItem,
+			panelsItem,
 			__separator__(),
 			commands,
 			markers,
-			__separator__(),
-			output,
-			debugConsole,
-			integratedTerminal,
 			__separator__(),
 			fullscreen,
 			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
+			togglePanel,
 			toggleSidebar,
 			moveSidebar,
-			togglePanel,
 			__separator__(),
 			toggleWordWrap,
 			toggleRenderWhitespace,
 			__separator__(),
 			zoomIn,
-			zoomOut
+			zoomOut,
+			resetZoom
 		]).forEach((item) => viewMenu.append(item));
 	}
 

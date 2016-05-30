@@ -426,8 +426,7 @@ export class Workbench implements IPartService {
 		let panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
 		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
 		if (!!this.workbenchParams.options.singleFileMode || !panelRegistry.getDefaultPanelId()) {
-			// we hide panel part in single-file-mode or if there is no default panel
-			this.panelHidden = true;
+			this.panelHidden = true; // we hide panel part in single-file-mode or if there is no default panel
 		}
 
 		// Sidebar position
