@@ -262,7 +262,7 @@ export class TextFileService extends AbstractTextFileService {
 
 				// Otherwise ask user
 				else {
-					targetPath = this.promptForPathSync(this.suggestFileName(untitledResources[i]));
+					targetPath = this.promptForPath(this.suggestFileName(untitledResources[i]));
 					if (!targetPath) {
 						return TPromise.as({
 							results: [...fileResources, ...untitledResources].map((r) => {
@@ -304,31 +304,29 @@ export class TextFileService extends AbstractTextFileService {
 	public saveAs(resource: URI, target?: URI): TPromise<URI> {
 
 		// Get to target resource
-		let targetPromise: TPromise<URI>;
-		if (target) {
-			targetPromise = TPromise.as(target);
-		} else {
+		if (!target) {
 			let dialogPath = resource.fsPath;
 			if (resource.scheme === 'untitled') {
 				dialogPath = this.suggestFileName(resource);
 			}
 
-			targetPromise = this.promptForPathAsync(dialogPath).then((path) => path ? URI.file(path) : null);
+			const pathRaw = this.promptForPath(dialogPath);
+			if (pathRaw) {
+				target = URI.file(pathRaw);
+			}
 		}
 
-		return targetPromise.then((target) => {
-			if (!target) {
-				return null; // user canceled
-			}
+		if (!target) {
+			return TPromise.as(null); // user canceled
+		}
 
-			// Just save if target is same as models own resource
-			if (resource.toString() === target.toString()) {
-				return this.save(resource).then(() => resource);
-			}
+		// Just save if target is same as models own resource
+		if (resource.toString() === target.toString()) {
+			return this.save(resource).then(() => resource);
+		}
 
-			// Do it
-			return this.doSaveAs(resource, target);
-		});
+		// Do it
+		return this.doSaveAs(resource, target);
 	}
 
 	private doSaveAs(resource: URI, target?: URI): TPromise<URI> {
@@ -393,15 +391,7 @@ export class TextFileService extends AbstractTextFileService {
 		return this.untitledEditorService.get(untitledResource).suggestFileName();
 	}
 
-	private promptForPathAsync(defaultPath?: string): TPromise<string> {
-		return new TPromise<string>((c, e) => {
-			this.windowService.getWindow().showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
-				c(path);
-			});
-		});
-	}
-
-	private promptForPathSync(defaultPath?: string): string {
+	private promptForPath(defaultPath?: string): string {
 		return this.windowService.getWindow().showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
