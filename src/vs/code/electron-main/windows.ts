@@ -70,6 +70,8 @@ interface ILogEntry {
 interface INativeOpenDialogOptions {
 	pickFolders?: boolean;
 	pickFiles?: boolean;
+	path?: string;
+	forceNewWindow?: boolean;
 }
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
@@ -222,10 +224,10 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
-		ipc.on('vscode:openFilePicker', () => {
+		ipc.on('vscode:openFilePicker', (event, forceNewWindow?: boolean, path?: string) => {
 			this.logService.log('IPC#vscode-openFilePicker');
 
-			this.openFilePicker();
+			this.openFilePicker(forceNewWindow, path);
 		});
 
 		ipc.on('vscode:openFolderPicker', (event, forceNewWindow?: boolean) => {
@@ -1007,27 +1009,27 @@ export class WindowsManager implements IWindowsService {
 	}
 
 	public openFileFolderPicker(forceNewWindow?: boolean): void {
-		this.doPickAndOpen({ pickFolders: true, pickFiles: true }, forceNewWindow);
+		this.doPickAndOpen({ pickFolders: true, pickFiles: true , forceNewWindow});
 	}
 
-	public openFilePicker(forceNewWindow?: boolean): void {
-		this.doPickAndOpen({ pickFiles: true }, forceNewWindow);
+	public openFilePicker(forceNewWindow?: boolean, path?: string): void {
+		this.doPickAndOpen({ pickFiles: true, forceNewWindow, path });
 	}
 
 	public openFolderPicker(forceNewWindow?: boolean): void {
-		this.doPickAndOpen({ pickFolders: true }, forceNewWindow);
+		this.doPickAndOpen({ pickFolders: true, forceNewWindow });
 	}
 
-	private doPickAndOpen(options: INativeOpenDialogOptions, forceNewWindow?: boolean): void {
+	private doPickAndOpen(options: INativeOpenDialogOptions): void {
 		this.getFileOrFolderPaths(options, (paths: string[]) => {
 			if (paths && paths.length) {
-				this.open({ cli: this.envService.cliArgs, pathsToOpen: paths, forceNewWindow });
+				this.open({ cli: this.envService.cliArgs, pathsToOpen: paths, forceNewWindow: options.forceNewWindow });
 			}
 		});
 	}
 
 	private getFileOrFolderPaths(options: INativeOpenDialogOptions, clb: (paths: string[]) => void): void {
-		let workingDir = this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
+		let workingDir = options.path || this.storageService.getItem<string>(WindowsManager.workingDirPickerStorageKey);
 		let focussedWindow = this.getFocusedWindow();
 
 		let pickerProperties: string[];

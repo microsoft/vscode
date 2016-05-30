@@ -43,7 +43,7 @@ export class GlobalRevealInOSAction extends Action {
 	public static LABEL = platform.isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (platform.isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
 
 	constructor(
-		id:string,
+		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
@@ -87,7 +87,7 @@ export class GlobalCopyPathAction extends Action {
 	public static LABEL = nls.localize('copyPathOfActive', "Copy Path of Active File");
 
 	constructor(
-		id:string,
+		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
@@ -129,10 +129,23 @@ export class BaseOpenAction extends Action {
 export const OPEN_FILE_ID = 'workbench.action.files.openFile';
 export const OPEN_FILE_LABEL = nls.localize('openFile', "Open File...");
 
-export class OpenFileAction extends BaseOpenAction {
+export class OpenFileAction extends Action {
 
-	constructor(id: string, label: string) {
-		super(id, label, 'vscode:openFilePicker');
+	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+
+		// Handle in browser process
+		if (fileInput) {
+			ipc.send('vscode:openFilePicker', false, paths.dirname(fileInput.getResource().fsPath));
+		} else {
+			ipc.send('vscode:openFilePicker');
+		}
+
+		return TPromise.as(true);
 	}
 }
 
@@ -144,7 +157,6 @@ export class OpenFolderAction extends BaseOpenAction {
 	constructor(id: string, label: string) {
 		super(id, label, 'vscode:openFolderPicker');
 	}
-
 }
 
 export const OPEN_FILE_FOLDER_ID = 'workbench.action.files.openFileFolder';
@@ -163,7 +175,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public static LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
 
 	constructor(
-		id:string,
+		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService
