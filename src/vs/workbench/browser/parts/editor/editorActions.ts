@@ -404,8 +404,8 @@ export class CloseEditorAction extends Action {
 		super(id, label, 'close-editor-action');
 	}
 
-	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
-		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
+	public run(context: IEditorContext): TPromise<any> {
+		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
 
 		// Close Active Editor
 		if (typeof position !== 'number') {
@@ -415,7 +415,7 @@ export class CloseEditorAction extends Action {
 			}
 		}
 
-		let input = editorIdentifier ? editorIdentifier.editor : null;
+		let input = context ? context.editor : null;
 		if (!input) {
 
 			// Get Top Editor at Position
@@ -442,8 +442,8 @@ export class CloseEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
-		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
+	public run(context: IEditorContext): TPromise<any> {
+		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -520,8 +520,8 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		super(id, label);
 	}
 
-	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
-		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
+	public run(context: IEditorContext): TPromise<any> {
+		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -546,9 +546,9 @@ export class CloseOtherEditorsInGroupAction extends Action {
 		super(id, label);
 	}
 
-	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
-		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
-		let input = editorIdentifier ? editorIdentifier.editor : null;
+	public run(context: IEditorContext): TPromise<any> {
+		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
+		let input = context ? context.editor : null;
 
 		// If position or input are not passed in take the position and input of the active editor.
 		const active = this.editorService.getActiveEditor();
@@ -574,8 +574,8 @@ export class CloseAllEditorsInGroupAction extends Action {
 		super(id, label, 'action-close-all-files');
 	}
 
-	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
-		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
+	public run(context: IEditorContext): TPromise<any> {
+		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -598,8 +598,8 @@ export class MoveGroupLeftAction extends Action {
 		super(id, label);
 	}
 
-	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
-		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
+	public run(context: IEditorContext): TPromise<any> {
+		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
@@ -627,8 +627,8 @@ export class MoveGroupRightAction extends Action {
 		super(id, label);
 	}
 
-	public run(editorIdentifier: IEditorIdentifier): TPromise<any> {
-		let position = editorIdentifier ? this.editorService.getStacksModel().positionOfGroup(editorIdentifier.group) : null;
+	public run(context: IEditorContext): TPromise<any> {
+		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			let editors = this.editorService.getVisibleEditors();
@@ -1097,4 +1097,8 @@ export class QuickOpenNavigatePreviousAction extends BaseQuickOpenNavigateAction
 
 interface IEditorPickOpenEntry extends IPickOpenEntry {
 	identifier: IEditorIdentifier;
+}
+
+export interface IEditorContext extends IEditorIdentifier {
+	event: any;
 }
