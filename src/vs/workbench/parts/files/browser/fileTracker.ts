@@ -141,9 +141,6 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private emitInputDirtyStateChangeEvent(resource: URI, gotDirty: boolean): void {
-		if (this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return; // no event if we do not indicate dirty at all
-		}
 
 		// Find all file editor inputs that are open from the given file resource and emit a editor input state change event.
 		// We could do all of this within the file editor input but having all the file change listeners in
