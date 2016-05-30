@@ -59,27 +59,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.settings = settings;
 		this.model = editorService.getStacksModel();
 		this.lastDirtyCount = 0;
-		this.updateTreeScheduler = new RunOnceScheduler(() => {
-			if (this.isDisposed || !this.isVisible) {
-				return;
-			}
-
-			// View size
-			this.expandedBodySize = this.getExpandedBodySize(this.model);
-
-			if (this.tree) {
-				// Show groups only if there is more than 1 group
-				const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
-				(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh())
-				// Always expand all the groups as they are unclickable
-					.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
-
-				// Make sure to keep active open editor highlighted
-				if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
-					this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
-				}
-			}
-		}, 250);
+		this.updateTreeScheduler = new RunOnceScheduler(() => this.updateTree(), 250);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -123,7 +103,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
 		});
 
-		this.updateTreeScheduler.schedule();
+		this.updateTree();
 	}
 
 	public create(): TPromise<void> {
@@ -159,9 +139,31 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === VIEWLET_ID) {
-				this.updateTreeScheduler.schedule();
+				this.updateTree();
 			}
 		}));
+	}
+
+	private updateTree(): void {
+		if (this.isDisposed || !this.isVisible) {
+			return;
+		}
+
+		// View size
+		this.expandedBodySize = this.getExpandedBodySize(this.model);
+
+		if (this.tree) {
+			// Show groups only if there is more than 1 group
+			const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
+			(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh())
+			// Always expand all the groups as they are unclickable
+				.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
+
+			// Make sure to keep active open editor highlighted
+			if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
+				this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
+			}
+		}
 	}
 
 	private highlightEntry(entry: OpenEditor): void {
