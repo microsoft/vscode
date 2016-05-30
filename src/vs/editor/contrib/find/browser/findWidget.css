@@ -200,6 +200,7 @@
 
 .monaco-editor .find-widget .monaco-checkbox .checkbox:disabled + .label {
 	opacity: 0.3;
+	cursor: default;
 }
 
 .monaco-editor .find-widget .monaco-checkbox .checkbox:not(:disabled) + .label {
