@@ -68,12 +68,15 @@ suite('Paths', () => {
 
 	test('normalize', () => {
 		assert.equal(paths.normalize('.'), '.');
-		assert.equal(paths.normalize('./'), './');
 		assert.equal(paths.normalize('/'), '/');
+		assert.equal(paths.normalize('./'), './');
+		assert.equal(paths.normalize('./ff/./'), 'ff/');
+		assert.equal(paths.normalize('foo/./'), 'foo/');
 		// assert.equal(paths.normalize('//'), '/');
 		assert.equal(paths.normalize('./foo'), 'foo');
 		assert.equal(paths.normalize('/foo'), '/foo');
 		assert.equal(paths.normalize('foo/'), 'foo/');
+		// assert.equal(paths.normalize('foo//'), 'foo/');
 		assert.equal(paths.normalize('foo\\bar'), 'foo/bar');
 		assert.equal(paths.normalize('foo/./bar'), 'foo/bar');
 		assert.equal(paths.normalize('foo/xxx/./bar'), 'foo/xxx/bar');
@@ -82,6 +85,8 @@ suite('Paths', () => {
 		assert.equal(paths.normalize('foo/xxx/./..'), 'foo');
 		assert.equal(paths.normalize('foo/xxx/..'), 'foo');
 		assert.equal(paths.normalize('foo/xxx/../bar'), 'foo/bar');
+		assert.equal(paths.normalize('foo/../../bar'), '../bar');
+		assert.equal(paths.normalize('foo/far/../../bar'), 'bar');
 
 		// return input if already normal
 		assert.equal(paths.normalize('/foo/bar.test'), '/foo/bar.test');

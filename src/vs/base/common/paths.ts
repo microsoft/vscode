@@ -63,7 +63,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 
 	let parts = path.split(/[\\\/]/);
 	for (let i = 0, len = parts.length; i < len; i++) {
-		if (parts[i] === '.' && !!parts[i + 1]) {
+		if (parts[i] === '.' && (parts[i + 1] || parts[i - 1])) {
 			parts.splice(i, 1);
 			i -= 1;
 		} else if (parts[i] === '..' && !!parts[i - 1]) {
