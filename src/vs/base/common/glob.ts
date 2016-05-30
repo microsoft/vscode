@@ -162,9 +162,7 @@ function parseRegExp(pattern: string): string {
 						let choices = splitGlobAware(braceVal, ',');
 
 						// Converts {foo,bar} => [foo|bar]
-						let braceRegExp = '(?:' + choices.reduce((prevValue, curValue, i, array) => {
-							return prevValue + '|' + parseRegExp(curValue);
-						}, parseRegExp(choices[0]) /* parse the first segment as regex and give as initial value */) + ')';
+						let braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
 
 						regEx += braceRegExp;
 
