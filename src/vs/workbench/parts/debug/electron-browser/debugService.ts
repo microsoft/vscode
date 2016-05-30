@@ -765,6 +765,9 @@ export class DebugService implements debug.IDebugService {
 					control.revealLineInCenterIfOutsideViewport(lineNumber);
 					control.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 					this.editorService.activateGroup(i);
+					if (!preserveFocus) {
+						this.editorService.focusGroup(i);
+					}
 				}
 
 				return TPromise.as(null);
