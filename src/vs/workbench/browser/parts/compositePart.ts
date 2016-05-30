@@ -357,8 +357,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private collectCompositeActions(composite: Composite): () => void {
 
 		// From Composite
-		let primaryActions: IAction[] = composite.getActions();
-		let secondaryActions: IAction[] = composite.getSecondaryActions();
+		let primaryActions: IAction[] = composite.getActions().slice(0);
+		let secondaryActions: IAction[] = composite.getSecondaryActions().slice(0);
 
 		// From Part
 		primaryActions.push(...this.getActions());
