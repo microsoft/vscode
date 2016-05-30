@@ -51,9 +51,9 @@ export function registerContributions(): void {
 	let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, Messages.getString('markers.panel.toggle.label'), {
 		primary: null,
-		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
-		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
-		mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_A }
+		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
+		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
+		mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
 	}), nls.localize('viewCategory', "View"));
 
 }
