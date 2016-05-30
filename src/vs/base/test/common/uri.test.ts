@@ -178,21 +178,6 @@ suite('URI', () => {
 		assert.throws(() => URI.parse('file:////shares/files/p.cs'));
 	});
 
-	// Useful reference:
-	test('correctFileUriToFilePath', () => {
-
-		var test = (input: string, expected: string) => {
-			expected = normalize(expected, true);
-			assert.equal(URI.parse(input).fsPath, expected, 'Result for ' + input);
-		};
-
-		test('file:///c:/alex.txt', 'c:\\alex.txt');
-		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins',
-			'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins');
-		test('file://monacotools/isi.txt', '\\\\monacotools\\isi.txt');
-		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
-	});
-
 	test('URI#file', () => {
 
 		var value = URI.file('\\\\shäres\\path\\c#\\plugin.json');
@@ -307,9 +292,8 @@ suite('URI', () => {
 		};
 
 		test('file:///c:/alex.txt', 'c:\\alex.txt');
-		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins',
-			'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins');
-		test('file://monacotools/isi.txt', '\\\\monacotools\\isi.txt');
+		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins', 'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins');
+		test('file://monacotools/folder/isi.txt', '\\\\monacotools\\folder\\isi.txt');
 		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
 	});
 

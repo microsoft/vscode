@@ -40,41 +40,41 @@ export function relative(from: string, to: string): string {
 	return toParts.join(sep);
 }
 
-const _dotSegment = /[\\\/]\.\.?[\\\/]?|[\\\/]?\.\.?[\\\/]/;
+// const _dotSegment = /[\\\/]\.\.?[\\\/]?|[\\\/]?\.\.?[\\\/]/;
+
+// export function normalize(path: string, toOSPath?: boolean): string {
+
+// 	if (!path) {
+// 		return path;
+// 	}
+
+// 	// a path is already normal if it contains no .. or . parts
+// 	// and already uses the proper path separator
+// 	if (!_dotSegment.test(path)) {
+
+// 		// badSep is the path separator we don't want. Usually
+// 		// the backslash, unless isWindows && toOSPath
+// 		let badSep = toOSPath && isWindows ? '/' : '\\';
+// 		if (path.indexOf(badSep) === -1) {
+// 			return path;
+// 		}
+// 	}
+
+// 	let parts = path.split(/[\\\/]/);
+// 	for (let i = 0, len = parts.length; i < len; i++) {
+// 		if (parts[i] === '.' && (parts[i + 1] || parts[i - 1])) {
+// 			parts.splice(i, 1);
+// 			i -= 1;
+// 		} else if (parts[i] === '..' && !!parts[i - 1]) {
+// 			parts.splice(i - 1, 2);
+// 			i -= 2;
+// 		}
+// 	}
+
+// 	return parts.join(toOSPath ? nativeSep : sep);
+// }
 
 export function normalize(path: string, toOSPath?: boolean): string {
-
-	if (!path) {
-		return path;
-	}
-
-	// a path is already normal if it contains no .. or . parts
-	// and already uses the proper path separator
-	if (!_dotSegment.test(path)) {
-
-		// badSep is the path separator we don't want. Usually
-		// the backslash, unless isWindows && toOSPath
-		let badSep = toOSPath && isWindows ? '/' : '\\';
-		if (path.indexOf(badSep) === -1) {
-			return path;
-		}
-	}
-
-	let parts = path.split(/[\\\/]/);
-	for (let i = 0, len = parts.length; i < len; i++) {
-		if (parts[i] === '.' && (parts[i + 1] || parts[i - 1])) {
-			parts.splice(i, 1);
-			i -= 1;
-		} else if (parts[i] === '..' && !!parts[i - 1]) {
-			parts.splice(i - 1, 2);
-			i -= 2;
-		}
-	}
-
-	return parts.join(toOSPath ? nativeSep : sep);
-}
-
-export function normalize2(path: string, toOSPath?: boolean): string {
 
 	if (path === null || path === void 0) {
 		return path;
@@ -85,14 +85,12 @@ export function normalize2(path: string, toOSPath?: boolean): string {
 		return '.';
 	}
 
-	let rootLen = getRootLength(path);
-	let head = path.slice(0, rootLen);
-	let tail = '';
+	const sep = isWindows && toOSPath ? '\\' : '/';
+	const root = getRoot(path, sep);
 
 	// operate on the 'path-portion' only
-	path = path.slice(rootLen);
-
-	let sep = isWindows && toOSPath ? '\\' : '/';
+	path = path.slice(root.length);
+	let res = '';
 	let start = 0;
 
 	for (let end = 0; end <= len; end++) {
@@ -102,26 +100,29 @@ export function normalize2(path: string, toOSPath?: boolean): string {
 			let part = path.slice(start, end);
 			start = end + 1;
 
+			if (part === '.' && (root || res || end < len - 1)) {
+				// skip current (if there is already something or if there is more to come)
+				continue;
+			}
+
 			if (part === '..') {
-				// skip current and remove parent (if applicable)
-				let prev_start = tail.lastIndexOf(sep);
-				let prev_part = tail.slice(prev_start + 1);
+				// skip current and remove parent (if there is already something)
+				let prev_start = res.lastIndexOf(sep);
+				let prev_part = res.slice(prev_start + 1);
 				if (prev_part.length > 0 && prev_part !== '..') {
-					tail = prev_start === -1 ? '' : tail.slice(0, prev_start);
+					res = prev_start === -1 ? '' : res.slice(0, prev_start);
 					continue;
 				}
 			}
 
-			if (tail !== '' && tail[tail.length - 1] !== sep) {
-				tail += sep;
+			if (res !== '' && res[res.length - 1] !== sep) {
+				res += sep;
 			}
-			tail += part;
+			res += part;
 		}
 	}
 
-	// res += path.slice(start);
-
-	return head + tail;
+	return root + res;
 }
 
 /**
@@ -161,14 +162,21 @@ export function extname(path: string): string {
 	return idx ? path.substring(~idx) : '';
 }
 
+enum PathType {
+	Unc, // \\server\shares\somepath
+	Uri, // scheme://authority/somepath
+	Drive, // windows drive letter path
+	Path // posix path OR windows current drive root relative
+}
+
 /**
  * Return the length of the denoting part of this path, like `c:\files === 3 (c:\)`,
  * `files:///files/path === 8 (files:///)`, or `\\server\shares\path === 16 (\\server\shares\)`
  */
-export function getRootLength(path: string): number {
+export function getRoot(path: string, sep: string = '/'): string {
 
 	if (!path) {
-		return 0;
+		return '';
 	}
 
 	let len = path.length;
@@ -179,7 +187,6 @@ export function getRootLength(path: string): number {
 		if (code === _slash || code === _backslash) {
 			// UNC candidate \\localhost\shares\ddd
 			//               ^^^^^^^^^^^^^^^^^^^
-
 			code = path.charCodeAt(2);
 			if (code !== _slash && code !== _backslash) {
 				let pos = 3;
@@ -196,7 +203,7 @@ export function getRootLength(path: string): number {
 					for (; pos < len; pos++) {
 						code = path.charCodeAt(pos);
 						if (code === _slash || code === _backslash) {
-							return pos + 1; // consume this separator
+							return path.slice(0, pos + 1).replace(/[\\/]/g, sep); // consume this separator
 						}
 					}
 				}
@@ -205,7 +212,7 @@ export function getRootLength(path: string): number {
 
 		// /user/far
 		// ^
-		return 1;
+		return sep;
 
 	} else if ((code >= _A && code <= _Z) || (code >= _a && code <= _z)) {
 		// check for windows drive letter c:\ or c:
@@ -215,11 +222,11 @@ export function getRootLength(path: string): number {
 			if (code === _slash || code === _backslash) {
 				// C:\fff
 				// ^^^
-				return 3;
+				return path.slice(0, 2) + sep;
 			} else {
 				// C:
 				// ^^
-				return 2;
+				return path.slice(0, 2);
 			}
 		}
 	}
@@ -233,17 +240,17 @@ export function getRootLength(path: string): number {
 		for (; pos < len; pos++) {
 			code = path.charCodeAt(pos);
 			if (code === _slash || code === _backslash) {
-				return pos + 1; // consume this separator
+				return path.slice(0, pos + 1); // consume this separator
 			}
 		}
 	}
 
-	return 0;
+	return '';
 }
 
 export function join(...parts: string[]): string {
 
-	var rootLen = getRootLength(parts[0]),
+	var rootLen = getRoot(parts[0]).length,
 		root: string;
 
 	// simply preserve things like c:/, //localhost/, file:///, http://, etc
