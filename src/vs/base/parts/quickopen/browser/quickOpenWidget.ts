@@ -34,7 +34,7 @@ export interface IQuickOpenCallbacks {
 	onCancel: () => void;
 	onType: (value: string) => void;
 	onShow?: () => void;
-	onHide?: () => void;
+	onHide?: (focusLost?: boolean) => void;
 	onFocusLost?: () => boolean /* veto close */;
 }
 
@@ -65,6 +65,12 @@ export class QuickOpenController extends DefaultController {
 
 		return super.onContextMenu(tree, element, event);
 	}
+}
+
+enum HideReason {
+	ELEMENT_SELECTED,
+	FOCUS_LOST,
+	CANCELED
 }
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
@@ -121,7 +127,7 @@ export class QuickOpenWidget implements IModelProvider {
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
 
-					this.hide(true);
+					this.hide(HideReason.CANCELED);
 				}
 			})
 				.on(DOM.EventType.CONTEXT_MENU, (e: Event) => DOM.EventHelper.stop(e, true)) // Do this to fix an issue on Mac where the menu goes into the way
@@ -418,7 +424,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Hide if command was run successfully
 		if (hide) {
-			this.hide();
+			this.hide(HideReason.ELEMENT_SELECTED);
 		}
 	}
 
@@ -662,7 +668,7 @@ export class QuickOpenWidget implements IModelProvider {
 		return height;
 	}
 
-	public hide(isCancel: boolean = false): void {
+	public hide(reason?: HideReason): void {
 		if (!this.isVisible()) {
 			return;
 		}
@@ -672,7 +678,7 @@ export class QuickOpenWidget implements IModelProvider {
 		this.builder.domBlur();
 
 		// report failure cases
-		if (isCancel) {
+		if (reason === HideReason.CANCELED) {
 			if (this.model) {
 				let entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
 				if (this.usageLogger) {
@@ -702,14 +708,14 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 
 		// Callbacks
-		if (isCancel) {
+		if (reason === HideReason.CANCELED) {
 			this.callbacks.onCancel();
 		} else {
 			this.callbacks.onOk();
 		}
 
 		if (this.callbacks.onHide) {
-			this.callbacks.onHide();
+			this.callbacks.onHide(reason === HideReason.FOCUS_LOST);
 		}
 	}
 
@@ -840,7 +846,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 			const veto = this.callbacks.onFocusLost && this.callbacks.onFocusLost();
 			if (!veto) {
-				this.hide(false /* Do not treat loosing focus as cancel! */);
+				this.hide(HideReason.FOCUS_LOST);
 			}
 		});
 	}

@@ -290,8 +290,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onCancel: () => { /* ignore, handle later */ },
 					onType: (value: string) => { /* ignore, handle later */ },
 					onShow: () => this.emitQuickOpenVisibilityChange(true),
-					onHide: () => {
-						this.restoreFocus(); // focus back to editor or viewlet
+					onHide: (focusLost?: boolean) => {
+						if (!focusLost) {
+							this.restoreFocus(); // focus back to editor unless user clicked somewhere else
+						}
 						this.emitQuickOpenVisibilityChange(false); // event
 					}
 				}, {
@@ -429,8 +431,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 					onShow: () => {
 						this.emitQuickOpenVisibilityChange(true); // event
 					},
-					onHide: () => {
-						this.restoreFocus(); // focus back to editor or viewlet
+					onHide: (focusLost?: boolean) => {
+						if (!focusLost) {
+							this.restoreFocus(); // focus back to editor unless user clicked somewhere else
+						}
 						this.emitQuickOpenVisibilityChange(false); // event
 					}
 				});
@@ -524,7 +528,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						this.inQuickOpenMode.set(true);
 						this.emitQuickOpenVisibilityChange(true);
 					},
-					onHide: () => {
+					onHide: (focusLost?: boolean) => {
 						this.inQuickOpenMode.reset();
 
 						// Complete promises that are waiting
@@ -532,7 +536,9 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 							this.promisesToCompleteOnHide.pop()(true);
 						}
 
-						this.restoreFocus(); // focus back to editor or viewlet
+						if (!focusLost) {
+							this.restoreFocus(); // focus back to editor unless user clicked somewhere else
+						}
 						this.emitQuickOpenVisibilityChange(false);
 					}
 				}, {
