@@ -239,7 +239,6 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private getExpandedBodySize(model: IEditorStacksModel): number {
-		console.log('getting expanded body size');
 		return OpenEditorsView.computeExpandedBodySize(model, this.maxVisibleOpenEditors, this.dynamicHeight);
 	}
 
