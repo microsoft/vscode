@@ -50,6 +50,7 @@ import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, 
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 
@@ -356,7 +357,7 @@ class RunTaskAction extends AbstractTaskAction {
 
 class StatusBarItem implements IStatusbarItem {
 
-	private quickOpenService: IQuickOpenService;
+	private panelService: IPanelService;
 	private markerService: IMarkerService;
 	private taskService:ITaskService;
 	private outputService: IOutputService;
@@ -365,11 +366,11 @@ class StatusBarItem implements IStatusbarItem {
 	private activeCount: number;
 	private static progressChars:string = '|/-\\';
 
-	constructor(@IQuickOpenService quickOpenService:IQuickOpenService,
+	constructor(@IPanelService panelService:IPanelService,
 		@IMarkerService markerService:IMarkerService, @IOutputService outputService:IOutputService,
 		@ITaskService taskService:ITaskService) {
 
-		this.quickOpenService = quickOpenService;
+		this.panelService = panelService;
 		this.markerService = markerService;
 		this.outputService = outputService;
 		this.taskService = taskService;
@@ -417,7 +418,7 @@ class StatusBarItem implements IStatusbarItem {
 //		}));
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e:MouseEvent) => {
-			this.quickOpenService.show('!');
+			this.panelService.openPanel('workbench.panel.markers');
 		}));
 
 		let updateStatus = (element:HTMLDivElement, stats:number): boolean => {
