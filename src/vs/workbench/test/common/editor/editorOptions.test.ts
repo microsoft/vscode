@@ -12,7 +12,6 @@ suite('Workbench - EditorOptions', () => {
 
 	test('EditorOptions', function () {
 		let options = new EditorOptions();
-		let otherOptions = new EditorOptions();
 
 		assert(!options.preserveFocus);
 		options.preserveFocus = true;
@@ -20,9 +19,6 @@ suite('Workbench - EditorOptions', () => {
 		assert(!options.forceOpen);
 		options.forceOpen = true;
 		assert(options.forceOpen);
-		assert(options.matches(options));
-		assert(!options.matches(null));
-		assert(!options.matches(otherOptions));
 
 		options = new EditorOptions();
 		options.forceOpen = true;
@@ -32,17 +28,11 @@ suite('Workbench - EditorOptions', () => {
 		let options = new TextEditorOptions();
 		let otherOptions = new TextEditorOptions();
 
-		assert(options.matches(options));
-		assert(!options.matches(null));
-		assert(options.matches(otherOptions));
-
 		assert(!options.hasOptionsDefined());
 		options.selection(1, 1, 2, 2);
 		assert(options.hasOptionsDefined());
-		assert(!options.matches(otherOptions));
 
 		otherOptions.selection(1, 1, 2, 2);
-		assert(options.matches(otherOptions));
 
 		options = new TextEditorOptions();
 		options.forceOpen = true;

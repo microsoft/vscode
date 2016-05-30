@@ -9,8 +9,26 @@
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
+				"999999"
+			],
+			"cwd": "${workspaceRoot}",
+			"runtimeArgs": [],
+			"env": {},
+			"sourceMaps": true,
+			"outDir": "${workspaceRoot}/out"
+		},
+		{
+			"name": "Stacks Tests",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"args": [
+				"--timeout",
 				"999999",
-				"--colors"
+				"--colors",
+				"-g",
+				"Stacks"
 			],
 			"cwd": "${workspaceRoot}",
 			"runtimeArgs": [],

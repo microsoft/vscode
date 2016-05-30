@@ -29,19 +29,20 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
-import {TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestEventService, TestPartService, TestStorageService, TestConfigurationService, TestRequestService, TestContextService, TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/common/servicesTestUtils';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
-import {EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
-import {Position, IEditor} from 'vs/platform/editor/common/editor';
+import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
+import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -65,11 +66,23 @@ class TestEditorPart implements IEditorPart {
 		return null;
 	}
 
-	public setEditors(inputs: EditorInput[]): Promise {
+	public openEditors(args: any[]): Promise {
 		return TPromise.as([]);
 	}
 
-	public closeEditors(othersOnly?: boolean): Promise {
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<IEditor[]> {
+		return TPromise.as([]);
+	}
+
+	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public closeAllEditors(except?: Position): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public closeEditor(position: Position, input: EditorInput): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -83,7 +96,19 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(activeEditor);
 	}
 
-	public activateEditor(editor: IEditor): void {
+	public activateGroup(position: Position): void {
+		// Unsupported
+	}
+
+	public focusGroup(position: Position): void {
+		// Unsupported
+	}
+
+	public pinEditor(position: Position, input: EditorInput): void {
+		// Unsupported
+	}
+
+	public unpinEditor(position: Position, input: EditorInput): void {
 		// Unsupported
 	}
 
@@ -103,12 +128,20 @@ class TestEditorPart implements IEditorPart {
 		return [activeEditor];
 	}
 
-	public moveEditor(from: Position, to: Position) {
+	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
 		// Unsupported
 	}
 
-	public arrangeEditors(arrangement: EditorArrangement): void {
+	public moveGroup(from: Position, to: Position) {
+		// Unsupported
+	}
+
+	public arrangeGroups(arrangement: GroupArrangement): void {
 		// Unsuported
+	}
+
+	public getStacksModel(): IEditorStacksModel {
+		return null; // Unsuported
 	}
 }
 
@@ -329,20 +362,6 @@ suite('Workbench UI Services', () => {
 		service.resolveEditorModel({ resource: toResource('/index.html'), mime: 'text/html' }, true).then((model) => {
 			assert(model instanceof TextFileEditorModel);
 		});
-
-		// Focus editor
-		service.focusEditor().then((editor) => {
-			assert.strictEqual(editor, activeEditor);
-		});
-
-		// Close editor
-		service.closeEditor().then((editor) => {
-			assert.strictEqual(editor, activeEditor);
-		});
-
-		service.openEditor(null, null).then((editor) => {
-			assert.strictEqual(editor, activeEditor);
-		});
 	});
 
 	test('DelegatingWorkbenchEditorService', function () {
@@ -351,8 +370,6 @@ suite('Workbench UI Services', () => {
 		let eventService = new TestEventService();
 		let requestService = new TestRequestService();
 		let telemetryService = NullTelemetryService;
-
-
 
 		let services = new ServiceCollection();
 		let inst = new InstantiationService(services);

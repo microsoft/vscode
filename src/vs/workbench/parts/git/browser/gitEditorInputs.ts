@@ -37,10 +37,6 @@ export class GitDiffEditorInput
 		this.status = status;
 	}
 
-	public getId(): string {
-		throw new Error('To implement.');
-	}
-
 	public getFileStatus():git.IFileStatus {
 		return this.status;
 	}
@@ -72,7 +68,7 @@ export class GitWorkingTreeDiffEditorInput extends GitDiffEditorInput {
 		super(name, description, originalInput, modifiedInput, status);
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return GitWorkingTreeDiffEditorInput.ID;
 	}
 }
@@ -85,7 +81,7 @@ export class GitIndexDiffEditorInput extends GitDiffEditorInput {
 		super(name, description, originalInput, modifiedInput, status);
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return GitIndexDiffEditorInput.ID;
 	}
 }
@@ -123,7 +119,7 @@ export class NativeGitIndexStringEditorInput
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.OPERATION_END, () => this.onGitServiceStateChange()));
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return NativeGitIndexStringEditorInput.ID;
 	}
 

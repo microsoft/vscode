@@ -41,8 +41,9 @@ export enum Mode {
 	OPEN
 }
 
-export interface IContext {
+export interface IEntryRunContext {
 	event: any;
+	keymods: number[];
 	quickNavigateConfiguration: IQuickNavigateConfiguration;
 }
 
@@ -71,7 +72,7 @@ export interface IAccessiblityProvider<T> {
 }
 
 export interface IRunner<T> {
-	run(entry: T, mode: Mode, context: IContext): boolean;
+	run(entry: T, mode: Mode, context: IEntryRunContext): boolean;
 }
 
 export interface IModel<T> {

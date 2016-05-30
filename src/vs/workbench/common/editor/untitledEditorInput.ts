@@ -9,12 +9,14 @@ import URI from 'vs/base/common/uri';
 import {isUnspecific, guessMimeTypes, MIME_TEXT, suggestFilename} from 'vs/base/common/mime';
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import {UntitledEditorInput as AbstractUntitledEditorInput, EditorModel, EncodingMode, IInputStatus} from 'vs/workbench/common/editor';
+import {UntitledEditorInput as AbstractUntitledEditorInput, EditorModel, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
+
+import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -36,7 +38,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
@@ -45,7 +48,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		this.modeId = modeId;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return UntitledEditorInput.ID;
 	}
 
@@ -65,13 +68,16 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return this.cachedModel && this.cachedModel.isDirty();
 	}
 
-	public getStatus(): IInputStatus {
-		let isDirty = this.isDirty();
-		if (isDirty) {
-			return { state: 'dirty', decoration: '\u25cf' };
-		}
+	public confirmSave(): ConfirmResult {
+		return this.textFileService.confirmSave([this.resource]);
+	}
 
-		return null;
+	public save(): TPromise<boolean> {
+		return this.textFileService.save(this.resource);
+	}
+
+	public revert(): TPromise<boolean> {
+		return this.textFileService.revert(this.resource);
 	}
 
 	public suggestFileName(): string {

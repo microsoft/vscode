@@ -9,15 +9,20 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 export var IHistoryService = createDecorator<IHistoryService>('historyService');
 
 export interface IHistoryService {
-	serviceId : ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 
 	/**
 	 * Navigate forwards in history.
 	 */
-	forward():void;
+	forward(): void;
 
 	/**
 	 * Navigate backwards in history.
 	 */
-	back():void;
+	back(): void;
+
+	/**
+	 * Clears all history;
+	 */
+	clear(): void;
 }

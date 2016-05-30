@@ -7,17 +7,19 @@
 
 import 'vs/css!./media/explorerviewlet';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {IAction} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {Scope} from 'vs/workbench/common/memento';
-import {VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
-import {CollapsibleViewletView, IViewletView, Viewlet} from 'vs/workbench/browser/viewlet';
+import {VIEWLET_ID, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
+import {IViewletView, Viewlet} from 'vs/workbench/browser/viewlet';
 import {IActionRunner} from 'vs/base/common/actions';
-import {SplitView} from 'vs/base/browser/ui/splitview/splitview';
+import {SplitView, Orientation} from 'vs/base/browser/ui/splitview/splitview';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ActionRunner, FileViewletState} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
 import {EmptyView} from 'vs/workbench/parts/files/browser/views/emptyView';
-import {WorkingFilesView} from 'vs/workbench/parts/files/browser/views/workingFilesView';
+import {OpenEditorsView} from 'vs/workbench/parts/files/browser/views/openEditorsView';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -29,8 +31,9 @@ export class ExplorerViewlet extends Viewlet {
 	private views: IViewletView[];
 
 	private explorerView: ExplorerView;
-	private workingFilesView: WorkingFilesView;
-	private lastFocusedView: ExplorerView | WorkingFilesView | EmptyView;
+	private openEditorsView: OpenEditorsView;
+	private openEditorsVisible: boolean;
+	private lastFocusedView: ExplorerView | OpenEditorsView | EmptyView;
 	private focusListener: IDisposable;
 
 	private viewletSettings: any;
@@ -40,6 +43,7 @@ export class ExplorerViewlet extends Viewlet {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(VIEWLET_ID, telemetryService);
@@ -55,35 +59,52 @@ export class ExplorerViewlet extends Viewlet {
 
 		this.viewletContainer = parent.div().addClass('explorer-viewlet');
 
-		this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
+		return this.configurationService.loadConfiguration().then((config:IFilesConfiguration) => {
+			// Open editors view should always be visible in no folder workspace.
+			this.openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.maxVisible !== 0;
+			if (this.openEditorsVisible) {
+				this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
 
-		// Working files view
-		this.addWorkingFilesView();
+				// Open editors view
+				this.addOpenEditorsView();
 
-		// Explorer view
-		this.addExplorerView();
+				// Track focus
+				this.focusListener = this.splitView.onFocus((view: ExplorerView | OpenEditorsView | EmptyView) => {
+					this.lastFocusedView = view;
+				});
+			}
 
-		// Track focus
-		this.focusListener = this.splitView.onFocus((view: ExplorerView | WorkingFilesView | EmptyView) => {
-			this.lastFocusedView = view;
+			// Explorer view
+			this.addExplorerView();
+			this.lastFocusedView = this.explorerView;
+
+			return TPromise.join(this.views.map((view) => view.create())).then(() => void 0);
 		});
-
-		return TPromise.join(this.views.map((view) => view.create())).then(() => void 0);
 	}
 
-	private addWorkingFilesView(): void {
-		this.workingFilesView = this.instantiationService.createInstance(WorkingFilesView, this.getActionRunner(), this.viewletSettings);
-		this.splitView.addView(this.workingFilesView);
+	public getActions(): IAction[] {
+		if (this.openEditorsVisible) {
+			return [];
+		} else {
+			return this.explorerView.getActions();
+		}
+	}
 
-		this.views.push(this.workingFilesView);
+	private addOpenEditorsView(): void {
+		this.openEditorsView = this.instantiationService.createInstance(OpenEditorsView, this.getActionRunner(), this.viewletSettings);
+		this.splitView.addView(this.openEditorsView);
+
+		this.views.push(this.openEditorsView);
 	}
 
 	private addExplorerView(): void {
-		let explorerView: CollapsibleViewletView | EmptyView;
+		let explorerView: ExplorerView | EmptyView;
 
 		// With a Workspace
 		if (this.contextService.getWorkspace()) {
-			this.explorerView = explorerView = this.instantiationService.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings);
+			// If open editors are not visible set header size explicitly to 0, otherwise let it be computed by super class.
+			const headerSize = this.openEditorsVisible ? undefined : 0;
+			this.explorerView = explorerView = this.instantiationService.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
 		}
 
 		// No workspace
@@ -91,7 +112,11 @@ export class ExplorerViewlet extends Viewlet {
 			explorerView = this.instantiationService.createInstance(EmptyView);
 		}
 
-		this.splitView.addView(explorerView);
+		if (this.openEditorsVisible) {
+			this.splitView.addView(explorerView);
+		} else {
+			explorerView.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
+		}
 		this.views.push(explorerView);
 	}
 
@@ -99,8 +124,8 @@ export class ExplorerViewlet extends Viewlet {
 		return this.explorerView;
 	}
 
-	public getWorkingFilesView(): WorkingFilesView {
-		return this.workingFilesView;
+	public getOpenEditorsView(): OpenEditorsView {
+		return this.openEditorsView;
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -117,26 +142,26 @@ export class ExplorerViewlet extends Viewlet {
 			return;
 		}
 
-		if (this.hasSelectionOrFocus(this.workingFilesView)) {
-			return this.workingFilesView.focusBody();
+		if (this.hasSelectionOrFocus(this.openEditorsView)) {
+			return this.openEditorsView.focusBody();
 		}
 
 		if (this.hasSelectionOrFocus(this.explorerView)) {
 			return this.explorerView.focusBody();
 		}
 
-		if (this.workingFilesView && this.workingFilesView.isExpanded()) {
-			return this.workingFilesView.focusBody();
+		if (this.openEditorsView && this.openEditorsView.isExpanded()) {
+			return this.openEditorsView.focusBody();
 		}
 
 		if (this.explorerView && this.explorerView.isExpanded()) {
 			return this.explorerView.focusBody();
 		}
 
-		return this.workingFilesView.focus();
+		return this.openEditorsView.focus();
 	}
 
-	private hasSelectionOrFocus(view: ExplorerView | WorkingFilesView | EmptyView): boolean {
+	private hasSelectionOrFocus(view: ExplorerView | OpenEditorsView | EmptyView): boolean {
 		if (!view) {
 			return false;
 		}
@@ -145,7 +170,7 @@ export class ExplorerViewlet extends Viewlet {
 			return false;
 		}
 
-		if (view instanceof ExplorerView || view instanceof WorkingFilesView) {
+		if (view instanceof ExplorerView || view instanceof OpenEditorsView) {
 			const viewer = view.getViewer();
 			if (!viewer) {
 				return false;
@@ -159,7 +184,11 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	public layout(dimension: Dimension): void {
-		this.splitView.layout(dimension.height);
+		if (this.openEditorsVisible) {
+			this.splitView.layout(dimension.height);
+		} else if (this.explorerView) {
+			this.explorerView.layout(dimension.height, Orientation.VERTICAL);
+		}
 	}
 
 	public getActionRunner(): IActionRunner {
@@ -172,10 +201,10 @@ export class ExplorerViewlet extends Viewlet {
 
 	public getOptimalWidth(): number {
 		let additionalMargin = 16;
-		let workingFilesViewWidth = this.getWorkingFilesView().getOptimalWidth();
+		let openedEditorsViewWidth = this.openEditorsView.getOptimalWidth();
 		let explorerView = this.getExplorerView();
 		let explorerViewWidth = explorerView ? explorerView.getOptimalWidth() : 0;
-		let optimalWidth = Math.max(workingFilesViewWidth, explorerViewWidth);
+		let optimalWidth = Math.max(openedEditorsViewWidth, explorerViewWidth);
 		return optimalWidth + additionalMargin;
 	}
 
@@ -189,6 +218,10 @@ export class ExplorerViewlet extends Viewlet {
 		if (this.splitView) {
 			this.splitView.dispose();
 			this.splitView = null;
+		}
+		if (this.explorerView) {
+			this.explorerView.dispose();
+			this.explorerView = null;
 		}
 
 		if (this.focusListener) {

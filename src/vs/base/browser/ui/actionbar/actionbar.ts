@@ -135,7 +135,8 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 	public onClick(event: Event): void {
 		DOM.EventHelper.stop(event, true);
-		this._actionRunner.run(this._action, this._context || event);
+		const context = (this._context === null || this._context === undefined) ? event : this._context;
+		this._actionRunner.run(this._action, context);
 	}
 
 	public focus(): void {
@@ -685,7 +686,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		// trigger action
 		let actionItem = (<BaseActionItem>this.items[this.focusedItem]);
-		this.run(actionItem._action, actionItem._context || event).done();
+		const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
+		this.run(actionItem._action, context).done();
 	}
 
 	private cancel(): void {
@@ -729,7 +731,7 @@ export class SelectActionItem extends BaseActionItem {
 		super(ctx, action);
 
 		this.select = document.createElement('select');
-		this.select.className = 'action-bar-select';
+		this.select.className = `action-bar-select ${platform.isWindows ? 'windows' : ''}`;
 
 		this.options = options;
 		this.selected = selected;

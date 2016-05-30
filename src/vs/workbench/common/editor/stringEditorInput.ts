@@ -48,7 +48,7 @@ export class StringEditorInput extends EditorInput {
 		return null;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return StringEditorInput.ID;
 	}
 

@@ -12,10 +12,11 @@ import strings = require('vs/base/common/strings');
 import {isWindows, isLinux} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
+import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {ITextFileOperationResult, ConfirmResult, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {ITextFileOperationResult, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService} from 'vs/platform/files/common/files';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
@@ -105,10 +106,6 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	private onShutdown(): void {
-
-		// Propagate to working files model
-		this.workingFilesModel.shutdown();
-
 		super.dispose();
 	}
 
@@ -357,9 +354,6 @@ export class TextFileService extends AbstractTextFileService {
 			// Otherwise we can only copy
 			return this.fileService.copyFile(resource, target);
 		}).then(() => {
-
-			// Add target to working files because this is an operation that indicates activity
-			this.getWorkingFilesModel().addEntry(target);
 
 			// Revert the source
 			return this.revert(resource).then(() => {

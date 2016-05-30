@@ -18,6 +18,7 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IFileService} from 'vs/platform/files/common/files';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -25,7 +26,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestStorageService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestQuickOpenService, TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {
@@ -80,7 +81,6 @@ suite('Files - FileEditorInput', () => {
 			let resolvedModelA = resolved;
 			return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 				assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
-				assert(inputToResolve.getStatus());
 
 				return editorService.resolveEditorModel(sameOtherInput, true).then(function (otherResolved) {
 					assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
@@ -138,6 +138,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(IFileService, <any>TestFileService);
 		services.set(IStorageService, new TestStorageService());
 		services.set(IWorkbenchEditorService, editorService);
+		services.set(IQuickOpenService, new TestQuickOpenService());
 		services.set(IPartService, new TestPartService());
 		services.set(IModeService, createMockModeService());
 		services.set(IModelService, createMockModelService());
@@ -183,6 +184,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(IWorkbenchEditorService, editorService);
 		services.set(IPartService, new TestPartService());
 		services.set(IModeService, createMockModeService());
+		services.set(IQuickOpenService, new TestQuickOpenService());
 		services.set(IModelService, createMockModelService());
 		services.set(ITelemetryService, telemetryService);
 		services.set(ILifecycleService, NullLifecycleService);

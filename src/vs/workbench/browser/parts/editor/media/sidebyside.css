@@ -30,7 +30,6 @@
 	box-sizing:	border-box;
 }
 
-
 .monaco-workbench .editor > .content > .editor-left {
 	left: 0;
 }
@@ -54,11 +53,11 @@
 }
 
 .monaco-workbench .editor > .content > .one-editor-container.draggedunder {
-	transition:			left 200ms ease-out;
+	transition: left 200ms ease-out;
 }
 
 .monaco-workbench .editor > .content > .editor-right.draggedunder {
-	transition-property: 			right;
+	transition-property: right;
 }
 
 .vs .monaco-workbench .editor > .content > .editor-center {
@@ -83,8 +82,30 @@
 
 /* Editor Title Styles */
 
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
+	width: 12px; /* move the actions close to the label */
+}
+
+.monaco-workbench > .part.editor > .content .inactive .title .title-actions,
+.monaco-workbench > .part.editor > .content .inactive .title .title-label-actions {
+	opacity: 0.5;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+	padding-left: 0; /* remove padding because we have the title label actions to the left */
+}
+
 .monaco-workbench > .part.editor > .content .inactive .title {
 	cursor: pointer;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+	font-style: italic;
+	padding-left: 1px; /* we need to push the label a bit to accomodate for the italic style */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label {
+	font-style: normal;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
@@ -148,12 +169,22 @@
 	opacity: 0.5;
 }
 
-.monaco-workbench .close-editor-action {
+.monaco-workbench .close-editor-action,
+.monaco-workbench .close-editor-dirty-action:hover {
 	background: url('close.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .close-editor-action {
+.vs-dark .monaco-workbench .close-editor-action,
+.vs-dark .monaco-workbench .close-editor-dirty-action:hover {
 	background: url('close-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .close-editor-dirty-action {
+	background: url('close-dirty.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .close-editor-dirty-action {
+	background: url('close-dirty-inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .split-editor-action {
@@ -164,11 +195,55 @@
 	background: url('SplitEditor_inverse.svg') center center no-repeat;
 }
 
+.monaco-workbench .show-group-editors-overflowing-action {
+	background: url('chevron.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .show-group-editors-overflowing-action {
+	background: url('chevron-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench .show-group-editors-action {
+	background: url('chevron.svg') center center no-repeat;
+}
+
+.monaco-workbench .show-group-editors-action-hidden {
+	display: none;
+}
+
+.vs-dark .monaco-workbench .show-group-editors-action {
+	background: url('chevron-inverse.svg') center center no-repeat;
+}
+
 /* High Contrast Theming */
 
 .hc-black .monaco-workbench .close-editor-action,
+.hc-black .monaco-workbench .close-editor-dirty-action,
+.hc-black .monaco-workbench .show-group-editors-action,
 .hc-black .monaco-workbench .split-editor-action {
 	background: none;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
+	width: 24px;
+}
+
+.hc-black .monaco-workbench .show-group-editors-action:before {
+	content: url('chevron-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
+}
+
+.hc-black .monaco-workbench .close-editor-dirty-action:before {
+	content: url('close-decorated-inverse.svg');
+	position: absolute;
+	top: 12px;
+	left: 8px;
+	height: 16px;
+	width: 16px;
 }
 
 .hc-black .monaco-workbench .close-editor-action:before {
@@ -196,43 +271,3 @@
 .hc-black .monaco-workbench .editor > .content > .editor-right {
 	border-left: 1px solid #6FC3DF;
 }
-
-/** Experimental active editor decoration
-
-.vs .monaco-workbench .editor > .content > .editor-left {
-	border-left: 1px solid white;
-}
-
-.vs-dark .monaco-workbench .editor > .content > .editor-left {
-	border-left: 1px solid #1E1E1E;
-}
-
-.vs .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.active {
-	border-left: 1px solid #338FFF;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.active {
-	border-left: 1px solid #0E639C;
-}
-
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.active .title {
-	padding-left: 0;
-}
-
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.active .title .title-label {
-	padding: 12px 0 0 0;
-}
-
-.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.active .title .title-label a {
-	padding-left: 16px;
-}
-
-.vs .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.active .title .title-label a {
-	border-left: 4px solid #338FFF;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.active .title .title-label a {
-	border-left: 4px solid #0E639C;
-}
-
-*/

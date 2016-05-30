@@ -675,7 +675,7 @@ export class MainThreadEditors {
 			let editors = this._workbenchEditorService.getVisibleEditors();
 			for (let editor of editors) {
 				if (mainThreadEditor.matches(editor)) {
-					return this._workbenchEditorService.closeEditor(editor).then(() => { return; });
+					return this._workbenchEditorService.closeEditor(editor.position, editor.input).then(() => { return; });
 				}
 			}
 		}

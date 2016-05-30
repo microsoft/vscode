@@ -23,8 +23,6 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-
-
 class ConfigureLocaleAction extends Action {
 	public static ID = 'workbench.action.configureLocale';
 	public static LABEL = nls.localize('configureLocale', "Configure Language");
@@ -66,28 +64,28 @@ class ConfigureLocaleAction extends Action {
 	}
 }
 
-let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureLocaleAction, ConfigureLocaleAction.ID, ConfigureLocaleAction.LABEL), 'Configure Language');
 
 let schemaId = 'vscode://schemas/locale';
 // Keep en-US since we generated files with that content.
-let schema : IJSONSchema =
-{
-	id: schemaId,
-	description: 'Locale Definition file',
-	type: 'object',
-	default: {
-		'locale': 'en'
-	},
-	required: ['locale'],
-	properties: {
-		locale: {
-			type: 'string',
-			enum: ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'],
-			description: nls.localize('JsonSchema.locale', 'The UI Language to use.')
+let schema: IJSONSchema =
+	{
+		id: schemaId,
+		description: 'Locale Definition file',
+		type: 'object',
+		default: {
+			'locale': 'en'
+		},
+		required: ['locale'],
+		properties: {
+			locale: {
+				type: 'string',
+				enum: ['de', 'en', 'en-US', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-CN', 'zh-TW'],
+				description: nls.localize('JsonSchema.locale', 'The UI Language to use.')
+			}
 		}
-	}
-};
+	};
 
 let jsonRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);

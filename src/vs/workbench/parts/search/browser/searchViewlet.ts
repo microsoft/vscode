@@ -8,6 +8,7 @@
 import 'vs/css!./media/searchviewlet';
 import {TPromise, PPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
+import platform = require('vs/base/common/platform');
 import {EditorType} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
@@ -35,6 +36,7 @@ import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
 import {Match, EmptyMatch, SearchResult, FileMatch} from 'vs/workbench/parts/search/common/searchModel';
@@ -159,11 +161,16 @@ class SearchController extends DefaultController {
 	constructor(private viewlet: SearchViewlet) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
-		this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+		if (platform.isMacintosh) {
+			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+		} else {
+			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+		}
+
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
 	}
 
-	protected onEscape(tree: ITree, event:IKeyboardEvent):boolean {
+	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
 		if (this.viewlet.cancelSearch()) {
 			return true;
 		}
@@ -173,13 +180,10 @@ class SearchController extends DefaultController {
 
 	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
 		let result = false;
-		let elements = tree.getSelection();
-		for (let i = 0; i < elements.length; i++) {
-			let element = elements[i];
-			if (element instanceof FileMatch) {
-				new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
-				result = true;
-			}
+		let element = tree.getFocus();
+		if (element instanceof FileMatch) {
+			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
+			result = true;
 		}
 
 		return result;
@@ -1159,7 +1163,7 @@ export class SearchViewlet extends Viewlet {
 
 		let options: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
-			extraFileResources: this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource),
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			excludePattern: excludes,
 			includePattern: includes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,

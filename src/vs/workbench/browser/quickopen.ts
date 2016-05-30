@@ -12,7 +12,9 @@ import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
-import {Mode, IContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
+import {Action} from 'vs/base/common/actions';
+import {KeyMod} from 'vs/base/common/keyCodes';
+import {Mode, IEntryRunContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
@@ -61,7 +63,7 @@ export class QuickOpenHandler {
 	 * Indicates if the handler wishes the quick open widget to automatically select the first result entry or an entry
 	 * based on a specific prefix match.
 	 */
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	public getAutoFocus(searchValue: string, isQuickNavigating?: boolean): IAutoFocus {
 		return {};
 	}
 
@@ -231,10 +233,9 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		return null;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			let event = context.event;
-			let sideBySide = (event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey))));
+			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 
 			let input = this.getInput();
 			if (input instanceof EditorInput) {
@@ -292,7 +293,7 @@ class CommandEntry extends QuickOpenEntry {
 		return nls.localize('entryAriaLabel', "{0}, command", this.getLabel());
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;
 		}
@@ -382,5 +383,24 @@ export abstract class CommandQuickOpenHandler extends QuickOpenHandler {
 		}
 
 		return command.command.getEmptyLabel(input);
+	}
+}
+
+export class QuickOpenAction extends Action {
+	private prefix: string;
+
+	constructor(actionId: string, actionLabel: string, prefix: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
+		super(actionId, actionLabel);
+
+		this.prefix = prefix;
+		this.enabled = !!this.quickOpenService;
+	}
+
+	public run(context?: any): TPromise<any> {
+
+		// Show with prefix
+		this.quickOpenService.show(this.prefix);
+
+		return TPromise.as(null);
 	}
 }

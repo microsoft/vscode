@@ -41,7 +41,6 @@ export class QuickOpenEntry {
 	private descriptionHighlights: IHighlight[];
 	private detailHighlights: IHighlight[];
 	private hidden: boolean;
-	private labelPrefix: string;
 
 	constructor(highlights: IHighlight[] = []) {
 		this.id = (IDS++).toString();
@@ -54,13 +53,6 @@ export class QuickOpenEntry {
 	 */
 	public getId(): string {
 		return this.id;
-	}
-
-	/**
-	 * The prefix to show in front of the label if any
-	 */
-	public getPrefix(): string {
-		return this.labelPrefix;
 	}
 
 	/**
@@ -107,6 +99,13 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * Extra CSS class name to add to the quick open entry to do custom styling of entries.
+	 */
+	public getExtraClass(): string {
+		return null;
+	}
+
+	/**
 	 * Allows to reuse the same model while filtering. Hidden entries will not show up in the viewer.
 	 */
 	public isHidden(): boolean {
@@ -118,13 +117,6 @@ export class QuickOpenEntry {
 	 */
 	public setHidden(hidden: boolean): void {
 		this.hidden = hidden;
-	}
-
-	/**
-	 * Sets the prefix to show in front of the label
-	 */
-	public setPrefix(prefix: string): void {
-		this.labelPrefix = prefix;
 	}
 
 	/**
@@ -366,10 +358,6 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		this.withBorder = showBorder;
 	}
 
-	public getPrefix(): string {
-		return this.entry ? this.entry.getPrefix() : super.getPrefix();
-	}
-
 	public getLabel(): string {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
@@ -400,6 +388,10 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 
 	public getHighlights(): [IHighlight[], IHighlight[], IHighlight[]] {
 		return this.entry ? this.entry.getHighlights() : super.getHighlights();
+	}
+
+	public getExtraClass(): string {
+		return this.entry ? this.entry.getExtraClass() : super.getExtraClass();
 	}
 
 	public isHidden(): boolean {
@@ -463,8 +455,8 @@ class NoActionProvider implements IActionProvider {
 
 export interface IQuickOpenEntryTemplateData {
 	container: HTMLElement;
+	entry: HTMLElement;
 	icon: HTMLSpanElement;
-	prefix: HTMLSpanElement;
 	label: HighlightedLabel;
 	detail: HighlightedLabel;
 	description: HighlightedLabel;
@@ -548,10 +540,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		let icon = document.createElement('span');
 		entry.appendChild(icon);
 
-		// Prefix
-		let prefix = document.createElement('span');
-		entry.appendChild(prefix);
-
 		// Label
 		let label = new HighlightedLabel(entry);
 
@@ -569,8 +557,8 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 
 		return {
 			container,
+			entry,
 			icon,
-			prefix,
 			label,
 			detail,
 			description,
@@ -628,13 +616,17 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		if (entry instanceof QuickOpenEntry) {
 			let [labelHighlights, descriptionHighlights, detailHighlights] = entry.getHighlights();
 
+			// Extra Class
+			let extraClass = entry.getExtraClass();
+			if (extraClass) {
+				DOM.addClass(data.entry, extraClass);
+			} else {
+				data.entry.className = 'quick-open-entry';
+			}
+
 			// Icon
 			let iconClass = entry.getIcon() ? ('quick-open-entry-icon ' + entry.getIcon()) : '';
 			data.icon.className = iconClass;
-
-			// Prefix
-			let prefix = entry.getPrefix() || '';
-			data.prefix.textContent = prefix;
 
 			// Label
 			data.label.set(entry.getLabel(), labelHighlights || []);
@@ -656,6 +648,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.actionBar.dispose();
 			data.actionBar = null;
 			data.container = null;
+			data.entry = null;
 			data.description.dispose();
 			data.description = null;
 			data.detail.dispose();
@@ -664,7 +657,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.icon = null;
 			data.label.dispose();
 			data.label = null;
-			data.prefix = null;
 		}
 	}
 }

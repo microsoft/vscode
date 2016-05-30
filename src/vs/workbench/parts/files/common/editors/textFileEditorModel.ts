@@ -15,7 +15,7 @@ import types = require('vs/base/common/types');
 import {IModelContentChangedEvent} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EventType as WorkbenchEventType, ResourceEvent} from 'vs/workbench/common/events';
-import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
+import {EventType as FileEventType, TextFileChangeEvent, ITextFileService, IAutoSaveConfiguration, ModelState} from 'vs/workbench/parts/files/common/files';
 import {EncodingMode, EditorModel, IEncodingSupport} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {IFileService, IFileStat, IFileOperationResult, FileOperationResult, IContent} from 'vs/platform/files/common/files';
@@ -52,17 +52,6 @@ if (!diag) {
 	diag = diagnostics.register('TextFileEditorModelDiagnostics', function(...args: any[]) {
 		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
 	});
-}
-
-/**
- * States the text text file editor model can be in.
- */
-export enum State {
-	SAVED,
-	DIRTY,
-	PENDING_SAVE,
-	CONFLICT,
-	ERROR
 }
 
 /**
@@ -332,10 +321,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			diag('onModelContentChanged() - model content changed back to last saved version', this.resource, new Date());
 
 			// Clear flags
+			const wasDirty = this.dirty;
 			this.setDirty(false);
 
 			// Emit event
-			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel, this.versionOnDiskStat));
+			if (wasDirty) {
+				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel, this.versionOnDiskStat));
+			}
 
 			return;
 		}
@@ -613,25 +605,25 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	/**
 	 * Returns the state this text text file editor model is in with regards to changes and saving.
 	 */
-	public getState(): State {
+	public getState(): ModelState {
 		if (this.inConflictResolutionMode) {
-			return State.CONFLICT;
+			return ModelState.CONFLICT;
 		}
 
 		if (this.inErrorMode) {
-			return State.ERROR;
+			return ModelState.ERROR;
 		}
 
 		if (!this.dirty) {
-			return State.SAVED;
+			return ModelState.SAVED;
 		}
 
 		if (this.isBusySaving()) {
-			return State.PENDING_SAVE;
+			return ModelState.PENDING_SAVE;
 		}
 
 		if (this.dirty) {
-			return State.DIRTY;
+			return ModelState.DIRTY;
 		}
 	}
 

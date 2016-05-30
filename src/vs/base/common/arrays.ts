@@ -215,3 +215,11 @@ export function commonPrefixLength<T>(one: T[], other: T[], equals: (a: T, b: T)
 export function flatten<T>(arr: T[][]): T[] {
 	return arr.reduce((r, v) => r.concat(v), []);
 }
+
+export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
+	for (let i = 0; i < num; i++) {
+		arr[i] = valueFn();
+	}
+
+	return arr;
+}

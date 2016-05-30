@@ -29,7 +29,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import PartService = require('vs/workbench/services/part/common/partService');
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {ITextFileService, EventType} from 'vs/workbench/parts/files/common/files';
-import {TestFileService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/common/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {

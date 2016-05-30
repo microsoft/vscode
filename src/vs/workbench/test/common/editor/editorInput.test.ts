@@ -14,7 +14,7 @@ class MyEditorInput extends EditorInput {
 		return 'text/css';
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return '';
 	}
 
@@ -67,7 +67,7 @@ suite('Workbench - EditorInput', () => {
 		assert(!diffInput.matches(null));
 
 		diffInput.dispose();
-		assert.equal(counter, 2);
+		assert.equal(counter, 0);
 	});
 
 	test('DiffEditorInput disposes when input inside disposes', function () {

@@ -98,9 +98,9 @@ export class HtmlPreviewPart extends BaseEditor {
 		super.changePosition(position);
 	}
 
-	public setVisible(visible: boolean, position?: Position): TPromise<void> {
+	public setEditorVisible(visible: boolean, position?: Position): void {
 		this._doSetVisible(visible);
-		return super.setVisible(visible, position);
+		super.setEditorVisible(visible, position);
 	}
 
 	private _doSetVisible(visible: boolean):void {

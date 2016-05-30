@@ -79,10 +79,13 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	public createEditorControl(parent: Builder): IDiffEditor {
+
+		// Actions
 		this.nextDiffAction = new NavigateAction(this, true);
 		this.previousDiffAction = new NavigateAction(this, false);
 
-		let delegatingService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, this, (editor: BaseEditor, input: EditorInput, options?: EditorOptions, arg4?: any) => {
+		// Support navigation within the diff editor by overriding the editor service within
+		let delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, this, (editor: BaseEditor, input: EditorInput, options?: EditorOptions, arg4?: any) => {
 
 			// Check if arg4 is a position argument that differs from this editors position
 			if (types.isUndefinedOrNull(arg4) || arg4 === false || arg4 === this.position) {
@@ -91,9 +94,7 @@ export class TextDiffEditor extends BaseTextEditor {
 
 					// Input matches modified side of the diff editor: perform the action on modified side
 					if (input.matches(activeDiffInput.getModifiedInput())) {
-						return this.setInput(this.getInput(), options).then(() => {
-							return true;
-						});
+						return this.setInput(this.getInput(), options).then(() => true);
 					}
 
 					// Input matches original side of the diff editor: perform the action on original side
@@ -112,7 +113,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		let diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingService]));
+		let diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
 
 		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
 	}
@@ -257,10 +258,10 @@ export class TextDiffEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	public setVisible(visible: boolean, position: Position): TPromise<void> {
+	public setEditorVisible(visible: boolean, position: Position): void {
 		this.textDiffEditorVisible.set(visible);
 
-		return super.setVisible(visible, position);
+		super.setEditorVisible(visible, position);
 	}
 
 	public getDiffNavigator(): DiffNavigator {

@@ -11,13 +11,13 @@ import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
-import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
+import {IEntryRunContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
-import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
+import {QuickOpenHandler, EditorQuickOpenEntryGroup, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import filters = require('vs/base/common/filters');
+import {KeyMod} from 'vs/base/common/keyCodes';
 import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -300,7 +300,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return options;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -308,11 +308,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.runPreview();
 	}
 
-	private runOpen(context: IContext): boolean {
+	private runOpen(context: IEntryRunContext): boolean {
 
 		// Check for sideBySide use
-		let event = context.event;
-		let sideBySide = (event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey))));
+		let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 		if (sideBySide) {
 			this.editorService.openEditor(this.getInput(), this.getOptions(), true).done(null, errors.onUnexpectedError);
 		}

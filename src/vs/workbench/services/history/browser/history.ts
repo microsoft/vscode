@@ -13,7 +13,6 @@ import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {EditorEvent, TextEditorSelectionEvent, EventType as WorkbenchEventType, EditorInputEvent} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
@@ -84,13 +83,13 @@ export abstract class BaseHistoryService {
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
 
 		// Editor Input State Changes
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, (e: EditorInputEvent) => this.onEditorInputStateChanged(e.editorInput)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (e: EditorInputEvent) => this.onEditorInputDirtyStateChanged(e.editorInput)));
 
 		// Text Editor Selection Changes
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, (event: TextEditorSelectionEvent) => this.onTextEditorSelectionChanged(event)));
 	}
 
-	private onEditorInputStateChanged(input: IEditorInput): void {
+	private onEditorInputDirtyStateChanged(input: IEditorInput): void {
 
 		// If an active editor is set, but is different from the one from the event, prevent update because the editor is not active.
 		let activeEditor = this.editorService.getActiveEditor();
@@ -166,9 +165,8 @@ export abstract class BaseHistoryService {
 
 		let prefix = input && input.getName();
 		if (prefix && input) {
-			let status = (<EditorInput>input).getStatus();
-			if (status && status.decoration && !platform.isMacintosh /* Mac has its own decoration in window */) {
-				prefix = nls.localize('prefixDecoration', "{0} {1}", status.decoration, prefix);
+			if ((<EditorInput>input).isDirty() && !platform.isMacintosh /* Mac has its own decoration in window */) {
+				prefix = nls.localize('prefixDecoration', "\u25cf {0}", prefix);
 			}
 		}
 
@@ -235,38 +233,20 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private static MAX_HISTORY_ITEMS = 200;
 
-	private _stack: IStackEntry[];
+	private stack: IStackEntry[];
 	private index: number;
 	private blockEditorEvent: boolean;
 	private currentFileEditorState: EditorState;
-	private quickOpenService: IQuickOpenService;
 
 	constructor(
 		eventService: IEventService,
 		editorService: IWorkbenchEditorService,
-		contextService: IWorkspaceContextService,
-		quickOpenService: IQuickOpenService
+		contextService: IWorkspaceContextService
 	) {
 		super(eventService, editorService, contextService);
 
-		this.quickOpenService = quickOpenService;
-
 		this.index = -1;
-	}
-
-	private get stack(): IStackEntry[] {
-
-		// Seed our stack from the persisted editor history
-		if (!this._stack) {
-			this._stack = [];
-			let history = this.quickOpenService.getEditorHistory();
-
-			for (let i = history.length - 1; i >= 0; i--) {
-				this.addToStack(history[i]);
-			}
-		}
-
-		return this._stack;
+		this.stack = [];
 	}
 
 	public forward(): void {
@@ -281,6 +261,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			this.index--;
 			this.navigate();
 		}
+	}
+
+	public clear(): void {
+		this.index = -1;
+		this.stack.splice(0);
 	}
 
 	private navigate(): void {
@@ -361,6 +346,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			input: input,
 			options: options
 		};
+
+		// If we are not at the end of history, we remove anything after
+		if (this.stack.length > this.index + 1) {
+			this.stack = this.stack.slice(0, this.index + 1);
+		}
 
 		// Replace at current position
 		if (replace) {

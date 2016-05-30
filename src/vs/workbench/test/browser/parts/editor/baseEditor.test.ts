@@ -72,7 +72,7 @@ class MyInput extends EditorInput {
 		return ids[1];
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return '';
 	}
 
@@ -82,7 +82,7 @@ class MyInput extends EditorInput {
 }
 
 class MyOtherInput extends EditorInput {
-	public getId(): string {
+	public getTypeId(): string {
 		return '';
 	}
 
@@ -138,20 +138,18 @@ suite('Workbench BaseEditor', () => {
 			assert.strictEqual(input, e.getInput());
 			assert.strictEqual(options, e.getOptions());
 
-			return e.setVisible(true).then(function () {
-				assert(e.isVisible());
-				input.addListener2('dispose', function () {
-					assert(false);
-				});
-				e.dispose();
-				e.clearInput();
-				return e.setVisible(false).then(function () {
-					assert(!e.isVisible());
-					assert(!e.getInput());
-					assert(!e.getOptions());
-					assert(!e.getControl());
-				});
+			e.setVisible(true);
+			assert(e.isVisible());
+			input.addListener2('dispose', function () {
+				assert(false);
 			});
+			e.dispose();
+			e.clearInput();
+			e.setVisible(false);
+			assert(!e.isVisible());
+			assert(!e.getInput());
+			assert(!e.getOptions());
+			assert(!e.getControl());
 		}).done(() => done());
 	});
 
@@ -257,7 +255,7 @@ suite('Workbench BaseEditor', () => {
 
 		// other input causes actions to loose input context
 		let myInput = new MyInput();
-		myInput.getId = function () {
+		myInput.getTypeId = function () {
 			return 'foo.id';
 		};
 

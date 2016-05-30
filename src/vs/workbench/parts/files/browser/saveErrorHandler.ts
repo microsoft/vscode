@@ -148,7 +148,7 @@ export class ConflictResolutionDiffEditorInput extends DiffEditorInput {
 		return this.model;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return ConflictResolutionDiffEditorInput.ID;
 	}
 }

@@ -13,7 +13,7 @@ import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {VIEWLET_ID, TEXT_FILE_EDITOR_ID, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {VIEWLET_ID, TEXT_FILE_EDITOR_ID} from 'vs/workbench/parts/files/common/files';
 import {SaveErrorHandler} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, EditorModel} from 'vs/workbench/common/editor';
@@ -45,7 +45,6 @@ export class TextFileEditor extends BaseTextEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IViewletService private viewletService: IViewletService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -157,12 +156,6 @@ export class TextFileEditor extends BaseTextEditor {
 					textEditor.restoreViewState(editorViewState);
 				}
 			}
-
-			// Add to working files if file is out of workspace
-			if (!this.contextService.isInsideWorkspace(textFileModel.getResource())) {
-				this.textFileService.getWorkingFilesModel().addEntry(textFileModel.getResource());
-			}
-
 		}, (error) => {
 
 			// In case we tried to open a file inside the text editor and the response
@@ -179,22 +172,24 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Offer to create a file from the error if we have a file not found and the name is valid
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
-				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), { actions: [
-					CancelAction,
-					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
-						return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
+				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), {
+					actions: [
+						CancelAction,
+						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
+							return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
 
-							// Add to working files
-							this.textFileService.getWorkingFilesModel().addEntry((<FileEditorInput>input).getResource());
-
-							// Open
-							return this.editorService.openEditor({
-								resource: (<FileEditorInput>input).getResource(),
-								mime: MIME_TEXT
+								// Open
+								return this.editorService.openEditor({
+									resource: (<FileEditorInput>input).getResource(),
+									mime: MIME_TEXT,
+									options: {
+										pinned: true // new file gets pinned by default
+									}
+								});
 							});
-						});
-					})
-				]}));
+						})
+					]
+				}));
 			}
 
 			// Inform the user if the file is too large to open
@@ -225,12 +220,12 @@ export class TextFileEditor extends BaseTextEditor {
 	private openAsFolder(input: EditorInput): boolean {
 
 		// Since we cannot open a folder, we have to restore the previous input if any or close the editor
-		let handleEditorPromise: TPromise<BaseTextEditor>;
+		let handleEditorPromise: TPromise<any>;
 		let previousInput = this.quickOpenService.getEditorHistory()[1];
 		if (previousInput) {
 			handleEditorPromise = this.editorService.openEditor(previousInput, null, this.position);
 		} else {
-			handleEditorPromise = this.editorService.closeEditor(this);
+			handleEditorPromise = this.editorService.closeEditor(this.position, this.input);
 		}
 
 		handleEditorPromise.done(() => {

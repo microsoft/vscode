@@ -15,10 +15,9 @@ import {ICommonCodeEditor, IEditorViewState} from 'vs/editor/common/editorCommon
 import {PathLabelProvider} from 'vs/base/common/labels';
 import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import Severity from 'vs/base/common/severity';
-import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
-import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
+import {Mode, IEntryRunContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntryItem, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
@@ -103,7 +102,7 @@ class MarkerEntry extends QuickOpenEntryItem {
 		return;
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		switch (mode) {
 			case Mode.OPEN:
 				this._open();

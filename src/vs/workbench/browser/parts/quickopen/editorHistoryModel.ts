@@ -11,13 +11,15 @@ import filters = require('vs/base/common/filters');
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import labels = require('vs/base/common/labels');
 import {EventType} from 'vs/base/common/events';
-import {Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
+import {Mode, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import {KeyMod} from 'vs/base/common/keyCodes';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -28,6 +30,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	private input: EditorInput;
 	private model: EditorHistoryModel;
 	private resource: URI;
+	private toUnbind: IDisposable;
 
 	constructor(
 		editorService: IWorkbenchEditorService,
@@ -44,19 +47,24 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		this.resource = getUntitledOrFileResource(input);
 
 		this.setHighlights(labelHighlights, descriptionHighlights);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind = this.input.addOneTimeDisposableListener(EventType.DISPOSE, () => this.onInputDispose());
+	}
+
+	private onInputDispose(): void {
+		this.model.restore(this.input); // handle the case of input getting disposed by restoring it from factory
 	}
 
 	public clone(labelHighlights: IHighlight[], descriptionHighlights?: IHighlight[]): EditorHistoryEntry {
 		return new EditorHistoryEntry(this.editorService, this.contextService, this.input, labelHighlights, descriptionHighlights, this.model);
 	}
 
-	public getPrefix(): string {
-		let status = this.input.getStatus();
-		if (status && status.decoration) {
-			return `${status.decoration} `;
-		}
-
-		return void 0;
+	public getIcon(): string {
+		return this.input.isDirty() ? 'dirty' : '';
 	}
 
 	public getLabel(): string {
@@ -83,15 +91,12 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		return this.input.matches(input);
 	}
 
-	public run(mode: Mode, context: IContext): boolean {
+	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			let event = context.event;
-			let sideBySide = !context.quickNavigateConfiguration && (event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey))));
+			let sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
 			this.editorService.openEditor(this.input, null, sideBySide).done(() => {
-
-				// Automatically clean up stale history entries when the input can not be opened
 				if (!this.input.matches(this.editorService.getActiveEditorInput())) {
-					this.model.remove(this.input);
+					this.model.remove(this.input); // Automatically clean up stale history entries when the input can not be opened
 				}
 			});
 
@@ -99,6 +104,13 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		}
 
 		return false;
+	}
+
+	public dispose(): void {
+		if (this.toUnbind) {
+			this.toUnbind.dispose();
+			this.toUnbind = null;
+		}
 	}
 }
 
@@ -108,6 +120,7 @@ interface ISerializedEditorInput {
 }
 
 export class EditorHistoryModel extends QuickOpenModel {
+	private registry: IEditorRegistry;
 
 	constructor(
 		private editorService: IWorkbenchEditorService,
@@ -115,42 +128,81 @@ export class EditorHistoryModel extends QuickOpenModel {
 		private contextService: IWorkspaceContextService
 	) {
 		super();
+
+		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 	}
 
-	public add(entry: EditorInput): void {
+	public add(input: EditorInput, index?: number): void {
 
 		// Ensure we have at least a name to show
-		if (!entry.getName()) {
+		if (!input.getName()) {
 			return;
 		}
 
-		// Remove on Dispose
-		let unbind = entry.addListener2(EventType.DISPOSE, () => {
-			this.remove(entry);
-			unbind.dispose();
-		});
+		const entry = new EditorHistoryEntry(this.editorService, this.contextService, input, null, null, this);
 
-		// Remove any existing entry and add to the beginning
-		this.remove(entry);
-		this.entries.unshift(new EditorHistoryEntry(this.editorService, this.contextService, entry, null, null, this));
+		// Remove any existing entry and add to the beginning if we do not get an index
+		if (typeof index !== 'number') {
+			this.remove(input);
+			this.entries.unshift(entry);
+		}
+
+		// Otherwise replace at index
+		else {
+			const previousEntry = this.entries[index];
+			if (previousEntry) {
+				(<EditorHistoryEntry>previousEntry).dispose();
+			}
+
+			this.entries[index] = entry;
+		}
 
 		// Respect max entries setting
 		if (this.entries.length > MAX_ENTRIES) {
+			for (let i = MAX_ENTRIES; i < this.entries.length; i++) {
+				(<EditorHistoryEntry>this.entries[i]).dispose();
+			}
+
 			this.entries = this.entries.slice(0, MAX_ENTRIES);
 		}
 	}
 
-	public remove(entry: EditorInput): void {
-		let index = this.indexOf(entry);
+	public restore(input: EditorInput): void {
+		let index = this.indexOf(input);
+		if (index < 0) {
+			return;
+		}
+
+		// Using the factory we try to recreate the input
+		const factory = this.registry.getEditorInputFactory(input.getTypeId());
+		if (factory) {
+			const inputRaw = factory.serialize(input);
+			if (inputRaw) {
+				this.add(factory.deserialize(this.instantiationService, inputRaw), index);
+
+				return;
+			}
+		}
+
+		// Factory failed, just remove entry then
+		this.remove(input);
+	}
+	public remove(input: EditorInput): void {
+		let index = this.indexOf(input);
 		if (index >= 0) {
+			const entry = <EditorHistoryEntry>this.entries[index];
+			if (entry) {
+				entry.dispose();
+			}
+
 			this.entries.splice(index, 1);
 		}
 	}
 
-	private indexOf(entryToFind: EditorInput): number {
+	private indexOf(input: EditorInput): number {
 		for (let i = 0; i < this.entries.length; i++) {
 			let entry = this.entries[i];
-			if ((<EditorHistoryEntry>entry).matches(entryToFind)) {
+			if ((<EditorHistoryEntry>entry).matches(input)) {
 				return i;
 			}
 		}
@@ -159,18 +211,17 @@ export class EditorHistoryModel extends QuickOpenModel {
 	}
 
 	public saveTo(memento: any): void {
-		let registry = (<IEditorRegistry>Registry.as(Extensions.Editors));
 		let entries: ISerializedEditorInput[] = [];
 		for (let i = this.entries.length - 1; i >= 0; i--) {
 			let entry = this.entries[i];
 			let input = (<EditorHistoryEntry>entry).getInput();
 
-			let factory = registry.getEditorInputFactory(input.getId());
+			let factory = this.registry.getEditorInputFactory(input.getTypeId());
 			if (factory) {
 				let value = factory.serialize(input);
 				if (types.isString(value)) {
 					entries.push({
-						id: input.getId(),
+						id: input.getTypeId(),
 						value: value
 					});
 				}
@@ -183,13 +234,12 @@ export class EditorHistoryModel extends QuickOpenModel {
 	}
 
 	public loadFrom(memento: any): void {
-		let registry = (<IEditorRegistry>Registry.as(Extensions.Editors));
 		let entries: ISerializedEditorInput[] = memento.entries;
 		if (entries && entries.length > 0) {
 			for (let i = 0; i < entries.length; i++) {
 				let entry = entries[i];
 
-				let factory = registry.getEditorInputFactory(entry.id);
+				let factory = this.registry.getEditorInputFactory(entry.id);
 				if (factory && types.isString(entry.value)) {
 					let input = factory.deserialize(this.instantiationService, entry.value);
 					if (input) {

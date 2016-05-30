@@ -8,34 +8,15 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import objects = require('vs/base/common/objects');
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
 import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-/**
- * A simple bag for input related status that can be shown in the UI
- */
-export interface IInputStatus {
-
-	/**
-	 * An identifier of the state that can be used e.g. as CSS class when displaying the input.
-	 */
-	state?: string;
-
-	/**
-	 * A label to display describing the current input status.
-	 */
-	displayText?: string;
-
-	/**
-	 * A longer description giving more detail about the current input status.
-	 */
-	description?: string;
-
-	/**
-	 * Preferably a short label to append to the input name to indicate the input status.
-	 */
-	decoration?: string;
+export enum ConfirmResult {
+	SAVE,
+	DONT_SAVE,
+	CANCEL
 }
 
 /**
@@ -45,10 +26,11 @@ export interface IInputStatus {
 export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	private disposed: boolean;
 
-	/**
-	 * Returns the unique id of this input.
-	 */
-	public abstract getId(): string;
+	constructor() {
+		super();
+
+		this.disposed = false;
+	}
 
 	/**
 	 * Returns the name of this input that can be shown to the user. Examples include showing the name of the input
@@ -69,12 +51,9 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 
 	/**
-	 * Returns status information about this input that can be shown to the user. Examples include showing the status
-	 * of the input when hovering over the name of the input.
+	 * Returns the unique type identifier of this input.
 	 */
-	public getStatus(): IInputStatus {
-		return null;
-	}
+	public abstract getTypeId(): string;
 
 	/**
 	 * Returns the preferred editor for this input. A list of candidate editors is passed in that whee registered
@@ -89,19 +68,54 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 
 	/**
-	 * Returns true if this input is identical to the otherInput.
-	 */
-	public matches(otherInput: any): boolean {
-		return this === otherInput;
-	}
-
-	/**
 	 * Returns a type of EditorModel that represents the resolved input. Subclasses should
 	 * override to provide a meaningful model. The optional second argument allows to specify
 	 * if the EditorModel should be refreshed before returning it. Depending on the implementation
 	 * this could mean to refresh the editor model contents with the version from disk.
 	 */
 	public abstract resolve(refresh?: boolean): TPromise<EditorModel>;
+
+	/**
+	 * An editor that is dirty will be asked to be saved once it closes.
+	 */
+	public isDirty(): boolean {
+		return false;
+	}
+
+	/**
+	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
+	 */
+	public confirmSave(): ConfirmResult {
+		return ConfirmResult.DONT_SAVE;
+	}
+
+	/**
+	 * Saves the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
+	 */
+	public save(): TPromise<boolean> {
+		return TPromise.as(true);
+	}
+
+	/**
+	 * Reverts the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
+	 */
+	public revert(): TPromise<boolean> {
+		return TPromise.as(true);
+	}
+
+	/**
+	 * Called when this input is no longer opened in any editor. Subclasses can free resources as needed.
+	 */
+	public close(): void {
+		this.dispose();
+	}
+
+	/**
+	 * Returns true if this input is identical to the otherInput.
+	 */
+	public matches(otherInput: any): boolean {
+		return this === otherInput;
+	}
 
 	/**
 	 * Called when an editor input is no longer needed. Allows to free up any resources taken by
@@ -173,6 +187,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	 * Sets the absolute file resource URI this input is about.
 	 */
 	setResource(resource: URI): void;
+
+	/**
+	 * Sets the preferred encodingt to use for this input.
+	 */
+	setPreferredEncoding(encoding: string): void;
 }
 
 /**
@@ -222,6 +241,22 @@ export abstract class BaseDiffEditorInput extends EditorInput {
 	public getModifiedInput(): EditorInput {
 		return this.modifiedInput;
 	}
+
+	public isDirty(): boolean {
+		return this._modifiedInput.isDirty();
+	}
+
+	public confirmSave(): ConfirmResult {
+		return this._modifiedInput.confirmSave();
+	}
+
+	public save(): TPromise<boolean> {
+		return this._modifiedInput.save();
+	}
+
+	public revert(): TPromise<boolean> {
+		return this._modifiedInput.revert();
+	}
 }
 
 /**
@@ -263,12 +298,29 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Helper to create EditorOptions inline.
 	 */
-	public static create(settings: { preserveFocus?: boolean; forceOpen?: boolean; }): EditorOptions {
+	public static create(settings: {
+		preserveFocus?: boolean;
+		forceOpen?: boolean;
+		pinned?: boolean,
+		index?: number
+	}): EditorOptions {
 		let options = new EditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
+		options.pinned = settings.pinned;
+		options.index = settings.index;
 
 		return options;
+	}
+
+	/**
+	 * Inherit all options from other EditorOptions instance.
+	 */
+	public mixin(other: EditorOptions): void {
+		this.preserveFocus = other.preserveFocus;
+		this.forceOpen = other.forceOpen;
+		this.pinned = other.pinned;
+		this.index = other.index;
 	}
 
 	/**
@@ -285,17 +337,15 @@ export class EditorOptions implements IEditorOptions {
 	public forceOpen: boolean;
 
 	/**
-	 * Ensures that the editor is being activated even if the input is already showing. This only applies
-	 * if there is more than one editor open already and preserveFocus is set to false.
+	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
+	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
 	 */
-	public forceActive: boolean;
+	public pinned: boolean;
 
 	/**
-	 * Returns true if this options is identical to the otherOptions.
+	 * The index in the document stack where to insert the editor into when opening.
 	 */
-	public matches(otherOptions: any): boolean {
-		return this === otherOptions;
-	}
+	public index: number;
 }
 
 /**
@@ -311,7 +361,7 @@ export class TextEditorOptions extends EditorOptions {
 	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus) {
+			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus || input.options.pinned || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -327,6 +377,14 @@ export class TextEditorOptions extends EditorOptions {
 			if (input.options.preserveFocus) {
 				options.preserveFocus = true;
 			}
+
+			if (input.options.pinned) {
+				options.pinned = true;
+			}
+
+			if (typeof input.options.index === 'number') {
+				options.index = input.options.index;
+			}
 		}
 
 		return options;
@@ -335,11 +393,18 @@ export class TextEditorOptions extends EditorOptions {
 	/**
 	 * Helper to create TextEditorOptions inline.
 	 */
-	public static create(settings: { preserveFocus?: boolean; forceOpen?: boolean; forceActive?: boolean; selection?: IRange }): TextEditorOptions {
+	public static create(settings: {
+		preserveFocus?: boolean;
+		forceOpen?: boolean;
+		pinned?: boolean;
+		index?: number;
+		selection?: IRange
+	}): TextEditorOptions {
 		let options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
-		options.forceActive = settings.forceActive;
 		options.forceOpen = settings.forceOpen;
+		options.pinned = settings.pinned;
+		options.index = settings.index;
 
 		if (settings.selection) {
 			options.startLineNumber = settings.selection.startLineNumber;
@@ -421,25 +486,6 @@ export class TextEditorOptions extends EditorOptions {
 
 		return gotApplied;
 	}
-
-	public matches(otherOptions: any): boolean {
-		if (super.matches(otherOptions) === true) {
-			return true;
-		}
-
-		if (otherOptions) {
-			return otherOptions instanceof TextEditorOptions &&
-				(<TextEditorOptions>otherOptions).startLineNumber === this.startLineNumber &&
-				(<TextEditorOptions>otherOptions).startColumn === this.startColumn &&
-				(<TextEditorOptions>otherOptions).endLineNumber === this.endLineNumber &&
-				(<TextEditorOptions>otherOptions).endColumn === this.endColumn &&
-				(<TextEditorOptions>otherOptions).preserveFocus === this.preserveFocus &&
-				(<TextEditorOptions>otherOptions).forceOpen === this.forceOpen &&
-				objects.equals((<TextEditorOptions>otherOptions).editorViewState, this.editorViewState);
-		}
-
-		return false;
-	}
 }
 
 /**
@@ -485,6 +531,25 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 }
 
 /**
+ * Helper to return all opened editors with resources not belonging to the currently opened workspace.
+ */
+export function getOutOfWorkspaceEditorResources(editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService): URI[] {
+	const resources: URI[] = [];
+
+	editorService.getStacksModel().groups.forEach(group => {
+		const editors = group.getEditors();
+		editors.forEach(editor => {
+			const fileInput = asFileEditorInput(editor, true);
+			if (fileInput && !contextService.isInsideWorkspace(fileInput.getResource())) {
+				resources.push(fileInput.getResource());
+			}
+		});
+	});
+
+	return resources;
+}
+
+/**
  * Returns the object as IFileEditorInput only if it matches the signature.
  */
 export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorInput {
@@ -500,4 +565,23 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 	let i = <IFileEditorInput>obj;
 
 	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
+}
+
+export function isInputRelated(sourceInput: EditorInput, targetInput: EditorInput): boolean {
+	if (!sourceInput || !targetInput) {
+		return false;
+	}
+
+	if (sourceInput.matches(targetInput)) {
+		return true;
+	}
+
+	if (sourceInput instanceof BaseDiffEditorInput) {
+		let modifiedInput = (<BaseDiffEditorInput>sourceInput).getModifiedInput();
+		if (modifiedInput && modifiedInput.matches(targetInput)) {
+			return true;
+		}
+	}
+
+	return false;
 }

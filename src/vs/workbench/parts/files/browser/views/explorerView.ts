@@ -11,7 +11,7 @@ import URI from 'vs/base/common/uri';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
-import {Action, IActionRunner} from 'vs/base/common/actions';
+import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
@@ -33,6 +33,7 @@ import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -67,6 +68,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		viewletState: FileViewletState,
 		actionRunner: IActionRunner,
 		settings: any,
+		headerSize: number,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -77,9 +79,10 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, contextMenuService);
+		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.workspace = contextService.getWorkspace();
 
@@ -105,22 +108,17 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		this.tree = this.createViewer($(this.treeContainer));
 
-		this.fillToolBar();
+		if (this.toolBar) {
+			this.toolBar.setActions(prepareActions(this.getActions()), [])();
+		}
 	}
 
-	private fillToolBar(): void {
-		let actions: Action[] = [];
+	public getActions(): IAction[] {
+		const actions: Action[] = [];
 
-		// New File
 		actions.push(this.instantiationService.createInstance(NewFileAction, this.getViewer(), null));
-
-		// New Folder
 		actions.push(this.instantiationService.createInstance(NewFolderAction, this.getViewer(), null));
-
-		// Refresh
 		actions.push(this.instantiationService.createInstance(RefreshViewExplorerAction, this, 'explorer-action refresh-explorer'));
-
-		// Collapse
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.getViewer(), true, 'explorer-action collapse-explorer'));
 
 		// Set Order
@@ -129,7 +127,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			action.order = 10 * (i + 1);
 		}
 
-		this.toolBar.setActions(prepareActions(actions), [])();
+		return actions;
 	}
 
 	public create(): TPromise<void> {
@@ -160,6 +158,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		}
 
 		let clearSelection = true;
+		let clearFocus = false;
 
 		// Handle File Input
 		if (e.editorInput && e.editorInput instanceof FileEditorInput) {
@@ -179,9 +178,19 @@ export class ExplorerView extends CollapsibleViewletView {
 			}
 		}
 
+		// Handle closed (convince explorer to not reopen any file when getting visible)
+		if (!e.editorInput) {
+			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
+			clearFocus = true;
+		}
+
 		// Otherwise clear
-		if (this.isVisible && clearSelection) {
+		if (clearSelection) {
 			this.explorerViewer.clearSelection();
+		}
+
+		if (clearFocus) {
+			this.explorerViewer.clearFocus();
 		}
 	}
 
@@ -259,7 +268,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				if (lastActiveFileResource && root && root.find(lastActiveFileResource)) {
 					let editorInput = this.instantiationService.createInstance(FileEditorInput, lastActiveFileResource, void 0, void 0);
-					this.openEditor(editorInput).done(null, errors.onUnexpectedError);
+					this.activateOrOpenEditor(editorInput).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
 				}
@@ -277,11 +286,11 @@ export class ExplorerView extends CollapsibleViewletView {
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
 
-			this.openEditor(editorInput, keepFocus).done(null, errors.onUnexpectedError);
+			this.activateOrOpenEditor(editorInput, keepFocus).done(null, errors.onUnexpectedError);
 		}
 	}
 
-	private openEditor(input: FileEditorInput, keepFocus?: boolean): TPromise<IEditor> {
+	private activateOrOpenEditor(input: FileEditorInput, keepFocus?: boolean): TPromise<IEditor> {
 
 		// First try to find if input already visible
 		let editors = this.editorService.getVisibleEditors();
@@ -290,7 +299,7 @@ export class ExplorerView extends CollapsibleViewletView {
 				let editor = editors[i];
 				if (input.matches(editor.input)) {
 					if (!keepFocus) {
-						return this.editorService.focusEditor(editor);
+						this.editorService.focusGroup(editor.position);
 					}
 
 					return TPromise.as(editor);
@@ -351,6 +360,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	public getOptimalWidth(): number {
 		let parentNode = this.explorerViewer.getHTMLElement();
 		let childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item-label > a'));
+
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
@@ -381,10 +391,9 @@ export class ExplorerView extends CollapsibleViewletView {
 							// Focus new element
 							this.explorerViewer.setFocus(childElement);
 
-							// Open new file in editor
+							// Open new file in editor (pinned)
 							if (!childElement.isDirectory) {
-								let editorInput = this.instantiationService.createInstance(FileEditorInput, childElement.resource, childElement.mime, void 0);
-								return this.editorService.openEditor(editorInput);
+								return this.editorService.openEditor({ resource: childElement.resource, options: { pinned: true } });
 							}
 						});
 					});
@@ -491,11 +500,9 @@ export class ExplorerView extends CollapsibleViewletView {
 			parentResource = URI.file(paths.dirname(importedElement.resource.fsPath));
 			parentElement = this.getInput().find(parentResource);
 
+			// Open it (pinned)
 			if (parentElement) {
-				this.explorerViewer.refresh(parentElement).then(() => {
-					let editorInput = this.instantiationService.createInstance(FileEditorInput, importedElement.resource, importedElement.mime, void 0);
-					return this.editorService.openEditor(editorInput);
-				}).done(null, errors.onUnexpectedError);
+				this.explorerViewer.refresh(parentElement).then(() => this.editorService.openEditor({ resource: importedElement.resource, options: { pinned: true } })).done(null, errors.onUnexpectedError);
 			}
 		}
 
@@ -507,20 +514,24 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Ensure memento state does not capture a deleted file
-		let lastActiveResource: string = this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
-		if (lastActiveResource && e.contains(URI.parse(lastActiveResource), FileChangeType.DELETED)) {
-			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = null;
-		}
+		// Ensure memento state does not capture a deleted file (we run this from a timeout because
+		// delete events can result in UI activity that will fill the memento again when multiple
+		// editors are closing)
+		setTimeout(() => {
+			let lastActiveResource: string = this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
+			if (lastActiveResource && e.contains(URI.parse(lastActiveResource), FileChangeType.DELETED)) {
+				this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = null;
+			}
+		});
 
 		// Check if an explorer refresh is necessary (delayed to give internal events a chance to react first)
 		// Note: there is no guarantee when the internal events are fired vs real ones. Code has to deal with the fact that one might
 		// be fired first over the other or not at all.
-		TPromise.timeout(ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY).then(() => {
+		setTimeout(() => {
 			if (!this.shouldRefresh && this.shouldRefreshFromEvent(e)) {
 				this.refreshFromEvent();
 			}
-		});
+		}, ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY);
 	}
 
 	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
@@ -589,7 +600,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private filterToAddRemovedOnWorkspacePath(e: FileChangesEvent, fn: (change: IFileChange, workspacePathSegments: string[]) => boolean): FileChangesEvent {
-		return new FileChangesEvent(e.changes.filter((change) => {
+		return new FileChangesEvent(e.changes.filter(change => {
 			if (change.type === FileChangeType.UPDATED) {
 				return false; // we only want added / removed
 			}
@@ -679,7 +690,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Load Root Stat with given target path configured
 		let options: IResolveFileOptions = { resolveTo: targetsToResolve };
-		let promise = this.fileService.resolveFile(this.workspace.resource, options).then((stat: IFileStat) => {
+		let promise = this.fileService.resolveFile(this.workspace.resource, options).then(stat => {
 			let explorerPromise: TPromise<void>;
 
 			// Convert to model
@@ -770,7 +781,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Stat needs to be resolved first and then revealed
 		let options: IResolveFileOptions = { resolveTo: [resource] };
-		return this.fileService.resolveFile(this.workspace.resource, options).then((stat: IFileStat) => {
+		return this.fileService.resolveFile(this.workspace.resource, options).then(stat => {
 
 			// Convert to model
 			let modelStat = FileStat.create(stat, options.resolveTo);
@@ -779,14 +790,14 @@ export class ExplorerView extends CollapsibleViewletView {
 			FileStat.mergeLocalWithDisk(modelStat, root);
 
 			// Select and Reveal
-			return this.explorerViewer.refresh(root).then(() => {
-				return this.doSelect(root.find(resource), reveal);
-			});
+			return this.explorerViewer.refresh(root).then(() => this.doSelect(root.find(resource), reveal));
+
 		}, (e: any) => this.messageService.show(Severity.Error, e));
 	}
 
 	private hasSelection(resource: URI): FileStat {
 		let currentSelection: FileStat[] = this.explorerViewer.getSelection();
+
 		for (let i = 0; i < currentSelection.length; i++) {
 			if (currentSelection[i].resource.toString() === resource.toString()) {
 				return currentSelection[i];

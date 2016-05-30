@@ -177,8 +177,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		});
 	}
 
-	public setVisible(visible: boolean, position: Position = null): TPromise<void> {
-		let promise = super.setVisible(visible, position);
+	public setEditorVisible(visible: boolean, position: Position = null): void {
 
 		// Pass on to Editor
 		if (visible) {
@@ -187,7 +186,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			this.editorControl.onHide();
 		}
 
-		return promise;
+		super.setEditorVisible(visible, position);
 	}
 
 	public focus(): void {

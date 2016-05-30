@@ -84,6 +84,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._options = null;
 	}
 
+	public create(parent: Builder): void; // create is sync for editors
+	public create(parent: Builder): TPromise<void>;
 	public create(parent: Builder): TPromise<void> {
 		let res = super.create(parent);
 
@@ -101,12 +103,19 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	/**
 	 * Overload this function to allow for passing in a position argument.
 	 */
+	public setVisible(visible: boolean, position?: Position): void; // setVisible is sync for editors
+	public setVisible(visible: boolean, position?: Position): TPromise<void>;
 	public setVisible(visible: boolean, position: Position = null): TPromise<void> {
 		let promise = super.setVisible(visible);
 
-		this._position = position;
+		// Propagate to Editor
+		this.setEditorVisible(visible, position);
 
 		return promise;
+	}
+
+	public setEditorVisible(visible, position: Position = null): void {
+		this._position = position;
 	}
 
 	/**
@@ -441,7 +450,7 @@ export class EditorInputActionContributor extends ActionBarContributor {
 
 	/* Subclasses can override to provide a custom cache implementation */
 	protected toId(context: IEditorInputActionContext): string {
-		return context.editor.getId() + context.input.getId();
+		return context.editor.getId() + context.input.getTypeId();
 	}
 
 	private clearInputsFromCache(position: Position, isPrimary: boolean): void {

@@ -6,14 +6,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TestContextService, TestStorageService, TestEventService, TestEditorService, TestQuickOpenService} from 'vs/workbench/test/browser/servicesTestUtils';
+import 'vs/workbench/browser/parts/editor/editor.contribution'; // make sure to load all contributed editor things into tests
+import {TestContextService, TestStorageService, TestEventService, TestEditorService, TestQuickOpenService} from 'vs/workbench/test/common/servicesTestUtils';
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {Registry} from 'vs/platform/platform';
 import {EditorHistoryModel, EditorHistoryEntry} from 'vs/workbench/browser/parts/quickopen/editorHistoryModel';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {isEmptyObject} from 'vs/base/common/types';
@@ -71,8 +71,8 @@ suite('Workbench QuickOpen', () => {
 		assert(!entry1.matches(entry2.getInput()));
 		assert(entry1.matches(entry1.getInput()));
 
-		assert(entry1.run(Mode.OPEN, { event: null, quickNavigateConfiguration: null }));
-		assert(!entry2.run(Mode.PREVIEW, { event: null, quickNavigateConfiguration: null }));
+		assert(entry1.run(Mode.OPEN, { event: null, quickNavigateConfiguration: null, keymods: [] }));
+		assert(!entry2.run(Mode.PREVIEW, { event: null, quickNavigateConfiguration: null, keymods: [] }));
 	});
 
 	test('EditorHistoryEntry is removed when open fails', () => {
@@ -88,7 +88,7 @@ suite('Workbench QuickOpen', () => {
 
 		assert.equal(1, model.getEntries().length);
 
-		assert(model.getEntries()[0].run(Mode.OPEN, { event: null, quickNavigateConfiguration: null }));
+		assert(model.getEntries()[0].run(Mode.OPEN, { event: null, quickNavigateConfiguration: null, keymods: [] }));
 
 		assert.equal(0, model.getEntries().length);
 	});
@@ -201,7 +201,7 @@ suite('Workbench QuickOpen', () => {
 		prefixAction.run();
 	});
 
-	test('QuickOpenController adds to history on editor input change and removes on dispose', () => {
+	test('QuickOpenController adds to history on editor input change and can handle dispose', () => {
 		let editorService = new TestEditorService();
 
 		let eventService = new TestEventService();
@@ -219,7 +219,7 @@ suite('Workbench QuickOpen', () => {
 			null,
 			contextService,
 			new MockKeybindingService(),
-			null
+			inst
 		);
 
 		controller.create();
@@ -234,6 +234,6 @@ suite('Workbench QuickOpen', () => {
 
 		cinput1.dispose();
 
-		assert.equal(0, controller.getEditorHistoryModel().getEntries().length);
+		assert.equal(1, controller.getEditorHistoryModel().getEntries().length);
 	});
 });

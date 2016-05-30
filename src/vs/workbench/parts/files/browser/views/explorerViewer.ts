@@ -22,11 +22,11 @@ import {$} from 'vs/base/browser/builder';
 import platform = require('vs/base/common/platform');
 import glob = require('vs/base/common/glob');
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {LocalFileChangeEvent, ConfirmResult, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IFileOperationResult, FileOperationResult, IFileStat, IFileService} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {DuplicateFileAction, ImportFileAction, PasteFileAction, keybindingForAction, IEditableData, IFileViewletState} from 'vs/workbench/parts/files/browser/fileActions';
-import {EditorOptions} from 'vs/workbench/common/editor';
+import {EditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
 import {IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT} from 'vs/base/parts/tree/browser/tree';
 import labels = require('vs/base/common/labels');
 import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
@@ -450,12 +450,7 @@ export class FileController extends DefaultController {
 			if (!stat.isDirectory) {
 				tree.setSelection([stat], payload);
 
-				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey));
-
-				// Doubleclick: add to working files set
-				if (isDoubleClick) {
-					this.textFileService.getWorkingFilesModel().addEntry(stat);
-				}
+				this.openEditor(stat, preserveFocus, event && (event.ctrlKey || event.metaKey), isDoubleClick);
 			}
 		}
 
@@ -580,13 +575,10 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean): void {
+	private openEditor(stat: FileStat, preserveFocus: boolean, sideBySide: boolean, pinned = false): void {
 		if (stat && !stat.isDirectory) {
 			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-			let editorOptions = new EditorOptions();
-			if (preserveFocus) {
-				editorOptions.preserveFocus = true;
-			}
+			let editorOptions = EditorOptions.create({ preserveFocus, pinned });
 
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 

@@ -15,6 +15,7 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {IMenuOptions} from 'vs/base/browser/ui/menu/menu';
+import {Keybinding} from 'vs/base/common/keyCodes';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -184,10 +185,11 @@ export class Dropdown extends BaseDropdown {
 }
 
 export interface IContextMenuDelegate {
-	getAnchor(): any;
+	getAnchor(): HTMLElement | { x: number; y: number; };
 	getActions(): TPromise<IAction[]>;
 	getActionItem?(action: IAction): IActionItem;
 	getActionsContext?(): any;
+	getKeyBinding?(action: IAction): Keybinding;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 }
@@ -260,10 +262,9 @@ export class DropdownMenu extends BaseDropdown {
 			getActions: () => TPromise.as(this.actions),
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
+			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action): null,
 			getMenuClassName: () => this.menuClassName,
-			onHide: () => {
-				this.$el.removeClass('active');
-			}
+			onHide: () => this.$el.removeClass('active')
 		});
 	}
 

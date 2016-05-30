@@ -11,7 +11,7 @@ import URI from 'vs/base/common/uri';
 import {getPathLabel, IWorkspaceProvider} from 'vs/base/common/labels';
 import {isBinaryMime} from 'vs/base/common/mime';
 import {EventType} from 'vs/base/common/events';
-import {EditorModel, IFileEditorInput, EditorInput, IInputStatus, BaseDiffEditorInput} from 'vs/workbench/common/editor';
+import {EditorModel, IFileEditorInput, EditorInput, BaseDiffEditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditorModel} from 'vs/workbench/common/editor/textEditorModel';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {TextDiffEditorModel} from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -63,7 +63,7 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 		return this._toUnbind;
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return DiffEditorInput.ID;
 	}
 
@@ -73,26 +73,6 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 
 	public getDescription(): string {
 		return this.description;
-	}
-
-	public getStatus(): IInputStatus {
-		if (this.modifiedInput) {
-			let modifiedStatus = this.modifiedInput.getStatus();
-
-			if (modifiedStatus) {
-				return modifiedStatus;
-			}
-		}
-
-		if (this.originalInput) {
-			let originalStatus = this.originalInput.getStatus();
-
-			if (originalStatus) {
-				return originalStatus;
-			}
-		}
-
-		return super.getStatus();
 	}
 
 	public setOriginalInput(input: EditorInput): void {
@@ -195,10 +175,6 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
-
-		// Delegate to Inputs
-		this.originalInput.dispose();
-		this.modifiedInput.dispose();
 
 		super.dispose();
 	}

@@ -8,10 +8,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Event as BaseEvent, PropertyChangeEvent} from 'vs/base/common/events';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {guessMimeTypes} from 'vs/base/common/mime';
 import {IModel, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {EncodingMode, EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
+import {EncodingMode, EditorInput, IFileEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
 import {IFileStat, IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -37,11 +36,6 @@ export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
 
 /**
- * Marker ID for model entries.
- */
-export const WORKING_FILES_MODEL_ENTRY_CLASS_ID = 'workbench.workingFiles.model.entry.class';
-
-/**
  * API class to denote file editor inputs. Internal implementation is provided.
  *
  * Note: This class is not intended to be instantiated.
@@ -56,6 +50,8 @@ export abstract class FileEditorInput extends EditorInput implements IFileEditor
 
 	public abstract getMime(): string;
 
+	public abstract setPreferredEncoding(encoding: string): void;
+
 	public abstract setEncoding(encoding: string, mode: EncodingMode): void;
 
 	public abstract getEncoding(): string;
@@ -63,68 +59,13 @@ export abstract class FileEditorInput extends EditorInput implements IFileEditor
 
 export interface IFilesConfiguration extends IFilesConfiguration {
 	explorer: {
-		workingFiles: {
+		openEditors: {
 			maxVisible: number;
 			dynamicHeight: boolean;
 		};
 		autoReveal: boolean;
 	};
 	editor: IEditorOptions;
-}
-
-export interface IWorkingFileModelChangeEvent {
-	added?: IWorkingFileEntry[];
-	removed?: IWorkingFileEntry[];
-}
-
-export interface IWorkingFilesModel {
-
-	onModelChange: Event<IWorkingFileModelChangeEvent>;
-
-	onWorkingFileChange: Event<IWorkingFileEntry>;
-
-	getEntries(excludeOutOfContext?: boolean): IWorkingFileEntry[];
-
-	first(): IWorkingFileEntry;
-	last(): IWorkingFileEntry;
-	next(start?: URI): IWorkingFileEntry;
-	previous(start?: URI): IWorkingFileEntry;
-
-	getOutOfWorkspaceContextEntries(): IWorkingFileEntry[];
-
-	count(): number;
-
-	addEntry(resource: URI): IWorkingFileEntry;
-	addEntry(stat: IFileStat): IWorkingFileEntry;
-	addEntry(entry: IWorkingFileEntry): IWorkingFileEntry;
-	addEntry(arg1: IFileStat | IWorkingFileEntry | URI): IWorkingFileEntry;
-
-	moveEntry(oldResource: URI, newResource: URI): void;
-
-	removeEntry(resource: URI): IWorkingFileEntry;
-	removeEntry(entry: IWorkingFileEntry): IWorkingFileEntry;
-	removeEntry(arg1: IWorkingFileEntry | URI): IWorkingFileEntry;
-
-	popLastClosedEntry(): IWorkingFileEntry;
-
-	reorder(source: IWorkingFileEntry, target: IWorkingFileEntry): void;
-
-	hasEntry(resource: URI): boolean;
-	findEntry(resource: URI): IWorkingFileEntry;
-
-	clear(): void;
-}
-
-export interface IWorkingFileEntry {
-	resource: URI;
-	index: number;
-	dirty: boolean;
-	CLASS_ID: string;
-	isFile: boolean;
-	isUntitled: boolean;
-
-	setIndex(index: number): void;
-	setDirty(dirty: boolean): void;
 }
 
 export interface IFileResource {
@@ -145,17 +86,6 @@ export function asFileResource(obj: any): IFileResource {
 			mimes: stat.mime ? stat.mime.split(', ') : [],
 			isDirectory: stat.isDirectory
 		};
-	}
-
-	if (obj && (<IWorkingFileEntry>obj).CLASS_ID === WORKING_FILES_MODEL_ENTRY_CLASS_ID) {
-		let entry = <IWorkingFileEntry>obj;
-		if (entry.isFile) {
-			return {
-				resource: entry.resource,
-				mimes: guessMimeTypes(entry.resource.fsPath),
-				isDirectory: false
-			};
-		}
 	}
 
 	return null;
@@ -192,6 +122,17 @@ export const EventType = {
 	 */
 	FILE_REVERTED: 'files:fileReverted'
 };
+
+/**
+ * States the text text file editor model can be in.
+ */
+export enum ModelState {
+	SAVED,
+	DIRTY,
+	PENDING_SAVE,
+	CONFLICT,
+	ERROR
+}
 
 /**
  * Local file change events are being emitted when a file is added, removed, moved or its contents got updated. These events
@@ -280,12 +221,6 @@ export class TextFileChangeEvent extends LocalFileChangeEvent {
 }
 
 export const TEXT_FILE_SERVICE_ID = 'textFileService';
-
-export enum ConfirmResult {
-	SAVE,
-	DONT_SAVE,
-	CANCEL
-}
 
 export interface ITextFileOperationResult {
 	results: IResult[];
@@ -377,11 +312,6 @@ export interface ITextFileService extends IDisposable {
 	 * confirming for all dirty resources.
 	 */
 	confirmSave(resources?: URI[]): ConfirmResult;
-
-	/**
-	 * Provides access to the list of working files.
-	 */
-	getWorkingFilesModel(): IWorkingFilesModel;
 
 	/**
 	 * Convinient fast access to the current auto save mode.

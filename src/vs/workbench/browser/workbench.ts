@@ -22,7 +22,7 @@ import {Identifiers} from 'vs/workbench/common/constants';
 import {EventType} from 'vs/workbench/common/events';
 import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
-import {IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {TextEditorOptions, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {Part} from 'vs/workbench/browser/part';
 import {HistoryService} from 'vs/workbench/services/history/browser/history';
@@ -217,7 +217,7 @@ export class Workbench implements IPartService {
 			// Load composits and editors in parallel
 			let compositeAndEditorPromises: TPromise<any>[] = [];
 
-			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
+			// Load Viewlet
 			let viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
 			let viewletId = viewletRegistry.getDefaultViewletId();
 			if (!this.workbenchParams.configuration.env.isBuilt) {
@@ -229,57 +229,32 @@ export class Workbench implements IPartService {
 				compositeAndEditorPromises.push(this.sidebarPart.openViewlet(viewletId, false).then(() => viewletTimerEvent.stop()));
 			}
 
+			// Load Panel
 			let panelRegistry = (<PanelRegistry>Registry.as(PanelExtensions.Panels));
 			const panelId = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, panelRegistry.getDefaultPanelId());
 			if (!this.panelHidden && !!panelId) {
 				compositeAndEditorPromises.push(this.panelPart.openPanel(panelId, false));
 			}
 
-			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
+			// Load Editors
 			let editorTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Restoring Editor(s)'));
-			let resolveEditorInputsPromise: TPromise<EditorInput[]> = TPromise.as(null);
-			let options: EditorOptions[] = [];
-
-			// Files to open, diff or create
-			const wbopt = this.workbenchParams.options;
-			if ((wbopt.filesToCreate && wbopt.filesToCreate.length) || (wbopt.filesToOpen && wbopt.filesToOpen.length) || (wbopt.filesToDiff && wbopt.filesToDiff.length)) {
-				let filesToCreate = wbopt.filesToCreate || [];
-				let filesToOpen = wbopt.filesToOpen || [];
-				let filesToDiff = wbopt.filesToDiff;
-
-				// Files to diff is exclusive
-				if (filesToDiff && filesToDiff.length) {
-					resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToDiff.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToDiff) => {
-						return [new DiffEditorInput(toDiffLabel(filesToDiff[0].resource, filesToDiff[1].resource, this.contextService), null, inputsToDiff[0], inputsToDiff[1])];
+			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then((inputsWithOptions) => {
+				let editorOpenPromise: TPromise<BaseEditor[]>;
+				if (inputsWithOptions.length) {
+					const editors = inputsWithOptions.map((inputWithOptions, index) => {
+						return {
+							input: inputWithOptions.input,
+							options: inputWithOptions.options,
+							position: Math.min(index, Position.RIGHT) // put any resource > RIGHT to right position
+						};
 					});
+
+					editorOpenPromise = this.editorPart.openEditors(editors);
+				} else {
+					editorOpenPromise = this.editorPart.restoreEditors();
 				}
 
-				// Otherwise: Open/Create files
-				else {
-					let inputs: EditorInput[] = [];
-
-					// Files to create
-					inputs.push(...filesToCreate.map((resourceInput) => this.untitledEditorService.createOrGet(resourceInput.resource)));
-					options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
-
-					// Files to open
-					resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
-						inputs.push(...inputsToOpen);
-						options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
-
-						return inputs;
-					});
-				}
-			}
-
-			// Empty workbench
-			else if (!this.workbenchParams.workspace) {
-				resolveEditorInputsPromise = TPromise.as([this.untitledEditorService.createOrGet()]);
-			}
-
-			// Restore editor state (either from last session or with given inputs)
-			compositeAndEditorPromises.push(resolveEditorInputsPromise.then((inputs) => {
-				return this.editorPart.restoreEditorState(inputs, options).then(() => {
+				return editorOpenPromise.then(() => {
 					this.onEditorOpenedOrClosed(); // make sure we show the proper background in the editor area
 					editorTimerEvent.stop();
 				});
@@ -309,6 +284,49 @@ export class Workbench implements IPartService {
 			// Rethrow
 			throw error;
 		}
+	}
+
+	private resolveEditorsToOpen(): TPromise<{ input: EditorInput, options?: EditorOptions }[]> {
+
+		// Files to open, diff or create
+		const wbopt = this.workbenchParams.options;
+		if ((wbopt.filesToCreate && wbopt.filesToCreate.length) || (wbopt.filesToOpen && wbopt.filesToOpen.length) || (wbopt.filesToDiff && wbopt.filesToDiff.length)) {
+			let filesToCreate = wbopt.filesToCreate || [];
+			let filesToOpen = wbopt.filesToOpen || [];
+			let filesToDiff = wbopt.filesToDiff;
+
+			// Files to diff is exclusive
+			if (filesToDiff && filesToDiff.length) {
+				return TPromise.join<EditorInput>(filesToDiff.map((resourceInput) => this.editorService.createInput(resourceInput))).then((inputsToDiff) => {
+					return [{ input: new DiffEditorInput(toDiffLabel(filesToDiff[0].resource, filesToDiff[1].resource, this.contextService), null, inputsToDiff[0], inputsToDiff[1]) }];
+				});
+			}
+
+			// Otherwise: Open/Create files
+			else {
+				let inputs: EditorInput[] = [];
+				let options: EditorOptions[] = [];
+
+				// Files to create
+				inputs.push(...filesToCreate.map((resourceInput) => this.untitledEditorService.createOrGet(resourceInput.resource)));
+				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
+
+				// Files to open
+				return TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.createInput(resourceInput))).then((inputsToOpen) => {
+					inputs.push(...inputsToOpen);
+					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
+
+					return inputs.map((input, index) => { return { input, options: options[index] }; });
+				});
+			}
+		}
+
+		// Empty workbench
+		else if (!this.workbenchParams.workspace) {
+			return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
+		}
+
+		return TPromise.as([]);
 	}
 
 	private initServices(): void {
@@ -371,7 +389,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
 
 		// History
-		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService, this.quickOpen));
+		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService));
 
 		// Contributed services
 		let contributedServices = getServices();

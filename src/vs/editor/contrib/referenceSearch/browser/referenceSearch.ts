@@ -129,10 +129,10 @@ let showReferencesCommand: ICommandHandler = (accessor:ServicesAccessor, resourc
 
 // register action
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ReferenceAction, ReferenceAction.ID, nls.localize('references.action.name', "Show References"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ReferenceAction, ReferenceAction.ID, nls.localize('references.action.name', "Find All References"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Shift | KeyCode.F12
-}, 'Show References'));
+}, 'Find All References'));
 KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.findReferences',
 	handler: findReferencesCommand,

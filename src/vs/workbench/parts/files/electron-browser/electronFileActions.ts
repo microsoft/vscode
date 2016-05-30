@@ -96,10 +96,11 @@ export class GlobalCopyPathAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		const activeEditor = this.editorService.getActiveEditor();
+		let fileInput = activeEditor ? asFileEditorInput(activeEditor.input, true) : void 0;
 		if (fileInput) {
 			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
-			this.editorService.focusEditor(); // focus back to editor
+			this.editorService.focusGroup(activeEditor.position); // focus back to active editor group
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
 		}

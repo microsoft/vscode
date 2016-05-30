@@ -95,9 +95,10 @@ export class OutputPanel extends StringEditor {
 		return super.setInput(input, options).then(() => this.revealLastLine());
 	}
 
-	public create(parent: Builder): TPromise<void> {
-		return super.create(parent)
-			.then(() => this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null));
+	public createEditor(parent: Builder): void {
+		super.createEditor(parent);
+
+		this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
 	}
 
 	public focus(): void {

@@ -393,7 +393,7 @@ export class VSCodeMenu {
 	}
 
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
-		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedFile', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed File"), 'workbench.files.action.reopenClosedFile'));
+		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
 		let recentList = this.getOpenedPathsList();
 
@@ -489,7 +489,7 @@ export class VSCodeMenu {
 			replace,
 			__separator__(),
 			findInFiles
-		].forEach((item) => winLinuxEditMenu.append(item));
+		].forEach(item => winLinuxEditMenu.append(item));
 	}
 
 	private setViewMenu(viewMenu: Electron.Menu): void {
@@ -515,9 +515,8 @@ export class VSCodeMenu {
 		const toggleWordWrap = this.createMenuItem(nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
 		const toggleRenderWhitespace = this.createMenuItem(nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
 
-
-		let zoomIn = this.createMenuItem(nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom in"), 'workbench.action.zoomIn');
-		let zoomOut = this.createMenuItem(nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "Zoom o&&ut"), 'workbench.action.zoomOut');
+		let zoomIn = this.createMenuItem(nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"), 'workbench.action.zoomIn');
+		let zoomOut = this.createMenuItem(nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "Zoom O&&ut"), 'workbench.action.zoomOut');
 
 		arrays.coalesce([
 			explorer,
@@ -533,7 +532,7 @@ export class VSCodeMenu {
 			integratedTerminal,
 			__separator__(),
 			fullscreen,
-			platform.isWindows ||  platform.isLinux ? toggleMenuBar : void 0,
+			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
 			__separator__(),
 			splitEditor,
 			toggleSidebar,
@@ -551,7 +550,41 @@ export class VSCodeMenu {
 	private setGotoMenu(gotoMenu: Electron.Menu): void {
 		let back = this.createMenuItem(nls.localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back"), 'workbench.action.navigateBack');
 		let forward = this.createMenuItem(nls.localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward"), 'workbench.action.navigateForward');
-		let navigateHistory = this.createMenuItem(nls.localize({ key: 'miNavigateHistory', comment: ['&& denotes a mnemonic'] }, "&&Navigate History"), 'workbench.action.openPreviousEditor');
+
+		let switchEditorMenu = new Menu();
+
+		let nextEditor = this.createMenuItem(nls.localize({ key: 'miNextEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Editor"), 'workbench.action.nextEditor');
+		let previousEditor = this.createMenuItem(nls.localize({ key: 'miPreviousEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor"), 'workbench.action.previousEditor');
+		let previousEditorInGroup = this.createMenuItem(nls.localize({ key: 'miPreviousEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Previous &&Editor in Group"), 'workbench.action.openPreviousEditorInGroup');
+
+		[
+			nextEditor,
+			previousEditor,
+			__separator__(),
+			previousEditorInGroup
+		].forEach(item => switchEditorMenu.append(item));
+
+		let switchEditor = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor")), submenu: switchEditorMenu, enabled: true });
+
+		let switchGroupMenu = new Menu();
+
+		let focusFirstGroup = this.createMenuItem(nls.localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "&&Left Group"), 'workbench.action.focusFirstEditorGroup');
+		let focusSecondGroup = this.createMenuItem(nls.localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "&&Side Group"), 'workbench.action.focusSecondEditorGroup');
+		let focusThirdGroup = this.createMenuItem(nls.localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "&&Right Group"), 'workbench.action.focusThirdEditorGroup');
+		let nextGroup = this.createMenuItem(nls.localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group"), 'workbench.action.focusNextGroup');
+		let previousGroup = this.createMenuItem(nls.localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group"), 'workbench.action.focusPreviousGroup');
+
+		[
+			focusFirstGroup,
+			focusSecondGroup,
+			focusThirdGroup,
+			__separator__(),
+			nextGroup,
+			previousGroup
+		].forEach(item => switchGroupMenu.append(item));
+
+		let switchGroup = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group")), submenu: switchGroupMenu, enabled: true });
+
 		let gotoFile = this.createMenuItem(nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "Go to &&File..."), 'workbench.action.quickOpen');
 		let gotoSymbol = this.createMenuItem(nls.localize({ key: 'miGotoSymbol', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol..."), 'workbench.action.gotoSymbol');
 		let gotoDefinition = this.createMenuItem(nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition"), 'editor.action.goToDeclaration');
@@ -561,13 +594,14 @@ export class VSCodeMenu {
 			back,
 			forward,
 			__separator__(),
-			navigateHistory,
+			switchEditor,
+			switchGroup,
 			__separator__(),
 			gotoFile,
 			gotoSymbol,
 			gotoDefinition,
 			gotoLine
-		].forEach((item) => gotoMenu.append(item));
+		].forEach(item => gotoMenu.append(item));
 	}
 
 	private setMacWindowMenu(macWindowMenu: Electron.Menu): void {
@@ -580,7 +614,7 @@ export class VSCodeMenu {
 			close,
 			__separator__(),
 			bringAllToFront
-		].forEach((item) => macWindowMenu.append(item));
+		].forEach(item => macWindowMenu.append(item));
 	}
 
 	private toggleDevTools(): void {

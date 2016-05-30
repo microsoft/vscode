@@ -26,17 +26,13 @@ define([
 	// Workbench
 	'vs/workbench/browser/actions/toggleSidebarVisibility',
 	'vs/workbench/browser/actions/toggleSidebarPosition',
-	'vs/workbench/browser/actions/triggerQuickOpen',
-	'vs/workbench/browser/actions/triggerEditorActions',
-	'vs/workbench/browser/actions/triggerNavigation',
-	'vs/workbench/browser/actions/showPerformanceBox',
 	'vs/workbench/browser/actions/openSettings',
 	'vs/workbench/browser/actions/configureLocale',
 
 	'vs/workbench/parts/quickopen/browser/quickopen.contribution',
+	'vs/workbench/browser/parts/editor/editorPicker',
 
 	'vs/workbench/parts/files/browser/explorerViewlet',
-	'vs/workbench/parts/files/browser/workingFilesPicker',
 	'vs/workbench/parts/files/browser/fileActions.contribution',
 	'vs/workbench/parts/files/browser/files.contribution',
 	'vs/workbench/parts/files/electron-browser/files.electron.contribution',

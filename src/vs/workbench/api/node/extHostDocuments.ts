@@ -663,7 +663,7 @@ export class MainThreadDocuments {
 
 		TPromise.join(Object.keys(this._virtualDocumentSet).map(key => {
 			let resource = URI.parse(key);
-			return this._editorService.inputToType({ resource }).then(input => {
+			return this._editorService.createInput({ resource }).then(input => {
 				if (!this._editorService.isVisible(input, true)) {
 					toBeDisposed.push(resource);
 				}
