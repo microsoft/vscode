@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Lifecycle = require('vs/base/common/lifecycle');
+import { TPromise } from 'vs/base/common/winjs.base';
+import { EditorInput } from 'vs/workbench/common/editor';
+import { IEventEmitter } from 'vs/base/common/eventEmitter';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 // Model raw interfaces
 
@@ -107,7 +107,7 @@ export interface IFileStatus {
 	update(other: IFileStatus): void;
 }
 
-export interface IStatusGroup extends EventEmitter.IEventEmitter {
+export interface IStatusGroup extends IEventEmitter {
 	getType(): StatusType;
 	update(statusList: IFileStatus[]): void;
 	all(): IFileStatus[];
@@ -120,7 +120,7 @@ export interface IStatusSummary {
 	hasMergeChanges: boolean;
 }
 
-export interface IStatusModel extends EventEmitter.IEventEmitter {
+export interface IStatusModel extends IEventEmitter {
 	getSummary(): IStatusSummary;
 	update(status: IRawFileStatus[]): void;
 	getIndexStatus(): IStatusGroup;
@@ -130,7 +130,7 @@ export interface IStatusModel extends EventEmitter.IEventEmitter {
 	find(path: string, type: StatusType): IFileStatus;
 }
 
-export interface IModel extends EventEmitter.IEventEmitter {
+export interface IModel extends IEventEmitter {
 	getRepositoryRoot(): string;
 	getStatus(): IStatusModel;
 	getHEAD(): IBranch;
@@ -142,9 +142,9 @@ export interface IModel extends EventEmitter.IEventEmitter {
 
 // Service operations
 
-export interface IGitOperation extends Lifecycle.IDisposable {
+export interface IGitOperation extends IDisposable {
 	id: string;
-	run(): WinJS.Promise;
+	run(): TPromise<any>;
 }
 
 // Service enums
@@ -260,56 +260,56 @@ export interface IPushOptions {
 
 export interface IRawGitService {
 	onOutput: Event<string>;
-	getVersion(): WinJS.TPromise<string>;
-	serviceState(): WinJS.TPromise<RawServiceState>;
-	status(): WinJS.TPromise<IRawStatus>;
-	init(): WinJS.TPromise<IRawStatus>;
-	add(filesPaths?: string[]): WinJS.TPromise<IRawStatus>;
-	stage(filePath: string, content: string): WinJS.TPromise<IRawStatus>;
-	branch(name: string, checkout?: boolean): WinJS.TPromise<IRawStatus>;
-	checkout(treeish?: string, filePaths?: string[]): WinJS.TPromise<IRawStatus>;
-	clean(filePaths: string[]): WinJS.TPromise<IRawStatus>;
-	undo(): WinJS.TPromise<IRawStatus>;
-	reset(treeish:string, hard?: boolean): WinJS.TPromise<IRawStatus>;
-	revertFiles(treeish:string, filePaths?: string[]): WinJS.TPromise<IRawStatus>;
-	fetch(): WinJS.TPromise<IRawStatus>;
-	pull(rebase?: boolean): WinJS.TPromise<IRawStatus>;
-	push(remote?: string, name?: string, options?:IPushOptions): WinJS.TPromise<IRawStatus>;
-	sync(): WinJS.TPromise<IRawStatus>;
-	commit(message:string, amend?: boolean, stage?: boolean): WinJS.TPromise<IRawStatus>;
-	detectMimetypes(path: string, treeish?: string): WinJS.TPromise<string[]>;
-	show(path: string, treeish?: string): WinJS.TPromise<string>;
+	getVersion(): TPromise<string>;
+	serviceState(): TPromise<RawServiceState>;
+	status(): TPromise<IRawStatus>;
+	init(): TPromise<IRawStatus>;
+	add(filesPaths?: string[]): TPromise<IRawStatus>;
+	stage(filePath: string, content: string): TPromise<IRawStatus>;
+	branch(name: string, checkout?: boolean): TPromise<IRawStatus>;
+	checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus>;
+	clean(filePaths: string[]): TPromise<IRawStatus>;
+	undo(): TPromise<IRawStatus>;
+	reset(treeish:string, hard?: boolean): TPromise<IRawStatus>;
+	revertFiles(treeish:string, filePaths?: string[]): TPromise<IRawStatus>;
+	fetch(): TPromise<IRawStatus>;
+	pull(rebase?: boolean): TPromise<IRawStatus>;
+	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IRawStatus>;
+	sync(): TPromise<IRawStatus>;
+	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus>;
+	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
+	show(path: string, treeish?: string): TPromise<string>;
 }
 
 export var GIT_SERVICE_ID = 'gitService';
 
 export var IGitService = createDecorator<IGitService>(GIT_SERVICE_ID);
 
-export interface IGitService extends EventEmitter.IEventEmitter {
+export interface IGitService extends IEventEmitter {
 	serviceId: ServiceIdentifier<any>;
 	onOutput: Event<string>;
-	status(): WinJS.TPromise<IModel>;
-	init(): WinJS.TPromise<IModel>;
-	add(files?: IFileStatus[]): WinJS.TPromise<IModel>;
-	stage(filePath: string, content: string): WinJS.TPromise<IModel>;
-	branch(name: string, checkout?: boolean): WinJS.TPromise<IModel>;
-	checkout(treeish?: string, files?: IFileStatus[]): WinJS.TPromise<IModel>;
-	clean(files: IFileStatus[]): WinJS.TPromise<IModel>;
-	undo(): WinJS.TPromise<IModel>;
-	reset(treeish:string, hard?: boolean): WinJS.TPromise<IModel>;
-	revertFiles(treeish:string, files?: IFileStatus[]): WinJS.TPromise<IModel>;
-	fetch(): WinJS.TPromise<IModel>;
-	pull(rebase?: boolean): WinJS.TPromise<IModel>;
-	push(remote?: string, name?: string, options?:IPushOptions): WinJS.TPromise<IModel>;
-	sync(): WinJS.TPromise<IModel>;
-	commit(message:string, amend?: boolean, stage?: boolean): WinJS.TPromise<IModel>;
-	detectMimetypes(path: string, treeish?: string): WinJS.Promise;
-	buffer(path: string, treeish?: string): WinJS.TPromise<string>;
+	status(): TPromise<IModel>;
+	init(): TPromise<IModel>;
+	add(files?: IFileStatus[]): TPromise<IModel>;
+	stage(filePath: string, content: string): TPromise<IModel>;
+	branch(name: string, checkout?: boolean): TPromise<IModel>;
+	checkout(treeish?: string, files?: IFileStatus[]): TPromise<IModel>;
+	clean(files: IFileStatus[]): TPromise<IModel>;
+	undo(): TPromise<IModel>;
+	reset(treeish:string, hard?: boolean): TPromise<IModel>;
+	revertFiles(treeish:string, files?: IFileStatus[]): TPromise<IModel>;
+	fetch(): TPromise<IModel>;
+	pull(rebase?: boolean): TPromise<IModel>;
+	push(remote?: string, name?: string, options?:IPushOptions): TPromise<IModel>;
+	sync(): TPromise<IModel>;
+	commit(message:string, amend?: boolean, stage?: boolean): TPromise<IModel>;
+	detectMimetypes(path: string, treeish?: string): TPromise<string[]>;
+	buffer(path: string, treeish?: string): TPromise<string>;
 
 	getState(): ServiceState;
 	getModel(): IModel;
-	show(path: string, status: IFileStatus, treeish?: string, mimetype?: string): WinJS.Promise;
-	getInput(status: IFileStatus): WinJS.TPromise<WorkbenchEditorCommon.EditorInput>;
+	show(path: string, status: IFileStatus, treeish?: string, mimetype?: string): TPromise<string>;
+	getInput(status: IFileStatus): TPromise<EditorInput>;
 	isInitialized(): boolean;
 	isIdle(): boolean;
 	getRunningOperations(): IGitOperation[];
@@ -317,7 +317,7 @@ export interface IGitService extends EventEmitter.IEventEmitter {
 }
 
 export interface IAskpassService {
-	askpass(id: string, host: string, command: string): WinJS.TPromise<ICredentials>;
+	askpass(id: string, host: string, command: string): TPromise<ICredentials>;
 }
 
 // Utils

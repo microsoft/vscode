@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import git = require('vs/workbench/parts/git/common/git');
+import { IRawGitService, IRawStatus, ServiceState, RawServiceState } from 'vs/workbench/parts/git/common/git';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 
-export class NoOpGitService implements git.IRawGitService {
+export class NoOpGitService implements IRawGitService {
 
 	private _onOutput = new Emitter<string>();
 	get onOutput(): Event<string> { return this._onOutput.event; }
 
-	private static STATUS:git.IRawStatus = {
+	private static STATUS:IRawStatus = {
 		repositoryRoot: null,
-		state: git.ServiceState.NotAWorkspace,
+		state: ServiceState.NotAWorkspace,
 		status: [],
 		HEAD: null,
 		refs: [],
@@ -26,67 +26,67 @@ export class NoOpGitService implements git.IRawGitService {
 		return TPromise.as(null);
 	}
 
-	serviceState(): TPromise<git.RawServiceState> {
-		return TPromise.as(git.RawServiceState.OK);
+	serviceState(): TPromise<RawServiceState> {
+		return TPromise.as(RawServiceState.OK);
 	}
 
-	status(): TPromise<git.IRawStatus> {
+	status(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	init(): TPromise<git.IRawStatus> {
+	init(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	add(filesPaths?: string[]): TPromise<git.IRawStatus> {
+	add(filesPaths?: string[]): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	stage(filePath: string, content: string): TPromise<git.IRawStatus> {
+	stage(filePath: string, content: string): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	branch(name: string, checkout?: boolean): TPromise<git.IRawStatus> {
+	branch(name: string, checkout?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	checkout(treeish?: string, filePaths?: string[]): TPromise<git.IRawStatus> {
+	checkout(treeish?: string, filePaths?: string[]): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	clean(filePaths: string[]): TPromise<git.IRawStatus> {
+	clean(filePaths: string[]): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	undo(): TPromise<git.IRawStatus> {
+	undo(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	reset(treeish: string, hard?: boolean): TPromise<git.IRawStatus> {
+	reset(treeish: string, hard?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	revertFiles(treeish: string, filePaths?: string[]): TPromise<git.IRawStatus> {
+	revertFiles(treeish: string, filePaths?: string[]): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	fetch(): TPromise<git.IRawStatus> {
+	fetch(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	pull(rebase?: boolean): TPromise<git.IRawStatus> {
+	pull(rebase?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	push(): TPromise<git.IRawStatus> {
+	push(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	sync(): TPromise<git.IRawStatus> {
+	sync(): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 
-	commit(message: string, amend?: boolean, stage?: boolean): TPromise<git.IRawStatus> {
+	commit(message: string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
 		return TPromise.as(NoOpGitService.STATUS);
 	}
 

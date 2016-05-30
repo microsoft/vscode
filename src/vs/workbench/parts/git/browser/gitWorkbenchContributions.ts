@@ -498,7 +498,7 @@ export function registerContributions(): void {
 	(<quickopen.IQuickOpenRegistry>platform.Registry.as(quickopen.Extensions.Quickopen)).registerQuickOpenHandler(
 		new quickopen.QuickOpenHandlerDescriptor(
 			'vs/workbench/parts/git/browser/gitQuickOpen',
-			'CommandQuickOpenHandler',
+			'GitCommandQuickOpenHandler',
 			'git ',
 			nls.localize('gitCommands', "Git Commands")
 		)

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import path = require('path');
+import { join } from 'path';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import mime = require('vs/base/node/mime');
-import pfs = require('vs/base/node/pfs');
+import { detectMimesFromFile, detectMimesFromStream } from 'vs/base/node/mime';
+import { realpath, exists} from 'vs/base/node/pfs';
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IRef, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -40,7 +40,7 @@ export class RawGitService implements IRawGitService {
 	}
 
 	private getRepositoryRoot(): TPromise<string> {
-		return this._repositoryRoot || (this._repositoryRoot = pfs.realpath(this.repo.path));
+		return this._repositoryRoot || (this._repositoryRoot = realpath(this.repo.path));
 	}
 
 	serviceState(): TPromise<RawServiceState> {
@@ -151,10 +151,10 @@ export class RawGitService implements IRawGitService {
 	}
 
 	detectMimetypes(filePath: string, treeish?: string): TPromise<string[]> {
-		return pfs.exists(path.join(this.repo.path, filePath)).then((exists) => {
+		return exists(join(this.repo.path, filePath)).then((exists) => {
 			if (exists) {
 				return new TPromise<string[]>((c, e) => {
-					mime.detectMimesFromFile(path.join(this.repo.path, filePath), (err, result) => {
+					detectMimesFromFile(join(this.repo.path, filePath), (err, result) => {
 						if (err) { e(err); }
 						else { c(result.mimes); }
 					});
@@ -164,7 +164,7 @@ export class RawGitService implements IRawGitService {
 			const child = this.repo.show(treeish + ':' + filePath);
 
 			return new TPromise<string[]>((c, e) => {
-				mime.detectMimesFromStream(child.stdout, filePath, (err, result) => {
+				detectMimesFromStream(child.stdout, filePath, (err, result) => {
 					if (err) { e(err); }
 					else { c(result.mimes); }
 				});
