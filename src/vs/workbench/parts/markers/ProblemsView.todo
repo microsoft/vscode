@@ -5,9 +5,32 @@
 
 Problems Panel:
 	☐ Tree view grouped by file
-	☐ Show the badge count #no of markers at each file
-	☐ Show the total count in the panel title showing each marker count
+	☐ Show the total count in the panel title showing the split up
+
+	Showing count:
+		☐ Show the badge count #no of markers at each file just after it
+		☐ Show split up in detail next to each file: 8 Errors, 3 Warnings
+		☐ Show split up in short form
+
 	☐ Click or Enter on the marker open the file at that marker
-	☐ No clear button to remove the markers / file from the panel
-	☐ Sorting Files and markers inside
+	☐ Sort files by path and markers inside by type and line no
 	☐ Action to collapse all
+
+	☐ Focus on showing
+	☐ Quickly navigate errors in current file
+	☐ Navigating tree using keyboard, preview in the current file
+
+	Filtering:
+		☐ Ability to filter by type
+		☐ Ability to filter by typing
+
+
+	Auto Expand:
+		☐ Expand files which have not more than 10 errors
+		☐ Do not expand the file again if the user closes it
+		☐ Expand a file if there is a new error after it was removed from the panel
+
+	Clean Up:
+		☐ Markers handler in quick open contributions
+		☐ Linked Map to extend/reuse General map
+		☐ Collapse action to use default collapse action from Tree
