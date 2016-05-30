@@ -53,6 +53,29 @@ suite('Paths', () => {
 		assert.equal(paths.normalize('/foo/bar.test'), '/foo/bar.test');
 	});
 
+	test('normalize2', () => {
+		assert.equal(paths.normalize2('foo/bar/../far'), 'foo/far');
+		assert.equal(paths.normalize2('foo/bar/../../far'), 'far');
+		assert.equal(paths.normalize2('../far'), '../far');
+		assert.equal(paths.normalize2('../../far'), '../../far');
+		assert.equal(paths.normalize2('foo/xxx/..'), 'foo');
+		assert.equal(paths.normalize2('foo/xxx/../bar'), 'foo/bar');
+		assert.equal(paths.normalize2('foo/../../bar'), '../bar');
+		assert.equal(paths.normalize2('foo/far/../../bar'), 'bar');
+		assert.equal(paths.normalize2(undefined), undefined);
+		assert.equal(paths.normalize2(null), null);
+		assert.equal(paths.normalize2(''), '.');
+		assert.equal(paths.normalize2('.'), '.');
+		assert.equal(paths.normalize2('foo/'), 'foo/');
+		assert.equal(paths.normalize2('foo//'), 'foo/');
+		assert.equal(paths.normalize2('//foo'), '/foo');
+		assert.equal(paths.normalize2('//foo//'), '/foo/');
+		assert.equal(paths.normalize2('foo//bar'), 'foo/bar');
+		assert.equal(paths.normalize2('foo//bar/far'), 'foo/bar/far');
+		assert.equal(paths.normalize2('///'), '/');
+		assert.equal(paths.normalize2('\\\\\\'), '\\');
+	});
+
 	test('getRootLength', () => {
 
 		assert.equal(paths.getRootLength('/user/far'), 1);
@@ -60,6 +83,7 @@ suite('Paths', () => {
 		assert.equal(paths.getRootLength('//server/share/some/path'), 15);
 		assert.equal(paths.getRootLength('//server/share'), 1);
 		assert.equal(paths.getRootLength('//server'), 1);
+		assert.equal(paths.getRootLength('//server//'), 1);
 		assert.equal(paths.getRootLength('c:/user/far'), 3);
 		assert.equal(paths.getRootLength('c:user/far'), 2);
 		assert.equal(paths.getRootLength('http://wwww'), 0);

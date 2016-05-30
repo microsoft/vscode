@@ -74,6 +74,56 @@ export function normalize(path: string, toOSPath?: boolean): string {
 	return parts.join(toOSPath ? nativeSep : sep);
 }
 
+export function normalize2(path: string, toOSPath?: boolean): string {
+
+	if (path === null || path === void 0) {
+		return path;
+	}
+
+	let len = path.length;
+	if (len === 0) {
+		return '.';
+	}
+
+	let rootLen = getRootLength(path);
+	let head = path.slice(0, rootLen);
+	let tail = '';
+
+	// operate on the 'path-portion' only
+	path = path.slice(rootLen);
+
+	let sep = isWindows && toOSPath ? '\\' : '/';
+	let start = 0;
+
+	for (let end = 0; end <= len; end++) {
+		let code = path.charCodeAt(end);
+		if (code === _slash || code === _backslash || end === len) {
+
+			let part = path.slice(start, end);
+			start = end + 1;
+
+			if (part === '..') {
+				// skip current and remove parent (if applicable)
+				let prev_start = tail.lastIndexOf(sep);
+				let prev_part = tail.slice(prev_start + 1);
+				if (prev_part.length > 0 && prev_part !== '..') {
+					tail = prev_start === -1 ? '' : tail.slice(0, prev_start);
+					continue;
+				}
+			}
+
+			if (tail !== '' && tail[tail.length - 1] !== sep) {
+				tail += sep;
+			}
+			tail += part;
+		}
+	}
+
+	// res += path.slice(start);
+
+	return head + tail;
+}
+
 /**
  * @returns the directory name of a path.
  */
@@ -130,20 +180,24 @@ export function getRootLength(path: string): number {
 			// UNC candidate \\localhost\shares\ddd
 			//               ^^^^^^^^^^^^^^^^^^^
 
-			let pos = 2;
-			let start = pos;
-			for (; pos < len; pos++) {
-				code = path.charCodeAt(pos);
-				if (code === _slash || code === _backslash) {
-					break;
-				}
-			}
-			if (start !== pos) {
-				pos += 1;
+			code = path.charCodeAt(2);
+			if (code !== _slash && code !== _backslash) {
+				let pos = 3;
+				let start = pos;
 				for (; pos < len; pos++) {
 					code = path.charCodeAt(pos);
 					if (code === _slash || code === _backslash) {
-						return pos + 1; // consume this separator
+						break;
+					}
+				}
+				code = path.charCodeAt(pos + 1);
+				if (start !== pos && code !== _slash && code !== _backslash) {
+					pos += 1;
+					for (; pos < len; pos++) {
+						code = path.charCodeAt(pos);
+						if (code === _slash || code === _backslash) {
+							return pos + 1; // consume this separator
+						}
 					}
 				}
 			}
