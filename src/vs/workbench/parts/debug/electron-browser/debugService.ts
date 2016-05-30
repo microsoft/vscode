@@ -73,6 +73,7 @@ export class DebugService implements debug.IDebugService {
 	private toDispose: lifecycle.IDisposable[];
 	private toDisposeOnSessionEnd: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
+	private keybindingService: IKeybindingService;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -107,6 +108,7 @@ export class DebugService implements debug.IDebugService {
 		}
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, 'null'));
 		this.inDebugMode = keybindingService.createKey(debug.CONTEXT_IN_DEBUG_MODE, false);
+		this.keybindingService = keybindingService;
 
 		this.model = new model.Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
@@ -518,34 +520,64 @@ export class DebugService implements debug.IDebugService {
 							{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
 				}
 
-				return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
-					const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-					const successExitCode = taskSummary && taskSummary.exitCode === 0;
-					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateSession(configuration, changeViewState);
-					}
+				return this.resolveInteractiveVariables(configuration).then(conf => {
 
-					this.messageService.show(severity.Error, {
-						message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-							errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
-								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-						actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-							this.messageService.hideAll();
+					return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
+						const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+						const successExitCode = taskSummary && taskSummary.exitCode === 0;
+						const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+						if (successExitCode || (errorCount === 0 && !failureExitCode)) {
 							return this.doCreateSession(configuration, changeViewState);
-						})]
-					});
-				}, (err: TaskError) => {
-					if (err.code !== TaskErrors.NotConfigured) {
-						throw err;
-					}
+						}
 
+						this.messageService.show(severity.Error, {
+							message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+								errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", configuration.preLaunchTask) :
+									nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+							actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+								this.messageService.hideAll();
+								return this.doCreateSession(configuration, changeViewState);
+							})]
+						});
+					}, (err: TaskError) => {
+						if (err.code !== TaskErrors.NotConfigured) {
+							throw err;
+						}
+
+						this.messageService.show(err.severity, {
+							message: err.message,
+							actions: [CloseAction, this.taskService.configureAction()]
+						});
+					});
+
+				}, err => {
 					this.messageService.show(err.severity, {
 						message: err.message,
-						actions: [CloseAction, this.taskService.configureAction()]
+						actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)]
 					});
 				});
+
 			}))));
+	}
+
+	/**
+	 * Resolve all interactive variables:
+	 * 1. find all interactive variables in the given configuration and remember them in top to bottom, left to right order. If a variable occurs more than once, only remember it once.
+	 * 2. for each variable find a command mapping in the package.json of the debug adapter. If a mapping is missing, show an error and abort.
+	 * 3. execute all commands in remembered order and remember the command's result as the value of the corresponding variable.
+	 * 4. substitute all variables.
+	 */
+	private resolveInteractiveVariables(configuration: debug.IConfig): TPromise<debug.IConfig>  {
+		// the following is a fake implementation.
+		// if the selected config has an attribute 'pickProcess', the command 'extension.pickProcess' is executed and the result is set to the 'pickProcess' attribute.
+		if ((<any>configuration).pickProcess) {
+			return this.keybindingService.executeCommand<string>('extension.pickProcess', configuration).then(result => {
+				(<any>configuration).pickProcess = result;
+				return configuration;
+			});
+		} else {
+			return TPromise.as(configuration);
+		}
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
