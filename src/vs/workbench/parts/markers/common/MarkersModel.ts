@@ -8,6 +8,7 @@ import * as Map from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
+import Messages from 'vs/workbench/parts/markers/common/Messages';
 
 export class Resource {
 	constructor(public uri: URI, public markers: Marker[], public statistics: MarkerStatistics){};
@@ -29,10 +30,6 @@ export class MarkersModel {
 	public getResources():Resource[] {
 		var resources= <Resource[]>this.markersByResource.entries().map(this.toResource.bind(this));
 		resources.sort((a: Resource, b: Resource) => {
-			let compare= this.compare(a.statistics, b.statistics);
-			if (compare !== 0) {
-				return compare;
-			}
 			return a.uri.toString().localeCompare(b.uri.toString());
 		});
 		return resources;
@@ -59,6 +56,23 @@ export class MarkersModel {
 		});
 	}
 
+	public static getStatisticsLabel(marketStatistics: MarkerStatistics):string {
+		let label= this.getLabel('',  marketStatistics.errors, 'markers.panel.single.error.label', 'markers.panel.multiple.errors.label');
+		label= this.getLabel(label,  marketStatistics.warnings, 'markers.panel.single.warning.label', 'markers.panel.multiple.warnings.label');
+		label= this.getLabel(label,  marketStatistics.infos, 'markers.panel.single.info.label', 'markers.panel.multiple.infos.label');
+		label= this.getLabel(label,  marketStatistics.unknwons, 'markers.panel.single.unknown.label', 'markers.panel.multiple.unknowns.label');
+		return label;
+	}
+
+	private static getLabel(title: string, markersCount: number, singleMarkerKey: string, multipleMarkerKey: string): string {
+		if (markersCount <= 0) {
+			return title;
+		}
+		title= title ? title + ', ' : '';
+		title += Messages.getString(markersCount === 1 ? singleMarkerKey : multipleMarkerKey, ''+markersCount);
+		return title;
+	}
+
 	private toResource(entry: Map.Entry<URI, IMarker[]>) {
 		let markers= entry.value.map(this.toMarker);
 		let resource= new Resource(entry.key, markers, this.getStatistics(entry.value));
@@ -67,34 +81,6 @@ export class MarkersModel {
 
 	private toMarker(marker: IMarker, index: number):Marker {
 		return new Marker(marker.resource.toString() + index, marker);
-	}
-
-	private compare(stat1: MarkerStatistics, stat2: MarkerStatistics): number {
-		if (stat1.errors > stat2.errors) {
-			return -1;
-		}
-		if (stat2.errors > stat1.errors) {
-			return 1;
-		}
-		if (stat1.warnings > stat2.warnings) {
-			return -1;
-		}
-		if (stat2.warnings > stat1.warnings) {
-			return 1;
-		}
-		if (stat1.infos > stat2.infos) {
-			return -1;
-		}
-		if (stat2.infos > stat1.infos) {
-			return 1;
-		}
-		if (stat1.unknwons > stat2.unknwons) {
-			return -1;
-		}
-		if (stat2.unknwons > stat1.unknwons) {
-			return 1;
-		}
-		return 0;
 	}
 
 	private getStatistics(markers: IMarker[]): MarkerStatistics {

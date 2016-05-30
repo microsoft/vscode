@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
 import 'vs/css!./media/markers';
+import * as errors from 'vs/base/common/errors';
+import * as Set from 'vs/base/common/set';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import dom = require('vs/base/browser/dom');
@@ -13,11 +14,13 @@ import builder = require('vs/base/browser/builder');
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Panel } from 'vs/workbench/browser/panel';
+import {IAction} from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/Constants';
 import { MarkersModel } from 'vs/workbench/parts/markers/common/MarkersModel';
 import {Controller} from 'vs/workbench/parts/markers/browser/MarkersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
+import {CollapseAction} from 'vs/base/parts/tree/browser/treeDefaults';
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import * as Viewer from 'vs/workbench/parts/markers/browser/MarkersTreeViewer';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -28,7 +31,9 @@ export class MarkersPanel extends Panel {
 
 	private markersModel: MarkersModel;
 	private tree: Tree.ITree;
-	private _toDispose: lifecycle.IDisposable[];
+	private toDispose: lifecycle.IDisposable[];
+	private actions: IAction[];
+	private handled: Set.ArraySet<string>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -38,7 +43,8 @@ export class MarkersPanel extends Panel {
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
 		this.markersModel= new MarkersModel();
-		this._toDispose = [];
+		this.toDispose = [];
+		this.handled= new Set.ArraySet<string>();
 	}
 
 	public create(parent: builder.Builder): TPromise<void> {
@@ -57,53 +63,72 @@ export class MarkersPanel extends Panel {
 			twistiePixels: 20,
 		});
 
-		this._toDispose.push(this.markerService.onMarkerChanged((changedResources) => {
+		this.toDispose.push(this.markerService.onMarkerChanged((changedResources) => {
 			this.updateTitleArea();
 			this.updateResources(changedResources);
-			this.tree.refresh();
+			this.tree.refresh().then(this.autoExpand.bind(this));
 		}));
 		this.render();
 		return TPromise.as(null);
 	}
 
 	public getTitle():string {
-		let title= '';
-		let marketStatistics= this.markerService.getStatistics();
-		title= this.appendToTitle(title,  marketStatistics.errors, 'markers.panel.single.error.label', 'markers.panel.multiple.errors.label')
-		title= this.appendToTitle(title,  marketStatistics.warnings, 'markers.panel.single.warning.label', 'markers.panel.multiple.warnings.label')
-		title= this.appendToTitle(title,  marketStatistics.infos, 'markers.panel.single.info.label', 'markers.panel.multiple.infos.label')
-		title= this.appendToTitle(title,  marketStatistics.unknwons, 'markers.panel.single.unknown.label', 'markers.panel.multiple.unknowns.label')
+		let markerStatistics= this.markerService.getStatistics();
+		let title= MarkersModel.getStatisticsLabel(markerStatistics);
 		return title ? title : Messages.getString('markers.panel.no.problems');
-	}
-
-	private appendToTitle(title: string, markersCount: number, singleMarkerKey: string, multipleMarkerKey: string): string {
-		if (markersCount <= 0) {
-			return title;
-		}
-		title= title ? title + ', ' : '';
-		title += Messages.getString(markersCount === 1 ? singleMarkerKey : multipleMarkerKey, ''+markersCount);
-		return title;
 	}
 
 	public layout(dimension: builder.Dimension): void {
 		this.tree.layout(dimension.height);
 	}
 
+	public focus(): void {
+		this.tree.DOMFocus();
+		this.tree.focusFirst();
+	}
+
+	public getActions(): IAction[] {
+		if (!this.actions) {
+			this.actions = [
+				this.instantiationService.createInstance(CollapseAction, this.tree, true)
+			];
+
+			this.actions.forEach(a => {
+				this.toDispose.push(a);
+			});
+		}
+		return this.actions;
+	}
+
 	private updateResources(resources: URI[]) {
 		resources.forEach((resource) => {
-			let markers= this.markerService.read({resource: resource}).slice(0)
+			let markers= this.markerService.read({resource: resource}).slice(0);
 			this.markersModel.updateResource(resource, markers);
-		})
+		});
 	}
 
 	private render(): void {
 		let allMarkers = this.markerService.read().slice(0);
 		this.markersModel.updateMarkers(allMarkers);
-		this.tree.setInput(this.markersModel);
+		this.tree.setInput(this.markersModel).then(this.autoExpand.bind(this));
+	}
+
+	private autoExpand(): void {
+		this.markersModel.getResources().forEach((resource) => {
+			if (this.handled.contains(resource.uri.toString())) {
+				return;
+			}
+			if (resource.statistics.errors > 0 && resource.statistics.errors < 10) {
+				this.tree.expand(resource).done(null, errors.onUnexpectedError);
+			} else {
+				this.tree.collapse(resource).done(null, errors.onUnexpectedError);
+			}
+			this.handled.set(resource.uri.toString());
+		});
 	}
 
 	public dispose(): void {
-		this._toDispose = lifecycle.dispose(this._toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 }

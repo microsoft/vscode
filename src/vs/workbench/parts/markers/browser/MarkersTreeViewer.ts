@@ -15,9 +15,11 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/MarkersModel';
+import MarkersStatisticsWidget from 'vs/workbench/parts/markers/browser/MarkersStatisticsWidget';
 
 interface IResourceTemplateData {
 	file: FileLabel;
+	statistics: MarkersStatisticsWidget;
 	count: CountBadge;
 }
 
@@ -97,6 +99,8 @@ export class Renderer implements IRenderer {
 		var data: IResourceTemplateData = Object.create(null);
 		data.file = new FileLabel(container, null, this.contextService);
 
+		// data.statistics= new MarkersStatisticsWidget(dom.append(container, dom.emmet('.marker-stats')));
+
 		const badgeWrapper = dom.append(container, dom.emmet('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
 
@@ -121,6 +125,7 @@ export class Renderer implements IRenderer {
 
 	private renderResourceElement(tree: ITree, element: Resource, templateData: IResourceTemplateData) {
 		templateData.file.setValue(element.uri);
+		// templateData.statistics.setStatistics(element.statistics);
 		templateData.count.setCount(element.markers.length);
 	}
 

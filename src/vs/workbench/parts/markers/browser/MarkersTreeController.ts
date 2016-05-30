@@ -7,21 +7,19 @@
 import * as errors from 'vs/base/common/errors';
 import mouse = require('vs/base/browser/mouseEvent');
 import keyboard = require('vs/base/browser/keyboardEvent');
-import actionsrenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import { Marker } from 'vs/workbench/parts/markers/common/MarkersModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import { IMarker } from 'vs/platform/markers/common/markers';
 
 export class Controller extends treedefaults.DefaultController {
 
-	private contextMenuService:IContextMenuService;
-	private actionProvider:actionsrenderer.IActionProvider;
-
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+				@ICodeEditorService private codeEditorService: ICodeEditorService) {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_UP });
 		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_UP_ARROW, this.onUp.bind(this));
 		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DOWN_ARROW, this.onDown.bind(this));
@@ -36,7 +34,7 @@ export class Controller extends treedefaults.DefaultController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
+	protected onEnter(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
 		super.onEnter(tree, event);
 		this.openFileAtElement(tree.getFocus());
 		return true;
@@ -44,7 +42,7 @@ export class Controller extends treedefaults.DefaultController {
 
 	private openFileAtElement(element: any) {
 		if (element instanceof Marker) {
-			let marker= <IMarker>element.marker;
+			let marker = <IMarker>element.marker;
 			this.editorService.openEditor({
 				resource: marker.resource,
 				options: {
@@ -59,5 +57,30 @@ export class Controller extends treedefaults.DefaultController {
 			return true;
 		}
 		return false;
+	}
+
+	public _preview(element: any): void {
+		if (element instanceof Marker) {
+			let marker = <IMarker>element.marker;
+			const editors = this.codeEditorService.listCodeEditors();
+			let editor: ICommonCodeEditor;
+			for (let candidate of editors) {
+				if (!candidate.getModel()
+					|| candidate.getModel().getAssociatedResource().toString() !== marker.resource.toString()) {
+
+					continue;
+				}
+
+				if (!editor || this.editorService.getActiveEditor()
+					&& candidate === this.editorService.getActiveEditor().getControl()) {
+
+					editor = candidate;
+				}
+			}
+
+			if (editor) {
+				editor.revealRangeInCenter(marker);
+			}
+		}
 	}
 }

@@ -12,14 +12,18 @@
 	margin-left: 4px;
 }
 
-.markers-panel > .monaco-tree .monaco-tree-row .content .monaco-file-label {
+.markers-panel > .monaco-tree .monaco-tree-row .content > * {
 	vertical-align: middle;
 }
 
+.markers-panel > .monaco-tree .monaco-tree-row .content .marker-stats {
+	display: inline-block;
+	margin-left: 10px;
+}
+
 .markers-panel > .monaco-tree .monaco-tree-row .content .count-badge-wrapper {
-	display: block;
-	float: right;
-	margin-right: 10px;
+	display: inline-block;
+	margin-left: 10px;
 	line-height: 22px;
 }
 
