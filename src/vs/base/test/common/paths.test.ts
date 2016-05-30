@@ -112,28 +112,30 @@ suite('Paths', () => {
 	});
 
 	test('join', () => {
-		assert.equal(paths.join('foo', 'bar'), 'foo/bar');
-		assert.equal(paths.join('foo/bar', './bar/foo'), 'foo/bar/bar/foo');
-		assert.equal(paths.join('foo/bar', '../bar/foo'), 'foo/bar/foo');
-		assert.equal(paths.join('../foo/bar', '../bar/foo'), '../foo/bar/foo');
-		assert.equal(paths.join('../../foo/bar', '../bar/foo'), '../../foo/bar/foo');
-		assert.equal(paths.join('../../foo/bar', '../../foo'), '../../foo');
-		assert.equal(paths.join('/', 'bar'), '/bar');
 		assert.equal(paths.join('.', 'bar'), 'bar');
-		assert.equal(paths.join('http://localhost/test', 'test'), 'http://localhost/test/test');
-		assert.equal(paths.join('file:///c/users/test', 'test'), 'file:///c/users/test/test');
-		assert.equal(paths.join('file://localhost/c$/GitDevelopment/express', '.settings'), 'file://localhost/c$/GitDevelopment/express/.settings'); // unc
-		assert.equal(paths.join('foo/', 'bar'), 'foo/bar');
-		assert.equal(paths.join('foo', '/bar'), 'foo/bar');
-		assert.equal(paths.join('foo/', '/bar'), 'foo/bar');
+		assert.equal(paths.join('../../foo/bar', '../../foo'), '../../foo');
+		assert.equal(paths.join('../../foo/bar', '../bar/foo'), '../../foo/bar/foo');
+		assert.equal(paths.join('../foo/bar', '../bar/foo'), '../foo/bar/foo');
+		assert.equal(paths.join('/', 'bar'), '/bar');
+		assert.equal(paths.join('//server/far/boo', '../file.txt'), '//server/far/file.txt');
 		assert.equal(paths.join('/foo/', '/bar'), '/foo/bar');
-		assert.equal(paths.join('foo/', '/bar/'), 'foo/bar/');
-		assert.equal(paths.join('foo', 'bar/'), 'foo/bar/');
-		assert.equal(paths.join('\\\\server\\far\\boo', 'file.txt'), '//server/far/boo/file.txt');
+		assert.equal(paths.join('\\\\server\\far\\boo', '../file.txt'), '//server/far/file.txt');
 		assert.equal(paths.join('\\\\server\\far\\boo', './file.txt'), '//server/far/boo/file.txt');
 		assert.equal(paths.join('\\\\server\\far\\boo', '.\\file.txt'), '//server/far/boo/file.txt');
-		assert.equal(paths.join('\\\\server\\far\\boo', '../file.txt'), '//server/far/file.txt');
-		assert.equal(paths.join('//server/far/boo', '../file.txt'), '//server/far/file.txt');
+		assert.equal(paths.join('\\\\server\\far\\boo', 'file.txt'), '//server/far/boo/file.txt');
+		assert.equal(paths.join('file:///c/users/test', 'test'), 'file:///c/users/test/test');
+		assert.equal(paths.join('file://localhost/c$/GitDevelopment/express', './settings'), 'file://localhost/c$/GitDevelopment/express/settings'); // unc
+		assert.equal(paths.join('file://localhost/c$/GitDevelopment/express', '.settings'), 'file://localhost/c$/GitDevelopment/express/.settings'); // unc
+		assert.equal(paths.join('foo', '/bar'), 'foo/bar');
+		assert.equal(paths.join('foo', 'bar'), 'foo/bar');
+		assert.equal(paths.join('foo', 'bar/'), 'foo/bar/');
+		assert.equal(paths.join('foo/', '/bar'), 'foo/bar');
+		assert.equal(paths.join('foo/', '/bar/'), 'foo/bar/');
+		assert.equal(paths.join('foo/', 'bar'), 'foo/bar');
+		assert.equal(paths.join('foo/bar', '../bar/foo'), 'foo/bar/foo');
+		assert.equal(paths.join('foo/bar', './bar/foo'), 'foo/bar/bar/foo');
+		assert.equal(paths.join('http://localhost/test', '../next'), 'http://localhost/next');
+		assert.equal(paths.join('http://localhost/test', 'test'), 'http://localhost/test/test');
 	});
 
 	test('isEqualOrParent', () => {
