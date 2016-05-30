@@ -269,7 +269,11 @@ export class ThemeService implements IThemeService {
 
 
 function toCSSSelector(str: string) {
-	return str.replace(/[^_\-a-zA-Z0-9]/g, '-');
+	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');
+	if (str.charAt(0).match(/[0-9\-]/)) {
+		str = '_' + str;
+	}
+	return str;
 }
 
 function applyTheme(theme: IInternalThemeData, onApply: (theme:IInternalThemeData) => void): TPromise<boolean> {
