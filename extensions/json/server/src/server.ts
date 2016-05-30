@@ -122,7 +122,7 @@ let contributions = [
 	filesAssociationContribution
 ];
 
-let jsonSchemaService = new JSONSchemaService(request, workspaceContext, telemetry);
+let jsonSchemaService = new JSONSchemaService(request, workspaceContext, telemetry, connection.console);
 jsonSchemaService.setSchemaContributions(schemaContributions);
 
 let jsonCompletion = new JSONCompletion(jsonSchemaService, connection.console, contributions);
@@ -257,7 +257,7 @@ function validateTextDocument(textDocument: ITextDocument): void {
 }
 
 connection.onDidChangeWatchedFiles((change) => {
-	// Monitored files have change in VSCode
+	// Monitored files have changed in VSCode
 	let hasChanges = false;
 	change.changes.forEach(c => {
 		if (jsonSchemaService.onResourceChange(c.uri)) {

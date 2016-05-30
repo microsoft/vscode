@@ -10,6 +10,8 @@ import {XHROptions, XHRResponse, getErrorStatusDescription} from 'request-light'
 import URI from './utils/uri';
 import Strings = require('./utils/strings');
 import Parser = require('./jsonParser');
+import {RemoteConsole} from 'vscode-languageserver';
+
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -225,7 +227,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 	private telemetryService: ITelemetryService;
 	private requestService: IRequestService;
 
-	constructor(requestService: IRequestService, contextService?: IWorkspaceContextService, telemetryService?: ITelemetryService) {
+	constructor(requestService: IRequestService, contextService?: IWorkspaceContextService, telemetryService?: ITelemetryService, private console?: RemoteConsole) {
 		this.contextService = contextService;
 		this.requestService = requestService;
 		this.telemetryService = telemetryService;
@@ -254,10 +256,8 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	private normalizeId(id: string) {
-		if (id.length > 0 && id.charAt(id.length - 1) === '#') {
-			return id.substring(0, id.length - 1);
-		}
-		return id;
+		// remove trailing '#', normalize drive capitalization
+		return URI.parse(id).toString();
 	}
 
 	public setSchemaContributions(schemaContributions: ISchemaContributions): void {
