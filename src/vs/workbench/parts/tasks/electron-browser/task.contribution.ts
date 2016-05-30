@@ -418,7 +418,7 @@ class StatusBarItem implements IStatusbarItem {
 //		}));
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e:MouseEvent) => {
-			this.panelService.openPanel('workbench.panel.markers');
+			this.panelService.openPanel('workbench.panel.markers', true);
 		}));
 
 		let updateStatus = (element:HTMLDivElement, stats:number): boolean => {
