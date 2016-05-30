@@ -112,43 +112,79 @@ export function extname(path: string): string {
 	return idx ? path.substring(~idx) : '';
 }
 
-
-function getRootLength(path: string): number {
+/**
+ * Return the length of the denoting part of this path, like `c:\files === 3 (c:\)`,
+ * `files:///files/path === 8 (files:///)`, or `\\server\shares\path === 16 (\\server\shares\)`
+ */
+export function getRootLength(path: string): number {
 
 	if (!path) {
 		return 0;
 	}
 
-	path = path.replace(/\/|\\/g, '/');
+	let len = path.length;
+	let code = path.charCodeAt(0);
+	if (code === _slash || code === _backslash) {
 
-	if (path[0] === '/') {
-		if (path[1] !== '/') {
-			// /far/boo
-			return 1;
-		} else {
-			// //server/far/boo
-			return 2;
+		code = path.charCodeAt(1);
+		if (code === _slash || code === _backslash) {
+			// UNC candidate \\localhost\shares\ddd
+			//               ^^^^^^^^^^^^^^^^^^^
+
+			let pos = 2;
+			let start = pos;
+			for (; pos < len; pos++) {
+				code = path.charCodeAt(pos);
+				if (code === _slash || code === _backslash) {
+					break;
+				}
+			}
+			if (start !== pos) {
+				pos += 1;
+				for (; pos < len; pos++) {
+					code = path.charCodeAt(pos);
+					if (code === _slash || code === _backslash) {
+						return pos + 1; // consume this separator
+					}
+				}
+			}
+		}
+
+		// /user/far
+		// ^
+		return 1;
+
+	} else if ((code >= _A && code <= _Z) || (code >= _a && code <= _z)) {
+		// check for windows drive letter c:\ or c:
+
+		if (path.charCodeAt(1) === _colon) {
+			code = path.charCodeAt(2);
+			if (code === _slash || code === _backslash) {
+				// C:\fff
+				// ^^^
+				return 3;
+			} else {
+				// C:
+				// ^^
+				return 2;
+			}
 		}
 	}
 
-	if (path[1] === ':') {
-		if (path[2] === '/') {
-			// c:/boo/far.txt
-			return 3;
-		} else {
-			// c:
-			return 2;
+	// check for URI
+	// scheme://authority/path
+	// ^^^^^^^^^^^^^^^^^^^
+	let pos = path.indexOf('://');
+	if (pos !== -1) {
+		pos += 3; // 3 -> "://".length
+		for (; pos < len; pos++) {
+			code = path.charCodeAt(pos);
+			if (code === _slash || code === _backslash) {
+				return pos + 1; // consume this separator
+			}
 		}
 	}
 
-	if (path.indexOf('file:///') === 0) {
-		return 8; // 8 -> 'file:///'.length
-	}
-
-	var idx = path.indexOf('://');
-	if (idx !== -1) {
-		return idx + 3; // 3 -> "://".length
-	}
 	return 0;
 }
 
@@ -214,6 +250,12 @@ export function isRelative(path: string): boolean {
 }
 
 const _slash = '/'.charCodeAt(0);
+const _backslash = '\\'.charCodeAt(0);
+const _colon = ':'.charCodeAt(0);
+const _a = 'a'.charCodeAt(0);
+const _A = 'A'.charCodeAt(0);
+const _z = 'z'.charCodeAt(0);
+const _Z = 'Z'.charCodeAt(0);
 
 export function isEqualOrParent(path: string, candidate: string): boolean {
 

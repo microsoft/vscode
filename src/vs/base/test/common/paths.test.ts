@@ -53,6 +53,22 @@ suite('Paths', () => {
 		assert.equal(paths.normalize('/foo/bar.test'), '/foo/bar.test');
 	});
 
+	test('getRootLength', () => {
+
+		assert.equal(paths.getRootLength('/user/far'), 1);
+		assert.equal(paths.getRootLength('\\\\server\\share\\some\\path'), 15);
+		assert.equal(paths.getRootLength('//server/share/some/path'), 15);
+		assert.equal(paths.getRootLength('//server/share'), 1);
+		assert.equal(paths.getRootLength('//server'), 1);
+		assert.equal(paths.getRootLength('c:/user/far'), 3);
+		assert.equal(paths.getRootLength('c:user/far'), 2);
+		assert.equal(paths.getRootLength('http://wwww'), 0);
+		assert.equal(paths.getRootLength('http://wwww/'), 12);
+		assert.equal(paths.getRootLength('file:///foo'), 8);
+		assert.equal(paths.getRootLength('file://foo'), 0);
+
+	});
+
 	test('makeAbsolute', () => {
 		assert.equal(paths.makeAbsolute('foo'), '/foo');
 		assert.equal(paths.makeAbsolute('foo/bar'), '/foo/bar');
