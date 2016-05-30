@@ -471,8 +471,13 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 	}
 
 	public getDragURI(tree: ITree, element: OpenEditor): string {
-		const resource = element instanceof OpenEditor ? element.getResource() : null;
-		return resource ? resource.toString() : null;
+		if (!(element instanceof OpenEditor)) {
+			return null;
+		}
+
+		const resource = element.getResource();
+		// Some open editors do not have a resource (markdown preview) so use the name as drag identifier instead #7021
+		return resource ? resource.toString() : element.editorInput.getName();
 	}
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: OpenEditor|EditorGroup, originalEvent: DragMouseEvent): IDragOverReaction {
