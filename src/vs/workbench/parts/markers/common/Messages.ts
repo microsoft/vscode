@@ -6,7 +6,21 @@
 
 import nls = require('vs/nls');
 
-export default {
-	MARKERS_PANEL_TOGGLE_ACTION_LABEL: nls.localize('markers.panel.toggle.label', 'Toggle Problems'),
-	MARKERS_PANEL_NO_PROBLEMS_TITLE: nls.localize('markers.panel.label', 'No Problems')
+var Messages = {
+	'markers.panel.toggle.label': "Toggle Problems",
+	'markers.panel.no.problems': "No Problems",
+	'markers.panel.single.error.label': "{0} Error",
+	'markers.panel.multiple.errors.label': "{0} Errors",
+	'markers.panel.single.warning.label': "{0} Warning",
+	'markers.panel.multiple.warnings.label': "{0} Warnings",
+	'markers.panel.single.info.label': "{0} Info",
+	'markers.panel.multiple.infos.label': "{0} Infos",
+	'markers.panel.single.unknown.label': "{0} Unknown",
+	'markers.panel.multiple.unknowns.label': "{0} Unknowns",
+
+	getString: function(key:string, ...args: string[]): string {
+		return nls.localize(key, Messages[key], args);
+	}
 };
+
+export default Messages;

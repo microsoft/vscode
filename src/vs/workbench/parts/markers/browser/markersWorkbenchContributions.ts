@@ -44,12 +44,12 @@ export function registerContributions(): void {
 		'vs/workbench/parts/markers/browser/MarkersPanel',
 		'MarkersPanel',
 		Constants.MARKERS_PANEL_ID,
-		Messages.MARKERS_PANEL_NO_PROBLEMS_TITLE,
+		Messages.getString('markers.panel.no.problems'),
 		'markersPanel'
 	));
 
 	let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
-	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, Messages.MARKERS_PANEL_TOGGLE_ACTION_LABEL, {
+	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMarkersPanelAction, ToggleMarkersPanelAction.ID, Messages.getString('markers.panel.toggle.label'), {
 		primary: null,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },

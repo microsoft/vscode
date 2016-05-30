@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import 'vs/css!./media/markers';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -68,26 +69,20 @@ export class MarkersPanel extends Panel {
 	public getTitle():string {
 		let title= '';
 		let marketStatistics= this.markerService.getStatistics();
-		let addPipe= false;
-		if (marketStatistics.errors > 0) {
-			title += ' ' + marketStatistics.errors + ' Errors';
-			addPipe= true;
+		title= this.appendToTitle(title,  marketStatistics.errors, 'markers.panel.single.error.label', 'markers.panel.multiple.errors.label')
+		title= this.appendToTitle(title,  marketStatistics.warnings, 'markers.panel.single.warning.label', 'markers.panel.multiple.warnings.label')
+		title= this.appendToTitle(title,  marketStatistics.infos, 'markers.panel.single.info.label', 'markers.panel.multiple.infos.label')
+		title= this.appendToTitle(title,  marketStatistics.unknwons, 'markers.panel.single.unknown.label', 'markers.panel.multiple.unknowns.label')
+		return title ? title : Messages.getString('markers.panel.no.problems');
+	}
+
+	private appendToTitle(title: string, markersCount: number, singleMarkerKey: string, multipleMarkerKey: string): string {
+		if (markersCount <= 0) {
+			return title;
 		}
-		if (marketStatistics.warnings > 0) {
-			title= addPipe ? title + ', ' : title;
-			title += ' ' + marketStatistics.warnings + ' Warnings';
-			addPipe= true;
-		}
-		if (marketStatistics.infos > 0) {
-			title= addPipe ? title + ', ' : title;
-			title += ' ' + marketStatistics.infos + ' Info';
-			addPipe= true;
-		}
-		if (marketStatistics.unknwons > 0) {
-			title= addPipe ? title + ', ' : title;
-			title += ' ' + marketStatistics.unknwons + ' Unknowns';
-		}
-		return title ? title : Messages.MARKERS_PANEL_NO_PROBLEMS_TITLE;
+		title= title ? title + ', ' : '';
+		title += Messages.getString(markersCount === 1 ? singleMarkerKey : multipleMarkerKey, ''+markersCount);
+		return title;
 	}
 
 	public layout(dimension: builder.Dimension): void {
