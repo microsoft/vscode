@@ -67,7 +67,7 @@ export class QuickOpenController extends DefaultController {
 	}
 }
 
-enum HideReason {
+export enum HideReason {
 	ELEMENT_SELECTED,
 	FOCUS_LOST,
 	CANCELED
