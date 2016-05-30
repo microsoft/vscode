@@ -232,7 +232,9 @@ export class ExtHostAPIImplementation {
 			showQuickPick: (items: any, options: vscode.QuickPickOptions) => {
 				return extHostQuickOpen.show(items, options);
 			},
-			showInputBox: extHostQuickOpen.input.bind(extHostQuickOpen),
+			showInputBox(options?: vscode.InputBoxOptions) {
+				return extHostQuickOpen.input(options);
+			},
 
 			createStatusBarItem(position?: vscode.StatusBarAlignment, priority?: number): vscode.StatusBarItem {
 				return extHostStatusBar.createStatusBarEntry(<number>position, priority);

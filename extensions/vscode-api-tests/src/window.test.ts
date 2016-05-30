@@ -146,4 +146,10 @@ suite('window namespace tests', () => {
 			subscription.dispose();
 		}).then(passOncePlease, failOncePlease);
 	});
+
+	test('#7013 - input without options', function () {
+
+		let p = window.showInputBox();
+		assert.ok(typeof p === 'object');
+	});
 });

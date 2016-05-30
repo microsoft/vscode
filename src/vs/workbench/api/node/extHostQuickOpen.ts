@@ -101,8 +101,8 @@ export class ExtHostQuickOpen {
 	// ---- input
 
 	input(options?: InputBoxOptions): Thenable<string> {
-		this._validateInput = options.validateInput;
-		return this._proxy.$input(options, typeof options.validateInput === 'function');
+		this._validateInput = options && options.validateInput;
+		return this._proxy.$input(options, options && typeof options.validateInput === 'function');
 	}
 
 	$validateInput(input: string): TPromise<string> {
