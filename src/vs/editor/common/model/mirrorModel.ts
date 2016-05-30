@@ -376,7 +376,7 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 				this._embeddedModels[newNestedModeId].setIncludedRanges(newModesRanges[newNestedModeId].ranges);
 			} else {
 				// TODO@Alex: implement derived resources (embedded mirror models) better
-				var embeddedModelUrl = this.uri.withFragment(this.uri.fragment + 'URL_MARSHAL_REMOVE' + newNestedModeId);
+				var embeddedModelUrl = this.uri.with({ fragment: this.uri.fragment + 'URL_MARSHAL_REMOVE' + newNestedModeId });
 				this._embeddedModels[newNestedModeId] = new MirrorModelEmbedded(this, newModesRanges[newNestedModeId].ranges, newModesRanges[newNestedModeId].mode, embeddedModelUrl);
 				this._resourceService.insert(this._embeddedModels[newNestedModeId].uri, this._embeddedModels[newNestedModeId]);
 			}

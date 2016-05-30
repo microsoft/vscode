@@ -166,7 +166,7 @@ class DirtyDiffModelDecorator {
 		this.gitService = gitService;
 
 		this.model = model;
-		this._originalContentsURI = model.uri.withScheme(DirtyDiffModelDecorator.GIT_ORIGINAL_SCHEME);
+		this._originalContentsURI = model.uri.with({ scheme: DirtyDiffModelDecorator.GIT_ORIGINAL_SCHEME });
 		this.path = path;
 		this.decorations = [];
 

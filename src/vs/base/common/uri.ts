@@ -132,35 +132,15 @@ export default class URI {
 
 	// ---- modify to new -------------------------
 
-	public with(scheme: string, authority: string, path: string, query: string, fragment: string): URI {
+	public with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
 		var ret = new URI();
-		ret._scheme = scheme || this.scheme;
-		ret._authority = authority || this.authority;
-		ret._path = path || this.path;
-		ret._query = query || this.query;
-		ret._fragment = fragment || this.fragment;
+		ret._scheme = change.scheme || this.scheme;
+		ret._authority = change.authority || this.authority;
+		ret._path = change.path || this.path;
+		ret._query = change.query || this.query;
+		ret._fragment = change.fragment || this.fragment;
 		URI._validate(ret);
 		return ret;
-	}
-
-	public withScheme(value: string): URI {
-		return this.with(value, undefined, undefined, undefined, undefined);
-	}
-
-	public withAuthority(value: string): URI {
-		return this.with(undefined, value, undefined, undefined, undefined);
-	}
-
-	public withPath(value: string): URI {
-		return this.with(undefined, undefined, value, undefined, undefined);
-	}
-
-	public withQuery(value: string): URI {
-		return this.with(undefined, undefined, undefined, value, undefined);
-	}
-
-	public withFragment(value: string): URI {
-		return this.with(undefined, undefined, undefined, undefined, value);
 	}
 
 	// ---- parse & validate ------------------------
@@ -232,7 +212,7 @@ export default class URI {
 	}
 
 	public static create(scheme?: string, authority?: string, path?: string, query?: string, fragment?: string): URI {
-		return new URI().with(scheme, authority, path, query, fragment);
+		return new URI().with({ scheme, authority, path, query, fragment });
 	}
 
 	private static _validate(ret: URI): void {

@@ -548,7 +548,7 @@ export class HTMLWorker {
 			alternativeResultPath = paths.join(modelPath, tokenContent);
 			alternativeResultPath = alternativeResultPath.replace(/^(\/\.\.)+/, '');
 		}
-		let potentialResult = modelAbsoluteUri.withPath(alternativeResultPath).toString();
+		let potentialResult = modelAbsoluteUri.with({ path: alternativeResultPath }).toString();
 
 		let rootAbsoluteUrlStr = (rootAbsoluteUri ? rootAbsoluteUri.toString() : null);
 		if (rootAbsoluteUrlStr && strings.startsWith(modelAbsoluteUri.toString(), rootAbsoluteUrlStr)) {

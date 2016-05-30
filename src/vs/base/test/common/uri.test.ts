@@ -45,7 +45,7 @@ suite('URI', () => {
 	test('http#toString, encode=FALSE', () => {
 		assert.equal(URI.create('http', 'a-test-site.com', '/', 'test=true').toString(true), 'http://a-test-site.com/?test=true');
 		assert.equal(URI.create('http', 'a-test-site.com', '/', '', 'test=true').toString(true), 'http://a-test-site.com/#test=true');
-		assert.equal(URI.create().withScheme('http').withPath('/api/files/test.me').withQuery('t=1234').toString(true), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.create().with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(true), 'http:/api/files/test.me?t=1234');
 
 		var value = URI.parse('file://shares/pröjects/c%23/#l12');
 		assert.equal(value.authority, 'shares');
@@ -63,12 +63,12 @@ suite('URI', () => {
 	});
 
 	test('with', () => {
-		assert.equal(URI.create().withScheme('http').withPath('/api/files/test.me').withQuery('t=1234').toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.create().with('http', '', '/api/files/test.me', 't=1234', '').toString(), 'http:/api/files/test.me?t%3D1234');
-		assert.equal(URI.create().with('https', '', '/api/files/test.me', 't=1234', '').toString(), 'https:/api/files/test.me?t%3D1234');
-		assert.equal(URI.create().with('HTTP', '', '/api/files/test.me', 't=1234', '').toString(), 'HTTP:/api/files/test.me?t%3D1234');
-		assert.equal(URI.create().with('HTTPS', '', '/api/files/test.me', 't=1234', '').toString(), 'HTTPS:/api/files/test.me?t%3D1234');
-		assert.equal(URI.create().with('boo', '', '/api/files/test.me', 't=1234', '').toString(), 'boo:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with({ scheme: 'HTTP', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTP:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with({ scheme: 'HTTPS', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'HTTPS:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with({ scheme: 'boo', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'boo:/api/files/test.me?t%3D1234');
 	});
 
 	test('parse', () => {
