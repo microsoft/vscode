@@ -53,7 +53,7 @@ export function registerContributions(): void {
 		primary: null,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
-		mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M }
 	}), nls.localize('viewCategory', "View"));
 
 }
