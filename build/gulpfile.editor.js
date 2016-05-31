@@ -66,7 +66,7 @@ function editorLoaderConfig(removeAllOSS) {
 }
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor'/*, 'compile-build'*/], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask({
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
@@ -79,7 +79,7 @@ gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor', true));
 
 gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
-gulp.task('editor-distro', ['clean-editor-distro'/*, 'minify-editor', 'optimize-editor'*/], function() {
+gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-editor'], function() {
 	return es.merge(
 		// other assets
 		es.merge(
