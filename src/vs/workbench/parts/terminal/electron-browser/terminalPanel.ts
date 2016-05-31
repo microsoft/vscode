@@ -169,7 +169,7 @@ export class TerminalPanel extends Panel {
 		});
 	}
 
-	private setTerminalTheme() {
+	private setTerminalTheme(): void {
 		if (!this.terminal) {
 			return;
 		}
@@ -181,7 +181,7 @@ export class TerminalPanel extends Panel {
 	 * Set the terminal font to `terminal.integrated.fontFamily` if it is set, otherwise fallback to
 	 * `editor.fontFamily`.
 	 */
-	private setTerminalFont() {
+	private setTerminalFont(): void {
 		this.terminalDomElement.style.fontFamily = this.configurationHelper.getFontFamily();
 	}
 

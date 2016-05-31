@@ -87,7 +87,7 @@ export class TerminalConfigHelper {
 	 * Set the terminal font to `terminal.integrated.fontFamily` if it is set, otherwise fallback to
 	 * `editor.fontFamily`.
 	 */
-	public getFontFamily() {
+	public getFontFamily(): string {
 		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>();
 		let fontFamily = terminalConfig.terminal.integrated.fontFamily;
 		if (!fontFamily) {
