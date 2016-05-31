@@ -122,7 +122,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 			gulp.src('out-editor-min/**/*')
 		).pipe(filterStream(function(path) {
 			// no map files
-			return !/\.js\.map$/.test(path);
+			return /\.js\.map$/.test(path);
 		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
 	);
 });
