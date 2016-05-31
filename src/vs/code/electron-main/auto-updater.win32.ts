@@ -36,7 +36,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@ISettingsService private settingsManager: ISettingsService
+		@ISettingsService private settingsService: ISettingsService
 	) {
 		super();
 
@@ -64,8 +64,8 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 
 		this.emit('checking-for-update');
 
-		const proxyUrl = this.settingsManager.getValue('http.proxy');
-		const strictSSL = this.settingsManager.getValue('http.proxyStrictSSL', true);
+		const proxyUrl = this.settingsService.getValue('http.proxy');
+		const strictSSL = this.settingsService.getValue('http.proxyStrictSSL', true);
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
 		this.currentRequest = json<IUpdate>({ url: this.url, agent })
@@ -118,7 +118,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 	}
 
 	private getUpdatePackagePath(version: string): TPromise<string> {
-		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${ this.envService.quality }-${ version }.exe`));
+		return this.cachePath.then(cachePath => path.join(cachePath, `CodeSetup-${this.envService.quality}-${version}.exe`));
 	}
 
 	private quitAndUpdate(updatePackagePath: string): void {
@@ -135,7 +135,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 	}
 
 	private cleanup(exceptVersion: string = null): Promise {
-		const filter = exceptVersion ? one => !(new RegExp(`${ this.envService.quality }-${ exceptVersion }\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? one => !(new RegExp(`${this.envService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		return this.cachePath
 			.then(cachePath => pfs.readdir(cachePath)

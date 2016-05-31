@@ -12,15 +12,14 @@ export const ILogService = createDecorator<ILogService>('logService');
 
 export interface ILogService {
 	serviceId: ServiceIdentifier<any>;
-	log(... args: any[]): void;
+	log(...args: any[]): void;
 }
 
 export class MainLogService implements ILogService {
 
 	serviceId = ILogService;
 
-	constructor(@IEnvironmentService private envService: IEnvironmentService) {
-
+	constructor( @IEnvironmentService private envService: IEnvironmentService) {
 	}
 
 	log(...args: any[]): void {

@@ -27,7 +27,7 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 
 	constructor(
 		@IEnvironmentService private envService: IEnvironmentService,
-		@ISettingsService private settingsManager: ISettingsService
+		@ISettingsService private settingsService: ISettingsService
 	) {
 		super();
 
@@ -50,8 +50,8 @@ export class LinuxAutoUpdaterImpl extends EventEmitter {
 
 		this.emit('checking-for-update');
 
-		const proxyUrl = this.settingsManager.getValue('http.proxy');
-		const strictSSL = this.settingsManager.getValue('http.proxyStrictSSL', true);
+		const proxyUrl = this.settingsService.getValue('http.proxy');
+		const strictSSL = this.settingsService.getValue('http.proxyStrictSSL', true);
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 
 		this.currentRequest = json<IUpdate>({ url: this.url, agent })

@@ -56,10 +56,10 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const envService = accessor.get(IEnvironmentService);
-	const windowManager = accessor.get(IWindowsService);
+	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
-	const updateManager = accessor.get(IUpdateService);
-	const settingsManager = accessor.get(ISettingsService);
+	const updateService = accessor.get(IUpdateService);
+	const settingsService = accessor.get(ISettingsService);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -72,7 +72,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 			};
 
 			// handle on client side
-			windowManager.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			windowsService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
 		}
 
 		console.error('[uncaught exception in main]: ' + err);
@@ -153,14 +153,14 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	lifecycleService.ready();
 
 	// Load settings
-	settingsManager.loadSync();
+	settingsService.loadSync();
 
 	// Propagate to clients
-	windowManager.ready(userEnv);
+	windowsService.ready(userEnv);
 
 	// Install Menu
-	const menuManager = instantiationService.createInstance(VSCodeMenu);
-	menuManager.ready();
+	const menu = instantiationService.createInstance(VSCodeMenu);
+	menu.ready();
 
 	// Install Tasks
 	if (platform.isWindows && envService.isBuilt) {
@@ -176,15 +176,15 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	}
 
 	// Setup auto update
-	updateManager.initialize();
+	updateService.initialize();
 
 	// Open our first window
 	if (envService.cliArgs.openNewWindow && envService.cliArgs.pathArguments.length === 0) {
-		windowManager.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
+		windowsService.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
 	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.pathArguments || !envService.cliArgs.pathArguments.length)) {
-		windowManager.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
+		windowsService.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
-		windowManager.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs.openNewWindow, diffMode: envService.cliArgs.diffMode }); // default: read paths from cli
+		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs.openNewWindow, diffMode: envService.cliArgs.diffMode }); // default: read paths from cli
 	}
 }
 

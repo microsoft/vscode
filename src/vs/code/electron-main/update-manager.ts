@@ -72,7 +72,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IEnvironmentService private envService: IEnvironmentService,
-		@ISettingsService private settingsManager: ISettingsService
+		@ISettingsService private settingsService: ISettingsService
 	) {
 		super();
 
@@ -230,7 +230,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 	}
 
 	private getUpdateChannel(): string {
-		const channel = this.settingsManager.getValue('update.channel') || 'default';
+		const channel = this.settingsService.getValue('update.channel') || 'default';
 		return channel === 'none' ? null : this.envService.quality;
 	}
 
@@ -247,6 +247,6 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 			return null;
 		}
 
-		return `${ this.envService.updateUrl }/api/update/${ getPlatformIdentifier() }/${ channel }/${ this.envService.product.commit }`;
+		return `${this.envService.updateUrl}/api/update/${getPlatformIdentifier()}/${channel}/${this.envService.product.commit}`;
 	}
 }

@@ -45,22 +45,22 @@ export class LaunchService implements ILaunchService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IWindowsService private windowsManager: IWindowsService
+		@IWindowsService private windowsService: IWindowsService
 	) {}
 
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void> {
 		this.logService.log('Received data from other instance', args);
 
-		// Otherwise handle in windows manager
+		// Otherwise handle in windows service
 		let usedWindows: VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsManager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
+			this.windowsService.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			usedWindows = this.windowsManager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
+			usedWindows = this.windowsService.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args.pathArguments.length === 0) {
-			usedWindows = [this.windowsManager.focusLastActive(args)];
+			usedWindows = [this.windowsService.focusLastActive(args)];
 		} else {
-			usedWindows = this.windowsManager.open({
+			usedWindows = this.windowsService.open({
 				cli: args,
 				userEnv: userEnv,
 				forceNewWindow: args.waitForWindowClose || args.openNewWindow,
@@ -76,7 +76,7 @@ export class LaunchService implements ILaunchService {
 
 			return new TPromise<void>((c, e) => {
 
-				const unbind = this.windowsManager.onClose(id => {
+				const unbind = this.windowsService.onClose(id => {
 					if (id === windowId) {
 						unbind();
 						c(null);
