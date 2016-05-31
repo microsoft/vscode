@@ -7,6 +7,7 @@
 
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
+import { checksum } from 'vs/base/node/crypto';
 import { EventEmitter } from 'events';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
@@ -24,6 +25,7 @@ export interface IUpdate {
 	name: string;
 	releaseNotes?: string;
 	version?: string;
+	hash?: string;
 }
 
 export class Win32AutoUpdaterImpl extends EventEmitter {
@@ -83,10 +85,12 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 							}
 
 							const url = update.url;
+							const hash = update.hash;
 							const downloadPath = `${updatePackagePath}.tmp`;
 							const agent = getProxyAgent(url, { proxyUrl, strictSSL });
 
 							return download(downloadPath, { url, agent, strictSSL })
+								.then(hash ? () => checksum(downloadPath, update.hash) : () => null)
 								.then(() => pfs.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
