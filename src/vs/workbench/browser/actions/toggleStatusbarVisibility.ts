@@ -12,10 +12,10 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 
-const ID = 'workbench.action.toggleStatusbarVisibility';
-const LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
-
 export class ToggleStatusbarVisibilityAction extends Action {
+
+	public static ID = 'workbench.action.toggleStatusbarVisibility';
+	public static LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
 
 	constructor(id: string, label: string, @IPartService private partService: IPartService) {
 		super(id, label);
@@ -32,4 +32,4 @@ export class ToggleStatusbarVisibilityAction extends Action {
 }
 
 let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleStatusbarVisibilityAction, ID, LABEL), 'View: Toggle Status Bar Visibility', nls.localize('view', "View"));
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, ToggleStatusbarVisibilityAction.LABEL), 'View: Toggle Status Bar Visibility', nls.localize('view', "View"));

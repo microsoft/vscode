@@ -412,8 +412,6 @@ export class Workbench implements IPartService {
 	}
 
 	private initSettings(): void {
-		// Statusbar visibility
-		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.WORKSPACE, false);
 
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
@@ -436,6 +434,9 @@ export class Workbench implements IPartService {
 		// Sidebar position
 		let rawPosition = this.storageService.get(Workbench.sidebarPositionSettingKey, StorageScope.GLOBAL, 'left');
 		this.sideBarPosition = (rawPosition === 'left') ? Position.LEFT : Position.RIGHT;
+
+		// Statusbar visibility
+		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.WORKSPACE, false);
 	}
 
 	/**
@@ -477,10 +478,6 @@ export class Workbench implements IPartService {
 				container = this.editorPart.getContainer();
 				break;
 			case Parts.STATUSBAR_PART:
-				if (!this.statusbarPart) {
-					return false; // could be disabled by options
-				}
-
 				container = this.statusbarPart.getContainer();
 				break;
 		}
@@ -489,14 +486,13 @@ export class Workbench implements IPartService {
 	}
 
 	public isVisible(part: Parts): boolean {
-		if (part === Parts.SIDEBAR_PART) {
-			return !this.sideBarHidden;
-		}
-		if (part === Parts.PANEL_PART) {
-			return !this.panelHidden;
-		}
-		if (part === Parts.STATUSBAR_PART) {
-			return !this.statusBarHidden;
+		switch (part) {
+			case Parts.SIDEBAR_PART:
+				return !this.sideBarHidden;
+			case Parts.PANEL_PART:
+				return !this.panelHidden;
+			case Parts.STATUSBAR_PART:
+				return !this.statusBarHidden;
 		}
 
 		return true; // any other part cannot be hidden
@@ -513,6 +509,7 @@ export class Workbench implements IPartService {
 		if (!skipLayout) {
 			this.workbenchLayout.layout(true);
 		}
+		
 		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 

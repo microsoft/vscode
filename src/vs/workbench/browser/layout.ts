@@ -273,6 +273,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		const panelStyle = this.panel.getContainer().getComputedStyle();
 		const editorStyle = this.editor.getContainer().getComputedStyle();
 		const activitybarStyle = this.activitybar.getContainer().getComputedStyle();
+		const statusbarStyle = this.statusbar.getContainer().getComputedStyle();
 
 		this.computedStyles = {
 			activitybar: {
@@ -292,14 +293,9 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			},
 
 			statusbar: {
-				height: 0
+				height: parseInt(statusbarStyle.getPropertyValue('height'), 10) || 18
 			}
 		};
-
-		if (this.statusbar) {
-			const statusbarStyle = this.statusbar.getContainer().getComputedStyle();
-			this.computedStyles.statusbar.height = parseInt(statusbarStyle.getPropertyValue('height'), 10) || 18;
-		}
 	}
 
 	public layout(forceStyleReCompute?: boolean): void {
@@ -331,11 +327,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			sidebarWidth = this.workbenchSize.width / 5;
 			this.sidebarWidth = sidebarWidth;
 		}
+
 		let statusbarHeight = isStatusbarHidden ? 0 : this.computedStyles.statusbar.height;
-		if (this.statusbar) {
-			let statusbarStyle = this.statusbar.getContainer().getHTMLElement().style;
-			statusbarStyle.display = isStatusbarHidden ? 'none' : null;
-		}
 
 		this.sidebarHeight = this.workbenchSize.height - statusbarHeight;
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
@@ -387,6 +380,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		if (visibleEditorCount > 1) {
 			editorMinWidth *= visibleEditorCount;
 		}
+
 		if (editorSize.width < editorMinWidth) {
 			let diff = editorMinWidth - editorSize.width;
 			editorSize.width = editorMinWidth;
@@ -451,9 +445,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		// Statusbar Part
-		if (this.statusbar) {
-			this.statusbar.getContainer().position(this.workbenchSize.height - statusbarHeight);
-		}
+		this.statusbar.getContainer().position(this.workbenchSize.height - statusbarHeight);
 
 		// Quick open
 		this.quickopen.layout(this.workbenchSize);
@@ -468,9 +460,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panel.layout(panelDimension);
 
 		// Propagate to Context View
-		if (this.contextViewService) {
-			this.contextViewService.layout();
-		}
+		this.contextViewService.layout();
 	}
 
 	private getWorkbenchArea(): Dimension {
@@ -503,8 +493,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getHorizontalSashTop(sash: Sash): number {
-		// Horizontal sash should be a bit lower than the editor area, thus add 2px #5524
-		return 2 + (this.partService.isPanelHidden() ? this.sidebarHeight : this.sidebarHeight - this.panelHeight);
+		return 2 + (this.partService.isPanelHidden() ? this.sidebarHeight : this.sidebarHeight - this.panelHeight); // Horizontal sash should be a bit lower than the editor area, thus add 2px #5524
 	}
 
 	public getHorizontalSashLeft(sash: Sash): number {
