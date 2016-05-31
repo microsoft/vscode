@@ -5,6 +5,7 @@
 
 import path = require('path');
 import nls = require('vs/nls');
+import { sequence } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import Event, { Emitter } from 'vs/base/common/event';
@@ -242,21 +243,24 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	 * Resolve all interactive variables in configuration #6569
 	 */
 	public resolveInteractiveVariables(): TPromise<debug.IConfig>  {
-		const promises = [];
-		Object.keys(this.configuration).forEach(key => {
-			const matches = /\${action.(.+)}/.exec(this.configuration[key]);
-			if (matches && matches.length === 2) {
-				const commandId = this.adapter.variables[matches[1]];
-				if (!commandId) {
-					promises.push(TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, matches[1])));
-				} else {
-					promises.push(this.keybindingService.executeCommand<string>(commandId, this.configuration)
-						.then(result => this.configuration[key] = result));
+		const factory = Object.keys(this.configuration).map(key => {
+			return () => {
+				const matches = /\${action.(.+)}/.exec(this.configuration[key]);
+				if (matches && matches.length === 2) {
+					const commandId = this.adapter.variables[matches[1]];
+					if (!commandId) {
+						return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, matches[1]));
+					} else {
+						return this.keybindingService.executeCommand<string>(commandId, this.configuration)
+							.then(result => this.configuration[key] = result);
+					}
 				}
-			}
+
+				return TPromise.as(null);
+			};
 		});
 
-		return TPromise.join(promises).then(() => this.configuration);
+		return sequence(factory).then(() => this.configuration);
 	}
 
 	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
