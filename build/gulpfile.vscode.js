@@ -270,6 +270,7 @@ function prepareDebPackage(arch) {
 	return function () {
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
@@ -340,6 +341,7 @@ function prepareRpmPackage(arch) {
 	return function () {
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
 

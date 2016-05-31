@@ -202,27 +202,40 @@ export class TerminalPanel extends Panel {
 					this.focusTerminal();
 				}
 			}));
+			this.toDispose.push(DOM.addDisposableListener(this.parentDomElement, 'keyup', (event: KeyboardEvent) => {
+				// Keep terminal open on escape
+				if (event.keyCode === 27) {
+					event.stopPropagation();
+				}
+			}));
 			this.toDispose.push(this.themeService.onDidThemeChange((themeId) => {
-				this.setTerminalTheme(themeId);
+				this.setTerminalTheme();
+			}));
+			this.toDispose.push(this.configurationService.onDidUpdateConfiguration((e) => {
+				this.setTerminalFont();
 			}));
 
 			this.terminal.open(this.terminalDomElement);
 			this.parentDomElement.appendChild(terminalScrollbar.getDomNode());
 
-			let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
-			this.terminalDomElement.style.fontFamily = config.terminal.integrated.fontFamily;
-			this.setTerminalTheme(this.themeService.getTheme());
+			this.setTerminalFont();
+			this.setTerminalTheme();
 			resolve(void 0);
 		});
 	}
 
-	private setTerminalTheme(themeId: string) {
+	private setTerminalTheme() {
 		if (!this.terminal) {
 			return;
 		}
-		let baseThemeId = getBaseThemeId(themeId);
+		let baseThemeId = getBaseThemeId(this.themeService.getTheme());
 		this.terminal.colors = DEFAULT_ANSI_COLORS[baseThemeId];
 		this.terminal.refresh(0, this.terminal.rows);
+	}
+
+	private setTerminalFont() {
+		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		this.terminalDomElement.style.fontFamily = config.terminal.integrated.fontFamily;
 	}
 
 	public focus(): void {
