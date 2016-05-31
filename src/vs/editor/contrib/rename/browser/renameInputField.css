@@ -5,7 +5,7 @@
 
 .monaco-editor .rename-box {
 	box-shadow: 0 2px 8px #A8A8A8;
-	z-index: 1;
+	z-index: 100;
 	color: inherit;
 }
 
