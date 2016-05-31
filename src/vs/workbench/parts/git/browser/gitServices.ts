@@ -480,7 +480,7 @@ export class GitService extends ee.EventEmitter
 			return;
 		}
 
-		var onError = async.once<any, void>(e => {
+		var onError = async.once(e => {
 			if (!errors.isPromiseCanceledError(e)) {
 				this.messageService.show(severity.Error, e);
 			}

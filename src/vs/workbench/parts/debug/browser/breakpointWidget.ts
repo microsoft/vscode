@@ -75,7 +75,7 @@ export class BreakpointWidget extends ZoneWidget {
 		setTimeout(() => this.inputBox.focus(), 0);
 
 		let disposed = false;
-		const wrapUp = async.once<any, void>((success: boolean) => {
+		const wrapUp = async.once((success: boolean) => {
 			if (!disposed) {
 				disposed = true;
 				if (success) {

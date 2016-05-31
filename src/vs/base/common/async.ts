@@ -389,14 +389,10 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 	return TPromise.as(null).then(thenHandler);
 }
 
-export interface IFunction<A, R> {
-	(...args: A[]): R;
-}
-
-export function once<A, R>(fn: IFunction<A, R>): IFunction<A, R> {
+export function once<T extends Function>(fn: T): T {
 	const _this = this;
 	let didCall = false;
-	let result: R;
+	let result: any;
 
 	return function() {
 		if (didCall) {
@@ -407,7 +403,7 @@ export function once<A, R>(fn: IFunction<A, R>): IFunction<A, R> {
 		result = fn.apply(_this, arguments);
 
 		return result;
-	};
+	} as any as T;
 }
 
 interface ILimitedTaskFactory {

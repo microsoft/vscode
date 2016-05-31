@@ -99,7 +99,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	let disposed = false;
 	const toDispose: [lifecycle.IDisposable] = [inputBox];
 
-	const wrapUp = async.once<any, void>((renamed: boolean) => {
+	const wrapUp = async.once((renamed: boolean) => {
 		if (!disposed) {
 			disposed = true;
 			if (element instanceof model.Expression && renamed && inputBox.value) {

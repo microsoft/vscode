@@ -300,7 +300,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		let done = async.once<boolean, void>(commit => {
+		let done = async.once(commit => {
 			tree.clearHighlight();
 
 			if (commit && inputBox.value) {
