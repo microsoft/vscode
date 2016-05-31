@@ -31,11 +31,11 @@ const $ = dom.emmet;
 export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	private static MEMENTO_COLLAPSED = 'openEditors.memento.collapsed';
-	private static DEFAULT_MAX_VISIBLE_OPEN_EDITORS = 9;
+	private static DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
 
 	private settings: any;
-	private maxVisibleOpenEditors: number;
+	private visibleOpenEditors: number;
 	private dynamicHeight: boolean;
 
 	private model: IEditorStacksModel;
@@ -178,11 +178,11 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
-		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.maxVisible;
+		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.visible;
 		if (typeof visibleOpenEditors === 'number') {
-			this.maxVisibleOpenEditors = visibleOpenEditors;
+			this.visibleOpenEditors = visibleOpenEditors;
 		} else {
-			this.maxVisibleOpenEditors = OpenEditorsView.DEFAULT_MAX_VISIBLE_OPEN_EDITORS;
+			this.visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
 		}
 
 		let dynamicHeight = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.dynamicHeight;
@@ -241,17 +241,17 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private getExpandedBodySize(model: IEditorStacksModel): number {
-		return OpenEditorsView.computeExpandedBodySize(model, this.maxVisibleOpenEditors, this.dynamicHeight);
+		return OpenEditorsView.computeExpandedBodySize(model, this.visibleOpenEditors, this.dynamicHeight);
 	}
 
-	private static computeExpandedBodySize(model: IEditorStacksModel, maxVisibleOpenEditors = OpenEditorsView.DEFAULT_MAX_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
+	private static computeExpandedBodySize(model: IEditorStacksModel, visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
 		const entryCount = model.groups.reduce((sum, group) => sum + group.count, 0);
 
 		let itemsToShow: number;
 		if (dynamicHeight) {
-			itemsToShow = Math.min(Math.max(maxVisibleOpenEditors, 1), entryCount);
+			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), entryCount);
 		} else {
-			itemsToShow = Math.max(maxVisibleOpenEditors, 1);
+			itemsToShow = Math.max(visibleOpenEditors, 1);
 		}
 		// We only show the group labels if there is more than 1 group
 		if (model.groups.length > 1) {

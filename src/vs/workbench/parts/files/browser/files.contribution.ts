@@ -238,9 +238,9 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('explorerConfigurationTitle', "File Explorer configuration"),
 	'type': 'object',
 	'properties': {
-		'explorer.openEditors.maxVisible': {
+		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize('maxVisible', "Maximum number of open editors to show before scrollbars appear. If set to 0 open editors section gets hidden - only applied after VSCode restart."),
+			'description': nls.localize('openEditorsVisible', "Number of editors shown in the Open Editors pane. Set it to 0 to hide the pane."),
 			'default': 9
 		},
 		'explorer.openEditors.dynamicHeight': {

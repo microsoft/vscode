@@ -61,7 +61,7 @@ export class ExplorerViewlet extends Viewlet {
 
 		return this.configurationService.loadConfiguration().then((config:IFilesConfiguration) => {
 			// Open editors view should always be visible in no folder workspace.
-			this.openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.maxVisible !== 0;
+			this.openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
 			if (this.openEditorsVisible) {
 				this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
 
