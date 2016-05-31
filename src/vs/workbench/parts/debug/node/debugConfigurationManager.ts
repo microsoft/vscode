@@ -239,11 +239,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	}
 
 	/**
-	 * Resolve all interactive variables:
-	 * 1. find all interactive variables in the given configuration and remember them in top to bottom, left to right order. If a variable occurs more than once, only remember it once.
-	 * 2. for each variable find a command mapping in the package.json of the debug adapter. If a mapping is missing, show an error and abort.
-	 * 3. execute all commands in remembered order and remember the command's result as the value of the corresponding variable.
-	 * 4. substitute all variables.
+	 * Resolve all interactive variables in configuration #6569
 	 */
 	public resolveInteractiveVariables(): TPromise<debug.IConfig>  {
 		const promises = [];
