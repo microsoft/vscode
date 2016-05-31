@@ -203,28 +203,30 @@ export class ReferencesModel {
 	}
 
 	public nearestReference(resource: URI, position: IPosition): OneReference {
-		let candidate: OneReference;
-		let candiateDist: number;
-		for (let ref of this._references) {
-			if (ref.uri.toString() !== resource.toString()) {
-				continue;
-			}
 
-			if (Range.containsPosition(ref.range, position)) {
-				// best match (!)
-				return ref;
+		const nearest = this._references.map((ref, idx) => {
+			return {
+				idx,
+				prefixLen: strings.commonPrefixLength(ref.uri.toString(), resource.toString()),
+				offsetDist: Math.abs(ref.range.startLineNumber - position.lineNumber) * 100 + Math.abs(ref.range.startColumn - position.column)
+			};
+		}).sort((a, b) => {
+			if (a.prefixLen > b.prefixLen) {
+				return -1;
+			} else if (a.prefixLen < b.prefixLen) {
+				return 1;
+			} else if (a.offsetDist < b.offsetDist) {
+				return -1;
+			} else if (a.offsetDist > b.offsetDist) {
+				return 1;
+			} else {
+				return 0;
 			}
+		})[0];
 
-			let dist =
-				(Math.abs(ref.range.startLineNumber - position.lineNumber) * 100)
-				+ Math.abs(ref.range.startColumn - position.column);
-
-			if (!candidate || dist <= candiateDist) {
-				candidate = ref;
-				candiateDist = dist;
-			}
+		if (nearest) {
+			return this._references[nearest.idx];
 		}
-		return candidate || this._references[0];
 	}
 
 	private static _compareReferences(a: Location, b: Location): number {
