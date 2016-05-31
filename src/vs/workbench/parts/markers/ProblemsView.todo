@@ -31,6 +31,7 @@ Problems Panel:
 		☐ Expand a file if there is a new error after it was removed from the panel
 
 	Clean Up:
+		☐ Messages file - put strings under quotes
 		☐ Markers handler in quick open contributions
 		☐ Linked Map to extend/reuse General map
 		☐ Collapse action to use default collapse action from Tree
