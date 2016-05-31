@@ -39,9 +39,8 @@ configurationRegistry.registerConfiguration({
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
 		},
 		'terminal.integrated.fontFamily': {
-			'description': nls.localize('terminal.integrated.fontFamily', "The font family used by the terminal (CSS font-family format)."),
-			'type': 'string',
-			'default': 'Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback"'
+			'description': nls.localize('terminal.integrated.fontFamily', "The font family used by the terminal (CSS font-family format), this defaults to editor.fontFamily's value."),
+			'type': 'string'
 		}
 	}
 });

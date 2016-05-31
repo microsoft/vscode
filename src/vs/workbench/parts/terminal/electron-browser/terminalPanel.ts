@@ -14,6 +14,7 @@ import platform = require('vs/base/common/platform');
 import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
+import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStringDictionary} from 'vs/base/common/collections';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -233,9 +234,18 @@ export class TerminalPanel extends Panel {
 		this.terminal.refresh(0, this.terminal.rows);
 	}
 
+	/**
+	 * Set the terminal font to `terminal.integrated.fontFamily` if it is set, otherwise fallback to
+	 * `editor.fontFamily`.
+	 */
 	private setTerminalFont() {
-		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
-		this.terminalDomElement.style.fontFamily = config.terminal.integrated.fontFamily;
+		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		let fontFamily = terminalConfig.terminal.integrated.fontFamily;
+		if (!fontFamily) {
+			let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
+			fontFamily = editorConfig.editor.fontFamily;
+		}
+		this.terminalDomElement.style.fontFamily = fontFamily;
 	}
 
 	public focus(): void {
