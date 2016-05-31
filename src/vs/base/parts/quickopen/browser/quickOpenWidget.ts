@@ -432,7 +432,7 @@ export class QuickOpenWidget implements IModelProvider {
 		const isCtrlCmd = event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey)));
 
 		return isCtrlCmd ? [KeyMod.CtrlCmd] : [];
-}
+	}
 
 	public show(prefix: string, options?: IShowOptions): void;
 	public show(input: IModel<any>, options?: IShowOptions): void;

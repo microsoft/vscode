@@ -21,7 +21,7 @@ import { ICommandLineArguments, IProcessEnvironment, IEnvironmentService, IParse
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
-import { ILogService } from 'vs/code/electron-main//log';
+import { ILogService } from 'vs/code/electron-main/log';
 import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
