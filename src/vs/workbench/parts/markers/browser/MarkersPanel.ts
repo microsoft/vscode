@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import * as errors from 'vs/base/common/errors';
 import * as Set from 'vs/base/common/set';
 import URI from 'vs/base/common/uri';
-import {Widget} from 'vs/base/browser/ui/widget';
 import { TPromise } from 'vs/base/common/winjs.base';
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -31,7 +30,6 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/MarkersActionProvider';
 import Messages from 'vs/workbench/parts/markers/common/Messages';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
-
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 
 export class MarkersPanel extends Panel {
@@ -39,8 +37,17 @@ export class MarkersPanel extends Panel {
 	private markersModel: MarkersModel;
 	private tree: Tree.ITree;
 	private toDispose: lifecycle.IDisposable[];
-	private actions: IAction[];
 	private handled: Set.ArraySet<string>;
+
+	private actions: IAction[];
+	private showFilterInputAction: IAction;
+	private showOnlyErrorsAction: IAction;
+	private collapseAllAction: IAction;
+
+	private messageBoxContainer: HTMLElement;
+	private messageBox: HTMLElement;
+	private filterInputBoxContainer: HTMLElement;
+	private filterInputBox: InputBox;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -59,31 +66,23 @@ export class MarkersPanel extends Panel {
 		super.create(parent);
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
 
-		var actionProvider = this.instantiationService.createInstance(ActionProvider);
-		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
-		var controller = this.instantiationService.createInstance(Controller);
-		this.tree = new TreeImpl.Tree(parent.getHTMLElement(), {
-			dataSource: new Viewer.DataSource(),
-			renderer: renderer,
-			controller: controller
-		}, {
-			indentPixels: 0,
-			twistiePixels: 20,
-		});
+		let container= dom.append(parent.getHTMLElement(), dom.emmet('.markers-panel-container'));
 
-		this.toDispose.push(this.markerService.onMarkerChanged((changedResources) => {
-			this.updateTitleArea();
-			this.updateResources(changedResources);
-			this.tree.refresh().then(this.autoExpand.bind(this));
-		}));
+		this.createMessageBox(container);
+		this.createFilterInputBox(container);
+		this.createTree(container);
+		this.createActions();
+
+		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged.bind(this)));
+
 		this.render();
+
 		return TPromise.as(null);
 	}
 
 	public getTitle():string {
 		let markerStatistics= this.markerService.getStatistics();
-		let title= MarkersModel.getStatisticsLabel(markerStatistics);
-		return title ? title : Messages.getString('markers.panel.no.problems');
+		return this.markersModel.getTitle(markerStatistics);
 	}
 
 	public layout(dimension: builder.Dimension): void {
@@ -91,23 +90,71 @@ export class MarkersPanel extends Panel {
 	}
 
 	public focus(): void {
-		this.tree.DOMFocus();
-		this.tree.focusFirst();
+		if (this.markersModel.hasFilteredResources()) {
+			this.tree.DOMFocus();
+			this.tree.focusFirst();
+		}
 	}
 
 	public getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [
-				new Action('workbench.markers.panel.action.filter', nls.localize('filter.markers', "Filter"), 'markers-panel-action-filter', true, this.showFilter.bind(this)),
-				new Action('workbench.markers.panel.action.toggle.errors', nls.localize('toggle.errors', "Show only errors"), 'markers-panel-action-toggle-errors', true, this.toggleShowOnlyErrors.bind(this)),
-				this.instantiationService.createInstance(CollapseAllAction, this.tree, true)
-			];
-
-			this.actions.forEach(a => {
-				this.toDispose.push(a);
-			});
+		this.showOnlyErrorsAction.enabled= this.markersModel.hasResources();
+		if (this.markersModel.hasFilteredResources()) {
+			this.showFilterInputAction.enabled= true;
+			this.collapseAllAction.enabled= true;
+		} else {
+			this.showFilterInputAction.enabled= !!this.markersModel.filter;
+			this.collapseAllAction.enabled= false;
 		}
 		return this.actions;
+	}
+
+	private createMessageBox(parent: HTMLElement): void {
+		this.messageBoxContainer= dom.append(parent, dom.emmet('.message-box-container'));
+		this.messageBox= dom.append(this.messageBoxContainer, dom.emmet('p'));
+	}
+
+	private createFilterInputBox(parent: HTMLElement): void {
+		this.filterInputBoxContainer= dom.append(parent, dom.emmet('.filter-box-container'));
+		this.filterInputBox= new InputBox(this.filterInputBoxContainer, this.contextViewService, {
+			placeholder: Messages.getString('markers.panel.filter.placeholder')
+		});
+		this.toDispose.push(this.filterInputBox.onDidChange((filter:string) => {
+			this.markersModel.filter= filter;
+			this.refreshPanel();
+		}));
+	}
+
+	private createTree(parent: HTMLElement):void {
+		var actionProvider = this.instantiationService.createInstance(ActionProvider);
+		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
+		var controller = this.instantiationService.createInstance(Controller);
+		this.tree= new TreeImpl.Tree(parent, {
+			dataSource: new Viewer.DataSource(),
+			renderer: renderer,
+			controller: controller
+		}, {
+			indentPixels: 0,
+			twistiePixels: 20,
+		});
+	}
+
+	private createActions():void {
+		this.collapseAllAction= this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
+		this.showOnlyErrorsAction= new Action('workbench.markers.panel.action.toggle.errors', nls.localize('toggle.errors', "Show only errors"), 'markers-panel-action-toggle-errors', true, this.toggleShowOnlyErrors.bind(this));
+		this.showFilterInputAction= new Action('workbench.markers.panel.action.filter', nls.localize('filter.markers', "Filter"), 'markers-panel-action-filter', true, this.toggleFilter.bind(this));
+		this.actions= [
+					this.showFilterInputAction,
+					this.showOnlyErrorsAction,
+					this.collapseAllAction
+				];
+		this.actions.forEach(a => {
+			this.toDispose.push(a);
+		});
+	}
+
+	private onMarkerChanged(changedResources: URI[]) {
+		this.updateResources(changedResources);
+		this.refreshPanel();
 	}
 
 	private updateResources(resources: URI[]) {
@@ -117,14 +164,30 @@ export class MarkersPanel extends Panel {
 		});
 	}
 
+	private refreshPanel(focus: boolean= false):void {
+		this.updateTitleArea();
+		this.tree.refresh().then(this.autoExpand.bind(this));
+		this.renderMessage();
+		if (focus) {
+			this.focus();
+		}
+	}
+
 	private render(): void {
 		let allMarkers = this.markerService.read().slice(0);
 		this.markersModel.updateMarkers(allMarkers);
 		this.tree.setInput(this.markersModel).then(this.autoExpand.bind(this));
+		this.renderMessage();
+	}
+
+	private renderMessage():void {
+		let message= this.markersModel.getMessage();
+		this.messageBox.textContent= message;
+		dom.toggleClass(this.messageBoxContainer, 'visible', !this.markersModel.hasFilteredResources());
 	}
 
 	private autoExpand(): void {
-		this.markersModel.getResources().forEach((resource) => {
+		this.markersModel.getFilteredResources().forEach((resource) => {
 			if (this.handled.contains(resource.uri.toString())) {
 				return;
 			}
@@ -137,15 +200,18 @@ export class MarkersPanel extends Panel {
 		});
 	}
 
-	private showFilter(): any {
+	private toggleFilter(): any {
+		this.tree.clearSelection();
+		dom.toggleClass(this.filterInputBoxContainer, 'visible');
+		this.filterInputBox.focus();
 		return TPromise.as(null);
 	}
 
 	private toggleShowOnlyErrors(): any {
 		this.markersModel.showOnlyErrors= !this.markersModel.showOnlyErrors;
 		this.actions[1].label= this.markersModel.showOnlyErrors ? nls.localize('toggle.all', "Show all") : nls.localize('toggle.errors', "Show only errors");
-		this.actions[1].class= this.markersModel.showOnlyErrors ? 'markers-panel-action-toggle-all' : 'markers-panel-action-toggle-errors'
-		return this.tree.refresh().then(this.focus.bind(this));
+		this.actions[1].class= this.markersModel.showOnlyErrors ? 'markers-panel-action-toggle-all' : 'markers-panel-action-toggle-errors';
+		this.refreshPanel(true);
 	}
 
 	public dispose(): void {

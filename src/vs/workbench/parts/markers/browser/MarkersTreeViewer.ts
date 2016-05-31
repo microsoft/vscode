@@ -48,7 +48,7 @@ export class DataSource implements IDataSource {
 
 	public getChildren(tree: ITree, element: any): Promise {
 		if (element instanceof MarkersModel) {
-			return TPromise.as(element.getResources());
+			return TPromise.as((<MarkersModel>element).getFilteredResources());
 		}
 		if (element instanceof Resource) {
 			return TPromise.as(element.markers);

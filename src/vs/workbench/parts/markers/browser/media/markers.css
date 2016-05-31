@@ -3,21 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.markers-panel .icon {
-	float: left;
-	display: block;
-	width: 16px;
-	height: 22px;
-	margin-right: 4px;
-	margin-left: 4px;
+.markers-panel .markers-panel-container {
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	position: relative;
 }
 
-.markers-panel > .monaco-tree .monaco-tree-row .content .marker-stats {
+.message-box-container {
+	padding: 0 20px 0 20px;
+	display: none;
+}
+
+.markers-panel .message-box-container.visible {
+	display: block;
+}
+
+.markers-panel .markers-panel-container .filter-box-container {
+	position: absolute;
+	right: 10px;
+	top: -40px;
+	width: 250px;
+	z-index: 10;
+
+	-webkit-transition: top 200ms linear;
+	-o-transition: top 200ms linear;
+	-moz-transition: top 200ms linear;
+	-ms-transition: top 200ms linear;
+	transition: top 200ms linear;
+}
+
+.markers-panel .markers-panel-container .filter-box-container.visible {
+	top: 0;
+}
+
+.markers-panel .markers-panel-container .monaco-tree .monaco-tree-row .content .marker-stats {
 	display: inline-block;
 	margin-left: 10px;
 }
 
-.markers-panel > .monaco-tree .monaco-tree-row .content .count-badge-wrapper {
+.markers-panel .markers-panel-container .monaco-tree .monaco-tree-row .content .count-badge-wrapper {
 	display: inline-block;
 	margin-left: 10px;
 	line-height: 22px;
@@ -39,13 +64,13 @@
 	background: url('ellipsis.svg') top center no-repeat;
 }
 
-.markers-panel .filter-container {
-	position: absolute;
-	right: 0px;
-}
-
-.markers-panel .filter-container.filter-container-hidden {
-	display: none;
+.markers-panel .icon {
+	float: left;
+	display: block;
+	width: 16px;
+	height: 22px;
+	margin-right: 4px;
+	margin-left: 4px;
 }
 
 .markers-panel .icon.warning {
@@ -56,11 +81,6 @@
 .markers-panel-action-toggle-all,
 .markers-panel .icon.error {
 	background: url('status-error.svg') center center no-repeat;
-}
-
-.markers-panel-action-toggle-all {
-	background-color: #E8E8E8;
-    border-radius: 25%;
 }
 
 .markers-panel .icon.info:before {
