@@ -430,8 +430,7 @@ export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
 	}
 }
 
-// Collapse All action
-export class CollapseAction extends Action {
+export class CollapseAllAction extends Action {
 
 	constructor(viewer: _.ITree, enabled: boolean) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), 'monaco-tree-action collapse-all', enabled, (context: any) => {

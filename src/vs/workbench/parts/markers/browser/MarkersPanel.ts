@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/markers';
+
+import nls = require('vs/nls');
 import * as errors from 'vs/base/common/errors';
 import * as Set from 'vs/base/common/set';
 import URI from 'vs/base/common/uri';
+import {Widget} from 'vs/base/browser/ui/widget';
 import { TPromise } from 'vs/base/common/winjs.base';
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
 import builder = require('vs/base/browser/builder');
+import {Action} from 'vs/base/common/actions';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -20,12 +24,15 @@ import Constants from 'vs/workbench/parts/markers/common/Constants';
 import { MarkersModel } from 'vs/workbench/parts/markers/common/MarkersModel';
 import {Controller} from 'vs/workbench/parts/markers/browser/MarkersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
-import {CollapseAction} from 'vs/base/parts/tree/browser/treeDefaults';
+import {CollapseAllAction} from 'vs/base/parts/tree/browser/treeDefaults';
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import * as Viewer from 'vs/workbench/parts/markers/browser/MarkersTreeViewer';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import { ActionProvider } from 'vs/workbench/parts/markers/browser/MarkersActionProvider';
 import Messages from 'vs/workbench/parts/markers/common/Messages';
+import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
+
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 
 export class MarkersPanel extends Panel {
 
@@ -39,6 +46,7 @@ export class MarkersPanel extends Panel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMarkerService private markerService: IMarkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IContextViewService private contextViewService: IContextViewService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
@@ -90,7 +98,9 @@ export class MarkersPanel extends Panel {
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(CollapseAction, this.tree, true)
+				new Action('workbench.markers.panel.action.filter', nls.localize('filter.markers', "Filter"), 'markers-panel-action-filter', true, this.showFilter.bind(this)),
+				new Action('workbench.markers.panel.action.toggle.errors', nls.localize('toggle.errors', "Show only errors"), 'markers-panel-action-toggle-errors', true, this.toggleShowOnlyErrors.bind(this)),
+				this.instantiationService.createInstance(CollapseAllAction, this.tree, true)
 			];
 
 			this.actions.forEach(a => {
@@ -125,6 +135,17 @@ export class MarkersPanel extends Panel {
 			}
 			this.handled.set(resource.uri.toString());
 		});
+	}
+
+	private showFilter(): any {
+		return TPromise.as(null);
+	}
+
+	private toggleShowOnlyErrors(): any {
+		this.markersModel.showOnlyErrors= !this.markersModel.showOnlyErrors;
+		this.actions[1].label= this.markersModel.showOnlyErrors ? nls.localize('toggle.all', "Show all") : nls.localize('toggle.errors', "Show only errors");
+		this.actions[1].class= this.markersModel.showOnlyErrors ? 'markers-panel-action-toggle-all' : 'markers-panel-action-toggle-errors'
+		return this.tree.refresh().then(this.focus.bind(this));
 	}
 
 	public dispose(): void {

@@ -21,6 +21,7 @@ export class Marker {
 export class MarkersModel {
 
 	private markersByResource: Map.SimpleMap<URI, IMarker[]>;
+	public showOnlyErrors:boolean= false;
 
 	constructor(markers: IMarker[]= []) {
 		this.markersByResource= new Map.SimpleMap<URI, IMarker[]>();
@@ -29,6 +30,7 @@ export class MarkersModel {
 
 	public getResources():Resource[] {
 		var resources= <Resource[]>this.markersByResource.entries().map(this.toResource.bind(this));
+		resources= resources.filter((resource) => {return !!resource;});
 		resources.sort((a: Resource, b: Resource) => {
 			return a.uri.toString().localeCompare(b.uri.toString());
 		});
@@ -46,37 +48,21 @@ export class MarkersModel {
 
 	public updateMarkers(markers: IMarker[]) {
 		markers.forEach((marker:IMarker) => {
-			let uri:URI= marker.resource;
-			let markers:IMarker[]= this.markersByResource.get(uri);
+			let uri: URI = marker.resource;
+			let markers: IMarker[] = this.markersByResource.get(uri);
 			if (!markers) {
-				markers= [];
+				markers = [];
 				this.markersByResource.set(uri, markers);
 			}
 			markers.push(marker);
 		});
 	}
 
-	public static getStatisticsLabel(marketStatistics: MarkerStatistics):string {
-		let label= this.getLabel('',  marketStatistics.errors, 'markers.panel.single.error.label', 'markers.panel.multiple.errors.label');
-		label= this.getLabel(label,  marketStatistics.warnings, 'markers.panel.single.warning.label', 'markers.panel.multiple.warnings.label');
-		label= this.getLabel(label,  marketStatistics.infos, 'markers.panel.single.info.label', 'markers.panel.multiple.infos.label');
-		label= this.getLabel(label,  marketStatistics.unknwons, 'markers.panel.single.unknown.label', 'markers.panel.multiple.unknowns.label');
-		return label;
-	}
-
-	private static getLabel(title: string, markersCount: number, singleMarkerKey: string, multipleMarkerKey: string): string {
-		if (markersCount <= 0) {
-			return title;
-		}
-		title= title ? title + ', ' : '';
-		title += Messages.getString(markersCount === 1 ? singleMarkerKey : multipleMarkerKey, ''+markersCount);
-		return title;
-	}
-
 	private toResource(entry: Map.Entry<URI, IMarker[]>) {
-		let markers= entry.value.map(this.toMarker);
-		let resource= new Resource(entry.key, markers, this.getStatistics(entry.value));
-		return resource;
+		let markers= entry.value.filter((marker) => {
+			return !this.showOnlyErrors || Severity.Error === marker.severity;
+		}).map(this.toMarker);
+		return markers.length > 0 ? new Resource(entry.key, markers, this.getStatistics(entry.value)) : null;
 	}
 
 	private toMarker(marker: IMarker, index: number):Marker {
@@ -102,5 +88,22 @@ export class MarkersModel {
 			}
 		});
 		return {errors: errors, warnings: warnings, infos: infos, unknwons: unknowns};
+	}
+
+	public static getStatisticsLabel(marketStatistics: MarkerStatistics):string {
+		let label= this.getLabel('',  marketStatistics.errors, 'markers.panel.single.error.label', 'markers.panel.multiple.errors.label');
+		label= this.getLabel(label,  marketStatistics.warnings, 'markers.panel.single.warning.label', 'markers.panel.multiple.warnings.label');
+		label= this.getLabel(label,  marketStatistics.infos, 'markers.panel.single.info.label', 'markers.panel.multiple.infos.label');
+		label= this.getLabel(label,  marketStatistics.unknwons, 'markers.panel.single.unknown.label', 'markers.panel.multiple.unknowns.label');
+		return label;
+	}
+
+	private static getLabel(title: string, markersCount: number, singleMarkerKey: string, multipleMarkerKey: string): string {
+		if (markersCount <= 0) {
+			return title;
+		}
+		title= title ? title + ', ' : '';
+		title += Messages.getString(markersCount === 1 ? singleMarkerKey : multipleMarkerKey, ''+markersCount);
+		return title;
 	}
 }

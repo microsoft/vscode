@@ -12,10 +12,6 @@
 	margin-left: 4px;
 }
 
-.markers-panel > .monaco-tree .monaco-tree-row .content > * {
-	vertical-align: middle;
-}
-
 .markers-panel > .monaco-tree .monaco-tree-row .content .marker-stats {
 	display: inline-block;
 	margin-left: 10px;
@@ -27,28 +23,44 @@
 	line-height: 22px;
 }
 
-.markers-panel > .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar,
-.markers-panel > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-action-bar {
-	display: block;
+.markers-panel-action-filter {
+	background: url('ellipsis.svg') top center no-repeat;
+}
+
+.hc-black .markers-panel-action-filter {
+	background: url('ellipsis-inverse.svg') top center no-repeat;
+}
+
+.vs-dark .markers-panel-action-filter {
+	background: url('ellipsis-inverse.svg') top center no-repeat;
+}
+
+.vs .markers-panel-action-filter {
+	background: url('ellipsis.svg') top center no-repeat;
+}
+
+.markers-panel .filter-container {
 	position: absolute;
-	top: 0;
-	right: 10px;
+	right: 0px;
 }
 
-.markers-panel > .monaco-tree .monaco-tree-row .content .monaco-action-bar {
+.markers-panel .filter-container.filter-container-hidden {
 	display: none;
-}
-
-a.action-label.icon.action-remove {
-	background: url("action-remove-dark.svg") center center no-repeat;
 }
 
 .markers-panel .icon.warning {
 	background: url('status-warning.svg') center center no-repeat;
 }
 
+.markers-panel-action-toggle-errors,
+.markers-panel-action-toggle-all,
 .markers-panel .icon.error {
 	background: url('status-error.svg') center center no-repeat;
+}
+
+.markers-panel-action-toggle-all {
+	background-color: #E8E8E8;
+    border-radius: 25%;
 }
 
 .markers-panel .icon.info:before {
@@ -59,6 +71,8 @@ a.action-label.icon.action-remove {
 	background: url('status-warning-inverse.svg') center center no-repeat;
 }
 
+.vs-dark .markers-panel-action-toggle-errors,
+.vs-dark .markers-panel-action-toggle-all,
 .vs-dark .markers-panel .icon.error {
 	background: url('status-error-inverse.svg') center center no-repeat;
 }
