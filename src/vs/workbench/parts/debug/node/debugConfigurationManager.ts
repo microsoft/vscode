@@ -74,6 +74,10 @@ export var debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExt
 				description: nls.localize('vscode.extension.contributes.debuggers.runtimeArgs', "Optional runtime arguments."),
 				type: 'array'
 			},
+			variables : {
+				description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g ${action.pickProcess}) in `launch.json` to a command."),
+				type: 'object'
+			},
 			initialConfigurations: {
 				description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
 				type: 'array',

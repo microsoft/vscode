@@ -20,6 +20,7 @@ export class Adapter {
 	private _label: string;
 	private configurationAttributes: any;
 	public initialConfigurations: any[];
+	public variables: { [key: string]: string };
 	public enableBreakpointsFor: { languageIds: string[] };
 	public aiKey: string;
 
@@ -65,6 +66,7 @@ export class Adapter {
 		}
 
 		this.type = rawAdapter.type;
+		this.variables = rawAdapter.variables;
 		this.configurationAttributes = rawAdapter.configurationAttributes;
 		this.initialConfigurations = rawAdapter.initialConfigurations;
 		this._label = rawAdapter.label;

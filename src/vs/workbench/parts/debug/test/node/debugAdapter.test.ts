@@ -37,7 +37,7 @@ suite('Debug - Adapter', () => {
 				}
 			}
 		},
-
+		variables: null,
 		initialConfigurations: [
 			{
 				name: 'Mock-Debug',
