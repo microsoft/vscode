@@ -57,6 +57,9 @@ export class DiffEditorInput extends BaseDiffEditorInput {
 				this.dispose();
 			}
 		}));
+
+		// When the modified model gets dirty, re-emit this to the outside
+		this._toUnbind.push(this.modifiedInput.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 	}
 
 	public get toUnbind() {

@@ -6,6 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
+import Event, {Emitter} from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
@@ -24,12 +25,21 @@ export enum ConfirmResult {
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
  */
 export abstract class EditorInput extends EventEmitter implements IEditorInput {
+	protected _onDidChangeDirty: Emitter<void>;
 	private disposed: boolean;
 
 	constructor() {
 		super();
 
+		this._onDidChangeDirty = new Emitter<void>();
 		this.disposed = false;
+	}
+
+	/**
+	 * Fired when the dirty state of this input changes.
+	 */
+	public get onDidChangeDirty(): Event<void> {
+		return this._onDidChangeDirty.event;
 	}
 
 	/**
@@ -565,23 +575,4 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 	let i = <IFileEditorInput>obj;
 
 	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
-}
-
-export function isInputRelated(sourceInput: EditorInput, targetInput: EditorInput): boolean {
-	if (!sourceInput || !targetInput) {
-		return false;
-	}
-
-	if (sourceInput.matches(targetInput)) {
-		return true;
-	}
-
-	if (sourceInput instanceof BaseDiffEditorInput) {
-		let modifiedInput = (<BaseDiffEditorInput>sourceInput).getModifiedInput();
-		if (modifiedInput && modifiedInput.matches(targetInput)) {
-			return true;
-		}
-	}
-
-	return false;
 }

@@ -101,6 +101,10 @@ class TestEditorInput extends EditorInput {
 	public matches(other: TestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestEditorInput;
 	}
+
+	public setDirty(): void {
+		this._onDidChangeDirty.fire();
+	}
 }
 
 class NonSerializableTestEditorInput extends EditorInput {
@@ -1607,5 +1611,43 @@ suite('Editor Stacks Model', () => {
 		assert.equal(diffInput.isDisposed(), true);
 		assert.equal(input2.isDisposed(), true);
 		assert.equal(input1.isDisposed(), false);
+	});
+
+	test('Stack - Multiple Editors - Editor Emits Dirty', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input();
+		const input2 = input();
+
+		group1.openEditor(input1, { pinned: true, active: true});
+		group2.openEditor(input2, { pinned: true, active: true });
+
+		let dirtyCounter = 0;
+		model.onEditorDirty(() => {
+			dirtyCounter++;
+		});
+
+		(<TestEditorInput>input1).setDirty();
+
+		assert.equal(dirtyCounter, 1);
+
+		(<TestEditorInput>input2).setDirty();
+
+		assert.equal(dirtyCounter, 2);
+
+		group2.closeAllEditors();
+
+		(<TestEditorInput>input2).setDirty();
+
+		assert.equal(dirtyCounter, 2);
+
+		model.closeGroups();
+
+		(<TestEditorInput>input1).setDirty();
+
+		assert.equal(dirtyCounter, 2);
 	});
 });

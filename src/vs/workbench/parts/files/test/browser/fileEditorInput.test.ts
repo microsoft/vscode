@@ -115,8 +115,18 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('Input.matches() - FileEditorInput', function () {
-		let fileEditorInput = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
-		let contentEditorInput2 = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
+		let eventService = new TestEventService();
+		let contextService = new TestContextService();
+
+		let services = new ServiceCollection();
+		let instantiationService = new InstantiationService(services);
+
+		services.set(IEventService, eventService);
+		services.set(IWorkspaceContextService, contextService);
+		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
+
+		let fileEditorInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
+		let contentEditorInput2 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
 
 		assert.strictEqual(fileEditorInput.matches(null), false);
 		assert.strictEqual(fileEditorInput.matches(fileEditorInput), true);

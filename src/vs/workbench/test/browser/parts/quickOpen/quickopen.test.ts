@@ -16,7 +16,9 @@ import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpe
 import {Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {EditorInput} from 'vs/workbench/common/editor';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {isEmptyObject} from 'vs/base/common/types';
+import {IEventService} from 'vs/platform/event/common/event';
 import {join} from 'vs/base/common/paths';
 import {Extensions, IEditorRegistry} from 'vs/workbench/browser/parts/editor/baseEditor';
 import URI from 'vs/base/common/uri';
@@ -96,10 +98,16 @@ suite('Workbench QuickOpen', () => {
 	test('EditorHistoryModel', () => {
 		Registry.as('workbench.contributions.editors').setInstantiationService(new InstantiationService());
 
+		let services = new ServiceCollection();
+
+		let eventService = new TestEventService();
 		let editorService = new TestEditorService();
 		let contextService = new TestContextService();
 
-		let inst = new InstantiationService(new ServiceCollection([IWorkbenchEditorService, editorService]));
+		services.set(IEventService, eventService);
+		services.set(IWorkspaceContextService, contextService);
+		services.set(IWorkbenchEditorService, editorService);
+		let inst = new InstantiationService(services);
 
 		let model = new EditorHistoryModel(editorService, inst, contextService);
 
@@ -202,13 +210,18 @@ suite('Workbench QuickOpen', () => {
 	});
 
 	test('QuickOpenController adds to history on editor input change and can handle dispose', () => {
-		let editorService = new TestEditorService();
+		let services = new ServiceCollection();
 
-		let eventService = new TestEventService();
 		let storageService = new TestStorageService();
+		let eventService = new TestEventService();
+		let editorService = new TestEditorService();
 		let contextService = new TestContextService();
 
-		let inst = new InstantiationService(new ServiceCollection([IWorkbenchEditorService, editorService]));
+		services.set(IEventService, eventService);
+		services.set(IWorkspaceContextService, contextService);
+		services.set(IWorkbenchEditorService, editorService);
+
+		let inst = new InstantiationService(services);
 
 		let controller = new QuickOpenController(
 			eventService,
@@ -226,7 +239,7 @@ suite('Workbench QuickOpen', () => {
 
 		assert.equal(0, controller.getEditorHistoryModel().getEntries().length);
 
-		let cinput1 = <EditorInput>inst.createInstance(fileInputCtor, toResource('Hello World'), 'text/plain', void 0);
+		let cinput1 = <EditorInput>inst.createInstance(fileInputCtor, toResource('Hello World'), 'text/plain', null);
 		let event = new EditorEvent(null, '', cinput1, null, Position.LEFT);
 		eventService.emit(EventType.EDITOR_INPUT_CHANGING, event);
 

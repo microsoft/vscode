@@ -20,7 +20,7 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/sash/sash';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor, IEditorInputActionContext} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, isInputRelated} from 'vs/workbench/common/editor';
+import {EditorInput} from 'vs/workbench/common/editor';
 import {EventType as BaseEventType} from 'vs/base/common/events';
 import DOM = require('vs/base/browser/dom');
 import {IActionItem, ActionsOrientation, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
@@ -86,7 +86,6 @@ export interface ISideBySideEditorControl {
 
 	recreateTitleArea(states: ITitleAreaState[]): void;
 	updateTitleArea(state: ITitleAreaState): void;
-	updateTitleArea(input: EditorInput): void;
 	clearTitleArea(position: Position): void;
 	setTitleLabel(position: Position, input: EditorInput, isPinned: boolean, isActive: boolean): void;
 
@@ -1178,49 +1177,32 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		return actionItem;
 	}
 
-	public updateTitleArea(state: ITitleAreaState): void;
-	public updateTitleArea(input: EditorInput): void;
-	public updateTitleArea(arg1: any): void {
+	public updateTitleArea(state: ITitleAreaState): void {
+		let editor = this.visibleEditors[state.position];
+		let input = editor ? editor.input : null;
 
-		// Update all title areas that relate to given input if provided
-		if (arg1 instanceof EditorInput) {
-			const input: EditorInput = arg1;
+		if (input && editor) {
 
-			// Update the input title actions in each position according to the new status
-			POSITIONS.forEach((position) => {
-				if (this.visibleEditors[position] && isInputRelated(this.visibleEditors[position].input, input)) {
-					this.closeEditorActions[position].class = input.isDirty() ? 'close-editor-dirty-action' : 'close-editor-action';
-				}
-			});
-		}
+			// Dirty
+			this.closeEditorActions[state.position].class = input.isDirty() ? 'close-editor-dirty-action' : 'close-editor-action';
 
-		// Otherwise update specific title position
-		else {
-			const state: ITitleAreaState = arg1;
+			// Pinned
+			const isPinned = !input.matches(state.preview);
+			if (isPinned) {
+				this.titleContainer[state.position].addClass('pinned');
+			} else {
+				this.titleContainer[state.position].removeClass('pinned');
+			}
 
-			let editor = this.visibleEditors[state.position];
-			let input = editor ? editor.input : null;
-
-			if (input && editor) {
-
-				// Pinned
-				const isPinned = !input.matches(state.preview);
-				if (isPinned) {
-					this.titleContainer[state.position].addClass('pinned');
-				} else {
-					this.titleContainer[state.position].removeClass('pinned');
-				}
-
-				// Overflow
-				const isOverflowing = state.editorCount > 1;
-				const showEditorAction = this.showEditorsOfGroup[state.position];
-				if (!isOverflowing) {
-					showEditorAction.class = 'show-group-editors-overflowing-action-hidden';
-					showEditorAction.enabled = false;
-				} else {
-					showEditorAction.class = 'show-group-editors-action';
-					showEditorAction.enabled = true;
-				}
+			// Overflow
+			const isOverflowing = state.editorCount > 1;
+			const showEditorAction = this.showEditorsOfGroup[state.position];
+			if (!isOverflowing) {
+				showEditorAction.class = 'show-group-editors-overflowing-action-hidden';
+				showEditorAction.enabled = false;
+			} else {
+				showEditorAction.class = 'show-group-editors-action';
+				showEditorAction.enabled = true;
 			}
 		}
 	}

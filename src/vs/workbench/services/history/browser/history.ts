@@ -11,7 +11,7 @@ import {EventType} from 'vs/base/common/events';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {EditorEvent, TextEditorSelectionEvent, EventType as WorkbenchEventType, EditorInputEvent} from 'vs/workbench/common/events';
+import {EditorEvent, TextEditorSelectionEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
@@ -28,7 +28,6 @@ export class EditorState {
 	private static EDITOR_SELECTION_THRESHOLD = 5; // number of lines to move in editor to justify for new state
 
 	constructor(private _editorInput: IEditorInput, private _selection: Selection) {
-		//
 	}
 
 	public get editorInput(): IEditorInput {
@@ -68,6 +67,7 @@ interface IInputWithPath {
 
 export abstract class BaseHistoryService {
 	protected toUnbind: IDisposable[];
+	private activeEditorUnbind: IDisposable;
 
 	constructor(
 		private eventService: IEventService,
@@ -82,23 +82,8 @@ export abstract class BaseHistoryService {
 		// Editor Input Changes
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
 
-		// Editor Input State Changes
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (e: EditorInputEvent) => this.onEditorInputDirtyStateChanged(e.editorInput)));
-
 		// Text Editor Selection Changes
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, (event: TextEditorSelectionEvent) => this.onTextEditorSelectionChanged(event)));
-	}
-
-	private onEditorInputDirtyStateChanged(input: IEditorInput): void {
-
-		// If an active editor is set, but is different from the one from the event, prevent update because the editor is not active.
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && !input.matches(activeEditor.input)) {
-			return;
-		}
-
-		// Calculate New Window Title
-		this.updateWindowTitle(input);
 	}
 
 	private onTextEditorSelectionChanged(event: TextEditorSelectionEvent): void {
@@ -115,7 +100,22 @@ export abstract class BaseHistoryService {
 	}
 
 	private onEditorInputChanged(event: EditorEvent): void {
+
+		// Propagate to history
 		this.onEditorEvent(event.editor);
+
+		// Stop old listener
+		if (this.activeEditorUnbind) {
+			this.activeEditorUnbind.dispose();
+		}
+
+		// Apply listener for dirty changes
+		let activeInput = this.editorService.getActiveEditorInput();
+		if (activeInput instanceof EditorInput) {
+			this.activeEditorUnbind = activeInput.onDidChangeDirty(() => {
+				this.updateWindowTitle(activeInput); // Calculate New Window Title when dirty state changes
+			});
+		}
 	}
 
 	private onEditorEvent(editor: IBaseEditor): void {

@@ -21,7 +21,7 @@ import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorInputEvent, EditorEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -122,17 +122,19 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputDirtyStateChanged(event)));
+		this.toUnbind.push(this.stacks.onEditorDirty(identifier => this.onEditorDirty(identifier)));
 		this.toUnbind.push(this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier)));
 	}
 
-	private onEditorInputDirtyStateChanged(event: EditorInputEvent): void {
+	private onEditorDirty(identifier: IEditorIdentifier): void {
+		const position = this.stacks.positionOfGroup(identifier.group);
+		const group = identifier.group;
 
-		// we pin every editor that becomes dirty across all groups
-		this.stacks.groups.forEach(group => group.contains(event.editorInput) && this.pinEditor(this.stacks.positionOfGroup(group), event.editorInput));
+		// we pin every editor that becomes dirty
+		this.pinEditor(position, identifier.editor, false /* we update the UI right after */);
 
 		// Update UI
-		this.sideBySideControl.updateTitleArea(event.editorInput);
+		this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
 	}
 
 	private onEditorDisposed(identifier: IEditorIdentifier): void {
@@ -1026,7 +1028,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	public pinEditor(position: Position, input: EditorInput): void {
+	public pinEditor(position: Position, input: EditorInput, updateTitleArea = true): void {
 		const group = this.stacks.groupAt(position);
 		if (group) {
 			if (group.isPinned(input)) {
@@ -1037,7 +1039,9 @@ export class EditorPart extends Part implements IEditorPart {
 			group.pin(input);
 
 			// Update UI
-			this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
+			if (updateTitleArea) {
+				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
+			}
 		}
 	}
 

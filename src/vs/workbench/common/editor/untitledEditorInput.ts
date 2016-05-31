@@ -15,6 +15,9 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEventService} from 'vs/platform/event/common/event';
+import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 
 import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
 
@@ -31,6 +34,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 
+	private toUnbind: IDisposable[];
+
 	constructor(
 		resource: URI,
 		hasAssociatedFilePath: boolean,
@@ -39,13 +44,28 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModeService private modeService: IModeService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IEventService private eventService: IEventService
 	) {
 		super();
 
 		this.resource = resource;
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
+		this.toUnbind = [];
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
+	}
+
+	private onDirtyStateChange(e: UntitledEditorEvent): void {
+		if (e.resource.toString() === this.resource.toString()) {
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	public getTypeId(): string {
@@ -158,11 +178,16 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public dispose(): void {
-		super.dispose();
 
+		// Listeners
+		dispose(this.toUnbind);
+
+		// Model
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
+		super.dispose();
 	}
 }
