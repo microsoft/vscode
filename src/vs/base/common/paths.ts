@@ -233,14 +233,48 @@ export const join: (...parts: string[]) => string = function () {
 };
 
 
+/**
+ * Check if the path follows this pattern: `\\hostname\sharename`.
+ *
+ * @see https://msdn.microsoft.com/en-us/library/gg465305.aspx
+ * @return A boolean indication if the path is a UNC path, on none-windows
+ * always false.
+ */
 export function isUNC(path: string): boolean {
-	if (!isWindows || !path) {
-		return false; // UNC is a windows concept
+	if (!isWindows) {
+		// UNC is a windows concept
+		return false;
 	}
 
-	path = this.normalize(path, true);
+	if (!path || path.length < 5) {
+		// at least \\a\b
+		return false;
+	}
 
-	return path[0] === nativeSep && path[1] === nativeSep;
+	let code = path.charCodeAt(0);
+	if (code !== _backslash) {
+		return false;
+	}
+	code = path.charCodeAt(1);
+	if (code !== _backslash) {
+		return false;
+	}
+	let pos = 2;
+	let start = pos;
+	for (; pos < path.length; pos++) {
+		code = path.charCodeAt(pos);
+		if (code === _backslash) {
+			break;
+		}
+	}
+	if (start === pos) {
+		return false;
+	}
+	code = path.charCodeAt(pos + 1);
+	if (isNaN(code) || code === _backslash) {
+		return false;
+	}
+	return true;
 }
 
 function isPosixAbsolute(path: string): boolean {

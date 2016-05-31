@@ -174,14 +174,16 @@ suite('Paths', () => {
 	});
 
 	test('isUNC', () => {
-		assert(!paths.isUNC('foo'));
-		assert(!paths.isUNC('/foo'));
-		assert(!paths.isUNC('\\foo'));
-
 		if (platform.isWindows) {
-			assert(paths.isUNC('\\\\foo'));
-		} else {
-			assert(!paths.isUNC('\\\\foo'));
+			assert.ok(!paths.isUNC('foo'));
+			assert.ok(!paths.isUNC('/foo'));
+			assert.ok(!paths.isUNC('\\foo'));
+			assert.ok(!paths.isUNC('\\\\foo'));
+			assert.ok(paths.isUNC('\\\\a\\b'));
+			assert.ok(!paths.isUNC('//a/b'));
+			assert.ok(paths.isUNC('\\\\server\\share'));
+			assert.ok(paths.isUNC('\\\\server\\share\\'));
+			assert.ok(paths.isUNC('\\\\server\\share\\path'));
 		}
 	});
 
