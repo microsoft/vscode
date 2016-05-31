@@ -26,9 +26,9 @@ function getSourceFile(moduleId) {
             fileContents = fs.readFileSync(filePath).toString();
         }
         catch (err) {
-            console.error('======================================================================');
-            console.error('=> Have you compiled (gulp watch) with env variable VSCODE_BUILD_DECLARATION_FILES=1 ?');
-            console.error('======================================================================');
+            console.error('=========================================================================');
+            console.error('=> Have you compiled with env variable VSCODE_BUILD_DECLARATION_FILES=1 ?');
+            console.error('=========================================================================');
             throw err;
         }
         var sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
@@ -191,7 +191,7 @@ function format(text) {
             InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
             InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
             PlaceOpenBraceOnNewLineForFunctions: false,
-            PlaceOpenBraceOnNewLineForControlBlocks: false
+            PlaceOpenBraceOnNewLineForControlBlocks: false,
         };
     }
 }
@@ -290,6 +290,3 @@ var recipe = fs.readFileSync(RECIPE_PATH).toString();
 var result = generateDeclarationFile(recipe);
 var DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 fs.writeFileSync(DECLARATION_PATH, result);
-// let result = generateDeclarationFile
-// var recipe = fs.readFileSync(path.join(__dirname, './monaco-editor.d.ts.recipe')).toString();
-// fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), resultTxt);

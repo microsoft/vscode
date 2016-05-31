@@ -9,9 +9,12 @@ var _ = require('underscore');
 var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
 var common = require('./gulpfile.common');
+var es = require('event-stream');
 
 var root = path.dirname(__dirname);
-var headerVersion = process.env['BUILD_SOURCEVERSION'] || util.getVersion(root);
+var sha1 = util.getVersion(root);
+var semver = require('./monaco/package.json').version;
+var headerVersion = semver + '(' + sha1 + ')';
 
 // Build
 
@@ -63,7 +66,7 @@ function editorLoaderConfig(removeAllOSS) {
 }
 
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor'/*, 'compile-build'*/], common.optimizeTask({
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
@@ -74,4 +77,61 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor', true));
-gulp.task('editor-distro', ['minify-editor', 'optimize-editor']);
+
+gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
+gulp.task('editor-distro', ['clean-editor-distro'/*, 'minify-editor', 'optimize-editor'*/], function() {
+	return es.merge(
+		// other assets
+		es.merge(
+			gulp.src('build/monaco/package.json'),
+			gulp.src('build/monaco/LICENSE'),
+			gulp.src('build/monaco/ThirdPartyNotices.txt'),
+			gulp.src('src/vs/monaco.d.ts')
+		).pipe(gulp.dest('out-monaco-editor-core')),
+
+		// dev folder
+		es.merge(
+			gulp.src('out-editor/**/*')
+		).pipe(gulp.dest('out-monaco-editor-core/dev')),
+
+		// min folder
+		es.merge(
+			gulp.src('out-editor-min/**/*')
+		).pipe(filterStream(function(path) {
+			// no map files
+			return !/\.js\.map$|nls\.metadata\.json/.test(path);
+		})).pipe(es.through(function(data) {
+			// tweak the sourceMappingURL
+			if (!/\.js$/.test(data.path)) {
+				this.emit('data', data);
+				return;
+			}
+
+			var relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
+
+			var strContents = data.contents.toString();
+			var newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
+			strContents = strContents.replace(/\/\/\# sourceMappingURL=[^ ]+$/, newStr);
+
+			data.contents = new Buffer(strContents);
+			this.emit('data', data);
+		})).pipe(gulp.dest('out-monaco-editor-core/min')),
+
+		// min-maps folder
+		es.merge(
+			gulp.src('out-editor-min/**/*')
+		).pipe(filterStream(function(path) {
+			// no map files
+			return !/\.js\.map$/.test(path);
+		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
+	);
+});
+
+function filterStream(testFunc) {
+	return es.through(function(data) {
+		if (!testFunc(data.relative)) {
+			return;
+		}
+		this.emit('data', data);
+	});
+}

@@ -7,8 +7,7 @@ out/
 out-build/
 out-editor/
 out-editor-min/
-out-editor-ossfree/
-out-editor-ossfree-min/
+out-monaco-editor-core/
 out-vscode/
 out-vscode-min/
 build/node_modules

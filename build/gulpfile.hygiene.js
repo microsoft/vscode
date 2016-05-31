@@ -26,7 +26,8 @@ var eolFilter = [
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,scpt,bat,cmd,cur,ttf,woff,eot}',
-	'!build/{lib,monaco,tslintRules}/**/*.js'
+	'!build/{lib,tslintRules}/**/*.js',
+	'!build/monaco/**/*'
 ];
 
 var indentationFilter = [

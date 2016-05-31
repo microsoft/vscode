@@ -115,15 +115,6 @@ function sortLanguages(directoryNames: string[]): IDirectoryInfo[] {
 	});
 }
 
-const headerComment: string =
-	[
-		'/*---------------------------------------------------------------------------------------------',
-		' * Copyright (c) Microsoft Corporation. All rights reserved.',
-		' * Licensed under the MIT License. See License.txt in the project root for license information.',
-		' *---------------------------------------------------------------------------------------------*/'
-	].join('\n');
-
-
 function stripComments(content: string): string {
 	/**
 	* First capturing group matches double quoted string
@@ -189,7 +180,7 @@ function escapeCharacters(value:string):string {
 	return result.join('');
 }
 
-function processCoreBundleFormat(json: BundledFormat, emitter: any) {
+function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter: any) {
 	let keysSection = json.keys;
 	let messageSection = json.messages;
 	let bundleSection = json.bundles;
@@ -262,7 +253,7 @@ function processCoreBundleFormat(json: BundledFormat, emitter: any) {
 		Object.keys(bundleSection).forEach((bundle) => {
 			let modules = bundleSection[bundle];
 			let contents: string[] = [
-				headerComment,
+				fileHeader,
 				`define("${bundle}.nls.${language.iso639_2}", {`
 			];
 			modules.forEach((module, index) => {
@@ -299,7 +290,7 @@ function processCoreBundleFormat(json: BundledFormat, emitter: any) {
 	});
 }
 
-export function processNlsFiles(): ThroughStream {
+export function processNlsFiles(opts:{fileHeader:string;}): ThroughStream {
 	return through(function(file: File) {
 		let fileName = path.basename(file.path);
 		if (fileName === 'nls.metadata.json') {
@@ -310,7 +301,7 @@ export function processNlsFiles(): ThroughStream {
 				this.emit('error', `Failed to read component file: ${file.relative}`)
 			}
 			if (BundledFormat.is(json)) {
-				processCoreBundleFormat(json, this);
+				processCoreBundleFormat(opts.fileHeader, json, this);
 			}
 		}
 		this.emit('data', file);
