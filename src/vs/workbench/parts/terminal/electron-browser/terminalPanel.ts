@@ -11,79 +11,21 @@ import path = require('path');
 import URI from 'vs/base/common/uri';
 import DOM = require('vs/base/browser/dom');
 import platform = require('vs/base/common/platform');
-import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, Dimension} from 'vs/base/browser/builder';
-import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStringDictionary} from 'vs/base/common/collections';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {ITerminalConfiguration, ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {Panel} from 'vs/workbench/browser/panel';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 const TERMINAL_CHAR_WIDTH = 8;
 const TERMINAL_CHAR_HEIGHT = 18;
-
-const DEFAULT_ANSI_COLORS = {
-	'hc-black': [
-		'#000000', // black
-		'#cd0000', // red
-		'#00cd00', // green
-		'#cdcd00', // yellow
-		'#0000ee', // blue
-		'#cd00cd', // magenta
-		'#00cdcd', // cyan
-		'#e5e5e5', // white
-		'#7f7f7f', // bright black
-		'#ff0000', // bright red
-		'#00ff00', // bright green
-		'#ffff00', // bright yellow
-		'#5c5cff', // bright blue
-		'#ff00ff', // bright magenta
-		'#00ffff', // bright cyan
-		'#ffffff'  // bright white
-	],
-	'vs': [
-		'#000000', // black
-		'#cd3131', // red
-		'#008000', // green
-		'#949800', // yellow
-		'#0451a5', // blue
-		'#bc05bc', // magenta
-		'#0598bc', // cyan
-		'#555555', // white
-		'#666666', // bright black
-		'#cd3131', // bright red
-		'#00aa00', // bright green
-		'#b5ba00', // bright yellow
-		'#0451a5', // bright blue
-		'#bc05bc', // bright magenta
-		'#0598bc', // bright cyan
-		'#a5a5a5'  // bright white
-	],
-	'vs-dark': [
-		'#000000', // black
-		'#cd3131', // red
-		'#09885a', // green
-		'#e5e510', // yellow
-		'#2472c8', // blue
-		'#bc3fbc', // magenta
-		'#11a8cd', // cyan
-		'#e5e5e5', // white
-		'#666666', // bright black
-		'#f14c4c', // bright red
-		'#17a773', // bright green
-		'#f5f543', // bright yellow
-		'#3b8eea', // bright blue
-		'#d670d6', // bright magenta
-		'#29b8db', // bright cyan
-		'#e5e5e5'  // bright white
-	]
-};
 
 export class TerminalPanel extends Panel {
 
@@ -92,6 +34,7 @@ export class TerminalPanel extends Panel {
 	private parentDomElement: HTMLElement;
 	private terminal;
 	private terminalDomElement: HTMLDivElement;
+	private configurationHelper: TerminalConfigHelper;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -101,6 +44,7 @@ export class TerminalPanel extends Panel {
 		@IThemeService private themeService: IThemeService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
+		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.themeService);
 		this.toDispose = [];
 	}
 
@@ -144,7 +88,7 @@ export class TerminalPanel extends Panel {
 
 	private createTerminalProcess(): cp.ChildProcess {
 		let env = this.cloneEnv();
-		env['PTYSHELL'] = this.getShell();
+		env['PTYSHELL'] = this.configurationHelper.getShell();
 		env['PTYCWD'] = this.contextService.getWorkspace() ? this.contextService.getWorkspace().resource.fsPath : os.homedir();
 		return cp.fork('./terminalProcess', [], {
 			env: env,
@@ -229,8 +173,7 @@ export class TerminalPanel extends Panel {
 		if (!this.terminal) {
 			return;
 		}
-		let baseThemeId = getBaseThemeId(this.themeService.getTheme());
-		this.terminal.colors = DEFAULT_ANSI_COLORS[baseThemeId];
+		this.terminal.colors = this.configurationHelper.getTheme();
 		this.terminal.refresh(0, this.terminal.rows);
 	}
 
@@ -239,13 +182,7 @@ export class TerminalPanel extends Panel {
 	 * `editor.fontFamily`.
 	 */
 	private setTerminalFont() {
-		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>();
-		let fontFamily = terminalConfig.terminal.integrated.fontFamily;
-		if (!fontFamily) {
-			let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
-			fontFamily = editorConfig.editor.fontFamily;
-		}
-		this.terminalDomElement.style.fontFamily = fontFamily;
+		this.terminalDomElement.style.fontFamily = this.configurationHelper.getFontFamily();
 	}
 
 	public focus(): void {
@@ -263,17 +200,6 @@ export class TerminalPanel extends Panel {
 				this.terminal._textarea.focus();
 			}
 		}
-	}
-
-	private getShell(): string {
-		let config = this.configurationService.getConfiguration<ITerminalConfiguration>();
-		if (platform.isWindows) {
-			return config.terminal.integrated.shell.windows;
-		}
-		if (platform.isMacintosh) {
-			return config.terminal.integrated.shell.osx;
-		}
-		return config.terminal.integrated.shell.linux;
 	}
 
 	public dispose(): void {
