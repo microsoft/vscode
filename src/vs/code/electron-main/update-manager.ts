@@ -143,7 +143,7 @@ export class UpdateManager extends EventEmitter implements IUpdateService {
 	}
 
 	private quitAndUpdate(rawQuitAndUpdate: () => void): void {
-		this.lifecycleService.quit().done(vetod => {
+		this.lifecycleService.quit(true /* from update */).done(vetod => {
 			if (vetod) {
 				return;
 			}

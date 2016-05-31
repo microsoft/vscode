@@ -21,7 +21,7 @@ import { ICommandLineArguments, IProcessEnvironment, IEnvironmentService, IParse
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
-import { ILogService } from './log';
+import { ILogService } from 'vs/code/electron-main//log';
 import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
@@ -73,6 +73,12 @@ interface INativeOpenDialogOptions {
 	path?: string;
 	forceNewWindow?: boolean;
 }
+
+const ReopenFoldersSetting = {
+	ALL: 'all',
+	ONE: 'one',
+	NONE: 'none'
+};
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -841,11 +847,17 @@ export class WindowsManager implements IWindowsService {
 
 		// No path argument, check settings for what to do now
 		else {
-			let reopenFolders = this.settingsService.getValue('window.reopenFolders', 'one');
+			let reopenFolders: string;
+			if (this.lifecycleService.wasUpdated) {
+				reopenFolders = ReopenFoldersSetting.ALL; // always reopen all folders when an update was applied
+			} else {
+				reopenFolders = this.settingsService.getValue('window.reopenFolders', ReopenFoldersSetting.ONE);
+			}
+
 			let lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
 
 			// Restore all
-			if (reopenFolders === 'all') {
+			if (reopenFolders === ReopenFoldersSetting.ALL) {
 				let lastOpenedFolders = this.windowsState.openedFolders.map(o => o.workspacePath);
 
 				// If we have a last active folder, move it to the end
@@ -858,7 +870,7 @@ export class WindowsManager implements IWindowsService {
 			}
 
 			// Restore last active
-			else if (lastActiveFolder && (reopenFolders === 'one' || reopenFolders !== 'none')) {
+			else if (lastActiveFolder && (reopenFolders === ReopenFoldersSetting.ONE || reopenFolders !== ReopenFoldersSetting.NONE)) {
 				candidates.push(lastActiveFolder);
 			}
 		}
