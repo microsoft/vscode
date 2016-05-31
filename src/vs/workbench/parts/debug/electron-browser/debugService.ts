@@ -569,15 +569,19 @@ export class DebugService implements debug.IDebugService {
 	 */
 	private resolveInteractiveVariables(configuration: debug.IConfig): TPromise<debug.IConfig>  {
 		// the following is a fake implementation.
-		// if the selected config has an attribute 'pickProcess', the command 'extension.pickProcess' is executed and the result is set to the 'pickProcess' attribute.
-		if ((<any>configuration).pickProcess) {
-			return this.keybindingService.executeCommand<string>('extension.pickProcess', configuration).then(result => {
-				(<any>configuration).pickProcess = result;
-				return configuration;
-			});
-		} else {
-			return TPromise.as(configuration);
+		// if the selected config has an attribute 'processId' and if the value refers to an action variable ${action.xxxxx},
+		//  the command 'extension.xxxxx' is executed and the result is set to the 'processId' attribute.
+		const anAttribute = (<any>configuration).processId;
+		if (typeof anAttribute === 'string') {
+			const matches = /\${action.(.+)}/.exec(anAttribute);
+			if (matches && matches.length === 2) {
+				return this.keybindingService.executeCommand<string>(`extension.${matches[1]}`, configuration).then(result => {
+					(<any>configuration).processId = result;
+					return configuration;
+				});
+			}
 		}
+		return TPromise.as(configuration);
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
