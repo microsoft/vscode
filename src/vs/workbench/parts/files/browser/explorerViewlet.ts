@@ -38,6 +38,7 @@ export class ExplorerViewlet extends Viewlet {
 
 	private viewletSettings: any;
 	private viewletState: FileViewletState;
+	private dimension: Dimension;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -48,20 +49,38 @@ export class ExplorerViewlet extends Viewlet {
 	) {
 		super(VIEWLET_ID, telemetryService);
 
-		this.views = [];
 		this.viewletState = new FileViewletState();
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
+		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
 	}
 
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
 
 		this.viewletContainer = parent.div().addClass('explorer-viewlet');
+		return this.configurationService.loadConfiguration().then((config: IFilesConfiguration) => this.onConfigurationUpdated(config));
+	}
 
-		return this.configurationService.loadConfiguration().then((config:IFilesConfiguration) => {
-			// Open editors view should always be visible in no folder workspace.
-			this.openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
+	public getActions(): IAction[] {
+		if (this.openEditorsVisible) {
+			return [];
+		} else {
+			return this.explorerView.getActions();
+		}
+	}
+
+	private onConfigurationUpdated(config: IFilesConfiguration): TPromise<void> {
+		// Open editors view should always be visible in no folder workspace.
+		let openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
+
+		// Create views on startup and if open editors visibility has changed #6919
+		if (this.openEditorsVisible !== openEditorsVisible) {
+			this.dispose();
+			this.openEditorsVisible = openEditorsVisible;
+			this.views = [];
+			this.viewletContainer.clearChildren();
+
 			if (this.openEditorsVisible) {
 				this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
 
@@ -78,16 +97,19 @@ export class ExplorerViewlet extends Viewlet {
 			this.addExplorerView();
 			this.lastFocusedView = this.explorerView;
 
-			return TPromise.join(this.views.map((view) => view.create())).then(() => void 0);
-		});
-	}
+			return TPromise.join(this.views.map(view => view.create())).then(() => void 0).then(() => {
+				if (this.dimension) {
+					this.layout(this.dimension);
+				}
 
-	public getActions(): IAction[] {
-		if (this.openEditorsVisible) {
-			return [];
-		} else {
-			return this.explorerView.getActions();
+				// Update title area since the title actions have changed.
+				this.updateTitleArea();
+				// Focus the viewlet since that triggers a rerender.
+				return this.setVisible(this.isVisible()).then(() => this.focus());
+			});
 		}
+
+		return TPromise.as(null);
 	}
 
 	private addOpenEditorsView(): void {
@@ -184,6 +206,7 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	public layout(dimension: Dimension): void {
+		this.dimension = dimension;
 		if (this.openEditorsVisible) {
 			this.splitView.layout(dimension.height);
 		} else if (this.explorerView) {
@@ -222,6 +245,10 @@ export class ExplorerViewlet extends Viewlet {
 		if (this.explorerView) {
 			this.explorerView.dispose();
 			this.explorerView = null;
+		}
+		if (this.openEditorsView) {
+			this.openEditorsView.dispose();
+			this.openEditorsView = null;
 		}
 
 		if (this.focusListener) {

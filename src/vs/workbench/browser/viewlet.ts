@@ -529,7 +529,9 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		this.treeContainer = null;
 		this.tree.dispose();
 
-		this.dragHandler.dispose();
+		if (this.dragHandler) {
+			this.dragHandler.dispose();
+		}
 
 		this.toDispose = dispose(this.toDispose);
 
