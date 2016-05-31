@@ -60,11 +60,11 @@ export class SuggestController implements IEditorContribution {
 		this.update();
 	}
 
-	public getId(): string {
+	getId(): string {
 		return SuggestController.ID;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 		this.triggerCharacterListeners = dispose(this.triggerCharacterListeners);
 
@@ -138,50 +138,50 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	public triggerSuggest(triggerCharacter?: string, groups?: ISuggestSupport[][]): TPromise<boolean> {
+	triggerSuggest(triggerCharacter?: string, groups?: ISuggestSupport[][]): TPromise<boolean> {
 		this.model.trigger(false, triggerCharacter, false, groups);
 		this.editor.focus();
 
 		return TPromise.as(false);
 	}
 
-	public acceptSelectedSuggestion(): void {
+	acceptSelectedSuggestion(): void {
 		if (this.widget) {
 			this.widget.acceptSelectedSuggestion();
 		}
 	}
 
-	public cancelSuggestWidget(): void {
+	cancelSuggestWidget(): void {
 		if (this.widget) {
 			this.widget.cancel();
 		}
 	}
 
-	public selectNextSuggestion(): void {
+	selectNextSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectNext();
 		}
 	}
 
-	public selectNextPageSuggestion(): void {
+	selectNextPageSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectNextPage();
 		}
 	}
 
-	public selectPrevSuggestion(): void {
+	selectPrevSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectPrevious();
 		}
 	}
 
-	public selectPrevPageSuggestion(): void {
+	selectPrevPageSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectPreviousPage();
 		}
 	}
 
-	public toggleSuggestionDetails(): void {
+	toggleSuggestionDetails(): void {
 		if (this.widget) {
 			this.widget.toggleDetails();
 		}
@@ -196,11 +196,11 @@ export class TriggerSuggestAction extends EditorAction {
 		super(descriptor, editor);
 	}
 
-	public isSupported(): boolean {
+	isSupported(): boolean {
 		return SuggestRegistry.has(this.editor.getModel()) && !this.editor.getConfiguration().readOnly;
 	}
 
-	public run(): TPromise<boolean> {
+	run(): TPromise<boolean> {
 		return SuggestController.getSuggestController(this.editor).triggerSuggest();
 	}
 }

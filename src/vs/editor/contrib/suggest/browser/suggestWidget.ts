@@ -308,7 +308,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
 	static NO_SUGGESTIONS_MESSAGE: string = nls.localize('suggestWidget.noSuggestions', "No suggestions.");
 
-	public allowEditorOverflow: boolean = true; // Editor.IContentWidget.allowEditorOverflow
+	allowEditorOverflow: boolean = true; // Editor.IContentWidget.allowEditorOverflow
 
 	private state: State;
 	private isAuto: boolean;
@@ -334,7 +334,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private toDispose: IDisposable[];
 
 	private _onDidVisibilityChange: Emitter<boolean> = new Emitter();
-	public get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
+	get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
 
 	constructor(
 		private editor: ICodeEditor,
@@ -657,7 +657,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public selectNextPage(): boolean {
+	selectNextPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -672,7 +672,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public selectNext(): boolean {
+	selectNext(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -687,7 +687,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public selectPreviousPage(): boolean {
+	selectPreviousPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -702,7 +702,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public selectPrevious(): boolean {
+	selectPrevious(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -713,11 +713,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				return !this.isAuto;
 			default:
 				this.list.focusPrevious(1, true);
-				return true;
+				return false;
 		}
 	}
 
-	public acceptSelectedSuggestion(): boolean {
+	acceptSelectedSuggestion(): boolean {
 		switch (this.state) {
 			case State.Hidden:
 				return false;
@@ -736,7 +736,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public toggleDetails(): void {
+	toggleDetails(): void {
 		if (this.state === State.Details) {
 			this.setState(State.Open);
 			this.editor.focus();
@@ -771,7 +771,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		removeClass(this.element, 'visible');
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		if (this.state === State.Details) {
 			this.toggleDetails();
 		} else {
@@ -779,7 +779,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public getPosition(): IContentWidgetPosition {
+	getPosition(): IContentWidgetPosition {
 		if (this.state === State.Hidden) {
 			return null;
 		}
@@ -790,11 +790,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		};
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		return this.element;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return SuggestWidget.ID;
 	}
 
@@ -834,7 +834,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.state = null;
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
