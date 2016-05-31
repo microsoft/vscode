@@ -167,10 +167,10 @@ export function removeClass(node: HTMLElement, className: string): void {
  */
 export function toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
 	_findClassName(node, className);
-	if (lastStart !== -1 && !shouldHaveIt) {
+	if (lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
 		removeClass(node, className);
 	}
-	if (lastStart === -1 && shouldHaveIt) {
+	if (lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
 		addClass(node, className);
 	}
 }
