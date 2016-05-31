@@ -209,44 +209,29 @@ export function getRoot(path: string, sep: string = '/'): string {
 	return '';
 }
 
-export function join(...parts: string[]): string {
+export const join: (...parts: string[]) => string = function () {
 
-	var rootLen = getRoot(parts[0]).length,
-		root: string;
+	let value = '';
+	for (let i = 0; i < arguments.length; i++) {
+		let part = arguments[i];
+		if (i > 0) {
+			// add the separater between two parts unless
+			// there already is one
+			let last = value.charCodeAt(value.length - 1);
+			if (last !== _slash && last !== _backslash) {
+				let next = part.charCodeAt(0);
+				if (next !== _slash && next !== _backslash) {
 
-	// simply preserve things like c:/, //localhost/, file:///, http://, etc
-	root = parts[0].substr(0, rootLen);
-	parts[0] = parts[0].substr(rootLen);
-
-	var allParts: string[] = [],
-		endsWithSep = /[\\\/]$/.test(parts[parts.length - 1]);
-
-	for (var i = 0; i < parts.length; i++) {
-		allParts.push.apply(allParts, parts[i].split(/\/|\\/));
-	}
-
-	for (var i = 0; i < allParts.length; i++) {
-		var part = allParts[i];
-		if (part === '.' || part.length === 0) {
-			allParts.splice(i, 1);
-			i -= 1;
-		} else if (part === '..' && !!allParts[i - 1] && allParts[i - 1] !== '..') {
-			allParts.splice(i - 1, 2);
-			i -= 2;
+					value += sep;
+				}
+			}
 		}
+		value += part;
 	}
 
-	if (endsWithSep) {
-		allParts.push('');
-	}
+	return normalize(value);
+};
 
-	var ret = allParts.join('/');
-	if (root) {
-		ret = root.replace(/\/|\\/g, '/') + ret;
-	}
-
-	return ret;
-}
 
 export function isUNC(path: string): boolean {
 	if (!isWindows || !path) {
