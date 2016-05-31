@@ -88,6 +88,7 @@ export interface IWorkbenchCallbacks {
 export class Workbench implements IPartService {
 
 	private static sidebarPositionSettingKey = 'workbench.sidebar.position';
+	private static statusbarHiddenSettingKey = 'workbench.statusbar.hidden';
 	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
 	private static panelHiddenSettingKey = 'workbench.panel.hidden';
 
@@ -115,6 +116,7 @@ export class Workbench implements IPartService {
 	private creationPromise: TPromise<boolean>;
 	private creationPromiseComplete: ValueCallback;
 	private sideBarHidden: boolean;
+	private statusBarHidden: boolean;
 	private sideBarPosition: Position;
 	private panelHidden: boolean;
 	private editorBackgroundDelayer: Delayer<void>;
@@ -410,6 +412,8 @@ export class Workbench implements IPartService {
 	}
 
 	private initSettings(): void {
+		// Statusbar visibility
+		this.statusBarHidden = this.storageService.getBoolean(Workbench.statusbarHiddenSettingKey, StorageScope.WORKSPACE, false);
 
 		// Sidebar visibility
 		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, false);
@@ -491,8 +495,25 @@ export class Workbench implements IPartService {
 		if (part === Parts.PANEL_PART) {
 			return !this.panelHidden;
 		}
+		if (part === Parts.STATUSBAR_PART) {
+			return !this.statusBarHidden;
+		}
 
 		return true; // any other part cannot be hidden
+	}
+
+	public isStatusBarHidden(): boolean {
+		return this.statusBarHidden;
+	}
+
+	public setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {
+		this.statusBarHidden = hidden;
+
+		// Layout
+		if (!skipLayout) {
+			this.workbenchLayout.layout(true);
+		}
+		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 
 	public isSideBarHidden(): boolean {

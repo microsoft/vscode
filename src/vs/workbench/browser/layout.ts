@@ -183,6 +183,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.sashY.addListener2('change', (e: ISashEvent) => {
 			let doLayout = false;
 			let isPanelHidden = this.partService.isPanelHidden();
+			let isStatusbarHidden = this.partService.isStatusBarHidden();
 			let newSashHeight = this.startPanelHeight - (e.currentY - startY);
 
 			// Panel visible
@@ -191,7 +192,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				if (newSashHeight + HIDE_PANEL_HEIGHT_THRESHOLD < this.computedStyles.panel.minHeight) {
 					let dragCompensation = DEFAULT_MIN_PANEL_PART_HEIGHT - HIDE_PANEL_HEIGHT_THRESHOLD;
 					this.partService.setPanelHidden(true);
-					startY = Math.min(this.sidebarHeight - this.computedStyles.statusbar.height, e.currentY + dragCompensation);
+					let statusbarHeight = isStatusbarHidden ? 0 : this.computedStyles.statusbar.height;
+					startY = Math.min(this.sidebarHeight - statusbarHeight, e.currentY + dragCompensation);
 					this.panelHeight = this.startPanelHeight; // when restoring panel, restore to the panel height we started from
 				}
 
@@ -317,6 +319,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		const isSidebarHidden = this.partService.isSideBarHidden();
 		const isPanelHidden = this.partService.isPanelHidden();
 		const sidebarPosition = this.partService.getSideBarPosition();
+		const isStatusbarHidden = this.partService.isStatusBarHidden();
 
 		// Sidebar
 		let sidebarWidth: number;
@@ -328,8 +331,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			sidebarWidth = this.workbenchSize.width / 5;
 			this.sidebarWidth = sidebarWidth;
 		}
+		let statusbarHeight = isStatusbarHidden ? 0 : this.computedStyles.statusbar.height;
+		if (this.statusbar) {
+			let statusbarStyle = this.statusbar.getContainer().getHTMLElement().style;
+			statusbarStyle.display = isStatusbarHidden ? 'none' : null;
+		}
 
-		this.sidebarHeight = this.workbenchSize.height - this.computedStyles.statusbar.height;
+		this.sidebarHeight = this.workbenchSize.height - statusbarHeight;
 		let sidebarSize = new Dimension(sidebarWidth, this.sidebarHeight);
 
 		// Activity Bar
@@ -411,16 +419,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.editor.getContainer().size(editorSize.width, editorSize.height);
 		this.panel.getContainer().size(panelDimension.width, panelDimension.height);
 
-		const editorBottom = this.computedStyles.statusbar.height + panelDimension.height;
+		const editorBottom = statusbarHeight + panelDimension.height;
 		if (isSidebarHidden) {
 			this.editor.getContainer().position(0, editorSize.remainderRight, editorBottom, editorSize.remainderLeft);
-			this.panel.getContainer().position(editorDimension.height, editorSize.remainderRight, this.computedStyles.statusbar.height, editorSize.remainderLeft);
+			this.panel.getContainer().position(editorDimension.height, editorSize.remainderRight, statusbarHeight, editorSize.remainderLeft);
 		} else if (sidebarPosition === Position.LEFT) {
 			this.editor.getContainer().position(0, 0, editorBottom, sidebarSize.width + activityBarSize.width);
-			this.panel.getContainer().position(editorDimension.height, 0, this.computedStyles.statusbar.height, sidebarSize.width + activityBarSize.width);
+			this.panel.getContainer().position(editorDimension.height, 0, statusbarHeight, sidebarSize.width + activityBarSize.width);
 		} else {
 			this.editor.getContainer().position(0, sidebarSize.width, editorBottom, 0);
-			this.panel.getContainer().position(editorDimension.height, sidebarSize.width, this.computedStyles.statusbar.height, 0);
+			this.panel.getContainer().position(editorDimension.height, sidebarSize.width, statusbarHeight, 0);
 		}
 
 		// Activity Bar Part
@@ -444,7 +452,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		// Statusbar Part
 		if (this.statusbar) {
-			this.statusbar.getContainer().position(this.workbenchSize.height - this.computedStyles.statusbar.height);
+			this.statusbar.getContainer().position(this.workbenchSize.height - statusbarHeight);
 		}
 
 		// Quick open
