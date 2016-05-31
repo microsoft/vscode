@@ -501,8 +501,9 @@ export class DebugService implements debug.IDebugService {
 			.then(() => this.configurationService.loadConfiguration()	// make sure configuration is up to date
 			.then(() => this.extensionService.onReady()
 			.then(() => this.configurationManager.setConfiguration(configuration || this.configurationManager.configurationName)
-			.then(() => {
-				configuration = this.configurationManager.configuration;
+			.then(() => this.configurationManager.resolveInteractiveVariables())
+			.then(resolvedConfiguration => {
+				configuration = resolvedConfiguration;
 				if (!configuration) {
 					return this.configurationManager.openConfigFile(false).then(openend => {
 						if (openend) {

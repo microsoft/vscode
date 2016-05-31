@@ -20,6 +20,7 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
@@ -162,7 +163,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this._onDidConfigurationChange = new Emitter<string>();
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
@@ -234,6 +236,31 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		}
 
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
+	}
+
+	/**
+	 * Resolve all interactive variables:
+	 * 1. find all interactive variables in the given configuration and remember them in top to bottom, left to right order. If a variable occurs more than once, only remember it once.
+	 * 2. for each variable find a command mapping in the package.json of the debug adapter. If a mapping is missing, show an error and abort.
+	 * 3. execute all commands in remembered order and remember the command's result as the value of the corresponding variable.
+	 * 4. substitute all variables.
+	 */
+	public resolveInteractiveVariables(): TPromise<debug.IConfig>  {
+		const promises = [];
+		Object.keys(this.configuration).forEach(key => {
+			const matches = /\${action.(.+)}/.exec(this.configuration[key]);
+			if (matches && matches.length === 2) {
+				const commandId = this.adapter.variables[matches[1]];
+				if (!commandId) {
+					promises.push(TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, matches[1])));
+				} else {
+					promises.push(this.keybindingService.executeCommand<string>(commandId, this.configuration)
+						.then(result => this.configuration[key] = result));
+				}
+			}
+		});
+
+		return TPromise.join(promises).then(() => this.configuration);
 	}
 
 	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
