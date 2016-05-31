@@ -245,17 +245,17 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private static computeExpandedBodySize(model: IEditorStacksModel, visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
-		const entryCount = model.groups.reduce((sum, group) => sum + group.count, 0);
+		let entryCount = model.groups.reduce((sum, group) => sum + group.count, 0);
+		// We only show the group labels if there is more than 1 group
+		if (model.groups.length > 1) {
+			entryCount += model.groups.length;
+		}
 
 		let itemsToShow: number;
 		if (dynamicHeight) {
 			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), entryCount);
 		} else {
 			itemsToShow = Math.max(visibleOpenEditors, 1);
-		}
-		// We only show the group labels if there is more than 1 group
-		if (model.groups.length > 1) {
-			itemsToShow += model.groups.length;
 		}
 
 		return itemsToShow * Renderer.ITEM_HEIGHT;
