@@ -40,40 +40,6 @@ export function relative(from: string, to: string): string {
 	return toParts.join(sep);
 }
 
-// const _dotSegment = /[\\\/]\.\.?[\\\/]?|[\\\/]?\.\.?[\\\/]/;
-
-// export function normalize(path: string, toOSPath?: boolean): string {
-
-// 	if (!path) {
-// 		return path;
-// 	}
-
-// 	// a path is already normal if it contains no .. or . parts
-// 	// and already uses the proper path separator
-// 	if (!_dotSegment.test(path)) {
-
-// 		// badSep is the path separator we don't want. Usually
-// 		// the backslash, unless isWindows && toOSPath
-// 		let badSep = toOSPath && isWindows ? '/' : '\\';
-// 		if (path.indexOf(badSep) === -1) {
-// 			return path;
-// 		}
-// 	}
-
-// 	let parts = path.split(/[\\\/]/);
-// 	for (let i = 0, len = parts.length; i < len; i++) {
-// 		if (parts[i] === '.' && (parts[i + 1] || parts[i - 1])) {
-// 			parts.splice(i, 1);
-// 			i -= 1;
-// 		} else if (parts[i] === '..' && !!parts[i - 1]) {
-// 			parts.splice(i - 1, 2);
-// 			i -= 2;
-// 		}
-// 	}
-
-// 	return parts.join(toOSPath ? nativeSep : sep);
-// }
-
 export function normalize(path: string, toOSPath?: boolean): string {
 
 	if (path === null || path === void 0) {
@@ -162,16 +128,10 @@ export function extname(path: string): string {
 	return idx ? path.substring(~idx) : '';
 }
 
-enum PathType {
-	Unc, // \\server\shares\somepath
-	Uri, // scheme://authority/somepath
-	Drive, // windows drive letter path
-	Path // posix path OR windows current drive root relative
-}
-
 /**
- * Return the length of the denoting part of this path, like `c:\files === 3 (c:\)`,
- * `files:///files/path === 8 (files:///)`, or `\\server\shares\path === 16 (\\server\shares\)`
+ * Computes the _root_ this path, like `getRoot('c:\files') === c:\`,
+ * `getRoot('files:///files/path') === files:///`,
+ * or `getRoot('\\server\shares\path') === \\server\shares\`
  */
 export function getRoot(path: string, sep: string = '/'): string {
 
@@ -203,7 +163,8 @@ export function getRoot(path: string, sep: string = '/'): string {
 					for (; pos < len; pos++) {
 						code = path.charCodeAt(pos);
 						if (code === _slash || code === _backslash) {
-							return path.slice(0, pos + 1).replace(/[\\/]/g, sep); // consume this separator
+							return path.slice(0, pos + 1) // consume this separator
+								.replace(/[\\/]/g, sep);
 						}
 					}
 				}
