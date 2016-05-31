@@ -7,7 +7,6 @@
 // SET VSCODE_BUILD_DECLARATION_FILES=1
 // run gulp watch once
 
-
 import fs = require('fs');
 import ts = require('typescript');
 import path = require('path');
@@ -25,11 +24,21 @@ function moduleIdToPath(moduleId:string): string {
 }
 
 
-var SOURCE_FILE_MAP: {[moduleId:string]:ts.SourceFile;} = {};
+let SOURCE_FILE_MAP: {[moduleId:string]:ts.SourceFile;} = {};
 function getSourceFile(moduleId:string): ts.SourceFile {
 	if (!SOURCE_FILE_MAP[moduleId]) {
 		let filePath = moduleIdToPath(moduleId);
-		let fileContents = fs.readFileSync(filePath).toString();
+
+		let fileContents: string;
+		try {
+			fileContents = fs.readFileSync(filePath).toString();
+		} catch (err) {
+			console.error('======================================================================');
+			console.error('=> Have you compiled (gulp watch) with env variable VSCODE_BUILD_DECLARATION_FILES=1 ?');
+			console.error('======================================================================');
+			throw err;
+		}
+
 		let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
 
 		SOURCE_FILE_MAP[moduleId] = sourceFile;
@@ -227,10 +236,6 @@ function format(text:string): string {
 	}
 }
 
-var recipe = fs.readFileSync(path.join(__dirname, './monaco-editor.d.ts.recipe')).toString();
-var lines = recipe.split(/\r\n|\n|\r/);
-var result = [];
-
 function createReplacer(data:string): (str:string)=>string {
 	data = data || '';
 	let rawDirectives = data.split(';');
@@ -256,77 +261,95 @@ function createReplacer(data:string): (str:string)=>string {
 	};
 }
 
-lines.forEach(line => {
+export function generateDeclarationFile(recipe:string): string {
+	let lines = recipe.split(/\r\n|\n|\r/);
+	let result = [];
 
-	let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
-	if (m1) {
-		console.log('HANDLING META: ' + line);
-		let moduleId = m1[1];
-		let sourceFile = getSourceFile(moduleId);
 
-		let replacer = createReplacer(m1[2]);
+	lines.forEach(line => {
 
-		let typeNames = m1[3].split(/,/);
-		typeNames.forEach((typeName) => {
-			typeName = typeName.trim();
-			if (typeName.length === 0) {
-				return;
-			}
-			let declaration = getTopLevelDeclaration(sourceFile, typeName);
-			result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
-		});
-		return;
-	}
+		let m1 = line.match(/^\s*#include\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+		if (m1) {
+			console.log('HANDLING META: ' + line);
+			let moduleId = m1[1];
+			let sourceFile = getSourceFile(moduleId);
 
-	let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
-	if (m2) {
-		console.log('HANDLING META: ' + line);
-		let moduleId = m2[1];
-		let sourceFile = getSourceFile(moduleId);
+			let replacer = createReplacer(m1[2]);
 
-		let replacer = createReplacer(m2[2]);
-
-		let typeNames = m2[3].split(/,/);
-		let typesToExcludeMap: {[typeName:string]:boolean;} = {};
-		let typesToExcludeArr: string[] = [];
-		typeNames.forEach((typeName) => {
-			typeName = typeName.trim();
-			if (typeName.length === 0) {
-				return;
-			}
-			typesToExcludeMap[typeName] = true;
-			typesToExcludeArr.push(typeName);
-		});
-
-		getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
-			if (isDeclaration(declaration)) {
-				if (typesToExcludeMap[declaration.name.text]) {
+			let typeNames = m1[3].split(/,/);
+			typeNames.forEach((typeName) => {
+				typeName = typeName.trim();
+				if (typeName.length === 0) {
 					return;
 				}
-			} else {
-				// node is ts.VariableStatement
-				let nodeText = getNodeText(sourceFile, declaration);
-				for (let i = 0; i < typesToExcludeArr.length; i++) {
-					if (nodeText.indexOf(typesToExcludeArr[i]) >= 0) {
+				let declaration = getTopLevelDeclaration(sourceFile, typeName);
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
+			});
+			return;
+		}
+
+		let m2 = line.match(/^\s*#includeAll\(([^;)]*)(;[^)]*)?\)\:(.*)$/);
+		if (m2) {
+			console.log('HANDLING META: ' + line);
+			let moduleId = m2[1];
+			let sourceFile = getSourceFile(moduleId);
+
+			let replacer = createReplacer(m2[2]);
+
+			let typeNames = m2[3].split(/,/);
+			let typesToExcludeMap: {[typeName:string]:boolean;} = {};
+			let typesToExcludeArr: string[] = [];
+			typeNames.forEach((typeName) => {
+				typeName = typeName.trim();
+				if (typeName.length === 0) {
+					return;
+				}
+				typesToExcludeMap[typeName] = true;
+				typesToExcludeArr.push(typeName);
+			});
+
+			getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
+				if (isDeclaration(declaration)) {
+					if (typesToExcludeMap[declaration.name.text]) {
 						return;
 					}
+				} else {
+					// node is ts.VariableStatement
+					let nodeText = getNodeText(sourceFile, declaration);
+					for (let i = 0; i < typesToExcludeArr.length; i++) {
+						if (nodeText.indexOf(typesToExcludeArr[i]) >= 0) {
+							return;
+						}
+					}
 				}
-			}
-			result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
-		});
-		return;
-	}
+				result.push(replacer(getMassagedTopLevelDeclarationText(sourceFile, declaration)));
+			});
+			return;
+		}
 
-	result.push(line);
-});
+		result.push(line);
+	});
 
-let resultTxt = result.join('\n');
-resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
-resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
-resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
+	let resultTxt = result.join('\n');
+	resultTxt = resultTxt.replace(/\bURI\b/g, 'Uri');
+	resultTxt = resultTxt.replace(/\bEvent</g, 'IEvent<');
+	resultTxt = resultTxt.replace(/\bTPromise</g, 'Promise<');
 
-resultTxt = format(resultTxt);
+	resultTxt = format(resultTxt);
 
-resultTxt = resultTxt.replace(/\r\n/g, '\n');
+	resultTxt = resultTxt.replace(/\r\n/g, '\n');
+	return resultTxt;
+}
 
-fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), resultTxt);
+const RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
+let recipe = fs.readFileSync(RECIPE_PATH).toString();
+let result = generateDeclarationFile(recipe);
+
+const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
+fs.writeFileSync(DECLARATION_PATH, result);
+
+// let result = generateDeclarationFile
+
+// var recipe = fs.readFileSync(path.join(__dirname, './monaco-editor.d.ts.recipe')).toString();
+
+// fs.writeFileSync(path.join(__dirname, './monaco-editor.d.ts'), resultTxt);

@@ -106,8 +106,9 @@ declare module monaco.languages {
         wordPattern?: RegExp;
         indentationRules?: IIndentationRules;
         onEnterRules?: IOnEnterRegExpRules[];
+        autoClosingPairs?: IAutoClosingPairConditional[];
+        surroundingPairs?: IAutoClosingPair[];
         __electricCharacterSupport?: IBracketElectricCharacterContribution;
-        __characterPairSupport?: ICharacterPairContribution;
     }
 
     export interface IIndentationRules {
@@ -137,11 +138,6 @@ declare module monaco.languages {
         open: string;
         lineStart: string;
         close?: string;
-    }
-
-    export interface ICharacterPairContribution {
-        autoClosingPairs: IAutoClosingPairConditional[];
-        surroundingPairs?: IAutoClosingPair[];
     }
 
     export interface IMode {
@@ -610,12 +606,13 @@ declare module monaco {
          * invalid characters and semantics. Will *not* look at the scheme of this Uri.
          */
         fsPath: string;
-        with(scheme: string, authority: string, path: string, query: string, fragment: string): Uri;
-        withScheme(value: string): Uri;
-        withAuthority(value: string): Uri;
-        withPath(value: string): Uri;
-        withQuery(value: string): Uri;
-        withFragment(value: string): Uri;
+        with(change: {
+            scheme?: string;
+            authority?: string;
+            path?: string;
+            query?: string;
+            fragment?: string;
+        }): Uri;
         static parse(value: string): Uri;
         static file(path: string): Uri;
         static create(scheme?: string, authority?: string, path?: string, query?: string, fragment?: string): Uri;

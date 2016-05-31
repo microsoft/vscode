@@ -339,7 +339,7 @@ export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
 /**
  * @internal
  */
-export function createMonacoLanguagesAPI()/*: typeof monaco.languages*/ {
+export function createMonacoLanguagesAPI(): typeof monaco.languages {
 	return {
 		// provider methods
 		setLanguageConfiguration: setLanguageConfiguration,

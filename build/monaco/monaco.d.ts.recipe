@@ -17,7 +17,6 @@ declare module monaco.languages {
 #include(vs/editor/common/modes/supports/richEditSupport): CommentRule, IRichLanguageConfiguration
 #include(vs/editor/common/modes/supports/onEnter): IIndentationRules, IOnEnterRegExpRules
 #include(vs/editor/common/modes/supports/electricCharacter): IBracketElectricCharacterContribution, IDocComment
-#include(vs/editor/common/modes/supports/characterPair): ICharacterPairContribution
 #includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens;IState2=>IState):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint
 
