@@ -41,6 +41,10 @@ export function getPathLabel(arg1: uri|string, arg2?: uri|string|IWorkspaceProvi
 	let absolutePath = getPath(arg1);
 
 	if (basepath && paths.isEqualOrParent(absolutePath, basepath)) {
+		if (basepath === absolutePath) {
+			return ''; // no label if pathes are identical
+		}
+
 		return paths.normalize(strings.ltrim(absolutePath.substr(basepath.length), paths.nativeSep), true);
 	}
 
