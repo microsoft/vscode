@@ -494,7 +494,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public createSession(noDebug: boolean, configuration?: debug.IConfig, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
+	public createSession(noDebug: boolean, configuration?: debug.IConfig): TPromise<any> {
 		this.removeReplExpressions();
 
 		return this.textFileService.saveAll()							// make sure all dirty files are saved
@@ -527,7 +527,7 @@ export class DebugService implements debug.IDebugService {
 					const successExitCode = taskSummary && taskSummary.exitCode === 0;
 					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateSession(configuration, changeViewState);
+						return this.doCreateSession(configuration);
 					}
 
 					this.messageService.show(severity.Error, {
@@ -536,7 +536,7 @@ export class DebugService implements debug.IDebugService {
 								nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
 						actions: [CloseAction, new Action('debug.continue', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 							this.messageService.hideAll();
-							return this.doCreateSession(configuration, changeViewState);
+							return this.doCreateSession(configuration);
 						})]
 					});
 				}, (err: TaskError) => {
@@ -552,7 +552,7 @@ export class DebugService implements debug.IDebugService {
 			}))));
 	}
 
-	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
+	private doCreateSession(configuration: debug.IConfig): TPromise<any> {
 		this.setStateAndEmit(debug.State.Initializing);
 
 		this.telemetryService.getTelemetryInfo().then(info => {
@@ -581,16 +581,14 @@ export class DebugService implements debug.IDebugService {
 			this.model.setExceptionBreakpoints(this.session.configuration.capabilities.exceptionBreakpointFilters);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
-			if (changeViewState) {
-				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
-					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
-				}
+			if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
+				this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
+			}
 
-				if (!this.viewModel.changedWorkbenchViewState) {
-					// We only want to change the workbench view state on the first debug session #5738
-					this.viewModel.changedWorkbenchViewState = true;
-					this.viewletService.openViewlet(debug.VIEWLET_ID);
-				}
+			if (!this.viewModel.changedWorkbenchViewState && !this.partService.isSideBarHidden()) {
+				// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
+				this.viewModel.changedWorkbenchViewState = true;
+				this.viewletService.openViewlet(debug.VIEWLET_ID);
 			}
 
 			// Do not change status bar to orange if we are just running without debug.
@@ -691,17 +689,17 @@ export class DebugService implements debug.IDebugService {
 			sourceMaps: configuration.sourceMaps,
 			outDir: configuration.outDir,
 			debugServer: configuration.debugServer
-		}, false);
+		});
 	}
 
 	public restartSession(): TPromise<any> {
 		return this.session ? this.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createSession(false, null, false).then(() => c(null), err => e(err));
+					this.createSession(false, null).then(() => c(null), err => e(err));
 				}, 300);
 			})
-		) : this.createSession(false, null, false);
+		) : this.createSession(false, null);
 	}
 
 	public getActiveSession(): debug.IRawDebugSession {
