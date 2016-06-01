@@ -25,12 +25,18 @@
 	top: -40px;
 	width: 250px;
 	z-index: 10;
+	border: 1px solid #EFEFF2;
+	border-radius: 3px;
 
 	-webkit-transition: top 200ms linear;
 	-o-transition: top 200ms linear;
 	-moz-transition: top 200ms linear;
 	-ms-transition: top 200ms linear;
 	transition: top 200ms linear;
+}
+
+.vs-dark .markers-panel .markers-panel-container .filter-box-container {
+	border-color: #2D2D30;
 }
 
 .markers-panel .markers-panel-container .filter-box-container.visible {
