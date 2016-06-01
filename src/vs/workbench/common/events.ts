@@ -27,11 +27,6 @@ export class EventType {
 	static EDITOR_CLOSED = 'editorClosed';
 
 	/**
-	 * Event to indciate that an editor input is about to open. This event can be prevented to do something else instead.
-	 */
-	static EDITOR_INPUT_OPENING = 'editorInputOpening';
-
-	/**
 	 * Event type for when a composite is about to open.
 	 */
 	static COMPOSITE_OPENING = 'compositeOpening';

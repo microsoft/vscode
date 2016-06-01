@@ -16,6 +16,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
 import http = require('vs/base/common/http');
+import {EditorInputEvent} from 'vs/workbench/common/events';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
@@ -294,12 +295,14 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
+	private _onEditorOpening: Emitter<EditorInputEvent>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 
 	constructor(callback?: (method: string) => void) {
 		this.callback = callback || ((s: string) => { });
 
 		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<EditorInputEvent>();
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
@@ -321,6 +324,10 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
+	}
+
+	public get onEditorOpening(): Event<EditorInputEvent> {
+		return this._onEditorOpening.event;
 	}
 
 	public get onEditorsMoved(): Event<void> {

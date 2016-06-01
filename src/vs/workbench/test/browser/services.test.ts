@@ -17,6 +17,7 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IFileService} from 'vs/platform/files/common/files';
+import {EditorInputEvent} from 'vs/workbench/common/events';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -76,6 +77,10 @@ class TestEditorPart implements IEditorPart {
 	}
 
 	public get onEditorsMoved(): Event<void> {
+		return null;
+	}
+
+	public get onEditorOpening(): Event<EditorInputEvent> {
 		return null;
 	}
 

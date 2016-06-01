@@ -84,6 +84,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private stacks: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
+	private _onEditorOpening: Emitter<EditorInputEvent>;
 	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
 
@@ -109,6 +110,7 @@ export class EditorPart extends Part implements IEditorPart {
 		super(id);
 
 		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<EditorInputEvent>();
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
 
@@ -155,6 +157,10 @@ export class EditorPart extends Part implements IEditorPart {
 		return this._onEditorsChanged.event;
 	}
 
+	public get onEditorOpening(): Event<EditorInputEvent> {
+		return this._onEditorOpening.event;
+	}
+
 	public get onEditorsMoved(): Event<void> {
 		return this._onEditorsMoved.event;
 	}
@@ -185,7 +191,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Emit early open event to allow for veto
 		let event = new EditorInputEvent(input);
-		this.emit(WorkbenchEventType.EDITOR_INPUT_OPENING, event);
+		this._onEditorOpening.fire(event);
 		if (event.isPrevented()) {
 			return TPromise.as<BaseEditor>(null);
 		}
@@ -1150,6 +1156,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Emitters
 		this._onEditorsChanged.dispose();
+		this._onEditorOpening.dispose();
 		this._onEditorsMoved.dispose();
 		this._onEditorOpenFail.dispose();
 

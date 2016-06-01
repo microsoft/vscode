@@ -11,6 +11,7 @@ import {guessMimeTypes} from 'vs/base/common/mime';
 import {Registry} from 'vs/platform/platform';
 import {basename, dirname} from 'vs/base/common/paths';
 import types = require('vs/base/common/types');
+import {EditorInputEvent} from 'vs/workbench/common/events';
 import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditor, IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -30,6 +31,7 @@ export interface IEditorPart {
 
 	// Events
 	onEditorsChanged: Event<void>;
+	onEditorOpening: Event<EditorInputEvent>;
 	onEditorsMoved: Event<void>;
 	onEditorOpenFail: Event<IEditorInput>;
 
@@ -72,6 +74,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public get onEditorsChanged(): Event<void> {
 		return this.editorPart.onEditorsChanged;
+	}
+
+	public get onEditorOpening(): Event<EditorInputEvent> {
+		return this.editorPart.onEditorOpening;
 	}
 
 	public get onEditorsMoved(): Event<void> {
