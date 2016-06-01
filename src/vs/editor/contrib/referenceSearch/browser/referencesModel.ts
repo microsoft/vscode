@@ -95,6 +95,7 @@ export class FileReferences {
 	private _children: OneReference[];
 	private _preview: FilePreview;
 	private _resolved: boolean;
+	private _loadFailure: any;
 
 	constructor(private _parent: ReferencesModel, private _uri: URI) {
 		this._children = [];
@@ -128,6 +129,10 @@ export class FileReferences {
 		return this._preview;
 	}
 
+	public get failure(): any {
+		return this._loadFailure;
+	}
+
 	public resolve(editorService: IEditorService): TPromise<FileReferences> {
 
 		if (this._resolved) {
@@ -135,8 +140,19 @@ export class FileReferences {
 		}
 
 		return editorService.resolveEditorModel({ resource: this._uri }).then(model => {
-			this._preview = new FilePreview((<IModel>model.textEditorModel).getValue());
+			if (!model) {
+				throw new Error();
+			}
+			const value = (<IModel>model.textEditorModel).getValue();
+			this._preview = new FilePreview(value);
 			this._resolved = true;
+			return this;
+
+		}, err => {
+			// something wrong here
+			this._children = [];
+			this._resolved = true;
+			this._loadFailure = err;
 			return this;
 		});
 	}

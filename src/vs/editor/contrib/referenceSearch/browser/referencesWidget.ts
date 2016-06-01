@@ -170,36 +170,48 @@ class DataSource implements tree.IDataSource {
 		//
 	}
 
-	public getId(tree:tree.ITree, element:any):string {
-		if(element instanceof ReferencesModel) {
+	public getId(tree: tree.ITree, element: any): string {
+		if (element instanceof ReferencesModel) {
 			return 'root';
-		} else if(element instanceof FileReferences) {
-			return (<FileReferences> element).id;
-		} else if(element instanceof OneReference) {
-			return (<OneReference> element).id;
+		} else if (element instanceof FileReferences) {
+			return (<FileReferences>element).id;
+		} else if (element instanceof OneReference) {
+			return (<OneReference>element).id;
 		}
 	}
 
-	public hasChildren(tree:tree.ITree, element:any):boolean {
-		return element instanceof FileReferences || element instanceof ReferencesModel;
+	public hasChildren(tree: tree.ITree, element: any): boolean {
+		if (element instanceof ReferencesModel) {
+			return true;
+		}
+		if (element instanceof FileReferences && !(<FileReferences>element).failure) {
+			return true;
+		}
 	}
 
-	public getChildren(tree:tree.ITree, element:any):TPromise<any[]> {
-		if(element instanceof ReferencesModel) {
-			return TPromise.as((<ReferencesModel> element).groups);
-		} else if(element instanceof FileReferences) {
-			return (<FileReferences> element).resolve(this._editorService).then(val => val.children);
+	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): TPromise<any[]> {
+		if (element instanceof ReferencesModel) {
+			return TPromise.as(element.groups);
+		} else if (element instanceof FileReferences) {
+			return element.resolve(this._editorService).then(val => {
+				if (element.failure) {
+					// refresh the element on failure so that
+					// we can update its rendering
+					return tree.refresh(element).then(() => val.children);
+				}
+				return val.children;
+			});
 		} else {
 			return TPromise.as([]);
 		}
 	}
 
-	public getParent(tree:tree.ITree, element:any):TPromise<any> {
-		var result:any = null;
-		if(element instanceof FileReferences) {
-			result = (<FileReferences> element).parent;
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+		var result: any = null;
+		if (element instanceof FileReferences) {
+			result = (<FileReferences>element).parent;
 		} else if (element instanceof OneReference) {
-			result = (<OneReference> element).parent;
+			result = (<OneReference>element).parent;
 		}
 		return TPromise.as(result);
 	}
@@ -341,36 +353,43 @@ class Renderer extends LegacyRenderer {
 		return 22;
 	}
 
-	protected render(tree:tree.ITree, element:any, container:HTMLElement):tree.IElementCallback {
+	protected render(tree: tree.ITree, element: FileReferences | OneReference, container: HTMLElement): tree.IElementCallback {
 
 		dom.clearNode(container);
 
-		if(element instanceof FileReferences) {
-			var fileReferences = <FileReferences> element,
-				fileReferencesContainer = $('.reference-file');
+		if (element instanceof FileReferences) {
+			const fileReferencesContainer = $('.reference-file');
 
 			/* tslint:disable:no-unused-expression */
 			new LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
-				var resource = fileReferences.uri;
-				new FileLabel(left, resource, this._contextService);
 
-				return <IDisposable> null;
+				new FileLabel(left, element.uri, this._contextService);
+				return <IDisposable>null;
 
 			}, (right: HTMLElement) => {
-				var len = fileReferences.children.length;
-				return new CountBadge(right, len, len > 1 ? nls.localize('referencesCount', "{0} references", len) : nls.localize('referenceCount', "{0} reference", len));
+
+				const len = element.children.length;
+				const badge = new CountBadge(right, len);
+
+				if (element.failure) {
+					badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
+				} else if (len > 1) {
+					badge.setTitleFormat(nls.localize('referencesCount', "{0} references", len));
+				} else {
+					badge.setTitleFormat(nls.localize('referenceCount', "{0} reference", len));
+				}
+
+				return badge;
 			});
 			/* tslint:enable:no-unused-expression */
 
 			fileReferencesContainer.appendTo(container);
 
-		} else if(element instanceof OneReference) {
+		} else if (element instanceof OneReference) {
 
-			var oneReference = <OneReference> element,
-				oneReferenceContainer = $('.reference'),
-				preview = oneReference.parent.preview.preview(oneReference.range);
+			const preview = element.parent.preview.preview(element.range);
 
-			oneReferenceContainer.innerHtml(
+			$('.reference').innerHtml(
 				strings.format(
 					'<span>{0}</span><span class="referenceMatch">{1}</span><span>{2}</span>',
 					strings.escape(preview.before),
