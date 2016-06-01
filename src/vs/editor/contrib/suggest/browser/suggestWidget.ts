@@ -22,7 +22,7 @@ import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybind
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { CONTEXT_SUGGEST_WIDGET_VISIBLE, CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY } from '../common/suggest';
+import { Context as SuggestContext } from '../common/suggest';
 import { CompletionItem, CompletionModel } from './completionModel';
 import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from './suggestModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -327,8 +327,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private delegate: IDelegate<CompletionItem>;
 	private list: List<CompletionItem>;
 
-	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
+	private suggestWidgetMultipleSuggestions: IKeybindingContextKey<boolean>;
+	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 
 	private editorBlurTimeout: TPromise<void>;
 	private showTimeout: TPromise<void>;
@@ -375,8 +376,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.model.onDidCancel(e => this.onDidCancel(e))
 		];
 
-		this.suggestionSupportsAutoAccept = keybindingService.createKey(CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, true);
-		this.suggestWidgetVisible = keybindingService.createKey(CONTEXT_SUGGEST_WIDGET_VISIBLE, false);
+		this.suggestWidgetVisible = keybindingService.createKey(SuggestContext.Visible, false);
+		this.suggestWidgetMultipleSuggestions = keybindingService.createKey(SuggestContext.MultipleSuggestions, false);
+		this.suggestionSupportsAutoAccept = keybindingService.createKey(SuggestContext.AcceptOnKey, true);
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
@@ -590,6 +592,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		let visibleCount = this.completionModel.items.length;
 
 		const isEmpty = visibleCount === 0;
+		this.suggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
 		if (isEmpty) {
 			if (e.auto) {
