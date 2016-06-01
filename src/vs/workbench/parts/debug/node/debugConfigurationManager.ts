@@ -245,14 +245,16 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	public resolveInteractiveVariables(): TPromise<debug.IConfig>  {
 		const factory = Object.keys(this.configuration).map(key => {
 			return () => {
-				const matches = /\${action.(.+)}/.exec(this.configuration[key]);
-				if (matches && matches.length === 2) {
-					const commandId = this.adapter.variables[matches[1]];
-					if (!commandId) {
-						return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, matches[1]));
-					} else {
-						return this.keybindingService.executeCommand<string>(commandId, this.configuration)
-							.then(result => result ? this.configuration[key] = result : this.configuration.silentlyAbort = true);
+				if (typeof this.configuration[key] === 'string') {
+					const matches = /\${action.(.+)}/.exec(this.configuration[key]);
+					if (matches && matches.length === 2) {
+						const commandId = this.adapter.variables[matches[1]];
+						if (!commandId) {
+							return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, matches[1]));
+						} else {
+							return this.keybindingService.executeCommand<string>(commandId, this.configuration)
+								.then(result => result ? this.configuration[key] = result : this.configuration.silentlyAbort = true);
+						}
 					}
 				}
 
