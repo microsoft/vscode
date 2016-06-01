@@ -21,9 +21,8 @@ export class Marker {
 }
 
 export class MarkersModel {
-
 	private markersByResource: Map.SimpleMap<URI, IMarker[]>;
-	public showOnlyErrors:boolean= false;
+	public filterErrors:boolean= false;
 	public filter:string= '';
 
 	constructor(markers: IMarker[]= []) {
@@ -82,7 +81,7 @@ export class MarkersModel {
 	}
 
 	private filterMarker(marker: IMarker):boolean {
-		if (this.showOnlyErrors && Severity.Error !== marker.severity) {
+		if (this.filterErrors && Severity.Error !== marker.severity) {
 			return false;
 		}
 		if (this.filter) {
@@ -116,7 +115,16 @@ export class MarkersModel {
 
 	public getTitle(markerStatistics: MarkerStatistics):string {
 		let title= MarkersModel.getStatisticsLabel(markerStatistics);
-		return title ? title : Messages.MARKERS_PANEL_NO_PROBLEMS;
+		if (!title) {
+			return Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS;
+		}
+		if (this.filter) {
+			return title + ' ' + Messages.MARKERS_PANEL_TITLE_SHOWING_FILTERED;
+		}
+		if (this.filterErrors) {
+			return title + ' ' + Messages.MARKERS_PANEL_TITLE_SHOWING_ONLY_ERRORS;
+		}
+		return title;
 	}
 
 	public getMessage():string {
@@ -127,7 +135,7 @@ export class MarkersModel {
 			if (this.filter) {
 				return Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
 			}
-			if (this.showOnlyErrors) {
+			if (this.filterErrors) {
 				return Messages.MARKERS_PANEL_NO_ERRORS;
 			}
 		}

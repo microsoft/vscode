@@ -44,7 +44,7 @@ export function registerContributions(): void {
 		'vs/workbench/parts/markers/browser/MarkersPanel',
 		'MarkersPanel',
 		Constants.MARKERS_PANEL_ID,
-		Messages.MARKERS_PANEL_NO_PROBLEMS,
+		Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS,
 		'markersPanel'
 	));
 

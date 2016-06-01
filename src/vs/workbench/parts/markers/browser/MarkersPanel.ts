@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/markers';
 
-import nls = require('vs/nls');
 import * as errors from 'vs/base/common/errors';
 import * as Set from 'vs/base/common/set';
 import URI from 'vs/base/common/uri';
@@ -16,6 +15,10 @@ import builder = require('vs/base/browser/builder');
 import {Action} from 'vs/base/common/actions';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEventService } from 'vs/platform/event/common/event';
+import { EventType } from 'vs/workbench/common/events';
+import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import { Panel } from 'vs/workbench/browser/panel';
 import {IAction} from 'vs/base/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -41,7 +44,7 @@ export class MarkersPanel extends Panel {
 
 	private actions: IAction[];
 	private showFilterInputAction: IAction;
-	private showOnlyErrorsAction: IAction;
+	private toggleErrorsAction: IAction;
 	private collapseAllAction: IAction;
 
 	private messageBoxContainer: HTMLElement;
@@ -54,6 +57,7 @@ export class MarkersPanel extends Panel {
 		@IMarkerService private markerService: IMarkerService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextViewService private contextViewService: IContextViewService,
+		@IEventService private eventService: IEventService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
@@ -68,12 +72,12 @@ export class MarkersPanel extends Panel {
 
 		let container= dom.append(parent.getHTMLElement(), dom.emmet('.markers-panel-container'));
 
-		this.createMessageBox(container);
-		this.createFilterInputBox(container);
-		this.createTree(container);
 		this.createActions();
+		this.createFilterInputBox(container);
+		this.createMessageBox(container);
+		this.createTree(container);
 
-		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged.bind(this)));
+		this.createListeners();
 
 		this.render();
 
@@ -91,13 +95,12 @@ export class MarkersPanel extends Panel {
 
 	public focus(): void {
 		if (this.markersModel.hasFilteredResources()) {
-			this.tree.DOMFocus();
 			this.tree.focusFirst();
 		}
 	}
 
 	public getActions(): IAction[] {
-		this.showOnlyErrorsAction.enabled= this.markersModel.hasResources();
+		this.toggleErrorsAction.enabled= this.markersModel.hasResources();
 		if (this.markersModel.hasFilteredResources()) {
 			this.showFilterInputAction.enabled= true;
 			this.collapseAllAction.enabled= true;
@@ -114,10 +117,18 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createFilterInputBox(parent: HTMLElement): void {
-		this.filterInputBoxContainer= dom.append(parent, dom.emmet('.filter-box-container'));
+		var filterBoxContainer= dom.append(parent, dom.emmet('.filter-box-container'));
+		this.filterInputBoxContainer= dom.append(filterBoxContainer, dom.emmet('.input-box-container'));
 		this.filterInputBox= new InputBox(this.filterInputBoxContainer, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
+		this.toDispose.push(dom.addStandardDisposableListener(this.filterInputBox.inputElement, 'keyup', (e: IKeyboardEvent) => {
+			if (e.equals(CommonKeybindings.ESCAPE)) {
+				dom.removeClass(this.filterInputBoxContainer, 'visible');
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
 		this.toDispose.push(this.filterInputBox.onDidChange((filter:string) => {
 			this.markersModel.filter= filter;
 			this.refreshPanel();
@@ -140,11 +151,11 @@ export class MarkersPanel extends Panel {
 
 	private createActions():void {
 		this.collapseAllAction= this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
-		this.showOnlyErrorsAction= new Action('workbench.markers.panel.action.toggle.errors', nls.localize('toggle.errors', "Show only errors"), 'markers-panel-action-toggle-errors', true, this.toggleShowOnlyErrors.bind(this));
-		this.showFilterInputAction= new Action('workbench.markers.panel.action.filter', nls.localize('filter.markers', "Filter"), 'markers-panel-action-filter', true, this.toggleFilter.bind(this));
+		this.toggleErrorsAction= new Action('workbench.markers.panel.action.toggle.errors', Messages.MARKERS_PANEL_ACTION_TOOLTIP_ONLY_ERRORS, 'markers-panel-action-toggle-errors-on', true, this.toggleShowOnlyErrors.bind(this));
+		this.showFilterInputAction= new Action('workbench.markers.panel.action.filter', Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true, this.toggleFilter.bind(this));
 		this.actions= [
 					this.showFilterInputAction,
-					this.showOnlyErrorsAction,
+					this.toggleErrorsAction,
 					this.collapseAllAction
 				];
 		this.actions.forEach(a => {
@@ -152,9 +163,20 @@ export class MarkersPanel extends Panel {
 		});
 	}
 
+	private createListeners(): void {
+		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged.bind(this)));
+		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, this.onPanelOpened.bind(this)));
+	}
+
 	private onMarkerChanged(changedResources: URI[]) {
 		this.updateResources(changedResources);
 		this.refreshPanel();
+	}
+
+	private onPanelOpened():void {
+		if (this.markersModel.filter) {
+			dom.addClass(this.filterInputBoxContainer, 'visible');
+		}
 	}
 
 	private updateResources(resources: URI[]) {
@@ -208,9 +230,9 @@ export class MarkersPanel extends Panel {
 	}
 
 	private toggleShowOnlyErrors(): any {
-		this.markersModel.showOnlyErrors= !this.markersModel.showOnlyErrors;
-		this.actions[1].label= this.markersModel.showOnlyErrors ? nls.localize('toggle.all', "Show all") : nls.localize('toggle.errors', "Show only errors");
-		this.actions[1].class= this.markersModel.showOnlyErrors ? 'markers-panel-action-toggle-all' : 'markers-panel-action-toggle-errors';
+		this.markersModel.filterErrors= !this.markersModel.filterErrors;
+		this.actions[1].label= this.markersModel.filterErrors ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_ONLY_ERRORS_OFF : Messages.MARKERS_PANEL_ACTION_TOOLTIP_ONLY_ERRORS;
+		this.actions[1].class= this.markersModel.filterErrors ? 'markers-panel-action-toggle-errors-off' : 'markers-panel-action-toggle-errors-on';
 		this.refreshPanel(true);
 	}
 

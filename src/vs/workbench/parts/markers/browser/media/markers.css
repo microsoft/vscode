@@ -5,42 +5,32 @@
 
 .markers-panel .markers-panel-container {
 	height: 100%;
-	width: 100%;
-	overflow: hidden;
-	position: relative;
+	margin: 0 10px;
 }
 
-.message-box-container {
-	padding: 0 20px 0 20px;
+.markers-panel .markers-panel-container .message-box-container {
+	padding-left: 10px;
 	display: none;
 }
 
-.markers-panel .message-box-container.visible {
+.markers-panel  .markers-panel-container .message-box-container.visible {
 	display: block;
 }
 
 .markers-panel .markers-panel-container .filter-box-container {
-	position: absolute;
-	right: 10px;
-	top: -40px;
+	display: flex;
+	justify-content: flex-end;
+}
+
+.markers-panel .markers-panel-container .input-box-container {
 	width: 250px;
-	z-index: 10;
-	border: 1px solid #EFEFF2;
+	border: 1px solid #DDD;
 	border-radius: 3px;
-
-	-webkit-transition: top 200ms linear;
-	-o-transition: top 200ms linear;
-	-moz-transition: top 200ms linear;
-	-ms-transition: top 200ms linear;
-	transition: top 200ms linear;
-}
-
-.vs-dark .markers-panel .markers-panel-container .filter-box-container {
 	border-color: #2D2D30;
+	display: none;
 }
-
-.markers-panel .markers-panel-container .filter-box-container.visible {
-	top: 0;
+.markers-panel .markers-panel-container .input-box-container.visible {
+	display: inline-block;
 }
 
 .markers-panel .markers-panel-container .monaco-tree .monaco-tree-row .content .marker-stats {
@@ -55,19 +45,19 @@
 }
 
 .markers-panel-action-filter {
-	background: url('ellipsis.svg') top center no-repeat;
+	background: url('filter.svg') top center no-repeat;
 }
 
 .hc-black .markers-panel-action-filter {
-	background: url('ellipsis-inverse.svg') top center no-repeat;
+	background: url('filter.svg') top center no-repeat;
 }
 
 .vs-dark .markers-panel-action-filter {
-	background: url('ellipsis-inverse.svg') top center no-repeat;
+	background: url('filter.svg') top center no-repeat;
 }
 
 .vs .markers-panel-action-filter {
-	background: url('ellipsis.svg') top center no-repeat;
+	background: url('filter.svg') top center no-repeat;
 }
 
 .markers-panel .icon {
@@ -83,8 +73,8 @@
 	background: url('status-warning.svg') center center no-repeat;
 }
 
-.markers-panel-action-toggle-errors,
-.markers-panel-action-toggle-all,
+.markers-panel-action-toggle-errors-on,
+.markers-panel-action-toggle-errors-off,
 .markers-panel .icon.error {
 	background: url('status-error.svg') center center no-repeat;
 }
@@ -97,8 +87,8 @@
 	background: url('status-warning-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .markers-panel-action-toggle-errors,
-.vs-dark .markers-panel-action-toggle-all,
+.vs-dark .markers-panel-action-toggle-errors-on,
+.vs-dark .markers-panel-action-toggle-errors-off,
 .vs-dark .markers-panel .icon.error {
 	background: url('status-error-inverse.svg') center center no-repeat;
 }

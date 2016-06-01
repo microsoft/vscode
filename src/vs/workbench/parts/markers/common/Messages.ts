@@ -9,10 +9,18 @@ import nls = require('vs/nls');
 export default class Messages {
 
 	public static MARKERS_PANEL_TOGGLE_LABEL:string= nls.localize('markers.panel.toggle.label', "Toggle Problems");
-	public static MARKERS_PANEL_NO_PROBLEMS:string= nls.localize('markers.panel.no.problems', "No problems");
+
+	public static MARKERS_PANEL_TITLE_NO_PROBLEMS:string= nls.localize('markers.panel.title.no.problems', "No problems");
+	public static MARKERS_PANEL_TITLE_SHOWING_ONLY_ERRORS:string= nls.localize('markers.panel.title.showing.errors', "(Showing only Errors)");
+	public static MARKERS_PANEL_TITLE_SHOWING_FILTERED:string= nls.localize('markers.panel.title.showing.filtered', "(Showing Filtered)");
+
 	public static MARKERS_PANEL_NO_PROBLEMS_BUILT:string= nls.localize('markers.panel.no.problems.build', "This workspace is clear or not yet built");
 	public static MARKERS_PANEL_NO_PROBLEMS_FILTERS:string= nls.localize('markers.panel.no.problems.filters', "No results found with provided filter criteria");
 	public static MARKERS_PANEL_NO_ERRORS:string= nls.localize('markers.panel.no.errors', "This workspace has no errors");
+
+	public static MARKERS_PANEL_ACTION_TOOLTIP_ONLY_ERRORS:string= nls.localize('markers.panel.action.only.errors', "Show only errors");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_ONLY_ERRORS_OFF:string= nls.localize('markers.panel.action.only.errors.off', "Show all");
+	public static MARKERS_PANEL_ACTION_TOOLTIP_FILTER:string= nls.localize('markers.panel.action.filter', "Filter...");
 	public static MARKERS_PANEL_FILTER_PLACEHOLDER:string= nls.localize('markers.panel.filter.placeholder', "Type to Filter");
 
 	public static MARKERS_PANEL_SINGLE_ERROR_LABEL:string= nls.localize('markers.panel.single.error.label', "1 Error");
