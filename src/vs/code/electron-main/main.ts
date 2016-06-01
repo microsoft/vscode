@@ -29,8 +29,8 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, MainLogService } from './log';
-import { IStorageService, StorageService } from './storage';
+import { ILogService, MainLogService } from 'vs/code/electron-main/log';
+import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);

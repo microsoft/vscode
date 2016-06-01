@@ -388,7 +388,7 @@ export class WorkbenchShell {
 			return;
 		}
 
-		let now = new Date().getTime();
+		let now = Date.now();
 		if (errorMsg === this.previousErrorValue && now - this.previousErrorTime <= 1000) {
 			return; // Return if error message identical to previous and shorter than 1 second
 		}

@@ -163,7 +163,7 @@ export class FileTracker implements IWorkbenchContribution {
 					return false;
 				}
 
-				if (new Date().getTime() - model.getLastDirtyTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
+				if (Date.now() - model.getLastDirtyTime() < FileTracker.FILE_CHANGE_UPDATE_DELAY) {
 					return false; // this is a weak check to see if the change came from outside the editor or not
 				}
 
@@ -199,7 +199,7 @@ export class FileTracker implements IWorkbenchContribution {
 							let lastDirtyTime = textModel.getLastDirtyTime();
 
 							// Force a reopen of the input if this change came in later than our wait interval before we consider it
-							if (new Date().getTime() - lastDirtyTime > FileTracker.FILE_CHANGE_UPDATE_DELAY) {
+							if (Date.now() - lastDirtyTime > FileTracker.FILE_CHANGE_UPDATE_DELAY) {
 								let codeEditor = (<BaseTextEditor>editor).getControl();
 								let viewState = codeEditor.saveViewState();
 								let currentMtime = textModel.getLastModifiedTime(); // optimize for the case where the file did actually not change

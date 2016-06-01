@@ -10,7 +10,7 @@ import { IWindowsService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from './log';
+import { ILogService } from 'vs/code/electron-main/log';
 
 export interface ILaunchService {
 	start(args: ICommandLineArguments, userEnv: IProcessEnvironment): TPromise<void>;

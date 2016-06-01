@@ -18,7 +18,7 @@ import { download, json } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { ISettingsService  } from 'vs/code/electron-main/settings';
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { IEnvironmentService } from './env';
+import { IEnvironmentService } from 'vs/code/electron-main/env';
 
 export interface IUpdate {
 	url: string;

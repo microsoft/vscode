@@ -12,7 +12,7 @@ import { IStorageService } from 'vs/code/electron-main/storage';
 import { shell, screen, BrowserWindow } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ICommandLineArguments, IEnvironmentService, IProcessEnvironment } from 'vs/code/electron-main/env';
-import { ILogService } from './log';
+import { ILogService } from 'vs/code/electron-main/log';
 
 export interface IWindowState {
 	width?: number;
@@ -171,7 +171,7 @@ export class VSCodeWindow {
 		const usesLightTheme = /vs($| )/.test(this.storageService.getItem<string>(VSCodeWindow.themeStorageKey));
 		let showDirectly = true; // set to false to prevent background color flash (flash should be fixed for Electron >= 0.37.x)
 		if (showDirectly && !global.windowShow) {
-			global.windowShow = new Date().getTime();
+			global.windowShow = Date.now();
 		}
 
 		let options: Electron.BrowserWindowOptions = {
@@ -206,7 +206,7 @@ export class VSCodeWindow {
 		}
 
 		if (showDirectly) {
-			this._lastFocusTime = new Date().getTime(); // since we show directly, we need to set the last focus time too
+			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
 
 		if (this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
@@ -300,7 +300,7 @@ export class VSCodeWindow {
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
 			if (!this.win.isVisible()) {
 				if (!global.windowShow) {
-					global.windowShow = new Date().getTime();
+					global.windowShow = Date.now();
 				}
 
 				if (this.currentWindowMode === WindowMode.Maximized) {
@@ -336,7 +336,7 @@ export class VSCodeWindow {
 
 		// Window Focus
 		this._win.on('focus', () => {
-			this._lastFocusTime = new Date().getTime();
+			this._lastFocusTime = Date.now();
 		});
 
 		// Window Failed to load
