@@ -125,6 +125,7 @@ export default class Webview {
 		}
 		body {
 			margin: 0;
+			outline: 0;
 			background-color: var(--background-color);
 			color: var(--color);
 			font-family: var(--font-family);
