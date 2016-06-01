@@ -320,7 +320,7 @@ function buildDebPackage(arch) {
 	return shell.task([
 		'chmod 755 code-' + debArch + '/DEBIAN/postinst ' + 'code-' + debArch + '/DEBIAN/prerm',
 		'mkdir -p deb',
-		'fakeroot dpkg-deb -b code-' + debArch + ' deb/code-' + debArch + '.deb',
+		'fakeroot dpkg-deb -b code-' + debArch + ' deb/' + product.applicationName + '-' + debArch + '.deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
 	], { cwd: '.build/linux/deb/' + debArch});
 }
@@ -378,7 +378,7 @@ function buildRpmPackage(arch) {
 	return shell.task([
 		'mkdir -p ' + destination,
 		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
-		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/code-' + rpmArch + '.rpm',
+		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/' + product.applicationName+ '-' + rpmArch + '.rpm',
 		'createrepo ' + destination
 	]);
 }
