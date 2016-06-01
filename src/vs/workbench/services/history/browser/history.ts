@@ -11,7 +11,7 @@ import {EventType} from 'vs/base/common/events';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
@@ -81,13 +81,10 @@ export abstract class BaseHistoryService {
 		window.document.title = this.getWindowTitle(null);
 
 		// Editor Input Changes
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
 	}
 
-	private onEditorInputChanged(event: EditorEvent): void {
-
-		// Propagate to history
-		this.onEditorEvent(event.editor);
+	private onEditorInputChanged(): void {
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
@@ -95,6 +92,9 @@ export abstract class BaseHistoryService {
 
 		let activeEditor = this.editorService.getActiveEditor();
 		let activeInput = activeEditor ? activeEditor.input : void 0;
+
+		// Propagate to history
+		this.onEditorEvent(activeEditor);
 
 		// Apply listener for dirty changes
 		if (activeInput instanceof EditorInput) {
@@ -114,12 +114,6 @@ export abstract class BaseHistoryService {
 
 	private onEditorEvent(editor: IBaseEditor): void {
 		let input = editor ? editor.input : null;
-
-		// If an active editor is set, but is different from the one from the event, prevent update because the editor is not active.
-		let activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && editor && activeEditor !== editor) {
-			return;
-		}
 
 		// Calculate New Window Title
 		this.updateWindowTitle(input);

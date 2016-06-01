@@ -6,8 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import {Event} from 'vs/base/common/events';
-import {IEditor, IEditorInput, IEditorOptions} from 'vs/platform/editor/common/editor';
-import {Position} from 'vs/platform/editor/common/editor';
+import {IEditorInput} from 'vs/platform/editor/common/editor';
 
 /**
  * All workbench events are listed here.
@@ -108,47 +107,6 @@ export class EditorInputEvent extends Event {
 
 	public isPrevented(): boolean {
 		return this.prevented;
-	}
-}
-
-/**
- * Editor events are being emitted when the editor input changes, shows, is being saved or when the editor content changes.
- */
-export class EditorEvent extends Event {
-	private _editor: IEditor;
-	private _editorId: string;
-	private _editorInput: IEditorInput;
-	private _editorOptions: IEditorOptions;
-	private _position: Position;
-
-	constructor(editor: IEditor, editorInput = editor.input, editorOptions = editor.options, position = editor.position, originalEvent?: any) {
-		super(originalEvent);
-
-		this._editor = editor;
-		this._editorId = editor ? editor.getId() : void 0;
-		this._editorInput = editorInput;
-		this._editorOptions = editorOptions;
-		this._position = position;
-	}
-
-	public get editor(): IEditor {
-		return this._editor;
-	}
-
-	public get editorId(): string {
-		return this._editorId;
-	}
-
-	public get editorInput(): IEditorInput {
-		return this._editorInput;
-	}
-
-	public get editorOptions(): IEditorOptions {
-		return this._editorOptions;
-	}
-
-	public get position(): Position {
-		return this._position;
 	}
 }
 

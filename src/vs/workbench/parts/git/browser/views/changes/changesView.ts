@@ -103,7 +103,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		this.toDispose = [
 			this.smartCommitAction = this.instantiationService.createInstance(GitActions.SmartCommitAction, this),
-			eventService.addListener2(WorkbenchEvents.EventType.EDITOR_INPUT_CHANGED, (e:WorkbenchEvents.EditorEvent) => this.onEditorInputChanged(e.editorInput).done(null, Errors.onUnexpectedError)),
+			eventService.addListener2(WorkbenchEvents.EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged(this.editorService.getActiveEditorInput()).done(null, Errors.onUnexpectedError)),
 			this.gitService.addListener2(git.ServiceEvents.OPERATION_START, (e) => this.onGitOperationStart(e)),
 			this.gitService.addListener2(git.ServiceEvents.OPERATION_END, (e) => this.onGitOperationEnd(e)),
 			this.gitService.getModel().addListener2(git.ModelEvents.MODEL_UPDATED, this.onGitModelUpdate.bind(this))

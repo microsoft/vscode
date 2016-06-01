@@ -20,7 +20,7 @@ import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistr
 import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import {Registry} from 'vs/platform/platform';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
-import {EditorEvent, EditorInputEvent, EventType} from 'vs/workbench/common/events';
+import {EditorInputEvent, EventType} from 'vs/workbench/common/events';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
@@ -124,7 +124,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	public create(): void {
 
 		// Listen on Editor Input Changes to show in MRU List
-		this.toUnbind.push(this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
 		this.toUnbind.push(this.eventService.addListener2(EventType.EDITOR_SET_INPUT_ERROR, (e: EditorInputEvent) => this.onEditorInputSetError(e)));
 
 		// Editor History Model
@@ -135,23 +135,19 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 	}
 
-	private onEditorInputChanged(e: EditorEvent): void {
-		if (e.editorInput) {
+	private onEditorInputChanged(): void {
+		let activeEditorInput = this.editorService.getActiveEditorInput();
+		if (!activeEditorInput) {
+			return;
+		}
 
-			// If an active editor is set, but is different from the one from the event, return early
-			let activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor && e.editor && activeEditor !== e.editor) {
-				return;
-			}
+		// Add to History
+		this.editorHistoryModel.add(activeEditorInput);
 
-			// Add to History
-			this.editorHistoryModel.add(e.editorInput);
-
-			// Save to Local Storage periodically
-			if (this.autoSaveHistoryCounter++ >= AUTO_SAVE_HISTORY_THRESHOLD) {
-				this.saveEditorHistory(true);
-				this.autoSaveHistoryCounter = 0;
-			}
+		// Save to Local Storage periodically
+		if (this.autoSaveHistoryCounter++ >= AUTO_SAVE_HISTORY_THRESHOLD) {
+			this.saveEditorHistory(true);
+			this.autoSaveHistoryCounter = 0;
 		}
 	}
 

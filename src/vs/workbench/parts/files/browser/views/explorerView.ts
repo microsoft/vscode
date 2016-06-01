@@ -15,7 +15,7 @@ import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {EditorOptions} from 'vs/workbench/common/editor';
 import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
@@ -140,38 +140,30 @@ export class ExplorerView extends CollapsibleViewletView {
 		return this.doRefresh().then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
+			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
 
 			// Also handle configuration updates
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
 		});
 	}
 
-	private onEditorInputChanged(e: EditorEvent): void {
-
-		// During workbench startup, the editor area might restore more than one editor from a previous
-		// session. When this happens there might be editor input changing events for side editors that
-		// don't have focus. In these cases we do not adjust explorer selection for non-focused editors
-		// because we only want to react for the editor that has focus.
-		if (!this.partService.isCreated() && e.editorOptions && e.editorOptions.preserveFocus) {
-			return;
-		}
-
+	private onEditorInputChanged(): void {
+		let activeInput = this.editorService.getActiveEditorInput();
 		let clearSelection = true;
 		let clearFocus = false;
 
 		// Handle File Input
-		if (e.editorInput && e.editorInput instanceof FileEditorInput) {
-			let fileInput = (<FileEditorInput>e.editorInput);
+		if (activeInput instanceof FileEditorInput) {
+			const fileResource = activeInput.getResource();
 
 			// Always remember last opened file
-			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = fileInput.getResource().toString();
+			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = fileResource.toString();
 
 			// Select file if input is FileEditorInput
-			if (this.isVisible && this.contextService.isInsideWorkspace(fileInput.getResource())) {
-				let selection = this.hasSelection(fileInput.getResource());
+			if (this.isVisible && this.contextService.isInsideWorkspace(fileResource)) {
+				let selection = this.hasSelection(fileResource);
 				if (!selection) {
-					this.select(fileInput.getResource()).done(null, errors.onUnexpectedError);
+					this.select(fileResource).done(null, errors.onUnexpectedError);
 				}
 
 				clearSelection = false;
@@ -179,7 +171,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		}
 
 		// Handle closed (convince explorer to not reopen any file when getting visible)
-		if (!e.editorInput) {
+		if (!activeInput) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
 			clearFocus = true;
 		}

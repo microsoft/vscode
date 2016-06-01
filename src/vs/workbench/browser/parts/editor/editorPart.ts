@@ -21,7 +21,7 @@ import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorEvent, EditorInputEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, EditorInputEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -390,7 +390,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// editor title area is up to date.
 				if (group.activeEditor && group.activeEditor.matches(input)) {
 					this.doRecreateEditorTitleArea();
-					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, group.activeEditor, options, position));
+					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, editor);
 				}
 
 				return editor;
@@ -407,7 +407,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Emit Input-Changed Event (if input changed)
 			if (inputChanged) {
-				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, input, options, position));
+				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, editor);
 			}
 
 			// Update Title Area
@@ -523,7 +523,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.doHideEditor(position, true);
 
 		// Emit Input-Changed Event
-		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, position));
+		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, {});
 
 		// Focus next group if we have an active one left
 		const currentActiveGroup = this.stacks.activeGroup;
@@ -805,7 +805,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Emit as editor input change event so that clients get aware of new active editor
 		let activeEditor = this.sideBySideControl.getActiveEditor();
 		if (activeEditor) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor));
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, {});
 		}
 
 		// Update Title Area

@@ -336,7 +336,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	public getActiveEditorInput(): IEditorInput {
 		this.callback('getActiveEditorInput');
 
-		return null;
+		return this.activeEditorInput;
 	}
 
 	public getVisibleEditors(): IEditor[] {

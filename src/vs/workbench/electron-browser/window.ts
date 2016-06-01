@@ -9,7 +9,7 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import {Identifiers} from 'vs/workbench/common/constants';
-import {EventType, EditorEvent} from 'vs/workbench/common/events';
+import {EventType} from 'vs/workbench/common/events';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -52,13 +52,8 @@ export class ElectronWindow {
 
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
-			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => {
-				let activeEditor = this.editorService.getActiveEditor();
-				if (activeEditor !== e.editor) {
-					return; // only care about active editor
-				}
-
-				let fileInput = workbenchEditorCommon.asFileEditorInput(e.editorInput, true);
+			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => {
+				let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 				let representedFilename = '';
 				if (fileInput) {
 					representedFilename = fileInput.getResource().fsPath;
@@ -127,7 +122,7 @@ export class ElectronWindow {
 		});
 
 		// Handle window.open() calls
-		(<any>window).open = function(url: string, target: string, features: string, replace: boolean) {
+		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
 			shell.openExternal(url);
 
 			return null;

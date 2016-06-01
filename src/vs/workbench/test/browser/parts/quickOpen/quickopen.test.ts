@@ -25,8 +25,7 @@ import URI from 'vs/base/common/uri';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {EventType, EditorEvent} from 'vs/workbench/common/events';
-import {Position} from 'vs/platform/editor/common/editor';
+import {EventType} from 'vs/workbench/common/events';
 
 function toResource(path) {
 	return URI.file(join('C:\\', path));
@@ -75,24 +74,6 @@ suite('Workbench QuickOpen', () => {
 
 		assert(entry1.run(Mode.OPEN, { event: null, quickNavigateConfiguration: null, keymods: [] }));
 		assert(!entry2.run(Mode.PREVIEW, { event: null, quickNavigateConfiguration: null, keymods: [] }));
-	});
-
-	test('EditorHistoryEntry is removed when open fails', () => {
-		let editorService = new TestEditorService();
-		let contextService = new TestContextService();
-		let inst = new InstantiationService();
-
-		let model = new EditorHistoryModel(editorService, null, contextService);
-
-		let input1 = inst.createInstance(StringEditorInput, 'name1', 'description', 'value1', 'text/plain', false);
-
-		model.add(input1);
-
-		assert.equal(1, model.getEntries().length);
-
-		assert(model.getEntries()[0].run(Mode.OPEN, { event: null, quickNavigateConfiguration: null, keymods: [] }));
-
-		assert.equal(0, model.getEntries().length);
 	});
 
 	test('EditorHistoryModel', () => {
@@ -240,13 +221,16 @@ suite('Workbench QuickOpen', () => {
 		assert.equal(0, controller.getEditorHistoryModel().getEntries().length);
 
 		let cinput1 = <EditorInput>inst.createInstance(fileInputCtor, toResource('Hello World'), 'text/plain', null);
-		let event = new EditorEvent(null, cinput1, null, Position.LEFT);
-		eventService.emit(EventType.EDITOR_INPUT_CHANGED, event);
+		editorService.activeEditorInput = cinput1;
+
+		eventService.emit(EventType.EDITOR_INPUT_CHANGED, {});
 
 		assert.equal(1, controller.getEditorHistoryModel().getEntries().length);
 
 		cinput1.dispose();
 
 		assert.equal(1, controller.getEditorHistoryModel().getEntries().length);
+
+		editorService.activeEditorInput = void 0;
 	});
 });
