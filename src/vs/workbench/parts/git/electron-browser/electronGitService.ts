@@ -15,7 +15,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { GitChannelClient, UnavailableGitChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { RawGitService } from 'vs/workbench/parts/git/node/rawGitService';
@@ -194,7 +194,7 @@ export class ElectronGitService extends GitService {
 				})
 				.then(null, () => new UnavailableGitChannel());
 
-			const channel = getDelayedChannel(promise);
+			const channel = getNextTickChannel(getDelayedChannel(promise));
 			raw = new GitChannelClient(channel);
 		}
 

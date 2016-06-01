@@ -281,6 +281,22 @@ export function getDelayedChannel<T extends IChannel>(promise: TPromise<IChannel
 	return { call } as T;
 }
 
+export function getNextTickChannel<T extends IChannel>(channel: T): T {
+	let didTick = false;
+
+	const call = (command, arg) => {
+		if (didTick) {
+			return channel.call(command, arg);
+		}
+
+		return TPromise.timeout(0)
+			.then(() => didTick = true)
+			.then(() => channel.call(command, arg));
+	};
+
+	return { call } as T;
+}
+
 export function eventToCall(event: Event<any>): TPromise<any> {
 	let disposable: IDisposable;
 
