@@ -1,4 +1,4 @@
-Package: visual-studio-@@NAME@@
+Package: @@NAME@@
 Version: @@VERSION@@
 Depends: git
 Section: devel
