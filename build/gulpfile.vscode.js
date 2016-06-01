@@ -264,7 +264,7 @@ function getEpochTime() {
 function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
-	var destination = '.build/linux/deb/' + debArch + '/vscode-' + debArch;
+	var destination = '.build/linux/deb/' + debArch + '/code-' + debArch;
 	var packageRevision = getEpochTime();
 
 	return function () {
@@ -318,9 +318,9 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
-		'chmod 755 vscode-' + debArch + '/DEBIAN/postinst ' + 'vscode-' + debArch + '/DEBIAN/prerm',
+		'chmod 755 code-' + debArch + '/DEBIAN/postinst ' + 'code-' + debArch + '/DEBIAN/prerm',
 		'mkdir -p deb',
-		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-' + debArch + '.deb',
+		'fakeroot dpkg-deb -b code-' + debArch + ' deb/code-' + debArch + '.deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
 	], { cwd: '.build/linux/deb/' + debArch});
 }
@@ -378,7 +378,7 @@ function buildRpmPackage(arch) {
 	return shell.task([
 		'mkdir -p ' + destination,
 		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
-		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/vscode-' + rpmArch + '.rpm',
+		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/code-' + rpmArch + '.rpm',
 		'createrepo ' + destination
 	]);
 }
