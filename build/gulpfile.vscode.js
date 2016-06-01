@@ -264,7 +264,7 @@ function getEpochTime() {
 function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
-	var destination = '.build/linux/deb/' + debArch + '/code-' + debArch;
+	var destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
 	var packageRevision = getEpochTime();
 
 	return function () {
@@ -318,9 +318,9 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
-		'chmod 755 code-' + debArch + '/DEBIAN/postinst ' + 'code-' + debArch + '/DEBIAN/prerm',
+		'chmod 755 ' + product.applicationName + '-' + debArch + '/DEBIAN/postinst ' + product.applicationName + '-' + debArch + '/DEBIAN/prerm',
 		'mkdir -p deb',
-		'fakeroot dpkg-deb -b code-' + debArch + ' deb',
+		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
 	], { cwd: '.build/linux/deb/' + debArch});
 }
