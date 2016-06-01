@@ -1708,6 +1708,22 @@ declare module monaco.editor {
          */
         validateRange(range: IRange): Range;
         /**
+         * Converts the position to a zero-based offset.
+         *
+         * The position will be [adjusted](#TextDocument.validatePosition).
+         *
+         * @param position A position.
+         * @return A valid zero-based offset.
+         */
+        getOffsetAt(position: IPosition): number;
+        /**
+         * Converts a zero-based offset to a position.
+         *
+         * @param offset A zero-based offset.
+         * @return A valid [position](#Position).
+         */
+        getPositionAt(offset: number): Position;
+        /**
          * Get a range covering the entire model
          */
         getFullModelRange(): Range;

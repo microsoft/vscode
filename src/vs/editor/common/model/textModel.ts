@@ -29,7 +29,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
 	};
 
-	protected _lines:ModelLine[];
+	/*protected*/ _lines:ModelLine[];
 	protected _EOL:string;
 	protected _isDisposed:boolean;
 	protected _isDisposing:boolean;
