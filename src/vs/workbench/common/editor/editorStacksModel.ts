@@ -637,6 +637,7 @@ export class EditorGroup implements IEditorGroup {
 			const editor = registry.getEditorInputFactory(e.id).deserialize(this.instantiationService, e.value);
 
 			this.hookEditorListeners(editor);
+			this.updateResourceMap(editor, false /* add */);
 
 			return editor;
 		});

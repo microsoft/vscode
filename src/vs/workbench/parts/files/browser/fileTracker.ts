@@ -425,10 +425,10 @@ export class FileTracker implements IWorkbenchContribution {
 		CACHE.getAll()
 
 			// Only take text file models and remove those that are under working files or opened
-			.filter((model) => !this.stacks.isOpen(model.getResource()) && this.canDispose(model))
+			.filter(model => !this.stacks.isOpen(model.getResource()) && this.canDispose(model))
 
 			// Dispose
-			.forEach((model) => CACHE.dispose(model.getResource()));
+			.forEach(model => CACHE.dispose(model.getResource()));
 	}
 
 	private canDispose(textModel: TextFileEditorModel): boolean {
