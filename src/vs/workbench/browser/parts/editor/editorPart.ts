@@ -10,7 +10,6 @@ import 'vs/workbench/browser/parts/editor/editor.contribution';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import timer = require('vs/base/common/timer');
-import {EventType} from 'vs/base/common/events';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
@@ -21,7 +20,7 @@ import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorInputEvent} from 'vs/workbench/common/events';
+import {EditorInputEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -288,9 +287,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Make sure the editor is layed out
 			this.sideBySideControl.layout(position);
-
-			// Emit Editor-Opened Event
-			this.emit(WorkbenchEventType.EDITOR_OPENED, editor);
 
 			timerEvent.stop();
 
@@ -588,9 +584,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Clear Title Area for Position
 		this.sideBySideControl.clearTitleArea(position);
-
-		// Emit Editor Closed Event
-		this.emit(WorkbenchEventType.EDITOR_CLOSED, editor);
 
 		// Emit Editor move event
 		if (rochade !== Rochade.NONE) {

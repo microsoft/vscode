@@ -19,7 +19,6 @@ import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
 import {Identifiers} from 'vs/workbench/common/constants';
-import {EventType} from 'vs/workbench/common/events';
 import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -257,7 +256,7 @@ export class Workbench implements IPartService {
 				}
 
 				return editorOpenPromise.then(() => {
-					this.onEditorOpenedOrClosed(); // make sure we show the proper background in the editor area
+					this.onEditorsChanged(); // make sure we show the proper background in the editor area
 					editorTimerEvent.stop();
 				});
 			}));
@@ -509,7 +508,7 @@ export class Workbench implements IPartService {
 		if (!skipLayout) {
 			this.workbenchLayout.layout(true);
 		}
-		
+
 		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 
@@ -659,8 +658,7 @@ export class Workbench implements IPartService {
 	private registerListeners(): void {
 
 		// Listen to editor changes
-		this.toDispose.push(this.eventService.addListener2(EventType.EDITOR_CLOSED, () => this.onEditorOpenedOrClosed()));
-		this.toDispose.push(this.eventService.addListener2(EventType.EDITOR_OPENED, () => this.onEditorOpenedOrClosed()));
+		this.toDispose.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
 
 		// Handle message service and quick open events
 		if (this.messageService instanceof WorkbenchMessageService) {
@@ -674,7 +672,7 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	private onEditorOpenedOrClosed(): void {
+	private onEditorsChanged(): void {
 		let visibleEditors = this.editorService.getVisibleEditors().length;
 
 		// We update the editorpart class to indicate if an editor is opened or not

@@ -14,19 +14,6 @@ import {IEditorInput} from 'vs/platform/editor/common/editor';
 export class EventType {
 
 	/**
-	 * Event type for when an editor is opened. This event is only sent once for a specific editor type until another
-	 * editor type gets opened. For example, when the user opens a file, the editorOpened event will be sent. If another
-	 * file is opened, this event will not be fired again. If the user opens, e.g. the diff editor, editorOpened will be
-	 * fired, since another editor type opened.
-	 */
-	static EDITOR_OPENED = 'editorOpened';
-
-	/**
-	 * Event type for when an editor is closed because another editor type is opened.
-	 */
-	static EDITOR_CLOSED = 'editorClosed';
-
-	/**
 	 * Event type for when a composite is about to open.
 	 */
 	static COMPOSITE_OPENING = 'compositeOpening';
