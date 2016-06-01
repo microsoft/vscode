@@ -74,7 +74,8 @@ export default class BufferSyncSupport {
 	private _validate: boolean;
 	private modeIds: Map<boolean>;
 	private disposables: Disposable[] = [];
-	private syncedBuffers: { [key: string]: SyncedBuffer };
+	private syncedBuffers: Map<SyncedBuffer>;
+	private closedFiles: Map<boolean>;
 
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
@@ -89,6 +90,7 @@ export default class BufferSyncSupport {
 		this.diagnosticDelayer = new Delayer<any>(100);
 
 		this.syncedBuffers = Object.create(null);
+		this.closedFiles = Object.create(null);
 	}
 
 	public listen(): void {
@@ -136,6 +138,7 @@ export default class BufferSyncSupport {
 		}
 		let syncedBuffer = new SyncedBuffer(document, filepath, this, this.client);
 		this.syncedBuffers[filepath] = syncedBuffer;
+		delete this.closedFiles[filepath];
 		syncedBuffer.open();
 		this.requestDiagnostic(filepath);
 	}
@@ -149,6 +152,7 @@ export default class BufferSyncSupport {
 		if (!syncedBuffer) {
 			return;
 		}
+		this.closedFiles[filepath] = true;
 		delete this.syncedBuffers[filepath];
 		syncedBuffer.close();
 	}
@@ -205,6 +209,13 @@ export default class BufferSyncSupport {
 			if (!this.pendingDiagnostics[file]) {
 				files.push(file);
 			}
+		});
+
+		// Now add all files that we have requested diagnostics for but are now
+		// closed. Otherwise it might be confusing that interfile dependent markers
+		// don't get fixed.
+		Object.keys(this.closedFiles).forEach((file) => {
+			files.push(file);
 		});
 
 		let args: Proto.GeterrRequestArgs = {
