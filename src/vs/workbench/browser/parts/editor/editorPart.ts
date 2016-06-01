@@ -85,6 +85,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
+	private _onEditorOpenFail: Emitter<EditorInput>;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
@@ -109,6 +110,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorsMoved = new Emitter<void>();
+		this._onEditorOpenFail = new Emitter<EditorInput>();
 
 		this.visibleEditors = [];
 
@@ -155,6 +157,10 @@ export class EditorPart extends Part implements IEditorPart {
 
 	public get onEditorsMoved(): Event<void> {
 		return this._onEditorsMoved.event;
+	}
+
+	public get onEditorOpenFail(): Event<EditorInput> {
+		return this._onEditorOpenFail.event;
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -463,7 +469,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
 		// Event
-		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorInputEvent(input));
+		this._onEditorOpenFail.fire(input);
 
 		// Recover by closing the active editor (if the input is still the active one)
 		if (group.activeEditor === input) {
@@ -1145,6 +1151,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Emitters
 		this._onEditorsChanged.dispose();
 		this._onEditorsMoved.dispose();
+		this._onEditorOpenFail.dispose();
 
 		// Reset Tokens
 		this.editorOpenToken = [];

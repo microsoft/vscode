@@ -79,6 +79,10 @@ class TestEditorPart implements IEditorPart {
 		return null;
 	}
 
+	public get onEditorOpenFail(): Event<EditorInput> {
+		return null;
+	}
+
 	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<IEditor[]> {
 		return TPromise.as([]);
 	}

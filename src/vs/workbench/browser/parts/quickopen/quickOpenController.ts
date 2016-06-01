@@ -20,7 +20,6 @@ import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistr
 import {ITree, IElementCallback} from 'vs/base/parts/tree/browser/tree';
 import {Registry} from 'vs/platform/platform';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
-import {EditorInputEvent, EventType} from 'vs/workbench/common/events';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
@@ -125,7 +124,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 		// Listen on Editor Input Changes to show in MRU List
 		this.toUnbind.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
-		this.toUnbind.push(this.eventService.addListener2(EventType.EDITOR_SET_INPUT_ERROR, (e: EditorInputEvent) => this.onEditorInputSetError(e)));
+		this.toUnbind.push(this.editorService.onEditorOpenFail(e => this.onEditorInputSetError(e)));
 
 		// Editor History Model
 		this.editorHistoryModel = new EditorHistoryModel(this.editorService, this.instantiationService, this.contextService);
@@ -151,8 +150,8 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 	}
 
-	private onEditorInputSetError(e: EditorInputEvent): void {
-		this.removeEditorHistoryEntry(e.editorInput); // make sure this input does not show up in history if it failed to open
+	private onEditorInputSetError(e: IEditorInput): void {
+		this.removeEditorHistoryEntry(e); // make sure this input does not show up in history if it failed to open
 	}
 
 	public getEditorHistory(): IEditorInput[] {

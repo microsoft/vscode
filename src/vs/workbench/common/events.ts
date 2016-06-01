@@ -32,11 +32,6 @@ export class EventType {
 	static EDITOR_INPUT_OPENING = 'editorInputOpening';
 
 	/**
-	 * Event type for when the editor input failed to be set to the editor.
-	 */
-	static EDITOR_SET_INPUT_ERROR = 'editorSetInputError';
-
-	/**
 	 * Event type for when a composite is about to open.
 	 */
 	static COMPOSITE_OPENING = 'compositeOpening';

@@ -294,12 +294,14 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
+	private _onEditorOpenFail: Emitter<IEditorInput>;
 
 	constructor(callback?: (method: string) => void) {
 		this.callback = callback || ((s: string) => { });
 
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorsMoved = new Emitter<void>();
+		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
 		let services = new ServiceCollection();
 
@@ -323,6 +325,10 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	public get onEditorsMoved(): Event<void> {
 		return this._onEditorsMoved.event;
+	}
+
+	public get onEditorOpenFail(): Event<IEditorInput> {
+		return this._onEditorOpenFail.event;
 	}
 
 	public openEditors(inputs): Promise {

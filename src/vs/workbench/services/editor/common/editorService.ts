@@ -35,6 +35,11 @@ export interface IWorkbenchEditorService extends IEditorService {
 	onEditorsMoved: Event<void>;
 
 	/**
+	 * Emitted when opening an editor fails.
+	 */
+	onEditorOpenFail: Event<IEditorInput>;
+
+	/**
 	 * Returns the currently active editor or null if none.
 	 */
 	getActiveEditor(): IEditor;
