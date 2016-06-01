@@ -163,7 +163,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Emit early open event to allow for veto
-		let event = new EditorEvent(null, null, input, options, position);
+		let event = new EditorEvent(null, input, options, position);
 		this.emit(WorkbenchEventType.EDITOR_INPUT_OPENING, event);
 		if (event.isPrevented()) {
 			return TPromise.as<BaseEditor>(null);
@@ -263,7 +263,7 @@ export class EditorPart extends Part implements IEditorPart {
 			this.sideBySideControl.layout(position);
 
 			// Emit Editor-Opened Event
-			this.emit(WorkbenchEventType.EDITOR_OPENED, new EditorEvent(editor, editor.getId(), input, options, position));
+			this.emit(WorkbenchEventType.EDITOR_OPENED, new EditorEvent(editor, input, options, position));
 
 			timerEvent.stop();
 
@@ -369,7 +369,7 @@ export class EditorPart extends Part implements IEditorPart {
 		const previousInput = editor.getInput();
 		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
 		if (inputChanged) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(editor, editor.getId(), input, options, position));
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(editor, input, options, position));
 		}
 
 		// Call into Editor
@@ -394,7 +394,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// editor title area is up to date.
 				if (group.activeEditor && group.activeEditor.matches(input)) {
 					this.doRecreateEditorTitleArea();
-					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), group.activeEditor, options, position));
+					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, group.activeEditor, options, position));
 				}
 
 				return editor;
@@ -411,7 +411,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Emit Input-Changed Event (if input changed)
 			if (inputChanged) {
-				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), input, options, position));
+				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, input, options, position));
 			}
 
 			// Update Title Area
@@ -452,7 +452,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
 		// Event
-		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
+		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, input, options, position));
 
 		// Recover by closing the active editor (if the input is still the active one)
 		if (group.activeEditor === input) {
@@ -524,13 +524,13 @@ export class EditorPart extends Part implements IEditorPart {
 		this.modifyGroups(() => this.stacks.closeGroup(group));
 
 		// Emit Input-Changing Event
-		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
+		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, position));
 
 		// Hide Editor
 		this.doHideEditor(position, true);
 
 		// Emit Input-Changed Event
-		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
+		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, position));
 
 		// Focus next group if we have an active one left
 		const currentActiveGroup = this.stacks.activeGroup;
@@ -570,7 +570,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.clearTitleArea(position);
 
 		// Emit Editor Closed Event
-		this.emit(WorkbenchEventType.EDITOR_CLOSED, new EditorEvent(editor, editor.getId(), null, null, position));
+		this.emit(WorkbenchEventType.EDITOR_CLOSED, new EditorEvent(editor, null, null, position));
 	}
 
 	public closeAllEditors(except?: Position): TPromise<void> {
@@ -812,8 +812,8 @@ export class EditorPart extends Part implements IEditorPart {
 		// Emit as editor input change event so that clients get aware of new active editor
 		let activeEditor = this.sideBySideControl.getActiveEditor();
 		if (activeEditor) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(activeEditor, activeEditor.getId(), activeEditor.input, null, activeEditor.position));
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor, activeEditor.getId(), activeEditor.input, null, activeEditor.position));
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(activeEditor, activeEditor.input, null, activeEditor.position));
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor, activeEditor.input, null, activeEditor.position));
 		}
 
 		// Update Title Area

@@ -25,12 +25,12 @@ suite('Workbench Events', () => {
 	});
 
 	test('Editor Change Event', function () {
-		let editor: any = {};
+		let editor: any = { getId: () => 'foo.bar' };
 		let origEvent: any = {};
 		let input: any = {};
 		let options: any = {};
 		let id = 'foo.bar';
-		let event = new EditorEvent(editor, id, input, options, 0, origEvent);
+		let event = new EditorEvent(editor, input, options, 0, origEvent);
 
 		assert.strictEqual(event.editor, editor);
 		assert.strictEqual(event.originalEvent, origEvent);

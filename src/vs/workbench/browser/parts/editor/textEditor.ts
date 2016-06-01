@@ -136,27 +136,27 @@ export abstract class BaseTextEditor extends BaseEditor {
 		// Hook Listener for Selection changes
 		this.toUnbind.push(this.editorControl.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
 			let selection = this.editorControl.getSelection();
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, new TextEditorSelectionEvent(selection, this, this.getId(), this.input, null, this.position, event));
+			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, new TextEditorSelectionEvent(selection, this, this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for mode changes
 		this.toUnbind.push(this.editorControl.onDidChangeModelMode((event: IModelModeChangedEvent) => {
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_MODE_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
+			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_MODE_CHANGED, new EditorEvent(this, this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for content changes
 		this.toUnbind.push(this.editorControl.onDidChangeModelRawContent((event: IModelContentChangedEvent) => {
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
+			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_CHANGED, new EditorEvent(this, this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for content options changes
 		this.toUnbind.push(this.editorControl.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
+			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, new EditorEvent(this, this.input, null, this.position, event));
 		}));
 
 		// Hook Listener for options changes
 		this.toUnbind.push(this.editorControl.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONFIGURATION_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
+			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONFIGURATION_CHANGED, new EditorEvent(this, this.input, null, this.position, event));
 		}));
 
 		// Configuration

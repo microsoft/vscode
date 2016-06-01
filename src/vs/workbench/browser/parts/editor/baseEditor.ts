@@ -123,7 +123,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 */
 	public changePosition(position: Position): void {
 		this._position = position;
-		this.emit(EventType.EDITOR_POSITION_CHANGED, new EditorEvent(this, this.getId(), this.input, this.options, this.position));
+		this.emit(EventType.EDITOR_POSITION_CHANGED, new EditorEvent(this, this.input, this.options, this.position));
 	}
 
 	/**

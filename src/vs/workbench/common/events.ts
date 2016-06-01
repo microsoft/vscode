@@ -136,11 +136,11 @@ export class EditorEvent extends Event {
 
 	private prevented: boolean;
 
-	constructor(editor: IEditor, editorId: string, editorInput: IEditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
+	constructor(editor: IEditor, editorInput: IEditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
 		super(originalEvent);
 
 		this.editor = editor;
-		this.editorId = editorId;
+		this.editorId = editor ? editor.getId() : void 0;
 		this.editorInput = editorInput;
 		this.editorOptions = editorOptions;
 		this.position = position;
@@ -161,8 +161,8 @@ export class EditorEvent extends Event {
 export class TextEditorSelectionEvent extends EditorEvent {
 	public selection: Selection;
 
-	constructor(selection: Selection, editor: IEditor, editorId: string, editorInput: IEditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
-		super(editor, editorId, editorInput, editorOptions, position, originalEvent);
+	constructor(selection: Selection, editor: IEditor, editorInput: IEditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
+		super(editor, editorInput, editorOptions, position, originalEvent);
 
 		this.selection = selection;
 	}

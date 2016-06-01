@@ -240,7 +240,7 @@ suite('Workbench QuickOpen', () => {
 		assert.equal(0, controller.getEditorHistoryModel().getEntries().length);
 
 		let cinput1 = <EditorInput>inst.createInstance(fileInputCtor, toResource('Hello World'), 'text/plain', null);
-		let event = new EditorEvent(null, '', cinput1, null, Position.LEFT);
+		let event = new EditorEvent(null, cinput1, null, Position.LEFT);
 		eventService.emit(EventType.EDITOR_INPUT_CHANGING, event);
 
 		assert.equal(1, controller.getEditorHistoryModel().getEntries().length);
