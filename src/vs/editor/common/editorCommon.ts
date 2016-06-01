@@ -1567,6 +1567,24 @@ export interface ITextModel {
 	validateRange(range:IRange): Range;
 
 	/**
+	 * Converts the position to a zero-based offset.
+	 *
+	 * The position will be [adjusted](#TextDocument.validatePosition).
+	 *
+	 * @param position A position.
+	 * @return A valid zero-based offset.
+	 */
+	getOffsetAt(position: IPosition): number;
+
+	/**
+	 * Converts a zero-based offset to a position.
+	 *
+	 * @param offset A zero-based offset.
+	 * @return A valid [position](#Position).
+	 */
+	getPositionAt(offset: number): Position;
+
+	/**
 	 * Get a range covering the entire model
 	 */
 	getFullModelRange(): Range;
@@ -2110,9 +2128,9 @@ export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 	uri: URI;
 
 	getOffsetFromPosition(position:IPosition): number;
-	getPositionFromOffset(offset:number): IPosition;
+	getPositionFromOffset(offset:number): Position;
 	getOffsetAndLengthFromRange(range:IRange): {offset:number; length:number;};
-	getRangeFromOffsetAndLength(offset:number, length:number): IRange;
+	getRangeFromOffsetAndLength(offset:number, length:number): Range;
 	getLineStart(lineNumber:number): number;
 
 	getAllWordsWithRange(): IRangeWithText[];

@@ -462,6 +462,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 					this._invalidateLine(currentLineNumber - 1);
 					this._lines[currentLineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, lineEditsQueue.slice(currentLineNumberStart, i));
+					if (this._lineStarts) {
+						// update prefix sum
+						this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
+					}
 					contentChangedEvents.push(this._createLineChangedEvent(currentLineNumber));
 
 					currentLineNumber = lineNumber;
@@ -470,6 +474,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 				this._invalidateLine(currentLineNumber - 1);
 				this._lines[currentLineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length));
+				if (this._lineStarts) {
+					// update prefix sum
+					this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
+				}
 				contentChangedEvents.push(this._createLineChangedEvent(currentLineNumber));
 
 				lineEditsQueue = [];
@@ -540,9 +548,17 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					}
 
 					this._lines.splice(spliceStartLineNumber, spliceCnt);
+					if (this._lineStarts) {
+						// update prefix sum
+						this._lineStarts.removeValues(spliceStartLineNumber, spliceCnt);
+					}
 
 					// Reconstruct first line
 					this._lines[spliceStartLineNumber - 1].append(deferredEventsBuilder.changedMarkers, endLineRemains);
+					if (this._lineStarts) {
+						// update prefix sum
+						this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
+					}
 					this._lines[spliceStartLineNumber - 1].addMarkers(markersOnDeletedLines);
 					contentChangedEvents.push(this._createLineChangedEvent(spliceStartLineNumber));
 
@@ -563,20 +579,34 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 					// Split last line
 					let leftoverLine = this._lines[spliceLineNumber - 1].split(deferredEventsBuilder.changedMarkers, spliceColumn, op.forceMoveMarkers);
+					if (this._lineStarts) {
+						// update prefix sum
+						this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
+					}
 					contentChangedEvents.push(this._createLineChangedEvent(spliceLineNumber));
 					this._invalidateLine(spliceLineNumber - 1);
 
 					// Lines in the middle
 					let newLinesContent:string[] = [];
+					let newLinesLengths:number[] = [];
 					for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
 						let newLineNumber = startLineNumber + j;
 						this._lines.splice(newLineNumber - 1, 0, new ModelLine(newLineNumber, op.lines[j]));
 						newLinesContent.push(op.lines[j]);
+						newLinesLengths.push(op.lines[j].length + this._EOL.length);
 					}
 					newLinesContent[newLinesContent.length - 1] += leftoverLine.text;
+					if (this._lineStarts) {
+						// update prefix sum
+						this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
+					}
 
 					// Last line
 					this._lines[startLineNumber + insertingLinesCnt - 1].append(deferredEventsBuilder.changedMarkers, leftoverLine);
+					if (this._lineStarts) {
+						// update prefix sum
+						this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
+					}
 					contentChangedEvents.push(this._createLinesInsertedEvent(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n')));
 				}
 

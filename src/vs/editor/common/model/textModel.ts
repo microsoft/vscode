@@ -12,6 +12,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
 import {DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE} from 'vs/editor/common/config/defaultConfig';
+import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 
 var LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 1000;
@@ -28,11 +29,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
 	};
 
-	_lines:ModelLine[];
-	_EOL:string;
-	_isDisposed:boolean;
-	_isDisposing:boolean;
+	protected _lines:ModelLine[];
+	protected _EOL:string;
+	protected _isDisposed:boolean;
+	protected _isDisposing:boolean;
 	protected _options: editorCommon.ITextModelResolvedOptions;
+	protected _lineStarts: PrefixSumComputer;
 
 	private _versionId:number;
 	/**
@@ -172,6 +174,36 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	public getAlternativeVersionId(): number {
 		return this._alternativeVersionId;
+	}
+
+	private _ensureLineStarts(): void {
+		if (!this._lineStarts) {
+			const lineStartValues:number[] = [];
+			const eolLength = this._EOL.length;
+			for (let i = 0, len = this._lines.length; i < len; i++) {
+				lineStartValues.push(this._lines[i].text.length + eolLength);
+			}
+			this._lineStarts = new PrefixSumComputer(lineStartValues);
+		}
+	}
+
+	public getOffsetAt(rawPosition: editorCommon.IPosition): number {
+		let position = this.validatePosition(rawPosition);
+		this._ensureLineStarts();
+		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + position.column - 1;
+	}
+
+	public getPositionAt(offset: number): Position {
+		offset = Math.floor(offset);
+		offset = Math.max(0, offset);
+
+		this._ensureLineStarts();
+		let out = this._lineStarts.getIndexOf(offset);
+
+		let lineLength = this._lines[out.index].text.length;
+
+		// Ensure we return a valid position
+		return new Position(out.index + 1, Math.min(out.remainder + 1, lineLength + 1));
 	}
 
 	_increaseVersionId(): void {
@@ -387,18 +419,9 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			return (range.endColumn - range.startColumn);
 		}
 
-		var lineEndingLength = this._getEndOfLine(eol).length,
-			startLineIndex = range.startLineNumber - 1,
-			endLineIndex = range.endLineNumber - 1,
-			result = 0;
-
-		result += (this._lines[startLineIndex].text.length - range.startColumn + 1);
-		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
-			result += lineEndingLength + this._lines[i].text.length;
-		}
-		result += lineEndingLength + (range.endColumn - 1);
-
-		return result;
+		let startOffset = this.getOffsetAt(new Position(range.startLineNumber, range.startColumn));
+		let endOffset = this.getOffsetAt(new Position(range.endLineNumber, range.endColumn));
+		return endOffset - startOffset;
 	}
 
 	public isDominatedByLongLines(): boolean {
@@ -458,6 +481,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var endColumn = this.getLineMaxColumn(endLineNumber);
 
 		this._EOL = newEOL;
+		this._lineStarts = null;
 		this._increaseVersionId();
 
 		var e = this._createContentChangedFlushEvent();
@@ -546,66 +570,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number) : Position {
-		var position = this.validatePosition(rawPosition);
-
-		// Handle positive offsets, one line at a time
-		while (offset > 0) {
-			var maxColumn = this.getLineMaxColumn(position.lineNumber);
-
-			// Get to end of line
-			if (position.column < maxColumn) {
-				var subtract = Math.min(offset, maxColumn - position.column);
-				offset -= subtract;
-				position.column += subtract;
-			}
-
-			if (offset === 0) {
-				break;
-			}
-
-			// Go to next line
-			offset -= this._EOL.length;
-			if (offset < 0) {
-				throw new Error('TextModel.modifyPosition: Breaking line terminators');
-			}
-
-			++position.lineNumber;
-			if (position.lineNumber > this._lines.length) {
-				throw new Error('TextModel.modifyPosition: Offset goes beyond the end of the model');
-			}
-
-			position.column = 1;
-		}
-
-		// Handle negative offsets, one line at a time
-		while (offset < 0) {
-
-			// Get to the start of the line
-			if (position.column > 1) {
-				var add = Math.min(-offset, position.column - 1);
-				offset += add;
-				position.column -= add;
-			}
-
-			if (offset === 0) {
-				break;
-			}
-
-			// Go to the previous line
-			offset += this._EOL.length;
-			if (offset > 0) {
-				throw new Error('TextModel.modifyPosition: Breaking line terminators');
-			}
-
-			--position.lineNumber;
-			if (position.lineNumber < 1) {
-				throw new Error('TextModel.modifyPosition: Offset goes beyond the beginning of the model');
-			}
-
-			position.column = this.getLineMaxColumn(position.lineNumber);
-		}
-
-		return position;
+		return this.getPositionAt(this.getOffsetAt(rawPosition) + offset);
 	}
 
 	public getFullModelRange(): Range {
@@ -689,6 +654,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._BOM = rawText.BOM;
 		this._EOL = rawText.EOL;
 		this._lines = modelLines;
+		this._lineStarts = null;
 	}
 
 	private _getEndOfLine(eol:editorCommon.EndOfLinePreference): string {

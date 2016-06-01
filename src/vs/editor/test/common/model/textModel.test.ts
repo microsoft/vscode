@@ -480,13 +480,13 @@ suite('Editor Model - TextModel', () => {
 		assert.deepEqual(m.modifyPosition(new Position(2, 9), -13), new Position(1, 5));
 		assert.deepEqual(m.modifyPosition(new Position(2, 9), -16), new Position(1, 2));
 
-		assert.throws(() => m.modifyPosition(new Position(1, 2), 17));
-		assert.throws(() => m.modifyPosition(new Position(1, 2), 100));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), 17), new Position(2, 9));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), 100), new Position(2, 9));
 
-		assert.throws(() => m.modifyPosition(new Position(1, 2), -2));
-		assert.throws(() => m.modifyPosition(new Position(1, 2), -100));
-		assert.throws(() => m.modifyPosition(new Position(2, 2), -100));
-		assert.throws(() => m.modifyPosition(new Position(2, 9), -18));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), -2), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), -100), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(2, 2), -100), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(2, 9), -18), new Position(1, 1));
 	});
 
 	test('normalizeIndentation 1', () => {
