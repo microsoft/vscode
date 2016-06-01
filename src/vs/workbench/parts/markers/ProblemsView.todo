@@ -30,6 +30,11 @@ Problems Panel:
 		☐ Do not expand the file again if the user closes it
 		☐ Expand a file if there is a new error after it was removed from the panel
 
+	Infra Changes:
+		☐ Introduced a simple map in maps
+		☐ Fixed toggle class in dom
+		☐ Fixed getActions to modify the copy
+
 	Clean Up:
 		☐ Messages file - put strings under quotes
 		☐ Markers handler in quick open contributions

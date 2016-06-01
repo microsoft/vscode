@@ -16,6 +16,10 @@ export interface Entry<K, T> {
 	value: T;
 }
 
+/**
+ * A simple map to store value by a key object. Key can be any object that has toString() function to get
+ * string value of the key.
+ */
 export class SimpleMap<K extends Key, T> {
 
 	protected map: { [key: string]: Entry<K, T> };
