@@ -52,6 +52,8 @@
 
 .quick-open-widget .extension .icon.octicon-x:before {
 	margin-right: 2px;
+	margin-top: 2px;
+	display: inline-block;
 }
 
 .quick-open-widget .extension .published {
