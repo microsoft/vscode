@@ -9,6 +9,7 @@
 	"closeFolder": "フォルダーを閉じる",
 	"closeMessages": "通知メッセージを閉じる",
 	"closeWindow": "ウィンドウを閉じる",
+	"diffLeftRightLabel": "{0} ⟷ {1}",
 	"files": "ファイル",
 	"folders": "フォルダー",
 	"newWindow": "新しいウィンドウ",

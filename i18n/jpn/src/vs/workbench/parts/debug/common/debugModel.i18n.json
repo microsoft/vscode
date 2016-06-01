@@ -6,5 +6,6 @@
 {
 	"snapshotObj": "このオブジェクトのプリミティブ値のみ表示されます。",
 	"startDebugFirst": "デバッグ セッションを開始して評価してください",
+	"unknownSource": "不明なソース",
 	"unknownStack": "スタックの場所が不明です"
 }

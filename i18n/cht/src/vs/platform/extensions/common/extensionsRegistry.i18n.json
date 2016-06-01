@@ -20,7 +20,7 @@
 	"vscode.extension.categories": "VS Code 資源庫用來將擴充功能歸類的分類。",
 	"vscode.extension.contributes": "此封裝所代表的所有 VS Code 擴充功能比重。",
 	"vscode.extension.displayName": "VS Code 資源庫中使用的擴充功能顯示名稱。",
-	"vscode.extension.extensionDependencies": "其它擴充功能的相依性。擴充功能識別碼一律為 ${publisher}.${name}。例如: vscode.csharp。",
+	"vscode.extension.extensionDependencies": "其它擴充功能的相依性。擴充功能的識別碼一律為 ${publisher}.${name}。例如: vscode.csharp。",
 	"vscode.extension.galleryBanner": "用於 VS Code Marketplace 的橫幅。",
 	"vscode.extension.galleryBanner.color": "VS Code Marketplace 頁首的橫幅色彩。",
 	"vscode.extension.galleryBanner.theme": "橫幅中使用的字型色彩佈景主題。",

@@ -15,6 +15,7 @@
 	"copyValue": "Wert kopieren",
 	"deactivateBreakpoints": "Haltepunkte deaktivieren",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugConsoleAction": "Debugkonsole",
 	"disableAllBreakpoints": "Alle Haltepunkte deaktivieren",
 	"disconnectDebug": "Trennen",
 	"editConditionalBreakpoint": "Haltepunkt bearbeiten",
@@ -37,6 +38,5 @@
 	"stepOutDebug": "Prozedurschritt",
 	"stepOverDebug": "Prozedurschritt",
 	"stopDebug": "Beenden",
-	"toggleEnablement": "Haltepunkt aktivieren/deaktivieren",
-	"toggleRepl": "Konsole debuggen"
+	"toggleEnablement": "Haltepunkt aktivieren/deaktivieren"
 }
