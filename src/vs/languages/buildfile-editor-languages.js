@@ -61,5 +61,10 @@ exports.collectModules = function(args) {
 	// 	exclude: ['vs/editor/editor.main', 'vs/languages/typescript/common/lib/typescriptServices', 'vs/css', 'vs/nls']
 	// });
 
+	result.push({
+		name: 'vs/editor/browser/standalone/standaloneWorker',
+		exclude: [ 'vs/base/common/worker/simpleWorker', 'vs/css', 'vs/nls' ]
+	});
+
 	return result;
 };
