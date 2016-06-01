@@ -320,7 +320,7 @@ function buildDebPackage(arch) {
 	return shell.task([
 		'chmod 755 code-' + debArch + '/DEBIAN/postinst ' + 'code-' + debArch + '/DEBIAN/prerm',
 		'mkdir -p deb',
-		'fakeroot dpkg-deb -b code-' + debArch + ' deb/' + product.applicationName + '-' + debArch + '.deb',
+		'fakeroot dpkg-deb -b code-' + debArch + ' deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
 	], { cwd: '.build/linux/deb/' + debArch});
 }
