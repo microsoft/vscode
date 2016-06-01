@@ -9,7 +9,7 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import Event from 'vs/base/common/event';
-import {EditorInputEvent} from 'vs/workbench/common/events';
+import {EditorInputEvent} from 'vs/workbench/common/editor';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,

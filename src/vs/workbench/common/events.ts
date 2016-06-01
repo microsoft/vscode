@@ -6,7 +6,6 @@
 
 import URI from 'vs/base/common/uri';
 import {Event} from 'vs/base/common/events';
-import {IEditorInput} from 'vs/platform/editor/common/editor';
 
 /**
  * All workbench events are listed here.
@@ -48,29 +47,6 @@ export class EventType {
 	 * assumption on workbench options after this event is emitted.
 	 */
 	static WORKBENCH_OPTIONS_CHANGED = 'workbenchOptionsChanged';
-}
-
-export class EditorInputEvent extends Event {
-	private _editorInput: IEditorInput;
-	private prevented: boolean;
-
-	constructor(editorInput: IEditorInput) {
-		super(null);
-
-		this._editorInput = editorInput;
-	}
-
-	public get editorInput(): IEditorInput {
-		return this._editorInput;
-	}
-
-	public prevent(): void {
-		this.prevented = true;
-	}
-
-	public isPrevented(): boolean {
-		return this.prevented;
-	}
 }
 
 /**

@@ -13,6 +13,7 @@ import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
 import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {Event as BaseEvent} from 'vs/base/common/events';
 
 export enum ConfirmResult {
 	SAVE,
@@ -143,6 +144,29 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	 */
 	public isDisposed(): boolean {
 		return this.disposed;
+	}
+}
+
+export class EditorInputEvent extends BaseEvent {
+	private _editorInput: IEditorInput;
+	private prevented: boolean;
+
+	constructor(editorInput: IEditorInput) {
+		super(null);
+
+		this._editorInput = editorInput;
+	}
+
+	public get editorInput(): IEditorInput {
+		return this._editorInput;
+	}
+
+	public prevent(): void {
+		this.prevented = true;
+	}
+
+	public isPrevented(): boolean {
+		return this.prevented;
 	}
 }
 

@@ -11,12 +11,11 @@ import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
-import WorkbenchEditorCommon = require('vs/workbench/common/editor');
+import {EditorInputEvent, EditorInput} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
 import http = require('vs/base/common/http');
-import {EditorInputEvent} from 'vs/workbench/common/events';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
@@ -467,7 +466,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return TPromise.as(true);
 	}
 
-	getEditorHistory(): WorkbenchEditorCommon.EditorInput[] {
+	getEditorHistory(): EditorInput[] {
 		return [];
 	}
 
@@ -479,7 +478,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return null;
 	}
 
-	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void { }
+	public removeEditorHistoryEntry(input: EditorInput): void { }
 	public dispose() { }
 	public quickNavigate(): void { }
 	public clearEditorHistory(): void { }
