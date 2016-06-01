@@ -8,6 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import Event from 'vs/base/common/event';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
@@ -22,6 +23,11 @@ export var IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('e
  */
 export interface IWorkbenchEditorService extends IEditorService {
 	serviceId : ServiceIdentifier<any>;
+
+	/**
+	 * Emitted when editors or inputs change. Examples: opening, closing of editors. Active editor change.
+	 */
+	onEditorsChanged: Event<void>;
 
 	/**
 	 * Returns the currently active editor or null if none.

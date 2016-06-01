@@ -20,7 +20,6 @@ import Actions = require('vs/base/common/actions');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
-import WorkbenchEvents = require('vs/workbench/common/events');
 import git = require('vs/workbench/parts/git/common/git');
 import GitView = require('vs/workbench/parts/git/browser/views/view');
 import GitActions = require('vs/workbench/parts/git/browser/gitActions');
@@ -103,7 +102,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		this.toDispose = [
 			this.smartCommitAction = this.instantiationService.createInstance(GitActions.SmartCommitAction, this),
-			eventService.addListener2(WorkbenchEvents.EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged(this.editorService.getActiveEditorInput()).done(null, Errors.onUnexpectedError)),
+			editorService.onEditorsChanged(() => this.onEditorsChanged(this.editorService.getActiveEditorInput()).done(null, Errors.onUnexpectedError)),
 			this.gitService.addListener2(git.ServiceEvents.OPERATION_START, (e) => this.onGitOperationStart(e)),
 			this.gitService.addListener2(git.ServiceEvents.OPERATION_END, (e) => this.onGitOperationEnd(e)),
 			this.gitService.getModel().addListener2(git.ModelEvents.MODEL_UPDATED, this.onGitModelUpdate.bind(this))
@@ -217,7 +216,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		if (visible) {
 			this.tree.onVisible();
-			return this.onEditorInputChanged(this.editorService.getActiveEditorInput());
+			return this.onEditorsChanged(this.editorService.getActiveEditorInput());
 
 		} else {
 			this.tree.onHidden();
@@ -289,7 +288,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 	}
 
-	private onEditorInputChanged(input: IEditorInput): WinJS.TPromise<void> {
+	private onEditorsChanged(input: IEditorInput): WinJS.TPromise<void> {
 		if (!this.tree) {
 			return WinJS.TPromise.as(null);
 		}

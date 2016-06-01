@@ -14,7 +14,6 @@ import errors = require('vs/base/common/errors');
 import mime = require('vs/base/common/mime');
 import paths = require('vs/base/common/paths');
 import ee = require('vs/base/common/eventEmitter');
-import wbevents = require('vs/workbench/common/events');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import git = require('vs/workbench/parts/git/common/git');
 import model = require('vs/workbench/parts/git/common/gitModel');
@@ -216,7 +215,7 @@ class EditorInputCache
 	 */
 	private eventuallyDispose(editorInput: WorkbenchEditorCommon.EditorInput): void {
 		if (!this.maybeDispose(editorInput)) {
-			var listener = this.eventService.addListener2(wbevents.EventType.EDITOR_INPUT_CHANGED, () => {
+			var listener = this.editorService.onEditorsChanged(() => {
 				if (this.maybeDispose(editorInput)) {
 					listener.dispose();
 				}

@@ -41,10 +41,10 @@ export class TextFileService extends AbstractTextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
 		@IModeService private modeService: IModeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, eventService);
+		super(contextService, instantiationService, configurationService, telemetryService, editorService, eventService);
 
 		this.init();
 	}

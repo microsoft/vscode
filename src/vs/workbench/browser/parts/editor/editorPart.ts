@@ -40,6 +40,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {EditorStacksModel, EditorGroup, IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import Event, {Emitter} from 'vs/base/common/event';
 
 class ProgressMonitor {
 
@@ -82,6 +83,8 @@ export class EditorPart extends Part implements IEditorPart {
 	private memento: any;
 	private stacks: EditorStacksModel;
 
+	private _onEditorsChanged: Emitter<void>;
+
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
 	private visibleEditorListeners: IDisposable[][];
@@ -102,6 +105,8 @@ export class EditorPart extends Part implements IEditorPart {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
+
+		this._onEditorsChanged = new Emitter<void>();
 
 		this.visibleEditors = [];
 
@@ -140,6 +145,10 @@ export class EditorPart extends Part implements IEditorPart {
 	private onEditorDisposed(identifier: IEditorIdentifier): void {
 		this.pendingEditorInputsToClose.push(identifier);
 		this.startDelayedCloseEditorsFromInputDispose();
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return this._onEditorsChanged.event;
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -390,7 +399,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// editor title area is up to date.
 				if (group.activeEditor && group.activeEditor.matches(input)) {
 					this.doRecreateEditorTitleArea();
-					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, editor);
+					this._onEditorsChanged.fire();
 				}
 
 				return editor;
@@ -405,9 +414,9 @@ export class EditorPart extends Part implements IEditorPart {
 			// Progress Done
 			this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
-			// Emit Input-Changed Event (if input changed)
+			// Emit Change Event (if input changed)
 			if (inputChanged) {
-				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, editor);
+				this._onEditorsChanged.fire();
 			}
 
 			// Update Title Area
@@ -522,8 +531,8 @@ export class EditorPart extends Part implements IEditorPart {
 		// Hide Editor
 		this.doHideEditor(position, true);
 
-		// Emit Input-Changed Event
-		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, {});
+		// Emit Change Event
+		this._onEditorsChanged.fire();
 
 		// Focus next group if we have an active one left
 		const currentActiveGroup = this.stacks.activeGroup;
@@ -802,10 +811,10 @@ export class EditorPart extends Part implements IEditorPart {
 			this.stacks.setActive(this.stacks.groupAt(activePosition));
 		}
 
-		// Emit as editor input change event so that clients get aware of new active editor
+		// Emit as change event so that clients get aware of new active editor
 		let activeEditor = this.sideBySideControl.getActiveEditor();
 		if (activeEditor) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, {});
+			this._onEditorsChanged.fire();
 		}
 
 		// Update Title Area

@@ -5,7 +5,6 @@
 'use strict';
 
 import {Dimension, Builder, Box} from 'vs/base/browser/builder';
-import {EventType} from 'vs/workbench/common/events';
 import {Part} from 'vs/workbench/browser/part';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation} from 'vs/base/browser/ui/sash/sash';
@@ -121,7 +120,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
 		this.toUnbind.push(themeService.onDidThemeChange(_ => this.relayout()));
-		this.toUnbind.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
+		this.toUnbind.push(editorService.onEditorsChanged(() => this.onEditorsChanged()));
 
 		this.registerSashListeners();
 	}
@@ -243,7 +242,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		});
 	}
 
-	private onEditorInputChanged(): void {
+	private onEditorsChanged(): void {
 
 		// Make sure that we layout properly in case we detect that the sidebar is large enought to cause
 		// multiple opened editors to go below minimal size. The fix is to trigger a layout for any editor

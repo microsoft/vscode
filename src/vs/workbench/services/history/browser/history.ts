@@ -11,7 +11,6 @@ import {EventType} from 'vs/base/common/events';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {TextEditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {Selection} from 'vs/editor/common/core/selection';
@@ -81,10 +80,10 @@ export abstract class BaseHistoryService {
 		window.document.title = this.getWindowTitle(null);
 
 		// Editor Input Changes
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
+		this.toUnbind.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
 
-	private onEditorInputChanged(): void {
+	private onEditorsChanged(): void {
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);

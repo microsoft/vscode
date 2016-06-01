@@ -32,15 +32,6 @@ export class EventType {
 	static EDITOR_INPUT_OPENING = 'editorInputOpening';
 
 	/**
-	 * Event type for when the editor input has been changed in the currently active editor. This event is being sent after
-	 * the input has been set and displayed by the editor.
-	 *
-	 * Note: This event will also be emitted when multiple editors are open and the user sets focus from the active editor
-	 * to another one. This allows to detect a focus change of the active editor.
-	 */
-	static EDITOR_INPUT_CHANGED = 'editorInputChanged';
-
-	/**
 	 * Event type for when the editor input failed to be set to the editor.
 	 */
 	static EDITOR_SET_INPUT_ERROR = 'editorSetInputError';

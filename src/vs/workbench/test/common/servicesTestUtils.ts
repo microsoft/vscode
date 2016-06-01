@@ -292,8 +292,12 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	private callback: (method: string) => void;
 	private stacksModel: EditorStacksModel;
 
+	private _onEditorsChanged: Emitter<void>;
+
 	constructor(callback?: (method: string) => void) {
 		this.callback = callback || ((s: string) => { });
+
+		this._onEditorsChanged = new Emitter<void>();
 
 		let services = new ServiceCollection();
 
@@ -305,6 +309,14 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		let inst = new InstantiationService(services);
 
 		this.stacksModel = inst.createInstance(EditorStacksModel);
+	}
+
+	public fireChange(): void {
+		this._onEditorsChanged.fire();
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return this._onEditorsChanged.event;
 	}
 
 	public openEditors(inputs): Promise {

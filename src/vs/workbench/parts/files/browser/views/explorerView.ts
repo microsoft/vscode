@@ -15,7 +15,6 @@ import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {EditorOptions} from 'vs/workbench/common/editor';
 import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
 import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
@@ -140,14 +139,14 @@ export class ExplorerView extends CollapsibleViewletView {
 		return this.doRefresh().then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
+			this.toDispose.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
 
 			// Also handle configuration updates
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
 		});
 	}
 
-	private onEditorInputChanged(): void {
+	private onEditorsChanged(): void {
 		let activeInput = this.editorService.getActiveEditorInput();
 		let clearSelection = true;
 		let clearFocus = false;

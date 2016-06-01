@@ -11,7 +11,6 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IResult, ITextFileOperationResult, ITextFileService, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
-import {EventType} from 'vs/workbench/common/events';
 import {ConfirmResult} from 'vs/workbench/common/editor';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
@@ -20,6 +19,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -42,6 +42,7 @@ export abstract class TextFileService implements ITextFileService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEventService private eventService: IEventService
 	) {
 		this.listenerToUnbind = [];
@@ -68,11 +69,11 @@ export abstract class TextFileService implements ITextFileService {
 		this.listenerToUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config)));
 
 		// Editor focus change
-		window.addEventListener('blur', () => this.onEditorFocusChange(), true);
-		this.listenerToUnbind.push(this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorFocusChange()));
+		window.addEventListener('blur', () => this.onEditorsChanged(), true);
+		this.listenerToUnbind.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
 
-	private onEditorFocusChange(): void {
+	private onEditorsChanged(): void {
 		if (this.configuredAutoSaveOnFocusChange && this.getDirty().length) {
 			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
 		}

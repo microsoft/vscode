@@ -493,7 +493,7 @@ export class MainThreadEditors {
 
 		this._toDispose.push(this._editorTracker.onDidUpdateTextEditors(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.push(this._editorTracker.onChangedFocusedTextEditor((focusedTextEditorId) => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.push(workbenchEditorService.onEditorsChanged(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.push(eventService.addListener2(EventType.EDITOR_POSITION_CHANGED, () => this._updateActiveAndVisibleTextEditors()));
 	}
 

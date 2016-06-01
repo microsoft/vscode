@@ -124,7 +124,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	public create(): void {
 
 		// Listen on Editor Input Changes to show in MRU List
-		this.toUnbind.push(this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
+		this.toUnbind.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(this.eventService.addListener2(EventType.EDITOR_SET_INPUT_ERROR, (e: EditorInputEvent) => this.onEditorInputSetError(e)));
 
 		// Editor History Model
@@ -135,7 +135,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 	}
 
-	private onEditorInputChanged(): void {
+	private onEditorsChanged(): void {
 		let activeEditorInput = this.editorService.getActiveEditorInput();
 		if (!activeEditorInput) {
 			return;

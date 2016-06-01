@@ -13,7 +13,6 @@ import {getBaseThemeId} from 'vs/platform/theme/common/themes';
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
-import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
@@ -67,7 +66,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		this.configFileChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigFileChange(e));
 
 		// reload markdown editors when their resources change
-		this.editorInputChangeListener = this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged());
+		this.editorInputChangeListener = this.editorService.onEditorsChanged(() => this.onEditorsChanged());
 
 		// initially read the config for CSS styles in preview
 		this.readMarkdownConfiguration(this.configurationService.getConfiguration<ILanguageConfiguration>());
@@ -79,7 +78,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		});
 	}
 
-	private onEditorInputChanged(): void {
+	private onEditorsChanged(): void {
 		let input = this.editorService.getActiveEditorInput();
 		if (input instanceof MarkdownEditorInput) {
 			let markdownResource = input.getResource();

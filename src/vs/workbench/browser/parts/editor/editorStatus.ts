@@ -292,7 +292,7 @@ export class EditorStatus implements IStatusbarItem {
 					}
 				}
 			},
-			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()),
+			this.editorService.onEditorsChanged(() => this.onEditorsChanged()),
 			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource))
 		);
 
@@ -432,7 +432,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onEditorInputChanged(): void {
+	private onEditorsChanged(): void {
 		let control: IEditor;
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor instanceof BaseTextEditor) {

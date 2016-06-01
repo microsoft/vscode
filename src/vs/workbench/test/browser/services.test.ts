@@ -43,6 +43,7 @@ import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import Event from 'vs/base/common/event';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -68,6 +69,10 @@ class TestEditorPart implements IEditorPart {
 
 	public openEditors(args: any[]): Promise {
 		return TPromise.as([]);
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return null;
 	}
 
 	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<IEditor[]> {

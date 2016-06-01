@@ -24,8 +24,14 @@ import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import Event from 'vs/base/common/event';
 
 export interface IEditorPart {
+
+	// Events
+	onEditorsChanged: Event<void>;
+
+	// Methods
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
@@ -60,6 +66,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	) {
 		this.editorPart = editorPart;
 		this.fileInputDescriptor = (<IEditorRegistry>Registry.as(Extensions.Editors)).getDefaultFileInput();
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return this.editorPart.onEditorsChanged;
 	}
 
 	public getActiveEditor(): IEditor {
