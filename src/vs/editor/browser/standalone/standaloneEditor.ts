@@ -192,6 +192,9 @@ export function setMarkers(model:IModel, owner:string, markers: IMarkerData[]): 
 	markerService.changeOne(owner, model.uri, markers);
 }
 
+/**
+ * @internal
+ */
 export function getOrCreateMode(modeId: string):TPromise<modes.IMode> {
 	startup.initStaticServicesIfNecessary();
 	var modeService = ensureStaticPlatformServices(null).modeService;
@@ -209,6 +212,9 @@ export function configureMode(modeId: string, options: any): void {
 	modeService.configureModeById(modeId, options);
 }
 
+/**
+ * @internal
+ */
 export function createCustomMode(language:ILanguage): TPromise<modes.IMode> {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
@@ -342,8 +348,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		setMarkers: setMarkers,
 
-		getOrCreateMode: getOrCreateMode,
-		createCustomMode: createCustomMode,
+		// getOrCreateMode: getOrCreateMode,
+		// createCustomMode: createCustomMode,
 		createWebWorker: createWebWorker,
 		colorizeElement: colorizeElement,
 		colorize: colorize,
@@ -365,15 +371,15 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// classes
 		MonacoWebWorker: <any>MonacoWebWorker,
-		InternalEditorScrollbarOptions: editorCommon.InternalEditorScrollbarOptions,
-		EditorWrappingInfo: editorCommon.EditorWrappingInfo,
-		InternalEditorViewOptions: editorCommon.InternalEditorViewOptions,
-		EditorContribOptions: editorCommon.EditorContribOptions,
-		InternalEditorOptions: editorCommon.InternalEditorOptions,
-		OverviewRulerPosition: editorCommon.OverviewRulerPosition,
-		EditorLayoutInfo: editorCommon.EditorLayoutInfo,
-		BareFontInfo: editorCommon.BareFontInfo,
-		FontInfo: editorCommon.FontInfo,
+		InternalEditorScrollbarOptions: <any>editorCommon.InternalEditorScrollbarOptions,
+		EditorWrappingInfo: <any>editorCommon.EditorWrappingInfo,
+		InternalEditorViewOptions: <any>editorCommon.InternalEditorViewOptions,
+		EditorContribOptions: <any>editorCommon.EditorContribOptions,
+		InternalEditorOptions: <any>editorCommon.InternalEditorOptions,
+		OverviewRulerPosition: <any>editorCommon.OverviewRulerPosition,
+		EditorLayoutInfo: <any>editorCommon.EditorLayoutInfo,
+		BareFontInfo: <any>editorCommon.BareFontInfo,
+		FontInfo: <any>editorCommon.FontInfo,
 
 		// vars
 		EditorType: editorCommon.EditorType,

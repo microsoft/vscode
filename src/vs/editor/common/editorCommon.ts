@@ -462,6 +462,9 @@ export class InternalEditorScrollbarOptions {
 	verticalSliderSize: number;
 	mouseWheelScrollSensitivity: number;
 
+	/**
+	 * @internal
+	 */
 	constructor(source:{
 		arrowSize:number;
 		vertical:ScrollbarVisibility;
@@ -490,6 +493,9 @@ export class InternalEditorScrollbarOptions {
 		this.mouseWheelScrollSensitivity = Number(source.mouseWheelScrollSensitivity);
 	}
 
+	/**
+	 * @internal
+	 */
 	public equals(other:InternalEditorScrollbarOptions): boolean {
 		return (
 			this.arrowSize === other.arrowSize
@@ -507,6 +513,9 @@ export class InternalEditorScrollbarOptions {
 		);
 	}
 
+	/**
+	 * @internal
+	 */
 	public clone(): InternalEditorScrollbarOptions {
 		return new InternalEditorScrollbarOptions(this);
 	}
@@ -522,6 +531,9 @@ export class EditorWrappingInfo {
 	wordWrapBreakAfterCharacters: string;
 	wordWrapBreakObtrusiveCharacters: string;
 
+	/**
+	 * @internal
+	 */
 	constructor(source:{
 		isViewportWrapping: boolean;
 		wrappingColumn: number;
@@ -538,6 +550,9 @@ export class EditorWrappingInfo {
 		this.wordWrapBreakObtrusiveCharacters = String(source.wordWrapBreakObtrusiveCharacters);
 	}
 
+	/**
+	 * @internal
+	 */
 	public equals(other:EditorWrappingInfo): boolean {
 		return (
 			this.isViewportWrapping === other.isViewportWrapping
@@ -549,6 +564,9 @@ export class EditorWrappingInfo {
 		);
 	}
 
+	/**
+	 * @internal
+	 */
 	public clone(): EditorWrappingInfo {
 		return new EditorWrappingInfo(this);
 	}
@@ -578,6 +596,9 @@ export class InternalEditorViewOptions {
 	indentGuides: boolean;
 	scrollbar:InternalEditorScrollbarOptions;
 
+	/**
+	 * @internal
+	 */
 	constructor(source:{
 		theme:string;
 		canUseTranslate3d:boolean;
@@ -650,6 +671,9 @@ export class InternalEditorViewOptions {
 		return true;
 	}
 
+	/**
+	 * @internal
+	 */
 	public equals(other:InternalEditorViewOptions): boolean {
 		return (
 			this.theme === other.theme
@@ -675,6 +699,9 @@ export class InternalEditorViewOptions {
 		);
 	}
 
+	/**
+	 * @internal
+	 */
 	public createChangeEvent(newOpts:InternalEditorViewOptions): IViewConfigurationChangedEvent {
 		return {
 			theme: this.theme !== newOpts.theme,
@@ -700,6 +727,9 @@ export class InternalEditorViewOptions {
 		};
 	}
 
+	/**
+	 * @internal
+	 */
 	public clone(): InternalEditorViewOptions {
 		return new InternalEditorViewOptions(this);
 	}
@@ -743,6 +773,9 @@ export class EditorContribOptions {
 	referenceInfos: boolean;
 	folding: boolean;
 
+	/**
+	 * @internal
+	 */
 	constructor(source:{
 		selectionClipboard: boolean;
 		hover:boolean;
@@ -773,6 +806,9 @@ export class EditorContribOptions {
 		this.folding = Boolean(source.folding);
 	}
 
+	/**
+	 * @internal
+	 */
 	public equals(other: EditorContribOptions): boolean {
 		return (
 			this.selectionClipboard === other.selectionClipboard
@@ -791,6 +827,9 @@ export class EditorContribOptions {
 		);
 	}
 
+	/**
+	 * @internal
+	 */
 	public clone(): EditorContribOptions {
 		return new EditorContribOptions(this);
 	}
@@ -817,6 +856,9 @@ export class InternalEditorOptions {
 	wrappingInfo: EditorWrappingInfo;
 	contribInfo: EditorContribOptions;
 
+	/**
+	 * @internal
+	 */
 	constructor(source: {
 		lineHeight:number;
 		readOnly:boolean;
@@ -843,6 +885,9 @@ export class InternalEditorOptions {
 		this.contribInfo = source.contribInfo.clone();
 	}
 
+	/**
+	 * @internal
+	 */
 	public equals(other:InternalEditorOptions): boolean {
 		return (
 			this.lineHeight === other.lineHeight
@@ -859,6 +904,9 @@ export class InternalEditorOptions {
 		);
 	}
 
+	/**
+	 * @internal
+	 */
 	public createChangeEvent(newOpts:InternalEditorOptions): IConfigurationChangedEvent {
 		return {
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
@@ -875,6 +923,9 @@ export class InternalEditorOptions {
 		};
 	}
 
+	/**
+	 * @internal
+	 */
 	public clone(): InternalEditorOptions {
 		return new InternalEditorOptions(this);
 	}
@@ -2385,6 +2436,9 @@ export class OverviewRulerPosition {
 	 */
 	right:number;
 
+	/**
+	 * @internal
+	 */
 	constructor(source:{
 		width:number;
 		height:number;
@@ -2397,6 +2451,9 @@ export class OverviewRulerPosition {
 		this.right = source.right|0;
 	}
 
+	/**
+	 * @internal
+	 */
 	public equals(other:OverviewRulerPosition): boolean {
 		return (
 			this.width === other.width
@@ -2406,6 +2463,9 @@ export class OverviewRulerPosition {
 		);
 	}
 
+	/**
+	 * @internal
+	 */
 	public clone(): OverviewRulerPosition {
 		return new OverviewRulerPosition(this);
 	}
@@ -2492,6 +2552,9 @@ export class EditorLayoutInfo {
 	 */
 	overviewRuler:OverviewRulerPosition;
 
+	/**
+	 * @internal
+	 */
 	constructor(source:{
 		width:number;
 		height:number;
@@ -2530,6 +2593,9 @@ export class EditorLayoutInfo {
 		this.overviewRuler = source.overviewRuler.clone();
 	}
 
+	/**
+	 * @internal
+	 */
 	public equals(other:EditorLayoutInfo): boolean {
 		return (
 			this.width === other.width
@@ -2552,6 +2618,9 @@ export class EditorLayoutInfo {
 		);
 	}
 
+	/**
+	 * @internal
+	 */
 	public clone(): EditorLayoutInfo {
 		return new EditorLayoutInfo(this);
 	}
@@ -2766,6 +2835,9 @@ export class BareFontInfo {
 	fontSize: number;
 	lineHeight: number;
 
+	/**
+	 * @internal
+	 */
 	constructor(opts: {
 		fontFamily: string;
 		fontSize: number;
@@ -2776,6 +2848,9 @@ export class BareFontInfo {
 		this.lineHeight = opts.lineHeight|0;
 	}
 
+	/**
+	 * @internal
+	 */
 	public getId(): string {
 		return this.fontFamily + '-' + this.fontSize + '-' + this.lineHeight;
 	}
@@ -2789,6 +2864,9 @@ export class FontInfo extends BareFontInfo {
 	spaceWidth:number;
 	maxDigitWidth: number;
 
+	/**
+	 * @internal
+	 */
 	constructor(opts:{
 		fontFamily: string;
 		fontSize: number;
@@ -2805,6 +2883,9 @@ export class FontInfo extends BareFontInfo {
 		this.maxDigitWidth = opts.maxDigitWidth;
 	}
 
+	/**
+	 * @internal
+	 */
 	public equals(other:FontInfo): boolean {
 		return (
 			this.fontFamily === other.fontFamily
@@ -2817,6 +2898,9 @@ export class FontInfo extends BareFontInfo {
 		);
 	}
 
+	/**
+	 * @internal
+	 */
 	public clone(): FontInfo {
 		return new FontInfo(this);
 	}

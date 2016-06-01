@@ -265,6 +265,9 @@ export function registerLinkProvider(languageId:string, support:modes.LinkProvid
 	return modes.LinkProviderRegistry.register(languageId, support);
 }
 
+/**
+ * @internal
+ */
 export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
 	ModesRegistry.registerLanguage(language);
 
@@ -360,7 +363,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerLinkProvider: registerLinkProvider,
 
 		// other methods
-		registerMonarchStandaloneLanguage: registerMonarchStandaloneLanguage,
+		// registerMonarchStandaloneLanguage: registerMonarchStandaloneLanguage,
 		register: register,
 		onLanguage: onLanguage,
 
@@ -368,9 +371,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: modes.IndentAction,
-
-		// classes
-		Location: modes.Location
+		IndentAction: modes.IndentAction
 	};
 }

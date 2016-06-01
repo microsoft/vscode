@@ -152,16 +152,6 @@ declare module monaco {
         static revive(data: any): Uri;
     }
 
-    export class EmitterEvent {
-        constructor(eventType?: string, data?: any);
-        getType(): string;
-        getData(): any;
-    }
-
-    export interface BulkListenerCallback {
-        (value: EmitterEvent[]): void;
-    }
-
     /**
      * Virtual Key Codes, the value does not hold any inherent meaning.
      * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -669,10 +659,6 @@ declare module monaco.editor {
 
     export function setMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
 
-    export function getOrCreateMode(modeId: string): Promise<languages.IMode>;
-
-    export function createCustomMode(language: ILanguage): Promise<languages.IMode>;
-
     export class MonacoWebWorker<T> {
         dispose(): void;
         getProxy(): Promise<T>;
@@ -1165,22 +1151,6 @@ declare module monaco.editor {
         verticalScrollbarSize: number;
         verticalSliderSize: number;
         mouseWheelScrollSensitivity: number;
-        constructor(source: {
-            arrowSize: number;
-            vertical: ScrollbarVisibility;
-            horizontal: ScrollbarVisibility;
-            useShadows: boolean;
-            verticalHasArrows: boolean;
-            horizontalHasArrows: boolean;
-            handleMouseWheel: boolean;
-            horizontalScrollbarSize: number;
-            horizontalSliderSize: number;
-            verticalScrollbarSize: number;
-            verticalSliderSize: number;
-            mouseWheelScrollSensitivity: number;
-        });
-        equals(other: InternalEditorScrollbarOptions): boolean;
-        clone(): InternalEditorScrollbarOptions;
     }
 
     export class EditorWrappingInfo {
@@ -1191,16 +1161,6 @@ declare module monaco.editor {
         wordWrapBreakBeforeCharacters: string;
         wordWrapBreakAfterCharacters: string;
         wordWrapBreakObtrusiveCharacters: string;
-        constructor(source: {
-            isViewportWrapping: boolean;
-            wrappingColumn: number;
-            wrappingIndent: WrappingIndent;
-            wordWrapBreakBeforeCharacters: string;
-            wordWrapBreakAfterCharacters: string;
-            wordWrapBreakObtrusiveCharacters: string;
-        });
-        equals(other: EditorWrappingInfo): boolean;
-        clone(): EditorWrappingInfo;
     }
 
     export class InternalEditorViewOptions {
@@ -1225,31 +1185,6 @@ declare module monaco.editor {
         renderWhitespace: boolean;
         indentGuides: boolean;
         scrollbar: InternalEditorScrollbarOptions;
-        constructor(source: {
-            theme: string;
-            canUseTranslate3d: boolean;
-            experimentalScreenReader: boolean;
-            rulers: number[];
-            ariaLabel: string;
-            lineNumbers: any;
-            selectOnLineNumbers: boolean;
-            glyphMargin: boolean;
-            revealHorizontalRightPadding: number;
-            roundedSelection: boolean;
-            overviewRulerLanes: number;
-            cursorBlinking: string;
-            cursorStyle: TextEditorCursorStyle;
-            hideCursorInOverviewRuler: boolean;
-            scrollBeyondLastLine: boolean;
-            editorClassName: string;
-            stopRenderingLineAfter: number;
-            renderWhitespace: boolean;
-            indentGuides: boolean;
-            scrollbar: InternalEditorScrollbarOptions;
-        });
-        equals(other: InternalEditorViewOptions): boolean;
-        createChangeEvent(newOpts: InternalEditorViewOptions): IViewConfigurationChangedEvent;
-        clone(): InternalEditorViewOptions;
     }
 
     export interface IViewConfigurationChangedEvent {
@@ -1289,23 +1224,6 @@ declare module monaco.editor {
         outlineMarkers: boolean;
         referenceInfos: boolean;
         folding: boolean;
-        constructor(source: {
-            selectionClipboard: boolean;
-            hover: boolean;
-            contextmenu: boolean;
-            quickSuggestions: boolean;
-            quickSuggestionsDelay: number;
-            iconsInSuggestions: boolean;
-            formatOnType: boolean;
-            suggestOnTriggerCharacters: boolean;
-            acceptSuggestionOnEnter: boolean;
-            selectionHighlight: boolean;
-            outlineMarkers: boolean;
-            referenceInfos: boolean;
-            folding: boolean;
-        });
-        equals(other: EditorContribOptions): boolean;
-        clone(): EditorContribOptions;
     }
 
     /**
@@ -1324,22 +1242,6 @@ declare module monaco.editor {
         viewInfo: InternalEditorViewOptions;
         wrappingInfo: EditorWrappingInfo;
         contribInfo: EditorContribOptions;
-        constructor(source: {
-            lineHeight: number;
-            readOnly: boolean;
-            wordSeparators: string;
-            autoClosingBrackets: boolean;
-            useTabStops: boolean;
-            tabFocusMode: boolean;
-            layoutInfo: EditorLayoutInfo;
-            fontInfo: FontInfo;
-            viewInfo: InternalEditorViewOptions;
-            wrappingInfo: EditorWrappingInfo;
-            contribInfo: EditorContribOptions;
-        });
-        equals(other: InternalEditorOptions): boolean;
-        createChangeEvent(newOpts: InternalEditorOptions): IConfigurationChangedEvent;
-        clone(): InternalEditorOptions;
     }
 
     /**
@@ -2325,14 +2227,6 @@ declare module monaco.editor {
          * Right position for the overview ruler
          */
         right: number;
-        constructor(source: {
-            width: number;
-            height: number;
-            top: number;
-            right: number;
-        });
-        equals(other: OverviewRulerPosition): boolean;
-        clone(): OverviewRulerPosition;
     }
 
     /**
@@ -2408,27 +2302,6 @@ declare module monaco.editor {
          * The position of the overview ruler.
          */
         overviewRuler: OverviewRulerPosition;
-        constructor(source: {
-            width: number;
-            height: number;
-            glyphMarginLeft: number;
-            glyphMarginWidth: number;
-            glyphMarginHeight: number;
-            lineNumbersLeft: number;
-            lineNumbersWidth: number;
-            lineNumbersHeight: number;
-            decorationsLeft: number;
-            decorationsWidth: number;
-            decorationsHeight: number;
-            contentLeft: number;
-            contentWidth: number;
-            contentHeight: number;
-            verticalScrollbarWidth: number;
-            horizontalScrollbarHeight: number;
-            overviewRuler: OverviewRulerPosition;
-        });
-        equals(other: EditorLayoutInfo): boolean;
-        clone(): EditorLayoutInfo;
     }
 
     /**
@@ -2638,12 +2511,6 @@ declare module monaco.editor {
         fontFamily: string;
         fontSize: number;
         lineHeight: number;
-        constructor(opts: {
-            fontFamily: string;
-            fontSize: number;
-            lineHeight: number;
-        });
-        getId(): string;
     }
 
     export class FontInfo extends BareFontInfo {
@@ -2652,17 +2519,6 @@ declare module monaco.editor {
         typicalFullwidthCharacterWidth: number;
         spaceWidth: number;
         maxDigitWidth: number;
-        constructor(opts: {
-            fontFamily: string;
-            fontSize: number;
-            lineHeight: number;
-            typicalHalfwidthCharacterWidth: number;
-            typicalFullwidthCharacterWidth: number;
-            spaceWidth: number;
-            maxDigitWidth: number;
-        });
-        equals(other: FontInfo): boolean;
-        clone(): FontInfo;
     }
 
     export interface INewScrollPosition {
@@ -3499,8 +3355,6 @@ declare module monaco.languages {
 
     export function registerLinkProvider(languageId: string, support: LinkProvider): IDisposable;
 
-    export function registerMonarchStandaloneLanguage(language: ILanguageExtensionPoint, defModule: string): void;
-
     export function register(language: ILanguageExtensionPoint): void;
 
     export function onLanguage(languageId: string, callback: () => void): IDisposable;
@@ -3653,7 +3507,7 @@ declare module monaco.languages {
         provideReferences(model: editor.IReadOnlyModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
     }
 
-    export class Location {
+    export interface Location {
         uri: Uri;
         range: IRange;
     }

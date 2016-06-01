@@ -5,7 +5,6 @@
 'use strict';
 
 import {Emitter} from 'vs/base/common/event';
-import {EmitterEvent} from 'vs/base/common/eventEmitter';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -23,7 +22,6 @@ export function createMonacoBaseAPI(): typeof monaco {
 		languages: undefined,
 		CancellationTokenSource: CancellationTokenSource,
 		Emitter: Emitter,
-		EmitterEvent: EmitterEvent,
 		KeyCode: KeyCode,
 		KeyMod: KeyMod,
 		Position: Position,
