@@ -1,476 +1,3 @@
-
-declare module monaco.worker {
-
-    export interface IMirrorModel {
-        uri: Uri;
-        version: number;
-        getText(): string;
-    }
-
-    export var mirrorModels: IMirrorModel[];
-
-}
-
-declare module monaco.languages {
-
-
-    export function setLanguageConfiguration(languageId: string, configuration: IRichLanguageConfiguration): IDisposable;
-
-    export function setTokensProvider(languageId: string, support: TokensProvider): IDisposable;
-
-    export function registerReferenceProvider(languageId: string, support: ReferenceProvider): IDisposable;
-
-    export function registerRenameProvider(languageId: string, support: RenameProvider): IDisposable;
-
-    export enum CompletionItemKind {
-        Text = 0,
-        Method = 1,
-        Function = 2,
-        Constructor = 3,
-        Field = 4,
-        Variable = 5,
-        Class = 6,
-        Interface = 7,
-        Module = 8,
-        Property = 9,
-        Unit = 10,
-        Value = 11,
-        Enum = 12,
-        Keyword = 13,
-        Snippet = 14,
-        Color = 15,
-        File = 16,
-        Reference = 17,
-    }
-
-    export interface CompletionItem {
-        label: string;
-        kind: CompletionItemKind;
-        detail?: string;
-        documentation?: string;
-        sortText?: string;
-        filterText?: string;
-        insertText?: string;
-        textEdit?: editor.ISingleEditOperation;
-    }
-
-    export interface CompletionList {
-        isIncomplete?: boolean;
-        items: CompletionItem[];
-    }
-
-    export interface CompletionItemProvider {
-        triggerCharacters?: string[];
-        provideCompletionItems(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-        resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
-    }
-
-    export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
-
-    export function registerSignatureHelpProvider(languageId: string, support: SignatureHelpProvider): IDisposable;
-
-    export function registerHoverProvider(languageId: string, support: HoverProvider): IDisposable;
-
-    export function registerDocumentSymbolProvider(languageId: string, support: DocumentSymbolProvider): IDisposable;
-
-    export function registerDocumentHighlightProvider(languageId: string, support: DocumentHighlightProvider): IDisposable;
-
-    export function registerDefinitionProvider(languageId: string, support: DefinitionProvider): IDisposable;
-
-    export function registerCodeLensProvider(languageId: string, support: CodeLensProvider): IDisposable;
-
-    export function registerCodeActionProvider(languageId: string, support: CodeActionProvider): IDisposable;
-
-    export function registerDocumentFormattingEditProvider(languageId: string, support: DocumentFormattingEditProvider): IDisposable;
-
-    export function registerDocumentRangeFormattingEditProvider(languageId: string, support: DocumentRangeFormattingEditProvider): IDisposable;
-
-    export function registerOnTypeFormattingEditProvider(languageId: string, support: OnTypeFormattingEditProvider): IDisposable;
-
-    export function registerLinkProvider(languageId: string, support: LinkProvider): IDisposable;
-
-    export function registerMonarchStandaloneLanguage(language: ILanguageExtensionPoint, defModule: string): void;
-
-    export function register(language: ILanguageExtensionPoint): void;
-
-    export function onLanguage(languageId: string, callback: () => void): IDisposable;
-
-    export interface CommentRule {
-        lineComment?: string;
-        blockComment?: CharacterPair;
-    }
-
-    export interface IRichLanguageConfiguration {
-        comments?: CommentRule;
-        brackets?: CharacterPair[];
-        wordPattern?: RegExp;
-        indentationRules?: IIndentationRules;
-        onEnterRules?: IOnEnterRegExpRules[];
-        autoClosingPairs?: IAutoClosingPairConditional[];
-        surroundingPairs?: IAutoClosingPair[];
-        __electricCharacterSupport?: IBracketElectricCharacterContribution;
-    }
-
-    export interface IIndentationRules {
-        decreaseIndentPattern: RegExp;
-        increaseIndentPattern: RegExp;
-        indentNextLinePattern?: RegExp;
-        unIndentedLinePattern?: RegExp;
-    }
-
-    export interface IOnEnterRegExpRules {
-        beforeText: RegExp;
-        afterText?: RegExp;
-        action: IEnterAction;
-    }
-
-    export interface IBracketElectricCharacterContribution {
-        docComment?: IDocComment;
-        caseInsensitive?: boolean;
-        embeddedElectricCharacters?: string[];
-    }
-
-    /**
-     * Definition of documentation comments (e.g. Javadoc/JSdoc)
-     */
-    export interface IDocComment {
-        scope: string;
-        open: string;
-        lineStart: string;
-        close?: string;
-    }
-
-    export interface IMode {
-        getId(): string;
-    }
-
-    export interface IToken {
-        startIndex: number;
-        scopes: string | string[];
-    }
-
-    export interface ILineTokens {
-        tokens: IToken[];
-        endState: IState;
-        retokenize?: Promise<void>;
-    }
-
-    export interface IState {
-        clone(): IState;
-        equals(other: IState): boolean;
-    }
-
-    export interface TokensProvider {
-        getInitialState(): IState;
-        tokenize(line: string, state: IState): ILineTokens;
-    }
-
-    /**
-     * A hover represents additional information for a symbol or word. Hovers are
-     * rendered in a tooltip-like widget.
-     */
-    export interface Hover {
-        /**
-         * The contents of this hover.
-         */
-        htmlContent: IHTMLContentElement[];
-        /**
-         * The range to which this hover applies. When missing, the
-         * editor will use the range at the current position or the
-         * current position itself.
-         */
-        range: IRange;
-    }
-
-    export interface HoverProvider {
-        provideHover(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
-    }
-
-    /**
-     * Interface used to quick fix typing errors while accesing member fields.
-     */
-    export interface IQuickFix {
-        command: ICommand;
-        score: number;
-    }
-
-    export interface CodeActionProvider {
-        provideCodeActions(model: editor.IReadOnlyModel, range: Range, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
-    }
-
-    export interface ParameterInformation {
-        label: string;
-        documentation: string;
-    }
-
-    export interface SignatureInformation {
-        label: string;
-        documentation: string;
-        parameters: ParameterInformation[];
-    }
-
-    export interface SignatureHelp {
-        signatures: SignatureInformation[];
-        activeSignature: number;
-        activeParameter: number;
-    }
-
-    export interface SignatureHelpProvider {
-        signatureHelpTriggerCharacters: string[];
-        provideSignatureHelp(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
-    }
-
-    export enum DocumentHighlightKind {
-        Text = 0,
-        Read = 1,
-        Write = 2,
-    }
-
-    export interface DocumentHighlight {
-        range: IRange;
-        kind: DocumentHighlightKind;
-    }
-
-    export interface DocumentHighlightProvider {
-        provideDocumentHighlights(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
-    }
-
-    export interface ReferenceContext {
-        includeDeclaration: boolean;
-    }
-
-    export interface ReferenceProvider {
-        provideReferences(model: editor.IReadOnlyModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
-    }
-
-    export class Location {
-        uri: Uri;
-        range: IRange;
-    }
-
-    export type Definition = Location | Location[];
-
-    export interface DefinitionProvider {
-        provideDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
-    }
-
-    export enum SymbolKind {
-        File = 0,
-        Module = 1,
-        Namespace = 2,
-        Package = 3,
-        Class = 4,
-        Method = 5,
-        Property = 6,
-        Field = 7,
-        Constructor = 8,
-        Enum = 9,
-        Interface = 10,
-        Function = 11,
-        Variable = 12,
-        Constant = 13,
-        String = 14,
-        Number = 15,
-        Boolean = 16,
-        Array = 17,
-        Object = 18,
-        Key = 19,
-        Null = 20,
-    }
-
-    export interface SymbolInformation {
-        name: string;
-        containerName?: string;
-        kind: SymbolKind;
-        location: Location;
-    }
-
-    export interface DocumentSymbolProvider {
-        provideDocumentSymbols(model: editor.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
-    }
-
-    /**
-     * Interface used to format a model
-     */
-    export interface IFormattingOptions {
-        tabSize: number;
-        insertSpaces: boolean;
-    }
-
-    export interface DocumentFormattingEditProvider {
-        provideDocumentFormattingEdits(model: editor.IReadOnlyModel, options: IFormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
-    }
-
-    export interface DocumentRangeFormattingEditProvider {
-        provideDocumentRangeFormattingEdits(model: editor.IReadOnlyModel, range: Range, options: IFormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
-    }
-
-    export interface OnTypeFormattingEditProvider {
-        autoFormatTriggerCharacters: string[];
-        provideOnTypeFormattingEdits(model: editor.IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
-    }
-
-    export interface ILink {
-        range: IRange;
-        url: string;
-    }
-
-    export interface LinkProvider {
-        provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
-    }
-
-    export interface IResourceEdit {
-        resource: Uri;
-        range: IRange;
-        newText: string;
-    }
-
-    export interface WorkspaceEdit {
-        edits: IResourceEdit[];
-        rejectReason?: string;
-    }
-
-    export interface RenameProvider {
-        provideRenameEdits(model: editor.IReadOnlyModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
-    }
-
-    export interface ICommand {
-        id: string;
-        title: string;
-        arguments?: any[];
-    }
-
-    export interface ICodeLensSymbol {
-        range: IRange;
-        id?: string;
-        command?: ICommand;
-    }
-
-    export interface CodeLensProvider {
-        provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
-        resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
-    }
-
-    export type CharacterPair = [string, string];
-
-    export interface IAutoClosingPairConditional extends IAutoClosingPair {
-        notIn?: string[];
-    }
-
-    export enum IndentAction {
-        None = 0,
-        Indent = 1,
-        IndentOutdent = 2,
-        Outdent = 3,
-    }
-
-    /**
-     * An action the editor executes when 'enter' is being pressed
-     */
-    export interface IEnterAction {
-        indentAction: IndentAction;
-        appendText?: string;
-        removeText?: number;
-    }
-
-    export interface IAutoClosingPair {
-        open: string;
-        close: string;
-    }
-
-    export interface ILanguageExtensionPoint {
-        id: string;
-        extensions?: string[];
-        filenames?: string[];
-        filenamePatterns?: string[];
-        firstLine?: string;
-        aliases?: string[];
-        mimetypes?: string[];
-        configuration?: string;
-    }
-
-}
-
-
-declare module monaco.editor {
-
-
-    export function create(domElement: HTMLElement, options: IEditorConstructionOptions, services: IEditorOverrideServices): ICodeEditor;
-
-    export function createDiffEditor(domElement: HTMLElement, options: IDiffEditorConstructionOptions, services: IEditorOverrideServices): IDiffEditor;
-
-    export function createModel(value: string, mode: string | ILanguage | languages.IMode, associatedResource?: Uri | string): IModel;
-
-    export function getModels(): IModel[];
-
-    export function getModel(uri: Uri): IModel;
-
-    export function onDidCreateModel(listener: (model: IModel) => void): IDisposable;
-
-    export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable;
-
-    export function onDidChangeModelMode(listener: (e: {
-        model: IModel;
-        oldModeId: string;
-    }) => void): IDisposable;
-
-    export function setMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
-
-    export function getOrCreateMode(modeId: string): Promise<languages.IMode>;
-
-    export function createCustomMode(language: ILanguage): Promise<languages.IMode>;
-
-    export class MonacoWebWorker<T> {
-        dispose(): void;
-        getProxy(): Promise<T>;
-        withSyncedResources(resources: Uri[]): Promise<void>;
-    }
-
-    export interface IWebWorkerOptions {
-        moduleId: string;
-    }
-
-    export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
-
-    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
-
-    export function colorize(text: string, modeId: string, options: IColorizerOptions): Promise<string>;
-
-    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
-
-    export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
-        value?: string;
-        mode?: string;
-    }
-
-    export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
-    }
-
-    export interface IEditorOverrideServices {
-    }
-
-    export interface IMarkerData {
-        code?: string;
-        severity: Severity;
-        message: string;
-        source?: string;
-        startLineNumber: number;
-        startColumn: number;
-        endLineNumber: number;
-        endColumn: number;
-    }
-
-    export interface IColorizerOptions {
-        tabSize?: number;
-    }
-
-    export interface IColorizerElementOptions extends IColorizerOptions {
-        theme?: string;
-        mimeType?: string;
-    }
-}
-
-
 declare module monaco {
 
     interface Thenable<R> {
@@ -1118,8 +645,83 @@ declare module monaco {
     }
 }
 
-
 declare module monaco.editor {
+
+
+    export function create(domElement: HTMLElement, options: IEditorConstructionOptions, services: IEditorOverrideServices): ICodeEditor;
+
+    export function createDiffEditor(domElement: HTMLElement, options: IDiffEditorConstructionOptions, services: IEditorOverrideServices): IDiffEditor;
+
+    export function createModel(value: string, mode: string | ILanguage | languages.IMode, associatedResource?: Uri | string): IModel;
+
+    export function getModels(): IModel[];
+
+    export function getModel(uri: Uri): IModel;
+
+    export function onDidCreateModel(listener: (model: IModel) => void): IDisposable;
+
+    export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable;
+
+    export function onDidChangeModelMode(listener: (e: {
+        model: IModel;
+        oldModeId: string;
+    }) => void): IDisposable;
+
+    export function setMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
+
+    export function getOrCreateMode(modeId: string): Promise<languages.IMode>;
+
+    export function createCustomMode(language: ILanguage): Promise<languages.IMode>;
+
+    export class MonacoWebWorker<T> {
+        dispose(): void;
+        getProxy(): Promise<T>;
+        withSyncedResources(resources: Uri[]): Promise<void>;
+    }
+
+    export interface IWebWorkerOptions {
+        moduleId: string;
+    }
+
+    export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T>;
+
+    export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void>;
+
+    export function colorize(text: string, modeId: string, options: IColorizerOptions): Promise<string>;
+
+    export function colorizeModelLine(model: IModel, lineNumber: number, tabSize?: number): string;
+
+    export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
+        value?: string;
+        mode?: string;
+    }
+
+    export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+    }
+
+    export interface IEditorOverrideServices {
+    }
+
+    export interface IMarkerData {
+        code?: string;
+        severity: Severity;
+        message: string;
+        source?: string;
+        startLineNumber: number;
+        startColumn: number;
+        endLineNumber: number;
+        endColumn: number;
+    }
+
+    export interface IColorizerOptions {
+        tabSize?: number;
+    }
+
+    export interface IColorizerElementOptions extends IColorizerOptions {
+        theme?: string;
+        mimeType?: string;
+    }
+
     /**
      * A Monarch language definition
      */
@@ -3817,4 +3419,396 @@ declare module monaco.editor {
          */
         getDomNode(): HTMLElement;
     }
+}
+
+declare module monaco.languages {
+
+
+    export function setLanguageConfiguration(languageId: string, configuration: IRichLanguageConfiguration): IDisposable;
+
+    export function setTokensProvider(languageId: string, support: TokensProvider): IDisposable;
+
+    export function registerReferenceProvider(languageId: string, support: ReferenceProvider): IDisposable;
+
+    export function registerRenameProvider(languageId: string, support: RenameProvider): IDisposable;
+
+    export enum CompletionItemKind {
+        Text = 0,
+        Method = 1,
+        Function = 2,
+        Constructor = 3,
+        Field = 4,
+        Variable = 5,
+        Class = 6,
+        Interface = 7,
+        Module = 8,
+        Property = 9,
+        Unit = 10,
+        Value = 11,
+        Enum = 12,
+        Keyword = 13,
+        Snippet = 14,
+        Color = 15,
+        File = 16,
+        Reference = 17,
+    }
+
+    export interface CompletionItem {
+        label: string;
+        kind: CompletionItemKind;
+        detail?: string;
+        documentation?: string;
+        sortText?: string;
+        filterText?: string;
+        insertText?: string;
+        textEdit?: editor.ISingleEditOperation;
+    }
+
+    export interface CompletionList {
+        isIncomplete?: boolean;
+        items: CompletionItem[];
+    }
+
+    export interface CompletionItemProvider {
+        triggerCharacters?: string[];
+        provideCompletionItems(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
+        resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
+    }
+
+    export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
+
+    export function registerSignatureHelpProvider(languageId: string, support: SignatureHelpProvider): IDisposable;
+
+    export function registerHoverProvider(languageId: string, support: HoverProvider): IDisposable;
+
+    export function registerDocumentSymbolProvider(languageId: string, support: DocumentSymbolProvider): IDisposable;
+
+    export function registerDocumentHighlightProvider(languageId: string, support: DocumentHighlightProvider): IDisposable;
+
+    export function registerDefinitionProvider(languageId: string, support: DefinitionProvider): IDisposable;
+
+    export function registerCodeLensProvider(languageId: string, support: CodeLensProvider): IDisposable;
+
+    export function registerCodeActionProvider(languageId: string, support: CodeActionProvider): IDisposable;
+
+    export function registerDocumentFormattingEditProvider(languageId: string, support: DocumentFormattingEditProvider): IDisposable;
+
+    export function registerDocumentRangeFormattingEditProvider(languageId: string, support: DocumentRangeFormattingEditProvider): IDisposable;
+
+    export function registerOnTypeFormattingEditProvider(languageId: string, support: OnTypeFormattingEditProvider): IDisposable;
+
+    export function registerLinkProvider(languageId: string, support: LinkProvider): IDisposable;
+
+    export function registerMonarchStandaloneLanguage(language: ILanguageExtensionPoint, defModule: string): void;
+
+    export function register(language: ILanguageExtensionPoint): void;
+
+    export function onLanguage(languageId: string, callback: () => void): IDisposable;
+
+    export interface CommentRule {
+        lineComment?: string;
+        blockComment?: CharacterPair;
+    }
+
+    export interface IRichLanguageConfiguration {
+        comments?: CommentRule;
+        brackets?: CharacterPair[];
+        wordPattern?: RegExp;
+        indentationRules?: IIndentationRules;
+        onEnterRules?: IOnEnterRegExpRules[];
+        autoClosingPairs?: IAutoClosingPairConditional[];
+        surroundingPairs?: IAutoClosingPair[];
+        __electricCharacterSupport?: IBracketElectricCharacterContribution;
+    }
+
+    export interface IIndentationRules {
+        decreaseIndentPattern: RegExp;
+        increaseIndentPattern: RegExp;
+        indentNextLinePattern?: RegExp;
+        unIndentedLinePattern?: RegExp;
+    }
+
+    export interface IOnEnterRegExpRules {
+        beforeText: RegExp;
+        afterText?: RegExp;
+        action: IEnterAction;
+    }
+
+    export interface IBracketElectricCharacterContribution {
+        docComment?: IDocComment;
+        caseInsensitive?: boolean;
+        embeddedElectricCharacters?: string[];
+    }
+
+    /**
+     * Definition of documentation comments (e.g. Javadoc/JSdoc)
+     */
+    export interface IDocComment {
+        scope: string;
+        open: string;
+        lineStart: string;
+        close?: string;
+    }
+
+    export interface IMode {
+        getId(): string;
+    }
+
+    export interface IToken {
+        startIndex: number;
+        scopes: string | string[];
+    }
+
+    export interface ILineTokens {
+        tokens: IToken[];
+        endState: IState;
+        retokenize?: Promise<void>;
+    }
+
+    export interface IState {
+        clone(): IState;
+        equals(other: IState): boolean;
+    }
+
+    export interface TokensProvider {
+        getInitialState(): IState;
+        tokenize(line: string, state: IState): ILineTokens;
+    }
+
+    /**
+     * A hover represents additional information for a symbol or word. Hovers are
+     * rendered in a tooltip-like widget.
+     */
+    export interface Hover {
+        /**
+         * The contents of this hover.
+         */
+        htmlContent: IHTMLContentElement[];
+        /**
+         * The range to which this hover applies. When missing, the
+         * editor will use the range at the current position or the
+         * current position itself.
+         */
+        range: IRange;
+    }
+
+    export interface HoverProvider {
+        provideHover(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Hover | Thenable<Hover>;
+    }
+
+    /**
+     * Interface used to quick fix typing errors while accesing member fields.
+     */
+    export interface IQuickFix {
+        command: ICommand;
+        score: number;
+    }
+
+    export interface CodeActionProvider {
+        provideCodeActions(model: editor.IReadOnlyModel, range: Range, token: CancellationToken): IQuickFix[] | Thenable<IQuickFix[]>;
+    }
+
+    export interface ParameterInformation {
+        label: string;
+        documentation: string;
+    }
+
+    export interface SignatureInformation {
+        label: string;
+        documentation: string;
+        parameters: ParameterInformation[];
+    }
+
+    export interface SignatureHelp {
+        signatures: SignatureInformation[];
+        activeSignature: number;
+        activeParameter: number;
+    }
+
+    export interface SignatureHelpProvider {
+        signatureHelpTriggerCharacters: string[];
+        provideSignatureHelp(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): SignatureHelp | Thenable<SignatureHelp>;
+    }
+
+    export enum DocumentHighlightKind {
+        Text = 0,
+        Read = 1,
+        Write = 2,
+    }
+
+    export interface DocumentHighlight {
+        range: IRange;
+        kind: DocumentHighlightKind;
+    }
+
+    export interface DocumentHighlightProvider {
+        provideDocumentHighlights(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): DocumentHighlight[] | Thenable<DocumentHighlight[]>;
+    }
+
+    export interface ReferenceContext {
+        includeDeclaration: boolean;
+    }
+
+    export interface ReferenceProvider {
+        provideReferences(model: editor.IReadOnlyModel, position: Position, context: ReferenceContext, token: CancellationToken): Location[] | Thenable<Location[]>;
+    }
+
+    export class Location {
+        uri: Uri;
+        range: IRange;
+    }
+
+    export type Definition = Location | Location[];
+
+    export interface DefinitionProvider {
+        provideDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+    }
+
+    export enum SymbolKind {
+        File = 0,
+        Module = 1,
+        Namespace = 2,
+        Package = 3,
+        Class = 4,
+        Method = 5,
+        Property = 6,
+        Field = 7,
+        Constructor = 8,
+        Enum = 9,
+        Interface = 10,
+        Function = 11,
+        Variable = 12,
+        Constant = 13,
+        String = 14,
+        Number = 15,
+        Boolean = 16,
+        Array = 17,
+        Object = 18,
+        Key = 19,
+        Null = 20,
+    }
+
+    export interface SymbolInformation {
+        name: string;
+        containerName?: string;
+        kind: SymbolKind;
+        location: Location;
+    }
+
+    export interface DocumentSymbolProvider {
+        provideDocumentSymbols(model: editor.IReadOnlyModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
+    }
+
+    /**
+     * Interface used to format a model
+     */
+    export interface IFormattingOptions {
+        tabSize: number;
+        insertSpaces: boolean;
+    }
+
+    export interface DocumentFormattingEditProvider {
+        provideDocumentFormattingEdits(model: editor.IReadOnlyModel, options: IFormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
+    }
+
+    export interface DocumentRangeFormattingEditProvider {
+        provideDocumentRangeFormattingEdits(model: editor.IReadOnlyModel, range: Range, options: IFormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
+    }
+
+    export interface OnTypeFormattingEditProvider {
+        autoFormatTriggerCharacters: string[];
+        provideOnTypeFormattingEdits(model: editor.IReadOnlyModel, position: Position, ch: string, options: IFormattingOptions, token: CancellationToken): editor.ISingleEditOperation[] | Thenable<editor.ISingleEditOperation[]>;
+    }
+
+    export interface ILink {
+        range: IRange;
+        url: string;
+    }
+
+    export interface LinkProvider {
+        provideLinks(model: editor.IReadOnlyModel, token: CancellationToken): ILink[] | Thenable<ILink[]>;
+    }
+
+    export interface IResourceEdit {
+        resource: Uri;
+        range: IRange;
+        newText: string;
+    }
+
+    export interface WorkspaceEdit {
+        edits: IResourceEdit[];
+        rejectReason?: string;
+    }
+
+    export interface RenameProvider {
+        provideRenameEdits(model: editor.IReadOnlyModel, position: Position, newName: string, token: CancellationToken): WorkspaceEdit | Thenable<WorkspaceEdit>;
+    }
+
+    export interface ICommand {
+        id: string;
+        title: string;
+        arguments?: any[];
+    }
+
+    export interface ICodeLensSymbol {
+        range: IRange;
+        id?: string;
+        command?: ICommand;
+    }
+
+    export interface CodeLensProvider {
+        provideCodeLenses(model: editor.IReadOnlyModel, token: CancellationToken): ICodeLensSymbol[] | Thenable<ICodeLensSymbol[]>;
+        resolveCodeLens?(model: editor.IReadOnlyModel, codeLens: ICodeLensSymbol, token: CancellationToken): ICodeLensSymbol | Thenable<ICodeLensSymbol>;
+    }
+
+    export type CharacterPair = [string, string];
+
+    export interface IAutoClosingPairConditional extends IAutoClosingPair {
+        notIn?: string[];
+    }
+
+    export enum IndentAction {
+        None = 0,
+        Indent = 1,
+        IndentOutdent = 2,
+        Outdent = 3,
+    }
+
+    /**
+     * An action the editor executes when 'enter' is being pressed
+     */
+    export interface IEnterAction {
+        indentAction: IndentAction;
+        appendText?: string;
+        removeText?: number;
+    }
+
+    export interface IAutoClosingPair {
+        open: string;
+        close: string;
+    }
+
+    export interface ILanguageExtensionPoint {
+        id: string;
+        extensions?: string[];
+        filenames?: string[];
+        filenamePatterns?: string[];
+        firstLine?: string;
+        aliases?: string[];
+        mimetypes?: string[];
+        configuration?: string;
+    }
+
+}
+
+declare module monaco.worker {
+
+    export interface IMirrorModel {
+        uri: Uri;
+        version: number;
+        getText(): string;
+    }
+
+    export var mirrorModels: IMirrorModel[];
+
 }

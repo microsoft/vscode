@@ -1,46 +1,3 @@
-
-declare module monaco.worker {
-
-    export interface IMirrorModel {
-        uri: Uri;
-        version: number;
-        getText(): string;
-    }
-
-    export var mirrorModels: IMirrorModel[];
-
-}
-
-declare module monaco.languages {
-
-#includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.):
-#include(vs/editor/common/modes/supports/richEditSupport): CommentRule, IRichLanguageConfiguration
-#include(vs/editor/common/modes/supports/onEnter): IIndentationRules, IOnEnterRegExpRules
-#include(vs/editor/common/modes/supports/electricCharacter): IBracketElectricCharacterContribution, IDocComment
-#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens;IState2=>IState):
-#include(vs/editor/common/services/modeService): ILanguageExtensionPoint
-
-}
-
-
-declare module monaco.editor {
-
-#includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.):
-#include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions
-#include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices
-#include(vs/platform/markers/common/markers): IMarkerData
-
-    export interface IColorizerOptions {
-        tabSize?: number;
-    }
-
-    export interface IColorizerElementOptions extends IColorizerOptions {
-        theme?: string;
-        mimeType?: string;
-    }
-}
-
-
 declare module monaco {
 
     interface Thenable<R> {
@@ -92,10 +49,47 @@ declare module monaco {
 #include(vs/editor/common/core/selection): Selection
 }
 
-
 declare module monaco.editor {
+
+#includeAll(vs/editor/browser/standalone/standaloneEditor;modes.=>languages.):
+#include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions
+#include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices
+#include(vs/platform/markers/common/markers): IMarkerData
+
+    export interface IColorizerOptions {
+        tabSize?: number;
+    }
+
+    export interface IColorizerElementOptions extends IColorizerOptions {
+        theme?: string;
+        mimeType?: string;
+    }
+
 #include(vs/editor/common/modes/monarch/monarchTypes): ILanguage, ILanguageBracket
 #include(vs/base/browser/ui/scrollbar/scrollableElementOptions): ScrollbarVisibility
 #includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
+}
+
+declare module monaco.languages {
+
+#includeAll(vs/editor/browser/standalone/standaloneLanguages;modes.=>;editorCommon.=>editor.):
+#include(vs/editor/common/modes/supports/richEditSupport): CommentRule, IRichLanguageConfiguration
+#include(vs/editor/common/modes/supports/onEnter): IIndentationRules, IOnEnterRegExpRules
+#include(vs/editor/common/modes/supports/electricCharacter): IBracketElectricCharacterContribution, IDocComment
+#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens;IState2=>IState):
+#include(vs/editor/common/services/modeService): ILanguageExtensionPoint
+
+}
+
+declare module monaco.worker {
+
+    export interface IMirrorModel {
+        uri: Uri;
+        version: number;
+        getText(): string;
+    }
+
+    export var mirrorModels: IMirrorModel[];
+
 }
