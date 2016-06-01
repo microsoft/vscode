@@ -244,14 +244,6 @@ export abstract class BaseDiffEditorInput extends EditorInput {
 		return this._modifiedInput;
 	}
 
-	public getOriginalInput(): EditorInput {
-		return this.originalInput;
-	}
-
-	public getModifiedInput(): EditorInput {
-		return this.modifiedInput;
-	}
-
 	public isDirty(): boolean {
 		return this._modifiedInput.isDirty();
 	}
@@ -568,8 +560,8 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 	}
 
 	// Check for diff if we are asked to
-	if (supportDiff && types.isFunction((<BaseDiffEditorInput>obj).getModifiedInput)) {
-		obj = (<BaseDiffEditorInput>obj).getModifiedInput();
+	if (supportDiff && obj instanceof BaseDiffEditorInput) {
+		obj = (<BaseDiffEditorInput>obj).modifiedInput;
 	}
 
 	let i = <IFileEditorInput>obj;

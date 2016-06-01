@@ -248,7 +248,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Support diff editor input too
 		if (input instanceof DiffEditorInput) {
-			input = (<DiffEditorInput>input).getModifiedInput();
+			input = (<DiffEditorInput>input).modifiedInput;
 		}
 
 		return input instanceof FileEditorInput && (<FileEditorInput>input).getResource().toString() === resource.toString();
@@ -261,7 +261,7 @@ export class FileTracker implements IWorkbenchContribution {
 			let group = stacks.groupAt(editor.position);
 			let input = editor.input;
 			if (input instanceof DiffEditorInput) {
-				input = (<DiffEditorInput>input).getModifiedInput();
+				input = (<DiffEditorInput>input).modifiedInput;
 			}
 
 			let inputResource: URI;
@@ -322,15 +322,14 @@ export class FileTracker implements IWorkbenchContribution {
 	private getMatchingFileEditorInputFromDiff(input: DiffEditorInput, arg: any): FileEditorInput {
 
 		// First try modifiedInput
-		let modifiedInput = input.getModifiedInput();
+		let modifiedInput = input.modifiedInput;
 		let res = this.getMatchingFileEditorInputFromInput(modifiedInput, arg);
 		if (res) {
 			return res;
 		}
 
 		// Second try originalInput
-		let originalInput = input.getOriginalInput();
-		return this.getMatchingFileEditorInputFromInput(originalInput, arg);
+		return this.getMatchingFileEditorInputFromInput(input.originalInput, arg);
 	}
 
 	private getMatchingFileEditorInputFromInput(input: EditorInput, deletedResource: URI): FileEditorInput;

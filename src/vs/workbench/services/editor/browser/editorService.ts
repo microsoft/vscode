@@ -88,11 +88,9 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 				return true;
 			}
 
-			if (includeDiff) {
+			if (includeDiff && editor.input instanceof DiffEditorInput) {
 				let diffInput = <DiffEditorInput>editor.input;
-				if (types.isFunction(diffInput.getOriginalInput) && types.isFunction(diffInput.getModifiedInput)) {
-					return input.matches(diffInput.getModifiedInput()) || input.matches(diffInput.getOriginalInput());
-				}
+				return input.matches(diffInput.modifiedInput) || input.matches(diffInput.originalInput);
 			}
 
 			return false;
@@ -270,12 +268,12 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 						let originalModel = this.findModel(diffCodeEditor.getOriginalEditor(), input);
 						if (originalModel) {
-							return TPromise.as(diffInput.getOriginalInput());
+							return TPromise.as(diffInput.originalInput);
 						}
 
 						let modifiedModel = this.findModel(diffCodeEditor.getModifiedEditor(), input);
 						if (modifiedModel) {
-							return TPromise.as(diffInput.getModifiedInput());
+							return TPromise.as(diffInput.modifiedInput);
 						}
 					}
 				}

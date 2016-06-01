@@ -1140,7 +1140,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 			// Also take care of diff editor inputs that wrap around 2 editors
 			if (editor instanceof DiffEditorInput) {
-				[editor.getOriginalInput(), editor.getModifiedInput()].forEach(editor => {
+				[editor.originalInput, editor.modifiedInput].forEach(editor => {
 					if (!this.isOpen(editor)) {
 						editor.close();
 					}
