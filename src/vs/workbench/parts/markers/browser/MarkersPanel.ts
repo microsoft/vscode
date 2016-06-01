@@ -116,7 +116,7 @@ export class MarkersPanel extends Panel {
 	private createFilterInputBox(parent: HTMLElement): void {
 		this.filterInputBoxContainer= dom.append(parent, dom.emmet('.filter-box-container'));
 		this.filterInputBox= new InputBox(this.filterInputBoxContainer, this.contextViewService, {
-			placeholder: Messages.getString('markers.panel.filter.placeholder')
+			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
 		this.toDispose.push(this.filterInputBox.onDidChange((filter:string) => {
 			this.markersModel.filter= filter;

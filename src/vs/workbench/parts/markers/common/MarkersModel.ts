@@ -116,7 +116,7 @@ export class MarkersModel {
 
 	public getTitle(markerStatistics: MarkerStatistics):string {
 		let title= MarkersModel.getStatisticsLabel(markerStatistics);
-		return title ? title : Messages.getString('markers.panel.no.problems');
+		return title ? title : Messages.MARKERS_PANEL_NO_PROBLEMS;
 	}
 
 	public getMessage():string {
@@ -125,31 +125,31 @@ export class MarkersModel {
 		}
 		if (this.hasResources()) {
 			if (this.filter) {
-				return Messages.getString('markers.panel.no.problems.filters');
+				return Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
 			}
 			if (this.showOnlyErrors) {
-				return Messages.getString('markers.panel.no.errors');
+				return Messages.MARKERS_PANEL_NO_ERRORS;
 			}
 		}
-		return Messages.getString('markers.panel.no.problems.build');
+		return Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 	}
 
 	public static getStatisticsLabel(markerStatistics: MarkerStatistics, onlyErrors:boolean=false):string {
-		let label= this.getLabel('',  markerStatistics.errors, 'markers.panel.single.error.label', 'markers.panel.multiple.errors.label');
+		let label= this.getLabel('',  markerStatistics.errors, Messages.MARKERS_PANEL_SINGLE_ERROR_LABEL, Messages.MARKERS_PANEL_MULTIPLE_ERRORS_LABEL);
 		if (!onlyErrors) {
-			label= this.getLabel(label,  markerStatistics.warnings, 'markers.panel.single.warning.label', 'markers.panel.multiple.warnings.label');
-			label= this.getLabel(label,  markerStatistics.infos, 'markers.panel.single.info.label', 'markers.panel.multiple.infos.label');
-			label= this.getLabel(label,  markerStatistics.unknwons, 'markers.panel.single.unknown.label', 'markers.panel.multiple.unknowns.label');
+			label= this.getLabel(label,  markerStatistics.warnings, Messages.MARKERS_PANEL_SINGLE_WARNING_LABEL, Messages.MARKERS_PANEL_MULTIPLE_WARNINGS_LABEL);
+			label= this.getLabel(label,  markerStatistics.infos, Messages.MARKERS_PANEL_SINGLE_INFO_LABEL, Messages.MARKERS_PANEL_MULTIPLE_INFOS_LABEL);
+			label= this.getLabel(label,  markerStatistics.unknwons, Messages.MARKERS_PANEL_SINGLE_UNKNOWN_LABEL, Messages.MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL);
 		}
 		return label;
 	}
 
-	private static getLabel(title: string, markersCount: number, singleMarkerKey: string, multipleMarkerKey: string): string {
+	private static getLabel(title: string, markersCount: number, singleMarkerString: string, multipleMarkersFunction: (markersCount:number)=>string): string {
 		if (markersCount <= 0) {
 			return title;
 		}
 		title= title ? title + ', ' : '';
-		title += Messages.getString(markersCount === 1 ? singleMarkerKey : multipleMarkerKey, ''+markersCount);
+		title += markersCount === 1 ? singleMarkerString : multipleMarkersFunction(markersCount);
 		return title;
 	}
 }
