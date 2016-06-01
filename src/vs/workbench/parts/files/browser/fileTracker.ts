@@ -255,8 +255,10 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private handleMovedFileInVisibleEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
+		let stacks = this.editorService.getStacksModel();
 		let editors = this.editorService.getVisibleEditors();
-		editors.forEach((editor) => {
+		editors.forEach(editor => {
+			let group = stacks.groupAt(editor.position);
 			let input = editor.input;
 			if (input instanceof DiffEditorInput) {
 				input = (<DiffEditorInput>input).getModifiedInput();
@@ -292,6 +294,8 @@ export class FileTracker implements IWorkbenchContribution {
 
 					let editorOptions = new EditorOptions();
 					editorOptions.preserveFocus = true;
+					editorOptions.pinned = group.isPinned(<EditorInput>input);
+					editorOptions.index = group.indexOf(<EditorInput>input);
 
 					// Reopen File Input
 					if (input instanceof FileEditorInput) {
