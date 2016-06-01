@@ -243,6 +243,10 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 	 * Resolve all interactive variables in configuration #6569
 	 */
 	public resolveInteractiveVariables(): TPromise<debug.IConfig>  {
+		if (!this.configuration) {
+			return TPromise.as(null);
+		}
+
 		const factory = Object.keys(this.configuration).map(key => {
 			return () => {
 				if (typeof this.configuration[key] === 'string') {
