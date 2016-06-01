@@ -218,6 +218,34 @@ export class CallStackController extends BaseDebugController {
 		return super.onEnter(tree, event);
 	}
 
+	protected onUp(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onUp(tree, event);
+		this.focusStackFrame(tree.getFocus(), event, true);
+
+		return true;
+	}
+
+	protected onPageUp(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onPageUp(tree, event);
+		this.focusStackFrame(tree.getFocus(), event, true);
+
+		return true;
+	}
+
+	protected onDown(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onDown(tree, event);
+		this.focusStackFrame(tree.getFocus(), event, true);
+
+		return true;
+	}
+
+	protected onPageDown(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onPageDown(tree, event);
+		this.focusStackFrame(tree.getFocus(), event, true);
+
+		return true;
+	}
+
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
 	private showMoreStackFrames(tree: tree.ITree, threadId: number): boolean {
 		const thread = this.debugService.getModel().getThreads()[threadId];
