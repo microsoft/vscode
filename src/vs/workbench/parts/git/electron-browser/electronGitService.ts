@@ -24,6 +24,7 @@ import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { remote } from 'electron';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { readdir } from 'vs/base/node/pfs';
 
 interface IGit {
 	path: string;
@@ -91,11 +92,26 @@ function findSystemGitWin32(base: string): TPromise<IGit> {
 	return findSpecificGit(join(base, 'Git', 'cmd', 'git.exe'));
 }
 
+function findGitHubGitWin32(): TPromise<IGit> {
+	const github = join(process.env['LOCALAPPDATA'], 'GitHub');
+
+	return readdir(github).then(children => {
+		const git = children.filter(child => /^PortableGit/.test(child))[0];
+
+		if (!git) {
+			return TPromise.wrapError('Not found');
+		}
+
+		return findSpecificGit(join(github, git, 'cmd', 'git.exe'));
+	});
+}
+
 function findGitWin32(): TPromise<IGit> {
 	return findSystemGitWin32(process.env['ProgramW6432'])
 		.then(null, () => findSystemGitWin32(process.env['ProgramFiles(x86)']))
 		.then(null, () => findSystemGitWin32(process.env['ProgramFiles']))
-		.then(null, () => findSpecificGit('git'));
+		.then(null, () => findSpecificGit('git'))
+		.then(null, () => findGitHubGitWin32());
 }
 
 function findGit(hint: string): TPromise<IGit> {
