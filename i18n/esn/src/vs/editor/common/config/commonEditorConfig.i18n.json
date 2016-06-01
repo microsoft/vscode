@@ -18,7 +18,6 @@
 	"glyphMargin": "Controla la visibilidad del margen del glifo",
 	"hideCursorInOverviewRuler": "Controla si el cursor debe ocultarse en la regla de visión general.",
 	"ignoreTrimWhitespace": "Controla si el editor de diferencias muestra los cambios de espacio inicial o espacio final como diferencias.",
-	"indentGuides": "Controla si el editor debe representar guías de sangría.",
 	"insertSpaces": "Insertar espacios al presionar TAB.",
 	"insertSpaces.errorMessage": "Se esperaba \"boolean\". Tenga en cuenta que el ajuste \"editor.detectIndentation\" ha reemplazado al valor \"auto\".",
 	"lineHeight": "Controla la altura de línea.",

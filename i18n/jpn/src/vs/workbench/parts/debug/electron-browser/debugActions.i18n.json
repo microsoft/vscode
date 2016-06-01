@@ -15,6 +15,7 @@
 	"copyValue": "値のコピー",
 	"deactivateBreakpoints": "ブレークポイントの非アクティブ化",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugConsoleAction": "デバッグ コンソール",
 	"disableAllBreakpoints": "すべてのブレークポイントを無効にする",
 	"disconnectDebug": "切断",
 	"editConditionalBreakpoint": "ブレークポイントの編集",
@@ -37,6 +38,5 @@
 	"stepOutDebug": "ステップ アウト",
 	"stepOverDebug": "ステップ オーバー",
 	"stopDebug": "停止",
-	"toggleEnablement": "ブレークポイントの有効化/無効化",
-	"toggleRepl": "デバッグ コンソール"
+	"toggleEnablement": "ブレークポイントの有効化/無効化"
 }

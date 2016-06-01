@@ -15,6 +15,7 @@
 	"copyValue": "复制值",
 	"deactivateBreakpoints": "停用断点",
 	"debugActionLabelAndKeybinding": "{0} ({1})",
+	"debugConsoleAction": "调试控制台",
 	"disableAllBreakpoints": "禁用所有断点",
 	"disconnectDebug": "断开连接",
 	"editConditionalBreakpoint": "编辑断点",
@@ -37,6 +38,5 @@
 	"stepOutDebug": "单步跳出",
 	"stepOverDebug": "单步跳过",
 	"stopDebug": "停止",
-	"toggleEnablement": "启用/禁用断点",
-	"toggleRepl": "调试控制台"
+	"toggleEnablement": "启用/禁用断点"
 }

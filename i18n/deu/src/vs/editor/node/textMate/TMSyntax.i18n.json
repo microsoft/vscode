@@ -9,7 +9,7 @@
 	"invalid.path.1": "Es wurde erwartet, dass \"contributes.{0}.path\" ({1}) im Ordner ({2}) der Extension enthalten ist. Dies führt ggf. dazu, dass die Extension nicht portierbar ist.",
 	"invalid.scopeName": "In \"contributes.{0}.scopeName\" wurde eine Zeichenfolge erwartet. Bereitgestellter Wert: {1}",
 	"vscode.extension.contributes.grammars": "Trägt TextMate-Tokenizer bei.",
-	"vscode.extension.contributes.grammars.language": "Die Sprach-ID, für die diese Syntax beigetragen wird.",
+	"vscode.extension.contributes.grammars.language": "Der Sprachbezeichner, für den diese Syntax beigetragen wird.",
 	"vscode.extension.contributes.grammars.path": "Der Pfad der tmLanguage-Datei. Der Pfad ist relativ zum Extensionordner und beginnt normalerweise mit \". /syntaxes/\".",
 	"vscode.extension.contributes.grammars.scopeName": "Der TextMate-Bereichsname, der von der tmLanguage-Datei verwendet wird."
 }

@@ -6,5 +6,6 @@
 {
 	"snapshotObj": "Nur primitive Werte werden für dieses Objekt angezeigt.",
 	"startDebugFirst": "Bitte starten Sie eine Debugsitzung, um die Auswertung vorzunehmen.",
+	"unknownSource": "Unbekannte Quelle",
 	"unknownStack": "Unbekannte Stapelposition"
 }

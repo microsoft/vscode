@@ -9,7 +9,7 @@
 	"appStalled": "La ventana ha dejado de responder.",
 	"appStalledDetail": "Puede volver a abrir la ventana, cerrarla o seguir esperando.",
 	"close": "Cerrar",
-	"hiddenMenuBar": "Para acceder a la barra de menús, también puedes presionar la tecla **Alt**.",
+	"hiddenMenuBar": "Para acceder a la barra de menús, también puede presionar la tecla **Alt**.",
 	"ok": "Aceptar",
 	"pathNotExistDetail": "Parece que la ruta '{0}' ya no existe en el disco.",
 	"pathNotExistTitle": "La ruta no existe",

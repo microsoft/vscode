@@ -11,6 +11,7 @@
 	"hintExclude.generic": "如需更好的效能，請排除包含大量檔案的資料夾。",
 	"hintExclude.tooltip": "如需更佳的效能，請排除內含太多檔案的資料夾。",
 	"ignore.cmdCreate": "忽略",
+	"jsconfig.heading": "// 請參閱 https://go.microsoft.com/fwlink/?LinkId=759670\n\t// 以取得關於 jsconfig.json 格式的文件",
 	"large.label": "設定排除項目",
 	"open": "設定排除項目"
 }

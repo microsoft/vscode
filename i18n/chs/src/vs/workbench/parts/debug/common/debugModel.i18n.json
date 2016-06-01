@@ -6,5 +6,6 @@
 {
 	"snapshotObj": "仅显示了此对象的基元值。",
 	"startDebugFirst": "请启动调试会话以评估",
+	"unknownSource": "未知源",
 	"unknownStack": "未知的堆栈位置"
 }
