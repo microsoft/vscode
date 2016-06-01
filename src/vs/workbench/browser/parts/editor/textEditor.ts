@@ -10,12 +10,12 @@ import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
-import {OptionsChangeEvent, EventType as WorkbenchEventType, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
+import {OptionsChangeEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {Scope} from 'vs/workbench/common/memento';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {IEditor, EventType, IConfigurationChangedEvent, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
+import {IEditor, EventType, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {Position} from 'vs/platform/editor/common/editor';
@@ -59,7 +59,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.applyConfiguration(e.config)));
 
 		this.toUnbind.push(_themeService.onDidThemeChange(_ => this.onThemeChanged()));
-}
+	}
 
 	public get instantiationService(): IInstantiationService {
 		return this._instantiationService;
@@ -132,32 +132,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 		// Editor for Text
 		this._editorContainer = parent;
 		this.editorControl = this.createEditorControl(parent);
-
-		// Hook Listener for Selection changes
-		this.toUnbind.push(this.editorControl.onDidChangeCursorPosition((event: ICursorPositionChangedEvent) => {
-			let selection = this.editorControl.getSelection();
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_SELECTION_CHANGED, new TextEditorSelectionEvent(selection, this, this.input, null, this.position, event));
-		}));
-
-		// Hook Listener for mode changes
-		this.toUnbind.push(this.editorControl.onDidChangeModelMode((event: IModelModeChangedEvent) => {
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_MODE_CHANGED, new EditorEvent(this, this.input, null, this.position, event));
-		}));
-
-		// Hook Listener for content changes
-		this.toUnbind.push(this.editorControl.onDidChangeModelRawContent((event: IModelContentChangedEvent) => {
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_CHANGED, new EditorEvent(this, this.input, null, this.position, event));
-		}));
-
-		// Hook Listener for content options changes
-		this.toUnbind.push(this.editorControl.onDidChangeModelOptions((event: IModelOptionsChangedEvent) => {
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, new EditorEvent(this, this.input, null, this.position, event));
-		}));
-
-		// Hook Listener for options changes
-		this.toUnbind.push(this.editorControl.onDidChangeConfiguration((event: IConfigurationChangedEvent) => {
-			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONFIGURATION_CHANGED, new EditorEvent(this, this.input, null, this.position, event));
-		}));
 
 		// Configuration
 		this.applyConfiguration(this.configurationService.getConfiguration<IFilesConfiguration>());

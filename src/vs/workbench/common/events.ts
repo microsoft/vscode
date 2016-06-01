@@ -9,7 +9,6 @@ import {Event} from 'vs/base/common/events';
 import {IEditor, IEditorInput} from 'vs/platform/editor/common/editor';
 import {EditorOptions} from 'vs/workbench/common/editor';
 import {Position} from 'vs/platform/editor/common/editor';
-import {Selection} from 'vs/editor/common/core/selection';
 
 /**
  * All workbench events are listed here.
@@ -61,31 +60,6 @@ export class EventType {
 	 * Event type for when the editor position has been changed
 	 */
 	static EDITOR_POSITION_CHANGED = 'editorPositionChanged';
-
-	/**
-	 * An event type that fires when a text editor changes its selection.
-	 */
-	static TEXT_EDITOR_SELECTION_CHANGED = 'textEditorSelectionChanged';
-
-	/**
-	 * An event type that fires when a text editor mode changes.
-	 */
-	static TEXT_EDITOR_MODE_CHANGED = 'textEditorModeChanged';
-
-	/**
-	 * An event type that fires when a text editor content changes.
-	 */
-	static TEXT_EDITOR_CONTENT_CHANGED = 'textEditorContentChanged';
-
-	/**
-	 * An event type that fires when a text editor content options changed.
-	 */
-	static TEXT_EDITOR_CONTENT_OPTIONS_CHANGED = 'textEditorContentOptionsChanged';
-
-	/**
-	 * An event type that fires when a text editor's configuration changes.
-	 */
-	static TEXT_EDITOR_CONFIGURATION_CHANGED = 'textEditorOptionsChanged';
 
 	/**
 	 * Event type for when a composite is about to open.
@@ -152,19 +126,6 @@ export class EditorEvent extends Event {
 
 	public isPrevented(): boolean {
 		return this.prevented;
-	}
-}
-
-/**
- * A subclass of EditorEvent for text editor selection changes.
- */
-export class TextEditorSelectionEvent extends EditorEvent {
-	public selection: Selection;
-
-	constructor(selection: Selection, editor: IEditor, editorInput: IEditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
-		super(editor, editorInput, editorOptions, position, originalEvent);
-
-		this.selection = selection;
 	}
 }
 
