@@ -56,12 +56,15 @@ export function normalize(path: string, toOSPath?: boolean): string {
 
 	// operate on the 'path-portion' only
 	path = path.slice(root.length);
+	len -= root.length;
+
 	let res = '';
 	let start = 0;
 
 	for (let end = 0; end <= len; end++) {
-		let code = path.charCodeAt(end);
-		if (code === _slash || code === _backslash || end === len) {
+
+		// either at the end or at a path-separator character
+		if (end === len || path.charCodeAt(end) === _slash || path.charCodeAt(end) === _backslash) {
 
 			let part = path.slice(start, end);
 			start = end + 1;
