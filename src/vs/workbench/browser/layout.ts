@@ -5,7 +5,7 @@
 'use strict';
 
 import {Dimension, Builder, Box} from 'vs/base/browser/builder';
-import {EditorEvent, EventType} from 'vs/workbench/common/events';
+import {EventType} from 'vs/workbench/common/events';
 import {Part} from 'vs/workbench/browser/part';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation} from 'vs/base/browser/ui/sash/sash';
@@ -121,7 +121,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
 		this.toUnbind.push(themeService.onDidThemeChange(_ => this.relayout()));
-		this.toUnbind.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGING, (e: EditorEvent) => this.onEditorInputChanging()));
+		this.toUnbind.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGING, () => this.onEditorInputChanging()));
 
 		this.registerSashListeners();
 	}

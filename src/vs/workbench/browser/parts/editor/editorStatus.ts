@@ -29,7 +29,7 @@ import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import {EndOfLineSequence, ITokenizedModel, EditorType, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
-import {EventType, ResourceEvent, EditorEvent} from 'vs/workbench/common/events';
+import {EventType, ResourceEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
@@ -292,7 +292,7 @@ export class EditorStatus implements IStatusbarItem {
 					}
 				}
 			},
-			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e.editor)),
+			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()),
 			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource))
 		);
 
@@ -432,7 +432,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onEditorInputChanged(e: IBaseEditor): void {
+	private onEditorInputChanged(): void {
 		let control: IEditor;
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor instanceof BaseTextEditor) {
@@ -443,8 +443,8 @@ export class EditorStatus implements IStatusbarItem {
 		this.onSelectionChange(control);
 		this.onModeChange(control);
 		this.onEOLChange(control);
-		this.onEncodingChange(e);
-		this.onTabFocusModeChange(e);
+		this.onEncodingChange(activeEditor);
+		this.onTabFocusModeChange(activeEditor);
 		this.onIndentationChange(control);
 
 		// Dispose old active editor listeners
