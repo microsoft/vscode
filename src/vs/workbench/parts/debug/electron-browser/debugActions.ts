@@ -84,7 +84,13 @@ export class ConfigureAction extends AbstractDebugAction {
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
 		this.toDispose.push(debugService.getConfigurationManager().onDidConfigurationChange((configurationName) => {
-			this.class = configurationName ? 'debug-action configure' : 'debug-action configure notification';
+			if (configurationName) {
+				this.class = 'debug-action configure';
+				this.tooltip = ConfigureAction.LABEL;
+			} else {
+				this.class = 'debug-action configure notification';
+				this.tooltip = nls.localize('launchJsonNeedsConfigurtion', "Configure or Fix 'launch.json'");
+			}
 		}));
 	}
 
@@ -789,11 +795,13 @@ export class ToggleReplAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			if (!this.isReplVisible()) {
 				this.class = 'debug-action toggle-repl notification';
+				this.tooltip = nls.localize('unreadOutput', "New Output in Debug Console");
 			}
 		}));
 		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === debug.REPL_ID) {
 				this.class = 'debug-action toggle-repl';
+				this.tooltip = ToggleReplAction.LABEL;
 			}
 		}));
 	}
