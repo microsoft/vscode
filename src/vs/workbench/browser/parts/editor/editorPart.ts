@@ -21,7 +21,7 @@ import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, EditorEvent, EditorInputEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -163,7 +163,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Emit early open event to allow for veto
-		let event = new EditorEvent(null, input, options, position);
+		let event = new EditorInputEvent(input);
 		this.emit(WorkbenchEventType.EDITOR_INPUT_OPENING, event);
 		if (event.isPrevented()) {
 			return TPromise.as<BaseEditor>(null);
@@ -263,7 +263,7 @@ export class EditorPart extends Part implements IEditorPart {
 			this.sideBySideControl.layout(position);
 
 			// Emit Editor-Opened Event
-			this.emit(WorkbenchEventType.EDITOR_OPENED, new EditorEvent(editor, input, options, position));
+			this.emit(WorkbenchEventType.EDITOR_OPENED, editor);
 
 			timerEvent.stop();
 
@@ -452,7 +452,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
 		// Event
-		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, input, options, position));
+		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorInputEvent(input));
 
 		// Recover by closing the active editor (if the input is still the active one)
 		if (group.activeEditor === input) {
@@ -570,7 +570,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.clearTitleArea(position);
 
 		// Emit Editor Closed Event
-		this.emit(WorkbenchEventType.EDITOR_CLOSED, new EditorEvent(editor, null, null, position));
+		this.emit(WorkbenchEventType.EDITOR_CLOSED, editor);
 	}
 
 	public closeAllEditors(except?: Position): TPromise<void> {
@@ -812,8 +812,8 @@ export class EditorPart extends Part implements IEditorPart {
 		// Emit as editor input change event so that clients get aware of new active editor
 		let activeEditor = this.sideBySideControl.getActiveEditor();
 		if (activeEditor) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(activeEditor, activeEditor.input, null, activeEditor.position));
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor, activeEditor.input, null, activeEditor.position));
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(activeEditor));
+			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor));
 		}
 
 		// Update Title Area

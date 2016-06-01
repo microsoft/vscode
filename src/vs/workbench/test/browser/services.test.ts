@@ -426,13 +426,13 @@ suite('Workbench UI Services', () => {
 		let service = new TestScopedService(eventService);
 		assert(!service.isActive);
 
-		eventService.emit(EventType.EDITOR_OPENED, { editorId: 'other.test.scopeId' });
+		eventService.emit(EventType.EDITOR_OPENED, { getId: () => 'other.test.scopeId' });
 		assert(!service.isActive);
 
-		eventService.emit(EventType.EDITOR_OPENED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.EDITOR_OPENED, { getId: () => 'test.scopeId' });
 		assert(service.isActive);
 
-		eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.EDITOR_CLOSED, { getId: () => 'test.scopeId' });
 		assert(!service.isActive);
 
 		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
@@ -465,19 +465,19 @@ suite('Workbench UI Services', () => {
 		assert.strictEqual(true, testProgressBar.fDone);
 
 		// Inactive: Show (Infinite)
-		eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.EDITOR_CLOSED, { getId: () =>  'test.scopeId' });
 		service.show(true);
 		assert.strictEqual(false, !!testProgressBar.fInfinite);
-		eventService.emit(EventType.EDITOR_OPENED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.EDITOR_OPENED, { getId: () =>  'test.scopeId' });
 		assert.strictEqual(true, testProgressBar.fInfinite);
 
 		// Inactive: Show (Total / Worked)
-		eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.EDITOR_CLOSED, { getId: () =>  'test.scopeId' });
 		fn = service.show(100);
 		fn.total(80);
 		fn.worked(20);
 		assert.strictEqual(false, !!testProgressBar.fTotal);
-		eventService.emit(EventType.EDITOR_OPENED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.EDITOR_OPENED, { getId: () =>  'test.scopeId' });
 		assert.strictEqual(20, testProgressBar.fWorked);
 		assert.strictEqual(80, testProgressBar.fTotal);
 
@@ -486,12 +486,12 @@ suite('Workbench UI Services', () => {
 		service.showWhile(p).then(() => {
 			assert.strictEqual(true, testProgressBar.fDone);
 
-			eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
+			eventService.emit(EventType.EDITOR_CLOSED, { getId: () =>  'test.scopeId' });
 			p = TPromise.as(null);
 			service.showWhile(p).then(() => {
 				assert.strictEqual(true, testProgressBar.fDone);
 
-				eventService.emit(EventType.EDITOR_OPENED, { editorId: 'test.scopeId' });
+				eventService.emit(EventType.EDITOR_OPENED, { getId: () =>  'test.scopeId' });
 				assert.strictEqual(true, testProgressBar.fDone);
 			});
 		});

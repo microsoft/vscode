@@ -7,9 +7,10 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {EditorEvent, EventType, CompositeEvent} from 'vs/workbench/common/events';
+import {EventType, CompositeEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
+import {IEditor} from 'vs/platform/editor/common/editor';
 
 interface ProgressState {
 	infinite?: boolean;
@@ -35,14 +36,14 @@ export abstract class ScopedService {
 	}
 
 	public registerListeners(): void {
-		this.eventService.addListener2(EventType.EDITOR_CLOSED, (e: EditorEvent) => {
-			if (e.editorId === this.scopeId) {
+		this.eventService.addListener2(EventType.EDITOR_CLOSED, (editor: IEditor) => {
+			if (editor.getId() === this.scopeId) {
 				this.onScopeDeactivated();
 			}
 		});
 
-		this.eventService.addListener2(EventType.EDITOR_OPENED, (e: EditorEvent) => {
-			if (e.editorId === this.scopeId) {
+		this.eventService.addListener2(EventType.EDITOR_OPENED, (editor: IEditor) => {
+			if (editor.getId() === this.scopeId) {
 				this.onScopeActivated();
 			}
 		});

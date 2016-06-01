@@ -24,7 +24,7 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, EditorInputEvent} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
@@ -1227,7 +1227,7 @@ export class GlobalCompareResourcesAction extends Action {
 			globalResourceToCompare = fileInput.getResource();
 
 			// Listen for next editor to open
-			let unbind = this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_OPENING, (e: EditorEvent) => {
+			let unbind = this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_OPENING, (e: EditorInputEvent) => {
 				unbind.dispose(); // listen once
 
 				let otherFileInput = asFileEditorInput(e.editorInput);
