@@ -30,6 +30,11 @@ export interface IWorkbenchEditorService extends IEditorService {
 	onEditorsChanged: Event<void>;
 
 	/**
+	 * Emitted when a editors are moved to another position.
+	 */
+	onEditorsMoved: Event<void>;
+
+	/**
 	 * Returns the currently active editor or null if none.
 	 */
 	getActiveEditor(): IEditor;

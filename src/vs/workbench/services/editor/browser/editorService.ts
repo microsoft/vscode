@@ -30,6 +30,7 @@ export interface IEditorPart {
 
 	// Events
 	onEditorsChanged: Event<void>;
+	onEditorsMoved: Event<void>;
 
 	// Methods
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -70,6 +71,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public get onEditorsChanged(): Event<void> {
 		return this.editorPart.onEditorsChanged;
+	}
+
+	public get onEditorsMoved(): Event<void> {
+		return this.editorPart.onEditorsMoved;
 	}
 
 	public getActiveEditor(): IEditor {

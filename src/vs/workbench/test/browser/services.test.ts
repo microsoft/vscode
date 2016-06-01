@@ -75,6 +75,10 @@ class TestEditorPart implements IEditorPart {
 		return null;
 	}
 
+	public get onEditorsMoved(): Event<void> {
+		return null;
+	}
+
 	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<IEditor[]> {
 		return TPromise.as([]);
 	}

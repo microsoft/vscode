@@ -9,7 +9,6 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import types = require('vs/base/common/types');
 import {Builder} from 'vs/base/browser/builder';
-import {EventType} from 'vs/workbench/common/events';
 import {Registry} from 'vs/platform/platform';
 import {Panel} from 'vs/workbench/browser/panel';
 import {EditorInput, IFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
@@ -123,7 +122,6 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 */
 	public changePosition(position: Position): void {
 		this._position = position;
-		this.emit(EventType.EDITOR_POSITION_CHANGED, this);
 	}
 
 	/**

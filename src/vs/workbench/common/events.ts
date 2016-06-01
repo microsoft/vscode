@@ -37,11 +37,6 @@ export class EventType {
 	static EDITOR_SET_INPUT_ERROR = 'editorSetInputError';
 
 	/**
-	 * Event type for when the editor position has been changed
-	 */
-	static EDITOR_POSITION_CHANGED = 'editorPositionChanged';
-
-	/**
 	 * Event type for when a composite is about to open.
 	 */
 	static COMPOSITE_OPENING = 'compositeOpening';

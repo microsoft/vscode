@@ -84,6 +84,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private stacks: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
+	private _onEditorsMoved: Emitter<void>;
 
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
@@ -107,6 +108,7 @@ export class EditorPart extends Part implements IEditorPart {
 		super(id);
 
 		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorsMoved = new Emitter<void>();
 
 		this.visibleEditors = [];
 
@@ -149,6 +151,10 @@ export class EditorPart extends Part implements IEditorPart {
 
 	public get onEditorsChanged(): Event<void> {
 		return this._onEditorsChanged.event;
+	}
+
+	public get onEditorsMoved(): Event<void> {
+		return this._onEditorsMoved.event;
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -573,6 +579,11 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Emit Editor Closed Event
 		this.emit(WorkbenchEventType.EDITOR_CLOSED, editor);
+
+		// Emit Editor move event
+		if (rochade !== Rochade.NONE) {
+			this._onEditorsMoved.fire();
+		}
 	}
 
 	public closeAllEditors(except?: Position): TPromise<void> {
@@ -732,6 +743,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Update all title areas
 		this.doRecreateEditorTitleArea();
+
+		// Events
+		this._onEditorsMoved.fire();
 	}
 
 	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
@@ -1127,6 +1141,10 @@ export class EditorPart extends Part implements IEditorPart {
 
 	public dispose(): void {
 		this.mapEditorToEditorContainers = null;
+
+		// Emitters
+		this._onEditorsChanged.dispose();
+		this._onEditorsMoved.dispose();
 
 		// Reset Tokens
 		this.editorOpenToken = [];
