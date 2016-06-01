@@ -23,10 +23,10 @@ import {WorkbenchComponent} from 'vs/workbench/common/component';
 import {EditorEvent, EventType} from 'vs/workbench/common/events';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Identifiers} from 'vs/workbench/common/constants';
+import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {Scope} from 'vs/workbench/common/memento';
 import {QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions} from 'vs/workbench/browser/quickopen';
 import {EditorHistoryModel} from 'vs/workbench/browser/parts/quickopen/editorHistoryModel';
-import {EditorInput} from 'vs/workbench/common/editor';
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPickOpenEntry, IInputOptions, IQuickOpenService, IPickOptions, IShowOptions} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -161,7 +161,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		}
 	}
 
-	public getEditorHistory(): EditorInput[] {
+	public getEditorHistory(): IEditorInput[] {
 		return this.editorHistoryModel ? this.editorHistoryModel.getEntries().map((entry) => entry.getInput()) : [];
 	}
 
@@ -169,7 +169,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.editorHistoryModel.setEntries([]);
 	}
 
-	public removeEditorHistoryEntry(input: EditorInput): void {
+	public removeEditorHistoryEntry(input: IEditorInput): void {
 		this.editorHistoryModel.remove(input);
 	}
 

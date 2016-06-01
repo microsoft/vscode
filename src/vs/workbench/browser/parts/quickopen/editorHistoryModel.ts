@@ -14,6 +14,7 @@ import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import labels = require('vs/base/common/labels');
 import {EventType} from 'vs/base/common/events';
+import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {Mode, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
@@ -132,14 +133,14 @@ export class EditorHistoryModel extends QuickOpenModel {
 		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 	}
 
-	public add(input: EditorInput, index?: number): void {
+	public add(input: IEditorInput, index?: number): void {
 
 		// Ensure we have at least a name to show
 		if (!input.getName()) {
 			return;
 		}
 
-		const entry = new EditorHistoryEntry(this.editorService, this.contextService, input, null, null, this);
+		const entry = new EditorHistoryEntry(this.editorService, this.contextService, <EditorInput>input, null, null, this);
 
 		// Remove any existing entry and add to the beginning if we do not get an index
 		if (typeof index !== 'number') {
@@ -187,8 +188,9 @@ export class EditorHistoryModel extends QuickOpenModel {
 		// Factory failed, just remove entry then
 		this.remove(input);
 	}
-	public remove(input: EditorInput): void {
-		let index = this.indexOf(input);
+
+	public remove(input: IEditorInput): void {
+		let index = this.indexOf(<EditorInput>input);
 		if (index >= 0) {
 			const entry = <EditorHistoryEntry>this.entries[index];
 			if (entry) {

@@ -20,7 +20,7 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
-import {EventType as WorkbenchEventType, EditorInputEvent, UntitledEditorEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -63,7 +63,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Update editors and inputs from local changes and saves
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorInputEvent) => this.onEditorInputChanged(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledEditorDeleted(e)));
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledEditorDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
@@ -76,7 +76,7 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.eventService.addListener2(CommonFileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
 	}
 
-	private onEditorInputChanged(e: EditorInputEvent): void {
+	private onEditorInputChanged(): void {
 		this.disposeUnusedTextFileModels();
 	}
 

@@ -6,8 +6,8 @@
 
 import URI from 'vs/base/common/uri';
 import {Event} from 'vs/base/common/events';
-import {IEditor} from 'vs/platform/editor/common/editor';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {IEditor, IEditorInput} from 'vs/platform/editor/common/editor';
+import {EditorOptions} from 'vs/workbench/common/editor';
 import {Position} from 'vs/platform/editor/common/editor';
 import {Selection} from 'vs/editor/common/core/selection';
 
@@ -130,13 +130,13 @@ export class EventType {
 export class EditorEvent extends Event {
 	public editor: IEditor;
 	public editorId: string;
-	public editorInput: EditorInput;
+	public editorInput: IEditorInput;
 	public editorOptions: EditorOptions;
 	public position: Position;
 
 	private prevented: boolean;
 
-	constructor(editor: IEditor, editorId: string, editorInput: EditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
+	constructor(editor: IEditor, editorId: string, editorInput: IEditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
 		super(originalEvent);
 
 		this.editor = editor;
@@ -156,25 +156,12 @@ export class EditorEvent extends Event {
 }
 
 /**
- * Editor input events are being emitted when the editor input state changes.
- */
-export class EditorInputEvent extends Event {
-	public editorInput: EditorInput;
-
-	constructor(editorInput: EditorInput, originalEvent?: any) {
-		super(originalEvent);
-
-		this.editorInput = editorInput;
-	}
-}
-
-/**
  * A subclass of EditorEvent for text editor selection changes.
  */
 export class TextEditorSelectionEvent extends EditorEvent {
 	public selection: Selection;
 
-	constructor(selection: Selection, editor: IEditor, editorId: string, editorInput: EditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
+	constructor(selection: Selection, editor: IEditor, editorId: string, editorInput: IEditorInput, editorOptions: EditorOptions, position: Position, originalEvent?: any) {
 		super(editor, editorId, editorInput, editorOptions, position, originalEvent);
 
 		this.selection = selection;
@@ -195,19 +182,6 @@ export class OptionsChangeEvent extends Event {
 		this.key = key;
 		this.before = before;
 		this.after = after;
-	}
-}
-
-/**
- * Command events are emitted when an action is being executed through a command handler (Keybinding).
- */
-export class CommandEvent extends Event {
-	public actionId: string;
-
-	constructor(actionId: string, originalEvent?: any) {
-		super(originalEvent);
-
-		this.actionId = actionId;
 	}
 }
 

@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import * as Paths from 'vs/base/common/paths';
 import * as Files from 'vs/platform/files/common/files';
 import {Event, PropertyChangeEvent} from 'vs/base/common/events';
-import {CommandEvent, CompositeEvent, EditorEvent} from 'vs/workbench/common/events';
+import {CompositeEvent, EditorEvent} from 'vs/workbench/common/events';
 
 let FileChangesEvent = Files.FileChangesEvent;
 
@@ -21,16 +21,6 @@ suite('Workbench Events', () => {
 		let event = new Event(origEvent);
 
 		assert.strictEqual(event.originalEvent, origEvent);
-		assert(event.time);
-	});
-
-	test('Command Event', function () {
-		let actionId = 'foo.bar';
-		let origEvent = {};
-		let event = new CommandEvent(actionId, origEvent);
-
-		assert.strictEqual(event.originalEvent, origEvent);
-		assert.strictEqual(event.actionId, actionId);
 		assert(event.time);
 	});
 
