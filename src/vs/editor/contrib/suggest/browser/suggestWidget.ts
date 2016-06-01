@@ -8,25 +8,24 @@
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import {isPromiseCanceledError, onUnexpectedError} from 'vs/base/common/errors';
-import Event, { Emitter } from 'vs/base/common/event';
-import {IDisposable, dispose, toDisposable} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {addClass, append, emmet as $, hide, removeClass, show, toggleClass} from 'vs/base/browser/dom';
-import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import {IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent} from 'vs/base/browser/ui/list/list';
-import {List} from 'vs/base/browser/ui/list/listWidget';
-import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
-import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
-import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY} from '../common/suggest';
-import {CompletionItem, CompletionModel} from './completionModel';
-import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
-import {alert} from 'vs/base/browser/ui/aria/aria';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { addClass, append, emmet as $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
+import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { CONTEXT_SUGGEST_WIDGET_VISIBLE, CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY } from '../common/suggest';
+import { CompletionItem, CompletionModel } from './completionModel';
+import { ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel } from './suggestModel';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -312,7 +311,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 	private state: State;
 	private isAuto: boolean;
-	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<void>;
 	private focusedItem: CompletionItem;
@@ -329,12 +327,12 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private delegate: IDelegate<CompletionItem>;
 	private list: List<CompletionItem>;
 
+	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
+	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
+
 	private editorBlurTimeout: TPromise<void>;
 	private showTimeout: TPromise<void>;
 	private toDispose: IDisposable[];
-
-	private _onDidVisibilityChange: Emitter<boolean> = new Emitter();
-	get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
 
 	constructor(
 		private editor: ICodeEditor,
@@ -345,7 +343,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
-		this.suggestionSupportsAutoAccept = keybindingService.createKey(CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, true);
 
 		this.telemetryData = null;
 		this.telemetryService = telemetryService;
@@ -377,6 +374,9 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			this.model.onDidSuggest(e => this.onDidSuggest(e)),
 			this.model.onDidCancel(e => this.onDidCancel(e))
 		];
+
+		this.suggestionSupportsAutoAccept = keybindingService.createKey(CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, true);
+		this.suggestWidgetVisible = keybindingService.createKey(CONTEXT_SUGGEST_WIDGET_VISIBLE, false);
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
@@ -759,7 +759,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 	private show(): void {
 		this.updateWidgetHeight();
-		this._onDidVisibilityChange.fire(true);
+		this.suggestWidgetVisible.set(true);
 		this.renderDetails();
 		this.showTimeout = TPromise.timeout(100).then(() => {
 			addClass(this.element, 'visible');
@@ -767,7 +767,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private hide(): void {
-		this._onDidVisibilityChange.fire(false);
+		this.suggestWidgetVisible.reset();
 		removeClass(this.element, 'visible');
 	}
 
@@ -850,8 +850,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.list.dispose();
 		this.list = null;
 		this.toDispose = dispose(this.toDispose);
-		this._onDidVisibilityChange.dispose();
-		this._onDidVisibilityChange = null;
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;

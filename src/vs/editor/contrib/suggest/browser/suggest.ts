@@ -5,24 +5,24 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {ISuggestSupport, SuggestRegistry} from 'vs/editor/common/modes';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
-import {CONTEXT_SUGGEST_WIDGET_VISIBLE} from 'vs/editor/contrib/suggest/common/suggest';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {withCodeEditorFromCommandHandler} from 'vs/editor/common/config/config';
-import {SuggestModel} from './suggestModel';
-import {SuggestWidget} from './suggestWidget';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KbExpr } from 'vs/platform/keybinding/common/keybindingService';
+import { EditorAction } from 'vs/editor/common/editorAction';
+import { ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
+import { ISuggestSupport, SuggestRegistry } from 'vs/editor/common/modes';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
+import { getSnippetController } from 'vs/editor/contrib/snippet/common/snippet';
+import { CONTEXT_SUGGEST_WIDGET_VISIBLE } from 'vs/editor/contrib/suggest/common/suggest';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { withCodeEditorFromCommandHandler } from 'vs/editor/common/config/config';
+import { SuggestModel } from './suggestModel';
+import { SuggestWidget } from './suggestWidget';
 
 export class SuggestController implements IEditorContribution {
 	static ID: string = 'editor.contrib.suggestController';
@@ -34,22 +34,18 @@ export class SuggestController implements IEditorContribution {
 	private model: SuggestModel;
 	private widget: SuggestWidget;
 	private triggerCharacterListeners: IDisposable[];
-	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
 	private toDispose: IDisposable[];
 
 	constructor(
 		private editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		this.suggestWidgetVisible = keybindingService.createKey(CONTEXT_SUGGEST_WIDGET_VISIBLE, false);
 		this.model = new SuggestModel(this.editor);
 		this.widget = instantiationService.createInstance(SuggestWidget, this.editor, this.model);
 
 		this.triggerCharacterListeners = [];
 
 		this.toDispose = [];
-		this.toDispose.push(this.widget.onDidVisibilityChange(visible => visible ? this.suggestWidgetVisible.set(true) : this.suggestWidgetVisible.reset()));
 		this.toDispose.push(editor.onDidChangeConfiguration(() => this.update()));
 		this.toDispose.push(editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(editor.onDidChangeModelMode(() => this.update()));
@@ -219,7 +215,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(
 
 const weight = CommonEditorRegistry.commandWeight(90);
 
-function handler(id: string, fn: (controller: SuggestController)=>void) {
+function handler(id: string, fn: (controller: SuggestController) => void) {
 	return accessor => withCodeEditorFromCommandHandler(id, accessor, editor => {
 		fn(SuggestController.getController(editor));
 	});
@@ -256,7 +252,7 @@ KeybindingsRegistry.registerCommandDesc({
 	weight,
 	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE)),
 	primary: KeyCode.DownArrow,
-	secondary: [ KeyMod.Alt | KeyCode.DownArrow ]
+	secondary: [KeyMod.Alt | KeyCode.DownArrow]
 });
 
 KeybindingsRegistry.registerCommandDesc({
@@ -265,7 +261,7 @@ KeybindingsRegistry.registerCommandDesc({
 	weight,
 	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE)),
 	primary: KeyCode.PageDown,
-	secondary: [ KeyMod.Alt | KeyCode.PageDown ]
+	secondary: [KeyMod.Alt | KeyCode.PageDown]
 });
 
 KeybindingsRegistry.registerCommandDesc({
@@ -274,7 +270,7 @@ KeybindingsRegistry.registerCommandDesc({
 	weight,
 	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE)),
 	primary: KeyCode.UpArrow,
-	secondary: [ KeyMod.Alt | KeyCode.UpArrow ]
+	secondary: [KeyMod.Alt | KeyCode.UpArrow]
 });
 
 KeybindingsRegistry.registerCommandDesc({
@@ -283,7 +279,7 @@ KeybindingsRegistry.registerCommandDesc({
 	weight,
 	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE)),
 	primary: KeyCode.PageUp,
-	secondary: [ KeyMod.Alt | KeyCode.PageUp ]
+	secondary: [KeyMod.Alt | KeyCode.PageUp]
 });
 
 KeybindingsRegistry.registerCommandDesc({
