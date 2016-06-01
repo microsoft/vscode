@@ -214,6 +214,7 @@ export interface IConfig {
 	externalConsole?: boolean;
 	debugServer?: number;
 	noDebug?: boolean;
+	silentlyAbort?: boolean;
 }
 
 export interface IRawEnvAdapter {

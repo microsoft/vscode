@@ -511,6 +511,9 @@ export class DebugService implements debug.IDebugService {
 						}
 					});
 				}
+				if (configuration.silentlyAbort) {
+					return;
+				}
 
 				configuration.noDebug = noDebug;
 				if (!this.configurationManager.adapter) {
