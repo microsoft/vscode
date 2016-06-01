@@ -12,11 +12,11 @@ import {IEntryRunContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common
 import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {KeyMod} from 'vs/base/common/keyCodes';
 import {QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
-import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
+import {TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const GOTO_LINE_PREFIX = ':';
@@ -88,8 +88,8 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return this.runPreview();
 	}
 
-	public getInput(): EditorInput {
-		return <EditorInput>this.editorService.getActiveEditorInput();
+	public getInput(): IEditorInput {
+		return this.editorService.getActiveEditorInput();
 	}
 
 	public getOptions(): EditorOptions {

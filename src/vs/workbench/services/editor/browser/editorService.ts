@@ -47,7 +47,7 @@ export interface IEditorPart {
 }
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
-	
+
 	public serviceId = IWorkbenchEditorService;
 
 	private editorPart: IEditorPart | IWorkbenchEditorService;
@@ -122,7 +122,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
-			return this.doOpenEditor(<EditorInput>input, <EditorOptions>arg2, arg3);
+			return this.doOpenEditor(input, <EditorOptions>arg2, arg3);
 		}
 
 		// Support opening foreign resources (such as a http link that points outside of the workbench)
@@ -225,7 +225,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 				// Resolve if applicable
 				if (workbenchInput instanceof EditorInput) {
-					return (<EditorInput>workbenchInput).resolve(!!refresh);
+					return workbenchInput.resolve(!!refresh);
 				}
 			}
 
@@ -239,7 +239,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
-			return TPromise.as<EditorInput>(<EditorInput>input);
+			return TPromise.as<EditorInput>(input);
 		}
 
 		// Base Text Editor Support for inmemory resources

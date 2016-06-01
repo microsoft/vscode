@@ -17,7 +17,7 @@ import {KeyMod} from 'vs/base/common/keyCodes';
 import {Mode, IEntryRunContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {IResourceInput} from 'vs/platform/editor/common/editor';
+import {IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
@@ -204,7 +204,7 @@ export interface IEditorQuickOpenEntry {
 	/**
 	 * The editor input used for this entry when opening.
 	 */
-	getInput(): IResourceInput | EditorInput;
+	getInput(): IResourceInput | IEditorInput;
 
 	/**
 	 * The editor options used for this entry when opening.
@@ -225,7 +225,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		return this._editorService;
 	}
 
-	public getInput(): IResourceInput | EditorInput {
+	public getInput(): IResourceInput | IEditorInput {
 		return null;
 	}
 
@@ -256,7 +256,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
  */
 export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IEditorQuickOpenEntry {
 
-	public getInput(): EditorInput {
+	public getInput(): IEditorInput {
 		return null;
 	}
 

@@ -14,7 +14,7 @@ import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, 
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {Position, IEditor, Direction} from 'vs/platform/editor/common/editor';
+import {Position, IEditor, Direction, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
@@ -367,7 +367,7 @@ export class OpenToSideAction extends Action {
 			if (input instanceof EditorInput) {
 				typedInputPromise = TPromise.as(input);
 			} else {
-				typedInputPromise = this.editorService.createInput(input);
+				typedInputPromise = this.editorService.createInput(<IResourceInput>input);
 			}
 
 			return typedInputPromise.then(typedInput => this.editorService.openEditor(typedInput, entry.getOptions(), true));
