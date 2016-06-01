@@ -455,14 +455,14 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
-		if (this.currentSuggestionDetails) {
-			this.currentSuggestionDetails.cancel();
-			this.currentSuggestionDetails = null;
-		}
-
 		if (!e.elements.length) {
-			this._ariaAlert(null);
+			if (this.currentSuggestionDetails) {
+				this.currentSuggestionDetails.cancel();
+				this.currentSuggestionDetails = null;
+				this.focusedItem = null;
+			}
 
+			this._ariaAlert(null);
 			// TODO@Alex: Chromium bug
 			// this.editor.setAriaActiveDescendant(null);
 
@@ -482,6 +482,11 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
+		if (this.currentSuggestionDetails) {
+			this.currentSuggestionDetails.cancel();
+			this.currentSuggestionDetails = null;
+		}
+
 		const index = e.indexes[0];
 
 		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
@@ -490,7 +495,6 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.list.reveal(index);
 
 		const position = this.model.getRequestPosition() || this.editor.getPosition();
-
 		this.currentSuggestionDetails = item.resolveDetails(this.editor.getModel(), position)
 			.then(details => {
 				item.updateDetails(details);
