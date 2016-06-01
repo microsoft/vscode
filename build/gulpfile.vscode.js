@@ -378,7 +378,7 @@ function buildRpmPackage(arch) {
 	return shell.task([
 		'mkdir -p ' + destination,
 		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
-		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/' + product.applicationName+ '-' + rpmArch + '.rpm',
+		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/',
 		'createrepo ' + destination
 	]);
 }
