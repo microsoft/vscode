@@ -121,7 +121,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
 		this.toUnbind.push(themeService.onDidThemeChange(_ => this.relayout()));
-		this.toUnbind.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGING, () => this.onEditorInputChanging()));
+		this.toUnbind.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
 
 		this.registerSashListeners();
 	}
@@ -243,7 +243,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		});
 	}
 
-	private onEditorInputChanging(): void {
+	private onEditorInputChanged(): void {
 
 		// Make sure that we layout properly in case we detect that the sidebar is large enought to cause
 		// multiple opened editors to go below minimal size. The fix is to trigger a layout for any editor

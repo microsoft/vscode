@@ -363,14 +363,10 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {
-		let position = this.stacks.positionOfGroup(group);
 
 		// Emit Input-Changed Event as appropiate
 		const previousInput = editor.getInput();
 		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
-		if (inputChanged) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(editor, input, options, position));
-		}
 
 		// Call into Editor
 		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Set Editor Input: {0}', input.getName()));
@@ -522,9 +518,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Update stacks model
 		this.modifyGroups(() => this.stacks.closeGroup(group));
-
-		// Emit Input-Changing Event
-		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, position));
 
 		// Hide Editor
 		this.doHideEditor(position, true);
@@ -812,7 +805,6 @@ export class EditorPart extends Part implements IEditorPart {
 		// Emit as editor input change event so that clients get aware of new active editor
 		let activeEditor = this.sideBySideControl.getActiveEditor();
 		if (activeEditor) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(activeEditor));
 			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor));
 		}
 

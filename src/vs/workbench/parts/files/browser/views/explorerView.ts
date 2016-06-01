@@ -140,14 +140,14 @@ export class ExplorerView extends CollapsibleViewletView {
 		return this.doRefresh().then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGING, (e: EditorEvent) => this.onEditorInputChanging(e)));
+			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e)));
 
 			// Also handle configuration updates
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
 		});
 	}
 
-	private onEditorInputChanging(e: EditorEvent): void {
+	private onEditorInputChanged(e: EditorEvent): void {
 
 		// During workbench startup, the editor area might restore more than one editor from a previous
 		// session. When this happens there might be editor input changing events for side editors that
