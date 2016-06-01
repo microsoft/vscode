@@ -36,7 +36,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {EditorStacksModel, EditorGroup, IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup, EditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Event, {Emitter} from 'vs/base/common/event';
 
@@ -57,7 +57,7 @@ interface IEditorPartUIState {
 	widthRatio: number[];
 }
 
-interface IEditorReplacement extends IEditorIdentifier {
+interface IEditorReplacement extends EditorIdentifier {
 	group: EditorGroup;
 	editor: EditorInput;
 	replaceWith: EditorInput;
@@ -93,7 +93,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
-	private pendingEditorInputsToClose: IEditorIdentifier[];
+	private pendingEditorInputsToClose: EditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
@@ -135,7 +135,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.toUnbind.push(this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier)));
 	}
 
-	private onEditorDirty(identifier: IEditorIdentifier): void {
+	private onEditorDirty(identifier: EditorIdentifier): void {
 		const position = this.stacks.positionOfGroup(identifier.group);
 		const group = identifier.group;
 
@@ -146,7 +146,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
 	}
 
-	private onEditorDisposed(identifier: IEditorIdentifier): void {
+	private onEditorDisposed(identifier: EditorIdentifier): void {
 		this.pendingEditorInputsToClose.push(identifier);
 		this.startDelayedCloseEditorsFromInputDispose();
 	}
@@ -664,7 +664,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	private handleDirty(identifiers: IEditorIdentifier[]): TPromise<boolean /* veto */> {
+	private handleDirty(identifiers: EditorIdentifier[]): TPromise<boolean /* veto */> {
 		if (!identifiers.length) {
 			return TPromise.as(false); // no veto
 		}
@@ -678,7 +678,7 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	private doHandleDirty(identifier: IEditorIdentifier): TPromise<boolean /* veto */> {
+	private doHandleDirty(identifier: EditorIdentifier): TPromise<boolean /* veto */> {
 		if (!identifier || !identifier.editor || !identifier.editor.isDirty()) {
 			return TPromise.as(false); // no veto
 		}
@@ -1296,8 +1296,8 @@ export class EditorPart extends Part implements IEditorPart {
 			this.pendingEditorInputCloseTimeout = setTimeout(() => {
 
 				// Split between visible and hidden editors
-				const visibleEditors: IEditorIdentifier[] = [];
-				const hiddenEditors: IEditorIdentifier[] = [];
+				const visibleEditors: EditorIdentifier[] = [];
+				const hiddenEditors: EditorIdentifier[] = [];
 				this.pendingEditorInputsToClose.forEach(identifier => {
 					const group = identifier.group;
 					const editor = identifier.editor;

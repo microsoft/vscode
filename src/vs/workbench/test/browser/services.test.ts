@@ -22,7 +22,7 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import PartService = require('vs/workbench/services/part/common/partService');
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, TextEditorOptions, EditorInputEvent} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, TextEditorOptions, EditorInputEvent, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {StringEditorModel} from 'vs/workbench/common/editor/stringEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
@@ -42,7 +42,6 @@ import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import Event from 'vs/base/common/event';
 
 let activeViewlet: Viewlet = <any>{};

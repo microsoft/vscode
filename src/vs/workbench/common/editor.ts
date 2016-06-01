@@ -10,7 +10,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
-import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Event as BaseEvent} from 'vs/base/common/events';
@@ -592,3 +592,73 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 
 	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
 }
+
+export interface IEditorStacksModel {
+
+	onGroupOpened: Event<IEditorGroup>;
+	onGroupClosed: Event<IEditorGroup>;
+	onGroupActivated: Event<IEditorGroup>;
+	onGroupMoved: Event<IEditorGroup>;
+	onGroupRenamed: Event<IEditorGroup>;
+	onModelChanged: Event<IEditorGroup>;
+
+	groups: IEditorGroup[];
+	activeGroup: IEditorGroup;
+	isActive(IEditorGroup): boolean;
+
+	getGroup(id: GroupIdentifier): IEditorGroup;
+
+	positionOfGroup(group: IEditorGroup): Position;
+	groupAt(position: Position): IEditorGroup;
+
+	next(): IEditorIdentifier;
+	previous(): IEditorIdentifier;
+
+	popLastClosedEditor(): IEditorInput;
+	clearLastClosedEditors(): void;
+
+	isOpen(editor: IEditorInput): boolean;
+	isOpen(resource: URI): boolean;
+
+	toString(): string;
+}
+
+export interface IEditorGroup {
+
+	id: GroupIdentifier;
+	label: string;
+	count: number;
+	activeEditor: IEditorInput;
+	previewEditor: IEditorInput;
+
+	onEditorActivated: Event<IEditorInput>;
+	onEditorOpened: Event<IEditorInput>;
+	onEditorClosed: Event<IGroupEvent>;
+	onEditorMoved: Event<IEditorInput>;
+	onEditorPinned: Event<IEditorInput>;
+	onEditorUnpinned: Event<IEditorInput>;
+	onEditorChanged: Event<IEditorInput>;
+
+	getEditor(index: number): IEditorInput;
+	indexOf(editor: IEditorInput): number;
+
+	contains(editor: IEditorInput): boolean;
+	contains(resource: URI): boolean;
+
+	getEditors(mru?: boolean): IEditorInput[];
+	isActive(editor: IEditorInput): boolean;
+	isPreview(editor: IEditorInput): boolean;
+	isPinned(editor: IEditorInput): boolean;
+}
+
+export interface IGroupEvent {
+	editor: IEditorInput;
+	pinned: boolean;
+}
+
+export interface IEditorIdentifier {
+	group: IEditorGroup;
+	editor: IEditorInput;
+}
+
+export type GroupIdentifier = number;

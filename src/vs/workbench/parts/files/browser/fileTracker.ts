@@ -11,7 +11,7 @@ import {MIME_UNKNOWN} from 'vs/base/common/mime';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {LocalFileChangeEvent, TextFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, ITextFileService, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
@@ -28,7 +28,6 @@ import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/comm
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 // This extension tracks files for changes to update editors and inputs accordingly.
 export class FileTracker implements IWorkbenchContribution {
@@ -294,8 +293,8 @@ export class FileTracker implements IWorkbenchContribution {
 
 					let editorOptions = new EditorOptions();
 					editorOptions.preserveFocus = true;
-					editorOptions.pinned = group.isPinned(<EditorInput>input);
-					editorOptions.index = group.indexOf(<EditorInput>input);
+					editorOptions.pinned = group.isPinned(input);
+					editorOptions.index = group.indexOf(input);
 
 					// Reopen File Input
 					if (input instanceof FileEditorInput) {

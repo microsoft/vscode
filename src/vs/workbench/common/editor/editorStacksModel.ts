@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IGroupEvent, IEditorIdentifier, GroupIdentifier} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -21,75 +21,15 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 // TODO@Ben currently only files and untitled editors are tracked with their resources in the stacks model
 // Once the resource is a base concept of all editor inputs, every resource should be tracked for any editor
 
-export interface IEditorGroup {
-
-	id: GroupIdentifier;
-	label: string;
-	count: number;
-	activeEditor: EditorInput;
-	previewEditor: EditorInput;
-
-	onEditorActivated: Event<EditorInput>;
-	onEditorOpened: Event<EditorInput>;
-	onEditorClosed: Event<IGroupEvent>;
-	onEditorMoved: Event<EditorInput>;
-	onEditorPinned: Event<EditorInput>;
-	onEditorUnpinned: Event<EditorInput>;
-	onEditorChanged: Event<EditorInput>;
-
-	getEditor(index: number): EditorInput;
-	indexOf(editor: EditorInput): number;
-
-	contains(editor: EditorInput): boolean;
-	contains(resource: URI): boolean;
-
-	getEditors(mru?: boolean): EditorInput[];
-	isActive(editor: EditorInput): boolean;
-	isPreview(editor: EditorInput): boolean;
-	isPinned(editor: EditorInput): boolean;
-}
-
-export interface IGroupEvent {
+export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
 	pinned: boolean;
 }
 
-export interface IEditorStacksModel {
-
-	onGroupOpened: Event<IEditorGroup>;
-	onGroupClosed: Event<IEditorGroup>;
-	onGroupActivated: Event<IEditorGroup>;
-	onGroupMoved: Event<IEditorGroup>;
-	onGroupRenamed: Event<IEditorGroup>;
-	onModelChanged: Event<IEditorGroup>;
-
-	groups: IEditorGroup[];
-	activeGroup: IEditorGroup;
-	isActive(IEditorGroup): boolean;
-
-	getGroup(id: GroupIdentifier): IEditorGroup;
-
-	positionOfGroup(group: IEditorGroup): Position;
-	groupAt(position: Position): IEditorGroup;
-
-	next(): IEditorIdentifier;
-	previous(): IEditorIdentifier;
-
-	popLastClosedEditor(): EditorInput;
-	clearLastClosedEditors(): void;
-
-	isOpen(editor: EditorInput): boolean;
-	isOpen(resource: URI): boolean;
-
-	toString(): string;
-}
-
-export interface IEditorIdentifier {
-	group: IEditorGroup;
+export interface EditorIdentifier extends IEditorIdentifier {
+	group: EditorGroup;
 	editor: EditorInput;
 }
-
-export type GroupIdentifier = number;
 
 export interface IEditorOpenOptions {
 	pinned?: boolean;
@@ -132,7 +72,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private _onEditorActivated: Emitter<EditorInput>;
 	private _onEditorOpened: Emitter<EditorInput>;
-	private _onEditorClosed: Emitter<IGroupEvent>;
+	private _onEditorClosed: Emitter<GroupEvent>;
 	private _onEditorDisposed: Emitter<EditorInput>;
 	private _onEditorDirty: Emitter<EditorInput>;
 	private _onEditorMoved: Emitter<EditorInput>;
@@ -153,7 +93,7 @@ export class EditorGroup implements IEditorGroup {
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
-		this._onEditorClosed = new Emitter<IGroupEvent>();
+		this._onEditorClosed = new Emitter<GroupEvent>();
 		this._onEditorDisposed = new Emitter<EditorInput>();
 		this._onEditorDirty = new Emitter<EditorInput>();
 		this._onEditorMoved = new Emitter<EditorInput>();
@@ -194,7 +134,7 @@ export class EditorGroup implements IEditorGroup {
 		return this._onEditorOpened.event;
 	}
 
-	public get onEditorClosed(): Event<IGroupEvent> {
+	public get onEditorClosed(): Event<GroupEvent> {
 		return this._onEditorClosed.event;
 	}
 
@@ -504,7 +444,7 @@ export class EditorGroup implements IEditorGroup {
 		return !this.matches(this.preview, editor);
 	}
 
-	private fireEvent(emitter: Emitter<EditorInput | IGroupEvent>, arg2: EditorInput | IGroupEvent): void {
+	private fireEvent(emitter: Emitter<EditorInput | IGroupEvent>, arg2: EditorInput | GroupEvent): void {
 		emitter.fire(arg2);
 		this._onEditorChanged.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
 	}
@@ -677,8 +617,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupActivated: Emitter<EditorGroup>;
 	private _onGroupRenamed: Emitter<EditorGroup>;
 	private _onModelChanged: Emitter<EditorGroup>;
-	private _onEditorDisposed: Emitter<IEditorIdentifier>;
-	private _onEditorDirty: Emitter<IEditorIdentifier>;
+	private _onEditorDisposed: Emitter<EditorIdentifier>;
+	private _onEditorDirty: Emitter<EditorIdentifier>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -699,8 +639,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupMoved = new Emitter<EditorGroup>();
 		this._onGroupRenamed = new Emitter<EditorGroup>();
 		this._onModelChanged = new Emitter<EditorGroup>();
-		this._onEditorDisposed = new Emitter<IEditorIdentifier>();
-		this._onEditorDirty = new Emitter<IEditorIdentifier>();
+		this._onEditorDisposed = new Emitter<EditorIdentifier>();
+		this._onEditorDirty = new Emitter<EditorIdentifier>();
 
 		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty);
 
@@ -735,11 +675,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._onModelChanged.event;
 	}
 
-	public get onEditorDisposed(): Event<IEditorIdentifier> {
+	public get onEditorDisposed(): Event<EditorIdentifier> {
 		return this._onEditorDisposed.event;
 	}
 
-	public get onEditorDirty(): Event<IEditorIdentifier> {
+	public get onEditorDirty(): Event<EditorIdentifier> {
 		return this._onEditorDirty.event;
 	}
 
@@ -1132,7 +1072,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.recentlyClosedEditors = [];
 	}
 
-	private onEditorClosed(event: IGroupEvent): void {
+	private onEditorClosed(event: GroupEvent): void {
 		const editor = event.editor;
 
 		// Close the editor when it is no longer open in any group

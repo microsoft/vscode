@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Action} from 'vs/base/common/actions';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
@@ -16,7 +16,6 @@ import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {Position, IEditor, Direction, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
@@ -421,7 +420,7 @@ export class CloseEditorAction extends Action {
 			// Get Top Editor at Position
 			let visibleEditors = this.editorService.getVisibleEditors();
 			if (visibleEditors[position]) {
-				input = <EditorInput>visibleEditors[position].input;
+				input = visibleEditors[position].input;
 			}
 		}
 

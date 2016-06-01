@@ -17,15 +17,15 @@ import {IActionItem, ActionBar, Separator} from 'vs/base/browser/ui/actionbar/ac
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IResourceInput} from 'vs/platform/editor/common/editor';
+import {IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/common/editor';
+import {EditorOptions, UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
@@ -36,7 +36,7 @@ const $ = dom.emmet;
 
 export class OpenEditor {
 
-	constructor(private editor: EditorInput, private group: IEditorGroup) {
+	constructor(private editor: IEditorInput, private group: IEditorGroup) {
 		// noop
 	}
 

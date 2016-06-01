@@ -21,7 +21,7 @@ import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {IEditorStacksModel} from 'vs/workbench/common/editor';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';

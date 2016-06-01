@@ -6,8 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, IEditorIdentifier, IEditorGroup, EditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
-import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
+import {EditorStacksModel, EditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {TestStorageService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';

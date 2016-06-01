@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditor, IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, EditorInputEvent} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, EditorInputEvent, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -23,7 +23,6 @@ import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/e
 import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import Event from 'vs/base/common/event';
 
 export interface IEditorPart {

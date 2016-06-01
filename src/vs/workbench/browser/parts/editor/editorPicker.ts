@@ -19,8 +19,7 @@ import {Position} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {EditorInput, asFileEditorInput} from 'vs/workbench/common/editor';
-import {IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorInput, asFileEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
