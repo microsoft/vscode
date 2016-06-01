@@ -32,7 +32,8 @@ KeybindingsRegistry.registerCommandDesc({
 		let uri = resource instanceof URI ? resource : URI.parse(resource);
 		let input = accessor.get(IInstantiationService).createInstance(HtmlInput, uri.fsPath, undefined, uri);
 
-		return accessor.get(IWorkbenchEditorService).openEditor(input, null, position)
+		return accessor.get(IWorkbenchEditorService)
+			.openEditor(input, { pinned: true }, position)
 			.then(editor => true);
 	},
 	when: undefined,
