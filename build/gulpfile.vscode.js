@@ -95,6 +95,7 @@ gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.
 // Package
 var product = require('../product.json');
 var darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
+var linuxPackageRevision = getEpochTime();
 
 var config = {
 	version: packageJson.electronVersion,
@@ -265,7 +266,6 @@ function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
 	var destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
-	var packageRevision = getEpochTime();
 
 	return function () {
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
@@ -287,7 +287,7 @@ function prepareDebPackage(arch) {
 				var that = this;
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
 					.pipe(replace('@@NAME@@', product.applicationName))
-					.pipe(replace('@@VERSION@@', packageJson.version + '-' + packageRevision))
+					.pipe(replace('@@VERSION@@', packageJson.version + '-' + linuxPackageRevision))
 					.pipe(replace('@@ARCHITECTURE@@', debArch))
 					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
 					.pipe(rename('DEBIAN/control'))
@@ -336,7 +336,6 @@ function getRpmPackageArch(arch) {
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var rpmArch = getRpmPackageArch(arch);
-	var packageRevision = getEpochTime();
 
 	return function () {
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
@@ -355,7 +354,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@VERSION@@', packageJson.version))
-			.pipe(replace('@@RELEASE@@', packageRevision))
+			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
