@@ -64,6 +64,7 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 					}
 				});
 				signature.label += Previewer.plain(item.suffixDisplayParts);
+				signature.documentation = Previewer.plain(item.documentation);
 				result.signatures.push(signature);
 			});
 
