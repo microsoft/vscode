@@ -64,7 +64,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter {
 
 		this.emit('checking-for-update');
 
-		const proxyUrl = this.settingsService.getValue('http.proxy');
+		const proxyUrl = this.settingsService.getValue<string>('http.proxy');
 		const strictSSL = this.settingsService.getValue('http.proxyStrictSSL', true);
 		const agent = getProxyAgent(this.url, { proxyUrl, strictSSL });
 

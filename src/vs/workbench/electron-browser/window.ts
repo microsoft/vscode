@@ -25,6 +25,7 @@ export interface IWindowConfiguration {
 	window: {
 		openFilesInNewWindow: boolean;
 		reopenFolders: string;
+		restoreFullscreen: boolean;
 		zoomLevel: number;
 	};
 }

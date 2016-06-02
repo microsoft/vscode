@@ -56,6 +56,11 @@ configurationRegistry.registerConfiguration({
 			'default': 'one',
 			'description': nls.localize('reopenFolders', "Controls how folders are being reopened after a restart. Select 'none' to never reopen a folder, 'one' to reopen the last folder you worked on or 'all' to reopen all folders of your last session.")
 		},
+		'window.restoreFullscreen': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
+		},
 		'window.zoomLevel': {
 			'type': 'number',
 			'default': 0,

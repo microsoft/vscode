@@ -25,12 +25,14 @@ export interface IWindowState {
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
+	allowFullscreen?: boolean;
 }
 
 export enum WindowMode {
 	Maximized,
 	Normal,
-	Minimized
+	Minimized,
+	Fullscreen
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
@@ -139,6 +141,7 @@ export class VSCodeWindow {
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
 
+	private options: IWindowCreationOptions;
 	private showTimeoutHandle: any;
 	private _id: number;
 	private _win: Electron.BrowserWindow;
@@ -159,6 +162,7 @@ export class VSCodeWindow {
 		@IEnvironmentService private envService: IEnvironmentService,
 		@IStorageService private storageService: IStorageService
 	) {
+		this.options = config;
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
@@ -169,10 +173,12 @@ export class VSCodeWindow {
 
 		// For VS theme we can show directly because background is white
 		const usesLightTheme = /vs($| )/.test(this.storageService.getItem<string>(VSCodeWindow.themeStorageKey));
-		let showDirectly = true; // set to false to prevent background color flash (flash should be fixed for Electron >= 0.37.x)
-		if (showDirectly && !global.windowShow) {
+		if (!global.windowShow) {
 			global.windowShow = Date.now();
 		}
+
+		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
+		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
 
 		let options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
@@ -182,7 +188,7 @@ export class VSCodeWindow {
 			backgroundColor: usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#131313' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
-			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
+			show: !isFullscreenOrMaximized,
 			title: this.envService.product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
@@ -197,17 +203,19 @@ export class VSCodeWindow {
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
 
-		if (showDirectly && this.currentWindowMode === WindowMode.Maximized) {
+		if (isFullscreenOrMaximized) {
 			this.win.maximize();
+
+			if (this.currentWindowMode === WindowMode.Fullscreen) {
+				this.win.setFullScreen(true);
+			}
 
 			if (!this.win.isVisible()) {
 				this.win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 			}
 		}
 
-		if (showDirectly) {
-			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
-		}
+		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 
 		if (this.storageService.getItem<boolean>(VSCodeWindow.menuBarHiddenKey, false)) {
 			this.setMenuBarVisibility(false); // respect configured menu bar visibility
@@ -422,7 +430,9 @@ export class VSCodeWindow {
 
 	public serializeWindowState(): IWindowState {
 		if (this.win.isFullScreen()) {
-			return defaultWindowState(); // ignore state when in fullscreen mode and return defaults
+			return {
+				mode: WindowMode.Fullscreen
+			};
 		}
 
 		let state: IWindowState = Object.create(null);
@@ -477,6 +487,14 @@ export class VSCodeWindow {
 
 	private validateWindowState(state: IWindowState): IWindowState {
 		if (!state) {
+			return null;
+		}
+
+		if (state.mode === WindowMode.Fullscreen) {
+			if (this.options.allowFullscreen) {
+				return state;
+			}
+
 			return null;
 		}
 
