@@ -9,7 +9,6 @@ import mouse = require('vs/base/browser/mouseEvent');
 import keyboard = require('vs/base/browser/keyboardEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import { Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMarker } from 'vs/platform/markers/common/markers';
@@ -17,11 +16,7 @@ import { IMarker } from 'vs/platform/markers/common/markers';
 export class Controller extends treedefaults.DefaultController {
 
 	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_UP });
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_UP_ARROW, this.onUp.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_DOWN_ARROW, this.onDown.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_UP, this.onPageUp.bind(this));
-		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_DOWN, this.onPageDown.bind(this));
+		super();
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
