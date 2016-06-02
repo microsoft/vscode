@@ -54,6 +54,7 @@ export default class Webview {
 
 		this._webview.style.width = '100%';
 		this._webview.style.height = '100%';
+		this._webview.style.outline = '0';
 		this._webview.autoSize = 'on';
 		this._webview.nodeintegration = 'on';
 		this._webview.src = require.toUrl('./webview.html');
@@ -125,7 +126,6 @@ export default class Webview {
 		}
 		body {
 			margin: 0;
-			outline: 0;
 			background-color: var(--background-color);
 			color: var(--color);
 			font-family: var(--font-family);
