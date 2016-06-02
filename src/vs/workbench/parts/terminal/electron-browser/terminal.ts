@@ -27,7 +27,9 @@ export interface ITerminalConfiguration {
 				osx: string,
 				windows: string
 			},
-			fontFamily: string
+			fontFamily: string,
+			fontSize: number,
+			lineHeight: number
 		}
 	};
 }
