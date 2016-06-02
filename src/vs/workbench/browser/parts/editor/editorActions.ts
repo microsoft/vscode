@@ -1022,6 +1022,40 @@ export class ClearEditorHistoryAction extends Action {
 	}
 }
 
+export class RemoveFromEditorHistoryAction extends Action {
+
+	public static ID = 'workbench.action.removeFromEditorHistory';
+	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From Editor History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IHistoryService private historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+
+		// Listen for next editor to open
+		let unbind = this.editorService.onEditorOpening(e => {
+			unbind.dispose(); // listen once
+
+			e.prevent();
+			this.historyService.remove(e.editorInput);
+		});
+
+		// Bring up quick open
+		this.quickOpenService.show().then(() => {
+			unbind.dispose(); // make sure to unbind if quick open is closing
+		});
+
+		return TPromise.as(true);
+	}
+}
+
 export class BaseQuickOpenNavigateAction extends Action {
 	private navigateNext: boolean;
 
