@@ -5,11 +5,10 @@
 
 .markers-panel .markers-panel-container {
 	height: 100%;
-	margin: 0 10px;
 }
 
 .markers-panel .markers-panel-container .message-box-container {
-	padding-left: 10px;
+	padding-left: 20px;
 	display: none;
 }
 
@@ -37,6 +36,10 @@
 	height: 100%;
 }
 
+.markers-panel .markers-panel-container .tree-container .monaco-tree .monaco-tree-row .content {
+	line-height: 22px;
+}
+
 .markers-panel .markers-panel-container .tree-container .monaco-tree .monaco-tree-row .content .marker-stats {
 	display: inline-block;
 	margin-left: 10px;
@@ -45,7 +48,6 @@
 .markers-panel .markers-panel-container .tree-container .monaco-tree .monaco-tree-row .content .count-badge-wrapper {
 	display: inline-block;
 	margin-left: 10px;
-	line-height: 22px;
 }
 
 .markers-panel-action-filter {
