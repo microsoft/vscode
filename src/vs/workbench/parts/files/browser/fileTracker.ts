@@ -23,11 +23,11 @@ import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 // This extension tracks files for changes to update editors and inputs accordingly.
 export class FileTracker implements IWorkbenchContribution {
@@ -42,10 +42,10 @@ export class FileTracker implements IWorkbenchContribution {
 
 	constructor(
 		@IEventService private eventService: IEventService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService,
 		@ITextFileService private textFileService: ITextFileService,
+		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
@@ -360,7 +360,7 @@ export class FileTracker implements IWorkbenchContribution {
 		let inputsContainingPath: EditorInput[] = FileEditorInput.getAll(deletedResource);
 
 		// Collect from history and opened editors and see which ones to pick
-		const candidates = this.quickOpenService.getEditorHistory();
+		const candidates = this.historyService.getHistory();
 		this.stacks.groups.forEach(group => candidates.push(...group.getEditors()));
 		candidates.forEach(input => {
 			if (input instanceof DiffEditorInput) {
@@ -385,7 +385,7 @@ export class FileTracker implements IWorkbenchContribution {
 		inputsContainingPath.forEach((input) => {
 
 			// Editor History
-			this.quickOpenService.removeEditorHistoryEntry(input);
+			this.historyService.remove(input);
 
 			// Dispose Input
 			if (!input.isDisposed()) {

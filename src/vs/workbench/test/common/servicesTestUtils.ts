@@ -11,7 +11,7 @@ import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
-import {EditorInputEvent, EditorInput} from 'vs/workbench/common/editor';
+import {EditorInputEvent} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
@@ -32,6 +32,7 @@ import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lif
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -44,6 +45,30 @@ export const TestWorkspace: IWorkspace = {
 export const TestConfiguration: IConfiguration = {
 	env: Object.create(null)
 };
+
+export class TestHistoryService implements IHistoryService {
+	public serviceId = IHistoryService;
+
+	public forward(): void {
+
+	}
+
+	public back(): void {
+
+	}
+
+	public clear(): void {
+
+	}
+
+	public remove(input: IEditorInput): void {
+
+	}
+
+	public getHistory(): IEditorInput[] {
+		return [];
+	}
+}
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public serviceId = WorkspaceContextService.IWorkspaceContextService;
@@ -466,10 +491,6 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return TPromise.as(true);
 	}
 
-	getEditorHistory(): EditorInput[] {
-		return [];
-	}
-
 	get onShow(): Event<void> {
 		return null;
 	}
@@ -478,10 +499,8 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return null;
 	}
 
-	public removeEditorHistoryEntry(input: EditorInput): void { }
 	public dispose() { }
 	public quickNavigate(): void { }
-	public clearEditorHistory(): void { }
 }
 
 export const TestFileService = {

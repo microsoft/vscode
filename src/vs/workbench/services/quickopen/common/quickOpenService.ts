@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import {IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorInput} from 'vs/platform/editor/common/editor';
 
 export interface IPickOpenEntry {
 	id?: string;
@@ -16,7 +15,7 @@ export interface IPickOpenEntry {
 	description?: string;
 	detail?: string;
 	separator?: ISeparator;
-	run?: (context:IEntryRunContext) => void;
+	run?: (context: IEntryRunContext) => void;
 }
 
 export interface ISeparator {
@@ -82,7 +81,8 @@ export interface IShowOptions {
 export var IQuickOpenService = createDecorator<IQuickOpenService>('quickOpenService');
 
 export interface IQuickOpenService {
-	serviceId : ServiceIdentifier<any>;
+	
+	serviceId: ServiceIdentifier<any>;
 
 	/**
 	 * Asks the container to show the quick open control with the optional prefix set. If the optional parameter
@@ -99,21 +99,6 @@ export interface IQuickOpenService {
 	 * in the quick open control.
 	 */
 	refresh(input?: string): TPromise<void>;
-
-	/**
-	 * Clears all traces of editor history.
-	 */
-	clearEditorHistory(): void;
-
-	/**
-	 * Returns the sorted list of editor inputs that have been opened by the user.
-	 */
-	getEditorHistory(): IEditorInput[];
-
-	/**
-	 * Removes an editor history entry by the given input.
-	 */
-	removeEditorHistoryEntry(input: IEditorInput): void;
 
 	/**
 	 * A convenient way to bring up quick open as a picker with custom elements. This bypasses the quick open handler

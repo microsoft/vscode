@@ -5,10 +5,12 @@
 'use strict';
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {IEditorInput} from 'vs/platform/editor/common/editor';
 
 export var IHistoryService = createDecorator<IHistoryService>('historyService');
 
 export interface IHistoryService {
+
 	serviceId: ServiceIdentifier<any>;
 
 	/**
@@ -22,7 +24,17 @@ export interface IHistoryService {
 	back(): void;
 
 	/**
-	 * Clears all history;
+	 * Removes an entry from history.
+	 */
+	remove(input: IEditorInput): void;
+
+	/**
+	 * Clears all history.
 	 */
 	clear(): void;
+
+	/**
+	 * Get the entire history of opened editors.
+	 */
+	getHistory(): IEditorInput[];
 }

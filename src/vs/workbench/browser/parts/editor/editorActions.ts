@@ -120,7 +120,7 @@ export class FocusFirstGroupAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
 	}
@@ -138,18 +138,12 @@ export class FocusFirstGroupAction extends Action {
 		}
 
 		// Since no editor is currently opened, try to open last history entry to the target side
-		let history = this.quickOpenService.getEditorHistory();
+		let history = this.historyService.getHistory();
 		for (var input of history) {
 
 			// For now only support to open resources from history to the side
 			if (!!getUntitledOrFileResource(input)) {
-				return this.editorService.openEditor(input, null, Position.LEFT).then(() => {
-
-					// Automatically clean up stale history entries when the input can not be opened
-					if (!input.matches(this.editorService.getActiveEditorInput())) {
-						this.quickOpenService.removeEditorHistoryEntry(input);
-					}
-				});
+				return this.editorService.openEditor(input, null, Position.LEFT);
 			}
 		}
 
@@ -163,7 +157,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
 	}
@@ -200,18 +194,12 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 		// Otherwise try to find a history entry to open to the target editor side
 		else if (referenceEditor) {
-			let history = this.quickOpenService.getEditorHistory();
+			let history = this.historyService.getHistory();
 			for (var input of history) {
 
 				// For now only support to open files from history to the side
 				if (!!getUntitledOrFileResource(input)) {
-					return this.editorService.openEditor(input, null, this.getTargetEditorSide()).then(() => {
-
-						// Automatically clean up stale history entries when the input can not be opened
-						if (!input.matches(this.editorService.getActiveEditorInput())) {
-							this.quickOpenService.removeEditorHistoryEntry(input);
-						}
-					});
+					return this.editorService.openEditor(input, null, this.getTargetEditorSide());
 				}
 			}
 		}
@@ -229,9 +217,9 @@ export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, editorService, quickOpenService);
+		super(id, label, editorService, historyService);
 	}
 
 	protected getReferenceEditorSide(): Position {
@@ -252,9 +240,9 @@ export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, editorService, quickOpenService);
+		super(id, label, editorService, historyService);
 	}
 
 	protected getReferenceEditorSide(): Position {
@@ -1016,7 +1004,6 @@ export class ClearEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IHistoryService private historyService: IHistoryService
 	) {
@@ -1025,10 +1012,7 @@ export class ClearEditorHistoryAction extends Action {
 
 	public run(): TPromise<any> {
 
-		// Quick open history
-		this.quickOpenService.clearEditorHistory();
-
-		// Editor cursor history
+		// Editor history
 		this.historyService.clear();
 
 		// Recently closed editors

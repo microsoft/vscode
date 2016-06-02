@@ -383,14 +383,14 @@ export class Workbench implements IPartService {
 		);
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
 
+		// History
+		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService, this.storageService, this.lifecycleService, this.instantiationService));
+
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		this.toDispose.push(this.quickOpen);
 		this.toShutdown.push(this.quickOpen);
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
-
-		// History
-		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService));
 
 		// Contributed services
 		let contributedServices = getServices();
@@ -737,9 +737,6 @@ export class Workbench implements IPartService {
 		this.createPanelPart();
 		this.createStatusbarPart();
 
-		// Create QuickOpen
-		this.createQuickOpen();
-
 		// Add Workbench to DOM
 		this.workbenchContainer.build(this.container);
 	}
@@ -796,10 +793,6 @@ export class Workbench implements IPartService {
 		});
 
 		this.statusbarPart.create(statusbarContainer);
-	}
-
-	private createQuickOpen(): void {
-		this.quickOpen.create();
 	}
 
 	public getEditorPart(): EditorPart {
