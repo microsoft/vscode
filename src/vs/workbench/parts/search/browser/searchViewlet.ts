@@ -23,7 +23,7 @@ import {IAction, Action, IActionRunner} from 'vs/base/common/actions';
 import {StandardKeyboardEvent, IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import timer = require('vs/base/common/timer');
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
+import {FileLabel} from 'vs/base/browser/ui/fileLabel/fileLabel';
 import {FindInput, IFindInputOptions} from 'vs/base/browser/ui/findinput/findInput';
 import {LeftRightWidget, IRenderer} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
