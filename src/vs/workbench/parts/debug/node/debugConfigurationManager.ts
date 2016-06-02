@@ -248,22 +248,35 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return TPromise.as(null);
 		}
 
-		const factory = Object.keys(this.configuration).map(key => {
-			return () => {
-				if (typeof this.configuration[key] === 'string') {
-					const matches = /\${action.(.+)}/.exec(this.configuration[key]);
-					if (matches && matches.length === 2) {
-						const commandId = this.adapter.variables[matches[1]];
-						if (!commandId) {
-							return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, matches[1]));
-						} else {
-							return this.keybindingService.executeCommand<string>(commandId, this.configuration)
-								.then(result => result ? this.configuration[key] = result : this.configuration.silentlyAbort = true);
-						}
+		// We need a map from interactive variables to keys because we only want to trigger an action once per action -
+		// even though it might occure multiple times in configuration #7026.
+		const interactiveVariablesToKeys: { [key: string]: string[] } = {};
+		Object.keys(this.configuration).forEach(key => {
+			if (typeof this.configuration[key] === 'string') {
+				const matches = /\${action.(.+)}/.exec(this.configuration[key]);
+				if (matches && matches.length === 2) {
+					const interactiveVariable = matches[1];
+					if (!interactiveVariablesToKeys[interactiveVariable]) {
+						interactiveVariablesToKeys[interactiveVariable] = [];
 					}
+					interactiveVariablesToKeys[interactiveVariable].push(key);
 				}
+			}
+		});
 
-				return TPromise.as(null);
+		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToKeys).map(interactiveVariable => {
+			return () => {
+				const commandId = this.adapter.variables ? this.adapter.variables[interactiveVariable] : null;
+				if (!commandId) {
+					return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, interactiveVariable));
+				} else {
+					return this.keybindingService.executeCommand<string>(commandId, this.configuration).then(result => {
+						if (!result) {
+							this.configuration.silentlyAbort = true;
+						}
+						interactiveVariablesToKeys[interactiveVariable].forEach(key => this.configuration[key] = result);
+					});
+				}
 			};
 		});
 
