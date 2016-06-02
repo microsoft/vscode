@@ -131,7 +131,7 @@ export enum FileChangeType {
 /**
  * Possible events to subscribe to
  */
-export var EventType = {
+export const EventType = {
 
 	/**
 	* Send on file changes.
