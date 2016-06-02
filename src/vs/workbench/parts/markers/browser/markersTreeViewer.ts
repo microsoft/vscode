@@ -88,6 +88,7 @@ export class Renderer implements IRenderer {
 	}
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+		dom.addClass(container, 'markers-panel-tree-entry');
 		switch (templateId) {
 			case Renderer.RESOURCE_TEMPLATE_ID:
 				return this.renderResourceTemplate(container);

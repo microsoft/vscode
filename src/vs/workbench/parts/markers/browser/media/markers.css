@@ -36,16 +36,16 @@
 	height: 100%;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tree .monaco-tree-row .content {
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
 	line-height: 22px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tree .monaco-tree-row .content .marker-stats {
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-stats {
 	display: inline-block;
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tree .monaco-tree-row .content .count-badge-wrapper {
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .count-badge-wrapper {
 	display: inline-block;
 	margin-left: 10px;
 }
