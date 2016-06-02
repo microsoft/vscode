@@ -964,7 +964,7 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		// Open focused element from results in case the editor area is otherwise empty
-		if (visible && !this.editorService.getActiveEditorInput()) {
+		if (visible && !this.editorService.getActiveEditor()) {
 			let focus = this.tree.getFocus();
 			if (focus) {
 				this.onFocus(focus, false, false);
