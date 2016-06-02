@@ -40,6 +40,43 @@ export function relative(from: string, to: string): string {
 	return toParts.join(sep);
 }
 
+/**
+ * @returns the directory name of a path.
+ */
+export function dirname(path: string): string {
+	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
+	if (idx === 0) {
+		return '.';
+	} else if (~idx === 0) {
+		return path[0];
+	} else {
+		return path.substring(0, ~idx);
+	}
+}
+
+/**
+ * @returns the base name of a path.
+ */
+export function basename(path: string): string {
+	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
+	if (idx === 0) {
+		return path;
+	} else if (~idx === path.length - 1) {
+		return basename(path.substring(0, path.length - 1));
+	} else {
+		return path.substr(~idx + 1);
+	}
+}
+
+/**
+ * @returns {{.far}} from boo.far or the empty string.
+ */
+export function extname(path: string): string {
+	path = basename(path);
+	var idx = ~path.lastIndexOf('.');
+	return idx ? path.substring(~idx) : '';
+}
+
 export function normalize(path: string, toOSPath?: boolean): string {
 
 	if (path === null || path === void 0) {
@@ -92,43 +129,6 @@ export function normalize(path: string, toOSPath?: boolean): string {
 	}
 
 	return root + res;
-}
-
-/**
- * @returns the directory name of a path.
- */
-export function dirname(path: string): string {
-	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
-	if (idx === 0) {
-		return '.';
-	} else if (~idx === 0) {
-		return path[0];
-	} else {
-		return path.substring(0, ~idx);
-	}
-}
-
-/**
- * @returns the base name of a path.
- */
-export function basename(path: string): string {
-	var idx = ~path.lastIndexOf('/') || ~path.lastIndexOf('\\');
-	if (idx === 0) {
-		return path;
-	} else if (~idx === path.length - 1) {
-		return basename(path.substring(0, path.length - 1));
-	} else {
-		return path.substr(~idx + 1);
-	}
-}
-
-/**
- * @returns {{.far}} from boo.far or the empty string.
- */
-export function extname(path: string): string {
-	path = basename(path);
-	var idx = ~path.lastIndexOf('.');
-	return idx ? path.substring(~idx) : '';
 }
 
 /**
