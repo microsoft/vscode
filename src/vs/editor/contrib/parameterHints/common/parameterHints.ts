@@ -13,7 +13,8 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 
 export const Context = {
-	Visible: 'parameterHintsVisible'
+	Visible: 'parameterHintsVisible',
+	MultipleSignatures: 'parameterHintsMultipleSignatures',
 };
 
 export function provideSignatureHelp(model:IReadOnlyModel, position:Position): TPromise<SignatureHelp> {

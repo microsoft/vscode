@@ -10,7 +10,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorAction } from 'vs/editor/common/editorAction';
-import { ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS } from 'vs/editor/common/editorCommon';
+import { KbExpr } from 'vs/platform/keybinding/common/keybindingService';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { withCodeEditorFromCommandHandler } from 'vs/editor/common/config/config';
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
@@ -38,16 +41,16 @@ class ParameterHintsController implements IEditorContribution {
 		return ParameterHintsController.ID;
 	}
 
-	closeWidget(): void {
+	cancel(): void {
 		this.widget.cancel();
 	}
 
-	showPrevHint(): void {
-		this.widget.selectPrevious();
+	previous(): void {
+		this.widget.previous();
 	}
 
-	showNextHint(): void {
-		this.widget.selectNext();
+	next(): void {
+		this.widget.next();
 	}
 
 	trigger(): void {
@@ -79,8 +82,10 @@ export class TriggerParameterHintsAction extends EditorAction {
 
 const weight = CommonEditorRegistry.commandWeight(75);
 
-function handler(fn: (controller: ParameterHintsController)=>void): (ctx, editor: ICommonCodeEditor)=>void {
-	return (ctx, editor: ICommonCodeEditor) => fn(ParameterHintsController.get(editor));
+function handler(id: string, fn: (controller: ParameterHintsController) => void) {
+	return accessor => withCodeEditorFromCommandHandler(id, accessor, editor => {
+		fn(ParameterHintsController.get(editor));
+	});
 }
 
 EditorBrowserRegistry.registerEditorContribution(ParameterHintsController);
@@ -93,29 +98,29 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(
 	'Trigger Parameter Hints'
 ));
 
-CommonEditorRegistry.registerEditorCommand(
-	'closeParameterHints',
+KeybindingsRegistry.registerCommandDesc({
+	id: 'closeParameterHints',
+	handler: handler('closeParameterHints', c => c.cancel()),
 	weight,
-	{ primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] },
-	true,
-	Context.Visible,
-	handler(c => c.closeWidget())
-);
+	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(Context.Visible)),
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape]
+});
 
-CommonEditorRegistry.registerEditorCommand(
-	'showPrevParameterHint',
+KeybindingsRegistry.registerCommandDesc({
+	id: 'showPrevParameterHint',
+	handler: handler('showPrevParameterHint', c => c.previous()),
 	weight,
-	{ primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
-	true,
-	Context.Visible,
-	handler(c =>c.showPrevHint())
-);
+	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(Context.Visible), KbExpr.has(Context.MultipleSignatures)),
+	primary: KeyCode.UpArrow,
+	secondary: [KeyMod.Alt | KeyCode.UpArrow]
+});
 
-CommonEditorRegistry.registerEditorCommand(
-	'showNextParameterHint',
+KeybindingsRegistry.registerCommandDesc({
+	id: 'showNextParameterHint',
+	handler: handler('showNextParameterHint', c => c.next()),
 	weight,
-	{ primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
-	true,
-	Context.Visible,
-	handler(c => c.showNextHint())
-);
+	when: KbExpr.and(KbExpr.has(KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS), KbExpr.has(Context.Visible), KbExpr.has(Context.MultipleSignatures)),
+	primary: KeyCode.DownArrow,
+	secondary: [KeyMod.Alt | KeyCode.DownArrow]
+});

@@ -148,7 +148,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	static ID = 'editor.widget.parameterHintsWidget';
 
 	private model: ParameterHintsModel;
-	private parameterHintsVisible: IKeybindingContextKey<boolean>;
+	private keyVisible: IKeybindingContextKey<boolean>;
+	private keyMultipleSignatures: IKeybindingContextKey<boolean>;
 	private element: HTMLElement;
 	private signatures: HTMLElement;
 	private overloads: HTMLElement;
@@ -164,7 +165,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	constructor(private editor: ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		this.model = new ParameterHintsModel(editor);
-		this.parameterHintsVisible = keybindingService.createKey(Context.Visible, false);
+		this.keyVisible = keybindingService.createKey(Context.Visible, false);
+		this.keyMultipleSignatures = keybindingService.createKey(Context.MultipleSignatures, false);
 		this.visible = false;
 		this.disposables = [];
 
@@ -183,7 +185,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.element = $('.editor-widget.parameter-hints-widget');
 
 		this.disposables.push(dom.addDisposableListener(this.element, 'click', () => {
-			this.selectNext();
+			this.next();
 			this.editor.focus();
 		}));
 
@@ -195,13 +197,13 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.disposables.push(dom.addDisposableListener(previous, 'click', e => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.selectPrevious();
+			this.previous();
 		}));
 
 		this.disposables.push(dom.addDisposableListener(next, 'click', e => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.selectNext();
+			this.next();
 		}));
 
 		this.overloads = dom.append(wrapper, $('.overloads'));
@@ -225,7 +227,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
-		this.parameterHintsVisible.set(true);
+		this.keyVisible.set(true);
 		this.visible = true;
 		TPromise.timeout(100).done(() => dom.addClass(this.element, 'visible'));
 		this.editor.layoutContentWidget(this);
@@ -236,7 +238,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
-		this.parameterHintsVisible.reset();
+		this.keyVisible.reset();
 		this.visible = false;
 		this.parameterHints = null;
 		this.announcedLabel = null;
@@ -280,6 +282,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 			height += signatureHeight;
 		}
+
+		this.keyMultipleSignatures.set(this.signatureViews.length > 1);
 	}
 
 	private applyFont(element: HTMLElement): void {
@@ -395,7 +399,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.editor.layoutContentWidget(this);
 	}
 
-	selectNext(): boolean {
+	next(): boolean {
 		if (this.signatureViews.length < 2) {
 			this.cancel();
 			return false;
@@ -406,7 +410,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		return true;
 	}
 
-	selectPrevious(): boolean {
+	previous(): boolean {
 		if (this.signatureViews.length < 2) {
 			this.cancel();
 			return false;
