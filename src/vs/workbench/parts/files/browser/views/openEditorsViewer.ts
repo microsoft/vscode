@@ -318,7 +318,7 @@ export class Controller extends treedefaults.DefaultController {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			const position = this.model.positionOfGroup(element.editorGroup);
 			if (pinEditor) {
-				this.editorService.pinEditor(position, element.editorInput);
+				this.editorGroupService.pinEditor(position, element.editorInput);
 			}
 			this.editorGroupService.activateGroup(position);
 			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus: !pinEditor }), position)
@@ -513,7 +513,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 
 	public drop(tree: ITree, data: IDragAndDropData, target: OpenEditor|EditorGroup, originalEvent: DragMouseEvent): void {
 		let draggedElement: OpenEditor|EditorGroup;
-		const model = this.editorService.getStacksModel();
+		const model = this.editorGroupService.getStacksModel();
 		const positionOfTargetGroup =  model.positionOfGroup(target instanceof EditorGroup ? target : target.editorGroup);
 		const index = target instanceof OpenEditor ? target.editorGroup.indexOf(target.editorInput) : undefined;
 		// Support drop from explorer viewer
@@ -533,7 +533,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 
 		if (draggedElement) {
 			if (draggedElement instanceof OpenEditor) {
-				this.editorService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
+				this.editorGroupService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
 			} else {
 				this.editorGroupService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
 			}

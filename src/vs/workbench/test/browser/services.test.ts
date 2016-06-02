@@ -112,14 +112,6 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(activeEditor);
 	}
 
-	public pinEditor(position: Position, input: EditorInput): void {
-		// Unsupported
-	}
-
-	public unpinEditor(position: Position, input: EditorInput): void {
-		// Unsupported
-	}
-
 	public getActiveEditor(): BaseEditor {
 		return activeEditor;
 	}
@@ -134,14 +126,6 @@ class TestEditorPart implements IEditorPart {
 
 	public getVisibleEditors(): IEditor[] {
 		return [activeEditor];
-	}
-
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
-		// Unsupported
-	}
-
-	public getStacksModel(): IEditorStacksModel {
-		return null; // Unsuported
 	}
 }
 

@@ -21,6 +21,7 @@ import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IActivityService, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
@@ -46,11 +47,12 @@ export class FileTracker implements IWorkbenchContribution {
 		@IActivityService private activityService: IActivityService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IHistoryService private historyService: IHistoryService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		this.toUnbind = [];
-		this.stacks = editorService.getStacksModel();
+		this.stacks = editorGroupService.getStacksModel();
 
 		this.registerListeners();
 	}
@@ -254,7 +256,7 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private handleMovedFileInVisibleEditors(oldResource: URI, newResource: URI, mimeHint?: string): void {
-		let stacks = this.editorService.getStacksModel();
+		let stacks = this.editorGroupService.getStacksModel();
 		let editors = this.editorService.getVisibleEditors();
 		editors.forEach(editor => {
 			let group = stacks.groupAt(editor.position);

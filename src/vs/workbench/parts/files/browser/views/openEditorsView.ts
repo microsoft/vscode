@@ -14,6 +14,7 @@ import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {EventType as WorkbenchEventType, UntitledEditorEvent, CompositeEvent} from 'vs/workbench/common/events';
@@ -50,14 +51,15 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITextFileService private textFileService: ITextFileService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
-		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
+		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
 
 		this.settings = settings;
-		this.model = editorService.getStacksModel();
+		this.model = editorGroupService.getStacksModel();
 		this.lastDirtyCount = 0;
 		this.updateTreeScheduler = new RunOnceScheduler(() => this.updateTree(), 250);
 	}

@@ -37,6 +37,7 @@ import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -1504,6 +1505,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -1544,7 +1546,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	}
 
 	protected doRun(context: any): TPromise<boolean> {
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 
 		// Store some properties per untitled file to restore later after save is completed
 		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; } } = Object.create(null);

@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditor, IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, EditorInputEvent, IEditorStacksModel} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, EditorInputEvent} from 'vs/workbench/common/editor';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -44,10 +44,6 @@ export interface IEditorPart {
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
-	moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void;
-	pinEditor(position: Position, input: EditorInput): void;
-	unpinEditor(position: Position, input: EditorInput): void;
-	getStacksModel(): IEditorStacksModel;
 }
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
@@ -115,10 +111,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 			return false;
 		});
-	}
-
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
-		this.editorPart.moveEditor(input, from, to, index);
 	}
 
 	public openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
@@ -209,14 +201,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public closeAllEditors(except?: Position): TPromise<void> {
 		return this.editorPart.closeAllEditors(except);
-	}
-
-	public pinEditor(position: Position, input: EditorInput): void {
-		this.editorPart.pinEditor(position, input);
-	}
-
-	public unpinEditor(position: Position, input: EditorInput): void {
-		this.editorPart.unpinEditor(position, input);
 	}
 
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
@@ -322,10 +306,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		return model.uri.toString() === input.resource.toString() ? model : null;
-	}
-
-	public getStacksModel(): IEditorStacksModel {
-		return this.editorPart.getStacksModel();
 	}
 }
 

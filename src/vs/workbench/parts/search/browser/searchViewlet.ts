@@ -36,6 +36,7 @@ import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
@@ -670,6 +671,7 @@ export class SearchViewlet extends Viewlet {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IStorageService private storageService: IStorageService,
@@ -1163,7 +1165,7 @@ export class SearchViewlet extends Viewlet {
 
 		let options: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern: excludes,
 			includePattern: includes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,

@@ -29,10 +29,11 @@ import {IMessageService, IConfirmation} from 'vs/platform/message/common/message
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -307,6 +308,54 @@ export class TestUntitledEditorService implements IUntitledEditorService {
 	}
 }
 
+export class TestEditorGroupService implements IEditorGroupService {
+	public serviceId = IEditorGroupService;
+
+	private stacksModel: EditorStacksModel;
+
+	constructor(callback?: (method: string) => void) {
+		let services = new ServiceCollection();
+
+		services.set(IStorageService, new TestStorageService());
+		services.set(WorkspaceContextService.IWorkspaceContextService, new TestContextService());
+		const lifecycle = new TestLifecycleService();
+		services.set(ILifecycleService, lifecycle);
+
+		let inst = new InstantiationService(services);
+
+		this.stacksModel = inst.createInstance(EditorStacksModel);
+	}
+
+	public focusGroup(position: Position): void {
+
+	}
+
+	public activateGroup(position: Position): void {
+
+	}
+
+	public moveGroup(from: Position, to: Position): void {
+
+	}
+
+	public arrangeGroups(arrangement: GroupArrangement): void {
+
+	}
+
+	public pinEditor(position: Position, input: IEditorInput): void {
+	}
+
+	public unpinEditor(position: Position, input: IEditorInput): void {
+	}
+
+	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void {
+	}
+
+	public getStacksModel(): EditorStacksModel {
+		return this.stacksModel;
+	}
+}
+
 export class TestEditorService implements WorkbenchEditorService.IWorkbenchEditorService {
 	public serviceId = WorkbenchEditorService.IWorkbenchEditorService;
 
@@ -315,7 +364,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	public activeEditorPosition;
 
 	private callback: (method: string) => void;
-	private stacksModel: EditorStacksModel;
 
 	private _onEditorsChanged: Emitter<void>;
 	private _onEditorsMoved: Emitter<void>;
@@ -329,17 +377,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this._onEditorOpening = new Emitter<EditorInputEvent>();
 		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
-
-		let services = new ServiceCollection();
-
-		services.set(IStorageService, new TestStorageService());
-		services.set(WorkspaceContextService.IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
-
-		let inst = new InstantiationService(services);
-
-		this.stacksModel = inst.createInstance(EditorStacksModel);
 	}
 
 	public fireChange(): void {
@@ -400,18 +437,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return [];
 	}
 
-	public pinEditor(position: Position, input: IEditorInput): void {
-		this.callback('pinEditor');
-	}
-
-	public unpinEditor(position: Position, input: IEditorInput): void {
-		this.callback('unpinEditor');
-	}
-
-	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void {
-		this.callback('moveEditor');
-	}
-
 	public openEditor(input: any, options?: any, position?: any): Promise {
 		this.callback('openEditor');
 
@@ -430,7 +455,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return input.resolve(refresh);
 	}
 
-
 	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
 		this.callback('closeEditor');
 
@@ -439,10 +463,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	public createInput(input: IResourceInput): TPromise<IEditorInput> {
 		return TPromise.as(null);
-	}
-
-	public getStacksModel(): EditorStacksModel {
-		return this.stacksModel;
 	}
 }
 

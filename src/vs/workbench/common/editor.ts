@@ -11,9 +11,9 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
 import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Event as BaseEvent} from 'vs/base/common/events';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 export enum ConfirmResult {
 	SAVE,
@@ -559,10 +559,10 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 /**
  * Helper to return all opened editors with resources not belonging to the currently opened workspace.
  */
-export function getOutOfWorkspaceEditorResources(editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService): URI[] {
+export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGroupService, contextService: IWorkspaceContextService): URI[] {
 	const resources: URI[] = [];
 
-	editorService.getStacksModel().groups.forEach(group => {
+	editorGroupService.getStacksModel().groups.forEach(group => {
 		const editors = group.getEditors();
 		editors.forEach(editor => {
 			const fileInput = asFileEditorInput(editor, true);

@@ -16,6 +16,7 @@ import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quick
 import {QueryBuilder} from 'vs/workbench/parts/search/common/searchQuery';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {EditorInput, getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -89,6 +90,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -118,7 +120,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private doFindResults(searchValue: string): TPromise<QuickOpenEntry[]> {
 		const query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			filePattern: searchValue
 		};
 

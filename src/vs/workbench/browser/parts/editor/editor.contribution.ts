@@ -23,6 +23,7 @@ import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingServ
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';
@@ -191,7 +192,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: '_workbench.printStacksModel',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor) {
-		console.log(`${accessor.get(IWorkbenchEditorService).getStacksModel().toString()}\n\n`);
+		console.log(`${accessor.get(IEditorGroupService).getStacksModel().toString()}\n\n`);
 	},
 	when: undefined,
 	primary: undefined
@@ -201,7 +202,7 @@ KeybindingsRegistry.registerCommandDesc({
 	id: '_workbench.validateStacksModel',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
 	handler(accessor: ServicesAccessor) {
-		(<EditorStacksModel>accessor.get(IWorkbenchEditorService).getStacksModel()).validate();
+		(<EditorStacksModel>accessor.get(IEditorGroupService).getStacksModel()).validate();
 	},
 	when: undefined,
 	primary: undefined

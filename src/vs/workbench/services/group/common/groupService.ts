@@ -6,7 +6,8 @@
 'use strict';
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
+import {IEditorStacksModel} from 'vs/workbench/common/editor';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
@@ -20,7 +21,7 @@ export var IEditorGroupService = createDecorator<IEditorGroupService>('editorGro
  * editor input and models.
  */
 export interface IEditorGroupService {
-	serviceId : ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position.
@@ -41,4 +42,24 @@ export interface IEditorGroupService {
 	 * Allows to arrange editor groups according to the GroupArrangement enumeration.
 	 */
 	arrangeGroups(arrangement: GroupArrangement): void;
+
+	/**
+	 * Adds the pinned state to an editor, removing it from being a preview editor.
+	 */
+	pinEditor(position: Position, input: IEditorInput): void;
+
+	/**
+	 * Removes the pinned state of an editor making it a preview editor.
+	 */
+	unpinEditor(position: Position, input: IEditorInput): void;
+
+	/**
+	 * Moves an editor from one group to another. The index in the group is optional.
+	 */
+	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
+
+	/**
+	 * Provides access to the editor stacks model
+	 */
+	getStacksModel(): IEditorStacksModel;
 }
