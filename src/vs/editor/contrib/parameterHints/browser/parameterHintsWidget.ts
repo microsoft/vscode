@@ -11,7 +11,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import aria = require('vs/base/browser/ui/aria/aria');
-import { ICursorSelectionChangedEvent, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { SignatureHelp, SignatureInformation } from 'vs/editor/common/modes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IHintEvent, ParameterHintsModel } from './parameterHintsModel';
@@ -98,14 +97,14 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.editor.addContentWidget(this);
 		this.hide();
 
-		this.disposables.push(this.editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
+		this.disposables.push(this.editor.onDidChangeCursorSelection(e => {
 			if (this.visible) {
 				this.editor.layoutContentWidget(this);
 			}
 		}));
 
 		this.editor.applyFontInfo(this.getDomNode());
-		this.disposables.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
+		this.disposables.push(this.editor.onDidChangeConfiguration(e => {
 			if (e.fontInfo) {
 				this.editor.applyFontInfo(this.getDomNode());
 			}
