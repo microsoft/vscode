@@ -72,11 +72,11 @@ export class MarkersPanel extends Panel {
 
 		let container= dom.append(parent.getHTMLElement(), dom.emmet('.markers-panel-container'));
 
-		this.createActions();
 		this.createFilterInputBox(container);
 		this.createMessageBox(container);
 		this.createTree(container);
 
+		this.createActions();
 		this.createListeners();
 
 		this.render();
