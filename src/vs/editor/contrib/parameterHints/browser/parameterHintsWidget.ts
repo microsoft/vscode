@@ -37,6 +37,7 @@ export class ParameterHintsModel extends Disposable {
 	onCancel: Event<void> = this._onCancel.event;
 
 	private editor: ICommonCodeEditor;
+	private enabled: boolean;
 	private triggerCharactersListeners: IDisposable[];
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
@@ -45,16 +46,20 @@ export class ParameterHintsModel extends Disposable {
 		super();
 
 		this.editor = editor;
+		this.enabled = false;
 		this.triggerCharactersListeners = [];
 
 		this.throttledDelayer = new RunOnceScheduler(() => this.doTrigger(), ParameterHintsModel.DELAY);
 
 		this.active = false;
 
+		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
 		this._register(this.editor.onDidChangeModelMode(_ => this.onModelChanged()));
 		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
 		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
+
+		this.onEditorConfigurationChange();
 		this.onModelChanged();
 	}
 
@@ -69,7 +74,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	trigger(delay = ParameterHintsModel.DELAY): void {
-		if (!SignatureHelpProviderRegistry.has(this.editor.getModel())) {
+		if (!this.enabled || !SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
@@ -127,6 +132,14 @@ export class ParameterHintsModel extends Disposable {
 			this.cancel();
 		} else if (this.isTriggered()) {
 			this.trigger();
+		}
+	}
+
+	private onEditorConfigurationChange(): void {
+		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints;
+
+		if (!this.enabled) {
+			this.cancel();
 		}
 	}
 
