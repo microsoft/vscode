@@ -16,6 +16,7 @@ import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import MarkersStatisticsWidget from 'vs/workbench/parts/markers/browser/markersStatisticsWidget';
+import Messages from 'vs/workbench/parts/markers/common/messages';
 
 interface IResourceTemplateData {
 	file: FileLabel;
@@ -131,7 +132,7 @@ export class Renderer implements IRenderer {
 
 	private renderMarkerElement(tree: ITree, element: IMarker, templateData: IMarkerTemplateData) {
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(element);
-		templateData.label.textContent = element.message;
+		templateData.label.textContent = Messages.MARKERS_PANEL_AT_LINE_NUMBER(element.startLineNumber) + element.message;
 	}
 
 	private static iconClassNameFor(element: IMarker): string {

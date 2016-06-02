@@ -31,4 +31,6 @@ export default class Messages {
 	public static MARKERS_PANEL_MULTIPLE_INFOS_LABEL=(noOfInfos: number):string=>{return nls.localize('markers.panel.multiple.infos.label', "{0} Infos", ''+noOfInfos);};
 	public static MARKERS_PANEL_SINGLE_UNKNOWN_LABEL:string= nls.localize('markers.panel.single.unknown.label', "1 Unknown");
 	public static MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL=(noOfUnknowns: number):string=>{return nls.localize('markers.panel.multiple.unknowns.label', "{0} Unknowns", ''+noOfUnknowns);};
+
+	public static MARKERS_PANEL_AT_LINE_NUMBER= (lineNumber: number):string=>{return nls.localize('markers.panel.at.line.number', "Line {0}: ", '' + lineNumber);}
 }
