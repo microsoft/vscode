@@ -183,6 +183,7 @@ class InternalEditorOptionsHelper {
 			contextmenu: toBoolean(opts.contextmenu),
 			quickSuggestions: toBoolean(opts.quickSuggestions),
 			quickSuggestionsDelay: toInteger(opts.quickSuggestionsDelay),
+			parameterHints: toBoolean(opts.parameterHints),
 			iconsInSuggestions: toBoolean(opts.iconsInSuggestions),
 			formatOnType: toBoolean(opts.formatOnType),
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
@@ -590,6 +591,11 @@ let editorConfiguration:IConfigurationNode = {
 			'default': DefaultConfig.editor.quickSuggestionsDelay,
 			'minimum': 0,
 			'description': nls.localize('quickSuggestionsDelay', "Controls the delay in ms after which quick suggestions will show up")
+		},
+		'editor.parameterHints' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.parameterHints,
+			'description': nls.localize('parameterHints', "Enables parameter hints")
 		},
 		'editor.autoClosingBrackets' : {
 			'type': 'boolean',

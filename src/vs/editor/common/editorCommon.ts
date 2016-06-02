@@ -348,6 +348,10 @@ export interface IEditorOptions {
 	 */
 	quickSuggestionsDelay?:number;
 	/**
+	 * Enables parameter hints
+	 */
+	parameterHints?:boolean;
+	/**
 	 * Render icons in suggestions box.
 	 * Defaults to true.
 	 */
@@ -764,6 +768,7 @@ export class EditorContribOptions {
 	contextmenu:boolean;
 	quickSuggestions:boolean;
 	quickSuggestionsDelay:number;
+	parameterHints: boolean;
 	iconsInSuggestions:boolean;
 	formatOnType:boolean;
 	suggestOnTriggerCharacters: boolean;
@@ -782,6 +787,7 @@ export class EditorContribOptions {
 		contextmenu:boolean;
 		quickSuggestions:boolean;
 		quickSuggestionsDelay:number;
+		parameterHints:boolean;
 		iconsInSuggestions:boolean;
 		formatOnType:boolean;
 		suggestOnTriggerCharacters: boolean;
@@ -795,7 +801,8 @@ export class EditorContribOptions {
 		this.hover = Boolean(source.hover);
 		this.contextmenu = Boolean(source.contextmenu);
 		this.quickSuggestions = Boolean(source.quickSuggestions);
-		this.quickSuggestionsDelay = source.quickSuggestionsDelay|0;
+		this.quickSuggestionsDelay = source.quickSuggestionsDelay||0;
+		this.parameterHints = Boolean(this.parameterHints);
 		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
@@ -816,6 +823,7 @@ export class EditorContribOptions {
 			&& this.contextmenu === other.contextmenu
 			&& this.quickSuggestions === other.quickSuggestions
 			&& this.quickSuggestionsDelay === other.quickSuggestionsDelay
+			&& this.parameterHints === other.parameterHints
 			&& this.iconsInSuggestions === other.iconsInSuggestions
 			&& this.formatOnType === other.formatOnType
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
