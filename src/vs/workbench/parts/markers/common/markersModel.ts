@@ -72,12 +72,43 @@ export class MarkersModel {
 	}
 
 	private toResource(entry: Map.Entry<URI, IMarker[]>) {
-		let markers= entry.value.filter(this.filterMarker.bind(this)).map(this.toMarker);
+		let markers:Marker[]= entry.value.filter(this.filterMarker.bind(this)).map(this.toMarker);
+		markers.sort(this.compareMarkers.bind(this));
 		return markers.length > 0 ? new Resource(entry.key, markers, this.getStatistics(entry.value)) : null;
 	}
 
 	private toMarker(marker: IMarker, index: number):Marker {
 		return new Marker(marker.resource.toString() + index, marker);
+	}
+
+	private compareMarkers(a: Marker, b:Marker): number {
+		let result= this.compare(a.marker.startLineNumber, b.marker.startLineNumber);
+		if (result !== 0) {
+			return result;
+		}
+
+		result= this.compare(a.marker.startColumn, b.marker.startColumn);
+		if (result !== 0) {
+			return result;
+		}
+
+		result= this.compare(a.marker.endLineNumber, b.marker.endLineNumber);
+		if (result !== 0) {
+			return result;
+		}
+
+		result= this.compare(a.marker.endColumn, b.marker.endColumn);
+		if (result !== 0) {
+			return result;
+		}
+
+		return a.marker.message.localeCompare(b.marker.message);
+	}
+
+	private compare(a: number, b: number): number {
+		return a < b ? -1
+					: a > b ? 1
+					: 0;
 	}
 
 	private filterMarker(marker: IMarker):boolean {
