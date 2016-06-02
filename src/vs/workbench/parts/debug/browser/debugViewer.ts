@@ -1129,6 +1129,15 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 export class BreakpointsController extends BaseDebugController {
 
+	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: renderer.IActionProvider) {
+		super(debugService, contextMenuService, actionProvider);
+		if (isMacintosh) {
+			this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onRename.bind(this));
+		} else {
+			this.downKeyBindingDispatcher.set(CommonKeybindings.F2, this.onRename.bind(this));
+		}
+	}
+
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		if (element instanceof model.FunctionBreakpoint && event.detail === 2) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
@@ -1141,9 +1150,9 @@ export class BreakpointsController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+	protected onRename(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
-		if (element instanceof model.FunctionBreakpoint) {
+		if (element instanceof model.FunctionBreakpoint && element.name) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
