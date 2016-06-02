@@ -24,6 +24,29 @@ import {Range} from 'vs/editor/common/core/range';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {toThenable} from 'vs/base/common/async';
 
+export function register(language:ILanguageExtensionPoint): void {
+	ModesRegistry.registerLanguage(language);
+}
+
+export function getLanguages(): ILanguageExtensionPoint[] {
+	let result:ILanguageExtensionPoint[] = [];
+	result = result.concat(ModesRegistry.getLanguages());
+	result = result.concat(ModesRegistry.getCompatModes());
+	return result;
+}
+
+export function onLanguage(languageId:string, callback:()=>void): IDisposable {
+	let isDisposed = false;
+	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
+		if (!isDisposed) {
+			callback();
+		}
+	});
+	return {
+		dispose: () => { isDisposed = true; }
+	};
+}
+
 export function setLanguageConfiguration(languageId:string, configuration:IRichLanguageConfiguration): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
@@ -315,22 +338,6 @@ export function registerStandaloneLanguage(language:ILanguageExtensionPoint, def
 	});
 }
 
-export function register(language:ILanguageExtensionPoint): void {
-	ModesRegistry.registerLanguage(language);
-}
-
-export function onLanguage(languageId:string, callback:()=>void): IDisposable {
-	let isDisposed = false;
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
-		if (!isDisposed) {
-			callback();
-		}
-	});
-	return {
-		dispose: () => { isDisposed = true; }
-	};
-}
-
 /**
  * @internal
  */
@@ -344,6 +351,10 @@ export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
  */
 export function createMonacoLanguagesAPI(): typeof monaco.languages {
 	return {
+		register: register,
+		getLanguages: getLanguages,
+		onLanguage: onLanguage,
+
 		// provider methods
 		setLanguageConfiguration: setLanguageConfiguration,
 		setTokensProvider: setTokensProvider,
@@ -364,8 +375,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 
 		// other methods
 		// registerMonarchStandaloneLanguage: registerMonarchStandaloneLanguage,
-		register: register,
-		onLanguage: onLanguage,
 
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,

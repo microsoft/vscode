@@ -1,6 +1,6 @@
 {
   "name": "monaco-editor-core",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A browser based code editor",
   "main": "index.js",
   "scripts": {

@@ -642,22 +642,24 @@ declare module monaco.editor {
 
     export function createDiffEditor(domElement: HTMLElement, options: IDiffEditorConstructionOptions, services: IEditorOverrideServices): IDiffEditor;
 
-    export function createModel(value: string, mode: string | ILanguage | languages.IMode, associatedResource?: Uri | string): IModel;
+    export function createModel(value: string, language?: string, uri?: Uri): IModel;
 
-    export function getModels(): IModel[];
+    export function setModelLanguage(model: IModel, language: string): void;
+
+    export function setModelMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
 
     export function getModel(uri: Uri): IModel;
+
+    export function getModels(): IModel[];
 
     export function onDidCreateModel(listener: (model: IModel) => void): IDisposable;
 
     export function onWillDisposeModel(listener: (model: IModel) => void): IDisposable;
 
-    export function onDidChangeModelMode(listener: (e: {
+    export function onDidChangeModelLanguage(listener: (e: {
         model: IModel;
-        oldModeId: string;
+        oldLanguage: string;
     }) => void): IDisposable;
-
-    export function setMarkers(model: IModel, owner: string, markers: IMarkerData[]): void;
 
     export class MonacoWebWorker<T> {
         dispose(): void;
@@ -679,7 +681,7 @@ declare module monaco.editor {
 
     export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
         value?: string;
-        mode?: string;
+        language?: string;
     }
 
     export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
@@ -3296,6 +3298,12 @@ declare module monaco.editor {
 declare module monaco.languages {
 
 
+    export function register(language: ILanguageExtensionPoint): void;
+
+    export function getLanguages(): ILanguageExtensionPoint[];
+
+    export function onLanguage(languageId: string, callback: () => void): IDisposable;
+
     export function setLanguageConfiguration(languageId: string, configuration: IRichLanguageConfiguration): IDisposable;
 
     export function setTokensProvider(languageId: string, support: TokensProvider): IDisposable;
@@ -3370,10 +3378,6 @@ declare module monaco.languages {
     export function registerOnTypeFormattingEditProvider(languageId: string, support: OnTypeFormattingEditProvider): IDisposable;
 
     export function registerLinkProvider(languageId: string, support: LinkProvider): IDisposable;
-
-    export function register(language: ILanguageExtensionPoint): void;
-
-    export function onLanguage(languageId: string, callback: () => void): IDisposable;
 
     export interface CommentRule {
         lineComment?: string;
