@@ -102,13 +102,6 @@ export class ParameterHintsWidget implements IContentWidget {
 				this.editor.layoutContentWidget(this);
 			}
 		}));
-
-		this.editor.applyFontInfo(this.getDomNode());
-		this.disposables.push(this.editor.onDidChangeConfiguration(e => {
-			if (e.fontInfo) {
-				this.editor.applyFontInfo(this.getDomNode());
-			}
-		}));
 	}
 
 	private show(): void {
@@ -173,14 +166,22 @@ export class ParameterHintsWidget implements IContentWidget {
 		}
 	}
 
+	private applyFont(element: HTMLElement): void {
+		const fontInfo = this.editor.getConfiguration().fontInfo;
+		element.style.fontFamily = fontInfo.fontFamily;
+	}
+
 	private renderSignature(element: HTMLElement, signature:SignatureInformation, currentParameter:number): HTMLElement {
 		const signatureElement = dom.append(element, $('.signature'));
+		const code = dom.append(signatureElement, $('.code'));
 		const hasParameters = signature.parameters.length > 0;
 
+		this.applyFont(code);
+
 		if(!hasParameters) {
-			const label = dom.append(signatureElement, $('span'));
+			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
-			return signatureElement;
+			return code;
 		}
 
 		const parameters = $('span.parameters');
@@ -200,7 +201,7 @@ export class ParameterHintsWidget implements IContentWidget {
 				signatureLabelEnd = idx;
 			}
 
-			const element = i === 0 ? signatureElement : parameters;
+			const element = i === 0 ? code : parameters;
 
 			const label = $('span');
 			label.textContent = signature.label.substring(offset, signatureLabelOffset);
@@ -217,8 +218,8 @@ export class ParameterHintsWidget implements IContentWidget {
 		const label = $('span');
 		label.textContent = signature.label.substring(offset);
 
-		dom.append(signatureElement, parameters);
-		dom.append(signatureElement, label);
+		dom.append(code, parameters);
+		dom.append(code, label);
 
 		return signatureElement;
 	}
@@ -233,11 +234,12 @@ export class ParameterHintsWidget implements IContentWidget {
 		const activeParameter = signature.parameters[activeParameterIdx];
 
 		if(activeParameter && activeParameter.documentation) {
-			const parameter = $('.documentation');
+			const parameter = $('.documentation-parameter');
 			const label = $('span.parameter');
+			this.applyFont(label);
 			label.textContent = activeParameter.label;
 
-			const documentation = $('span');
+			const documentation = $('span.documentation');
 			documentation.textContent = activeParameter.documentation;
 
 			dom.append(parameter, label);
