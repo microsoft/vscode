@@ -7,7 +7,7 @@
 import 'vs/css!./media/markers-statistics-widget';
 import * as dom from 'vs/base/browser/dom';
 import { MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { MarkersModel } from 'vs/workbench/parts/markers/common/MarkersModel';
+import { MarkersModel } from 'vs/workbench/parts/markers/common/markersModel';
 
 export default class MarkerStatisticsWidget {
 

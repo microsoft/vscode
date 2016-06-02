@@ -12,7 +12,7 @@ import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import actionsrenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import tree = require('vs/base/parts/tree/browser/tree');
-import { Resource } from 'vs/workbench/parts/markers/common/MarkersModel';
+import { Resource } from 'vs/workbench/parts/markers/common/markersModel';
 
 class RemoveResourceAction extends actions.Action {
 	constructor() {

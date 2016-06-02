@@ -10,7 +10,7 @@ import keyboard = require('vs/base/browser/keyboardEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
-import { Marker } from 'vs/workbench/parts/markers/common/MarkersModel';
+import { Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMarker } from 'vs/platform/markers/common/markers';
 

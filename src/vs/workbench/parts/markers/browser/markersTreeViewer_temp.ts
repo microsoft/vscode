@@ -10,12 +10,12 @@ import {IDataSource, ITree, IRenderer} from 'vs/base/parts/tree/browser/tree';
 import { IActionRunner } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import { ActionProvider } from 'vs/workbench/parts/markers/browser/MarkersActionProvider';
+import { ActionProvider } from 'vs/workbench/parts/markers/browser/markersActionProvider';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/base/browser/ui/fileLabel/fileLabel';
 import { IMarker } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/MarkersModel';
-import MarkersStatisticsWidget from 'vs/workbench/parts/markers/browser/MarkersStatisticsWidget';
+import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
+import MarkersStatisticsWidget from 'vs/workbench/parts/markers/browser/markersStatisticsWidget';
 
 interface IResourceTemplateData {
 	file: FileLabel;

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import Messages from 'vs/workbench/parts/markers/common/Messages';
-import Constants from 'vs/workbench/parts/markers/common/Constants';
+import Messages from 'vs/workbench/parts/markers/common/messages';
+import Constants from 'vs/workbench/parts/markers/common/constants';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -41,7 +41,7 @@ export function registerContributions(): void {
 
 	// register markers panel
 	(<panel.PanelRegistry>platform.Registry.as(panel.Extensions.Panels)).registerPanel(new panel.PanelDescriptor(
-		'vs/workbench/parts/markers/browser/MarkersPanel',
+		'vs/workbench/parts/markers/browser/markersPanel',
 		'MarkersPanel',
 		Constants.MARKERS_PANEL_ID,
 		Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS,

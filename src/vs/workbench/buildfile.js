@@ -34,7 +34,7 @@ exports.collectModules = function(excludes) {
 		createModuleDescription('vs/workbench/parts/debug/browser/debugViewlet', excludes),
 		createModuleDescription('vs/workbench/parts/debug/browser/repl', excludes),
 
-		createModuleDescription('vs/workbench/parts/markers/browser/MarkersPanel', excludes),
+		createModuleDescription('vs/workbench/parts/markers/browser/markersPanel', excludes),
 
 		createModuleDescription('vs/workbench/parts/terminal/electron-browser/terminalPanel', excludes),
 

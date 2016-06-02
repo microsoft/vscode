@@ -9,7 +9,7 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import {IFilter, or, matchesContiguousSubString, matchesPrefix} from 'vs/base/common/filters';
-import Messages from 'vs/workbench/parts/markers/common/Messages';
+import Messages from 'vs/workbench/parts/markers/common/messages';
 
 export class Resource {
 	constructor(public uri: URI, public markers: Marker[], public statistics: MarkerStatistics){};
