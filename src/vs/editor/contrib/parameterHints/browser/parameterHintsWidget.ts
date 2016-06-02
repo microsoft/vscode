@@ -7,14 +7,14 @@
 
 import 'vs/css!./parameterHints';
 import nls = require('vs/nls');
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Builder, $} from 'vs/base/browser/builder';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Builder, $ } from 'vs/base/browser/builder';
 import aria = require('vs/base/browser/ui/aria/aria');
-import {ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
-import {SignatureHelp, SignatureInformation} from 'vs/editor/common/modes';
-import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
-import {IHintEvent, ParameterHintsModel} from './parameterHintsModel';
+import { ICursorSelectionChangedEvent, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { SignatureHelp, SignatureInformation } from 'vs/editor/common/modes';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IHintEvent, ParameterHintsModel } from './parameterHintsModel';
 
 interface ISignatureView {
 	top: number;
@@ -43,7 +43,7 @@ export class ParameterHintsWidget implements IContentWidget {
 	private _onHidden: () => void;
 
 	// Editor.IContentWidget.allowEditorOverflow
-	public allowEditorOverflow = true;
+	allowEditorOverflow = true;
 
 	constructor(model: ParameterHintsModel, editor: ICodeEditor, onShown: () => void, onHidden: () => void) {
 		this._onShown = onShown;
@@ -76,7 +76,7 @@ export class ParameterHintsWidget implements IContentWidget {
 
 		this.$wrapper = $('.wrapper.monaco-editor-background').appendTo(this.$el);
 
-		var $buttons = $('.buttons').appendTo(this.$wrapper);
+		const $buttons = $('.buttons').appendTo(this.$wrapper);
 
 		$('.button.previous').on('click', (e) => {
 			e.preventDefault();
@@ -146,7 +146,7 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.editor.layoutContentWidget(this);
 	}
 
-	public getPosition():IContentWidgetPosition {
+	getPosition():IContentWidgetPosition {
 		if (this.isVisible) {
 			return {
 				position: this.editor.getPosition(),
@@ -165,15 +165,15 @@ export class ParameterHintsWidget implements IContentWidget {
 
 		this.$signatures.empty();
 		this.signatureViews = [];
-		var height = 0;
+		let height = 0;
 
-		for (var i = 0, len = hints.signatures.length; i < len; i++) {
-			var signature = hints.signatures[i];
-			var $signature = this.renderSignature(this.$signatures, signature, hints.activeParameter);
+		for (let i = 0, len = hints.signatures.length; i < len; i++) {
+			const signature = hints.signatures[i];
+			const $signature = this.renderSignature(this.$signatures, signature, hints.activeParameter);
 
 			this.renderDocumentation($signature, signature, hints.activeParameter);
 
-			var signatureHeight = $signature.getClientArea().height;
+			const signatureHeight = $signature.getClientArea().height;
 
 			this.signatureViews.push({
 				top: height,
@@ -185,8 +185,7 @@ export class ParameterHintsWidget implements IContentWidget {
 	}
 
 	private renderSignature($el:Builder, signature:SignatureInformation, currentParameter:number):Builder {
-
-		var $signature = $('.signature').appendTo($el),
+		const $signature = $('.signature').appendTo($el),
 			hasParameters = signature.parameters.length > 0;
 
 		if(!hasParameters) {
@@ -194,12 +193,12 @@ export class ParameterHintsWidget implements IContentWidget {
 
 		} else {
 
-			var $parameters = $('span.parameters'),
-				offset = 0;
+			const $parameters = $('span.parameters');
+			let offset = 0;
 
 			let idx = 0;
-			for (var i = 0, len = signature.parameters.length; i < len; i++) {
-				var parameter = signature.parameters[i];
+			for (let i = 0, len = signature.parameters.length; i < len; i++) {
+				const parameter = signature.parameters[i];
 				idx = signature.label.indexOf(parameter.label, idx);
 
 				let signatureLabelOffset = 0;
@@ -228,9 +227,9 @@ export class ParameterHintsWidget implements IContentWidget {
 			$el.append($('.documentation').text(signature.documentation));
 		}
 
-		var activeParameter = signature.parameters[activeParameterIdx];
+		const activeParameter = signature.parameters[activeParameterIdx];
 		if(activeParameter && activeParameter.documentation) {
-			var $parameter = $('.documentation');
+			const $parameter = $('.documentation');
 			$parameter.append($('span.parameter').text(activeParameter.label));
 			$parameter.append($('span').text(activeParameter.documentation));
 			$el.append($parameter);
@@ -238,7 +237,7 @@ export class ParameterHintsWidget implements IContentWidget {
 	}
 
 	private select(position: number): void {
-		var signature = this.signatureViews[position];
+		const signature = this.signatureViews[position];
 
 		if (!signature) {
 			return;
@@ -247,7 +246,7 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.$signatures.style({ height: signature.height + 'px' });
 		this.$signatures.getHTMLElement().scrollTop = signature.top;
 
-		var overloads = '' + (position + 1);
+		let overloads = '' + (position + 1);
 
 		if (this.signatureViews.length < 10) {
 			overloads += '/' + this.signatureViews.length;
@@ -266,7 +265,7 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.editor.layoutContentWidget(this);
 	}
 
-	public selectNext(): boolean {
+	selectNext(): boolean {
 		if (this.signatureViews.length < 2) {
 			this.cancel();
 			return false;
@@ -277,7 +276,7 @@ export class ParameterHintsWidget implements IContentWidget {
 		return true;
 	}
 
-	public selectPrevious(): boolean {
+	selectPrevious(): boolean {
 		if (this.signatureViews.length < 2) {
 			this.cancel();
 			return false;
@@ -293,19 +292,19 @@ export class ParameterHintsWidget implements IContentWidget {
 		return true;
 	}
 
-	public cancel(): void {
+	cancel(): void {
 		this.model.cancel();
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		return this.$el.getHTMLElement();
 	}
 
-	public getId(): string {
+	getId(): string {
 		return ParameterHintsWidget.ID;
 	}
 
-	public destroy(): void {
+	destroy(): void {
 		this.toDispose = dispose(this.toDispose);
 
 		this.model = null;

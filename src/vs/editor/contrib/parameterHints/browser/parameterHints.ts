@@ -5,22 +5,25 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution} from 'vs/editor/common/editorCommon';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {SignatureHelpProviderRegistry} from 'vs/editor/common/modes';
-import {ParameterHintsModel} from './parameterHintsModel';
-import {ParameterHintsWidget} from './parameterHintsWidget';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { EditorAction } from 'vs/editor/common/editorAction';
+import { ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
+import { SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
+import { ParameterHintsModel } from './parameterHintsModel';
+import { ParameterHintsWidget } from './parameterHintsWidget';
+
+const CONTEXT_PARAMETER_HINTS_VISIBLE = 'parameterHintsVisible';
 
 class ParameterHintsController implements IEditorContribution {
+
 	static ID = 'editor.controller.parameterHints';
 
-	public static get(editor:ICommonCodeEditor): ParameterHintsController {
+	static get(editor:ICommonCodeEditor): ParameterHintsController {
 		return <ParameterHintsController>editor.getContribution(ParameterHintsController.ID);
 	}
 
@@ -40,7 +43,7 @@ class ParameterHintsController implements IEditorContribution {
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.model.dispose();
 		this.model = null;
 
@@ -48,23 +51,23 @@ class ParameterHintsController implements IEditorContribution {
 		this.widget = null;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return ParameterHintsController.ID;
 	}
 
-	public closeWidget(): void {
+	closeWidget(): void {
 		this.widget.cancel();
 	}
 
-	public showPrevHint(): void {
+	showPrevHint(): void {
 		this.widget.selectPrevious();
 	}
 
-	public showNextHint(): void {
+	showNextHint(): void {
 		this.widget.selectNext();
 	}
 
-	public trigger(): void {
+	trigger(): void {
 		this.model.trigger(0);
 	}
 }
@@ -77,31 +80,55 @@ export class TriggerParameterHintsAction extends EditorAction {
 		super(descriptor, editor);
 	}
 
-	public isSupported(): boolean {
+	isSupported(): boolean {
 		return SignatureHelpProviderRegistry.has(this.editor.getModel()) && super.isSupported();
 	}
 
-	public run():TPromise<boolean> {
+	run():TPromise<boolean> {
 		ParameterHintsController.get(this.editor).trigger();
 		return TPromise.as(true);
 	}
 }
 
-var CONTEXT_PARAMETER_HINTS_VISIBLE = 'parameterHintsVisible';
+const weight = CommonEditorRegistry.commandWeight(75);
 
-var weight = CommonEditorRegistry.commandWeight(75);
+function handler(fn: (controller: ParameterHintsController)=>void): (ctx, editor: ICommonCodeEditor)=>void {
+	return (ctx, editor: ICommonCodeEditor) => fn(ParameterHintsController.get(editor));
+}
 
 EditorBrowserRegistry.registerEditorContribution(ParameterHintsController);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerParameterHintsAction, TriggerParameterHintsAction.ID, nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
-}, 'Trigger Parameter Hints'));
-CommonEditorRegistry.registerEditorCommand('closeParameterHints', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
-	ParameterHintsController.get(editor).closeWidget();
-});
-CommonEditorRegistry.registerEditorCommand('showPrevParameterHint', weight, { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
-	ParameterHintsController.get(editor).showPrevHint();
-});
-CommonEditorRegistry.registerEditorCommand('showNextParameterHint', weight, { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
-	ParameterHintsController.get(editor).showNextHint();
-});
+
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(
+	TriggerParameterHintsAction,
+	TriggerParameterHintsAction.ID,
+	nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"),
+	{ context: ContextKey.EditorTextFocus, primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space },
+	'Trigger Parameter Hints'
+));
+
+CommonEditorRegistry.registerEditorCommand(
+	'closeParameterHints',
+	weight,
+	{ primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] },
+	true,
+	CONTEXT_PARAMETER_HINTS_VISIBLE,
+	handler(c => c.closeWidget())
+);
+
+CommonEditorRegistry.registerEditorCommand(
+	'showPrevParameterHint',
+	weight,
+	{ primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
+	true,
+	CONTEXT_PARAMETER_HINTS_VISIBLE,
+	handler(c =>c.showPrevHint())
+);
+
+CommonEditorRegistry.registerEditorCommand(
+	'showNextParameterHint',
+	weight,
+	{ primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
+	true,
+	CONTEXT_PARAMETER_HINTS_VISIBLE,
+	handler(c => c.showNextHint())
+);

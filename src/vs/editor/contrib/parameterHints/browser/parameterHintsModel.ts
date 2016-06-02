@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {RunOnceScheduler} from 'vs/base/common/async';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
-import {ICommonCodeEditor, ICursorSelectionChangedEvent} from 'vs/editor/common/editorCommon';
-import {SignatureHelpProviderRegistry, SignatureHelp} from 'vs/editor/common/modes';
-import {provideSignatureHelp} from '../common/parameterHints';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
+import { SignatureHelpProviderRegistry, SignatureHelp } from 'vs/editor/common/modes';
+import { provideSignatureHelp } from '../common/parameterHints';
 
 export interface IHintEvent {
 	hints: SignatureHelp;
@@ -21,14 +21,13 @@ export class ParameterHintsModel extends Disposable {
 	static DELAY = 120; // ms
 
 	private _onHint = this._register(new Emitter<IHintEvent>());
-	public onHint: Event<IHintEvent> = this._onHint.event;
+	onHint: Event<IHintEvent> = this._onHint.event;
 
 	private _onCancel = this._register(new Emitter<void>());
-	public onCancel: Event<void> = this._onCancel.event;
+	onCancel: Event<void> = this._onCancel.event;
 
 	private editor: ICommonCodeEditor;
 	private triggerCharactersListeners: IDisposable[];
-
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
 
@@ -49,7 +48,7 @@ export class ParameterHintsModel extends Disposable {
 		this.onModelChanged();
 	}
 
-	public cancel(silent: boolean = false): void {
+	cancel(silent: boolean = false): void {
 		this.active = false;
 
 		this.throttledDelayer.cancel();
@@ -59,7 +58,7 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
-	public trigger(delay = ParameterHintsModel.DELAY): void {
+	trigger(delay = ParameterHintsModel.DELAY): void {
 		if (!SignatureHelpProviderRegistry.has(this.editor.getModel())) {
 			return;
 		}
@@ -80,13 +79,13 @@ export class ParameterHintsModel extends Disposable {
 
 				this.active = true;
 
-				var event:IHintEvent = { hints: result };
+				const event:IHintEvent = { hints: result };
 				this._onHint.fire(event);
 				return true;
 			});
 	}
 
-	public isTriggered():boolean {
+	isTriggered():boolean {
 		return this.active || this.throttledDelayer.isScheduled();
 	}
 
@@ -96,12 +95,12 @@ export class ParameterHintsModel extends Disposable {
 		}
 		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
 
-		var model = this.editor.getModel();
+		const model = this.editor.getModel();
 		if (!model) {
 			return;
 		}
 
-		let support = SignatureHelpProviderRegistry.ordered(model)[0];
+		const support = SignatureHelpProviderRegistry.ordered(model)[0];
 		if (!support) {
 			return;
 		}
@@ -121,9 +120,8 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.cancel(true);
-
 		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
 
 		super.dispose();
