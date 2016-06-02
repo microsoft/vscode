@@ -77,9 +77,7 @@ export function extname(path: string): string {
 	return idx ? path.substring(~idx) : '';
 }
 
-const _dotSegment = /[\\\/]\.\.?[\\\/]?|[\\\/]?\.\.?[\\\/]/;
-
-export function normalize(path: string, toOSPath?: boolean): string {
+export function normalize2(path: string, toOSPath: boolean): string {
 
 	if (path === null || path === void 0) {
 		return path;
@@ -93,14 +91,86 @@ export function normalize(path: string, toOSPath?: boolean): string {
 	const sep = isWindows && toOSPath ? '\\' : '/';
 	const root = getRoot(path, sep);
 
-	if (path.indexOf(root) === 0 && !_dotSegment.test(path)) {
-		const badSep = isWindows && toOSPath ? '/' : '\\';
-		if (path.indexOf(badSep) === -1 && path.indexOf(sep + sep) === -1) {
-			return path;
+	let lastCode = -1;
+
+	for (let pos = root.length; pos < len; pos++) {
+		let code = path.charCodeAt(pos);
+		if (code === 64/*.*/) {
+
+			if (lastCode === -1 || lastCode === 47 || lastCode === 92) {
+
+				if (pos + 1 < len) {
+					code = path.charCodeAt(++pos);
+					if (code === 47 || code === 92) {
+
+					}
+				}
+			}
 		}
+	}
+}
+
+function _isNormal(path: string, badSep: number): boolean {
+	let lastCode = -1;
+	for (let pos = 0; pos < path.length; pos++) {
+		let code = path.charCodeAt(pos);
+		// bad separator
+		if (code === badSep) {
+			return false;
+		}
+		// double separator
+		if ((code === _slash || code === _backslash)
+			&& (lastCode === _slash || lastCode === _backslash)) {
+
+			return false;
+		}
+		// ./ ../ segments
+		if (code === _dot && (lastCode === -1 || lastCode === _slash || lastCode === _backslash)) {
+			if (pos + 1 >= path.length) {
+				// /.<end>
+				return false;
+			}
+			code = path.charCodeAt(++pos);
+			if (code === _slash || code === _backslash) {
+				// /./
+				return false;
+
+			} else if (code === _dot) {
+				if (pos + 1 >= path.length) {
+					// /..<end>
+					return false;
+				}
+				code = path.charCodeAt(++pos);
+				if (code === _slash || code === _backslash) {
+					// /../
+					return false;
+				}
+			}
+		}
+		lastCode = code;
+	}
+	return true;
+}
+
+
+export function normalize(path: string, toOSPath?: boolean): string {
+
+	if (path === null || path === void 0) {
+		return path;
+	}
+
+	let len = path.length;
+	if (len === 0) {
+		return '.';
+	}
+
+	if (_isNormal(path, isWindows && toOSPath ? _slash : _backslash)) {
+		return path;
 	}
 
 	// operate on the 'path-portion' only
+	const sep = isWindows && toOSPath ? '\\' : '/';
+	const root = getRoot(path, sep);
 	path = path.slice(root.length);
 	len -= root.length;
 
@@ -304,6 +374,7 @@ export function isRelative(path: string): boolean {
 const _slash = '/'.charCodeAt(0);
 const _backslash = '\\'.charCodeAt(0);
 const _colon = ':'.charCodeAt(0);
+const _dot = '.'.charCodeAt(0);
 const _a = 'a'.charCodeAt(0);
 const _A = 'A'.charCodeAt(0);
 const _z = 'z'.charCodeAt(0);
