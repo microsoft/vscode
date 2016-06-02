@@ -20,6 +20,7 @@ import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {EditorOptions, UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
@@ -206,6 +207,7 @@ export class Controller extends treedefaults.DefaultController {
 
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -318,9 +320,9 @@ export class Controller extends treedefaults.DefaultController {
 			if (pinEditor) {
 				this.editorService.pinEditor(position, element.editorInput);
 			}
-			this.editorService.activateGroup(position);
+			this.editorGroupService.activateGroup(position);
 			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus: !pinEditor }), position)
-				.done(() => this.editorService.activateGroup(position), errors.onUnexpectedError);
+				.done(() => this.editorGroupService.activateGroup(position), errors.onUnexpectedError);
 		}
 	}
 }
@@ -466,7 +468,10 @@ export class ActionProvider implements IActionProvider {
 
 export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
 		super();
 	}
 
@@ -530,7 +535,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 			if (draggedElement instanceof OpenEditor) {
 				this.editorService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
 			} else {
-				this.editorService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
+				this.editorGroupService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
 			}
 		}
 	}

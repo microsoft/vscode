@@ -400,10 +400,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return [];
 	}
 
-	public activateGroup(position: Position): void {
-		this.callback('activateGroup');
-	}
-
 	public pinEditor(position: Position, input: IEditorInput): void {
 		this.callback('pinEditor');
 	}
@@ -414,14 +410,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void {
 		this.callback('moveEditor');
-	}
-
-	public moveGroup(from: Position, to: Position): void {
-		this.callback('moveGroup');
-	}
-
-	public arrangeGroups(arrangement: WorkbenchEditorService.GroupArrangement): void {
-		this.callback('arrangeGroups');
 	}
 
 	public openEditor(input: any, options?: any, position?: any): Promise {
@@ -447,10 +435,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.callback('closeEditor');
 
 		return TPromise.as(null);
-	}
-
-	public focusGroup(position: Position): void {
-		this.callback('focusGroup');
 	}
 
 	public createInput(input: IResourceInput): TPromise<IEditorInput> {

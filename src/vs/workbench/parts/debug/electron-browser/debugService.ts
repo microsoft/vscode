@@ -29,6 +29,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import session = require('vs/workbench/parts/debug/node/rawDebugSession');
@@ -87,6 +88,7 @@ export class DebugService implements debug.IDebugService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -766,9 +768,9 @@ export class DebugService implements debug.IDebugService {
 				if (control) {
 					control.revealLineInCenterIfOutsideViewport(lineNumber);
 					control.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-					this.editorService.activateGroup(i);
+					this.editorGroupService.activateGroup(i);
 					if (!preserveFocus) {
-						this.editorService.focusGroup(i);
+						this.editorGroupService.focusGroup(i);
 					}
 				}
 

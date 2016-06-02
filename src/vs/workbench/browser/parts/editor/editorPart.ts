@@ -35,6 +35,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {EditorStacksModel, EditorGroup, EditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
@@ -68,7 +69,9 @@ interface IEditorReplacement extends EditorIdentifier {
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
  */
-export class EditorPart extends Part implements IEditorPart {
+export class EditorPart extends Part implements IEditorPart, IEditorGroupService {
+
+	public serviceId = IEditorGroupService;
 
 	private static GROUP_LEFT_LABEL = nls.localize('leftGroup', "Left");
 	private static GROUP_CENTER_LABEL = nls.localize('centerGroup', "Center");

@@ -19,7 +19,7 @@ import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInpu
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
@@ -45,12 +45,8 @@ export interface IEditorPart {
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
 	moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void;
-	moveGroup(from: Position, to: Position): void;
-	focusGroup(position: Position): void;
-	activateGroup(position: Position): void;
 	pinEditor(position: Position, input: EditorInput): void;
 	unpinEditor(position: Position, input: EditorInput): void;
-	arrangeGroups(arrangement: GroupArrangement): void;
 	getStacksModel(): IEditorStacksModel;
 }
 
@@ -123,14 +119,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
 		this.editorPart.moveEditor(input, from, to, index);
-	}
-
-	public moveGroup(from: Position, to: Position): void {
-		this.editorPart.moveGroup(from, to);
-	}
-
-	public arrangeGroups(arrangement: GroupArrangement): void {
-		this.editorPart.arrangeGroups(arrangement);
 	}
 
 	public openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
@@ -221,14 +209,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public closeAllEditors(except?: Position): TPromise<void> {
 		return this.editorPart.closeAllEditors(except);
-	}
-
-	public focusGroup(position: Position): void {
-		this.editorPart.focusGroup(position);
-	}
-
-	public activateGroup(position: Position): void {
-		this.editorPart.activateGroup(position);
 	}
 
 	public pinEditor(position: Position, input: EditorInput): void {

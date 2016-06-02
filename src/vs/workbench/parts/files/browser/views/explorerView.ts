@@ -23,6 +23,7 @@ import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEdit
 import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
 import {IEditor} from 'vs/platform/editor/common/editor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import {CollapseAction, CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -71,6 +72,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService private eventService: IEventService,
 		@IStorageService private storageService: IStorageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -290,7 +292,7 @@ export class ExplorerView extends CollapsibleViewletView {
 				let editor = editors[i];
 				if (input.matches(editor.input)) {
 					if (!keepFocus) {
-						this.editorService.focusGroup(editor.position);
+						this.editorGroupService.focusGroup(editor.position);
 					}
 
 					return TPromise.as(editor);

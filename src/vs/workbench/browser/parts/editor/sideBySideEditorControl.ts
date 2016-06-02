@@ -28,6 +28,7 @@ import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {QuickOpenAction} from 'vs/workbench/browser/quickopen';
@@ -151,6 +152,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	constructor(
 		parent: Builder,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -426,7 +428,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Focus editor if a candidate has been found
 			if (!types.isUndefinedOrNull(candidate)) {
-				this.editorService.focusGroup(candidate);
+				this.editorGroupService.focusGroup(candidate);
 			}
 		}
 	}
@@ -989,7 +991,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 				// Move to valid position if any
 				if (moveTo !== null) {
-					this.editorService.moveGroup(position, moveTo);
+					this.editorGroupService.moveGroup(position, moveTo);
 				}
 
 				// Otherwise layout to restore proper positioning
@@ -999,7 +1001,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 				// If not dragging, make editor group active unless already active
 				if (!wasDragged && position !== this.getActivePosition()) {
-					this.editorService.focusGroup(position);
+					this.editorGroupService.focusGroup(position);
 				}
 
 				$window.off('mousemove');
@@ -1017,7 +1019,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Focus editor group unless click on toolbar
 			else if (this.getVisibleEditorCount() === 1 && !this.targetInToolbar(<any>e.target || e.srcElement, position)) {
-				this.editorService.focusGroup(position);
+				this.editorGroupService.focusGroup(position);
 			}
 		});
 

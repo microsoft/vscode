@@ -18,13 +18,19 @@ import {Position, IEditor, Direction, IResourceInput} from 'vs/platform/editor/c
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 export class SplitEditorAction extends Action {
 
 	public static ID = 'workbench.action.splitEditor';
 	public static LABEL = nls.localize('splitEditor', "Split Editor");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
 		super(id, label, 'split-editor-action');
 	}
 
@@ -68,8 +74,8 @@ export class SplitEditorAction extends Action {
 					options.pinned = true;
 
 					return this.editorService.openEditor(activeEditor.input, options, Position.RIGHT).then(() => {
-						this.editorService.moveGroup(Position.RIGHT, Position.CENTER);
-						this.editorService.focusGroup(Position.CENTER);
+						this.editorGroupService.moveGroup(Position.RIGHT, Position.CENTER);
+						this.editorGroupService.focusGroup(Position.CENTER);
 					});
 				}
 		}
@@ -88,7 +94,12 @@ export class NavigateBetweenGroupsAction extends Action {
 	public static ID = 'workbench.action.navigateEditorGroups';
 	public static LABEL = nls.localize('navigateEditorGroups', "Navigate Between Editor Groups");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
 		super(id, label);
 	}
 
@@ -105,7 +116,7 @@ export class NavigateBetweenGroupsAction extends Action {
 		let editorCount = visibleEditors.length;
 		let newIndex = (activeEditor.position + 1) % editorCount;
 
-		this.editorService.focusGroup(<Position>newIndex);
+		this.editorGroupService.focusGroup(<Position>newIndex);
 
 		return TPromise.as(true);
 	}
@@ -120,6 +131,7 @@ export class FocusFirstGroupAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
@@ -131,7 +143,7 @@ export class FocusFirstGroupAction extends Action {
 		let editors = this.editorService.getVisibleEditors();
 		for (var editor of editors) {
 			if (editor.position === Position.LEFT) {
-				this.editorService.focusGroup(Position.LEFT);
+				this.editorGroupService.focusGroup(Position.LEFT);
 
 				return TPromise.as(true);
 			}
@@ -157,6 +169,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
@@ -176,7 +189,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 			// Target editor exists so focus it
 			if (editor.position === this.getTargetEditorSide()) {
-				this.editorService.focusGroup(editor.position);
+				this.editorGroupService.focusGroup(editor.position);
 
 				return TPromise.as(true);
 			}
@@ -217,9 +230,10 @@ export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, editorService, historyService);
+		super(id, label, editorService, editorGroupService, historyService);
 	}
 
 	protected getReferenceEditorSide(): Position {
@@ -240,9 +254,10 @@ export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, editorService, historyService);
+		super(id, label, editorService, editorGroupService, historyService);
 	}
 
 	protected getReferenceEditorSide(): Position {
@@ -259,7 +274,12 @@ export class FocusPreviousGroup extends Action {
 	public static ID = 'workbench.action.focusPreviousGroup';
 	public static LABEL = nls.localize('focusPreviousGroup', "Focus Previous Group");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
@@ -279,7 +299,7 @@ export class FocusPreviousGroup extends Action {
 		}
 
 		// Focus next position if provided
-		this.editorService.focusGroup(nextPosition);
+		this.editorGroupService.focusGroup(nextPosition);
 
 		return TPromise.as(true);
 	}
@@ -581,7 +601,12 @@ export class MoveGroupLeftAction extends Action {
 	public static ID = 'workbench.action.moveActiveEditorGroupLeft';
 	public static LABEL = nls.localize('moveActiveGroupLeft', "Move Editor Group Left");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
@@ -598,7 +623,7 @@ export class MoveGroupLeftAction extends Action {
 			let newPosition = (position === Position.CENTER) ? Position.LEFT : Position.CENTER;
 
 			// Move group
-			this.editorService.moveGroup(position, newPosition);
+			this.editorGroupService.moveGroup(position, newPosition);
 		}
 
 		return TPromise.as(false);
@@ -610,7 +635,12 @@ export class MoveGroupRightAction extends Action {
 	public static ID = 'workbench.action.moveActiveEditorGroupRight';
 	public static LABEL = nls.localize('moveActiveGroupRight', "Move Editor Group Right");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
@@ -629,7 +659,7 @@ export class MoveGroupRightAction extends Action {
 			let newPosition = (position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
 
 			// Move group
-			this.editorService.moveGroup(position, newPosition);
+			this.editorGroupService.moveGroup(position, newPosition);
 		}
 
 		return TPromise.as(false);
@@ -641,12 +671,12 @@ export class MinimizeOtherGroupsAction extends Action {
 	public static ID = 'workbench.action.minimizeOtherEditors';
 	public static LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
+		this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
 
 		return TPromise.as(false);
 	}
@@ -657,12 +687,12 @@ export class EvenGroupWidthsAction extends Action {
 	public static ID = 'workbench.action.evenEditorWidths';
 	public static LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorService.arrangeGroups(GroupArrangement.EVEN_WIDTH);
+		this.editorGroupService.arrangeGroups(GroupArrangement.EVEN_WIDTH);
 
 		return TPromise.as(false);
 	}
@@ -677,6 +707,7 @@ export class MaximizeGroupAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService
 	) {
 		super(id, label);
@@ -684,7 +715,7 @@ export class MaximizeGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		if (this.editorService.getActiveEditor()) {
-			this.editorService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
+			this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
 			this.partService.setSideBarHidden(true);
 		}
 

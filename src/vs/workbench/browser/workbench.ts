@@ -55,6 +55,7 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -382,6 +383,7 @@ export class Workbench implements IPartService {
 			this.instantiationService
 		);
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
+		serviceCollection.set(IEditorGroupService, this.editorPart);
 
 		// History
 		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService, this.storageService, this.lifecycleService, this.instantiationService));

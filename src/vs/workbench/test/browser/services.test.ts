@@ -112,14 +112,6 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(activeEditor);
 	}
 
-	public activateGroup(position: Position): void {
-		// Unsupported
-	}
-
-	public focusGroup(position: Position): void {
-		// Unsupported
-	}
-
 	public pinEditor(position: Position, input: EditorInput): void {
 		// Unsupported
 	}
@@ -146,14 +138,6 @@ class TestEditorPart implements IEditorPart {
 
 	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
 		// Unsupported
-	}
-
-	public moveGroup(from: Position, to: Position) {
-		// Unsupported
-	}
-
-	public arrangeGroups(arrangement: GroupArrangement): void {
-		// Unsuported
 	}
 
 	public getStacksModel(): IEditorStacksModel {

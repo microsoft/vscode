@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -122,29 +123,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	unpinEditor(position: Position, input: IEditorInput): void;
 
 	/**
-	 * Keyboard focus the editor group at the provided position.
-	 */
-	focusGroup(position: Position): void;
-
-	/**
-	 * Activate the editor group at the provided position without moving focus.
-	 */
-	activateGroup(position: Position): void;
-
-	/**
 	 * Moves an editor from one group to another. The index in the group is optional.
 	 */
 	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
-
-	/**
-	 * Allows to move the editor group from one position to another.
-	 */
-	moveGroup(from: Position, to: Position): void;
-
-	/**
-	 * Allows to arrange editor groups according to the GroupArrangement enumeration.
-	 */
-	arrangeGroups(arrangement: GroupArrangement): void;
 
 	/**
 	 * Resolves an input to its model representation. The optional parameter refresh allows to specify

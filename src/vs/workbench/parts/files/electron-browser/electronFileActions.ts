@@ -16,6 +16,7 @@ import severity from 'vs/base/common/severity';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import {ipcRenderer as ipc, shell, clipboard} from 'electron';
 
@@ -90,6 +91,7 @@ export class GlobalCopyPathAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
@@ -100,7 +102,7 @@ export class GlobalCopyPathAction extends Action {
 		let fileInput = activeEditor ? asFileEditorInput(activeEditor.input, true) : void 0;
 		if (fileInput) {
 			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
-			this.editorService.focusGroup(activeEditor.position); // focus back to active editor group
+			this.editorGroupService.focusGroup(activeEditor.position); // focus back to active editor group
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
 		}
