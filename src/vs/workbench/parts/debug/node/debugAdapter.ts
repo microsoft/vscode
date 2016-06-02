@@ -114,6 +114,18 @@ export class Adapter {
 					default: 'openOnFirstSessionStart',
 					description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
 				};
+				properties.windows = {
+					type: 'object',
+					description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes.")
+				};
+				properties.osx = {
+					type: 'object',
+					description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes.")
+				};
+				properties.linux = {
+					type: 'object',
+					description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes.")
+				};
 				this.warnRelativePaths(properties.outDir);
 				this.warnRelativePaths(properties.program);
 				this.warnRelativePaths(properties.cwd);

@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 import { sequence } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
+import {isLinux, isMacintosh, isWindows} from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
@@ -286,6 +287,23 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				}
 			} else {
 				this.configuration = objects.deepClone(nameOrConfig);
+			}
+
+			// Set operating system specific properties #1873
+			if (isWindows && this.configuration.windows) {
+				Object.keys(this.configuration.windows).forEach(key => {
+					this.configuration[key] = this.configuration.windows[key];
+				});
+			}
+			if (isMacintosh && this.configuration.osx) {
+				Object.keys(this.configuration.osx).forEach(key => {
+					this.configuration[key] = this.configuration.osx[key];
+				});
+			}
+			if (isLinux && this.configuration.linux) {
+				Object.keys(this.configuration.linux).forEach(key => {
+					this.configuration[key] = this.configuration.linux[key];
+				});
 			}
 
 			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
