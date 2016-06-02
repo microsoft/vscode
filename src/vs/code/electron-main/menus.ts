@@ -518,10 +518,12 @@ export class VSCodeMenu {
 		let output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
 		let debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"), 'workbench.debug.action.toggleRepl');
 		let integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
+		let problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.action.markers.panel.toggle');
 
 		let panelsMenu = new Menu();
 		[
 			output,
+			problems,
 			debugConsole,
 			integratedTerminal
 		].forEach(item => panelsMenu.append(item));
@@ -529,7 +531,6 @@ export class VSCodeMenu {
 		let panelsItem = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miPanels', comment: ['&& denotes a mnemonic'] }, "&&Panels")), submenu: panelsMenu, enabled: true });
 
 		let commands = this.createMenuItem(nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette..."), 'workbench.action.showCommands');
-		let markers = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Toggle Problems Panel"), 'workbench.action.markers.panel.toggle');
 
 		let fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => this.windowsService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsService.getWindowCount() > 0 });
 		let toggleMenuBar = this.createMenuItem(nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
@@ -551,7 +552,6 @@ export class VSCodeMenu {
 			panelsItem,
 			__separator__(),
 			commands,
-			markers,
 			__separator__(),
 			fullscreen,
 			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
