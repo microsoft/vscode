@@ -25,16 +25,17 @@ export class Controller extends treedefaults.DefaultController {
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
-		if (this.openFileAtElement(element)) {
-			return true;
+		if (super.onLeftClick(tree, element, event)) {
+			return this.openFileAtElement(element);
 		}
-		return super.onLeftClick(tree, element, event);
+		return false;
 	}
 
 	protected onEnter(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
-		super.onEnter(tree, event);
-		this.openFileAtElement(tree.getFocus());
-		return true;
+		if (super.onEnter(tree, event)) {
+			return this.openFileAtElement(tree.getFocus());
+		}
+		return false;
 	}
 
 	private openFileAtElement(element: any) {

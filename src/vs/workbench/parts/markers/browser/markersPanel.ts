@@ -95,7 +95,10 @@ export class MarkersPanel extends Panel {
 
 	public focus(): void {
 		if (this.markersModel.hasFilteredResources()) {
-			this.tree.focusFirst();
+			this.tree.DOMFocus();
+			if (!this.tree.getFocus()) {
+				this.tree.focusFirst();
+			}
 		}
 	}
 
@@ -136,10 +139,11 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createTree(parent: HTMLElement):void {
+		var treeContainer= dom.append(parent, dom.emmet('.tree-container'));
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
 		var controller = this.instantiationService.createInstance(Controller);
-		this.tree= new TreeImpl.Tree(parent, {
+		this.tree= new TreeImpl.Tree(treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer: renderer,
 			controller: controller

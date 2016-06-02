@@ -33,12 +33,16 @@
 	display: inline-block;
 }
 
-.markers-panel .markers-panel-container .monaco-tree .monaco-tree-row .content .marker-stats {
+.markers-panel .markers-panel-container .tree-container {
+	height: 89%;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tree .monaco-tree-row .content .marker-stats {
 	display: inline-block;
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .monaco-tree .monaco-tree-row .content .count-badge-wrapper {
+.markers-panel .markers-panel-container .tree-container .monaco-tree .monaco-tree-row .content .count-badge-wrapper {
 	display: inline-block;
 	margin-left: 10px;
 	line-height: 22px;
