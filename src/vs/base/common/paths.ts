@@ -77,6 +77,8 @@ export function extname(path: string): string {
 	return idx ? path.substring(~idx) : '';
 }
 
+const _dotSegment = /[\\\/]\.\.?[\\\/]?|[\\\/]?\.\.?[\\\/]/;
+
 export function normalize(path: string, toOSPath?: boolean): string {
 
 	if (path === null || path === void 0) {
@@ -90,6 +92,13 @@ export function normalize(path: string, toOSPath?: boolean): string {
 
 	const sep = isWindows && toOSPath ? '\\' : '/';
 	const root = getRoot(path, sep);
+
+	if (path.indexOf(root) === 0 && !_dotSegment.test(path)) {
+		const badSep = isWindows && toOSPath ? '/' : '\\';
+		if (path.indexOf(badSep) === -1 && path.indexOf(sep + sep) === -1) {
+			return path;
+		}
+	}
 
 	// operate on the 'path-portion' only
 	path = path.slice(root.length);
