@@ -4,20 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as strings from 'vs/base/common/strings';
+import * as paths from 'vs/base/common/paths';
 import * as Map from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import {IFilter, or, matchesContiguousSubString, matchesPrefix} from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 
 export class Resource {
-	constructor(public uri: URI, public markers: Marker[], public statistics: MarkerStatistics){};
+	public name: string;
+	public path: string;
+	constructor(public uri: URI, public markers: Marker[], public statistics: MarkerStatistics){
+		this.path= uri.fsPath;
+		this.name= paths.basename(uri.fsPath);
+	}
 }
 
 export class Marker {
 	static _filter: IFilter = or(matchesPrefix, matchesContiguousSubString);
-	constructor(public id:string, public marker: IMarker){};
+	constructor(public id:string, public marker: IMarker){}
 }
 
 export class MarkersModel {
@@ -34,10 +42,13 @@ export class MarkersModel {
 		var resources= <Resource[]>this.markersByResource.entries().map(this.toResource.bind(this));
 		resources= resources.filter((resource) => {return !!resource;});
 		resources.sort((a: Resource, b: Resource) => {
-			if (a.statistics.errors > 0 && b.statistics.errors > 0) {
-				return a.uri.toString().localeCompare(b.uri.toString());
+			if (a.statistics.errors === 0 && b.statistics.errors > 0) {
+				return 1;
 			}
-			return a.statistics.errors > 0 ? -1 : 1;
+			if (b.statistics.errors === 0 && a.statistics.errors > 0) {
+				return -1;
+			}
+			return strings.localeCompare(a.path, b.path) || strings.localeCompare(a.name, b.name);
 		});
 		return resources;
 	}
@@ -82,33 +93,17 @@ export class MarkersModel {
 	}
 
 	private compareMarkers(a: Marker, b:Marker): number {
-		let result= this.compare(a.marker.startLineNumber, b.marker.startLineNumber);
-		if (result !== 0) {
-			return result;
-		}
-
-		result= this.compare(a.marker.startColumn, b.marker.startColumn);
-		if (result !== 0) {
-			return result;
-		}
-
-		result= this.compare(a.marker.endLineNumber, b.marker.endLineNumber);
-		if (result !== 0) {
-			return result;
-		}
-
-		result= this.compare(a.marker.endColumn, b.marker.endColumn);
-		if (result !== 0) {
-			return result;
-		}
-
-		return a.marker.message.localeCompare(b.marker.message);
-	}
-
-	private compare(a: number, b: number): number {
-		return a < b ? -1
-					: a > b ? 1
-					: 0;
+		return Range.compareRangesUsingStarts({
+			startLineNumber: a.marker.startLineNumber,
+			startColumn: a.marker.startColumn,
+			endLineNumber: a.marker.endLineNumber,
+			endColumn: a.marker.endColumn
+		}, {
+			startLineNumber: b.marker.startLineNumber,
+			startColumn: b.marker.startColumn,
+			endLineNumber: b.marker.endLineNumber,
+			endColumn: b.marker.endColumn
+		});
 	}
 
 	private filterMarker(marker: IMarker):boolean {
