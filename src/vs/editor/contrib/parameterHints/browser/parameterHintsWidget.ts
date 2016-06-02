@@ -7,27 +7,148 @@
 
 import 'vs/css!./parameterHints';
 import nls = require('vs/nls');
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import aria = require('vs/base/browser/ui/aria/aria');
-import { SignatureHelp, SignatureInformation } from 'vs/editor/common/modes';
+import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IHintEvent, ParameterHintsModel } from './parameterHintsModel';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import Event, {Emitter} from 'vs/base/common/event';
+import { ICommonCodeEditor, ICursorSelectionChangedEvent } from 'vs/editor/common/editorCommon';
+import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { Context, provideSignatureHelp } from '../common/parameterHints';
 
 const $ = dom.emmet;
+
+export interface IHintEvent {
+	hints: SignatureHelp;
+}
+
+export class ParameterHintsModel extends Disposable {
+
+	static DELAY = 120; // ms
+
+	private _onHint = this._register(new Emitter<IHintEvent>());
+	onHint: Event<IHintEvent> = this._onHint.event;
+
+	private _onCancel = this._register(new Emitter<void>());
+	onCancel: Event<void> = this._onCancel.event;
+
+	private editor: ICommonCodeEditor;
+	private triggerCharactersListeners: IDisposable[];
+	private active: boolean;
+	private throttledDelayer: RunOnceScheduler;
+
+	constructor(editor:ICommonCodeEditor) {
+		super();
+
+		this.editor = editor;
+		this.triggerCharactersListeners = [];
+
+		this.throttledDelayer = new RunOnceScheduler(() => this.doTrigger(), ParameterHintsModel.DELAY);
+
+		this.active = false;
+
+		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
+		this._register(this.editor.onDidChangeModelMode(_ => this.onModelChanged()));
+		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
+		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
+		this.onModelChanged();
+	}
+
+	cancel(silent: boolean = false): void {
+		this.active = false;
+
+		this.throttledDelayer.cancel();
+
+		if (!silent) {
+			this._onCancel.fire(void 0);
+		}
+	}
+
+	trigger(delay = ParameterHintsModel.DELAY): void {
+		if (!SignatureHelpProviderRegistry.has(this.editor.getModel())) {
+			return;
+		}
+
+		this.cancel(true);
+		return this.throttledDelayer.schedule(delay);
+	}
+
+	private doTrigger(): void {
+		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
+			.then<SignatureHelp>(null, onUnexpectedError)
+			.then(result => {
+				if (!result || result.signatures.length === 0) {
+					this.cancel();
+					this._onCancel.fire(void 0);
+					return false;
+				}
+
+				this.active = true;
+
+				const event:IHintEvent = { hints: result };
+				this._onHint.fire(event);
+				return true;
+			});
+	}
+
+	isTriggered():boolean {
+		return this.active || this.throttledDelayer.isScheduled();
+	}
+
+	private onModelChanged(): void {
+		if (this.active) {
+			this.cancel();
+		}
+		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
+
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		const support = SignatureHelpProviderRegistry.ordered(model)[0];
+		if (!support) {
+			return;
+		}
+
+		this.triggerCharactersListeners = support.signatureHelpTriggerCharacters.map((ch) => {
+			return this.editor.addTypingListener(ch, () => {
+				this.trigger();
+			});
+		});
+	}
+
+	private onCursorChange(e: ICursorSelectionChangedEvent): void {
+		if (e.source === 'mouse') {
+			this.cancel();
+		} else if (this.isTriggered()) {
+			this.trigger();
+		}
+	}
+
+	dispose(): void {
+		this.cancel(true);
+		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
+
+		super.dispose();
+	}
+}
 
 interface ISignatureView {
 	top: number;
 	height: number;
 }
 
-export class ParameterHintsWidget implements IContentWidget {
+export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	static ID = 'editor.widget.parameterHintsWidget';
 
-	private editor: ICodeEditor;
 	private model: ParameterHintsModel;
+	private parameterHintsVisible: IKeybindingContextKey<boolean>;
 	private element: HTMLElement;
 	private signatures: HTMLElement;
 	private overloads: HTMLElement;
@@ -38,20 +159,13 @@ export class ParameterHintsWidget implements IContentWidget {
 	private announcedLabel: string;
 	private disposables: IDisposable[];
 
-	private _onShown: () => void;
-	private _onHidden: () => void;
-
 	// Editor.IContentWidget.allowEditorOverflow
 	allowEditorOverflow = true;
 
-	constructor(model: ParameterHintsModel, editor: ICodeEditor, onShown: () => void, onHidden: () => void) {
-		this._onShown = onShown;
-		this._onHidden = onHidden;
-		this.editor = editor;
-		this.model = null;
+	constructor(private editor: ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+		this.model = new ParameterHintsModel(editor);
+		this.parameterHintsVisible = keybindingService.createKey(Context.Visible, false);
 		this.visible = false;
-		this.model = model;
-
 		this.disposables = [];
 
 		this.disposables.push(this.model.onHint((e:IHintEvent) => {
@@ -62,7 +176,9 @@ export class ParameterHintsWidget implements IContentWidget {
 			this.select(this.currentSignature);
 		}));
 
-		this.disposables.push(this.model.onCancel(() => this.hide()));
+		this.disposables.push(this.model.onCancel(() => {
+			this.hide();
+		}));
 
 		this.element = $('.editor-widget.parameter-hints-widget');
 
@@ -109,7 +225,7 @@ export class ParameterHintsWidget implements IContentWidget {
 			return;
 		}
 
-		this._onShown();
+		this.parameterHintsVisible.set(true);
 		this.visible = true;
 		TPromise.timeout(100).done(() => dom.addClass(this.element, 'visible'));
 		this.editor.layoutContentWidget(this);
@@ -120,7 +236,7 @@ export class ParameterHintsWidget implements IContentWidget {
 			return;
 		}
 
-		this._onHidden();
+		this.parameterHintsVisible.reset();
 		this.visible = false;
 		this.parameterHints = null;
 		this.announcedLabel = null;
@@ -318,7 +434,11 @@ export class ParameterHintsWidget implements IContentWidget {
 		return ParameterHintsWidget.ID;
 	}
 
-	destroy(): void {
+	trigger(): void {
+		this.model.trigger(0);
+	}
+
+	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		this.model = null;
 	}

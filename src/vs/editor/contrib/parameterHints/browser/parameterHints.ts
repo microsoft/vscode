@@ -7,17 +7,16 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IKeybindingContextKey, IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { dispose } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorAction } from 'vs/editor/common/editorAction';
 import { ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
-import { ParameterHintsModel } from './parameterHintsModel';
 import { ParameterHintsWidget } from './parameterHintsWidget';
-
-const CONTEXT_PARAMETER_HINTS_VISIBLE = 'parameterHintsVisible';
+import { Context } from '../common/parameterHints';
 
 class ParameterHintsController implements IEditorContribution {
 
@@ -28,27 +27,11 @@ class ParameterHintsController implements IEditorContribution {
 	}
 
 	private editor:ICodeEditor;
-	private model: ParameterHintsModel;
 	private widget: ParameterHintsWidget;
-	private parameterHintsVisible: IKeybindingContextKey<boolean>;
 
-	constructor(editor:ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(editor:ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
 		this.editor = editor;
-		this.model = new ParameterHintsModel(this.editor);
-		this.parameterHintsVisible = keybindingService.createKey(CONTEXT_PARAMETER_HINTS_VISIBLE, false);
-		this.widget = new ParameterHintsWidget(this.model, this.editor, () => {
-			this.parameterHintsVisible.set(true);
-		}, () => {
-			this.parameterHintsVisible.reset();
-		});
-	}
-
-	dispose(): void {
-		this.model.dispose();
-		this.model = null;
-
-		this.widget.destroy();
-		this.widget = null;
+		this.widget = instantiationService.createInstance(ParameterHintsWidget, this.editor);
 	}
 
 	getId(): string {
@@ -68,7 +51,11 @@ class ParameterHintsController implements IEditorContribution {
 	}
 
 	trigger(): void {
-		this.model.trigger(0);
+		this.widget.trigger();
+	}
+
+	dispose(): void {
+		this.widget = dispose(this.widget);
 	}
 }
 
@@ -111,7 +98,7 @@ CommonEditorRegistry.registerEditorCommand(
 	weight,
 	{ primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] },
 	true,
-	CONTEXT_PARAMETER_HINTS_VISIBLE,
+	Context.Visible,
 	handler(c => c.closeWidget())
 );
 
@@ -120,7 +107,7 @@ CommonEditorRegistry.registerEditorCommand(
 	weight,
 	{ primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
 	true,
-	CONTEXT_PARAMETER_HINTS_VISIBLE,
+	Context.Visible,
 	handler(c =>c.showPrevHint())
 );
 
@@ -129,6 +116,6 @@ CommonEditorRegistry.registerEditorCommand(
 	weight,
 	{ primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
 	true,
-	CONTEXT_PARAMETER_HINTS_VISIBLE,
+	Context.Visible,
 	handler(c => c.showNextHint())
 );
