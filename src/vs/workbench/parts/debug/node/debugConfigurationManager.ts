@@ -289,28 +289,30 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				this.configuration = objects.deepClone(nameOrConfig);
 			}
 
-			// Set operating system specific properties #1873
-			if (isWindows && this.configuration.windows) {
-				Object.keys(this.configuration.windows).forEach(key => {
-					this.configuration[key] = this.configuration.windows[key];
-				});
-			}
-			if (isMacintosh && this.configuration.osx) {
-				Object.keys(this.configuration.osx).forEach(key => {
-					this.configuration[key] = this.configuration.osx[key];
-				});
-			}
-			if (isLinux && this.configuration.linux) {
-				Object.keys(this.configuration.linux).forEach(key => {
-					this.configuration[key] = this.configuration.linux[key];
-				});
-			}
+			if (this.configuration) {
+				// Set operating system specific properties #1873
+				if (isWindows && this.configuration.windows) {
+					Object.keys(this.configuration.windows).forEach(key => {
+						this.configuration[key] = this.configuration.windows[key];
+					});
+				}
+				if (isMacintosh && this.configuration.osx) {
+					Object.keys(this.configuration.osx).forEach(key => {
+						this.configuration[key] = this.configuration.osx[key];
+					});
+				}
+				if (isLinux && this.configuration.linux) {
+					Object.keys(this.configuration.linux).forEach(key => {
+						this.configuration[key] = this.configuration.linux[key];
+					});
+				}
 
-			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			if (this.configuration && this.systemVariables) {
-				Object.keys(this.configuration).forEach(key => {
-					this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
-				});
+				// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
+				if (this.systemVariables) {
+					Object.keys(this.configuration).forEach(key => {
+						this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
+					});
+				}
 			}
 		}).then(() => this._onDidConfigurationChange.fire(this.configurationName));
 	}
