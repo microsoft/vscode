@@ -17,6 +17,7 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
@@ -92,6 +93,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEventService eventService: IEventService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
@@ -120,7 +122,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
 		this.toUnbind.push(themeService.onDidThemeChange(_ => this.relayout()));
-		this.toUnbind.push(editorService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 		this.registerSashListeners();
 	}

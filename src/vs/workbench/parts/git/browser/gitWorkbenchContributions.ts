@@ -40,6 +40,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {RawText} from 'vs/editor/common/model/textModel';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import IGitService = git.IGitService;
 
@@ -336,6 +337,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		@IGitService gitService: IGitService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -350,7 +352,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		this.models = [];
 		this.decorators = Object.create(null);
 		this.toDispose = [];
-		this.toDispose.push(editorService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toDispose.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toDispose.push(gitService.addListener2(git.ServiceEvents.DISPOSE, () => this.dispose()));
 	}
 

@@ -9,6 +9,7 @@ import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/comm
 import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEditorStacksModel} from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
+import {EditorInputEvent} from 'vs/workbench/common/editor';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
@@ -23,6 +24,21 @@ export var IEditorGroupService = createDecorator<IEditorGroupService>('editorGro
  */
 export interface IEditorGroupService {
 	serviceId: ServiceIdentifier<any>;
+
+	/**
+	 * Emitted when editors or inputs change. Examples: opening, closing of editors. Active editor change.
+	 */
+	onEditorsChanged: Event<void>;
+
+	/**
+	 * Emitted when an editor is about to open.
+	 */
+	onEditorOpening: Event<EditorInputEvent>;
+
+	/**
+	 * Emitted when opening an editor fails.
+	 */
+	onEditorOpenFail: Event<IEditorInput>;
 
 	/**
 	 * Emitted when a editors are moved to another position.

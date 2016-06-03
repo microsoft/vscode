@@ -1106,7 +1106,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IHistoryService private historyService: IHistoryService
 	) {
@@ -1116,7 +1116,7 @@ export class RemoveFromEditorHistoryAction extends Action {
 	public run(): TPromise<any> {
 
 		// Listen for next editor to open
-		let unbind = this.editorService.onEditorOpening(e => {
+		let unbind = this.editorGroupService.onEditorOpening(e => {
 			unbind.dispose(); // listen once
 
 			e.prevent();

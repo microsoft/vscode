@@ -386,7 +386,7 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IEditorGroupService, this.editorPart);
 
 		// History
-		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService, this.storageService, this.lifecycleService, this.instantiationService));
+		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.editorPart, this.contextService, this.storageService, this.lifecycleService, this.instantiationService));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
@@ -660,7 +660,7 @@ export class Workbench implements IPartService {
 	private registerListeners(): void {
 
 		// Listen to editor changes
-		this.toDispose.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toDispose.push(this.editorPart.onEditorsChanged(() => this.onEditorsChanged()));
 
 		// Handle message service and quick open events
 		if (this.messageService instanceof WorkbenchMessageService) {

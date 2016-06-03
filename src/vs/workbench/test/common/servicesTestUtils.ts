@@ -312,11 +312,18 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public serviceId = IEditorGroupService;
 
 	private stacksModel: EditorStacksModel;
+
+	private _onEditorsChanged: Emitter<void>;
+	private _onEditorOpening: Emitter<EditorInputEvent>;
+	private _onEditorOpenFail: Emitter<IEditorInput>;
 	private _onEditorsMoved: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
 		this._onEditorsMoved = new Emitter<void>();
-		
+		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<EditorInputEvent>();
+		this._onEditorOpenFail = new Emitter<IEditorInput>();
+
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
@@ -327,6 +334,22 @@ export class TestEditorGroupService implements IEditorGroupService {
 		let inst = new InstantiationService(services);
 
 		this.stacksModel = inst.createInstance(EditorStacksModel);
+	}
+
+	public fireChange(): void {
+		this._onEditorsChanged.fire();
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return this._onEditorsChanged.event;
+	}
+
+	public get onEditorOpening(): Event<EditorInputEvent> {
+		return this._onEditorOpening.event;
+	}
+
+	public get onEditorOpenFail(): Event<IEditorInput> {
+		return this._onEditorOpenFail.event;
 	}
 
 	public get onEditorsMoved(): Event<void> {
@@ -372,32 +395,8 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	private callback: (method: string) => void;
 
-	private _onEditorsChanged: Emitter<void>;
-	private _onEditorOpening: Emitter<EditorInputEvent>;
-	private _onEditorOpenFail: Emitter<IEditorInput>;
-
 	constructor(callback?: (method: string) => void) {
 		this.callback = callback || ((s: string) => { });
-
-		this._onEditorsChanged = new Emitter<void>();
-		this._onEditorOpening = new Emitter<EditorInputEvent>();
-		this._onEditorOpenFail = new Emitter<IEditorInput>();
-	}
-
-	public fireChange(): void {
-		this._onEditorsChanged.fire();
-	}
-
-	public get onEditorsChanged(): Event<void> {
-		return this._onEditorsChanged.event;
-	}
-
-	public get onEditorOpening(): Event<EditorInputEvent> {
-		return this._onEditorOpening.event;
-	}
-
-	public get onEditorOpenFail(): Event<IEditorInput> {
-		return this._onEditorOpenFail.event;
 	}
 
 	public openEditors(inputs): Promise {

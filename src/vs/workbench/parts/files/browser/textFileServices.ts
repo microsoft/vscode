@@ -20,6 +20,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -43,6 +44,7 @@ export abstract class TextFileService implements ITextFileService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IEventService private eventService: IEventService
 	) {
 		this.listenerToUnbind = [];
@@ -70,7 +72,7 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Editor focus change
 		window.addEventListener('blur', () => this.onEditorsChanged(), true);
-		this.listenerToUnbind.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.listenerToUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
 
 	private onEditorsChanged(): void {

@@ -39,6 +39,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import IGitService = git.IGitService;
 
@@ -79,6 +80,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 	constructor(actionRunner: Actions.IActionRunner,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IMessageService messageService: IMessageService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -102,7 +104,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		this.toDispose = [
 			this.smartCommitAction = this.instantiationService.createInstance(GitActions.SmartCommitAction, this),
-			editorService.onEditorsChanged(() => this.onEditorsChanged(this.editorService.getActiveEditorInput()).done(null, Errors.onUnexpectedError)),
+			editorGroupService.onEditorsChanged(() => this.onEditorsChanged(this.editorService.getActiveEditorInput()).done(null, Errors.onUnexpectedError)),
 			this.gitService.addListener2(git.ServiceEvents.OPERATION_START, (e) => this.onGitOperationStart(e)),
 			this.gitService.addListener2(git.ServiceEvents.OPERATION_END, (e) => this.onGitOperationEnd(e)),
 			this.gitService.getModel().addListener2(git.ModelEvents.MODEL_UPDATED, this.onGitModelUpdate.bind(this))

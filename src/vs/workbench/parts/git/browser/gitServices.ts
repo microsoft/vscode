@@ -36,6 +36,7 @@ import * as semver from 'semver';
 import { shell } from 'electron';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import Event from 'vs/base/common/event';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -52,6 +53,7 @@ class EditorInputCache
 	private eventService: IEventService;
 	private instantiationService: IInstantiationService;
 	private editorService: IWorkbenchEditorService;
+	private editorGroupService: IEditorGroupService;
 	private contextService: IWorkspaceContextService;
 	private cache: { [key: string]: winjs.TPromise<WorkbenchEditorCommon.EditorInput> };
 	private toDispose: lifecycle.IDisposable[];
@@ -61,12 +63,14 @@ class EditorInputCache
 		@IFileService fileService: IFileService,
 		@IEventService eventService: IEventService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		this.instantiationService = instantiationService;
 		this.fileService = fileService;
 		this.eventService = eventService;
 		this.editorService = editorService;
+		this.editorGroupService = editorGroupService;
 		this.contextService = contextService;
 
 		this.gitService = gitService;
@@ -215,7 +219,7 @@ class EditorInputCache
 	 */
 	private eventuallyDispose(editorInput: WorkbenchEditorCommon.EditorInput): void {
 		if (!this.maybeDispose(editorInput)) {
-			var listener = this.editorService.onEditorsChanged(() => {
+			var listener = this.editorGroupService.onEditorsChanged(() => {
 				if (this.maybeDispose(editorInput)) {
 					listener.dispose();
 				}

@@ -41,6 +41,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Selection} from 'vs/editor/common/core/selection';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
 	if (editorWidget) {
@@ -235,6 +236,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEventService private eventService: IEventService,
@@ -292,7 +294,7 @@ export class EditorStatus implements IStatusbarItem {
 					}
 				}
 			},
-			this.editorService.onEditorsChanged(() => this.onEditorsChanged()),
+			this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()),
 			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource))
 		);
 

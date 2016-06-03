@@ -141,7 +141,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		return this.doRefresh().then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.toDispose.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
+			this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 			// Also handle configuration updates
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));

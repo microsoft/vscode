@@ -1213,6 +1213,7 @@ export class GlobalCompareResourcesAction extends Action {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IMessageService private messageService: IMessageService,
 		@IEventService private eventService: IEventService
 	) {
@@ -1227,7 +1228,7 @@ export class GlobalCompareResourcesAction extends Action {
 			globalResourceToCompare = fileInput.getResource();
 
 			// Listen for next editor to open
-			let unbind = this.editorService.onEditorOpening(e => {
+			let unbind = this.editorGroupService.onEditorOpening(e => {
 				unbind.dispose(); // listen once
 
 				let otherFileInput = asFileEditorInput(e.editorInput);

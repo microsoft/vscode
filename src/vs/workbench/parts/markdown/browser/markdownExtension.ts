@@ -22,6 +22,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 interface ILanguageConfiguration {
 	markdown: {
@@ -47,6 +48,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		@IModeService private modeService: IModeService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IModelService private modelService: IModelService,
@@ -66,7 +68,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		this.configFileChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigFileChange(e));
 
 		// reload markdown editors when their resources change
-		this.editorInputChangeListener = this.editorService.onEditorsChanged(() => this.onEditorsChanged());
+		this.editorInputChangeListener = this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged());
 
 		// initially read the config for CSS styles in preview
 		this.readMarkdownConfiguration(this.configurationService.getConfiguration<ILanguageConfiguration>());

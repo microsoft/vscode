@@ -24,6 +24,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {Registry} from 'vs/platform/platform';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -82,6 +83,7 @@ export abstract class BaseHistoryService {
 
 	constructor(
 		private eventService: IEventService,
+		protected editorGroupService: IEditorGroupService,
 		protected editorService: IWorkbenchEditorService,
 		protected contextService: IWorkspaceContextService
 	) {
@@ -92,7 +94,7 @@ export abstract class BaseHistoryService {
 		window.document.title = this.getWindowTitle(null);
 
 		// Editor Input Changes
-		this.toUnbind.push(this.editorService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
 
 	private onEditorsChanged(): void {
@@ -228,12 +230,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	constructor(
 		eventService: IEventService,
 		editorService: IWorkbenchEditorService,
+		editorGroupService: IEditorGroupService,
 		contextService: IWorkspaceContextService,
 		private storageService: IStorageService,
 		private lifecycleService: ILifecycleService,
 		private instantiationService: IInstantiationService
 	) {
-		super(eventService, editorService, contextService);
+		super(eventService, editorGroupService, editorService, contextService);
 
 		this.index = -1;
 		this.stack = [];
@@ -245,7 +248,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private registerListeners(): void {
 		this.toUnbind.push(this.lifecycleService.onShutdown(() => this.save()));
-		this.toUnbind.push(this.editorService.onEditorOpenFail(editor => this.remove(editor)));
+		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
 	}
 
 	public forward(): void {

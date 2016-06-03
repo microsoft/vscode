@@ -14,7 +14,7 @@ import types = require('vs/base/common/types');
 import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditor, IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, EditorInputEvent} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions} from 'vs/workbench/common/editor';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
@@ -23,16 +23,8 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import Event from 'vs/base/common/event';
 
 export interface IEditorPart {
-
-	// Events
-	onEditorsChanged: Event<void>;
-	onEditorOpening: Event<EditorInputEvent>;
-	onEditorOpenFail: Event<IEditorInput>;
-
-	// Methods
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 	openEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[]): TPromise<BaseEditor[]>;
@@ -59,18 +51,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	) {
 		this.editorPart = editorPart;
 		this.fileInputDescriptor = (<IEditorRegistry>Registry.as(Extensions.Editors)).getDefaultFileInput();
-	}
-
-	public get onEditorsChanged(): Event<void> {
-		return this.editorPart.onEditorsChanged;
-	}
-
-	public get onEditorOpening(): Event<EditorInputEvent> {
-		return this.editorPart.onEditorOpening;
-	}
-
-	public get onEditorOpenFail(): Event<IEditorInput> {
-		return this.editorPart.onEditorOpenFail;
 	}
 
 	public getActiveEditor(): IEditor {
