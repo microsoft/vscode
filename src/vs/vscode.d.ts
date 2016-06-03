@@ -329,6 +329,15 @@ declare namespace vscode {
 		translate(lineDelta?: number, characterDelta?: number): Position;
 
 		/**
+		 * Derived a new position relative to this position.
+		 *
+		 * @param change An object that describes a delta to this position.
+		 * @return A position that reflects the given delta. Will return `this` position if the change
+		 * is not changing anything.
+		 */
+		translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+
+		/**
 		 * Create a new position derived from this position.
 		 *
 		 * @param line Value that should be used as line value, default is the [existing value](#Position.line)
@@ -336,6 +345,15 @@ declare namespace vscode {
 		 * @return A position where line and character are replaced by the given values.
 		 */
 		with(line?: number, character?: number): Position;
+
+		/**
+		 * Derived a new position from this position.
+		 *
+		 * @param change An object that describes a change to this position.
+		 * @return A position that reflects the given change. Will return `this` position if the change
+		 * is not changing anything.
+		 */
+		with(change: { line?: number; character?: number; }): Position;
 	}
 
 	/**

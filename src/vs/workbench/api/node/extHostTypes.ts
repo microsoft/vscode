@@ -149,14 +149,50 @@ export class Position {
 		}
 	}
 
-	translate(lineDelta: number = 0, characterDelta: number = 0): Position {
+	translate(change: { lineDelta?: number; characterDelta?: number;}): Position;
+	translate(lineDelta?: number, characterDelta?: number): Position;
+	translate(lineDeltaOrChange: number | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
+
+		if (lineDeltaOrChange === null || characterDelta === null) {
+			throw illegalArgument();
+		}
+
+		let lineDelta: number;
+		if (typeof lineDeltaOrChange === 'undefined') {
+			lineDelta = 0;
+		} else if (typeof lineDeltaOrChange === 'number') {
+			lineDelta = lineDeltaOrChange;
+		} else {
+			lineDelta = typeof lineDeltaOrChange.lineDelta === 'number' ? lineDeltaOrChange.lineDelta : 0;
+			characterDelta = typeof lineDeltaOrChange.characterDelta === 'number' ? lineDeltaOrChange.characterDelta : 0;
+		}
+
 		if (lineDelta === 0 && characterDelta === 0) {
 			return this;
 		}
 		return new Position(this.line + lineDelta, this.character + characterDelta);
 	}
 
-	with(line: number = this.line, character: number = this.character): Position {
+	with(change: { line?: number; character?: number; }): Position;
+	with(line?: number, character?: number): Position;
+	with(lineOrChange: number | { line?: number; character?: number; }, character: number = this.character): Position {
+
+		if (lineOrChange === null || character === null) {
+			throw illegalArgument();
+		}
+
+		let line: number;
+		if (typeof lineOrChange === 'undefined') {
+			line = this.line;
+
+		} else if (typeof lineOrChange === 'number') {
+			line = lineOrChange;
+
+		} else {
+			line = typeof lineOrChange.line === 'number' ? lineOrChange.line : this.line;
+			character = typeof lineOrChange.character === 'number' ? lineOrChange.character : this.character;
+		}
+
 		if (line === this.line && character === this.character) {
 			return this;
 		}
