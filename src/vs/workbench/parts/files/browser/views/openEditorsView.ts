@@ -169,6 +169,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.expandedBodySize = this.getExpandedBodySize(this.model);
 		// Show groups only if there is more than 1 group
 		const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
+		// TODO@Isidor temporary workaround due to a partial tree refresh issue
+		this.fullRefreshNeeded = true;
 		const toRefresh = this.fullRefreshNeeded ? null : this.groupToRefresh;
 
 		(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh(toRefresh)).done(() => {
