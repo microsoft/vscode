@@ -8,6 +8,7 @@
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {Position, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEditorStacksModel} from 'vs/workbench/common/editor';
+import Event from 'vs/base/common/event';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
@@ -22,6 +23,11 @@ export var IEditorGroupService = createDecorator<IEditorGroupService>('editorGro
  */
 export interface IEditorGroupService {
 	serviceId: ServiceIdentifier<any>;
+
+	/**
+	 * Emitted when a editors are moved to another position.
+	 */
+	onEditorsMoved: Event<void>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position.

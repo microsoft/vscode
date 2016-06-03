@@ -74,10 +74,6 @@ class TestEditorPart implements IEditorPart {
 		return null;
 	}
 
-	public get onEditorsMoved(): Event<void> {
-		return null;
-	}
-
 	public get onEditorOpening(): Event<EditorInputEvent> {
 		return null;
 	}

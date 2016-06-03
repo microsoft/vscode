@@ -312,8 +312,11 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public serviceId = IEditorGroupService;
 
 	private stacksModel: EditorStacksModel;
+	private _onEditorsMoved: Emitter<void>;
 
 	constructor(callback?: (method: string) => void) {
+		this._onEditorsMoved = new Emitter<void>();
+		
 		let services = new ServiceCollection();
 
 		services.set(IStorageService, new TestStorageService());
@@ -324,6 +327,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 		let inst = new InstantiationService(services);
 
 		this.stacksModel = inst.createInstance(EditorStacksModel);
+	}
+
+	public get onEditorsMoved(): Event<void> {
+		return this._onEditorsMoved.event;
 	}
 
 	public focusGroup(position: Position): void {
@@ -366,7 +373,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	private callback: (method: string) => void;
 
 	private _onEditorsChanged: Emitter<void>;
-	private _onEditorsMoved: Emitter<void>;
 	private _onEditorOpening: Emitter<EditorInputEvent>;
 	private _onEditorOpenFail: Emitter<IEditorInput>;
 
@@ -375,7 +381,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 		this._onEditorsChanged = new Emitter<void>();
 		this._onEditorOpening = new Emitter<EditorInputEvent>();
-		this._onEditorsMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<IEditorInput>();
 	}
 
@@ -389,10 +394,6 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 
 	public get onEditorOpening(): Event<EditorInputEvent> {
 		return this._onEditorOpening.event;
-	}
-
-	public get onEditorsMoved(): Event<void> {
-		return this._onEditorsMoved.event;
 	}
 
 	public get onEditorOpenFail(): Event<IEditorInput> {

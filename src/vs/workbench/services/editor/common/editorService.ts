@@ -36,11 +36,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	onEditorOpening: Event<EditorInputEvent>;
 
 	/**
-	 * Emitted when a editors are moved to another position.
-	 */
-	onEditorsMoved: Event<void>;
-
-	/**
 	 * Emitted when opening an editor fails.
 	 */
 	onEditorOpenFail: Event<IEditorInput>;

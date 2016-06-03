@@ -30,7 +30,6 @@ export interface IEditorPart {
 	// Events
 	onEditorsChanged: Event<void>;
 	onEditorOpening: Event<EditorInputEvent>;
-	onEditorsMoved: Event<void>;
 	onEditorOpenFail: Event<IEditorInput>;
 
 	// Methods
@@ -68,10 +67,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public get onEditorOpening(): Event<EditorInputEvent> {
 		return this.editorPart.onEditorOpening;
-	}
-
-	public get onEditorsMoved(): Event<void> {
-		return this.editorPart.onEditorsMoved;
 	}
 
 	public get onEditorOpenFail(): Event<IEditorInput> {
