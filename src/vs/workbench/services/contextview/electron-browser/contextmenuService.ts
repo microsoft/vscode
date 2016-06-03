@@ -22,7 +22,11 @@ export class ContextMenuService implements IContextMenuService {
 
 	public serviceId = IContextMenuService;
 
-	constructor(private messageService: IMessageService, private telemetryService: ITelemetryService, private keybindingService: IKeybindingService) {
+	constructor(
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IKeybindingService private keybindingService: IKeybindingService
+	) {
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {

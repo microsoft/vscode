@@ -195,82 +195,86 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(): [InstantiationService, ServiceCollection] {
-		let serviceCollection = new ServiceCollection();
-		let instantiationService = new InstantiationService(serviceCollection, true);
-		let disposables = new Disposables();
+		const serviceCollection = new ServiceCollection();
+		serviceCollection.set(IEventService, this.eventService);
+		serviceCollection.set(IWorkspaceContextService, this.contextService);
+		serviceCollection.set(IConfigurationService, this.configurationService);
 
-		this.windowService = new WindowService();
+		const instantiationService = new InstantiationService(serviceCollection, true);
+		const disposables = new Disposables();
 
+		this.windowService = instantiationService.createInstance(WindowService);
+		serviceCollection.set(IWindowService, this.windowService);
+
+		// Storage
 		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
-		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
+		this.storageService = instantiationService.createInstance(Storage, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
+		serviceCollection.set(IStorageService, this.storageService);
 
+		// Telemetry
 		if (this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath && !!this.configuration.env.enableTelemetry) {
 			const config = {
 				appender: createAppender(this.configuration.env),
 				commonProperties: resolveCommonProperties(this.storageService, this.contextService),
 				piiPaths: [this.configuration.env.appRoot, this.configuration.env.userExtensionsHome]
 			};
-			let telemetryService = new TelemetryService(config, this.configurationService);
+			let telemetryService = instantiationService.createInstance(TelemetryService, config);
 			this.telemetryService = telemetryService;
 			disposables.add(telemetryService, ...config.appender);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
 
-		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService);
+		serviceCollection.set(ITelemetryService, this.telemetryService);
 
-		let fileService = disposables.add(new FileService(
-			this.configurationService,
-			this.eventService,
-			this.contextService,
-			this.messageService
-		));
+		this.messageService = instantiationService.createInstance(MessageService);
+		serviceCollection.set(IMessageService, this.messageService);
 
-		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
+		let fileService = disposables.add(instantiationService.createInstance(FileService));
+		serviceCollection.set(IFileService, fileService);
+
+		let lifecycleService = instantiationService.createInstance(LifecycleService);
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
-		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
+		serviceCollection.set(ILifecycleService, lifecycleService);
 
-		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService);
+		this.threadService = instantiationService.createInstance(MainThreadService);
+		serviceCollection.set(IThreadService, this.threadService);
 
-		this.contextViewService = new ContextViewService(this.container, this.telemetryService, this.messageService);
+		let extensionService = instantiationService.createInstance(MainProcessExtensionService);
+		serviceCollection.set(IExtensionService, extensionService);
 
-		let requestService = disposables.add(new RequestService(
-			this.contextService,
-			this.configurationService,
-			this.telemetryService
-		));
+		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
+		serviceCollection.set(IContextViewService, this.contextViewService);
 
-		let markerService = new MainProcessMarkerService(this.threadService);
+		let requestService = disposables.add(instantiationService.createInstance(RequestService));
+		serviceCollection.set(IRequestService, requestService);
 
-		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService, this.configurationService);
-		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, this.configurationService, this.messageService);
-		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
+		let markerService = instantiationService.createInstance(MainProcessMarkerService);
+		serviceCollection.set(IMarkerService, markerService);
+
+		let modeService = instantiationService.createInstance(MainThreadModeServiceImpl);
+		serviceCollection.set(IModeService, modeService);
+
+		let modelService = instantiationService.createInstance(ModelServiceImpl);
+		serviceCollection.set(IModelService, modelService);
+
+		let editorWorkerService = instantiationService.createInstance(EditorWorkerServiceImpl);
+		serviceCollection.set(IEditorWorkerService, editorWorkerService);
 
 		let untitledEditorService = instantiationService.createInstance(UntitledEditorService);
-		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService, this.telemetryService);
-
-		serviceCollection.set(ITelemetryService, this.telemetryService);
-		serviceCollection.set(IEventService, this.eventService);
-		serviceCollection.set(IRequestService, requestService);
-		serviceCollection.set(IWorkspaceContextService, this.contextService);
-		serviceCollection.set(IContextViewService, this.contextViewService);
-		serviceCollection.set(IMessageService, this.messageService);
-		serviceCollection.set(IStorageService, this.storageService);
-		serviceCollection.set(ILifecycleService, lifecycleService);
-		serviceCollection.set(IThreadService, this.threadService);
-		serviceCollection.set(IExtensionService, extensionService);
-		serviceCollection.set(IModeService, modeService);
-		serviceCollection.set(IFileService, fileService);
 		serviceCollection.set(IUntitledEditorService, untitledEditorService);
-		serviceCollection.set(ISearchService, new SearchService(modelService, untitledEditorService, this.contextService, this.configurationService));
-		serviceCollection.set(IWindowService, this.windowService);
-		serviceCollection.set(IConfigurationService, this.configurationService);
-		serviceCollection.set(IMarkerService, markerService);
-		serviceCollection.set(IModelService, modelService);
-		serviceCollection.set(ICodeEditorService, new CodeEditorServiceImpl());
-		serviceCollection.set(IEditorWorkerService, editorWorkerService);
+
+		this.themeService = instantiationService.createInstance(ThemeService);
 		serviceCollection.set(IThemeService, this.themeService);
-		serviceCollection.set(IExtensionManagementService, new ExtensionManagementChannelClient(this.initSharedProcessChannel(instantiationService, this.messageService)));
+
+		let searchService = instantiationService.createInstance(SearchService);
+		serviceCollection.set(ISearchService, searchService);
+
+		let codeEditorService = instantiationService.createInstance(CodeEditorServiceImpl);
+		serviceCollection.set(ICodeEditorService, codeEditorService);
+
+		let extensionManagementChannelClient = instantiationService.createInstance(ExtensionManagementChannelClient, this.initSharedProcessChannel(instantiationService, this.messageService));
+		serviceCollection.set(IExtensionManagementService, extensionManagementChannelClient);
 
 		return [instantiationService, serviceCollection];
 	}

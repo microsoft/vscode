@@ -346,14 +346,14 @@ export class Workbench implements IPartService {
 		serviceCollection.set(IStatusbarService, this.statusbarPart);
 
 		// Keybindings
-		this.keybindingService = new WorkbenchKeybindingService(this.configurationService, this.contextService, this.eventService, this.telemetryService, this.messageService, this.statusbarPart, this.extensionService, <any>window);
+		this.keybindingService = this.instantiationService.createInstance(WorkbenchKeybindingService, <any>window);
 		serviceCollection.set(IKeybindingService, this.keybindingService);
 
 		// Context Menu
-		serviceCollection.set(IContextMenuService, new ContextMenuService(this.messageService, this.telemetryService, this.keybindingService));
+		serviceCollection.set(IContextMenuService, this.instantiationService.createInstance(ContextMenuService));
 
 		// Actions
-		serviceCollection.set(IActionsService, new ActionsService(this.extensionService, this.keybindingService));
+		serviceCollection.set(IActionsService, this.instantiationService.createInstance(ActionsService));
 
 		// Viewlet service (sidebar part)
 		this.sidebarPart = this.instantiationService.createInstance(SidebarPart, Identifiers.SIDEBAR_PART);
@@ -377,16 +377,12 @@ export class Workbench implements IPartService {
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART);
 		this.toDispose.push(this.editorPart);
 		this.toShutdown.push(this.editorPart);
-		this.editorService = new WorkbenchEditorService(
-			this.editorPart,
-			this.untitledEditorService,
-			this.instantiationService
-		);
+		this.editorService = this.instantiationService.createInstance(WorkbenchEditorService, this.editorPart);
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
 		serviceCollection.set(IEditorGroupService, this.editorPart);
 
 		// History
-		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.editorPart, this.contextService, this.storageService, this.lifecycleService, this.instantiationService));
+		serviceCollection.set(IHistoryService, this.instantiationService.createInstance(HistoryService));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);

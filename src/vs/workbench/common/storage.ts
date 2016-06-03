@@ -35,11 +35,15 @@ export class Storage implements IStorageService {
 
 	private workspaceKey: string;
 
-	constructor(contextService: IWorkspaceContextService, globalStorage: IStorage, workspaceStorage = globalStorage) {
+	constructor(
+		globalStorage: IStorage,
+		workspaceStorage: IStorage,
+		@IWorkspaceContextService contextService: IWorkspaceContextService
+	) {
 		let workspace = contextService.getWorkspace();
 
 		this.globalStorage = globalStorage;
-		this.workspaceStorage = workspaceStorage;
+		this.workspaceStorage = workspaceStorage || globalStorage;
 
 		// Calculate workspace storage key
 		this.workspaceKey = this.getWorkspaceKey(workspace);

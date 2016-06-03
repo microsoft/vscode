@@ -210,7 +210,7 @@ export class TestStorageService extends EventEmitter.EventEmitter implements ISt
 		super();
 
 		let context = new TestContextService();
-		this.storage = new Storage.Storage(context, new Storage.InMemoryLocalStorage());
+		this.storage = new Storage.Storage(new Storage.InMemoryLocalStorage(), null, context);
 	}
 
 	store(key: string, value: any, scope: StorageScope = StorageScope.GLOBAL): void {

@@ -321,7 +321,7 @@ export class SecondaryMarkerService extends MarkerService {
 @Remotable.MainContext('MainProcessMarkerService')
 export class MainProcessMarkerService extends MarkerService {
 
-	constructor(threadService: IThreadService) {
+	constructor(@IThreadService threadService: IThreadService) {
 		super();
 		threadService.registerRemotableInstance(MainProcessMarkerService, this);
 	}

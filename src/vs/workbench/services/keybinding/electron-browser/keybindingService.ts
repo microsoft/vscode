@@ -116,7 +116,6 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 });
 
 export class WorkbenchKeybindingService extends KeybindingService {
-
 	private contextService: IWorkspaceContextService;
 	private eventService: IEventService;
 	private telemetryService: ITelemetryService;
@@ -124,7 +123,16 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	private _extensionService: IExtensionService;
 	private _eventService: IEventService;
 
-	constructor(configurationService: IConfigurationService, contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, messageService: IMessageService, statusBarService: IStatusbarService, extensionService: IExtensionService, domNode: HTMLElement) {
+	constructor(
+		domNode: HTMLElement,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEventService eventService: IEventService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService,
+		@IStatusbarService statusBarService: IStatusbarService,
+		@IExtensionService extensionService: IExtensionService
+	) {
 		super(configurationService, messageService, statusBarService);
 		this.contextService = contextService;
 		this.eventService = eventService;

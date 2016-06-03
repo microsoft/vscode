@@ -210,11 +210,11 @@ export class ModelServiceImpl implements IModelService {
 	private _models: { [modelId: string]: ModelData; };
 
 	constructor(
-		threadService: IThreadService,
-		markerService: IMarkerService,
-		modeService: IModeService,
-		configurationService: IConfigurationService,
-		messageService: IMessageService
+		@IThreadService threadService: IThreadService,
+		@IMarkerService markerService: IMarkerService,
+		@IModeService modeService: IModeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IMessageService messageService: IMessageService
 	) {
 		this._modelCreationOptions = {
 			tabSize: DEFAULT_INDENTATION.tabSize,

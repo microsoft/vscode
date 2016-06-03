@@ -21,8 +21,8 @@ export class LifecycleService implements ILifecycleService {
 	private _onShutdown = new Emitter<void>();
 
 	constructor(
-		private messageService: IMessageService,
-		private windowService: IWindowService
+		@IMessageService private messageService: IMessageService,
+		@IWindowService private windowService: IWindowService
 	) {
 		this.registerListeners();
 	}

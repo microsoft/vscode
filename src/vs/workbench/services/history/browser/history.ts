@@ -228,13 +228,13 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private registry: IEditorRegistry;
 
 	constructor(
-		eventService: IEventService,
-		editorService: IWorkbenchEditorService,
-		editorGroupService: IEditorGroupService,
-		contextService: IWorkspaceContextService,
-		private storageService: IStorageService,
-		private lifecycleService: ILifecycleService,
-		private instantiationService: IInstantiationService
+		@IEventService eventService: IEventService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService private storageService: IStorageService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(eventService, editorGroupService, editorService, contextService);
 

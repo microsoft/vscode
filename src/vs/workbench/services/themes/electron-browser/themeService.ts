@@ -106,7 +106,7 @@ export class ThemeService implements IThemeService {
 	private onThemeChange: Emitter<string>;
 
 	constructor(
-			private extensionService: IExtensionService,
+			@IExtensionService private extensionService: IExtensionService,
 			@IWindowService private windowService: IWindowService,
 			@IStorageService private storageService: IStorageService,
 			@ITelemetryService private telemetryService: ITelemetryService) {
