@@ -216,6 +216,20 @@ export class Controller extends treedefaults.DefaultController {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN });
 	}
 
+	public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+
+		// Close opened editor on middle mouse click
+		if (element instanceof OpenEditor && event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
+			const position = this.model.positionOfGroup(element.editorGroup);
+
+			this.editorService.closeEditor(position, element.editorInput).done(null, errors.onUnexpectedError);
+
+			return true;
+		}
+
+		return super.onClick(tree, element, event);
+	}
+
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin };
 		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
