@@ -11,6 +11,7 @@ import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 suite('CSS Colorizing', () => {
 
@@ -32,7 +33,7 @@ suite('CSS Colorizing', () => {
 
 		tokenizationSupport = mode.tokenizationSupport;
 		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-		wordDefinition = mode.richEditSupport.wordDefinition;
+		wordDefinition = LanguageConfigurationRegistry.getWordDefinition(mode);
 	})();
 
 	test('Skip whitespace', () => {

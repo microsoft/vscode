@@ -10,6 +10,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICommentsConfiguration} from 'vs/editor/common/modes';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class BlockCommentCommand implements editorCommon.ICommand {
 
@@ -121,8 +122,8 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		var endLineNumber = this._selection.endLineNumber;
 		var endColumn = this._selection.endColumn;
 
-		let richEditSupport = model.getModeAtPosition(startLineNumber, startColumn).richEditSupport;
-		let config = richEditSupport ? richEditSupport.comments : null;
+		let mode = model.getModeAtPosition(startLineNumber, startColumn);
+		let config = LanguageConfigurationRegistry.getComments(mode);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;

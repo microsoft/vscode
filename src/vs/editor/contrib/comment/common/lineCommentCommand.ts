@@ -12,6 +12,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICommentsConfiguration, IMode} from 'vs/editor/common/modes';
 import {BlockCommentCommand} from './blockCommentCommand';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -81,7 +82,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			if (seenModes[modeId]) {
 				commentStr = seenModes[modeId];
 			} else {
-				config = (mode.richEditSupport ? mode.richEditSupport.comments : null);
+				config = LanguageConfigurationRegistry.getComments(mode);
 				commentStr = (config ? config.lineCommentToken : null);
 				if (!commentStr) {
 					// Mode does not support line comments
@@ -273,8 +274,8 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder, s:Selection): void {
-		let richEditSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).richEditSupport;
-		let config = richEditSupport ? richEditSupport.comments : null;
+		let mode = model.getModeAtPosition(s.startLineNumber, s.startColumn);
+		let config = LanguageConfigurationRegistry.getComments(mode);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;

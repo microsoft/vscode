@@ -10,6 +10,7 @@ import {ILineTokens, IModel, IPosition, IRange, IRichEditBracket} from 'vs/edito
 import {IModeTransition, IRichEditBrackets} from 'vs/editor/common/modes';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export enum TokenTreeBracket {
 	None = 0,
@@ -159,7 +160,7 @@ class TokenScanner {
 			this._currentModeIndex++;
 			this._nextModeStart = (this._currentModeIndex + 1 < this._currentLineModeTransitions.length ? this._currentLineModeTransitions[this._currentModeIndex + 1].startIndex : this._currentLineText.length + 1);
 			let mode = (this._currentModeIndex < this._currentLineModeTransitions.length ? this._currentLineModeTransitions[this._currentModeIndex] : null);
-			this._currentModeBrackets = (mode && mode.mode.richEditSupport ? mode.mode.richEditSupport.brackets : null);
+			this._currentModeBrackets = (mode ? LanguageConfigurationRegistry.getBracketsSupport(mode.mode) : null);
 		}
 
 		let tokenType = this._currentLineTokens.getTokenType(this._currentTokenIndex);
