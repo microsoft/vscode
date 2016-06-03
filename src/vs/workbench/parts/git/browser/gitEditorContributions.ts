@@ -6,7 +6,7 @@
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IModel, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane, IEditorContribution, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
-import { IGitService, ServiceEvents, StatusType } from 'vs/workbench/parts/git/common/git';
+import { IGitService, ModelEvents, StatusType } from 'vs/workbench/parts/git/common/git';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Delayer } from 'vs/base/common/async';
@@ -40,8 +40,9 @@ class MergeDecoratorBoundToModel extends Disposable {
 		const delayer = new Delayer<void>(300);
 		delayer.trigger(() => this.redecorate());
 
+		const gitModel = gitService.getModel();
 		this._register(model.onDidChangeContent(() => delayer.trigger(() => this.redecorate())));
-		this._register(gitService.addListener2(ServiceEvents.STATE_CHANGED, () => delayer.trigger(() => this.redecorate())));
+		this._register(gitModel.addListener2(ModelEvents.STATUS_MODEL_UPDATED, () => delayer.trigger(() => this.redecorate())));
 	}
 
 	private _setDecorations(newDecorations: IModelDeltaDecoration[]): void {
