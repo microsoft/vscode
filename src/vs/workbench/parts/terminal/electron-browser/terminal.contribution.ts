@@ -39,15 +39,15 @@ configurationRegistry.registerConfiguration({
 			'default': TERMINAL_DEFAULT_SHELL_WINDOWS
 		},
 		'terminal.integrated.fontFamily': {
-			'description': nls.localize('terminal.integrated.fontFamily', "The font family used by the terminal (CSS font-family format), this defaults to editor.fontFamily's value."),
+			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
 		},
 		'terminal.integrated.fontSize': {
-			'description': nls.localize('terminal.integrated.fontSize', "The font size used by the terminal (in pixels), this defaults to editor.fontSize's value."),
+			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size of the terminal, this defaults to editor.fontSize's value."),
 			'type': 'number'
 		},
 		'terminal.integrated.lineHeight': {
-			'description': nls.localize('terminal.integrated.lineHeight', "The line height used by the terminal (in pixels), this defaults to editor.lineHeight's value."),
+			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this defaults to editor.lineHeight's value."),
 			'type': 'number'
 		}
 	}
