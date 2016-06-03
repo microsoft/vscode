@@ -151,11 +151,11 @@ class ExtHostApiCommands {
 		});
 
 
-		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, title?: { label?: string, description?: string }) => {
+		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn, label?: string) => {
 			return this._commands.executeCommand('_workbench.previewHtml',
 				uri,
 				typeof position === 'number' && typeConverters.fromViewColumn(position),
-				title);
+				label);
 		}, {
 				description: `
 					Render the html of the resource in an editor view.
@@ -173,7 +173,7 @@ class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
 				{ name: 'column', description: '(optional) Column in which to preview.' },
-				{ name: 'title', description: '(optional) An object literal defining the label and description, e.g. `{ label: "My Label" description: "My Description" }`' }
+				{ name: 'label', description: '(optional) An human readable string that is used as title for the preview.', constraint: v => typeof v === 'string' || typeof v === 'undefined' }
 			]
 		});
 

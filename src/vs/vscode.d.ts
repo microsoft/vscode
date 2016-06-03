@@ -329,6 +329,15 @@ declare namespace vscode {
 		translate(lineDelta?: number, characterDelta?: number): Position;
 
 		/**
+		 * Derived a new position relative to this position.
+		 *
+		 * @param change An object that describes a delta to this position.
+		 * @return A position that reflects the given delta. Will return `this` position if the change
+		 * is not changing anything.
+		 */
+		translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+
+		/**
 		 * Create a new position derived from this position.
 		 *
 		 * @param line Value that should be used as line value, default is the [existing value](#Position.line)
@@ -336,6 +345,15 @@ declare namespace vscode {
 		 * @return A position where line and character are replaced by the given values.
 		 */
 		with(line?: number, character?: number): Position;
+
+		/**
+		 * Derived a new position from this position.
+		 *
+		 * @param change An object that describes a change to this position.
+		 * @return A position that reflects the given change. Will return `this` position if the change
+		 * is not changing anything.
+		 */
+		with(change: { line?: number; character?: number; }): Position;
 	}
 
 	/**
@@ -427,14 +445,23 @@ declare namespace vscode {
 		union(other: Range): Range;
 
 		/**
-		 * Create a new range derived from this range.
+		 * Derived a new range from this range.
 		 *
 		 * @param start A position that should be used as start. The default value is the [current start](#Range.start).
 		 * @param end A position that should be used as end. The default value is the [current end](#Range.end).
 		 * @return A range derived from this range with the given start and end position.
-		 * If start and end are not different this range will be returned.
+		 * If start and end are not different `this` range will be returned.
 		 */
 		with(start?: Position, end?: Position): Range;
+
+		/**
+		 * Derived a new range from this range.
+		 *
+		 * @param change An object that describes a change to this range.
+		 * @return A range that reflects the given change. Will return `this` range if the change
+		 * is not changing anything.
+		 */
+		with (change: { start ?: Position, end ?: Position }): Range;
 	}
 
 	/**
@@ -936,6 +963,20 @@ declare namespace vscode {
 		 * invalid characters and semantics. Will *not* look at the scheme of this Uri.
 		 */
 		fsPath: string;
+
+		/**
+		 * Derive a new Uri from this Uri.
+		 *
+		 * @param change An object that describes a change to this Uri.
+		 * @return A new Uri that reflects the given change. Will return `this` Uri if the change
+		 *  is not changing anything.
+		 * @sample ```
+			let file = Uri.parse('before:some/file/path');
+			let other = file.with({ scheme: 'after' });
+			assert.ok(other.toString() === 'after:some/file/path');
+		 * ```
+		 */
+		with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): Uri;
 
 		/**
 		 * Returns a string representation of this Uri. The representation and normalization
