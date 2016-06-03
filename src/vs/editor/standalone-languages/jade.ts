@@ -9,8 +9,7 @@ import {ILanguage, IRichLanguageConfiguration} from './types';
 
 export var conf:IRichLanguageConfiguration = {
 	comments: {
-		lineComment: '//',
-		blockComment: ['/*', '*/'],
+		lineComment: '//'
 	},
 	brackets: [['{','}'], ['[',']'], ['(',')']],
 	autoClosingPairs: [
@@ -27,13 +26,10 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName:    'Jade',
-	name:           'jade',
-	defaultToken:   '',
+	defaultToken: '',
+	tokenPostfix: '.jade',
 
 	ignoreCase: true,
-
-	lineComment: '//',
 
 	brackets: [
 			{ token:'delimiter.curly', open: '{', close: '}' },

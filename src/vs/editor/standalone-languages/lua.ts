@@ -27,31 +27,26 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName: 'Lua',
-	name:        'lua',
 	defaultToken: '',
-
-	lineComment:      '--',
-	blockCommentStart: '--[[',
-	blockCommentEnd:   ']]',
+	tokenPostfix: '.lua',
 
 	keywords: [
 		'and', 'break', 'do', 'else', 'elseif',
-	'end', 'false', 'for', 'function', 'goto', 'if',
-	'in', 'local', 'nil', 'not', 'or',
-	'repeat', 'return', 'then', 'true', 'until',
-	'while'
+		'end', 'false', 'for', 'function', 'goto', 'if',
+		'in', 'local', 'nil', 'not', 'or',
+		'repeat', 'return', 'then', 'true', 'until',
+		'while'
 	],
 
 	brackets: [
-			{ token: 'delimiter.bracket', open: '{', close: '}'},
-			{ token: 'delimiter.array', open: '[', close: ']'},
-			{ token: 'delimiter.parenthesis', open: '(', close: ')'}
+		{ token: 'delimiter.bracket', open: '{', close: '}'},
+		{ token: 'delimiter.array', open: '[', close: ']'},
+		{ token: 'delimiter.parenthesis', open: '(', close: ')'}
 	],
 
 	operators: [
 		'+', '-', '*', '/', '%', '^', '#', '==', '~=', '<=', '>=', '<', '>', '=',
-	';', ':', ',', '.', '..', '...'
+		';', ':', ',', '.', '..', '...'
 	],
 
 	// we include these common regular expressions
@@ -63,7 +58,7 @@ export var language = <ILanguage> {
 		root: [
 			// identifiers and keywords
 			[/[a-zA-Z_]\w*/, { cases: { '@keywords': {token:'keyword.$0'},
-																	'@default': 'identifier' } }],
+										'@default': 'identifier' } }],
 			// whitespace
 			{ include: '@whitespace' },
 
@@ -74,7 +69,7 @@ export var language = <ILanguage> {
 			// delimiters and operators
 			[/[{}()\[\]]/, '@brackets'],
 			[/@symbols/, { cases: { '@operators': 'delimiter',
-															'@default'  : '' } } ],
+									'@default'  : '' } } ],
 
 			// numbers
 			[/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
@@ -108,7 +103,7 @@ export var language = <ILanguage> {
 			[/@escapes/, 'string.escape'],
 			[/\\./,      'string.escape.invalid'],
 			[/["']/,     { cases: { '$#==$S2' : { token: 'string', next: '@pop' },
-															'@default': 'string' }} ]
+									'@default': 'string' }} ]
 		],
 
 	},

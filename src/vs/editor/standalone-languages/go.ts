@@ -27,15 +27,8 @@ export var conf:IRichLanguageConfiguration = {
 
 export var language = <ILanguage> {
 
-	displayName:    'Go',
-	name:           'go',
 	defaultToken: '',
-
-	lineComment:      '//',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
-
-	autoClosingPairs: [ ['{', '}'], ['[', ']'], ['(',  ')'], ['"',  '"']], // Skip < > which would be there by default.
+	tokenPostfix: '.go',
 
 	keywords: [
 		'break',

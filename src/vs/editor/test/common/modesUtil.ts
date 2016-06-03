@@ -92,9 +92,8 @@ export function executeTests2(tokenizationSupport: modes.TokensProvider, tests:I
 	}
 }
 
-
 export function executeMonarchTokenizationTests(name:string, language:ILanguage, tests:ITestItem[][]): void {
-	var lexer = compile(language);
+	var lexer = compile(name, language);
 
 	var modeService = createMockModeService();
 

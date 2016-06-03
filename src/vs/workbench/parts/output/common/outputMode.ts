@@ -22,9 +22,8 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language: types.ILanguage = {
-	displayName: 'Log',
-	name: 'Log',
 	defaultToken: '',
+	tokenPostfix: '.log',
 	ignoreCase: true,
 
 	tokenizer: {
@@ -60,7 +59,7 @@ export class OutputMode extends AbstractMode {
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
-		let lexer = compile(language);
+		let lexer = compile(descriptor.id, language);
 		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);

@@ -9,8 +9,7 @@ import {ILanguage, IRichLanguageConfiguration} from './types';
 
 export var conf:IRichLanguageConfiguration = {
 	comments: {
-		lineComment: '#',
-		blockComment: ['#', ' '],
+		lineComment: '#'
 	},
 	brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
 	autoClosingPairs: [
@@ -28,13 +27,8 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName:    'Ini',
-	name:           'ini',
 	defaultToken: '',
-
-	lineComment:      '#',
-	blockCommentStart: '#',
-	blockCommentEnd:   ' ',
+	tokenPostfix: '.ini',
 
 	// we include these common regular expressions
 	escapes:  /\\(?:[abfnrtv\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})/,

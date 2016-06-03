@@ -20,8 +20,6 @@ import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {IModel} from 'vs/editor/common/editorCommon';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
@@ -208,33 +206,6 @@ export function configureMode(modeId: string, options: any): void {
 	modeService.configureModeById(modeId, options);
 }
 
-/**
- * @internal
- */
-export function createCustomMode(language:ILanguage): TPromise<modes.IMode> {
-	startup.initStaticServicesIfNecessary();
-	let staticPlatformServices = ensureStaticPlatformServices(null);
-	let modeService = staticPlatformServices.modeService;
-
-	let modeId = language.name;
-	let name = language.name;
-
-	ModesRegistry.registerLanguage({
-		id: modeId,
-		aliases: [name]
-	});
-
-	let disposable = modeService.onDidCreateMode((mode) => {
-		if (mode.getId() !== modeId) {
-			return;
-		}
-		modeService.registerMonarchDefinition(modeId, language);
-		disposable.dispose();
-	});
-
-	return modeService.getOrCreateMode(modeId);
-}
-
 interface IMonacoWebWorkerState<T> {
 	myProxy:StandaloneWorker;
 	foreignProxy:T;
@@ -343,8 +314,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		onDidChangeModelLanguage: onDidChangeModelLanguage,
 
 
-		// getOrCreateMode: getOrCreateMode,
-		// createCustomMode: createCustomMode,
 		createWebWorker: createWebWorker,
 		colorizeElement: colorizeElement,
 		colorize: colorize,
