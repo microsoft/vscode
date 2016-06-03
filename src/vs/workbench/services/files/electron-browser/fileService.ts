@@ -35,10 +35,10 @@ export class FileService implements IFileService {
 	private configurationChangeListenerUnbind: IDisposable;
 
 	constructor(
-		private configurationService: IConfigurationService,
-		private eventService: IEventService,
-		private contextService: IWorkspaceContextService,
-		private messageService: IMessageService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IEventService private eventService: IEventService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IMessageService private messageService: IMessageService
 	) {
 		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 		const env = this.contextService.getConfiguration().env;

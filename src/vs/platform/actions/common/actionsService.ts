@@ -82,7 +82,10 @@ export default class ActionsService implements IActionsService {
 
 	serviceId: any;
 
-	constructor( @IExtensionService extensionService: IExtensionService, @IKeybindingService keybindingsService: IKeybindingService) {
+	constructor(
+		@IExtensionService extensionService: IExtensionService,
+		@IKeybindingService keybindingsService: IKeybindingService
+	) {
 		this._extensionService = extensionService;
 		this._keybindingsService = keybindingsService;
 		commandsExtPoint.setHandler((extensions) => {

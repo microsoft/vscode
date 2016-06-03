@@ -56,9 +56,9 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(
-		contextService: IWorkspaceContextService,
-		threadService: IThreadService,
-		messageService: IMessageService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IThreadService threadService: IThreadService,
+		@IMessageService messageService: IMessageService
 	) {
 		super(false);
 		let config = contextService.getConfiguration();

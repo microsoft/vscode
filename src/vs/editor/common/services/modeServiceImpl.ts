@@ -528,9 +528,9 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	private _onReadyPromise: TPromise<boolean>;
 
 	constructor(
-		threadService:IThreadService,
-		extensionService:IExtensionService,
-		configurationService: IConfigurationService
+		@IThreadService threadService:IThreadService,
+		@IExtensionService extensionService:IExtensionService,
+		@IConfigurationService configurationService:IConfigurationService
 	) {
 		super(threadService, extensionService);
 		this._configurationService = configurationService;

@@ -36,9 +36,9 @@ export class RequestService extends BaseRequestService {
 	private strictSSL: boolean = true;
 
 	constructor(
-		contextService: IWorkspaceContextService,
-		configurationService: IConfigurationService,
-		telemetryService?: ITelemetryService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService?: ITelemetryService
 	) {
 		super(contextService, telemetryService);
 		this.disposables = [];
