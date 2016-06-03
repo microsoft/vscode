@@ -133,12 +133,32 @@ export default class URI {
 	// ---- modify to new -------------------------
 
 	public with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
-		var ret = new URI();
-		ret._scheme = change.scheme || this.scheme;
-		ret._authority = change.authority || this.authority;
-		ret._path = change.path || this.path;
-		ret._query = change.query || this.query;
-		ret._fragment = change.fragment || this.fragment;
+
+		if (!change) {
+			return this;
+		}
+
+		let scheme = change.scheme || this.scheme;
+		let authority = change.authority || this.authority;
+		let path = change.path || this.path;
+		let query = change.query || this.query;
+		let fragment = change.fragment || this.fragment;
+
+		if (scheme === this.scheme
+			&& authority === this.authority
+			&& path === this.path
+			&& query === this.query
+			&& fragment === this.fragment) {
+
+			return this;
+		}
+
+		const ret = new URI();
+		ret._scheme = scheme;
+		ret._authority = authority;
+		ret._path = path;
+		ret._query = query;
+		ret._fragment = fragment;
 		URI._validate(ret);
 		return ret;
 	}

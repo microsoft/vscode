@@ -938,6 +938,20 @@ declare namespace vscode {
 		fsPath: string;
 
 		/**
+		 * Derive a new Uri from this Uri.
+		 *
+		 * @param change An object that describes a change.
+		 * @return A new Uri that reflects the changes. Will return `this` Uri if the change
+		 *  is not changing anything.
+		 * @sample ```
+			let file = Uri.parse('before:some/file/path');
+			let other = file.with({ scheme: 'after' });
+			assert.ok(other.toString() === 'after:some/file/path');
+		 * ```
+		 */
+		with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): Uri;
+
+		/**
 		 * Returns a string representation of this Uri. The representation and normalization
 		 * of a URI depends on the scheme. The resulting string can be safely used with
 		 * [Uri.parse](#Uri.parse).
