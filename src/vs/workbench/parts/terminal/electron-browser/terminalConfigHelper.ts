@@ -9,6 +9,8 @@ import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITerminalConfiguration} from 'vs/workbench/parts/terminal/electron-browser/terminal';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
+import {Builder} from 'vs/base/browser/builder';
 
 const DEFAULT_ANSI_COLORS = {
 	'hc-black': [
@@ -67,15 +69,26 @@ const DEFAULT_ANSI_COLORS = {
 	]
 };
 
+export interface ITerminalFont {
+	fontFamily: string;
+	fontSize: number;
+	lineHeight: number;
+	charWidth: number;
+	charHeight: number;
+}
+
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
  */
 export class TerminalConfigHelper {
+	private charMeasureElement: HTMLElement;
+
 	public constructor(
 		private platform: Platform,
 		private configurationService: IConfigurationService,
-		private themeService: IThemeService) {
+		private themeService: IThemeService,
+		private parentDomElement: HTMLElement) {
 	}
 
 	public getTheme(): string[] {
@@ -83,18 +96,46 @@ export class TerminalConfigHelper {
 		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
-	/**
-	 * Set the terminal font to `terminal.integrated.fontFamily` if it is set, otherwise fallback to
-	 * `editor.fontFamily`.
-	 */
-	public getFontFamily(): string {
-		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>();
-		let fontFamily = terminalConfig.terminal.integrated.fontFamily;
-		if (!fontFamily) {
-			let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
-			fontFamily = editorConfig.editor.fontFamily;
+	private neasureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
+		if (!this.charMeasureElement) {
+			this.charMeasureElement = new Builder(this.parentDomElement, true).div().build().getHTMLElement();
 		}
-		return fontFamily;
+		let style = this.charMeasureElement.style;
+		style.display = 'inline';
+		style.fontFamily = fontFamily;
+		style.fontSize = fontSize + 'px';
+		style.lineHeight = lineHeight + 'px';
+		this.charMeasureElement.innerText = 'X';
+		let rect = this.charMeasureElement.getBoundingClientRect();
+		style.display = 'none';
+		let charWidth = Math.ceil(rect.width);
+		let charHeight = Math.ceil(rect.height);
+		return {
+			fontFamily,
+			fontSize,
+			lineHeight,
+			charWidth,
+			charHeight
+		};
+	}
+
+	/**
+	 * Gets the font information based on the terminal.integrated.fontFamily,
+	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
+	 */
+	public getFont(): ITerminalFont {
+		let terminalConfig = this.configurationService.getConfiguration<ITerminalConfiguration>().terminal.integrated;
+		let editorConfig = this.configurationService.getConfiguration<IConfiguration>();
+
+		let fontFamily = terminalConfig.fontFamily || editorConfig.editor.fontFamily;
+		let fontSize = this.toInteger(terminalConfig.fontSize, 0) || editorConfig.editor.fontSize;
+		let lineHeight = this.toInteger(terminalConfig.lineHeight, 0) || editorConfig.editor.lineHeight;
+
+		if (lineHeight === 0) {
+			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
+		}
+
+		return this.neasureFont(fontFamily, fontSize, lineHeight);
 	}
 
 	public getShell(): string {
@@ -106,5 +147,16 @@ export class TerminalConfigHelper {
 			return config.terminal.integrated.shell.osx;
 		}
 		return config.terminal.integrated.shell.linux;
+	}
+
+	private toInteger(source: any, minimum?: number): number {
+		let r = parseInt(source, 10);
+		if (isNaN(r)) {
+			r = 0;
+		}
+		if (typeof minimum === 'number') {
+			r = Math.max(minimum, r);
+		}
+		return r;
 	}
 }

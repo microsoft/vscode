@@ -22,10 +22,7 @@ import {ITerminalService, TERMINAL_PANEL_ID} from 'vs/workbench/parts/terminal/e
 import {Panel} from 'vs/workbench/browser/panel';
 import {DomScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import {TerminalConfigHelper} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-
-const TERMINAL_CHAR_WIDTH = 8;
-const TERMINAL_CHAR_HEIGHT = 18;
+import {TerminalConfigHelper, ITerminalFont} from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalPanel extends Panel {
 
@@ -35,6 +32,7 @@ export class TerminalPanel extends Panel {
 	private terminal;
 	private terminalDomElement: HTMLDivElement;
 	private configurationHelper: TerminalConfigHelper;
+	private font: ITerminalFont;
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -44,22 +42,23 @@ export class TerminalPanel extends Panel {
 		@IThemeService private themeService: IThemeService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService);
-		this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.themeService);
 		this.toDispose = [];
 	}
 
 	public layout(dimension: Dimension): void {
-		let cols = Math.floor(this.parentDomElement.offsetWidth / TERMINAL_CHAR_WIDTH);
-		let rows = Math.floor(this.parentDomElement.offsetHeight / TERMINAL_CHAR_HEIGHT);
-		if (this.terminal) {
-			this.terminal.resize(cols, rows);
-		}
-		if (this.ptyProcess.connected) {
-			this.ptyProcess.send({
-				event: 'resize',
-				cols: cols,
-				rows: rows
-			});
+		if (this.font.charWidth && this.font.charHeight) {
+			let cols = Math.floor(this.parentDomElement.offsetWidth / this.font.charWidth);
+			let rows = Math.floor(this.parentDomElement.offsetHeight / this.font.charHeight);
+			if (this.terminal) {
+				this.terminal.resize(cols, rows);
+			}
+			if (this.ptyProcess.connected) {
+				this.ptyProcess.send({
+					event: 'resize',
+					cols: cols,
+					rows: rows
+				});
+			}
 		}
 	}
 
@@ -98,6 +97,7 @@ export class TerminalPanel extends Panel {
 
 	private createTerminal(): TPromise<void> {
 		return new TPromise<void>(resolve => {
+			this.configurationHelper = new TerminalConfigHelper(platform.platform, this.configurationService, this.themeService, this.parentDomElement);
 			this.parentDomElement.innerHTML = '';
 			this.ptyProcess = this.createTerminalProcess();
 			this.terminalDomElement = document.createElement('div');
@@ -157,13 +157,13 @@ export class TerminalPanel extends Panel {
 				this.setTerminalTheme();
 			}));
 			this.toDispose.push(this.configurationService.onDidUpdateConfiguration((e) => {
-				this.setTerminalFont();
+				this.updateFont();
 			}));
 
 			this.terminal.open(this.terminalDomElement);
 			this.parentDomElement.appendChild(terminalScrollbar.getDomNode());
 
-			this.setTerminalFont();
+			this.updateFont();
 			this.setTerminalTheme();
 			resolve(void 0);
 		});
@@ -177,13 +177,14 @@ export class TerminalPanel extends Panel {
 		this.terminal.refresh(0, this.terminal.rows);
 	}
 
-	/**
-	 * Set the terminal font to `terminal.integrated.fontFamily` if it is set, otherwise fallback to
-	 * `editor.fontFamily`.
-	 */
-	private setTerminalFont(): void {
-		this.terminalDomElement.style.fontFamily = this.configurationHelper.getFontFamily();
+	private updateFont(): void {
+		this.font = this.configurationHelper.getFont();
+		this.terminalDomElement.style.fontFamily = this.font.fontFamily;
+		this.terminalDomElement.style.lineHeight = this.font.lineHeight + 'px';
+		this.terminalDomElement.style.fontSize = this.font.fontSize + 'px';
+		this.layout(new Dimension(this.parentDomElement.offsetWidth, this.parentDomElement.offsetHeight));
 	}
+
 
 	public focus(): void {
 		this.focusTerminal(true);
