@@ -676,10 +676,12 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			let typeKey = decorationTypeKey;
 			let oldIds = oldDecorationsIds[subType] || [];
 
-			if (subType.length > 0 && oldIds.length === 0) {
-				// custom render options: decoration type did not exist before, register new one
+			if (subType.length > 0) {
 				typeKey = decorationTypeKey + '-' + subType;
-				this._codeEditorService.registerDecorationSubType(typeKey, decorationTypeKey, decorationOptions[0].renderOptions);
+				if (oldIds.length === 0) {
+					// custom render options: decoration type did not exist before, register new one
+					this._codeEditorService.registerDecorationSubType(typeKey, decorationOptions[0].renderOptions, decorationTypeKey);
+				}
 			}
 
 			let modelDecorations: editorCommon.IModelDeltaDecoration[] = decorationOptions.map(r => {
@@ -699,6 +701,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		// remove decorations that are no longer used, deregister decoration type if necessary
 		for (let subType in oldDecorationsIds) {
 			if (!decorationOptionsBySubTypes.hasOwnProperty(subType)) {
+				this.deltaDecorations(oldDecorationsIds[subType], []);
 				delete oldDecorationsIds[subType];
 				if (subType.length > 0) { // custom render options: unregister decoration type
 					this._codeEditorService.removeDecorationType(decorationTypeKey + '-' + subType);
