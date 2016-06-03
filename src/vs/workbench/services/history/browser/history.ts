@@ -300,16 +300,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	}
 
 	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor): void {
-		this.handleEditorEvent(editor, true);
+		this.handleEditorEventInStack(editor, true);
 	}
 
 	protected handleActiveEditorChange(editor?: IBaseEditor): void {
-		this.handleEditorEvent(editor, false);
-	}
-
-	private handleEditorEvent(editor: IBaseEditor, storeSelection: boolean): void {
 		this.handleEditorEventInHistory(editor);
-		this.handleEditorEventInStack(editor, storeSelection);
+		this.handleEditorEventInStack(editor, false);
 	}
 
 	private handleEditorEventInHistory(editor?: IBaseEditor): void {

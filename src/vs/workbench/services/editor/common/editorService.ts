@@ -112,7 +112,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 */
 	closeAllEditors(except?: Position): TPromise<void>;
 
-
 	/**
 	 * Resolves an input to its model representation. The optional parameter refresh allows to specify
 	 * if a cached model should be returned (false) or a new version (true). The default is returning a
