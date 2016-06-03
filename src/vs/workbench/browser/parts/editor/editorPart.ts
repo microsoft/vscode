@@ -401,26 +401,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			// Stop loading promise if any
 			monitor.cancel();
 
-			// Make sure that the user meanwhile has not opened another input
-			if (group.activeEditor !== input) {
-				timerEvent.stop();
-
-				// It can happen that the same editor input is being opened rapidly one after the other
-				// (e.g. fast double click on a file). In this case the first open will stop here because
-				// we detect that a second open happens. However, since the input is the same, inputChanged
-				// is false and we are not doing some things that we typically do when opening a file because
-				// we think, the input has not changed.
-				// The fix is to detect if the active input matches with this one that gets canceled and only
-				// in that case notify others about the input change event as well as to make sure that the
-				// editor title area is up to date.
-				if (group.activeEditor && group.activeEditor.matches(input)) {
-					this.doRecreateEditorTitleArea();
-					this._onEditorsChanged.fire();
-				}
-
-				return editor;
-			}
-
 			// Focus (unless prevented)
 			const focus = !options || !options.preserveFocus;
 			if (focus) {
