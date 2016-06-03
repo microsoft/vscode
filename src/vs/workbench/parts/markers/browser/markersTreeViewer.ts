@@ -49,7 +49,7 @@ export class DataSource implements IDataSource {
 
 	public getChildren(tree: ITree, element: any): Promise {
 		if (element instanceof MarkersModel) {
-			return TPromise.as((<MarkersModel>element).getFilteredResources());
+			return TPromise.as((<MarkersModel>element).filteredResources);
 		}
 		if (element instanceof Resource) {
 			return TPromise.as(element.markers);

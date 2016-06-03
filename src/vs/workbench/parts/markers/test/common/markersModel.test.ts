@@ -22,7 +22,7 @@ suite('MarkersModel Test', () => {
 		let marker6= aMarker('res2');
 		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals= testObject.getFilteredResources();
+		let actuals= testObject.filteredResources;
 
 		assert.equal(4, actuals.length);
 
@@ -54,7 +54,7 @@ suite('MarkersModel Test', () => {
 		let marker6= aMarker('c/res2');
 		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals= testObject.getFilteredResources();
+		let actuals= testObject.filteredResources;
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res1'));
@@ -73,7 +73,7 @@ suite('MarkersModel Test', () => {
 		let marker6= aMarker('c/res2', Severity.Info);
 		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals= testObject.getFilteredResources();
+		let actuals= testObject.filteredResources;
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res2'));
@@ -94,7 +94,7 @@ suite('MarkersModel Test', () => {
 		let marker8= aMarkerWithRange(8, 2, 8, 4);
 		let testObject= new MarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8]);
 
-		let actuals= testObject.getFilteredResources();
+		let actuals= testObject.filteredResources;
 
 		assert.equal(8, actuals[0].markers.length);
 		assert.equal(actuals[0].markers[0].marker, marker2);

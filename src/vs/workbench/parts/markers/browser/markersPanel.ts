@@ -40,7 +40,7 @@ export class MarkersPanel extends Panel {
 	private markersModel: MarkersModel;
 	private tree: Tree.ITree;
 	private toDispose: lifecycle.IDisposable[];
-	private handled: Set.ArraySet<string>;
+	private autoExpanded: Set.ArraySet<string>;
 
 	private actions: IAction[];
 	private showFilterInputAction: IAction;
@@ -63,7 +63,7 @@ export class MarkersPanel extends Panel {
 		super(Constants.MARKERS_PANEL_ID, telemetryService);
 		this.markersModel= new MarkersModel();
 		this.toDispose = [];
-		this.handled= new Set.ArraySet<string>();
+		this.autoExpanded= new Set.ArraySet<string>();
 	}
 
 	public create(parent: builder.Builder): TPromise<void> {
@@ -186,11 +186,15 @@ export class MarkersPanel extends Panel {
 	private updateResources(resources: URI[]) {
 		resources.forEach((resource) => {
 			let markers= this.markerService.read({resource: resource}).slice(0);
-			this.markersModel.updateResource(resource, markers);
+			this.markersModel.update(resource, markers);
+			if (!this.markersModel.hasResource(resource)) {
+				this.autoExpanded.unset(resource.toString());
+			}
 		});
 	}
 
 	private refreshPanel(focus: boolean= false):void {
+		this.refreshAutoExpanded();
 		this.updateTitleArea();
 		this.tree.refresh().then(this.autoExpand.bind(this));
 		this.renderMessage();
@@ -201,7 +205,7 @@ export class MarkersPanel extends Panel {
 
 	private render(): void {
 		let allMarkers = this.markerService.read().slice(0);
-		this.markersModel.updateMarkers(allMarkers);
+		this.markersModel.update(allMarkers);
 		this.tree.setInput(this.markersModel).then(this.autoExpand.bind(this));
 		this.renderMessage();
 	}
@@ -212,17 +216,25 @@ export class MarkersPanel extends Panel {
 		dom.toggleClass(this.messageBoxContainer, 'visible', !this.markersModel.hasFilteredResources());
 	}
 
+	private refreshAutoExpanded(): void {
+		this.markersModel.nonFilteredResources.forEach((resource) => {
+			if (this.tree.isExpanded(resource)) {
+				this.autoExpanded.unset(resource.uri.toString());
+			}
+		});
+	}
+
 	private autoExpand(): void {
-		this.markersModel.getFilteredResources().forEach((resource) => {
-			if (this.handled.contains(resource.uri.toString())) {
+		this.markersModel.filteredResources.forEach((resource) => {
+			if (this.autoExpanded.contains(resource.uri.toString())) {
 				return;
 			}
-			if (resource.statistics.errors > 0 && resource.statistics.errors < 10) {
+			if (resource.markers.length > 0 && resource.markers.length < 10) {
 				this.tree.expand(resource).done(null, errors.onUnexpectedError);
 			} else {
 				this.tree.collapse(resource).done(null, errors.onUnexpectedError);
 			}
-			this.handled.set(resource.uri.toString());
+			this.autoExpanded.set(resource.uri.toString());
 		});
 	}
 
@@ -234,7 +246,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	private toggleShowOnlyErrors(): any {
-		this.markersModel.filterErrors= !this.markersModel.filterErrors;
+		this.markersModel.toggleFilterErrors();
 		this.actions[1].label= this.markersModel.filterErrors ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_ONLY_ERRORS_OFF : Messages.MARKERS_PANEL_ACTION_TOOLTIP_ONLY_ERRORS;
 		this.actions[1].class= this.markersModel.filterErrors ? 'markers-panel-action-toggle-errors-off' : 'markers-panel-action-toggle-errors-on';
 		this.refreshPanel(true);

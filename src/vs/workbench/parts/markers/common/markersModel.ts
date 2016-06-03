@@ -28,20 +28,83 @@ export class Marker {
 	constructor(public id:string, public marker: IMarker){}
 }
 
+export class FilterOptions {
+	public filterErrors: boolean= false;
+	public filterValue: string= '';
+}
+
 export class MarkersModel {
+
 	private markersByResource: Map.SimpleMap<URI, IMarker[]>;
-	public filterErrors:boolean= false;
-	public filter:string= '';
+
+	private _filteredResources:Resource[];
+	private _nonFilteredResources:Resource[];
+	private _filterOptions:FilterOptions;
 
 	constructor(markers: IMarker[]= []) {
 		this.markersByResource= new Map.SimpleMap<URI, IMarker[]>();
-		this.updateMarkers(markers);
+		this._filterOptions= new FilterOptions();
+		this.update(markers);
 	}
 
-	public getFilteredResources():Resource[] {
-		var resources= <Resource[]>this.markersByResource.entries().map(this.toResource.bind(this));
-		resources= resources.filter((resource) => {return !!resource;});
-		resources.sort((a: Resource, b: Resource) => {
+	public get filteredResources(): Resource[] {
+		return this._filteredResources;
+	}
+
+	public get filterErrors():boolean {
+		return this._filterOptions.filterErrors;
+	}
+
+	public toggleFilterErrors() {
+		this._filterOptions.filterErrors= !this._filterOptions.filterErrors;
+		this.update();
+	}
+
+	public set filter(filter:string) {
+		this._filterOptions.filterValue= filter;
+		this.update();
+	}
+
+	public hasFilteredResources(): boolean {
+		return this.filteredResources.length > 0;
+	}
+
+	public hasResources(): boolean {
+		return this.markersByResource.size > 0;
+	}
+
+	public hasResource(resource:URI): boolean {
+		return this.markersByResource.has(resource);
+	}
+
+	public get nonFilteredResources(): Resource[] {
+		return this._nonFilteredResources;
+	}
+
+	public update(resourceUri: URI, markers: IMarker[]);
+	public update(markers: IMarker[]);
+	public update();
+	public update(arg1?: any, arg2?: any) {
+		if (arg1 instanceof URI) {
+			this.updateResource(arg1, arg2);
+		}
+
+		if (arg1 instanceof Array) {
+			this.updateMarkers(arg1);
+		}
+
+		this.refresh();
+	}
+
+	private refresh(): void {
+		this.refreshResources();
+	}
+
+	private refreshResources(): void {
+		var resources= <Resource[]>this.markersByResource.entries().map(this.toFilteredResource.bind(this));
+		this._nonFilteredResources= resources.filter((resource) => {return resource.markers.length === 0;});
+		this._filteredResources= resources.filter((resource) => {return resource.markers.length > 0;});
+		this._filteredResources.sort((a: Resource, b: Resource) => {
 			if (a.statistics.errors === 0 && b.statistics.errors > 0) {
 				return 1;
 			}
@@ -50,18 +113,9 @@ export class MarkersModel {
 			}
 			return strings.localeCompare(a.path, b.path) || strings.localeCompare(a.name, b.name);
 		});
-		return resources;
 	}
 
-	public hasFilteredResources(): boolean {
-		return this.getFilteredResources().length > 0;
-	}
-
-	public hasResources(): boolean {
-		return this.markersByResource.size > 0;
-	}
-
-	public updateResource(resourceUri: URI, markers: IMarker[]) {
+	private updateResource(resourceUri: URI, markers: IMarker[]) {
 		if (this.markersByResource.has(resourceUri)) {
 			this.markersByResource.delete(resourceUri);
 		}
@@ -70,7 +124,7 @@ export class MarkersModel {
 		}
 	}
 
-	public updateMarkers(markers: IMarker[]) {
+	private updateMarkers(markers: IMarker[]) {
 		markers.forEach((marker:IMarker) => {
 			let uri: URI = marker.resource;
 			let markers: IMarker[] = this.markersByResource.get(uri);
@@ -82,14 +136,26 @@ export class MarkersModel {
 		});
 	}
 
-	private toResource(entry: Map.Entry<URI, IMarker[]>) {
+	private toFilteredResource(entry: Map.Entry<URI, IMarker[]>) {
 		let markers:Marker[]= entry.value.filter(this.filterMarker.bind(this)).map(this.toMarker);
 		markers.sort(this.compareMarkers.bind(this));
-		return markers.length > 0 ? new Resource(entry.key, markers, this.getStatistics(entry.value)) : null;
+		return new Resource(entry.key, markers, this.getStatistics(entry.value));
 	}
 
 	private toMarker(marker: IMarker, index: number):Marker {
 		return new Marker(marker.resource.toString() + index, marker);
+	}
+
+	private filterMarker(marker: IMarker):boolean {
+		if (this._filterOptions.filterErrors && Severity.Error !== marker.severity) {
+			return false;
+		}
+		if (this._filterOptions.filterValue) {
+			const labelHighlights = Marker._filter(this._filterOptions.filterValue, marker.message);
+			const descHighlights = Marker._filter(this._filterOptions.filterValue, marker.resource.toString());
+			return !!labelHighlights || !!descHighlights;
+		}
+		return true;
 	}
 
 	private compareMarkers(a: Marker, b:Marker): number {
@@ -104,18 +170,6 @@ export class MarkersModel {
 			endLineNumber: b.marker.endLineNumber,
 			endColumn: b.marker.endColumn
 		});
-	}
-
-	private filterMarker(marker: IMarker):boolean {
-		if (this.filterErrors && Severity.Error !== marker.severity) {
-			return false;
-		}
-		if (this.filter) {
-			const labelHighlights = Marker._filter(this.filter, marker.message);
-			const descHighlights = Marker._filter(this.filter, marker.resource.toString());
-			return !!labelHighlights || !!descHighlights;
-		}
-		return true;
 	}
 
 	private getStatistics(markers: IMarker[]): MarkerStatistics {
@@ -144,10 +198,10 @@ export class MarkersModel {
 		if (!title) {
 			return Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS;
 		}
-		if (this.filter) {
+		if (this._filterOptions.filterValue) {
 			return title + ' ' + Messages.MARKERS_PANEL_TITLE_SHOWING_FILTERED;
 		}
-		if (this.filterErrors) {
+		if (this._filterOptions.filterErrors) {
 			return title + ' ' + Messages.MARKERS_PANEL_TITLE_SHOWING_ONLY_ERRORS;
 		}
 		return title;
@@ -158,10 +212,10 @@ export class MarkersModel {
 			return '';
 		}
 		if (this.hasResources()) {
-			if (this.filter) {
+			if (this._filterOptions.filterValue) {
 				return Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
 			}
-			if (this.filterErrors) {
+			if (this._filterOptions.filterErrors) {
 				return Messages.MARKERS_PANEL_NO_ERRORS;
 			}
 		}
