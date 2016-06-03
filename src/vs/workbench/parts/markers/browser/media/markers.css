@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-action-bar .action-item.markers-panel-action-filter {
+	width: 400px;
+	cursor: default;
+	margin: 5px 10px 0 0;
+}
+
 .markers-panel .markers-panel-container {
 	height: 100%;
 }
@@ -14,22 +20,6 @@
 
 .markers-panel  .markers-panel-container .message-box-container.visible {
 	display: block;
-}
-
-.markers-panel .markers-panel-container .filter-box-container {
-	display: flex;
-	justify-content: flex-end;
-}
-
-.markers-panel .markers-panel-container .input-box-container {
-	width: 250px;
-	border: 1px solid #DDD;
-	border-radius: 3px;
-	border-color: #2D2D30;
-	display: none;
-}
-.markers-panel .markers-panel-container .input-box-container.visible {
-	display: inline-block;
 }
 
 .markers-panel .markers-panel-container .tree-container {
@@ -48,22 +38,6 @@
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .count-badge-wrapper {
 	display: inline-block;
 	margin-left: 10px;
-}
-
-.markers-panel-action-filter {
-	background: url('filter.svg') top center no-repeat;
-}
-
-.hc-black .markers-panel-action-filter {
-	background: url('filter.svg') top center no-repeat;
-}
-
-.vs-dark .markers-panel-action-filter {
-	background: url('filter.svg') top center no-repeat;
-}
-
-.vs .markers-panel-action-filter {
-	background: url('filter.svg') top center no-repeat;
 }
 
 .markers-panel .icon {
