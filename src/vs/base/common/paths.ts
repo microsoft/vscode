@@ -110,48 +110,14 @@ export function normalize2(path: string, toOSPath: boolean): string {
 	}
 }
 
-function _isNormal(path: string, badSep: number): boolean {
-	let lastCode = -1;
-	for (let pos = 0; pos < path.length; pos++) {
-		let code = path.charCodeAt(pos);
-		// bad separator
-		if (code === badSep) {
-			return false;
-		}
-		// double separator
-		if ((code === _slash || code === _backslash)
-			&& (lastCode === _slash || lastCode === _backslash)) {
+const _posixBadPath = /(\/\.\.?\/)|(\/\.\.?)$|^(\.\.?\/)|(\/\/+)|(\\)/;
+const _winBadPath = /(\\\.\.?\\)|(\\\.\.?)$|^(\.\.?\\)|(\\\\+)|(\/)/;
 
-			return false;
-		}
-		// ./ ../ segments
-		if (code === _dot && (lastCode === -1 || lastCode === _slash || lastCode === _backslash)) {
-			if (pos + 1 >= path.length) {
-				// /.<end>
-				return false;
-			}
-			code = path.charCodeAt(++pos);
-			if (code === _slash || code === _backslash) {
-				// /./
-				return false;
-
-			} else if (code === _dot) {
-				if (pos + 1 >= path.length) {
-					// /..<end>
-					return false;
-				}
-				code = path.charCodeAt(++pos);
-				if (code === _slash || code === _backslash) {
-					// /../
-					return false;
-				}
-			}
-		}
-		lastCode = code;
-	}
-	return true;
+function _isNormal(path: string, win: boolean): boolean {
+	return win
+		? !_winBadPath.test(path)
+		: !_posixBadPath.test(path);
 }
-
 
 export function normalize(path: string, toOSPath?: boolean): string {
 
@@ -164,7 +130,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 		return '.';
 	}
 
-	if (_isNormal(path, isWindows && toOSPath ? _slash : _backslash)) {
+	if (_isNormal(path, isWindows && toOSPath)) {
 		return path;
 	}
 
@@ -374,7 +340,6 @@ export function isRelative(path: string): boolean {
 const _slash = '/'.charCodeAt(0);
 const _backslash = '\\'.charCodeAt(0);
 const _colon = ':'.charCodeAt(0);
-const _dot = '.'.charCodeAt(0);
 const _a = 'a'.charCodeAt(0);
 const _A = 'A'.charCodeAt(0);
 const _z = 'z'.charCodeAt(0);
