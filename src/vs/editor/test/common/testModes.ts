@@ -6,7 +6,7 @@
 
 import * as modes from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 

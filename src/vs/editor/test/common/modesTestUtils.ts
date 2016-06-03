@@ -6,7 +6,7 @@
 
 import {Arrays} from 'vs/editor/common/core/arrays';
 import * as modes from 'vs/editor/common/modes';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 

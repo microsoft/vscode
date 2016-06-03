@@ -10,7 +10,7 @@ import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebars
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';

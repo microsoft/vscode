@@ -9,7 +9,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
-import {IRichLanguageConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 

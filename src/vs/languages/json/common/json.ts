@@ -16,7 +16,7 @@ import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadSer
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export class JSONMode extends AbstractMode {

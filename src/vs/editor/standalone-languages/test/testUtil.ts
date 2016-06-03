@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createOnEnterAsserter, executeMonarchTokenizationTests} from 'vs/editor/test/common/modesUtil';
 import {ILanguage, IRichLanguageConfiguration} from '../types';
 

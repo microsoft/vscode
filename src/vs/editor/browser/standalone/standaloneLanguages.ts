@@ -17,7 +17,7 @@ import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
 import {startup} from './standaloneCodeEditor';
-import {IRichLanguageConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';

@@ -11,6 +11,7 @@ import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPai
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
 import {IIndentationRules, IOnEnterRegExpRules, IOnEnterSupportOptions, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {RichEditBrackets} from 'vs/editor/common/modes/supports/richEditBrackets';
+// import Event, {Emitter} from 'vs/base/common/event';
 
 export interface CommentRule {
 	lineComment?: string;
@@ -122,3 +123,21 @@ export class RichEditSupport implements IRichEditSupport {
 	}
 
 }
+
+// export class LanguageConfigurationRegistryImpl {
+
+// 	private _entries: {[languageId:string]:RichEditSupport;};
+
+// 	private _onDidChange: Emitter<void> = new Emitter<void>();
+// 	public onDidChange: Event<void> = this._onDidChange.event;
+
+// 	constructor() {
+// 		this._entries = Object.create(null);
+// 	}
+
+// 	public register(languageId:string, configuration:IRichLanguageConfiguration): void {
+// 		console.log('TODO!');
+// 	}
+// }
+
+// export const LanguageConfigurationRegistry = new LanguageConfigurationRegistryImpl();

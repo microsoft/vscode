@@ -17,7 +17,7 @@ import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 
