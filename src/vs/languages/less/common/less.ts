@@ -246,11 +246,7 @@ export class LESSMode extends AbstractMode {
 				{ open: '[', close: ']', notIn: ['string', 'comment'] },
 				{ open: '(', close: ')', notIn: ['string', 'comment'] },
 				{ open: '<', close: '>', notIn: ['string', 'comment'] },
-			],
-			__electricCharacterSupport: {
-				caseInsensitive: false,
-				embeddedElectricCharacters: []
-			}
+			]
 		});
 	}
 

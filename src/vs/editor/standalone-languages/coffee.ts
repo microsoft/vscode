@@ -20,11 +20,7 @@ export var conf:IRichLanguageConfiguration = {
 		{ open: '{', close: '}', notIn: ['string', 'comment'] },
 		{ open: '[', close: ']', notIn: ['string', 'comment'] },
 		{ open: '(', close: ')', notIn: ['string', 'comment'] },
-	],
-	__electricCharacterSupport: {
-		caseInsensitive: false,
-		embeddedElectricCharacters: []
-	}
+	]
 	// enhancedBrackets: [
 	// 		{ open: /for$/ }, { open: /while$/ },	{ open: /loop$/ }, { open: /if$/ }, { open: /unless$/ },
 	// 		{ open: /else$/ }, { open: /switch$/ }, { open: /try$/ }, { open: /catch$/ }, { open: /finally$/ },

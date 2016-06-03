@@ -18,11 +18,7 @@ export var conf:IRichLanguageConfiguration = {
 		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
 		{ open: '[', close: ']', notIn: ['string', 'comment'] },
 		{ open: '(', close: ')', notIn: ['string', 'comment'] },
-	],
-	__electricCharacterSupport: {
-		caseInsensitive: true,
-		embeddedElectricCharacters: []
-	}
+	]
 	// enhancedBrackets:[
 	// 	{ openTrigger: 'n', open: /begin$/i, closeComplete: 'end', matchCase: true },
 	// 	{ openTrigger: 'e', open: /case$/i, closeComplete: 'end', matchCase: true },

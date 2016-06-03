@@ -73,11 +73,7 @@ export class OutputMode extends AbstractMode {
 				{ open: '[', close: ']', notIn: ['string', 'comment'] },
 				{ open: '(', close: ')', notIn: ['string', 'comment'] },
 				{ open: '<', close: '>', notIn: ['string', 'comment'] },
-			],
-			__electricCharacterSupport: {
-				caseInsensitive: true,
-				embeddedElectricCharacters: []
-			}
+			]
 		});
 
 		modes.LinkProviderRegistry.register(this.getId(), {

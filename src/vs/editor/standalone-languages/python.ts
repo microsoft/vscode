@@ -19,11 +19,7 @@ export var conf:IRichLanguageConfiguration = {
 		{ open: '{', close: '}', notIn: ['string', 'comment'] },
 		{ open: '[', close: ']', notIn: ['string', 'comment'] },
 		{ open: '(', close: ')', notIn: ['string', 'comment'] },
-	],
-	__electricCharacterSupport: {
-		caseInsensitive: false,
-		embeddedElectricCharacters: []
-	}
+	]
 	// Cause an automatic indent to occur after lines ending in :.
 	// enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
 };

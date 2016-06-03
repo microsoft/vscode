@@ -21,7 +21,6 @@ export var conf:IRichLanguageConfiguration = {
 		{ open: '[', close: ']', notIn: ['string', 'comment'] },
 	],
 	__electricCharacterSupport: {
-		caseInsensitive: false,
 		// trigger outdenting on 'end'
 		embeddedElectricCharacters: ['d']
 	}

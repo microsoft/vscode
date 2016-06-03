@@ -15,11 +15,7 @@ export var conf:IRichLanguageConfiguration = {
 	autoClosingPairs: [
 		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
 		{ open: '"', close: '"', notIn: ['string', 'comment'] },
-	],
-	__electricCharacterSupport: {
-		caseInsensitive: true,
-		embeddedElectricCharacters: []
-	}
+	]
 	// enhancedBrackets: [{
 	// 	tokenType: 'tag.tag-$1.xml',
 	// 	openTrigger: '>',

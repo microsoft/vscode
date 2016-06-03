@@ -88,7 +88,6 @@ export interface IDocComment {
 
 export interface IBracketElectricCharacterContribution {
 	docComment?: IDocComment;
-	caseInsensitive?: boolean;
 	embeddedElectricCharacters?: string[];
 }
 

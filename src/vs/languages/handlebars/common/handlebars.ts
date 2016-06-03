@@ -165,7 +165,6 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 			],
 
 			__electricCharacterSupport: {
-				caseInsensitive: true,
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},
 
@@ -176,7 +175,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 				{ open: '"', close: '"' },
 				{ open: '\'', close: '\'' }
 			],
-			
+
 			surroundingPairs: [
 				{ open: '<', close: '>' },
 				{ open: '"', close: '"' },
