@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IGroupEvent, IEditorIdentifier, GroupIdentifier} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, GroupIdentifier, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -21,7 +21,7 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 // TODO@Ben currently only files and untitled editors are tracked with their resources in the stacks model
 // Once the resource is a base concept of all editor inputs, every resource should be tracked for any editor
 
-export interface GroupEvent extends IGroupEvent {
+export interface GroupEvent {
 	editor: EditorInput;
 	pinned: boolean;
 }
@@ -78,7 +78,8 @@ export class EditorGroup implements IEditorGroup {
 	private _onEditorMoved: Emitter<EditorInput>;
 	private _onEditorPinned: Emitter<EditorInput>;
 	private _onEditorUnpinned: Emitter<EditorInput>;
-	private _onEditorChanged: Emitter<EditorInput>;
+	private _onEditorStateChanged: Emitter<EditorInput>;
+	private _onEditorsStructureChanged: Emitter<EditorInput>;
 
 	constructor(
 		arg1: string | ISerializedEditorGroup,
@@ -99,9 +100,10 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorMoved = new Emitter<EditorInput>();
 		this._onEditorPinned = new Emitter<EditorInput>();
 		this._onEditorUnpinned = new Emitter<EditorInput>();
-		this._onEditorChanged = new Emitter<EditorInput>();
+		this._onEditorStateChanged = new Emitter<EditorInput>();
+		this._onEditorsStructureChanged = new Emitter<EditorInput>();
 
-		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorDisposed, this._onEditorDirty, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorChanged);
+		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorDisposed, this._onEditorDirty, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorStateChanged, this._onEditorsStructureChanged);
 
 		if (typeof arg1 === 'object') {
 			this.deserialize(arg1);
@@ -158,8 +160,12 @@ export class EditorGroup implements IEditorGroup {
 		return this._onEditorUnpinned.event;
 	}
 
-	public get onEditorChanged(): Event<EditorInput> {
-		return this._onEditorChanged.event;
+	public get onEditorStateChanged(): Event<EditorInput> {
+		return this._onEditorStateChanged.event;
+	}
+
+	public get onEditorsStructureChanged(): Event<EditorInput> {
+		return this._onEditorsStructureChanged.event;
 	}
 
 	public getEditors(mru?: boolean): EditorInput[] {
@@ -242,7 +248,7 @@ export class EditorGroup implements IEditorGroup {
 			this.hookEditorListeners(editor);
 
 			// Event
-			this.fireEvent(this._onEditorOpened, editor);
+			this.fireEvent(this._onEditorOpened, editor, true);
 
 			// Handle active
 			if (makeActive) {
@@ -282,7 +288,7 @@ export class EditorGroup implements IEditorGroup {
 
 		// Re-Emit dirty state changes
 		unbind.push(editor.onDidChangeDirty(() => {
-			this._onEditorDirty.fire(editor);
+			this.fireEvent(this._onEditorDirty, editor, false);
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
@@ -324,7 +330,7 @@ export class EditorGroup implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		this.fireEvent(this._onEditorClosed, { editor, pinned });
+		this.fireEvent(this._onEditorClosed, { editor, pinned }, true);
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {
@@ -371,7 +377,7 @@ export class EditorGroup implements IEditorGroup {
 		this.editors.splice(toIndex, 0, editor);
 
 		// Event
-		this.fireEvent(this._onEditorMoved, editor);
+		this.fireEvent(this._onEditorMoved, editor, true);
 	}
 
 	public setActive(editor: EditorInput): void {
@@ -390,7 +396,7 @@ export class EditorGroup implements IEditorGroup {
 		this.setMostRecentlyUsed(editor);
 
 		// Event
-		this.fireEvent(this._onEditorActivated, editor);
+		this.fireEvent(this._onEditorActivated, editor, false);
 	}
 
 	public pin(editor: EditorInput): void {
@@ -407,7 +413,7 @@ export class EditorGroup implements IEditorGroup {
 		this.preview = null;
 
 		// Event
-		this.fireEvent(this._onEditorPinned, editor);
+		this.fireEvent(this._onEditorPinned, editor, false);
 	}
 
 	public unpin(editor: EditorInput): void {
@@ -425,7 +431,7 @@ export class EditorGroup implements IEditorGroup {
 		this.preview = editor;
 
 		// Event
-		this.fireEvent(this._onEditorUnpinned, editor);
+		this.fireEvent(this._onEditorUnpinned, editor, false);
 
 		// Close old preview editor if any
 		this.closeEditor(oldPreview);
@@ -444,9 +450,14 @@ export class EditorGroup implements IEditorGroup {
 		return !this.matches(this.preview, editor);
 	}
 
-	private fireEvent(emitter: Emitter<EditorInput | IGroupEvent>, arg2: EditorInput | GroupEvent): void {
+	private fireEvent(emitter: Emitter<EditorInput | GroupEvent>, arg2: EditorInput | GroupEvent, isStructuralChange: boolean): void {
 		emitter.fire(arg2);
-		this._onEditorChanged.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
+
+		if (isStructuralChange) {
+			this._onEditorsStructureChanged.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
+		} else {
+			this._onEditorStateChanged.fire(arg2 instanceof EditorInput ? arg2 : arg2.editor);
+		}
 	}
 
 	private splice(index: number, del: boolean, editor?: EditorInput): void {
@@ -616,9 +627,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupMoved: Emitter<EditorGroup>;
 	private _onGroupActivated: Emitter<EditorGroup>;
 	private _onGroupRenamed: Emitter<EditorGroup>;
-	private _onModelChanged: Emitter<EditorGroup>;
 	private _onEditorDisposed: Emitter<EditorIdentifier>;
 	private _onEditorDirty: Emitter<EditorIdentifier>;
+	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -638,7 +649,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onGroupActivated = new Emitter<EditorGroup>();
 		this._onGroupMoved = new Emitter<EditorGroup>();
 		this._onGroupRenamed = new Emitter<EditorGroup>();
-		this._onModelChanged = new Emitter<EditorGroup>();
+		this._onModelChanged = new Emitter<IStacksModelChangeEvent>();
 		this._onEditorDisposed = new Emitter<EditorIdentifier>();
 		this._onEditorDirty = new Emitter<EditorIdentifier>();
 
@@ -671,7 +682,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._onGroupRenamed.event;
 	}
 
-	public get onModelChanged(): Event<EditorGroup> {
+	public get onModelChanged(): Event<IStacksModelChangeEvent> {
 		return this._onModelChanged.event;
 	}
 
@@ -726,7 +737,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}
 
 		// Event
-		this.fireEvent(this._onGroupOpened, group);
+		this.fireEvent(this._onGroupOpened, group, true);
 
 		// Activate if we are first or set to activate groups
 		if (!this._activeGroup || activate) {
@@ -741,7 +752,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		if (group.label !== label) {
 			group.label = label;
-			this.fireEvent(this._onGroupRenamed, group);
+			this.fireEvent(this._onGroupRenamed, group, false);
 		}
 	}
 
@@ -783,7 +794,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this.groupToIdentifier[group.id] = void 0;
 
 		// Event
-		this.fireEvent(this._onGroupClosed, group);
+		this.fireEvent(this._onGroupClosed, group, true);
 	}
 
 	public closeGroups(except?: EditorGroup): void {
@@ -807,7 +818,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		this._activeGroup = group;
 
-		this.fireEvent(this._onGroupActivated, group);
+		this.fireEvent(this._onGroupActivated, group, false);
 	}
 
 	public moveGroup(group: EditorGroup, toIndex: number): void {
@@ -823,7 +834,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._groups.splice(toIndex, 0, group);
 
 		// Event
-		this.fireEvent(this._onGroupMoved, group);
+		this.fireEvent(this._onGroupMoved, group, true);
 	}
 
 	private indexOf(group: EditorGroup): number {
@@ -922,9 +933,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 		};
 	}
 
-	private fireEvent(emitter: Emitter<EditorGroup>, group: EditorGroup): void {
+	private fireEvent(emitter: Emitter<EditorGroup>, group: EditorGroup, isStructuralChange: boolean): void {
 		emitter.fire(group);
-		this._onModelChanged.fire(group);
+		this._onModelChanged.fire({ group, structural: isStructuralChange });
 	}
 
 	private ensureLoaded(): void {
@@ -1040,7 +1051,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Funnel editor changes in the group through our event aggregator
 		const unbind: IDisposable[] = [];
-		unbind.push(group.onEditorChanged(e => this._onModelChanged.fire(group)));
+		unbind.push(group.onEditorsStructureChanged(editor => this._onModelChanged.fire({ group, editor, structural: true })));
+		unbind.push(group.onEditorStateChanged(editor => this._onModelChanged.fire({ group, editor })));
 		unbind.push(group.onEditorClosed(e => this.onEditorClosed(e)));
 		unbind.push(group.onEditorDisposed(editor => this._onEditorDisposed.fire({ editor, group })));
 		unbind.push(group.onEditorDirty(editor => this._onEditorDirty.fire({ editor, group })));

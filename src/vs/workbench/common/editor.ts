@@ -593,14 +593,15 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
 }
 
+export interface IStacksModelChangeEvent {
+	group: IEditorGroup;
+	editor?: IEditorInput;
+	structural?: boolean;
+}
+
 export interface IEditorStacksModel {
 
-	onGroupOpened: Event<IEditorGroup>;
-	onGroupClosed: Event<IEditorGroup>;
-	onGroupActivated: Event<IEditorGroup>;
-	onGroupMoved: Event<IEditorGroup>;
-	onGroupRenamed: Event<IEditorGroup>;
-	onModelChanged: Event<IEditorGroup>;
+	onModelChanged: Event<IStacksModelChangeEvent>;
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
@@ -631,14 +632,6 @@ export interface IEditorGroup {
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
 
-	onEditorActivated: Event<IEditorInput>;
-	onEditorOpened: Event<IEditorInput>;
-	onEditorClosed: Event<IGroupEvent>;
-	onEditorMoved: Event<IEditorInput>;
-	onEditorPinned: Event<IEditorInput>;
-	onEditorUnpinned: Event<IEditorInput>;
-	onEditorChanged: Event<IEditorInput>;
-
 	getEditor(index: number): IEditorInput;
 	indexOf(editor: IEditorInput): number;
 
@@ -649,11 +642,6 @@ export interface IEditorGroup {
 	isActive(editor: IEditorInput): boolean;
 	isPreview(editor: IEditorInput): boolean;
 	isPinned(editor: IEditorInput): boolean;
-}
-
-export interface IGroupEvent {
-	editor: IEditorInput;
-	pinned: boolean;
 }
 
 export interface IEditorIdentifier {
