@@ -18,7 +18,6 @@ import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { ISettingsService, SettingsManager } from 'vs/code/electron-main/settings';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { getUnixUserEnvironment, IEnv } from 'vs/base/node/env';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
@@ -31,6 +30,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, MainLogService } from 'vs/code/electron-main/log';
 import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
+import * as cp from 'child_process';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -277,6 +277,64 @@ services.set(IUpdateService, new SyncDescriptor(UpdateManager));
 services.set(ISettingsService, new SyncDescriptor(SettingsManager));
 
 const instantiationService = new InstantiationService(services);
+
+interface IEnv {
+	[key: string]: string;
+}
+
+function getUnixUserEnvironment(): TPromise<IEnv> {
+	const promise = new TPromise((c, e) => {
+		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+
+		const env = assign({}, process.env, {
+			ATOM_SHELL_INTERNAL_RUN_AS_NODE: '1',
+			ELECTRON_NO_ATTACH_CONSOLE: '1'
+		});
+
+		const command = `'${process.execPath}' -p 'JSON.stringify(process.env)'`;
+		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
+			detached: true,
+			stdio: ['ignore', 'pipe', process.stderr],
+			env
+		});
+
+		const buffers: Buffer[] = [];
+		child.on('error', () => c({}));
+		child.stdout.on('data', b => buffers.push(b));
+
+		child.on('close', (code: number, signal: any) => {
+			if (code !== 0) {
+				return e(new Error('Failed to get environment'));
+			}
+
+			const raw = Buffer.concat(buffers).toString('utf8');
+
+			try {
+				const env = JSON.parse(raw);
+
+				if (runAsNode) {
+					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;
+				} else {
+					delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+				}
+
+				if (noAttach) {
+					env['ELECTRON_NO_ATTACH_CONSOLE'] = noAttach;
+				} else {
+					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
+				}
+
+				c(env);
+			} catch (err) {
+				e(err);
+			}
+		});
+	});
+
+	// swallow errors
+	return promise.then(null, () => ({}));
+}
 
 function getUserEnvironment(): TPromise<IEnv> {
 	return platform.isWindows ? TPromise.as({}) : getUnixUserEnvironment();

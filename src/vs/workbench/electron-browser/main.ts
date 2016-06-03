@@ -16,7 +16,6 @@ import {assign} from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IEnv} from 'vs/base/node/env';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
@@ -43,7 +42,7 @@ export interface IMainEnvironment extends IEnvironment {
 	filesToCreate?: IPath[];
 	filesToDiff?: IPath[];
 	extensionsToInstall?: string[];
-	userEnv: IEnv;
+	userEnv: { [key: string]: string; };
 }
 
 export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
