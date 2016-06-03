@@ -23,6 +23,8 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {toThenable} from 'vs/base/common/async';
+import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
+import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 
 export function register(language:ILanguageExtensionPoint): void {
 	ModesRegistry.registerLanguage(language);
@@ -295,7 +297,7 @@ export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoi
 	ModesRegistry.registerLanguage(language);
 
 	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
-		require([defModule], (value:{language:ILanguage}) => {
+		require([defModule], (value:{language:ILanguage;conf:IRichLanguageConfiguration}) => {
 			if (!value.language) {
 				console.error('Expected ' + defModule + ' to export a `language`');
 				return;
@@ -304,10 +306,14 @@ export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoi
 			startup.initStaticServicesIfNecessary();
 			let staticPlatformServices = ensureStaticPlatformServices(null);
 			let modeService = staticPlatformServices.modeService;
-			let modelService = staticPlatformServices.modelService;
-			let editorWorkerService = staticPlatformServices.editorWorkerService;
 
-			modeService.registerMonarchDefinition(modelService, editorWorkerService, language.id, value.language);
+			let lexer = compile(value.language);
+
+			modeService.registerTokenizationSupport(language.id, (mode) => {
+				return createTokenizationSupport(modeService, mode, lexer);
+			});
+
+			modeService.registerRichEditSupport(language.id, value.conf);
 		}, (err) => {
 			console.error('Cannot find module ' + defModule, err);
 		});

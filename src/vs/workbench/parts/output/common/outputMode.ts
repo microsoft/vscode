@@ -17,7 +17,6 @@ import URI from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
-import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -66,7 +65,21 @@ export class OutputMode extends AbstractMode {
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+			brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+			autoClosingPairs: [
+				{ open: '"', close: '"', notIn: ['string', 'comment'] },
+				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+				{ open: '{', close: '}', notIn: ['string', 'comment'] },
+				{ open: '[', close: ']', notIn: ['string', 'comment'] },
+				{ open: '(', close: ')', notIn: ['string', 'comment'] },
+				{ open: '<', close: '>', notIn: ['string', 'comment'] },
+			],
+			__electricCharacterSupport: {
+				caseInsensitive: true,
+				embeddedElectricCharacters: []
+			}
+		});
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {

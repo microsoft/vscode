@@ -26,10 +26,8 @@ import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefin
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {IRichLanguageConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {Token} from 'vs/editor/common/modes/supports';
@@ -438,7 +436,7 @@ export class ModeServiceImpl implements IModeService {
 		);
 	}
 
-	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
+	public registerMonarchDefinition(modeId:string, language:ILanguage): IDisposable {
 		var lexer = compile(objects.clone(language));
 		return this.doRegisterMonarchDefinition(modeId, lexer);
 	}
@@ -649,7 +647,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		return super._createMode(modeId);
 	}
 
-	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
+	public registerMonarchDefinition(modeId:string, language:ILanguage): IDisposable {
 		this._getModeServiceWorkerHelper().registerMonarchDefinition(modeId, language);
 		var lexer = compile(objects.clone(language));
 		return super.doRegisterMonarchDefinition(modeId, lexer);
@@ -691,6 +689,6 @@ export class ModeServiceWorkerHelper {
 	}
 
 	public registerMonarchDefinition(modeId:string, language:ILanguage): void {
-		this._modeService.registerMonarchDefinition(null, null, modeId, language);
+		this._modeService.registerMonarchDefinition(modeId, language);
 	}
 }

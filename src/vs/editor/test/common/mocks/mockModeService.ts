@@ -92,7 +92,7 @@ export class MockModeService implements IModeService {
 	registerTokenizationSupport2(modeId: string, support: modes.TokensProvider): IDisposable {
 		throw new Error('Not implemented');
 	}
-	registerMonarchDefinition(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
+	registerMonarchDefinition(modeId:string, language:ILanguage): IDisposable {
 		throw new Error('Not implemented');
 	}
 }

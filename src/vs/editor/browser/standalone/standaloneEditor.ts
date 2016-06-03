@@ -215,8 +215,6 @@ export function createCustomMode(language:ILanguage): TPromise<modes.IMode> {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
 	let modeService = staticPlatformServices.modeService;
-	let modelService = staticPlatformServices.modelService;
-	let editorWorkerService = staticPlatformServices.editorWorkerService;
 
 	let modeId = language.name;
 	let name = language.name;
@@ -230,7 +228,7 @@ export function createCustomMode(language:ILanguage): TPromise<modes.IMode> {
 		if (mode.getId() !== modeId) {
 			return;
 		}
-		modeService.registerMonarchDefinition(modelService, editorWorkerService, modeId, language);
+		modeService.registerMonarchDefinition(modeId, language);
 		disposable.dispose();
 	});
 

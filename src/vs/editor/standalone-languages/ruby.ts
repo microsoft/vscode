@@ -5,7 +5,26 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '#',
+		blockComment: ['=begin', '=end'],
+	},
+	brackets: [['(',')'],['{','}'], ['[',']']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+	],
+	__electricCharacterSupport: {
+		caseInsensitive: false,
+		embeddedElectricCharacters: ['d']
+	}
+};
 
 /*
  * Ruby language definition

@@ -20,7 +20,6 @@ import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {wireCancellationToken} from 'vs/base/common/async';
-import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
@@ -342,7 +341,27 @@ export class SASSMode extends AbstractMode {
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+			// TODO@Martin: This definition does not work with umlauts for example
+			wordPattern: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
+			comments: {
+				blockComment: ['/*', '*/'],
+				lineComment: '//'
+			},
+			brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+			autoClosingPairs: [
+				{ open: '"', close: '"', notIn: ['string', 'comment'] },
+				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+				{ open: '{', close: '}', notIn: ['string', 'comment'] },
+				{ open: '[', close: ']', notIn: ['string', 'comment'] },
+				{ open: '(', close: ')', notIn: ['string', 'comment'] },
+				{ open: '<', close: '>', notIn: ['string', 'comment'] },
+			],
+			__electricCharacterSupport: {
+				caseInsensitive: false,
+				embeddedElectricCharacters: []
+			}
+		});
 	}
 
 	public creationDone(): void {
