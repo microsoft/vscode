@@ -145,7 +145,7 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', function (done) {
 		let eventCounter = 0;
 
-		eventService.addListener2('files:fileReverted', () => {
+		eventService.addListener2(EventType.FILE_REVERTED, () => {
 			eventCounter++;
 		});
 

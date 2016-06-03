@@ -35,7 +35,6 @@ import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistr
 import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
@@ -680,7 +679,6 @@ export class SearchViewlet extends Viewlet {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(ID, telemetryService);
