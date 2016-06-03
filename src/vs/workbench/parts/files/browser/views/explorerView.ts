@@ -39,6 +39,7 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -81,7 +82,8 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
@@ -337,9 +339,9 @@ export class ExplorerView extends CollapsibleViewletView {
 			dnd: dnd,
 			accessibilityProvider: accessibility
 		}, {
-			autoExpandSingleChildren: true,
-			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
-		});
+				autoExpandSingleChildren: true,
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
+			});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 
@@ -683,34 +685,38 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Load Root Stat with given target path configured
 		let options: IResolveFileOptions = { resolveTo: targetsToResolve };
-		let promise = this.fileService.resolveFile(this.workspace.resource, options).then(stat => {
-			let explorerPromise: TPromise<void>;
+		
+		// Make sure the extensions are ready, so that all editors and inputs can use the mimetypes defines in extensions.
+		let promise = this.extensionService.onReady().then(() => {
+			this.fileService.resolveFile(this.workspace.resource, options).then(stat => {
+				let explorerPromise: TPromise<void>;
 
-			// Convert to model
-			let modelStat = FileStat.create(stat, options.resolveTo);
+				// Convert to model
+				let modelStat = FileStat.create(stat, options.resolveTo);
 
-			// First time refresh: The stat becomes the input of the viewer
-			if (!root) {
-				explorerPromise = this.explorerViewer.setInput(modelStat).then(() => {
+				// First time refresh: The stat becomes the input of the viewer
+				if (!root) {
+					explorerPromise = this.explorerViewer.setInput(modelStat).then(() => {
 
-					// Make sure to expand all folders that where expanded in the previous session
-					if (targetsToExpand) {
-						return this.explorerViewer.expandAll(targetsToExpand.map(expand => this.getInput().find(expand)));
-					}
+						// Make sure to expand all folders that where expanded in the previous session
+						if (targetsToExpand) {
+							return this.explorerViewer.expandAll(targetsToExpand.map(expand => this.getInput().find(expand)));
+						}
 
-					return TPromise.as(null);
-				});
-			}
+						return TPromise.as(null);
+					});
+				}
 
-			// Subsequent refresh: Merge stat into our local model and refresh tree
-			else {
-				FileStat.mergeLocalWithDisk(modelStat, root);
+				// Subsequent refresh: Merge stat into our local model and refresh tree
+				else {
+					FileStat.mergeLocalWithDisk(modelStat, root);
 
-				explorerPromise = this.explorerViewer.refresh(root);
-			}
+					explorerPromise = this.explorerViewer.refresh(root);
+				}
 
-			return explorerPromise;
-		}, (e: any) => TPromise.wrapError(e));
+				return explorerPromise;
+			}, (e: any) => TPromise.wrapError(e));
+		});
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
