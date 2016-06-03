@@ -357,9 +357,9 @@ export class CSSWorker {
 			let model = this.resourceService.get(resource),
 				styleSheet = this.languageService.getStylesheet(resource),
 				result:{range:editorCommon.IRange; value:string; }[] = [];
-
+				
 			styleSheet.accept((node) => {
-				if (languageFacts.isColorValue(node)) {
+				if (languageFacts.isColorValue(node) && node.type !== nodes.NodeType.HexColorValue) {
 					result.push({
 						range: this._range(node, model),
 						value: node.getText()

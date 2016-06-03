@@ -1,0 +1,19 @@
+{
+	"name": "vscode-css-server",
+	"description": "CSS/LESS/SCSS language server",
+	"version": "0.0.1",
+	"author": "Microsoft Corporation",
+	"license": "MIT",
+	"engines": {
+		"node": "*"
+	},
+	"dependencies": {
+		"request-light": "^0.1.0",
+		"vscode-languageserver": "^1.3.0",
+		"vscode-nls": "^1.0.4"
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:css-server",
+		"watch": "gulp watch-extension:css-server"
+	}
+}

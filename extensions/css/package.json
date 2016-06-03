@@ -2,7 +2,19 @@
 	"name": "css",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"engines": {
+		"vscode": "0.10.x"
+	},
+	"activationEvents": [
+		"onLanguage:css",
+		"onLanguage:less",
+		"onLanguage:sass"
+	],
+	"main": "./client/out/cssMain",
+	"scripts": {
+		"compile": "gulp compile-extension:css-client && gulp compile-extension:css-server",
+		"postinstall": "cd server && npm install"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "css",
@@ -19,5 +31,8 @@
 			"language": "css",
 			"path": "./snippets/css.json"
 		}]
+	},
+	"dependencies": {
+		"vscode-languageclient": "^1.3.1"
 	}
 }
