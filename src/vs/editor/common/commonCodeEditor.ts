@@ -8,7 +8,6 @@ import {IAction, IActionProvider, isAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +29,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
 import {ViewModel} from 'vs/editor/common/viewModel/viewModelImpl';
+import {hash} from 'vs/base/common/hash';
 
 var EDITOR_ID = 0;
 
@@ -103,7 +103,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	protected _instantiationService: IInstantiationService;
 	protected _keybindingService: IKeybindingService;
 
-	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[];};
+	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:{ [subtype:string]:string[]}};
 
 	private _codeEditorService: ICodeEditorService;
 	private _editorIdContextKey: IKeybindingContextKey<string>;
@@ -651,28 +651,68 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		return this.model.deltaDecorations(oldDecorations, newDecorations, this.id);
 	}
 
-	public setDecorations(decorationTypeKey: string, ranges:editorCommon.IRangeWithMessage[]): void {
-		var opts = this._codeEditorService.resolveDecorationType(decorationTypeKey);
-		var oldDecorationIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationIds, ranges.map((r) : editorCommon.IModelDeltaDecoration => {
-			let decOpts: editorCommon.IModelDecorationOptions;
-			if (r.hoverMessage) {
-				// TODO@Alex: avoid objects.clone
-				decOpts = objects.clone(opts);
-				decOpts.htmlMessage = r.hoverMessage;
-			} else {
-				decOpts = opts;
+	public setDecorations(decorationTypeKey: string, decorationOptions:editorCommon.IDecorationOptions[]): void {
+
+		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
+		if (!oldDecorationsIds) {
+			oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] = {};
+		}
+
+		// group all decoration options by render options. Each group is identified by a subType id. The subtype id is empty if
+		// there are no custom render options.
+		let decorationOptionsBySubTypes :{[key:string]: editorCommon.IDecorationOptions[]} = {};
+		for (let decorationOption of decorationOptions) {
+			let subKey = decorationOption.renderOptions ? hash(decorationOption.renderOptions).toString(16) : '';
+			let subTypeDecorationOptions = decorationOptionsBySubTypes[subKey];
+			if (!subTypeDecorationOptions) {
+				decorationOptionsBySubTypes[subKey] = subTypeDecorationOptions = [];
 			}
-			return {
-				range: r.range,
-				options: decOpts
-			};
-		}));
+			subTypeDecorationOptions.push(decorationOption);
+		}
+
+		// for each sub type create decorations. For custom render options register a decoration type if necessary
+		for (let subType in decorationOptionsBySubTypes) {
+			let decorationOptions = decorationOptionsBySubTypes[subType];
+			let typeKey = decorationTypeKey;
+			let oldIds = oldDecorationsIds[subType] || [];
+
+			if (subType.length > 0 && oldIds.length === 0) {
+				// custom render options: decoration type did not exist before, register new one
+				typeKey = decorationTypeKey + '-' + subType;
+				this._codeEditorService.registerDecorationSubType(typeKey, decorationTypeKey, decorationOptions[0].renderOptions);
+			}
+
+			let modelDecorations: editorCommon.IModelDeltaDecoration[] = decorationOptions.map(r => {
+				let opts = this._codeEditorService.resolveDecorationOptions(typeKey, !!r.hoverMessage);
+				if (r.hoverMessage) {
+					opts.htmlMessage = r.hoverMessage;
+				}
+				return {
+					range: r.range,
+					options: opts
+				};
+			});
+
+			oldDecorationsIds[subType] = this.deltaDecorations(oldIds, modelDecorations);
+		}
+
+		// remove decorations that are no longer used, deregister decoration type if necessary
+		for (let subType in oldDecorationsIds) {
+			if (!decorationOptionsBySubTypes.hasOwnProperty(subType)) {
+				delete oldDecorationsIds[subType];
+				if (subType.length > 0) { // custom render options: unregister decoration type
+					this._codeEditorService.removeDecorationType(decorationTypeKey + '-' + subType);
+				}
+			}
+		}
 	}
 
 	public removeDecorations(decorationTypeKey: string): void {
-		if (this._decorationTypeKeysToIds.hasOwnProperty(decorationTypeKey)) {
-			this.deltaDecorations(this._decorationTypeKeysToIds[decorationTypeKey], []);
+		let decorationIdsBySubType = this._decorationTypeKeysToIds[decorationTypeKey];
+		if (decorationIdsBySubType) {
+			for (let subType in decorationIdsBySubType) {
+				this.deltaDecorations(decorationIdsBySubType[subType], []);
+			}
 			delete this._decorationTypeKeysToIds[decorationTypeKey];
 		}
 	}
@@ -958,6 +998,20 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			this.viewModel.dispose();
 			this.viewModel = null;
 		}
+
+		if (this._decorationTypeKeysToIds) {
+			for (let decorationType in this._decorationTypeKeysToIds) {
+				let decorationIdsBySubType = this._decorationTypeKeysToIds[decorationType];
+				if (decorationIdsBySubType) {
+					for (let subType in decorationIdsBySubType) {
+						if (subType.length > 0) {
+							this._codeEditorService.removeDecorationType(decorationType + '-' + subType);
+						}
+					}
+				}
+			}
+		}
+
 
 		var result = this.model;
 		this.model = null;

@@ -697,6 +697,31 @@ declare namespace vscode {
 		 * The color of the decoration in the overview ruler. Use rgba() and define transparent colors to play well with other decorations.
 		 */
 		overviewRulerColor?: string;
+
+		/**
+		 * Defines the rendering options of the attachment that is inserted before the decorated text
+		 */
+		before?: ThemableDecorationAttachmentRenderOptions;
+
+		/**
+		 * Defines the rendering options of the attachment that is inserted after the decorated text
+		 */
+		after?: ThemableDecorationAttachmentRenderOptions;
+	}
+
+	export interface ThemableDecorationAttachmentRenderOptions {
+		borderStyle?: string;
+		borderWidth?: string;
+		borderRadius?: string;
+		borderSpacing?: string;
+		borderColor?: string;
+		content?: string;
+		textDecoration?: string;
+		color?: string;
+		backgroundColor?: string;
+		margin?: string;
+		width?: string;
+		height?: string;
 	}
 
 	/**
@@ -739,6 +764,42 @@ declare namespace vscode {
 		 * A message that should be rendered when hovering over the decoration.
 		 */
 		hoverMessage: MarkedString | MarkedString[];
+
+		/**
+		 * Render options applied to the current decoration. For performance reasons, keep the
+		 * number of decoration specific options small, and use decoration types whereever possible.
+		 */
+		renderOptions?: DecorationInstanceRenderOptions;
+	}
+
+	export interface ThemableDecorationInstanceAttachmentRenderOptions {
+		content?: string;
+		color?: string;
+		backgroundColor?: string;
+	}
+
+	export interface ThemableDecorationInstanceRenderOptions {
+		/**
+		 * Defines the rendering options of the attachment that is inserted before the decorated text
+		 */
+		before?: ThemableDecorationInstanceAttachmentRenderOptions;
+
+		/**
+		 * Defines the rendering options of the attachment that is inserted after the decorated text
+		 */
+		after?: ThemableDecorationInstanceAttachmentRenderOptions;
+	}
+
+	export interface DecorationInstanceRenderOptions extends ThemableDecorationInstanceRenderOptions {
+		/**
+		 * Overwrite options for light themes.
+		 */
+		light?: ThemableDecorationInstanceRenderOptions;
+
+		/**
+		 * Overwrite options for dark themes.
+		 */
+		dark?: ThemableDecorationInstanceRenderOptions
 	}
 
 	/**

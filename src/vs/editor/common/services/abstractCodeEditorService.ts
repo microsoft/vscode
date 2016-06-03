@@ -5,7 +5,7 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions, IDecorationInstanceRenderOptions} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 
 export abstract class AbstractCodeEditorService implements ICodeEditorService {
@@ -70,6 +70,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 	}
 
 	public abstract registerDecorationType(key:string, options: IDecorationRenderOptions): void;
+	public abstract registerDecorationSubType(key:string, parentKey:string, options: IDecorationInstanceRenderOptions): void;
 	public abstract removeDecorationType(key:string): void;
-	public abstract resolveDecorationType(key:string): IModelDecorationOptions;
+	public abstract resolveDecorationOptions(decorationTypeKey:string, writable: boolean): IModelDecorationOptions;
 }

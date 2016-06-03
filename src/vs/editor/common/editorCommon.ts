@@ -3385,6 +3385,26 @@ export interface IThemeDecorationRenderOptions {
 	gutterIconPath?: string;
 
 	overviewRulerColor?: string;
+
+	before?: IContentDecorationRenderOptions;
+	after?: IContentDecorationRenderOptions;
+}
+
+export interface IContentDecorationRenderOptions {
+	borderStyle?: string;
+	borderWidth?: string;
+	borderRadius?: string;
+	borderSpacing?: string;
+	borderColor?: string;
+
+	content?: string;
+	textDecoration?: string;
+
+	color?: string;
+	backgroundColor?: string;
+	margin?: string;
+	width?: string;
+	height?: string;
 }
 
 /**
@@ -3398,13 +3418,29 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
 	dark?: IThemeDecorationRenderOptions;
 }
 
+export interface IThemeDecorationInstanceRenderOptions {
+	before?: {
+		content?: string;
+	};
+	after?: {
+		content?: string;
+	};
+}
+
+export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstanceRenderOptions {
+	light?: IThemeDecorationInstanceRenderOptions;
+	dark?: IThemeDecorationInstanceRenderOptions;
+}
+
 /**
  * @internal
  */
-export interface IRangeWithMessage {
+export interface IDecorationOptions {
 	range: IRange;
 	hoverMessage?: IHTMLContentElement[];
+	renderOptions? : IDecorationInstanceRenderOptions;
 }
+
 
 export interface ICommonCodeEditor extends IEditor {
 
@@ -3536,7 +3572,7 @@ export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * @internal
 	 */
-	setDecorations(decorationTypeKey: string, ranges:IRangeWithMessage[]): void;
+	setDecorations(decorationTypeKey: string, ranges: IDecorationOptions[]): void;
 
 	/**
 	 * @internal

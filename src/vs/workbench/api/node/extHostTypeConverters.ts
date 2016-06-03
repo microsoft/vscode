@@ -11,7 +11,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
-import {IPosition, ISelection, IRange, IRangeWithMessage, ISingleEditOperation} from 'vs/editor/common/editorCommon';
+import {IPosition, ISelection, IRange, IDecorationOptions, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {ITypeBearing} from 'vs/workbench/parts/search/common/search';
 import * as vscode from 'vscode';
@@ -155,27 +155,28 @@ function fromMarkedStringOrMarkedStringArr(something: vscode.MarkedString | vsco
 	}
 }
 
-function isRangeWithMessage(something: any): something is vscode.DecorationOptions {
-	return (typeof something.range !== 'undefined');
+function isDecorationOptions(something: any): something is vscode.DecorationOptions {
+	return (typeof something.range !== 'undefined') || (typeof something.after !== 'undefined') || (typeof something.before !== 'undefined');
 }
 
-function isRangeWithMessageArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
+function isDecorationOptionsArr(something: vscode.Range[]|vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
 	if (something.length === 0) {
 		return true;
 	}
-	return isRangeWithMessage(something[0]) ? true : false;
+	return isDecorationOptions(something[0]) ? true : false;
 }
 
-export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IRangeWithMessage[] {
-	if (isRangeWithMessageArr(ranges)) {
-		return ranges.map((r): IRangeWithMessage => {
+export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IDecorationOptions[] {
+	if (isDecorationOptionsArr(ranges)) {
+		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r.range),
-				hoverMessage: fromMarkedStringOrMarkedStringArr(r.hoverMessage)
+				hoverMessage: fromMarkedStringOrMarkedStringArr(r.hoverMessage),
+				renderOptions: r.renderOptions
 			};
 		});
 	} else {
-		return ranges.map((r): IRangeWithMessage => {
+		return ranges.map((r): IDecorationOptions => {
 			return {
 				range: fromRange(r)
 			};
