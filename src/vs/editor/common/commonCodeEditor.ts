@@ -680,7 +680,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				typeKey = decorationTypeKey + '-' + subType;
 				if (oldIds.length === 0) {
 					// custom render options: decoration type did not exist before, register new one
-					this._codeEditorService.registerDecorationSubType(typeKey, decorationOptions[0].renderOptions, decorationTypeKey);
+					this._codeEditorService.registerDecorationType(typeKey, decorationOptions[0].renderOptions, decorationTypeKey);
 				}
 			}
 

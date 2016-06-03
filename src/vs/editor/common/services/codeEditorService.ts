@@ -6,7 +6,7 @@
 
 import Event from 'vs/base/common/event';
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions, IDecorationInstanceRenderOptions} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
 
 export var ID_CODE_EDITOR_SERVICE = 'codeEditorService';
 export var ICodeEditorService = createDecorator<ICodeEditorService>(ID_CODE_EDITOR_SERVICE);
@@ -29,8 +29,7 @@ export interface ICodeEditorService {
 	 */
 	getFocusedCodeEditor(): ICommonCodeEditor;
 
-	registerDecorationType(key:string, options: IDecorationRenderOptions): void;
-	registerDecorationSubType(key:string, parentTypeKey: string, options: IDecorationInstanceRenderOptions): void;
+	registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	removeDecorationType(key:string): void;
 	resolveDecorationOptions(typeKey:string, writable: boolean): IModelDecorationOptions;
 }

@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import {IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
-	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness, IDecorationInstanceRenderOptions} from 'vs/editor/common/editorCommon';
+	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness} from 'vs/editor/common/editorCommon';
 import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
 import {IDisposable, toDisposable} from 'vs/base/common/lifecycle';
 
@@ -24,24 +24,19 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		this._decorationOptionProviders = Object.create(null);
 	}
 
-	public registerDecorationType(key:string, options: IDecorationRenderOptions): void {
+	public registerDecorationType(key:string, options: IDecorationRenderOptions, parentTypeKey?: string): void {
 		let provider = this._decorationOptionProviders[key];
 		if (provider) {
 			provider.dispose();
 			delete this._decorationOptionProviders[key];
 		}
-		provider = new DecorationTypeOptionsProvider(this._styleSheet, key, options);
+		if (!parentTypeKey) {
+			provider = new DecorationTypeOptionsProvider(this._styleSheet, key, options);
+		} else {
+			provider = new DecorationSubTypeOptionsProvider(this._styleSheet, key, parentTypeKey, options);
+		}
 		this._decorationOptionProviders[key] = provider;
 		provider.refCount++;
-	}
-
-	public registerDecorationSubType(key:string, parentTypeKey: string, options: IDecorationInstanceRenderOptions): void {
-		let provider = this._decorationOptionProviders[key];
-		if (!provider) {
-			provider = new DecorationSubTypeOptionsProvider(this._styleSheet, key, parentTypeKey, options);
-			this._decorationOptionProviders[key] = provider;
-			provider.refCount++;
-		}
 	}
 
 	public removeDecorationType(key:string): void {
@@ -80,7 +75,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 	private _inlineClassName: string;
 	private _stickiness: TrackedRangeStickiness;
 
-	constructor(styleSheet: HTMLStyleElement, key: string, parentTypeKey: string, options:IDecorationInstanceRenderOptions) {
+	constructor(styleSheet: HTMLStyleElement, key: string, parentTypeKey: string, options:IDecorationRenderOptions) {
 		this._parentTypeKey = parentTypeKey;
 		this.refCount = 0;
 
