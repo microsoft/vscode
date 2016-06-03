@@ -5,7 +5,6 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
-import {RunOnceScheduler} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction, IActionRunner} from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
@@ -17,14 +16,15 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {EventType as WorkbenchEventType, UntitledEditorEvent, CompositeEvent} from 'vs/workbench/common/events';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
 import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {ITextFileService, TextFileChangeEvent, EventType as FileEventType, AutoSaveMode, IFilesConfiguration, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorStacksModel} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
 
 const $ = dom.emmet;
@@ -41,9 +41,6 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
-	private lastDirtyCount: number;
-	// Use a scheduler to update the tree as many update events come at some time so to prevent over-reacting.
-	private updateTreeScheduler: RunOnceScheduler;
 
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IMessageService messageService: IMessageService,
@@ -54,14 +51,13 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize('openEditosrSection', "Open Editors Section"), messageService, keybindingService, contextMenuService);
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
-		this.lastDirtyCount = 0;
-		this.updateTreeScheduler = new RunOnceScheduler(() => this.updateTree(), 250);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -105,7 +101,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
 		});
 
-		this.updateTree();
+		this.updateTree({ structural: true, group: null });
 	}
 
 	public create(): TPromise<void> {
@@ -123,17 +119,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private registerListeners(): void {
 
 		// update on model changes
-		this.toDispose.push(this.model.onModelChanged(e => this.updateTreeScheduler.schedule()));
-
-		// listen to untitled
-		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledFileDirty()));
-		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledFileDeleted()));
-
-		// listen to files being changed locally
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onTextFileReverted(e)));
+		this.toDispose.push(this.model.onModelChanged(e => this.updateTree(e)));
 
 		// Also handle configuration updates
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
@@ -141,30 +127,39 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === VIEWLET_ID) {
-				this.updateTree();
+				this.updateTree({ structural: true, group: null });
 			}
 		}));
 	}
 
-	private updateTree(): void {
+	private updateTree(e: IStacksModelChangeEvent): void {
 		if (this.isDisposed || !this.isVisible) {
 			return;
 		}
 
-		// View size
-		this.expandedBodySize = this.getExpandedBodySize(this.model);
-
 		if (this.tree) {
-			// Show groups only if there is more than 1 group
-			const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
-			(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh())
-			// Always expand all the groups as they are unclickable
-				.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
+			// Do a minimal tree update based on if the change is structural or not #6670
+			if (e.structural) {
+				// View size
+				this.expandedBodySize = this.getExpandedBodySize(this.model);
 
-			// Make sure to keep active open editor highlighted
-			if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
-				this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
+				// Show groups only if there is more than 1 group
+				const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
+				// If an editor changed structurally it is enough to refresh the group, otherwise a group changed structurally and we need the full refresh.
+				const toRefresh = e.editor ? e.group : null;
+				(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh(toRefresh))
+				// Always expand all the groups as they are unclickable
+					.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
+			} else {
+				const toRefresh = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
+				this.tree.refresh(toRefresh, false).done(null, errors.onUnexpectedError);
+				this.updateDirtyIndicator();
 			}
+		}
+
+		// Make sure to keep active open editor highlighted
+		if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
+			this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
 		}
 	}
 
@@ -198,48 +193,15 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.expandedBodySize = this.getExpandedBodySize(this.model);
 	}
 
-	private onTextFileDirty(e: TextFileChangeEvent): void {
-		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
-			this.updateDirtyIndicator(); // no indication needed when auto save is enabled for short delay
-		}
-	}
-
-	private onTextFileSaved(e: TextFileChangeEvent): void {
-		if (this.lastDirtyCount > 0) {
-			this.updateDirtyIndicator();
-		}
-	}
-
-	private onTextFileSaveError(e: TextFileChangeEvent): void {
-		this.updateDirtyIndicator();
-	}
-
-	private onTextFileReverted(e: TextFileChangeEvent): void {
-		if (this.lastDirtyCount > 0) {
-			this.updateDirtyIndicator();
-		}
-	}
-
-	private onUntitledFileDirty(): void {
-		this.updateDirtyIndicator();
-	}
-
-	private onUntitledFileDeleted(): void {
-		if (this.lastDirtyCount > 0) {
-			this.updateDirtyIndicator();
-		}
-	}
-
 	private updateDirtyIndicator(): void {
-		let dirty = this.textFileService.getDirty().length;
-		this.lastDirtyCount = dirty;
+		let dirty = this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY ? this.textFileService.getDirty().length
+			: this.untitledEditorService.getDirty().length;
 		if (dirty === 0) {
 			dom.addClass(this.dirtyCountElement, 'hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
 			dom.removeClass(this.dirtyCountElement, 'hidden');
 		}
-		this.updateTreeScheduler.schedule();
 	}
 
 	private getExpandedBodySize(model: IEditorStacksModel): number {
