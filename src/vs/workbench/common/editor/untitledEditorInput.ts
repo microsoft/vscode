@@ -158,8 +158,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 				mime = mimeFromPath; // take most specific mime type if file path is associated and mime is specific
 			}
 		}
-		return this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT,
-			this.resource, this.hasAssociatedFilePath);
+
+		return this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
 	}
 
 	public matches(otherInput: any): boolean {
@@ -179,14 +179,14 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public dispose(): void {
 
-		// Listeners
-		dispose(this.toUnbind);
-
 		// Model
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
+		// Listeners
+		dispose(this.toUnbind);
 
 		super.dispose();
 	}
