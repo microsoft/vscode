@@ -335,6 +335,8 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			return;
 		}
 
+		var isDoubleClick = isMouseOrigin && e.payload.originalEvent && e.payload.originalEvent.detail === 2;
+
 		var status = <git.IFileStatus> element;
 
 		this.gitService.getInput(status).done((input) => {
@@ -351,6 +353,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			}
 
 			options.forceOpen = true;
+			options.pinned = isDoubleClick;
 
 			var sideBySide = (e && e.payload && e.payload.originalEvent && e.payload.originalEvent.altKey);
 

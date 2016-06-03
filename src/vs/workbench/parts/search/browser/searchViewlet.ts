@@ -163,8 +163,10 @@ class SearchController extends DefaultController {
 
 		if (platform.isMacintosh) {
 			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onEnter.bind(this));
 		} else {
 			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
 		}
 
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
@@ -888,7 +890,8 @@ export class SearchViewlet extends Viewlet {
 			this.toUnbind.push(renderer);
 
 			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
-				let element: any, keyboard = event.payload && event.payload.origin === 'keyboard';
+				let element: any;
+				let keyboard = event.payload && event.payload.origin === 'keyboard';
 				if (keyboard) {
 					element = this.tree.getFocus();
 				} else {
@@ -903,8 +906,9 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+				let focusEditor = keyboard || doubleClick;
 
-				this.onFocus(element, !keyboard && !doubleClick, sideBySide);
+				this.onFocus(element, !focusEditor, sideBySide, doubleClick);
 			}));
 		});
 
@@ -967,7 +971,7 @@ export class SearchViewlet extends Viewlet {
 		if (visible && !this.editorService.getActiveEditor()) {
 			let focus = this.tree.getFocus();
 			if (focus) {
-				this.onFocus(focus, false, false);
+				this.onFocus(focus);
 			}
 		}
 
@@ -1435,7 +1439,7 @@ export class SearchViewlet extends Viewlet {
 		this.tree.onVisible();
 	}
 
-	private onFocus(lineMatch: Match, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
+	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
 			return TPromise.as(true);
 		}
@@ -1445,7 +1449,8 @@ export class SearchViewlet extends Viewlet {
 		return this.editorService.openEditor({
 			resource: lineMatch.parent().resource(),
 			options: {
-				preserveFocus: preserveFocus,
+				preserveFocus,
+				pinned,
 				selection: lineMatch instanceof EmptyMatch ? void 0 : lineMatch.range()
 			}
 		}, sideBySide);
