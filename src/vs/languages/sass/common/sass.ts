@@ -21,7 +21,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export var language = <Types.ILanguage>{
 	defaultToken: '',
@@ -270,6 +270,24 @@ export var language = <Types.ILanguage>{
 
 export class SASSMode extends AbstractMode {
 
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		// TODO@Martin: This definition does not work with umlauts for example
+		wordPattern: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
+		comments: {
+			blockComment: ['/*', '*/'],
+			lineComment: '//'
+		},
+		brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+		autoClosingPairs: [
+			{ open: '"', close: '"', notIn: ['string', 'comment'] },
+			{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+			{ open: '{', close: '}', notIn: ['string', 'comment'] },
+			{ open: '[', close: ']', notIn: ['string', 'comment'] },
+			{ open: '(', close: ')', notIn: ['string', 'comment'] },
+			{ open: '<', close: '>', notIn: ['string', 'comment'] },
+		]
+	};
+
 	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
 	public configSupport:modes.IConfigurationSupport;
 	public tokenizationSupport: modes.ITokenizationSupport;
@@ -332,23 +350,7 @@ export class SASSMode extends AbstractMode {
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
-			// TODO@Martin: This definition does not work with umlauts for example
-			wordPattern: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
-			comments: {
-				blockComment: ['/*', '*/'],
-				lineComment: '//'
-			},
-			brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
-			autoClosingPairs: [
-				{ open: '"', close: '"', notIn: ['string', 'comment'] },
-				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-				{ open: '{', close: '}', notIn: ['string', 'comment'] },
-				{ open: '[', close: ']', notIn: ['string', 'comment'] },
-				{ open: '(', close: ')', notIn: ['string', 'comment'] },
-				{ open: '<', close: '>', notIn: ['string', 'comment'] },
-			]
-		});
+		this.richEditSupport = new RichEditSupport(this.getId(), null, SASSMode.LANG_CONFIG);
 	}
 
 	public creationDone(): void {

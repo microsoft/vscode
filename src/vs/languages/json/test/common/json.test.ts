@@ -33,7 +33,7 @@ suite('JSON - tokenization', () => {
 		);
 
 		tokenizationSupport = mode.tokenizationSupport;
-		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), jsonMode.JSONMode.LANG_CONFIG);
 
 	})();
 

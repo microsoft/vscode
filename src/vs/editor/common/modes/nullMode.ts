@@ -81,12 +81,7 @@ export class NullMode implements modes.IMode {
 
 	public static ID = 'vs.editor.modes.nullMode';
 
-	public richEditSupport: modes.IRichEditSupport;
-
 	constructor() {
-		this.richEditSupport = {
-			wordDefinition: NullMode.DEFAULT_WORD_REGEXP
-		};
 	}
 
 	public getId():string {
