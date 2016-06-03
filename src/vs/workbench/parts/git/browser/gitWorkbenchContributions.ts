@@ -14,7 +14,6 @@ import lifecycle = require('vs/base/common/lifecycle');
 import winjs = require('vs/base/common/winjs.base');
 import ext = require('vs/workbench/common/contributions');
 import git = require('vs/workbench/parts/git/common/git');
-import workbenchEvents = require('vs/workbench/common/events');
 import common = require('vs/editor/common/editorCommon');
 import widget = require('vs/editor/browser/widget/codeEditorWidget');
 import viewlet = require('vs/workbench/browser/viewlet');
@@ -41,6 +40,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {RawText} from 'vs/editor/common/model/textModel';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import IGitService = git.IGitService;
 
@@ -337,6 +337,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		@IGitService gitService: IGitService,
 		@IMessageService messageService: IMessageService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IEventService eventService: IEventService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -351,7 +352,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		this.models = [];
 		this.decorators = Object.create(null);
 		this.toDispose = [];
-		this.toDispose.push(eventService.addListener2(workbenchEvents.EventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChange()));
+		this.toDispose.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toDispose.push(gitService.addListener2(git.ServiceEvents.DISPOSE, () => this.dispose()));
 	}
 
@@ -359,7 +360,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 		return 'git.DirtyDiffModelDecorator';
 	}
 
-	private onEditorInputChange(): void {
+	private onEditorsChanged(): void {
 		// HACK: This is the best current way of figuring out whether to draw these decorations
 		// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
 		// etc.
@@ -368,7 +369,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 
 		// If there is no repository root, just wait until that changes
 		if (typeof repositoryRoot !== 'string') {
-			this.gitService.addOneTimeDisposableListener(git.ServiceEvents.STATE_CHANGED, () => this.onEditorInputChange());
+			this.gitService.addOneTimeDisposableListener(git.ServiceEvents.STATE_CHANGED, () => this.onEditorsChanged());
 
 			this.models.forEach(m => this.onModelInvisible(m));
 			this.models = [];

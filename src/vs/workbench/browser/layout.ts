@@ -5,7 +5,6 @@
 'use strict';
 
 import {Dimension, Builder, Box} from 'vs/base/browser/builder';
-import {EditorEvent, EventType} from 'vs/workbench/common/events';
 import {Part} from 'vs/workbench/browser/part';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import {Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation} from 'vs/base/browser/ui/sash/sash';
@@ -18,6 +17,7 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 const DEFAULT_MIN_PART_WIDTH = 170;
 const DEFAULT_MIN_PANEL_PART_HEIGHT = 77;
@@ -93,6 +93,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEventService eventService: IEventService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
@@ -121,7 +122,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.panelHeight = this.storageService.getInteger(WorkbenchLayout.sashYHeightSettingsKey, StorageScope.GLOBAL, 0);
 
 		this.toUnbind.push(themeService.onDidThemeChange(_ => this.relayout()));
-		this.toUnbind.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGING, (e: EditorEvent) => this.onEditorInputChanging(e)));
+		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 		this.registerSashListeners();
 	}
@@ -243,7 +244,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		});
 	}
 
-	private onEditorInputChanging(e: EditorEvent): void {
+	private onEditorsChanged(): void {
 
 		// Make sure that we layout properly in case we detect that the sidebar is large enought to cause
 		// multiple opened editors to go below minimal size. The fix is to trigger a layout for any editor

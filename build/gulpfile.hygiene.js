@@ -26,7 +26,8 @@ var eolFilter = [
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,scpt,bat,cmd,cur,ttf,woff,eot}',
-	'!build/{lib,tslintRules}/**/*.js'
+	'!build/{lib,tslintRules}/**/*.js',
+	'!build/monaco/**/*'
 ];
 
 var indentationFilter = [
@@ -37,6 +38,7 @@ var indentationFilter = [
 	'!**/*.yml',
 	'!**/lib/**',
 	'!**/*.d.ts',
+	'!**/*.d.ts.recipe',
 	'!extensions/typescript/server/**',
 	'!test/assert.js',
 	'!**/package.json',

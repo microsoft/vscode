@@ -19,11 +19,10 @@ import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInpu
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
-import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEditorInput, IEditorModel, IEditorOptions, Position, Direction, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 export interface IEditorPart {
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -36,18 +35,10 @@ export interface IEditorPart {
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): EditorInput;
-	moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void;
-	moveGroup(from: Position, to: Position): void;
-	focusGroup(position: Position): void;
-	activateGroup(position: Position): void;
-	pinEditor(position: Position, input: EditorInput): void;
-	unpinEditor(position: Position, input: EditorInput): void;
-	arrangeGroups(arrangement: GroupArrangement): void;
-	getStacksModel(): IEditorStacksModel;
 }
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
-	
+
 	public serviceId = IWorkbenchEditorService;
 
 	private editorPart: IEditorPart | IWorkbenchEditorService;
@@ -88,27 +79,13 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 				return true;
 			}
 
-			if (includeDiff) {
+			if (includeDiff && editor.input instanceof DiffEditorInput) {
 				let diffInput = <DiffEditorInput>editor.input;
-				if (types.isFunction(diffInput.getOriginalInput) && types.isFunction(diffInput.getModifiedInput)) {
-					return input.matches(diffInput.getModifiedInput()) || input.matches(diffInput.getOriginalInput());
-				}
+				return input.matches(diffInput.modifiedInput) || input.matches(diffInput.originalInput);
 			}
 
 			return false;
 		});
-	}
-
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
-		this.editorPart.moveEditor(input, from, to, index);
-	}
-
-	public moveGroup(from: Position, to: Position): void {
-		this.editorPart.moveGroup(from, to);
-	}
-
-	public arrangeGroups(arrangement: GroupArrangement): void {
-		this.editorPart.arrangeGroups(arrangement);
 	}
 
 	public openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;
@@ -122,7 +99,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
-			return this.doOpenEditor(<EditorInput>input, <EditorOptions>arg2, arg3);
+			return this.doOpenEditor(input, <EditorOptions>arg2, arg3);
 		}
 
 		// Support opening foreign resources (such as a http link that points outside of the workbench)
@@ -201,22 +178,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return this.editorPart.closeAllEditors(except);
 	}
 
-	public focusGroup(position: Position): void {
-		this.editorPart.focusGroup(position);
-	}
-
-	public activateGroup(position: Position): void {
-		this.editorPart.activateGroup(position);
-	}
-
-	public pinEditor(position: Position, input: EditorInput): void {
-		this.editorPart.pinEditor(position, input);
-	}
-
-	public unpinEditor(position: Position, input: EditorInput): void {
-		this.editorPart.unpinEditor(position, input);
-	}
-
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
@@ -225,7 +186,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 				// Resolve if applicable
 				if (workbenchInput instanceof EditorInput) {
-					return (<EditorInput>workbenchInput).resolve(!!refresh);
+					return workbenchInput.resolve(!!refresh);
 				}
 			}
 
@@ -239,7 +200,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Workbench Input Support
 		if (input instanceof EditorInput) {
-			return TPromise.as<EditorInput>(<EditorInput>input);
+			return TPromise.as<EditorInput>(input);
 		}
 
 		// Base Text Editor Support for inmemory resources
@@ -270,12 +231,12 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 						let originalModel = this.findModel(diffCodeEditor.getOriginalEditor(), input);
 						if (originalModel) {
-							return TPromise.as(diffInput.getOriginalInput());
+							return TPromise.as(diffInput.originalInput);
 						}
 
 						let modifiedModel = this.findModel(diffCodeEditor.getModifiedEditor(), input);
 						if (modifiedModel) {
-							return TPromise.as(diffInput.getModifiedInput());
+							return TPromise.as(diffInput.modifiedInput);
 						}
 					}
 				}
@@ -320,10 +281,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		return model.uri.toString() === input.resource.toString() ? model : null;
-	}
-
-	public getStacksModel(): IEditorStacksModel {
-		return this.editorPart.getStacksModel();
 	}
 }
 

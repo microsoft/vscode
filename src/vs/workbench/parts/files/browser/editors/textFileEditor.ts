@@ -21,7 +21,6 @@ import {TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textF
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {ExplorerViewlet} from 'vs/workbench/parts/files/browser/explorerViewlet';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IFileOperationResult, FileOperationResult, FileChangesEvent, EventType, IFileService} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -34,6 +33,7 @@ import {IMessageService, Severity, CancelAction} from 'vs/platform/message/commo
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
 /**
  * An implementation of editor for file system resources.
@@ -46,7 +46,7 @@ export class TextFileEditor extends BaseTextEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
 		@IViewletService private viewletService: IViewletService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
@@ -221,7 +221,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Since we cannot open a folder, we have to restore the previous input if any or close the editor
 		let handleEditorPromise: TPromise<any>;
-		let previousInput = this.quickOpenService.getEditorHistory()[1];
+		let previousInput = this.historyService.getHistory()[1];
 		if (previousInput) {
 			handleEditorPromise = this.editorService.openEditor(previousInput, null, this.position);
 		} else {

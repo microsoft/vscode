@@ -222,3 +222,15 @@
 	content: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTExIDEwLjA3aC01LjY1Nmw1LjY1Ni01LjY1NnY1LjY1NnoiLz48L3N2Zz4=");
 	top: 3px;
 }
+
+.monaco-tree-action.collapse-all {
+	background: url('CollapseAll.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-tree-action.collapse-all {
+	background: url('CollapseAll_inverse.svg') center center no-repeat;
+}
+
+.hc-black .monaco-tree-action.collapse-all:before {
+	content: url('CollapseAll_inverse.svg');
+}

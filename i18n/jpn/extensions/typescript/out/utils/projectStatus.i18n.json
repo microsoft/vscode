@@ -11,6 +11,7 @@
 	"hintExclude.generic": "パフォーマンスを向上させるには、多数のファイルがあるフォルダーを除外してください。",
 	"hintExclude.tooltip": "パフォーマンスを向上させるには、多数のファイルがあるフォルダーを除外します。",
 	"ignore.cmdCreate": "無視",
+	"jsconfig.heading": "//jsconfig.json 形式に関するドキュメントは、\n\t//https://go.microsoft.com/fwlink/?LinkId=759670 でご確認ください",
 	"large.label": "除外の構成",
 	"open": "除外の構成"
 }

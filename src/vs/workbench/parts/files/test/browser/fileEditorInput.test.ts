@@ -26,8 +26,10 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestQuickOpenService, TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
+import {TestEditorGroupService, TestHistoryService, TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestQuickOpenService, TestStorageService} from 'vs/workbench/test/common/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 function toResource(path) {
 	return URI.file(join('C:\\', path));
@@ -53,6 +55,7 @@ suite('Files - FileEditorInput', () => {
 		services.set(IModeService, createMockModeService());
 		services.set(IModelService, createMockModelService());
 		services.set(ITelemetryService, telemetryService);
+		services.set(IEditorGroupService, new TestEditorGroupService());
 		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
 		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
@@ -115,8 +118,18 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('Input.matches() - FileEditorInput', function () {
-		let fileEditorInput = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
-		let contentEditorInput2 = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
+		let eventService = new TestEventService();
+		let contextService = new TestContextService();
+
+		let services = new ServiceCollection();
+		let instantiationService = new InstantiationService(services);
+
+		services.set(IEventService, eventService);
+		services.set(IWorkspaceContextService, contextService);
+		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
+
+		let fileEditorInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
+		let contentEditorInput2 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
 
 		assert.strictEqual(fileEditorInput.matches(null), false);
 		assert.strictEqual(fileEditorInput.matches(fileEditorInput), true);
@@ -138,9 +151,11 @@ suite('Files - FileEditorInput', () => {
 		services.set(IFileService, <any>TestFileService);
 		services.set(IStorageService, new TestStorageService());
 		services.set(IWorkbenchEditorService, editorService);
+		services.set(IHistoryService, new TestHistoryService());
 		services.set(IQuickOpenService, new TestQuickOpenService());
 		services.set(IPartService, new TestPartService());
 		services.set(IModeService, createMockModeService());
+		services.set(IEditorGroupService, new TestEditorGroupService());
 		services.set(IModelService, createMockModelService());
 		services.set(ITelemetryService, telemetryService);
 		services.set(ILifecycleService, NullLifecycleService);
@@ -184,13 +199,14 @@ suite('Files - FileEditorInput', () => {
 		services.set(IWorkbenchEditorService, editorService);
 		services.set(IPartService, new TestPartService());
 		services.set(IModeService, createMockModeService());
+		services.set(IEditorGroupService, new TestEditorGroupService());
 		services.set(IQuickOpenService, new TestQuickOpenService());
 		services.set(IModelService, createMockModelService());
 		services.set(ITelemetryService, telemetryService);
 		services.set(ILifecycleService, NullLifecycleService);
 		services.set(IConfigurationService, new TestConfigurationService());
+		services.set(IHistoryService, new TestHistoryService());
 		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
-
 
 		let tracker = instantiationService.createInstance(FileTracker);
 

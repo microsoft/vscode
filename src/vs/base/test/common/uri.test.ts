@@ -62,7 +62,21 @@ suite('URI', () => {
 		assert.equal(uri2.fragment, uri3.fragment);
 	});
 
-	test('with', () => {
+	test('with, identity', () => {
+		let uri = URI.parse('foo:bar/path');
+
+		let uri2 = uri.with(null);
+		assert.ok(uri === uri2);
+		uri2 = uri.with(undefined);
+		assert.ok(uri === uri2);
+		uri2 = uri.with({});
+		assert.ok(uri === uri2);
+		uri2 = uri.with({ scheme: 'foo', path: 'bar/path' });
+		assert.ok(uri === uri2);
+	});
+
+	test('with, changes', () => {
+		assert.equal(URI.parse('before:some/file/path').with({ scheme: 'after' }).toString(), 'after:some/file/path');
 		assert.equal(URI.create().with({ scheme: 'http', path: '/api/files/test.me', query: 't=1234' }).toString(), 'http:/api/files/test.me?t%3D1234');
 		assert.equal(URI.create().with({ scheme: 'http', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'http:/api/files/test.me?t%3D1234');
 		assert.equal(URI.create().with({ scheme: 'https', authority: '', path: '/api/files/test.me', query: 't=1234', fragment: '' }).toString(), 'https:/api/files/test.me?t%3D1234');

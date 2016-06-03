@@ -8,5 +8,6 @@
 	"debugPrelaunchTask": "Ein Task, der ausgeführt werden soll, bevor die Debugsitzung beginnt.",
 	"debugRequest": "Der Anforderungstyp der Konfiguration. Der Wert kann \"launch\" oder \"attach\" sein.",
 	"debugType": "Der Typ der Konfiguration.",
+	"internalConsoleOptions": "Steuert das Verhalten der internen Debugkonsole.",
 	"relativePathsNotConverted": "Relative Pfade werden nicht mehr automatisch in absolute Pfade konvertiert. Verwenden Sie ggf. ${workspaceRoot} als Präfix."
 }

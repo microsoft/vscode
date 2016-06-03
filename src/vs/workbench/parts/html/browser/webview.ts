@@ -54,6 +54,7 @@ export default class Webview {
 
 		this._webview.style.width = '100%';
 		this._webview.style.height = '100%';
+		this._webview.style.outline = '0';
 		this._webview.autoSize = 'on';
 		this._webview.nodeintegration = 'on';
 		this._webview.src = require.toUrl('./webview.html');

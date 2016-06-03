@@ -16,12 +16,12 @@ import {Selection, Range, Position, EditorOptions, EndOfLine} from './extHostTyp
 import {ISingleEditOperation, ISelection, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IDecorationOptions} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditors';
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, TextEditorViewColumnChangeEvent, ViewColumn} from 'vscode';
-import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEventService} from 'vs/platform/event/common/event';
 import {equals as arrayEquals} from 'vs/base/common/arrays';
@@ -470,6 +470,7 @@ export class MainThreadEditors {
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ICodeEditorService editorService: ICodeEditorService,
 		@IEventService eventService: IEventService,
@@ -493,8 +494,8 @@ export class MainThreadEditors {
 
 		this._toDispose.push(this._editorTracker.onDidUpdateTextEditors(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.push(this._editorTracker.onChangedFocusedTextEditor((focusedTextEditorId) => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.push(eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, () => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.push(eventService.addListener2(EventType.EDITOR_POSITION_CHANGED, () => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.push(editorGroupService.onEditorsChanged(() => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.push(editorGroupService.onEditorsMoved(() => this._updateActiveAndVisibleTextEditors()));
 	}
 
 	public dispose(): void {

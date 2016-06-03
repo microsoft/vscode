@@ -70,8 +70,9 @@ suite('commands namespace tests', () => {
 		});
 
 		let virtualDocumentUri = Uri.parse('speciale://authority/path');
+		let title = 'A title';
 
-		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri).then(success => {
+		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri, title).then(success => {
 			assert.ok(success);
 			registration.dispose();
 		});
@@ -100,6 +101,6 @@ suite('commands namespace tests', () => {
 		let c = commands.executeCommand('vscode.diff').then(() => assert.ok(false), () => assert.ok(true));
 		let d = commands.executeCommand('vscode.diff', 1, 2, 3).then(() => assert.ok(false), () => assert.ok(true));
 
-		return Promise.all([a, b, c]);
+		return Promise.all([a, b, c, d]);
 	});
 });

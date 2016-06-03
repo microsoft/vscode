@@ -122,6 +122,16 @@ export interface IEditorInput extends IEventEmitter {
 	getName(): string;
 
 	/**
+	 * Returns the display description of this input.
+	 */
+	getDescription(): string;
+
+	/**
+	 * Returns if this input is dirty or not.
+	 */
+	isDirty(): boolean;
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(other: any): boolean;

@@ -9,7 +9,6 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import {Identifiers} from 'vs/workbench/common/constants';
-import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -17,6 +16,7 @@ import dom = require('vs/base/browser/dom');
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 import {ipcRenderer as ipc, shell, remote} from 'electron';
 
@@ -26,6 +26,7 @@ export interface IWindowConfiguration {
 	window: {
 		openFilesInNewWindow: boolean;
 		reopenFolders: string;
+		restoreFullscreen: boolean;
 		zoomLevel: number;
 	};
 }
@@ -41,6 +42,7 @@ export class ElectronWindow {
 		@IEventService private eventService: IEventService,
 		@IStorageService private storageService: IStorageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IViewletService private viewletService: IViewletService
 	) {
 		this.win = win;
@@ -52,8 +54,8 @@ export class ElectronWindow {
 
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
-			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => {
-				let fileInput = workbenchEditorCommon.asFileEditorInput(e.editorInput, true);
+			this.editorGroupService.onEditorsChanged(() => {
+				let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 				let representedFilename = '';
 				if (fileInput) {
 					representedFilename = fileInput.getResource().fsPath;
@@ -122,7 +124,7 @@ export class ElectronWindow {
 		});
 
 		// Handle window.open() calls
-		(<any>window).open = function(url: string, target: string, features: string, replace: boolean) {
+		(<any>window).open = function (url: string, target: string, features: string, replace: boolean) {
 			shell.openExternal(url);
 
 			return null;

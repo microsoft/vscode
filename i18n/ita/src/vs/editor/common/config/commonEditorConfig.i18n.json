@@ -18,7 +18,6 @@
 	"glyphMargin": "Controlla la visibilità del margine del glifo",
 	"hideCursorInOverviewRuler": "Controlla se il cursore deve essere nascosto nel righello delle annotazioni.",
 	"ignoreTrimWhitespace": "Controlla se l'editor diff mostra come differenze le modifiche relative a spazi vuoti iniziali e finali",
-	"indentGuides": "Controlla se l'editor deve eseguire il rendering delle guide con rientro",
 	"insertSpaces": "Inserisce spazi quando si preme TAB.",
 	"insertSpaces.errorMessage": "È previsto 'boolean'. Nota: il valore \"auto\" è stato sostituito dall'impostazione `editor.detectIndentation`.",
 	"lineHeight": "Controlla l'altezza della riga.",

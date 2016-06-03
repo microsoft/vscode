@@ -18,6 +18,10 @@ export class ArraySet<T> {
 		this._elements.push(element);
 	}
 
+	contains(element: T): boolean {
+		return this._elements.indexOf(element) > -1;
+	}
+
 	unset(element: T): void {
 		const index = this._elements.indexOf(element);
 

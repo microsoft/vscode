@@ -23,7 +23,7 @@ import {IAction, Action, IActionRunner} from 'vs/base/common/actions';
 import {StandardKeyboardEvent, IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import timer = require('vs/base/common/timer');
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
+import {FileLabel} from 'vs/base/browser/ui/fileLabel/fileLabel';
 import {FindInput, IFindInputOptions} from 'vs/base/browser/ui/findinput/findInput';
 import {LeftRightWidget, IRenderer} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
@@ -36,6 +36,7 @@ import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
 import {Viewlet} from 'vs/workbench/browser/viewlet';
@@ -670,6 +671,7 @@ export class SearchViewlet extends Viewlet {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEventService private eventService: IEventService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IStorageService private storageService: IStorageService,
@@ -964,7 +966,7 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		// Open focused element from results in case the editor area is otherwise empty
-		if (visible && !this.editorService.getActiveEditorInput()) {
+		if (visible && !this.editorService.getActiveEditor()) {
 			let focus = this.tree.getFocus();
 			if (focus) {
 				this.onFocus(focus, false, false);
@@ -1163,7 +1165,7 @@ export class SearchViewlet extends Viewlet {
 
 		let options: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
 			excludePattern: excludes,
 			includePattern: includes,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,

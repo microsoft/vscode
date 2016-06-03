@@ -464,15 +464,6 @@ export class ModelServiceImpl implements IModelService {
 		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
 
-		// TODO@Joh why are we removing markers here?
-		if (this._markerService) {
-			var markers = this._markerService.read({ resource: model.uri }),
-				owners: { [o: string]: any } = Object.create(null);
-
-			markers.forEach(marker => owners[marker.owner] = this);
-			Object.keys(owners).forEach(owner => this._markerService.changeOne(owner, model.uri, []));
-		}
-
 		if (modelData.isSyncedToWorkers) {
 			// Dispose model in workers
 			this._stopWorkerSync(modelData);

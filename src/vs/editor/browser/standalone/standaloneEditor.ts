@@ -22,7 +22,6 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {IModel} from 'vs/editor/common/editorCommon';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {Colorizer, IColorizerElementOptions, IColorizerOptions} from 'vs/editor/browser/standalone/colorizer';
@@ -113,59 +112,56 @@ function prepareServices(domElement: HTMLElement, services: IEditorOverrideServi
 	};
 }
 
-function createModelWithRegistryMode(modelService:IModelService, modeService:IModeService, value:string, modeName:string, associatedResource?:URI): IModel {
-	var modeInformation = modeService.lookup(modeName);
-	if (modeInformation.length > 0) {
-		// Force usage of the first existing mode
-		modeName = modeInformation[0].modeId;
-	} else {
-		// Fall back to plain/text
-		modeName = 'plain/text';
-	}
-	var mode = modeService.getMode(modeName);
-	if (mode) {
-		return modelService.createModel(value, mode, associatedResource);
-	}
-	return modelService.createModel(value, modeService.getOrCreateMode(modeName), associatedResource);
+function doCreateModel(value:string, mode:TPromise<modes.IMode>, uri?:URI): IModel {
+	let modelService = ensureStaticPlatformServices(null).modelService;
+
+	return modelService.createModel(value, mode, uri);
 }
 
-export function createModel(value:string, mode:string|ILanguage|modes.IMode, associatedResource?:URI|string): IModel {
+export function createModel(value:string, language?:string, uri?:URI): IModel {
 	startup.initStaticServicesIfNecessary();
-	var modelService = ensureStaticPlatformServices(null).modelService;
 
-	var resource:URI;
-	if (typeof associatedResource === 'string') {
-		resource = URI.parse(associatedResource);
-	} else {
-		// must be a URL
-		resource = associatedResource;
+	value = value || '';
+
+	let modeService = ensureStaticPlatformServices(null).modeService;
+
+	if (!language) {
+		let path = uri ? uri.path : null;
+
+		let firstLF = value.indexOf('\n');
+		let firstLine = value;
+		if (firstLF !== -1) {
+			firstLine = value.substring(0, firstLF);
+		}
+
+		return doCreateModel(value, modeService.getOrCreateModeByFilenameOrFirstLine(path, firstLine), uri);
 	}
-
-	if (typeof (<modes.IMode>mode).getId === 'function') {
-		// mode is an modes.IMode
-		return modelService.createModel(value, <modes.IMode>mode, resource);
-	}
-
-	if (typeof mode === 'string') {
-		// mode is a string
-		var modeService = ensureStaticPlatformServices(null).modeService;
-		return createModelWithRegistryMode(modelService, modeService, value, mode, resource);
-	}
-
-	// mode must be an ILanguage
-	return modelService.createModel(value, createCustomMode(<ILanguage>mode), resource);
+	return doCreateModel(value, modeService.getOrCreateMode(language), uri);
 }
 
-export function getModels(): IModel[] {
+export function setModelLanguage(model:IModel, language:string): void {
 	startup.initStaticServicesIfNecessary();
-	var modelService = ensureStaticPlatformServices(null).modelService;
-	return modelService.getModels();
+	let modeService = ensureStaticPlatformServices(null).modeService;
+
+	model.setMode(modeService.getOrCreateMode(language));
+}
+
+export function setModelMarkers(model:IModel, owner:string, markers: IMarkerData[]): void {
+	startup.initStaticServicesIfNecessary();
+	var markerService = ensureStaticPlatformServices(null).markerService;
+	markerService.changeOne(owner, model.uri, markers);
 }
 
 export function getModel(uri: URI): IModel {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
 	return modelService.getModel(uri);
+}
+
+export function getModels(): IModel[] {
+	startup.initStaticServicesIfNecessary();
+	var modelService = ensureStaticPlatformServices(null).modelService;
+	return modelService.getModels();
 }
 
 export function onDidCreateModel(listener:(model:IModel)=>void): IDisposable {
@@ -180,18 +176,21 @@ export function onWillDisposeModel(listener:(model:IModel)=>void): IDisposable {
 	return modelService.onModelRemoved(listener);
 }
 
-export function onDidChangeModelMode(listener:(e:{ model: IModel; oldModeId: string; })=>void): IDisposable {
+export function onDidChangeModelLanguage(listener:(e:{ model: IModel; oldLanguage: string; })=>void): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	var modelService = ensureStaticPlatformServices(null).modelService;
-	return modelService.onModelModeChanged(listener);
+	return modelService.onModelModeChanged((e) => {
+		listener({
+			model: e.model,
+			oldLanguage: e.oldModeId
+		});
+	});
 }
 
-export function setMarkers(model:IModel, owner:string, markers: IMarkerData[]): void {
-	startup.initStaticServicesIfNecessary();
-	var markerService = ensureStaticPlatformServices(null).markerService;
-	markerService.changeOne(owner, model.uri, markers);
-}
 
+/**
+ * @internal
+ */
 export function getOrCreateMode(modeId: string):TPromise<modes.IMode> {
 	startup.initStaticServicesIfNecessary();
 	var modeService = ensureStaticPlatformServices(null).modeService;
@@ -209,6 +208,9 @@ export function configureMode(modeId: string, options: any): void {
 	modeService.configureModeById(modeId, options);
 }
 
+/**
+ * @internal
+ */
 export function createCustomMode(language:ILanguage): TPromise<modes.IMode> {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
@@ -327,23 +329,24 @@ export function colorizeModelLine(model:IModel, lineNumber:number, tabSize:numbe
 /**
  * @internal
  */
-export function createMonacoEditorAPI()/*: typeof monaco.editor*/ {
+export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
 		// methods
 		create: create,
 		createDiffEditor: createDiffEditor,
 
 		createModel: createModel,
+		setModelLanguage: setModelLanguage,
+		setModelMarkers: setModelMarkers,
 		getModels: getModels,
 		getModel: getModel,
 		onDidCreateModel: onDidCreateModel,
 		onWillDisposeModel: onWillDisposeModel,
-		onDidChangeModelMode: onDidChangeModelMode,
+		onDidChangeModelLanguage: onDidChangeModelLanguage,
 
-		setMarkers: setMarkers,
 
-		getOrCreateMode: getOrCreateMode,
-		createCustomMode: createCustomMode,
+		// getOrCreateMode: getOrCreateMode,
+		// createCustomMode: createCustomMode,
 		createWebWorker: createWebWorker,
 		colorizeElement: colorizeElement,
 		colorize: colorize,
@@ -365,19 +368,18 @@ export function createMonacoEditorAPI()/*: typeof monaco.editor*/ {
 
 		// classes
 		MonacoWebWorker: <any>MonacoWebWorker,
-		InternalEditorScrollbarOptions: editorCommon.InternalEditorScrollbarOptions,
-		EditorWrappingInfo: editorCommon.EditorWrappingInfo,
-		InternalEditorViewOptions: editorCommon.InternalEditorViewOptions,
-		EditorContribOptions: editorCommon.EditorContribOptions,
-		InternalEditorOptions: editorCommon.InternalEditorOptions,
-		OverviewRulerPosition: editorCommon.OverviewRulerPosition,
-		EditorLayoutInfo: editorCommon.EditorLayoutInfo,
-		BareFontInfo: editorCommon.BareFontInfo,
-		FontInfo: editorCommon.FontInfo,
+		InternalEditorScrollbarOptions: <any>editorCommon.InternalEditorScrollbarOptions,
+		EditorWrappingInfo: <any>editorCommon.EditorWrappingInfo,
+		InternalEditorViewOptions: <any>editorCommon.InternalEditorViewOptions,
+		EditorContribOptions: <any>editorCommon.EditorContribOptions,
+		InternalEditorOptions: <any>editorCommon.InternalEditorOptions,
+		OverviewRulerPosition: <any>editorCommon.OverviewRulerPosition,
+		EditorLayoutInfo: <any>editorCommon.EditorLayoutInfo,
+		BareFontInfo: <any>editorCommon.BareFontInfo,
+		FontInfo: <any>editorCommon.FontInfo,
 
 		// vars
 		EditorType: editorCommon.EditorType,
-		EventType: editorCommon.EventType,
 		Handler: editorCommon.Handler,
 
 		// consts

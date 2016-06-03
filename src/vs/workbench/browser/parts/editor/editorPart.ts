@@ -10,7 +10,6 @@ import 'vs/workbench/browser/parts/editor/editor.contribution';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import timer = require('vs/base/common/timer');
-import {EventType} from 'vs/base/common/events';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
@@ -21,9 +20,8 @@ import errors = require('vs/base/common/errors');
 import {Scope as MementoScope} from 'vs/workbench/common/memento';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {Part} from 'vs/workbench/browser/part';
-import {EventType as WorkbenchEventType, EditorInputEvent, EditorEvent} from 'vs/workbench/common/events';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult} from 'vs/workbench/common/editor';
+import {EditorInput, EditorOptions, TextEditorOptions, ConfirmResult, EditorInputEvent} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {SideBySideEditorControl, Rochade, ISideBySideEditorControl, ProgressState, ITitleAreaState} from 'vs/workbench/browser/parts/editor/sideBySideEditorControl';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
@@ -37,9 +35,11 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {IMessageService, IMessageWithAction, Severity} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IProgressService} from 'vs/platform/progress/common/progress';
-import {EditorStacksModel, EditorGroup, IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup, EditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import Event, {Emitter} from 'vs/base/common/event';
 
 class ProgressMonitor {
 
@@ -58,7 +58,7 @@ interface IEditorPartUIState {
 	widthRatio: number[];
 }
 
-interface IEditorReplacement extends IEditorIdentifier {
+interface IEditorReplacement extends EditorIdentifier {
 	group: EditorGroup;
 	editor: EditorInput;
 	replaceWith: EditorInput;
@@ -69,7 +69,9 @@ interface IEditorReplacement extends IEditorIdentifier {
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
  */
-export class EditorPart extends Part implements IEditorPart {
+export class EditorPart extends Part implements IEditorPart, IEditorGroupService {
+
+	public serviceId = IEditorGroupService;
 
 	private static GROUP_LEFT_LABEL = nls.localize('leftGroup', "Left");
 	private static GROUP_CENTER_LABEL = nls.localize('centerGroup', "Center");
@@ -82,6 +84,11 @@ export class EditorPart extends Part implements IEditorPart {
 	private memento: any;
 	private stacks: EditorStacksModel;
 
+	private _onEditorsChanged: Emitter<void>;
+	private _onEditorOpening: Emitter<EditorInputEvent>;
+	private _onEditorsMoved: Emitter<void>;
+	private _onEditorOpenFail: Emitter<EditorInput>;
+
 	// The following data structures are partitioned into array of Position as provided by Services.POSITION array
 	private visibleEditors: BaseEditor[];
 	private visibleEditorListeners: IDisposable[][];
@@ -89,7 +96,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorToEditorContainers: { [editorId: string]: Builder; }[];
 	private mapEditorInstantiationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
-	private pendingEditorInputsToClose: IEditorIdentifier[];
+	private pendingEditorInputsToClose: EditorIdentifier[];
 	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
@@ -102,6 +109,11 @@ export class EditorPart extends Part implements IEditorPart {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id);
+
+		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<EditorInputEvent>();
+		this._onEditorsMoved = new Emitter<void>();
+		this._onEditorOpenFail = new Emitter<EditorInput>();
 
 		this.visibleEditors = [];
 
@@ -122,22 +134,40 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_DIRTY_STATE_CHANGED, (event: EditorInputEvent) => this.onEditorInputDirtyStateChanged(event)));
+		this.toUnbind.push(this.stacks.onEditorDirty(identifier => this.onEditorDirty(identifier)));
 		this.toUnbind.push(this.stacks.onEditorDisposed(identifier => this.onEditorDisposed(identifier)));
 	}
 
-	private onEditorInputDirtyStateChanged(event: EditorInputEvent): void {
+	private onEditorDirty(identifier: EditorIdentifier): void {
+		const position = this.stacks.positionOfGroup(identifier.group);
+		const group = identifier.group;
 
-		// we pin every editor that becomes dirty across all groups
-		this.stacks.groups.forEach(group => group.contains(event.editorInput) && this.pinEditor(this.stacks.positionOfGroup(group), event.editorInput));
+		// we pin every editor that becomes dirty
+		this.pinEditor(position, identifier.editor, false /* we update the UI right after */);
 
 		// Update UI
-		this.sideBySideControl.updateTitleArea(event.editorInput);
+		this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
 	}
 
-	private onEditorDisposed(identifier: IEditorIdentifier): void {
+	private onEditorDisposed(identifier: EditorIdentifier): void {
 		this.pendingEditorInputsToClose.push(identifier);
 		this.startDelayedCloseEditorsFromInputDispose();
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return this._onEditorsChanged.event;
+	}
+
+	public get onEditorOpening(): Event<EditorInputEvent> {
+		return this._onEditorOpening.event;
+	}
+
+	public get onEditorsMoved(): Event<void> {
+		return this._onEditorsMoved.event;
+	}
+
+	public get onEditorOpenFail(): Event<EditorInput> {
+		return this._onEditorOpenFail.event;
 	}
 
 	public openEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -161,8 +191,8 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		// Emit early open event to allow for veto
-		let event = new EditorEvent(null, null, input, options, position);
-		this.emit(WorkbenchEventType.EDITOR_INPUT_OPENING, event);
+		let event = new EditorInputEvent(input);
+		this._onEditorOpening.fire(event);
 		if (event.isPrevented()) {
 			return TPromise.as<BaseEditor>(null);
 		}
@@ -259,9 +289,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Make sure the editor is layed out
 			this.sideBySideControl.layout(position);
-
-			// Emit Editor-Opened Event
-			this.emit(WorkbenchEventType.EDITOR_OPENED, new EditorEvent(editor, editor.getId(), input, options, position));
 
 			timerEvent.stop();
 
@@ -361,14 +388,10 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private doSetInput(group: EditorGroup, editor: BaseEditor, input: EditorInput, options: EditorOptions, monitor: ProgressMonitor): TPromise<BaseEditor> {
-		let position = this.stacks.positionOfGroup(group);
 
 		// Emit Input-Changed Event as appropiate
 		const previousInput = editor.getInput();
 		const inputChanged = (!previousInput || !previousInput.matches(input) || (options && options.forceOpen));
-		if (inputChanged) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(editor, editor.getId(), input, options, position));
-		}
 
 		// Call into Editor
 		let timerEvent = timer.start(timer.Topic.WORKBENCH, strings.format('Set Editor Input: {0}', input.getName()));
@@ -377,26 +400,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 			// Stop loading promise if any
 			monitor.cancel();
-
-			// Make sure that the user meanwhile has not opened another input
-			if (group.activeEditor !== input) {
-				timerEvent.stop();
-
-				// It can happen that the same editor input is being opened rapidly one after the other
-				// (e.g. fast double click on a file). In this case the first open will stop here because
-				// we detect that a second open happens. However, since the input is the same, inputChanged
-				// is false and we are not doing some things that we typically do when opening a file because
-				// we think, the input has not changed.
-				// The fix is to detect if the active input matches with this one that gets canceled and only
-				// in that case notify others about the input change event as well as to make sure that the
-				// editor title area is up to date.
-				if (group.activeEditor && group.activeEditor.matches(input)) {
-					this.doRecreateEditorTitleArea();
-					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), group.activeEditor, options, position));
-				}
-
-				return editor;
-			}
 
 			// Focus (unless prevented)
 			const focus = !options || !options.preserveFocus;
@@ -407,9 +410,9 @@ export class EditorPart extends Part implements IEditorPart {
 			// Progress Done
 			this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
-			// Emit Input-Changed Event (if input changed)
+			// Emit Change Event (if input changed)
 			if (inputChanged) {
-				this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), input, options, position));
+				this._onEditorsChanged.fire();
 			}
 
 			// Update Title Area
@@ -450,7 +453,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.sideBySideControl.updateProgress(position, ProgressState.DONE);
 
 		// Event
-		this.emit(WorkbenchEventType.EDITOR_SET_INPUT_ERROR, new EditorEvent(editor, editor.getId(), input, options, position));
+		this._onEditorOpenFail.fire(input);
 
 		// Recover by closing the active editor (if the input is still the active one)
 		if (group.activeEditor === input) {
@@ -521,14 +524,11 @@ export class EditorPart extends Part implements IEditorPart {
 		// Update stacks model
 		this.modifyGroups(() => this.stacks.closeGroup(group));
 
-		// Emit Input-Changing Event
-		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(null, null, null, null, position));
-
 		// Hide Editor
 		this.doHideEditor(position, true);
 
-		// Emit Input-Changed Event
-		this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(null, null, null, null, position));
+		// Emit Change Event
+		this._onEditorsChanged.fire();
 
 		// Focus next group if we have an active one left
 		const currentActiveGroup = this.stacks.activeGroup;
@@ -567,8 +567,10 @@ export class EditorPart extends Part implements IEditorPart {
 		// Clear Title Area for Position
 		this.sideBySideControl.clearTitleArea(position);
 
-		// Emit Editor Closed Event
-		this.emit(WorkbenchEventType.EDITOR_CLOSED, new EditorEvent(editor, editor.getId(), null, null, position));
+		// Emit Editor move event
+		if (rochade !== Rochade.NONE) {
+			this._onEditorsMoved.fire();
+		}
 	}
 
 	public closeAllEditors(except?: Position): TPromise<void> {
@@ -645,7 +647,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	private handleDirty(identifiers: IEditorIdentifier[]): TPromise<boolean /* veto */> {
+	private handleDirty(identifiers: EditorIdentifier[]): TPromise<boolean /* veto */> {
 		if (!identifiers.length) {
 			return TPromise.as(false); // no veto
 		}
@@ -659,7 +661,7 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	private doHandleDirty(identifier: IEditorIdentifier): TPromise<boolean /* veto */> {
+	private doHandleDirty(identifier: EditorIdentifier): TPromise<boolean /* veto */> {
 		if (!identifier || !identifier.editor || !identifier.editor.isDirty()) {
 			return TPromise.as(false); // no veto
 		}
@@ -728,6 +730,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Update all title areas
 		this.doRecreateEditorTitleArea();
+
+		// Events
+		this._onEditorsMoved.fire();
 	}
 
 	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
@@ -807,11 +812,10 @@ export class EditorPart extends Part implements IEditorPart {
 			this.stacks.setActive(this.stacks.groupAt(activePosition));
 		}
 
-		// Emit as editor input change event so that clients get aware of new active editor
+		// Emit as change event so that clients get aware of new active editor
 		let activeEditor = this.sideBySideControl.getActiveEditor();
 		if (activeEditor) {
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGING, new EditorEvent(activeEditor, activeEditor.getId(), activeEditor.input, null, activeEditor.position));
-			this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(activeEditor, activeEditor.getId(), activeEditor.input, null, activeEditor.position));
+			this._onEditorsChanged.fire();
 		}
 
 		// Update Title Area
@@ -1026,7 +1030,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	public pinEditor(position: Position, input: EditorInput): void {
+	public pinEditor(position: Position, input: EditorInput, updateTitleArea = true): void {
 		const group = this.stacks.groupAt(position);
 		if (group) {
 			if (group.isPinned(input)) {
@@ -1037,7 +1041,9 @@ export class EditorPart extends Part implements IEditorPart {
 			group.pin(input);
 
 			// Update UI
-			this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
+			if (updateTitleArea) {
+				this.sideBySideControl.updateTitleArea({ position, preview: group.previewEditor, editorCount: group.count });
+			}
 		}
 	}
 
@@ -1122,6 +1128,12 @@ export class EditorPart extends Part implements IEditorPart {
 
 	public dispose(): void {
 		this.mapEditorToEditorContainers = null;
+
+		// Emitters
+		this._onEditorsChanged.dispose();
+		this._onEditorOpening.dispose();
+		this._onEditorsMoved.dispose();
+		this._onEditorOpenFail.dispose();
 
 		// Reset Tokens
 		this.editorOpenToken = [];
@@ -1267,8 +1279,8 @@ export class EditorPart extends Part implements IEditorPart {
 			this.pendingEditorInputCloseTimeout = setTimeout(() => {
 
 				// Split between visible and hidden editors
-				const visibleEditors: IEditorIdentifier[] = [];
-				const hiddenEditors: IEditorIdentifier[] = [];
+				const visibleEditors: EditorIdentifier[] = [];
+				const hiddenEditors: EditorIdentifier[] = [];
 				this.pendingEditorInputsToClose.forEach(identifier => {
 					const group = identifier.group;
 					const editor = identifier.editor;

@@ -17,15 +17,16 @@ import {IActionItem, ActionBar, Separator} from 'vs/base/browser/ui/actionbar/ac
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IResourceInput} from 'vs/platform/editor/common/editor';
+import {IResourceInput, IEditorInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {EditorOptions, EditorInput, UntitledEditorInput} from 'vs/workbench/common/editor';
+import {EditorOptions, UntitledEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
 import {ITextFileService, AutoSaveMode, FileEditorInput, asFileResource} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {EditorStacksModel, EditorGroup, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorStacksModel, EditorGroup} from 'vs/workbench/common/editor/editorStacksModel';
 import {keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {CopyPathAction, RevealInOSAction} from 'vs/workbench/parts/files/electron-browser/electronFileActions';
 import {OpenConsoleAction} from 'vs/workbench/parts/execution/electron-browser/terminal.contribution';
@@ -36,7 +37,7 @@ const $ = dom.emmet;
 
 export class OpenEditor {
 
-	constructor(private editor: EditorInput, private group: IEditorGroup) {
+	constructor(private editor: IEditorInput, private group: IEditorGroup) {
 		// noop
 	}
 
@@ -206,6 +207,7 @@ export class Controller extends treedefaults.DefaultController {
 
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -316,11 +318,11 @@ export class Controller extends treedefaults.DefaultController {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			const position = this.model.positionOfGroup(element.editorGroup);
 			if (pinEditor) {
-				this.editorService.pinEditor(position, element.editorInput);
+				this.editorGroupService.pinEditor(position, element.editorInput);
 			}
-			this.editorService.activateGroup(position);
+			this.editorGroupService.activateGroup(position);
 			this.editorService.openEditor(element.editorInput, EditorOptions.create({ preserveFocus: !pinEditor }), position)
-				.done(() => this.editorService.activateGroup(position), errors.onUnexpectedError);
+				.done(() => this.editorGroupService.activateGroup(position), errors.onUnexpectedError);
 		}
 	}
 }
@@ -466,7 +468,10 @@ export class ActionProvider implements IActionProvider {
 
 export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
 		super();
 	}
 
@@ -508,7 +513,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 
 	public drop(tree: ITree, data: IDragAndDropData, target: OpenEditor|EditorGroup, originalEvent: DragMouseEvent): void {
 		let draggedElement: OpenEditor|EditorGroup;
-		const model = this.editorService.getStacksModel();
+		const model = this.editorGroupService.getStacksModel();
 		const positionOfTargetGroup =  model.positionOfGroup(target instanceof EditorGroup ? target : target.editorGroup);
 		const index = target instanceof OpenEditor ? target.editorGroup.indexOf(target.editorInput) : undefined;
 		// Support drop from explorer viewer
@@ -528,9 +533,9 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 
 		if (draggedElement) {
 			if (draggedElement instanceof OpenEditor) {
-				this.editorService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
+				this.editorGroupService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
 			} else {
-				this.editorService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
+				this.editorGroupService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
 			}
 		}
 	}

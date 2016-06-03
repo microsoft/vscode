@@ -12,7 +12,7 @@ import { IViewletView } from 'vs/workbench/browser/viewlet';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import {Range} from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
@@ -194,7 +194,7 @@ export interface IGlobalConfig {
 	configurations: IConfig[];
 }
 
-export interface IConfig {
+export interface IEnvConfig {
 	name?: string;
 	type: string;
 	request: string;
@@ -214,6 +214,13 @@ export interface IConfig {
 	externalConsole?: boolean;
 	debugServer?: number;
 	noDebug?: boolean;
+	silentlyAbort?: boolean;
+}
+
+export interface IConfig extends IEnvConfig {
+	windows?: IEnvConfig;
+	osx?: IEnvConfig;
+	linux?: IEnvConfig;
 }
 
 export interface IRawEnvAdapter {
@@ -229,6 +236,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	initialConfigurations?: any[];
+	variables: { [key: string]: string };
 	aiKey?: string;
 	win?: IRawEnvAdapter;
 	winx86?: IRawEnvAdapter;

@@ -6,12 +6,14 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
+import Event, {Emitter} from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
-import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput, Position} from 'vs/platform/editor/common/editor';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {Event as BaseEvent} from 'vs/base/common/events';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 export enum ConfirmResult {
 	SAVE,
@@ -24,12 +26,21 @@ export enum ConfirmResult {
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
  */
 export abstract class EditorInput extends EventEmitter implements IEditorInput {
+	protected _onDidChangeDirty: Emitter<void>;
 	private disposed: boolean;
 
 	constructor() {
 		super();
 
+		this._onDidChangeDirty = new Emitter<void>();
 		this.disposed = false;
+	}
+
+	/**
+	 * Fired when the dirty state of this input changes.
+	 */
+	public get onDidChangeDirty(): Event<void> {
+		return this._onDidChangeDirty.event;
 	}
 
 	/**
@@ -136,6 +147,29 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	}
 }
 
+export class EditorInputEvent extends BaseEvent {
+	private _editorInput: IEditorInput;
+	private prevented: boolean;
+
+	constructor(editorInput: IEditorInput) {
+		super(null);
+
+		this._editorInput = editorInput;
+	}
+
+	public get editorInput(): IEditorInput {
+		return this._editorInput;
+	}
+
+	public prevent(): void {
+		this.prevented = true;
+	}
+
+	public isPrevented(): boolean {
+		return this.prevented;
+	}
+}
+
 export enum EncodingMode {
 
 	/**
@@ -232,14 +266,6 @@ export abstract class BaseDiffEditorInput extends EditorInput {
 
 	public get modifiedInput(): EditorInput {
 		return this._modifiedInput;
-	}
-
-	public getOriginalInput(): EditorInput {
-		return this.originalInput;
-	}
-
-	public getModifiedInput(): EditorInput {
-		return this.modifiedInput;
 	}
 
 	public isDirty(): boolean {
@@ -533,10 +559,10 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 /**
  * Helper to return all opened editors with resources not belonging to the currently opened workspace.
  */
-export function getOutOfWorkspaceEditorResources(editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService): URI[] {
+export function getOutOfWorkspaceEditorResources(editorGroupService: IEditorGroupService, contextService: IWorkspaceContextService): URI[] {
 	const resources: URI[] = [];
 
-	editorService.getStacksModel().groups.forEach(group => {
+	editorGroupService.getStacksModel().groups.forEach(group => {
 		const editors = group.getEditors();
 		editors.forEach(editor => {
 			const fileInput = asFileEditorInput(editor, true);
@@ -558,8 +584,8 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 	}
 
 	// Check for diff if we are asked to
-	if (supportDiff && types.isFunction((<BaseDiffEditorInput>obj).getModifiedInput)) {
-		obj = (<BaseDiffEditorInput>obj).getModifiedInput();
+	if (supportDiff && obj instanceof BaseDiffEditorInput) {
+		obj = (<BaseDiffEditorInput>obj).modifiedInput;
 	}
 
 	let i = <IFileEditorInput>obj;
@@ -567,21 +593,60 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
 }
 
-export function isInputRelated(sourceInput: EditorInput, targetInput: EditorInput): boolean {
-	if (!sourceInput || !targetInput) {
-		return false;
-	}
-
-	if (sourceInput.matches(targetInput)) {
-		return true;
-	}
-
-	if (sourceInput instanceof BaseDiffEditorInput) {
-		let modifiedInput = (<BaseDiffEditorInput>sourceInput).getModifiedInput();
-		if (modifiedInput && modifiedInput.matches(targetInput)) {
-			return true;
-		}
-	}
-
-	return false;
+export interface IStacksModelChangeEvent {
+	group: IEditorGroup;
+	editor?: IEditorInput;
+	structural?: boolean;
 }
+
+export interface IEditorStacksModel {
+
+	onModelChanged: Event<IStacksModelChangeEvent>;
+
+	groups: IEditorGroup[];
+	activeGroup: IEditorGroup;
+	isActive(IEditorGroup): boolean;
+
+	getGroup(id: GroupIdentifier): IEditorGroup;
+
+	positionOfGroup(group: IEditorGroup): Position;
+	groupAt(position: Position): IEditorGroup;
+
+	next(): IEditorIdentifier;
+	previous(): IEditorIdentifier;
+
+	popLastClosedEditor(): IEditorInput;
+	clearLastClosedEditors(): void;
+
+	isOpen(editor: IEditorInput): boolean;
+	isOpen(resource: URI): boolean;
+
+	toString(): string;
+}
+
+export interface IEditorGroup {
+
+	id: GroupIdentifier;
+	label: string;
+	count: number;
+	activeEditor: IEditorInput;
+	previewEditor: IEditorInput;
+
+	getEditor(index: number): IEditorInput;
+	indexOf(editor: IEditorInput): number;
+
+	contains(editor: IEditorInput): boolean;
+	contains(resource: URI): boolean;
+
+	getEditors(mru?: boolean): IEditorInput[];
+	isActive(editor: IEditorInput): boolean;
+	isPreview(editor: IEditorInput): boolean;
+	isPinned(editor: IEditorInput): boolean;
+}
+
+export interface IEditorIdentifier {
+	group: IEditorGroup;
+	editor: IEditorInput;
+}
+
+export type GroupIdentifier = number;

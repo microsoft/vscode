@@ -6,8 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import {EditorStacksModel, IEditorIdentifier, IEditorGroup, EditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
-import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
+import {EditorStacksModel, EditorGroup, setOpenEditorDirection} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import {TestStorageService, TestLifecycleService, TestContextService, TestWorkspace, TestConfiguration} from 'vs/workbench/test/common/servicesTestUtils';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -39,6 +39,7 @@ interface ModelEvents {
 	moved: IEditorGroup[];
 	renamed: IEditorGroup[];
 	disposed: IEditorIdentifier[];
+	changed: IStacksModelChangeEvent[];
 }
 
 interface GroupEvents {
@@ -57,7 +58,8 @@ function modelListener(model: EditorStacksModel): ModelEvents {
 		closed: [],
 		moved: [],
 		renamed: [],
-		disposed: []
+		disposed: [],
+		changed: []
 	};
 
 	model.onGroupOpened(g => modelEvents.opened.push(g));
@@ -66,11 +68,12 @@ function modelListener(model: EditorStacksModel): ModelEvents {
 	model.onGroupMoved(g => modelEvents.moved.push(g));
 	model.onGroupRenamed(g => modelEvents.renamed.push(g));
 	model.onEditorDisposed(e => modelEvents.disposed.push(e));
+	model.onModelChanged(e => modelEvents.changed.push(e));
 
 	return modelEvents;
 }
 
-function groupListener(group: IEditorGroup): GroupEvents {
+function groupListener(group: EditorGroup): GroupEvents {
 	const groupEvents = {
 		opened: [],
 		closed: [],
@@ -100,6 +103,10 @@ class TestEditorInput extends EditorInput {
 
 	public matches(other: TestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestEditorInput;
+	}
+
+	public setDirty(): void {
+		this._onDidChangeDirty.fire();
 	}
 }
 
@@ -308,7 +315,7 @@ suite('Editor Stacks Model', () => {
 	test('Groups - Event Aggregation', function () {
 		const model = create();
 
-		let groupEvents: IEditorGroup[] = [];
+		let groupEvents: IStacksModelChangeEvent[] = [];
 		let count = groupEvents.length;
 		model.onModelChanged(group => {
 			groupEvents.push(group);
@@ -1607,5 +1614,80 @@ suite('Editor Stacks Model', () => {
 		assert.equal(diffInput.isDisposed(), true);
 		assert.equal(input2.isDisposed(), true);
 		assert.equal(input1.isDisposed(), false);
+	});
+
+	test('Stack - Multiple Editors - Editor Emits Dirty', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input();
+		const input2 = input();
+
+		group1.openEditor(input1, { pinned: true, active: true});
+		group2.openEditor(input2, { pinned: true, active: true });
+
+		let dirtyCounter = 0;
+		model.onEditorDirty(() => {
+			dirtyCounter++;
+		});
+
+		(<TestEditorInput>input1).setDirty();
+
+		assert.equal(dirtyCounter, 1);
+
+		(<TestEditorInput>input2).setDirty();
+
+		assert.equal(dirtyCounter, 2);
+
+		group2.closeAllEditors();
+
+		(<TestEditorInput>input2).setDirty();
+
+		assert.equal(dirtyCounter, 2);
+
+		model.closeGroups();
+
+		(<TestEditorInput>input1).setDirty();
+
+		assert.equal(dirtyCounter, 2);
+	});
+
+	test('Groups - Model change events (structural vs state)', function () {
+		const model = create();
+		const events = modelListener(model);
+
+		const group1 = model.openGroup('first');
+
+		assert.equal(events.changed[0].group, group1);
+		assert.equal(events.changed[0].structural, true); // open group
+
+		assert.equal(events.changed[1].group, group1);
+		assert.ok(!events.changed[1].structural); // set active
+
+		const input1 = input();
+
+		group1.openEditor(input1, { pinned: true, active: true });
+
+		assert.equal(events.changed[2].group, group1);
+		assert.equal(events.changed[2].structural, true); // open editor
+		assert.equal(events.changed[2].editor, input1);
+
+		assert.equal(events.changed[3].group, group1);
+		assert.ok(!events.changed[3].structural); // set active
+		assert.equal(events.changed[3].editor, input1);
+
+		group1.unpin(input1);
+
+		assert.equal(events.changed[4].group, group1);
+		assert.ok(!events.changed[4].structural); // unpin
+		assert.equal(events.changed[4].editor, input1);
+
+		group1.closeAllEditors();
+
+		assert.equal(events.changed[5].group, group1);
+		assert.ok(events.changed[5].structural); // close
+		assert.equal(events.changed[5].editor, input1);
 	});
 });

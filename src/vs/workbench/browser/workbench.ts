@@ -19,7 +19,6 @@ import timer = require('vs/base/common/timer');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
 import {Identifiers} from 'vs/workbench/common/constants';
-import {EventType} from 'vs/workbench/common/events';
 import {IOptions} from 'vs/workbench/common/options';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IEditorRegistry, Extensions as EditorExtensions, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -56,6 +55,7 @@ import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -257,7 +257,7 @@ export class Workbench implements IPartService {
 				}
 
 				return editorOpenPromise.then(() => {
-					this.onEditorOpenedOrClosed(); // make sure we show the proper background in the editor area
+					this.onEditorsChanged(); // make sure we show the proper background in the editor area
 					editorTimerEvent.stop();
 				});
 			}));
@@ -383,15 +383,16 @@ export class Workbench implements IPartService {
 			this.instantiationService
 		);
 		serviceCollection.set(IWorkbenchEditorService, this.editorService);
+		serviceCollection.set(IEditorGroupService, this.editorPart);
+
+		// History
+		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.editorPart, this.contextService, this.storageService, this.lifecycleService, this.instantiationService));
 
 		// Quick open service (quick open controller)
 		this.quickOpen = this.instantiationService.createInstance(QuickOpenController);
 		this.toDispose.push(this.quickOpen);
 		this.toShutdown.push(this.quickOpen);
 		serviceCollection.set(IQuickOpenService, this.quickOpen);
-
-		// History
-		serviceCollection.set(IHistoryService, new HistoryService(this.eventService, this.editorService, this.contextService));
 
 		// Contributed services
 		let contributedServices = getServices();
@@ -509,7 +510,7 @@ export class Workbench implements IPartService {
 		if (!skipLayout) {
 			this.workbenchLayout.layout(true);
 		}
-		
+
 		this.storageService.store(Workbench.statusbarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 	}
 
@@ -659,8 +660,7 @@ export class Workbench implements IPartService {
 	private registerListeners(): void {
 
 		// Listen to editor changes
-		this.toDispose.push(this.eventService.addListener2(EventType.EDITOR_CLOSED, () => this.onEditorOpenedOrClosed()));
-		this.toDispose.push(this.eventService.addListener2(EventType.EDITOR_OPENED, () => this.onEditorOpenedOrClosed()));
+		this.toDispose.push(this.editorPart.onEditorsChanged(() => this.onEditorsChanged()));
 
 		// Handle message service and quick open events
 		if (this.messageService instanceof WorkbenchMessageService) {
@@ -674,7 +674,7 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	private onEditorOpenedOrClosed(): void {
+	private onEditorsChanged(): void {
 		let visibleEditors = this.editorService.getVisibleEditors().length;
 
 		// We update the editorpart class to indicate if an editor is opened or not
@@ -739,9 +739,6 @@ export class Workbench implements IPartService {
 		this.createPanelPart();
 		this.createStatusbarPart();
 
-		// Create QuickOpen
-		this.createQuickOpen();
-
 		// Add Workbench to DOM
 		this.workbenchContainer.build(this.container);
 	}
@@ -798,10 +795,6 @@ export class Workbench implements IPartService {
 		});
 
 		this.statusbarPart.create(statusbarContainer);
-	}
-
-	private createQuickOpen(): void {
-		this.quickOpen.create();
 	}
 
 	public getEditorPart(): EditorPart {

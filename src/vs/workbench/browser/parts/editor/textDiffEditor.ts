@@ -93,12 +93,12 @@ export class TextDiffEditor extends BaseTextEditor {
 				if (input && options && activeDiffInput) {
 
 					// Input matches modified side of the diff editor: perform the action on modified side
-					if (input.matches(activeDiffInput.getModifiedInput())) {
+					if (input.matches(activeDiffInput.modifiedInput)) {
 						return this.setInput(this.getInput(), options).then(() => true);
 					}
 
 					// Input matches original side of the diff editor: perform the action on original side
-					else if (input.matches(activeDiffInput.getOriginalInput())) {
+					else if (input.matches(activeDiffInput.originalInput)) {
 						let originalEditor = this.getControl().getOriginalEditor();
 						if (options instanceof TextEditorOptions) {
 							(<TextEditorOptions>options).apply(originalEditor);
@@ -213,8 +213,8 @@ export class TextDiffEditor extends BaseTextEditor {
 		let options: IDiffEditorOptions = super.getCodeEditorOptions();
 
 		let input = this.input;
-		if (input && types.isFunction((<DiffEditorInput>input).getModifiedInput)) {
-			let modifiedInput = (<DiffEditorInput>input).getModifiedInput();
+		if (input instanceof DiffEditorInput) {
+			let modifiedInput = input.modifiedInput;
 			let readOnly = modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
 
 			options.readOnly = readOnly;

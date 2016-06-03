@@ -35,14 +35,12 @@ import {EventType} from 'vs/workbench/common/events';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchProgressService, ScopedService} from 'vs/workbench/services/progress/browser/progressService';
-import {GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart} from 'vs/workbench/services/editor/browser/editorService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Position, Direction, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {createMockModeService, createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 let activeViewlet: Viewlet = <any>{};
 let activeEditor: BaseEditor = <any>{
@@ -96,22 +94,6 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(activeEditor);
 	}
 
-	public activateGroup(position: Position): void {
-		// Unsupported
-	}
-
-	public focusGroup(position: Position): void {
-		// Unsupported
-	}
-
-	public pinEditor(position: Position, input: EditorInput): void {
-		// Unsupported
-	}
-
-	public unpinEditor(position: Position, input: EditorInput): void {
-		// Unsupported
-	}
-
 	public getActiveEditor(): BaseEditor {
 		return activeEditor;
 	}
@@ -126,22 +108,6 @@ class TestEditorPart implements IEditorPart {
 
 	public getVisibleEditors(): IEditor[] {
 		return [activeEditor];
-	}
-
-	public moveEditor(input: EditorInput, from: Position, to: Position, index?: number): void {
-		// Unsupported
-	}
-
-	public moveGroup(from: Position, to: Position) {
-		// Unsupported
-	}
-
-	public arrangeGroups(arrangement: GroupArrangement): void {
-		// Unsuported
-	}
-
-	public getStacksModel(): IEditorStacksModel {
-		return null; // Unsuported
 	}
 }
 
@@ -426,15 +392,6 @@ suite('Workbench UI Services', () => {
 		let service = new TestScopedService(eventService);
 		assert(!service.isActive);
 
-		eventService.emit(EventType.EDITOR_OPENED, { editorId: 'other.test.scopeId' });
-		assert(!service.isActive);
-
-		eventService.emit(EventType.EDITOR_OPENED, { editorId: 'test.scopeId' });
-		assert(service.isActive);
-
-		eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
-		assert(!service.isActive);
-
 		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
 		assert(service.isActive);
 
@@ -465,19 +422,19 @@ suite('Workbench UI Services', () => {
 		assert.strictEqual(true, testProgressBar.fDone);
 
 		// Inactive: Show (Infinite)
-		eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
 		service.show(true);
 		assert.strictEqual(false, !!testProgressBar.fInfinite);
-		eventService.emit(EventType.EDITOR_OPENED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
 		assert.strictEqual(true, testProgressBar.fInfinite);
 
 		// Inactive: Show (Total / Worked)
-		eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
 		fn = service.show(100);
 		fn.total(80);
 		fn.worked(20);
 		assert.strictEqual(false, !!testProgressBar.fTotal);
-		eventService.emit(EventType.EDITOR_OPENED, { editorId: 'test.scopeId' });
+		eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
 		assert.strictEqual(20, testProgressBar.fWorked);
 		assert.strictEqual(80, testProgressBar.fTotal);
 
@@ -486,12 +443,12 @@ suite('Workbench UI Services', () => {
 		service.showWhile(p).then(() => {
 			assert.strictEqual(true, testProgressBar.fDone);
 
-			eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
+			eventService.emit(EventType.COMPOSITE_CLOSED, { compositeId: 'test.scopeId' });
 			p = TPromise.as(null);
 			service.showWhile(p).then(() => {
 				assert.strictEqual(true, testProgressBar.fDone);
 
-				eventService.emit(EventType.EDITOR_OPENED, { editorId: 'test.scopeId' });
+				eventService.emit(EventType.COMPOSITE_OPENED, { compositeId: 'test.scopeId' });
 				assert.strictEqual(true, testProgressBar.fDone);
 			});
 		});

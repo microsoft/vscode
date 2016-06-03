@@ -24,11 +24,11 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
 import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
+import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {LocalFileChangeEvent, VIEWLET_ID, ITextFileService, TextFileChangeEvent, EventType as FileEventType} from 'vs/workbench/parts/files/common/files';
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import {asFileEditorInput, getUntitledOrFileResource, EditorOptions, UntitledEditorInput, ConfirmResult} from 'vs/workbench/common/editor';
+import {asFileEditorInput, getUntitledOrFileResource, EditorOptions, UntitledEditorInput, ConfirmResult, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {ExplorerView} from 'vs/workbench/parts/files/browser/views/explorerView';
@@ -37,6 +37,7 @@ import {CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
@@ -45,7 +46,6 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
 import {Selection} from 'vs/editor/common/core/selection';
 
@@ -1213,6 +1213,7 @@ export class GlobalCompareResourcesAction extends Action {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IMessageService private messageService: IMessageService,
 		@IEventService private eventService: IEventService
 	) {
@@ -1227,7 +1228,7 @@ export class GlobalCompareResourcesAction extends Action {
 			globalResourceToCompare = fileInput.getResource();
 
 			// Listen for next editor to open
-			let unbind = this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_OPENING, (e: EditorEvent) => {
+			let unbind = this.editorGroupService.onEditorOpening(e => {
 				unbind.dispose(); // listen once
 
 				let otherFileInput = asFileEditorInput(e.editorInput);
@@ -1505,6 +1506,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -1545,7 +1547,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	}
 
 	protected doRun(context: any): TPromise<boolean> {
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 
 		// Store some properties per untitled file to restore later after save is completed
 		const mapUntitledToProperties: { [resource: string]: { mime: string; encoding: string; indexInGroups: number[]; } } = Object.create(null);

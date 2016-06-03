@@ -13,7 +13,8 @@ import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
+import {Range} from 'vs/editor/common/core/range';
+import {Position} from 'vs/editor/common/core/position';
 
 export interface IMirrorModelEvents {
 	contentChanged: editorCommon.IModelContentChangedEvent[];
@@ -21,7 +22,6 @@ export interface IMirrorModelEvents {
 
 export class AbstractMirrorModel extends TextModelWithTokens implements editorCommon.IMirrorModel {
 
-	_lineStarts:PrefixSumComputer;
 	_associatedResource:URI;
 
 	constructor(allowedEventTypes:string[], versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
@@ -62,56 +62,42 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 		return this._associatedResource;
 	}
 
-	private _ensurePrefixSum(): void {
-		if(!this._lineStarts) {
-			var lineStartValues:number[] = [],
-				eolLength = this.getEOL().length;
-			for (var i = 0, len = this._lines.length; i < len; i++) {
-				lineStartValues.push(this._lines[i].text.length + eolLength);
-			}
-			this._lineStarts = new PrefixSumComputer(lineStartValues);
-		}
-	}
-
-	public getRangeFromOffsetAndLength(offset:number, length:number):editorCommon.IRange {
-		var startPosition = this.getPositionFromOffset(offset),
-			endPosition = this.getPositionFromOffset(offset + length);
-		return {
-			startLineNumber: startPosition.lineNumber,
-			startColumn: startPosition.column,
-			endLineNumber: endPosition.lineNumber,
-			endColumn: endPosition.column
-		};
+	public getRangeFromOffsetAndLength(offset:number, length:number): Range {
+		let startPosition = this.getPositionAt(offset);
+		let endPosition = this.getPositionAt(offset + length);
+		return new Range(
+			startPosition.lineNumber,
+			startPosition.column,
+			endPosition.lineNumber,
+			endPosition.column
+		);
 	}
 
 	public getOffsetAndLengthFromRange(range:editorCommon.IRange):{offset:number; length:number;} {
-		var startOffset = this.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn }),
-			endOffset = this.getOffsetFromPosition({ lineNumber: range.endLineNumber, column: range.endColumn });
+		let startOffset = this.getOffsetAt(new Position(range.startLineNumber, range.startColumn));
+		let endOffset = this.getOffsetAt(new Position(range.endLineNumber, range.endColumn));
 		return {
 			offset: startOffset,
 			length: endOffset - startOffset
 		};
 	}
 
-	public getPositionFromOffset(offset:number):editorCommon.IPosition {
-		this._ensurePrefixSum();
-
-		let r = this._lineStarts.getIndexOf(offset);
-		return {
-			lineNumber: r.index + 1,
-			column: this.getEOL().length + r.remainder
-		};
+	public getPositionFromOffset(offset:number): Position {
+		return this.getPositionAt(offset);
 	}
 
 	public getOffsetFromPosition(position:editorCommon.IPosition): number {
-		return this.getLineStart(position.lineNumber) + position.column - 1 /* column isn't zero-index based */;
+		return this.getOffsetAt(position);
 	}
 
 	public getLineStart(lineNumber:number): number {
-		this._ensurePrefixSum();
-
-		var lineIndex = Math.min(lineNumber, this._lines.length) - 1;
-		return this._lineStarts.getAccumulatedValue(lineIndex - 1);
+		if (lineNumber < 1) {
+			lineNumber = 1;
+		}
+		if (lineNumber > this.getLineCount()) {
+			lineNumber = this.getLineCount();
+		}
+		return this.getOffsetAt(new Position(lineNumber, 1));
 	}
 
 	public getAllWordsWithRange(): editorCommon.IRangeWithText[] {
@@ -231,7 +217,6 @@ export class MirrorModelEmbedded extends AbstractMirrorModel implements editorCo
 		var prevVersionId = this.getVersionId();
 
 		// Force recreating of line starts (when used)
-		this._lineStarts = null;
 		this._constructLines(MirrorModelEmbedded._getMirrorValueWithinRanges(this._actualModel, newIncludedRanges));
 		this._resetTokenizationState();
 
@@ -390,9 +375,6 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 		for (let i = 0, len = events.contentChanged.length; i < len; i++) {
 			let contentChangedEvent = events.contentChanged[i];
 
-			// Force recreating of line starts
-			this._lineStarts = null;
-
 			this._setVersionId(contentChangedEvent.versionId);
 			switch (contentChangedEvent.changeType) {
 				case editorCommon.EventType.ModelRawContentChangedFlush:
@@ -438,6 +420,10 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 			text: e.detail,
 			forceMoveMarkers: false
 		}]);
+		if (this._lineStarts) {
+			// update prefix sum
+			this._lineStarts.changeValue(e.lineNumber - 1, this._lines[e.lineNumber - 1].text.length + this._EOL.length);
+		}
 
 		this._invalidateLine(e.lineNumber - 1);
 	}
@@ -450,6 +436,10 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 		var firstLineState = this._lines[fromLineIndex].getState();
 
 		this._lines.splice(fromLineIndex, toLineIndex - fromLineIndex + 1);
+		if (this._lineStarts) {
+			// update prefix sum
+			this._lineStarts.removeValues(fromLineIndex, toLineIndex - fromLineIndex + 1);
+		}
 
 		if (fromLineIndex < this._lines.length) {
 			// This check is always true in real world, but the tests forced this
@@ -467,8 +457,14 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 			i:number,
 			splitLines = e.detail.split('\n');
 
+		let newLengths:number[] = [];
 		for (lineIndex = e.fromLineNumber - 1, i = 0; lineIndex < e.toLineNumber; lineIndex++, i++) {
 			this._lines.splice(lineIndex, 0, new ModelLine(0, splitLines[i]));
+			newLengths.push(splitLines[i].length + this._EOL.length);
+		}
+		if (this._lineStarts) {
+			// update prefix sum
+			this._lineStarts.insertValues(e.fromLineNumber - 1, newLengths);
 		}
 
 		if (e.fromLineNumber >= 2) {

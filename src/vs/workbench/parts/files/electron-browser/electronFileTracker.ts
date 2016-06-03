@@ -28,6 +28,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ipcRenderer as ipc} from 'electron';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 export interface IPath {
 	filePath: string;
@@ -55,6 +56,7 @@ export class FileTracker implements IWorkbenchContribution {
 		@ITextFileService private textFileService: ITextFileService,
 		@IViewletService private viewletService: IViewletService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -86,7 +88,7 @@ export class FileTracker implements IWorkbenchContribution {
 		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => this.onOpenFiles(request));
 
 		// Editor input changes
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
+		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -165,7 +167,7 @@ export class FileTracker implements IWorkbenchContribution {
 		});
 	}
 
-	private onEditorInputChanged(): void {
+	private onEditorsChanged(): void {
 		let visibleOutOfWorkspaceResources = this.editorService.getVisibleEditors().map((editor) => {
 			return asFileEditorInput(editor.input, true);
 		}).filter((input) => {

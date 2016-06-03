@@ -60,8 +60,8 @@ suite('Workbench - EditorInput', () => {
 
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
-		assert.equal(diffInput.getOriginalInput(), input);
-		assert.equal(diffInput.getModifiedInput(), otherInput);
+		assert.equal(diffInput.originalInput, input);
+		assert.equal(diffInput.modifiedInput, otherInput);
 		assert(diffInput.matches(diffInput));
 		assert(!diffInput.matches(otherInput));
 		assert(!diffInput.matches(null));

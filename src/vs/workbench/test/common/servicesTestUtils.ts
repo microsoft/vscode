@@ -11,7 +11,7 @@ import Paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import Storage = require('vs/workbench/common/storage');
-import WorkbenchEditorCommon = require('vs/workbench/common/editor');
+import {EditorInputEvent} from 'vs/workbench/common/editor';
 import Event, {Emitter} from 'vs/base/common/event';
 import Types = require('vs/base/common/types');
 import Severity from 'vs/base/common/severity';
@@ -29,9 +29,11 @@ import {IMessageService, IConfirmation} from 'vs/platform/message/common/message
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService, ShutdownEvent} from 'vs/platform/lifecycle/common/lifecycle';
+import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {EditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {IEditorGroupService, GroupArrangement} from 'vs/workbench/services/group/common/groupService';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -44,6 +46,30 @@ export const TestWorkspace: IWorkspace = {
 export const TestConfiguration: IConfiguration = {
 	env: Object.create(null)
 };
+
+export class TestHistoryService implements IHistoryService {
+	public serviceId = IHistoryService;
+
+	public forward(): void {
+
+	}
+
+	public back(): void {
+
+	}
+
+	public clear(): void {
+
+	}
+
+	public remove(input: IEditorInput): void {
+
+	}
+
+	public getHistory(): IEditorInput[] {
+		return [];
+	}
+}
 
 export class TestContextService implements WorkspaceContextService.IWorkspaceContextService {
 	public serviceId = WorkspaceContextService.IWorkspaceContextService;
@@ -282,18 +308,21 @@ export class TestUntitledEditorService implements IUntitledEditorService {
 	}
 }
 
-export class TestEditorService implements WorkbenchEditorService.IWorkbenchEditorService {
-	public serviceId = WorkbenchEditorService.IWorkbenchEditorService;
+export class TestEditorGroupService implements IEditorGroupService {
+	public serviceId = IEditorGroupService;
 
-	public activeEditorInput;
-	public activeEditorOptions;
-	public activeEditorPosition;
-
-	private callback: (method: string) => void;
 	private stacksModel: EditorStacksModel;
 
+	private _onEditorsChanged: Emitter<void>;
+	private _onEditorOpening: Emitter<EditorInputEvent>;
+	private _onEditorOpenFail: Emitter<IEditorInput>;
+	private _onEditorsMoved: Emitter<void>;
+
 	constructor(callback?: (method: string) => void) {
-		this.callback = callback || ((s: string) => { });
+		this._onEditorsMoved = new Emitter<void>();
+		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorOpening = new Emitter<EditorInputEvent>();
+		this._onEditorOpenFail = new Emitter<IEditorInput>();
 
 		let services = new ServiceCollection();
 
@@ -305,6 +334,69 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		let inst = new InstantiationService(services);
 
 		this.stacksModel = inst.createInstance(EditorStacksModel);
+	}
+
+	public fireChange(): void {
+		this._onEditorsChanged.fire();
+	}
+
+	public get onEditorsChanged(): Event<void> {
+		return this._onEditorsChanged.event;
+	}
+
+	public get onEditorOpening(): Event<EditorInputEvent> {
+		return this._onEditorOpening.event;
+	}
+
+	public get onEditorOpenFail(): Event<IEditorInput> {
+		return this._onEditorOpenFail.event;
+	}
+
+	public get onEditorsMoved(): Event<void> {
+		return this._onEditorsMoved.event;
+	}
+
+	public focusGroup(position: Position): void {
+
+	}
+
+	public activateGroup(position: Position): void {
+
+	}
+
+	public moveGroup(from: Position, to: Position): void {
+
+	}
+
+	public arrangeGroups(arrangement: GroupArrangement): void {
+
+	}
+
+	public pinEditor(position: Position, input: IEditorInput): void {
+	}
+
+	public unpinEditor(position: Position, input: IEditorInput): void {
+	}
+
+	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void {
+	}
+
+	public getStacksModel(): EditorStacksModel {
+		return this.stacksModel;
+	}
+}
+
+export class TestEditorService implements WorkbenchEditorService.IWorkbenchEditorService {
+	public serviceId = WorkbenchEditorService.IWorkbenchEditorService;
+
+	public activeEditorInput;
+	public activeEditorOptions;
+	public activeEditorPosition;
+
+	private callback: (method: string) => void;
+
+	constructor(callback?: (method: string) => void) {
+		this.callback = callback || ((s: string) => { });
 	}
 
 	public openEditors(inputs): Promise {
@@ -336,37 +428,13 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	public getActiveEditorInput(): IEditorInput {
 		this.callback('getActiveEditorInput');
 
-		return null;
+		return this.activeEditorInput;
 	}
 
 	public getVisibleEditors(): IEditor[] {
 		this.callback('getVisibleEditors');
 
 		return [];
-	}
-
-	public activateGroup(position: Position): void {
-		this.callback('activateGroup');
-	}
-
-	public pinEditor(position: Position, input: IEditorInput): void {
-		this.callback('pinEditor');
-	}
-
-	public unpinEditor(position: Position, input: IEditorInput): void {
-		this.callback('unpinEditor');
-	}
-
-	public moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void {
-		this.callback('moveEditor');
-	}
-
-	public moveGroup(from: Position, to: Position): void {
-		this.callback('moveGroup');
-	}
-
-	public arrangeGroups(arrangement: WorkbenchEditorService.GroupArrangement): void {
-		this.callback('arrangeGroups');
 	}
 
 	public openEditor(input: any, options?: any, position?: any): Promise {
@@ -387,23 +455,14 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return input.resolve(refresh);
 	}
 
-
 	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
 		this.callback('closeEditor');
 
 		return TPromise.as(null);
 	}
 
-	public focusGroup(position: Position): void {
-		this.callback('focusGroup');
-	}
-
 	public createInput(input: IResourceInput): TPromise<IEditorInput> {
 		return TPromise.as(null);
-	}
-
-	public getStacksModel(): EditorStacksModel {
-		return this.stacksModel;
 	}
 }
 
@@ -436,10 +495,6 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return TPromise.as(true);
 	}
 
-	getEditorHistory(): WorkbenchEditorCommon.EditorInput[] {
-		return [];
-	}
-
 	get onShow(): Event<void> {
 		return null;
 	}
@@ -448,10 +503,8 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 		return null;
 	}
 
-	public removeEditorHistoryEntry(input: WorkbenchEditorCommon.EditorInput): void { }
 	public dispose() { }
 	public quickNavigate(): void { }
-	public clearEditorHistory(): void { }
 }
 
 export const TestFileService = {

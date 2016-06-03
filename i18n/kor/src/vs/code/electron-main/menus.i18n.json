@@ -79,7 +79,7 @@
 	"miToggleMenuBar": "메뉴 모음 설정/해제(&&B)",
 	"miToggleOutput": "출력 설정/해제(&&O)",
 	"miTogglePanel": "패널 설정/해제(&&P)",
-	"miToggleRenderWhitespace": "공백 토글 및 렌더링",
+	"miToggleRenderWhitespace": "공백 설정/해제 및 렌더링(&&R)",
 	"miToggleSidebar": "사이드바 설정/해제(&&T)",
 	"miToggleWordWrap": "자동 줄 바꿈 설정/해제(&&W)",
 	"miTwitter": "Twitter에서 참여(&&J)",

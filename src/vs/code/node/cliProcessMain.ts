@@ -27,7 +27,7 @@ import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeCon
 
 const notFound = id => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = id => localize('notInstalled', "Extension '{0}' is not installed.", id);
-const useId = localize('useId', "Make sure you use the full case-sensitive extension ID, eg: {0}", 'ms-vscode.csharp');
+const useId = localize('useId', "Make sure you use the full extension ID, eg: {0}", 'ms-vscode.csharp');
 
 class Main {
 

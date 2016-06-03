@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, Direction, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
 
 export enum GroupArrangement {
 	MINIMIZE_OTHERS,
@@ -91,41 +91,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeAllEditors(except?: Position): TPromise<void>;
 
 	/**
-	 * Adds the pinned state to an editor, removing it from being a preview editor.
-	 */
-	pinEditor(position: Position, input: IEditorInput): void;
-
-	/**
-	 * Removes the pinned state of an editor making it a preview editor.
-	 */
-	unpinEditor(position: Position, input: IEditorInput): void;
-
-	/**
-	 * Keyboard focus the editor group at the provided position.
-	 */
-	focusGroup(position: Position): void;
-
-	/**
-	 * Activate the editor group at the provided position without moving focus.
-	 */
-	activateGroup(position: Position): void;
-
-	/**
-	 * Moves an editor from one group to another. The index in the group is optional.
-	 */
-	moveEditor(input: IEditorInput, from: Position, to: Position, index?: number): void;
-
-	/**
-	 * Allows to move the editor group from one position to another.
-	 */
-	moveGroup(from: Position, to: Position): void;
-
-	/**
-	 * Allows to arrange editor groups according to the GroupArrangement enumeration.
-	 */
-	arrangeGroups(arrangement: GroupArrangement): void;
-
-	/**
 	 * Resolves an input to its model representation. The optional parameter refresh allows to specify
 	 * if a cached model should be returned (false) or a new version (true). The default is returning a
 	 * cached version.
@@ -141,9 +106,4 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input
 	 */
 	createInput(input: IResourceInput): TPromise<IEditorInput>;
-
-	/**
-	 * Provides access to the editor stacks model
-	 */
-	getStacksModel(): IEditorStacksModel;
 }

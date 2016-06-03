@@ -91,7 +91,7 @@
 /* Context Menu */
 
 .context-view.monaco-menu-container {
-	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	outline: 0;
 	box-shadow: 0 2px 8px #A8A8A8;
 	border: none;

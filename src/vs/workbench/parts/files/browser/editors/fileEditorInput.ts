@@ -18,10 +18,12 @@ import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browse
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState} from 'vs/workbench/parts/files/common/files';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode, ModelState, EventType as FileEventType, TextFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
+import {IEventService} from 'vs/platform/event/common/event';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -42,6 +44,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 	private description: string;
 	private verboseDescription: string;
 
+	private toUnbind: IDisposable[];
+
 	/**
 	 * An editor input who's contents are retrieved from file services.
 	 */
@@ -49,16 +53,34 @@ export class FileEditorInput extends CommonFileEditorInput {
 		resource: URI,
 		mime: string,
 		preferredEncoding: string,
+		@IEventService private eventService: IEventService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
+		this.toUnbind = [];
+
 		if (resource) {
 			this.setResource(resource);
 			this.setMime(mime || guessMimeTypes(this.resource.fsPath).join(', '));
 			this.preferredEncoding = preferredEncoding;
+		}
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_REVERTED, (e: TextFileChangeEvent) => this.onDirtyStateChange(e)));
+	}
+
+	private onDirtyStateChange(e: TextFileChangeEvent): void {
+		if (e.resource.toString() === this.resource.toString()) {
+			this._onDidChangeDirty.fire();
 		}
 	}
 
@@ -254,9 +276,10 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	private indexOfClient(): number {
-		if (!types.isUndefinedOrNull(FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()])) {
-			for (let i = 0; i < FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].length; i++) {
-				let client = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()][i];
+		const inputs = FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()];
+		if (inputs) {
+			for (let i = 0; i < inputs.length; i++) {
+				let client = inputs[i];
 				if (client === this) {
 					return i;
 				}
@@ -290,6 +313,9 @@ export class FileEditorInput extends CommonFileEditorInput {
 	}
 
 	public dispose(force?: boolean): void {
+
+		// Listeners
+		dispose(this.toUnbind);
 
 		// TextFileEditorModel
 		let cachedModel = CACHE.get(this.resource);

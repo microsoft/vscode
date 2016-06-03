@@ -18,6 +18,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {Position} from 'vs/platform/editor/common/editor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
@@ -32,6 +33,7 @@ export class BaseTwoEditorsAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IFileService protected fileService: IFileService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IMessageService protected messageService: IMessageService,
@@ -67,7 +69,7 @@ export class BaseTwoEditorsAction extends Action {
 				];
 
 				return this.editorService.openEditors(editors).then(() => {
-					this.editorService.focusGroup(Position.CENTER);
+					this.editorGroupService.focusGroup(Position.CENTER);
 				});
 			});
 		});
@@ -80,6 +82,7 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMessageService messageService: IMessageService,
@@ -87,7 +90,7 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
+		super(id, label, editorService, editorGroupService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
 
 	protected open(emptySettingsContents: string, settingsResource: URI): TPromise<void> {
@@ -106,6 +109,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMessageService messageService: IMessageService,
@@ -114,7 +118,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService
 	) {
-		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
+		super(id, label, editorService, editorGroupService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
 
 	public run(event?: any): TPromise<void> {
@@ -157,6 +161,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMessageService messageService: IMessageService,
@@ -164,7 +169,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
+		super(id, label, editorService, editorGroupService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
 
 	public run(event?: any): TPromise<void> {

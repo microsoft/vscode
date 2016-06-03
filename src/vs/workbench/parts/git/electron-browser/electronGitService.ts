@@ -15,7 +15,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { GitChannelClient, UnavailableGitChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { RawGitService } from 'vs/workbench/parts/git/node/rawGitService';
@@ -24,6 +24,7 @@ import { spawn, exec } from 'child_process';
 import { join } from 'path';
 import { remote } from 'electron';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { readdir } from 'vs/base/node/pfs';
 
 interface IGit {
 	path: string;
@@ -91,11 +92,26 @@ function findSystemGitWin32(base: string): TPromise<IGit> {
 	return findSpecificGit(join(base, 'Git', 'cmd', 'git.exe'));
 }
 
+function findGitHubGitWin32(): TPromise<IGit> {
+	const github = join(process.env['LOCALAPPDATA'], 'GitHub');
+
+	return readdir(github).then(children => {
+		const git = children.filter(child => /^PortableGit/.test(child))[0];
+
+		if (!git) {
+			return TPromise.wrapError('Not found');
+		}
+
+		return findSpecificGit(join(github, git, 'cmd', 'git.exe'));
+	});
+}
+
 function findGitWin32(): TPromise<IGit> {
 	return findSystemGitWin32(process.env['ProgramW6432'])
 		.then(null, () => findSystemGitWin32(process.env['ProgramFiles(x86)']))
 		.then(null, () => findSystemGitWin32(process.env['ProgramFiles']))
-		.then(null, () => findSpecificGit('git'));
+		.then(null, () => findSpecificGit('git'))
+		.then(null, () => findGitHubGitWin32());
 }
 
 function findGit(hint: string): TPromise<IGit> {
@@ -178,7 +194,7 @@ export class ElectronGitService extends GitService {
 				})
 				.then(null, () => new UnavailableGitChannel());
 
-			const channel = getDelayedChannel(promise);
+			const channel = getNextTickChannel(getDelayedChannel(promise));
 			raw = new GitChannelClient(channel);
 		}
 

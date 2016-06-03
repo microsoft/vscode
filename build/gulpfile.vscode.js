@@ -95,6 +95,7 @@ gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.
 // Package
 var product = require('../product.json');
 var darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
+var linuxPackageRevision = getEpochTime();
 
 var config = {
 	version: packageJson.electronVersion,
@@ -264,12 +265,12 @@ function getEpochTime() {
 function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
-	var destination = '.build/linux/deb/' + debArch + '/vscode-' + debArch;
-	var packageRevision = getEpochTime();
+	var destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
 
 	return function () {
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
@@ -286,7 +287,7 @@ function prepareDebPackage(arch) {
 				var that = this;
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
 					.pipe(replace('@@NAME@@', product.applicationName))
-					.pipe(replace('@@VERSION@@', packageJson.version + '-' + packageRevision))
+					.pipe(replace('@@VERSION@@', packageJson.version + '-' + linuxPackageRevision))
 					.pipe(replace('@@ARCHITECTURE@@', debArch))
 					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
 					.pipe(rename('DEBIAN/control'))
@@ -317,9 +318,9 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
-		'chmod 755 vscode-' + debArch + '/DEBIAN/postinst ' + 'vscode-' + debArch + '/DEBIAN/prerm',
+		'chmod 755 ' + product.applicationName + '-' + debArch + '/DEBIAN/postinst ' + product.applicationName + '-' + debArch + '/DEBIAN/prerm',
 		'mkdir -p deb',
-		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-' + debArch + '.deb',
+		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
 	], { cwd: '.build/linux/deb/' + debArch});
 }
@@ -335,11 +336,11 @@ function getRpmPackageArch(arch) {
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var rpmArch = getRpmPackageArch(arch);
-	var packageRevision = getEpochTime();
 
 	return function () {
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
 
@@ -353,7 +354,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@VERSION@@', packageJson.version))
-			.pipe(replace('@@RELEASE@@', packageRevision))
+			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
@@ -376,7 +377,7 @@ function buildRpmPackage(arch) {
 	return shell.task([
 		'mkdir -p ' + destination,
 		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
-		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/vscode-' + rpmArch + '.rpm',
+		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/',
 		'createrepo ' + destination
 	]);
 }

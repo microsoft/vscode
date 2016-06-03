@@ -16,11 +16,11 @@ import {QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup} from 'vs/base/parts
 import scorer = require('vs/base/common/scorer');
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {Position} from 'vs/platform/editor/common/editor';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {EditorInput, asFileEditorInput} from 'vs/workbench/common/editor';
-import {IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor/editorStacksModel';
+import {EditorInput, asFileEditorInput, IEditorGroup, IEditorStacksModel} from 'vs/workbench/common/editor';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 	private stacks: IEditorStacksModel;
@@ -28,11 +28,12 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	constructor(
 		private editor: EditorInput,
 		private _group: IEditorGroup,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super();
 
-		this.stacks = editorService.getStacksModel();
+		this.stacks = editorGroupService.getStacksModel();
 	}
 
 	public getIcon(): string {
@@ -86,7 +87,8 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 	constructor(
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super();
 
@@ -102,7 +104,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 			return TPromise.as(null);
 		}
 
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 
 		const entries = editorEntries.filter(e => {
 			if (!searchValue) {
@@ -155,7 +157,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 export abstract class EditorGroupPicker extends BaseEditorPicker {
 
 	protected getEditorEntries(): EditorPickerEntry[] {
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 		const group = stacks.groupAt(this.getPosition());
 		if (!group) {
 			return [];
@@ -181,7 +183,7 @@ export abstract class EditorGroupPicker extends BaseEditorPicker {
 			};
 		}
 
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 		const group = stacks.groupAt(this.getPosition());
 		if (!group) {
 			return super.getAutoFocus(searchValue);
@@ -204,7 +206,7 @@ export class LeftEditorGroupPicker extends EditorGroupPicker {
 export class CenterEditorGroupPicker extends EditorGroupPicker {
 
 	protected getPosition(): Position {
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 
 		return stacks.groups.length > 2 ? Position.CENTER : -1; // with 2 groups open, the center one is not available
 	}
@@ -213,7 +215,7 @@ export class CenterEditorGroupPicker extends EditorGroupPicker {
 export class RightEditorGroupPicker extends EditorGroupPicker {
 
 	protected getPosition(): Position {
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 
 		return stacks.groups.length > 2 ? Position.RIGHT : Position.CENTER;
 	}
@@ -224,7 +226,7 @@ export class AllEditorsPicker extends BaseEditorPicker {
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const entries: EditorPickerEntry[] = [];
 
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 		stacks.groups.forEach((group, position) => {
 			group.getEditors().forEach((editor, index) => {
 				entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, group));

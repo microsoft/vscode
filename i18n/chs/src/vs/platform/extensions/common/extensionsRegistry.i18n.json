@@ -20,7 +20,7 @@
 	"vscode.extension.categories": "VS Code 库用于对扩展进行分类的类别。",
 	"vscode.extension.contributes": "由此包表示的 VS Code 扩展的所有贡献。",
 	"vscode.extension.displayName": "VS Code 库中使用的扩展的显示名称。",
-	"vscode.extension.extensionDependencies": "其他扩展的依赖关系。扩展的 ID 始终是 ${publisher}.${name}。例如: vscode.csharp。",
+	"vscode.extension.extensionDependencies": "其他扩展的依赖关系。扩展的标识符始终是 ${publisher}.${name}。例如: vscode.csharp。",
 	"vscode.extension.galleryBanner": "VS Code 商城使用的横幅。",
 	"vscode.extension.galleryBanner.color": "VS Code 商城页标题上的横幅颜色。",
 	"vscode.extension.galleryBanner.theme": "横幅中使用的字体颜色主题。",

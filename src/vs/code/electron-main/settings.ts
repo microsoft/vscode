@@ -17,7 +17,7 @@ export interface ISettingsService {
 	serviceId: ServiceIdentifier<any>;
 	globalSettings: ISettings;
 	loadSync(): boolean;
-	getValue(key: string, fallback?: any): any;
+	getValue<T>(key: string, fallback?: T): T;
 	onChange: Event<ISettings>;
 }
 

@@ -456,7 +456,7 @@ export interface ReferenceProvider {
 }
 
 
-export class Location {
+export interface Location {
 	uri: URI;
 	range: editorCommon.IRange;
 }

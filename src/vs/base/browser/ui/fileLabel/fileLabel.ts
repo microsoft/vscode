@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./filelabel';
+import 'vs/css!./fileLabel';
 import dom = require('vs/base/browser/dom');
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');

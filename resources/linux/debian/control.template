@@ -1,11 +1,12 @@
-Package: visual-studio-@@NAME@@
+Package: @@NAME@@
 Version: @@VERSION@@
-Depends: git
 Section: devel
+Depends: libnotify4, libnss3
 Priority: optional
 Architecture: @@ARCHITECTURE@@
 Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
 Homepage: https://code.visualstudio.com/
 Installed-Size: @@INSTALLEDSIZE@@
+Replaces: visual-studio-@@NAME@@
 Description: Code editing. Redefined.
  Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle.

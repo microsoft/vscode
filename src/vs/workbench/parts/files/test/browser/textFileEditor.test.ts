@@ -13,6 +13,13 @@ import {Registry} from 'vs/platform/platform';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {TestEventService, TestContextService} from 'vs/workbench/test/common/servicesTestUtils';
+import {IEventService} from 'vs/platform/event/common/event';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 
 const ExtensionId = Extensions.Editors;
 
@@ -37,9 +44,19 @@ suite('Files - TextFileEditor', () => {
 		equal(Registry.as(ExtensionId).getEditors().length, oldEditorCnt + 2);
 		equal(Registry.as(ExtensionId).getEditorInputs().length, oldInputCnt + 2);
 
-		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', '/foo/bar/foobar.html')), 'test-text/html', void 0, void 0, void 0, void 0)), d1);
-		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', '/foo/bar/foobar.js')), 'test-text/javascript', void 0, void 0, void 0, void 0)), d1);
-		strictEqual(Registry.as(ExtensionId).getEditor(new FileEditorInput(URI.file(join('C:\\', '/foo/bar/foobar.css')), 'test-text/css', void 0, void 0, void 0, void 0)), d2);
+		let eventService = new TestEventService();
+		let contextService = new TestContextService();
+
+		let services = new ServiceCollection();
+		let instantiationService = new InstantiationService(services);
+
+		services.set(IEventService, eventService);
+		services.set(IWorkspaceContextService, contextService);
+		services.set(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TextFileService));
+
+		strictEqual(Registry.as(ExtensionId).getEditor(instantiationService.createInstance(FileEditorInput, URI.file(join('C:\\', '/foo/bar/foobar.html')), 'test-text/html', void 0)), d1);
+		strictEqual(Registry.as(ExtensionId).getEditor(instantiationService.createInstance(FileEditorInput, URI.file(join('C:\\', '/foo/bar/foobar.js')), 'test-text/javascript', void 0)), d1);
+		strictEqual(Registry.as(ExtensionId).getEditor(instantiationService.createInstance(FileEditorInput, URI.file(join('C:\\', '/foo/bar/foobar.css')), 'test-text/css', void 0)), d2);
 
 		Registry.as(ExtensionId).setEditors(oldEditors);
 	});

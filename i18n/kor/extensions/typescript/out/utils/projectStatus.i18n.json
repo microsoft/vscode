@@ -11,6 +11,7 @@
 	"hintExclude.generic": "성능 개선을 위해 파일이 많은 폴더를 제외하세요.",
 	"hintExclude.tooltip": "성능을 향상하려면 많은 파일이 포함된 폴더를 제외하세요.",
 	"ignore.cmdCreate": "무시",
+	"jsconfig.heading": "// jsconfig.json 형식에 대한 설명서는 https://go.microsoft.com/fwlink/?LinkId=759670\n\t//를 참조하세요.",
 	"large.label": "제외 구성",
 	"open": "제외 구성"
 }

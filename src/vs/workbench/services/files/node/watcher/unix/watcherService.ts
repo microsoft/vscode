@@ -6,6 +6,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
+import {getNextTickChannel} from 'vs/base/parts/ipc/common/ipc';
 import {Client} from 'vs/base/parts/ipc/node/ipc.cp';
 import uri from 'vs/base/common/uri';
 import {EventType} from 'vs/platform/files/common/files';
@@ -50,7 +51,7 @@ export class FileWatcher {
 			}
 		);
 
-		const channel = client.getChannel<IWatcherChannel>('watcher');
+		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
 		const service = new WatcherChannelClient(channel);
 
 		// Start watching

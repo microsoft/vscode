@@ -8,24 +8,29 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Action} from 'vs/base/common/actions';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions} from 'vs/workbench/common/editor';
+import {EditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, IEditorIdentifier} from 'vs/workbench/common/editor';
 import {QuickOpenEntryGroup} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {IWorkbenchEditorService, GroupArrangement} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {Position, IEditor, Direction} from 'vs/platform/editor/common/editor';
+import {Position, IEditor, Direction, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IEditorIdentifier} from 'vs/workbench/common/editor/editorStacksModel';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 export class SplitEditorAction extends Action {
 
 	public static ID = 'workbench.action.splitEditor';
 	public static LABEL = nls.localize('splitEditor', "Split Editor");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
 		super(id, label, 'split-editor-action');
 	}
 
@@ -69,8 +74,8 @@ export class SplitEditorAction extends Action {
 					options.pinned = true;
 
 					return this.editorService.openEditor(activeEditor.input, options, Position.RIGHT).then(() => {
-						this.editorService.moveGroup(Position.RIGHT, Position.CENTER);
-						this.editorService.focusGroup(Position.CENTER);
+						this.editorGroupService.moveGroup(Position.RIGHT, Position.CENTER);
+						this.editorGroupService.focusGroup(Position.CENTER);
 					});
 				}
 		}
@@ -89,7 +94,12 @@ export class NavigateBetweenGroupsAction extends Action {
 	public static ID = 'workbench.action.navigateEditorGroups';
 	public static LABEL = nls.localize('navigateEditorGroups', "Navigate Between Editor Groups");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
 		super(id, label);
 	}
 
@@ -106,7 +116,7 @@ export class NavigateBetweenGroupsAction extends Action {
 		let editorCount = visibleEditors.length;
 		let newIndex = (activeEditor.position + 1) % editorCount;
 
-		this.editorService.focusGroup(<Position>newIndex);
+		this.editorGroupService.focusGroup(<Position>newIndex);
 
 		return TPromise.as(true);
 	}
@@ -121,7 +131,8 @@ export class FocusFirstGroupAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
 	}
@@ -132,25 +143,19 @@ export class FocusFirstGroupAction extends Action {
 		let editors = this.editorService.getVisibleEditors();
 		for (var editor of editors) {
 			if (editor.position === Position.LEFT) {
-				this.editorService.focusGroup(Position.LEFT);
+				this.editorGroupService.focusGroup(Position.LEFT);
 
 				return TPromise.as(true);
 			}
 		}
 
 		// Since no editor is currently opened, try to open last history entry to the target side
-		let history = this.quickOpenService.getEditorHistory();
+		let history = this.historyService.getHistory();
 		for (var input of history) {
 
 			// For now only support to open resources from history to the side
 			if (!!getUntitledOrFileResource(input)) {
-				return this.editorService.openEditor(input, null, Position.LEFT).then(() => {
-
-					// Automatically clean up stale history entries when the input can not be opened
-					if (!input.matches(this.editorService.getActiveEditorInput())) {
-						this.quickOpenService.removeEditorHistoryEntry(input);
-					}
-				});
+				return this.editorService.openEditor(input, null, Position.LEFT);
 			}
 		}
 
@@ -164,7 +169,8 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
 	}
@@ -183,7 +189,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 			// Target editor exists so focus it
 			if (editor.position === this.getTargetEditorSide()) {
-				this.editorService.focusGroup(editor.position);
+				this.editorGroupService.focusGroup(editor.position);
 
 				return TPromise.as(true);
 			}
@@ -201,18 +207,12 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 		// Otherwise try to find a history entry to open to the target editor side
 		else if (referenceEditor) {
-			let history = this.quickOpenService.getEditorHistory();
+			let history = this.historyService.getHistory();
 			for (var input of history) {
 
 				// For now only support to open files from history to the side
 				if (!!getUntitledOrFileResource(input)) {
-					return this.editorService.openEditor(input, null, this.getTargetEditorSide()).then(() => {
-
-						// Automatically clean up stale history entries when the input can not be opened
-						if (!input.matches(this.editorService.getActiveEditorInput())) {
-							this.quickOpenService.removeEditorHistoryEntry(input);
-						}
-					});
+					return this.editorService.openEditor(input, null, this.getTargetEditorSide());
 				}
 			}
 		}
@@ -230,9 +230,10 @@ export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, editorService, quickOpenService);
+		super(id, label, editorService, editorGroupService, historyService);
 	}
 
 	protected getReferenceEditorSide(): Position {
@@ -253,9 +254,10 @@ export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IQuickOpenService quickOpenService: IQuickOpenService
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IHistoryService historyService: IHistoryService
 	) {
-		super(id, label, editorService, quickOpenService);
+		super(id, label, editorService, editorGroupService, historyService);
 	}
 
 	protected getReferenceEditorSide(): Position {
@@ -272,7 +274,12 @@ export class FocusPreviousGroup extends Action {
 	public static ID = 'workbench.action.focusPreviousGroup';
 	public static LABEL = nls.localize('focusPreviousGroup', "Focus Previous Group");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
@@ -292,7 +299,7 @@ export class FocusPreviousGroup extends Action {
 		}
 
 		// Focus next position if provided
-		this.editorService.focusGroup(nextPosition);
+		this.editorGroupService.focusGroup(nextPosition);
 
 		return TPromise.as(true);
 	}
@@ -367,7 +374,7 @@ export class OpenToSideAction extends Action {
 			if (input instanceof EditorInput) {
 				typedInputPromise = TPromise.as(input);
 			} else {
-				typedInputPromise = this.editorService.createInput(input);
+				typedInputPromise = this.editorService.createInput(<IResourceInput>input);
 			}
 
 			return typedInputPromise.then(typedInput => this.editorService.openEditor(typedInput, entry.getOptions(), true));
@@ -400,12 +407,17 @@ export class CloseEditorAction extends Action {
 	public static ID = 'workbench.action.closeEditor';
 	public static LABEL = nls.localize('closeEditor', "Close Editor");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label, 'close-editor-action');
 	}
 
 	public run(context: IEditorContext): TPromise<any> {
-		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 
 		// Close Active Editor
 		if (typeof position !== 'number') {
@@ -421,7 +433,7 @@ export class CloseEditorAction extends Action {
 			// Get Top Editor at Position
 			let visibleEditors = this.editorService.getVisibleEditors();
 			if (visibleEditors[position]) {
-				input = <EditorInput>visibleEditors[position].input;
+				input = visibleEditors[position].input;
 			}
 		}
 
@@ -438,12 +450,17 @@ export class CloseEditorsInGroupAction extends Action {
 	public static ID = 'workbench.action.closeEditorsInGroup';
 	public static LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
 	public run(context: IEditorContext): TPromise<any> {
-		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -516,12 +533,17 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	public static ID = 'workbench.action.closeEditorsInOtherGroups';
 	public static LABEL = nls.localize('closeEditorsInOtherGroups', "Close Editors in Other Groups");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
 	public run(context: IEditorContext): TPromise<any> {
-		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -542,12 +564,17 @@ export class CloseOtherEditorsInGroupAction extends Action {
 	public static ID = 'workbench.action.closeOtherEditors';
 	public static LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
 	public run(context: IEditorContext): TPromise<any> {
-		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		let input = context ? context.editor : null;
 
 		// If position or input are not passed in take the position and input of the active editor.
@@ -570,12 +597,17 @@ export class CloseAllEditorsInGroupAction extends Action {
 	public static ID = 'workbench.files.action.closeAllEditorsInGroup';
 	public static LABEL = nls.localize('closeAllEditorsInGroup', "Close All Editors in Group");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label, 'action-close-all-files');
 	}
 
 	public run(context: IEditorContext): TPromise<any> {
-		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor) {
@@ -594,12 +626,17 @@ export class MoveGroupLeftAction extends Action {
 	public static ID = 'workbench.action.moveActiveEditorGroupLeft';
 	public static LABEL = nls.localize('moveActiveGroupLeft', "Move Editor Group Left");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
 	public run(context: IEditorContext): TPromise<any> {
-		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
@@ -611,7 +648,7 @@ export class MoveGroupLeftAction extends Action {
 			let newPosition = (position === Position.CENTER) ? Position.LEFT : Position.CENTER;
 
 			// Move group
-			this.editorService.moveGroup(position, newPosition);
+			this.editorGroupService.moveGroup(position, newPosition);
 		}
 
 		return TPromise.as(false);
@@ -623,12 +660,17 @@ export class MoveGroupRightAction extends Action {
 	public static ID = 'workbench.action.moveActiveEditorGroupRight';
 	public static LABEL = nls.localize('moveActiveGroupRight', "Move Editor Group Right");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
 	public run(context: IEditorContext): TPromise<any> {
-		let position = context ? this.editorService.getStacksModel().positionOfGroup(context.group) : null;
+		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
 		if (typeof position !== 'number') {
 			let activeEditor = this.editorService.getActiveEditor();
 			let editors = this.editorService.getVisibleEditors();
@@ -642,7 +684,7 @@ export class MoveGroupRightAction extends Action {
 			let newPosition = (position === Position.LEFT) ? Position.CENTER : Position.RIGHT;
 
 			// Move group
-			this.editorService.moveGroup(position, newPosition);
+			this.editorGroupService.moveGroup(position, newPosition);
 		}
 
 		return TPromise.as(false);
@@ -654,12 +696,12 @@ export class MinimizeOtherGroupsAction extends Action {
 	public static ID = 'workbench.action.minimizeOtherEditors';
 	public static LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
+		this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
 
 		return TPromise.as(false);
 	}
@@ -670,12 +712,12 @@ export class EvenGroupWidthsAction extends Action {
 	public static ID = 'workbench.action.evenEditorWidths';
 	public static LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.editorService.arrangeGroups(GroupArrangement.EVEN_WIDTH);
+		this.editorGroupService.arrangeGroups(GroupArrangement.EVEN_WIDTH);
 
 		return TPromise.as(false);
 	}
@@ -690,6 +732,7 @@ export class MaximizeGroupAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService
 	) {
 		super(id, label);
@@ -697,7 +740,7 @@ export class MaximizeGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		if (this.editorService.getActiveEditor()) {
-			this.editorService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
+			this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
 			this.partService.setSideBarHidden(true);
 		}
 
@@ -713,6 +756,7 @@ export class PinEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
@@ -721,7 +765,7 @@ export class PinEditorAction extends Action {
 	public run(): TPromise<any> {
 		let editor = this.editorService.getActiveEditor();
 		if (editor) {
-			this.editorService.pinEditor(editor.position, editor.input);
+			this.editorGroupService.pinEditor(editor.position, editor.input);
 		}
 
 		return TPromise.as(true);
@@ -736,6 +780,7 @@ export class UnpinEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
@@ -744,7 +789,7 @@ export class UnpinEditorAction extends Action {
 	public run(): TPromise<any> {
 		let editor = this.editorService.getActiveEditor();
 		if (editor) {
-			this.editorService.unpinEditor(editor.position, editor.input);
+			this.editorGroupService.unpinEditor(editor.position, editor.input);
 		}
 
 		return TPromise.as(true);
@@ -753,12 +798,17 @@ export class UnpinEditorAction extends Action {
 
 export abstract class BaseNavigateEditorAction extends Action {
 
-	constructor(id: string, label: string, protected editorService: IWorkbenchEditorService) {
+	constructor(
+		id: string,
+		label: string,
+		protected editorGroupService: IEditorGroupService,
+		protected editorService: IWorkbenchEditorService
+	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const model = this.editorService.getStacksModel();
+		const model = this.editorGroupService.getStacksModel();
 		const result = this.navigate();
 		if (result) {
 			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(result.group));
@@ -775,12 +825,17 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 	public static ID = 'workbench.action.nextEditor';
 	public static LABEL = nls.localize('openNextEditor', "Open Next Editor");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, editorService);
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, editorGroupService, editorService);
 	}
 
 	protected navigate(): IEditorIdentifier {
-		return this.editorService.getStacksModel().next();
+		return this.editorGroupService.getStacksModel().next();
 	}
 }
 
@@ -789,12 +844,17 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 	public static ID = 'workbench.action.previousEditor';
 	public static LABEL = nls.localize('openPreviousEditor', "Open Previous Editor");
 
-	constructor(id: string, label: string, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, editorService);
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, editorGroupService, editorService);
 	}
 
 	protected navigate(): IEditorIdentifier {
-		return this.editorService.getStacksModel().previous();
+		return this.editorGroupService.getStacksModel().previous();
 	}
 }
 
@@ -839,13 +899,14 @@ export class ReopenClosedEditorAction extends Action {
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 
 		// Find an editor that was closed and is currently not opened in the group
 		let lastClosedEditor = stacks.popLastClosedEditor();
@@ -940,6 +1001,7 @@ export class OpenPreviousEditorInGroupAction extends Action {
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
@@ -948,7 +1010,7 @@ export class OpenPreviousEditorInGroupAction extends Action {
 	public run(): TPromise<any> {
 		let keys = this.keybindingService.lookupKeybindings(this.id);
 
-		const stacks = this.editorService.getStacksModel();
+		const stacks = this.editorGroupService.getStacksModel();
 		if (stacks.activeGroup) {
 			const activePosition = stacks.positionOfGroup(stacks.activeGroup);
 			const count = stacks.groups.length;
@@ -1017,8 +1079,8 @@ export class ClearEditorHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
@@ -1026,14 +1088,45 @@ export class ClearEditorHistoryAction extends Action {
 
 	public run(): TPromise<any> {
 
-		// Quick open history
-		this.quickOpenService.clearEditorHistory();
-
-		// Editor cursor history
+		// Editor history
 		this.historyService.clear();
 
 		// Recently closed editors
-		this.editorService.getStacksModel().clearLastClosedEditors();
+		this.editorGroupService.getStacksModel().clearLastClosedEditors();
+
+		return TPromise.as(true);
+	}
+}
+
+export class RemoveFromEditorHistoryAction extends Action {
+
+	public static ID = 'workbench.action.removeFromEditorHistory';
+	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From Editor History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IHistoryService private historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+
+		// Listen for next editor to open
+		let unbind = this.editorGroupService.onEditorOpening(e => {
+			unbind.dispose(); // listen once
+
+			e.prevent();
+			this.historyService.remove(e.editorInput);
+		});
+
+		// Bring up quick open
+		this.quickOpenService.show().then(() => {
+			unbind.dispose(); // make sure to unbind if quick open is closing
+		});
 
 		return TPromise.as(true);
 	}

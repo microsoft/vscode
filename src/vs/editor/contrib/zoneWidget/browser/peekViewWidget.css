@@ -34,6 +34,7 @@
 	display: inline-block;
 	position: absolute;
 	right: 2px;
+	top: 2px;
 }
 
 .monaco-editor .peekview-widget .head .peekview-actions .action-label {

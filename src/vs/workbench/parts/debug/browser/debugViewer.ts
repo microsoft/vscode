@@ -218,6 +218,34 @@ export class CallStackController extends BaseDebugController {
 		return super.onEnter(tree, event);
 	}
 
+	protected onUp(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onUp(tree, event);
+		this.focusStackFrame(tree.getFocus(), event, true);
+
+		return true;
+	}
+
+	protected onPageUp(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onPageUp(tree, event);
+		this.focusStackFrame(tree.getFocus(), event, true);
+
+		return true;
+	}
+
+	protected onDown(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onDown(tree, event);
+		this.focusStackFrame(tree.getFocus(), event, true);
+
+		return true;
+	}
+
+	protected onPageDown(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onPageDown(tree, event);
+		this.focusStackFrame(tree.getFocus(), event, true);
+
+		return true;
+	}
+
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
 	private showMoreStackFrames(tree: tree.ITree, threadId: number): boolean {
 		const thread = this.debugService.getModel().getThreads()[threadId];
@@ -1101,6 +1129,15 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 export class BreakpointsController extends BaseDebugController {
 
+	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: renderer.IActionProvider) {
+		super(debugService, contextMenuService, actionProvider);
+		if (isMacintosh) {
+			this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onRename.bind(this));
+		} else {
+			this.downKeyBindingDispatcher.set(CommonKeybindings.F2, this.onRename.bind(this));
+		}
+	}
+
 	protected onLeftClick(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
 		if (element instanceof model.FunctionBreakpoint && event.detail === 2) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
@@ -1113,9 +1150,9 @@ export class BreakpointsController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+	protected onRename(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
-		if (element instanceof model.FunctionBreakpoint) {
+		if (element instanceof model.FunctionBreakpoint && element.name) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}

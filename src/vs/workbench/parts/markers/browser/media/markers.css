@@ -1,0 +1,104 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.markers-panel .markers-panel-container {
+	height: 100%;
+}
+
+.markers-panel .markers-panel-container .message-box-container {
+	padding-left: 20px;
+	display: none;
+}
+
+.markers-panel  .markers-panel-container .message-box-container.visible {
+	display: block;
+}
+
+.markers-panel .markers-panel-container .filter-box-container {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.markers-panel .markers-panel-container .input-box-container {
+	width: 250px;
+	border: 1px solid #DDD;
+	border-radius: 3px;
+	border-color: #2D2D30;
+	display: none;
+}
+.markers-panel .markers-panel-container .input-box-container.visible {
+	display: inline-block;
+}
+
+.markers-panel .markers-panel-container .tree-container {
+	height: 100%;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
+	line-height: 22px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .marker-stats {
+	display: inline-block;
+	margin-left: 10px;
+}
+
+.markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry .count-badge-wrapper {
+	display: inline-block;
+	margin-left: 10px;
+}
+
+.markers-panel-action-filter {
+	background: url('filter.svg') top center no-repeat;
+}
+
+.hc-black .markers-panel-action-filter {
+	background: url('filter.svg') top center no-repeat;
+}
+
+.vs-dark .markers-panel-action-filter {
+	background: url('filter.svg') top center no-repeat;
+}
+
+.vs .markers-panel-action-filter {
+	background: url('filter.svg') top center no-repeat;
+}
+
+.markers-panel .icon {
+	float: left;
+	display: block;
+	width: 16px;
+	height: 22px;
+	margin-right: 4px;
+	margin-left: 4px;
+}
+
+.markers-panel .icon.warning {
+	background: url('status-warning.svg') center center no-repeat;
+}
+
+.markers-panel-action-toggle-errors-on,
+.markers-panel-action-toggle-errors-off,
+.markers-panel .icon.error {
+	background: url('status-error.svg') center center no-repeat;
+}
+
+.markers-panel .icon.info:before {
+	background: url('status-info.svg') center center no-repeat;
+}
+
+.vs-dark .markers-panel .icon.warning {
+	background: url('status-warning-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .markers-panel-action-toggle-errors-on,
+.vs-dark .markers-panel-action-toggle-errors-off,
+.vs-dark .markers-panel .icon.error {
+	background: url('status-error-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .markers-panel .icon.info:before {
+	background: url('status-info-inverse.svg') center center no-repeat;
+}

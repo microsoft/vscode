@@ -18,7 +18,6 @@ import { VSCodeMenu } from 'vs/code/electron-main/menus';
 import { ISettingsService, SettingsManager } from 'vs/code/electron-main/settings';
 import { IUpdateService, UpdateManager } from 'vs/code/electron-main/update-manager';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { getUnixUserEnvironment, IEnv } from 'vs/base/node/env';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
 import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
@@ -29,8 +28,9 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, MainLogService } from './log';
-import { IStorageService, StorageService } from './storage';
+import { ILogService, MainLogService } from 'vs/code/electron-main/log';
+import { IStorageService, StorageService } from 'vs/code/electron-main/storage';
+import * as cp from 'child_process';
 
 function quit(accessor: ServicesAccessor, error?: Error);
 function quit(accessor: ServicesAccessor, message?: string);
@@ -56,10 +56,10 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const envService = accessor.get(IEnvironmentService);
-	const windowManager = accessor.get(IWindowsService);
+	const windowsService = accessor.get(IWindowsService);
 	const lifecycleService = accessor.get(ILifecycleService);
-	const updateManager = accessor.get(IUpdateService);
-	const settingsManager = accessor.get(ISettingsService);
+	const updateService = accessor.get(IUpdateService);
+	const settingsService = accessor.get(ISettingsService);
 
 	// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 	process.on('uncaughtException', (err: any) => {
@@ -72,7 +72,7 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 			};
 
 			// handle on client side
-			windowManager.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
+			windowsService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
 		}
 
 		console.error('[uncaught exception in main]: ' + err);
@@ -153,14 +153,14 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	lifecycleService.ready();
 
 	// Load settings
-	settingsManager.loadSync();
+	settingsService.loadSync();
 
 	// Propagate to clients
-	windowManager.ready(userEnv);
+	windowsService.ready(userEnv);
 
 	// Install Menu
-	const menuManager = instantiationService.createInstance(VSCodeMenu);
-	menuManager.ready();
+	const menu = instantiationService.createInstance(VSCodeMenu);
+	menu.ready();
 
 	// Install Tasks
 	if (platform.isWindows && envService.isBuilt) {
@@ -176,15 +176,15 @@ function main(accessor: ServicesAccessor, ipcServer: Server, userEnv: IProcessEn
 	}
 
 	// Setup auto update
-	updateManager.initialize();
+	updateService.initialize();
 
 	// Open our first window
 	if (envService.cliArgs.openNewWindow && envService.cliArgs.pathArguments.length === 0) {
-		windowManager.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
+		windowsService.open({ cli: envService.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
 	} else if (global.macOpenFiles && global.macOpenFiles.length && (!envService.cliArgs.pathArguments || !envService.cliArgs.pathArguments.length)) {
-		windowManager.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
+		windowsService.open({ cli: envService.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
-		windowManager.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs.openNewWindow, diffMode: envService.cliArgs.diffMode }); // default: read paths from cli
+		windowsService.open({ cli: envService.cliArgs, forceNewWindow: envService.cliArgs.openNewWindow, diffMode: envService.cliArgs.diffMode }); // default: read paths from cli
 	}
 }
 
@@ -277,6 +277,64 @@ services.set(IUpdateService, new SyncDescriptor(UpdateManager));
 services.set(ISettingsService, new SyncDescriptor(SettingsManager));
 
 const instantiationService = new InstantiationService(services);
+
+interface IEnv {
+	[key: string]: string;
+}
+
+function getUnixUserEnvironment(): TPromise<IEnv> {
+	const promise = new TPromise((c, e) => {
+		const runAsNode = process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+
+		const env = assign({}, process.env, {
+			ATOM_SHELL_INTERNAL_RUN_AS_NODE: '1',
+			ELECTRON_NO_ATTACH_CONSOLE: '1'
+		});
+
+		const command = `'${process.execPath}' -p 'JSON.stringify(process.env)'`;
+		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
+			detached: true,
+			stdio: ['ignore', 'pipe', process.stderr],
+			env
+		});
+
+		const buffers: Buffer[] = [];
+		child.on('error', () => c({}));
+		child.stdout.on('data', b => buffers.push(b));
+
+		child.on('close', (code: number, signal: any) => {
+			if (code !== 0) {
+				return e(new Error('Failed to get environment'));
+			}
+
+			const raw = Buffer.concat(buffers).toString('utf8');
+
+			try {
+				const env = JSON.parse(raw);
+
+				if (runAsNode) {
+					env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = runAsNode;
+				} else {
+					delete env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+				}
+
+				if (noAttach) {
+					env['ELECTRON_NO_ATTACH_CONSOLE'] = noAttach;
+				} else {
+					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
+				}
+
+				c(env);
+			} catch (err) {
+				e(err);
+			}
+		});
+	});
+
+	// swallow errors
+	return promise.then(null, () => ({}));
+}
 
 function getUserEnvironment(): TPromise<IEnv> {
 	return platform.isWindows ? TPromise.as({}) : getUnixUserEnvironment();

@@ -214,7 +214,7 @@ export function create(): IRequestHandler {
 	return standaloneWorker;
 }
 
-function createMonacoWorkerAPI()/*: typeof monaco.worker*/ {
+function createMonacoWorkerAPI(): typeof monaco.worker {
 	return {
 		get mirrorModels () {
 			return standaloneWorker.getModels();

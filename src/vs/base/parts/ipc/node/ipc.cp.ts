@@ -5,7 +5,7 @@
 
 import { ChildProcess, fork } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise, Promise} from 'vs/base/common/winjs.base';
+import { Promise} from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
 import { Server as IPCServer, Client as IPCClient, IClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -58,13 +58,15 @@ export class Client implements IClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
 	private activeRequests: Promise[];
-	private _client: TPromise<[IPCClient, ChildProcess]>;
-	private channels: { [name: string]: TPromise<IChannel> };
+	private child: ChildProcess;
+	private _client: IPCClient;
+	private channels: { [name: string]: IChannel };
 
 	constructor(private modulePath: string, private options: IIPCOptions) {
 		const timeout = options && options.timeout ? options.timeout : 60000;
 		this.disposeDelayer = new Delayer<void>(timeout);
 		this.activeRequests = [];
+		this.child = null;
 		this._client = null;
 		this.channels = Object.create(null);
 	}
@@ -77,8 +79,8 @@ export class Client implements IClient, IDisposable {
 	protected request(channelName: string, name: string, arg: any): Promise {
 		this.disposeDelayer.cancel();
 
-		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.then(value => value[0].getChannel(channelName)));
-		const request: Promise = channel.then(channel => channel.call(name, arg));
+		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
+		const request: Promise = channel.call(name, arg);
 
 		// Progress doesn't propagate across 'then', we need to create a promise wrapper
 		const result = new Promise((c, e, p) => {
@@ -99,78 +101,72 @@ export class Client implements IClient, IDisposable {
 		return result;
 	}
 
-	private get client(): TPromise<[IPCClient, ChildProcess]> {
+	private get client(): IPCClient {
 		if (!this._client) {
-			this._client = TPromise.timeout(0).then(() => {	// since fork is expensive and we end up here often
-															// during startup, we do a timeout(0) which is a setImmediate
+			const args = this.options && this.options.args ? this.options.args : [];
+			let forkOpts:any = undefined;
 
-				const args = this.options && this.options.args ? this.options.args : [];
-				let forkOpts:any = undefined;
+			if (this.options) {
+				forkOpts = Object.create(null);
 
-				if (this.options) {
-					forkOpts = Object.create(null);
-
-					if (this.options.env) {
-						forkOpts.env = assign(clone(process.env), this.options.env);
-					}
-
-					if (typeof this.options.debug === 'number') {
-						forkOpts.execArgv = ['--nolazy', '--debug=' + this.options.debug];
-					}
-
-					if (typeof this.options.debugBrk === 'number') {
-						forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
-					}
+				if (this.options.env) {
+					forkOpts.env = assign(clone(process.env), this.options.env);
 				}
 
-				const child = fork(this.modulePath, args, forkOpts);
-				const client = new IPCClient({
-					send: r => child && child.connected && child.send(r),
-					onMessage: cb => {
-						child.on('message', (msg) => {
+				if (typeof this.options.debug === 'number') {
+					forkOpts.execArgv = ['--nolazy', '--debug=' + this.options.debug];
+				}
 
-							// Handle console logs specially
-							if (msg && msg.type === '__$console') {
-								let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
-								try {
-									const parsed = JSON.parse(msg.arguments);
-									args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-								} catch (error) {
-									args.push(msg.arguments);
-								}
+				if (typeof this.options.debugBrk === 'number') {
+					forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
+				}
+			}
 
-								console[msg.severity].apply(console, args);
+			this.child = fork(this.modulePath, args, forkOpts);
+			this._client = new IPCClient({
+				send: r => this.child && this.child.connected && this.child.send(r),
+				onMessage: cb => {
+					this.child.on('message', (msg) => {
+
+						// Handle console logs specially
+						if (msg && msg.type === '__$console') {
+							let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
+							try {
+								const parsed = JSON.parse(msg.arguments);
+								args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
+							} catch (error) {
+								args.push(msg.arguments);
 							}
 
-							// Anything else goes to the outside
-							else {
-								cb(msg);
-							}
-						});
-					}
-				});
+							console[msg.severity].apply(console, args);
+						}
 
-				const onExit = () => this.disposeClient();
-				process.once('exit', onExit);
+						// Anything else goes to the outside
+						else {
+							cb(msg);
+						}
+					});
+				}
+			});
 
-				child.on('error', err => console.warn('IPC "' + this.options.serverName + '" errored with ' + err));
+			const onExit = () => this.disposeClient();
+			process.once('exit', onExit);
 
-				child.on('exit', (code: any, signal: any) => {
-					process.removeListener('exit', onExit);
+			this.child.on('error', err => console.warn('IPC "' + this.options.serverName + '" errored with ' + err));
 
-					if (this.activeRequests) {
-						this.activeRequests.forEach(req => req.cancel());
-						this.activeRequests = [];
-					}
+			this.child.on('exit', (code: any, signal: any) => {
+				process.removeListener('exit', onExit);
 
-					if (code && signal !== 'SIGTERM') {
-						console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
-						this.disposeDelayer.cancel();
-						this.disposeClient();
-					}
-				});
+				if (this.activeRequests) {
+					this.activeRequests.forEach(req => req.cancel());
+					this.activeRequests = [];
+				}
 
-				return [client, child];
+				if (code && signal !== 'SIGTERM') {
+					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
+					this.disposeDelayer.cancel();
+					this.disposeClient();
+				}
 			});
 		}
 
@@ -179,12 +175,10 @@ export class Client implements IClient, IDisposable {
 
 	private disposeClient() {
 		if (this._client) {
-			this._client.done(value => {
-				let [, child] = value;
-				child.kill();
-			});
-			this.channels = Object.create(null);
+			this.child.kill();
+			this.child = null;
 			this._client = null;
+			this.channels = Object.create(null);
 		}
 	}
 

@@ -5,8 +5,10 @@
 
 import path = require('path');
 import nls = require('vs/nls');
+import { sequence } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
+import {isLinux, isMacintosh, isWindows} from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
@@ -20,6 +22,7 @@ import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonCo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
@@ -73,6 +76,10 @@ export var debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExt
 			runtimeArgs : {
 				description: nls.localize('vscode.extension.contributes.debuggers.runtimeArgs', "Optional runtime arguments."),
 				type: 'array'
+			},
+			variables : {
+				description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g ${action.pickProcess}) in `launch.json` to a command."),
+				type: 'object'
 			},
 			initialConfigurations: {
 				description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
@@ -158,7 +165,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this._onDidConfigurationChange = new Emitter<string>();
 		this.systemVariables = this.contextService.getWorkspace() ? new SystemVariables(this.editorService, this.contextService) : null;
@@ -232,6 +240,49 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
 	}
 
+	/**
+	 * Resolve all interactive variables in configuration #6569
+	 */
+	public resolveInteractiveVariables(): TPromise<debug.IConfig>  {
+		if (!this.configuration) {
+			return TPromise.as(null);
+		}
+
+		// We need a map from interactive variables to keys because we only want to trigger an action once per action -
+		// even though it might occure multiple times in configuration #7026.
+		const interactiveVariablesToKeys: { [key: string]: string[] } = {};
+		Object.keys(this.configuration).forEach(key => {
+			if (typeof this.configuration[key] === 'string') {
+				const matches = /\${action.(.+)}/.exec(this.configuration[key]);
+				if (matches && matches.length === 2) {
+					const interactiveVariable = matches[1];
+					if (!interactiveVariablesToKeys[interactiveVariable]) {
+						interactiveVariablesToKeys[interactiveVariable] = [];
+					}
+					interactiveVariablesToKeys[interactiveVariable].push(key);
+				}
+			}
+		});
+
+		const factory: { (): TPromise<any> }[] = Object.keys(interactiveVariablesToKeys).map(interactiveVariable => {
+			return () => {
+				const commandId = this.adapter.variables ? this.adapter.variables[interactiveVariable] : null;
+				if (!commandId) {
+					return TPromise.wrapError(nls.localize('interactiveVariableNotFound', "Adapter {0} does not contribute variable {1} that is specified in launch configuration.", this.adapter.type, interactiveVariable));
+				} else {
+					return this.keybindingService.executeCommand<string>(commandId, this.configuration).then(result => {
+						if (!result) {
+							this.configuration.silentlyAbort = true;
+						}
+						interactiveVariablesToKeys[interactiveVariable].forEach(key => this.configuration[key] = result);
+					});
+				}
+			};
+		});
+
+		return sequence(factory).then(() => this.configuration);
+	}
+
 	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
 			if (typeof nameOrConfig === 'string' && (!config || !config.configurations)) {
@@ -251,11 +302,30 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				this.configuration = objects.deepClone(nameOrConfig);
 			}
 
-			// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
-			if (this.configuration && this.systemVariables) {
-				Object.keys(this.configuration).forEach(key => {
-					this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
-				});
+			if (this.configuration) {
+				// Set operating system specific properties #1873
+				if (isWindows && this.configuration.windows) {
+					Object.keys(this.configuration.windows).forEach(key => {
+						this.configuration[key] = this.configuration.windows[key];
+					});
+				}
+				if (isMacintosh && this.configuration.osx) {
+					Object.keys(this.configuration.osx).forEach(key => {
+						this.configuration[key] = this.configuration.osx[key];
+					});
+				}
+				if (isLinux && this.configuration.linux) {
+					Object.keys(this.configuration.linux).forEach(key => {
+						this.configuration[key] = this.configuration.linux[key];
+					});
+				}
+
+				// massage configuration attributes - append workspace path to relatvie paths, substitute variables in paths.
+				if (this.systemVariables) {
+					Object.keys(this.configuration).forEach(key => {
+						this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
+					});
+				}
 			}
 		}).then(() => this._onDidConfigurationChange.fire(this.configurationName));
 	}

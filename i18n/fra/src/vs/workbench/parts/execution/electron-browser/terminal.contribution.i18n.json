@@ -8,8 +8,5 @@
 	"globalConsoleActionWin": "Ouvrir une nouvelle invite de commandes",
 	"scopedConsoleActionMacLinux": "Ouvrir dans Terminal",
 	"scopedConsoleActionWin": "Ouvrir dans l'invite de commandes",
-	"terminal.external": "Paramètres du terminal externe.",
-	"terminal.external.linuxExec": "Personnalise le terminal à exécuter sur Linux.",
-	"terminal.external.windowsExec": "Personnalise le terminal à exécuter sur Windows.",
 	"terminalConfigurationTitle": "Configuration du terminal"
 }

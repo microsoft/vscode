@@ -352,7 +352,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Track dirty state and version id
 		let wasDirty = this.dirty;
 		this.setDirty(true);
-		this.lastDirtyTime = new Date().getTime();
+		this.lastDirtyTime = Date.now();
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {

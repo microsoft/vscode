@@ -24,7 +24,7 @@ import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
 
 export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
 	value?: string;
-	mode?: string;
+	language?: string;
 }
 
 export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
@@ -69,7 +69,7 @@ export class StandaloneEditor extends CodeEditorWidget {
 
 		let model: IModel = null;
 		if (typeof options.model === 'undefined') {
-			model = (<any>self).monaco.editor.createModel(options.value || '', options.mode || 'text/plain');
+			model = (<any>self).monaco.editor.createModel(options.value || '', options.language || 'text/plain');
 			this._ownsModel = true;
 		} else {
 			model = options.model;

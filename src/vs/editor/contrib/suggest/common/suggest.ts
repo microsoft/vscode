@@ -14,9 +14,11 @@ import {ISuggestResult, ISuggestSupport, SuggestRegistry} from 'vs/editor/common
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
 import {Position} from 'vs/editor/common/core/position';
 
-export var CONTEXT_SUGGEST_WIDGET_VISIBLE = 'suggestWidgetVisible';
-export var CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY = 'suggestionSupportsAcceptOnKey';
-export var ACCEPT_SELECTED_SUGGESTION_CMD = 'acceptSelectedSuggestion';
+export const Context = {
+	Visible: 'suggestWidgetVisible',
+	MultipleSuggestions: 'suggestWidgetMultipleSuggestions',
+	AcceptOnKey: 'suggestionSupportsAcceptOnKey'
+};
 
 export interface ISuggestResult2 extends ISuggestResult {
 	support?: ISuggestSupport;

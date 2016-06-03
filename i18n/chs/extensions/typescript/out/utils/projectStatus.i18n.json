@@ -11,6 +11,7 @@
 	"hintExclude.generic": "为了获得更好的性能，排除具有许多文件的文件夹。",
 	"hintExclude.tooltip": "为了提高性能，请排除包含许多文件的文件夹。",
 	"ignore.cmdCreate": "忽略",
+	"jsconfig.heading": "// 请访问 https://go.microsoft.com/fwlink/?LinkId=759670\n\t// 参阅有关 jsconfig.json 格式的文档",
 	"large.label": "配置排除",
 	"open": "配置排除"
 }

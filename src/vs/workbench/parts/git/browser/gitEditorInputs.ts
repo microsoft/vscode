@@ -46,12 +46,12 @@ export class GitDiffEditorInput
 			return true;
 		}
 
-		var originalInput = this.getOriginalInput();
+		var originalInput = this.originalInput;
 		if (originalInput && originalInput.matches(otherInput)) {
 			return true;
 		}
 
-		var modifiedInput = this.getModifiedInput();
+		var modifiedInput = this.modifiedInput;
 		if (modifiedInput && modifiedInput.matches(otherInput)) {
 			return true;
 		}

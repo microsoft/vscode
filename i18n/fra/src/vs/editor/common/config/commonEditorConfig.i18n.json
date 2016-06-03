@@ -18,7 +18,6 @@
 	"glyphMargin": "Contrôle la visibilité de la marge des glyphes",
 	"hideCursorInOverviewRuler": "Contrôle si le curseur doit être masqué dans la règle d'aperçu.",
 	"ignoreTrimWhitespace": "Contrôle si l'éditeur de différences affiche les changements liés aux espaces blancs de début ou de fin comme des différences",
-	"indentGuides": "Contrôle si l'éditeur doit afficher les repères de mise en retrait",
 	"insertSpaces": "Insérer des espaces en appuyant sur Tab.",
 	"insertSpaces.errorMessage": "'boolean' attendu. Notez que la valeur \"auto\" a été remplacée par le paramètre 'editor.detectIndentation'.",
 	"lineHeight": "Contrôle la hauteur de ligne.",

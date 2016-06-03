@@ -24,6 +24,29 @@ import {Range} from 'vs/editor/common/core/range';
 import {CancellationToken} from 'vs/base/common/cancellation';
 import {toThenable} from 'vs/base/common/async';
 
+export function register(language:ILanguageExtensionPoint): void {
+	ModesRegistry.registerLanguage(language);
+}
+
+export function getLanguages(): ILanguageExtensionPoint[] {
+	let result:ILanguageExtensionPoint[] = [];
+	result = result.concat(ModesRegistry.getLanguages());
+	result = result.concat(ModesRegistry.getCompatModes());
+	return result;
+}
+
+export function onLanguage(languageId:string, callback:()=>void): IDisposable {
+	let isDisposed = false;
+	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
+		if (!isDisposed) {
+			callback();
+		}
+	});
+	return {
+		dispose: () => { isDisposed = true; }
+	};
+}
+
 export function setLanguageConfiguration(languageId:string, configuration:IRichLanguageConfiguration): IDisposable {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
@@ -265,6 +288,9 @@ export function registerLinkProvider(languageId:string, support:modes.LinkProvid
 	return modes.LinkProviderRegistry.register(languageId, support);
 }
 
+/**
+ * @internal
+ */
 export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
 	ModesRegistry.registerLanguage(language);
 
@@ -312,22 +338,6 @@ export function registerStandaloneLanguage(language:ILanguageExtensionPoint, def
 	});
 }
 
-export function register(language:ILanguageExtensionPoint): void {
-	ModesRegistry.registerLanguage(language);
-}
-
-export function onLanguage(languageId:string, callback:()=>void): IDisposable {
-	let isDisposed = false;
-	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + languageId, () => {
-		if (!isDisposed) {
-			callback();
-		}
-	});
-	return {
-		dispose: () => { isDisposed = true; }
-	};
-}
-
 /**
  * @internal
  */
@@ -339,8 +349,12 @@ export function registerStandaloneSchema(uri:string, schema:IJSONSchema) {
 /**
  * @internal
  */
-export function createMonacoLanguagesAPI()/*: typeof monaco.languages*/ {
+export function createMonacoLanguagesAPI(): typeof monaco.languages {
 	return {
+		register: register,
+		getLanguages: getLanguages,
+		onLanguage: onLanguage,
+
 		// provider methods
 		setLanguageConfiguration: setLanguageConfiguration,
 		setTokensProvider: setTokensProvider,
@@ -360,17 +374,12 @@ export function createMonacoLanguagesAPI()/*: typeof monaco.languages*/ {
 		registerLinkProvider: registerLinkProvider,
 
 		// other methods
-		registerMonarchStandaloneLanguage: registerMonarchStandaloneLanguage,
-		register: register,
-		onLanguage: onLanguage,
+		// registerMonarchStandaloneLanguage: registerMonarchStandaloneLanguage,
 
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
-		IndentAction: modes.IndentAction,
-
-		// classes
-		Location: modes.Location
+		IndentAction: modes.IndentAction
 	};
 }

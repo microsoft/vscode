@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import objects = require('vs/base/common/objects');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -20,6 +21,7 @@ export class Adapter {
 	private _label: string;
 	private configurationAttributes: any;
 	public initialConfigurations: any[];
+	public variables: { [key: string]: string };
 	public enableBreakpointsFor: { languageIds: string[] };
 	public aiKey: string;
 
@@ -65,6 +67,7 @@ export class Adapter {
 		}
 
 		this.type = rawAdapter.type;
+		this.variables = rawAdapter.variables;
 		this.configurationAttributes = rawAdapter.configurationAttributes;
 		this.initialConfigurations = rawAdapter.initialConfigurations;
 		this._label = rawAdapter.label;
@@ -116,6 +119,22 @@ export class Adapter {
 				this.warnRelativePaths(properties.program);
 				this.warnRelativePaths(properties.cwd);
 				this.warnRelativePaths(properties.runtimeExecutable);
+				const osProperties = objects.deepClone(properties);
+				properties.windows = {
+					type: 'object',
+					description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
+					properties: osProperties
+				};
+				properties.osx = {
+					type: 'object',
+					description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
+					properties: osProperties
+				};
+				properties.linux = {
+					type: 'object',
+					description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
+					properties: osProperties
+				};
 
 				return attributes;
 			});

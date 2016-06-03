@@ -232,16 +232,20 @@
 	line-height: normal;
 }
 
+.debug-viewlet .inputBoxContainer {
+	box-sizing: border-box;
+}
+
 .debug-viewlet .debug-watch .monaco-inputbox {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.debug-viewlet .monaco-inputbox.idle {
-	border: 1px solid rgba(128, 128, 128, 0.5);
+.debug-viewlet .monaco-inputbox > .wrapper {
+	height: 19px;
 }
 
 .debug-viewlet .monaco-inputbox > .wrapper > .input {
-	padding: 1px 2px;
+	padding: 0px;
 }
 
 .debug-viewlet .debug-action.add-watch-expression,

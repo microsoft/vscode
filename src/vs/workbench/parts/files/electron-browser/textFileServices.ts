@@ -28,6 +28,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -41,10 +42,11 @@ export class TextFileService extends AbstractTextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
 		@IModeService private modeService: IModeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(contextService, instantiationService, configurationService, telemetryService, eventService);
+		super(contextService, instantiationService, configurationService, telemetryService, editorService, editorGroupService, eventService);
 
 		this.init();
 	}

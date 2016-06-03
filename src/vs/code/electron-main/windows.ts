@@ -21,7 +21,7 @@ import { ICommandLineArguments, IProcessEnvironment, IEnvironmentService, IParse
 import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
 import { ISettingsService } from 'vs/code/electron-main/settings';
 import { IUpdateService, IUpdate } from 'vs/code/electron-main/update-manager';
-import { ILogService } from './log';
+import { ILogService } from 'vs/code/electron-main/log';
 import { ServiceIdentifier, createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const EventTypes = {
@@ -73,6 +73,12 @@ interface INativeOpenDialogOptions {
 	path?: string;
 	forceNewWindow?: boolean;
 }
+
+const ReopenFoldersSetting = {
+	ALL: 'all',
+	ONE: 'one',
+	NONE: 'none'
+};
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -126,8 +132,8 @@ export class WindowsManager implements IWindowsService {
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private envService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IUpdateService private updateManager: IUpdateService,
-		@ISettingsService private settingsManager: ISettingsService
+		@IUpdateService private updateService: IUpdateService,
+		@ISettingsService private settingsService: ISettingsService
 	) {	}
 
 	onOpen(clb: (path: IPath) => void): () => void {
@@ -194,7 +200,7 @@ export class WindowsManager implements IWindowsService {
 			}, 100);
 		});
 
-		this.settingsManager.onChange((newSettings) => {
+		this.settingsService.onChange((newSettings) => {
 			this.sendToAll('vscode:optionsChange', JSON.stringify({ globalSettings: newSettings }));
 		}, this);
 
@@ -412,7 +418,7 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
-		this.updateManager.on('update-downloaded', (update: IUpdate) => {
+		this.updateService.on('update-downloaded', (update: IUpdate) => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
 
 			this.sendToAll('vscode:update-downloaded', JSON.stringify({
@@ -425,12 +431,12 @@ export class WindowsManager implements IWindowsService {
 		ipc.on('vscode:update-apply', () => {
 			this.logService.log('IPC#vscode:update-apply');
 
-			if (this.updateManager.availableUpdate) {
-				this.updateManager.availableUpdate.quitAndUpdate();
+			if (this.updateService.availableUpdate) {
+				this.updateService.availableUpdate.quitAndUpdate();
 			}
 		});
 
-		this.updateManager.on('update-not-available', (explicit: boolean) => {
+		this.updateService.on('update-not-available', (explicit: boolean) => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:notAvailable', data: { explicit } });
 
 			if (explicit) {
@@ -438,7 +444,7 @@ export class WindowsManager implements IWindowsService {
 			}
 		});
 
-		this.updateManager.on('update-available', (url: string) => {
+		this.updateService.on('update-available', (url: string) => {
 			if (url) {
 				this.sendToFocused('vscode:update-available', url);
 			}
@@ -579,7 +585,7 @@ export class WindowsManager implements IWindowsService {
 			} else {
 				openFilesInNewWindow = openConfig.preferNewWindow;
 				if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for PDE though!)
-					openFilesInNewWindow = this.settingsManager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
+					openFilesInNewWindow = this.settingsService.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
 				}
 			}
 
@@ -749,8 +755,8 @@ export class WindowsManager implements IWindowsService {
 		configuration.productDownloadUrl = this.envService.product.downloadUrl;
 		configuration.releaseNotesUrl = this.envService.product.releaseNotesUrl;
 		configuration.licenseUrl = this.envService.product.licenseUrl;
-		configuration.updateFeedUrl = this.updateManager.feedUrl;
-		configuration.updateChannel = this.updateManager.channel;
+		configuration.updateFeedUrl = this.updateService.feedUrl;
+		configuration.updateChannel = this.updateService.channel;
 		configuration.aiConfig = this.envService.product.aiConfig;
 		configuration.sendASmile = this.envService.product.sendASmile;
 		configuration.enableTelemetry = this.envService.product.enableTelemetry;
@@ -841,11 +847,17 @@ export class WindowsManager implements IWindowsService {
 
 		// No path argument, check settings for what to do now
 		else {
-			let reopenFolders = this.settingsManager.getValue('window.reopenFolders', 'one');
+			let reopenFolders: string;
+			if (this.lifecycleService.wasUpdated) {
+				reopenFolders = ReopenFoldersSetting.ALL; // always reopen all folders when an update was applied
+			} else {
+				reopenFolders = this.settingsService.getValue('window.reopenFolders', ReopenFoldersSetting.ONE);
+			}
+
 			let lastActiveFolder = this.windowsState.lastActiveWindow && this.windowsState.lastActiveWindow.workspacePath;
 
 			// Restore all
-			if (reopenFolders === 'all') {
+			if (reopenFolders === ReopenFoldersSetting.ALL) {
 				let lastOpenedFolders = this.windowsState.openedFolders.map(o => o.workspacePath);
 
 				// If we have a last active folder, move it to the end
@@ -858,7 +870,7 @@ export class WindowsManager implements IWindowsService {
 			}
 
 			// Restore last active
-			else if (lastActiveFolder && (reopenFolders === 'one' || reopenFolders !== 'none')) {
+			else if (lastActiveFolder && (reopenFolders === ReopenFoldersSetting.ONE || reopenFolders !== ReopenFoldersSetting.NONE)) {
 				candidates.push(lastActiveFolder);
 			}
 		}
@@ -887,7 +899,8 @@ export class WindowsManager implements IWindowsService {
 		if (!vscodeWindow) {
 			vscodeWindow = this.instantiationService.createInstance(VSCodeWindow, {
 				state: this.getNewWindowState(configuration),
-				extensionDevelopmentPath: configuration.extensionDevelopmentPath
+				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
+				allowFullscreen: this.lifecycleService.wasUpdated || this.settingsService.getValue('window.restoreFullscreen', false)
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);

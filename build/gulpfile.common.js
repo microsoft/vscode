@@ -167,7 +167,9 @@ exports.optimizeTask = function(opts) {
 				addComment: true,
 				includeContent: true
 			}))
-			.pipe(i18n.processNlsFiles())
+			.pipe(i18n.processNlsFiles({
+				fileHeader: bundledFileHeader
+			}))
 			.pipe(gulp.dest(out));
 	};
 };
