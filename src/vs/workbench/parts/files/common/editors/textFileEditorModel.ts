@@ -49,7 +49,7 @@ class DefaultSaveErrorHandler implements ISaveErrorHandler {
 // Diagnostics support
 let diag: (...args: any[]) => void;
 if (!diag) {
-	diag = diagnostics.register('TextFileEditorModelDiagnostics', function(...args: any[]) {
+	diag = diagnostics.register('TextFileEditorModelDiagnostics', function (...args: any[]) {
 		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
 	});
 }
@@ -163,9 +163,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Cancel any running auto-saves
 		this.cancelAutoSavePromises();
 
-		// Be prepared to send out a file change event in case reverting changes anything
-		let oldStat = this.cloneStat(this.versionOnDiskStat);
-
 		// Unset flags
 		let undo = this.setDirty(false);
 
@@ -173,12 +170,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		return this.load(true /* force */).then(() => {
 
 			// Emit file change event
-			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel, oldStat, this.versionOnDiskStat));
+			this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
 		}, (error) => {
 
 			// FileNotFound means the file got deleted meanwhile, so emit revert event because thats ok
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel, oldStat, this.versionOnDiskStat));
+				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
 			}
 
 			// Set flags back to previous values, we are still dirty if revert failed and we where
@@ -326,7 +323,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 			// Emit event
 			if (wasDirty) {
-				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel, this.versionOnDiskStat));
+				this.emitEvent(FileEventType.FILE_REVERTED, new TextFileChangeEvent(this.resource, this.textEditorModel));
 			}
 
 			return;
@@ -356,8 +353,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
-			let stat = this.cloneStat(this.versionOnDiskStat);
-			this.emitEvent(FileEventType.FILE_DIRTY, new TextFileChangeEvent(this.resource, this.textEditorModel, stat, stat, <any>e));
+			this.emitEvent(FileEventType.FILE_DIRTY, new TextFileChangeEvent(this.resource, this.textEditorModel));
 		}
 	}
 
@@ -441,10 +437,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Emit file saving event: Listeners can still change the model now and since we are so close to saving
 		// we do not want to trigger another auto save or similar, so we block this
 		// In addition we update our version right after in case it changed because of a model change
-		let versionOnDiskStatClone = this.cloneStat(this.versionOnDiskStat);
 		this.blockModelContentChange = true;
 		try {
-			const saveEvent = new TextFileChangeEvent(this.resource, this.textEditorModel, versionOnDiskStatClone);
+			const saveEvent = new TextFileChangeEvent(this.resource, this.textEditorModel);
 			saveEvent.setAutoSaved(isAutoSave);
 			this.emitEvent(FileEventType.FILE_SAVING, saveEvent);
 		} finally {
@@ -481,16 +476,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			}
 
 			// Updated resolved stat with updated stat, and keep old for event
-			let oldStat = this.versionOnDiskStat;
 			this.updateVersionOnDiskStat(stat);
 
-			// Emit File Change Event
-			let oldValue = this.cloneStat(oldStat);
-			let newValue = this.cloneStat(this.versionOnDiskStat);
-			this.emitEvent('files.internal:fileChanged', new TextFileChangeEvent(this.resource, this.textEditorModel, oldValue, newValue));
-
 			// Emit File Saved Event
-			this.emitEvent(FileEventType.FILE_SAVED, new TextFileChangeEvent(this.resource, this.textEditorModel, oldValue, newValue));
+			this.emitEvent(FileEventType.FILE_SAVED, new TextFileChangeEvent(this.resource, this.textEditorModel));
 		}, (error) => {
 			diag('doSave(' + versionId + ') - exit - resulted in a save error: ' + error.toString(), this.resource, new Date());
 
@@ -504,7 +493,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			this.onSaveError(error);
 
 			// Emit as event
-			this.emitEvent(FileEventType.FILE_SAVE_ERROR, new TextFileChangeEvent(this.resource, this.textEditorModel, versionOnDiskStatClone));
+			this.emitEvent(FileEventType.FILE_SAVE_ERROR, new TextFileChangeEvent(this.resource, this.textEditorModel));
 		});
 
 		return this.mapPendingSaveToVersionId[versionId];
@@ -729,19 +718,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		CACHE.remove(this.resource);
 
 		super.dispose();
-	}
-
-	private cloneStat(stat: IFileStat): IFileStat {
-		return {
-			resource: URI.parse(stat.resource.toString()),
-			name: stat.name,
-			mtime: stat.mtime,
-			etag: stat.etag,
-			mime: stat.mime,
-			isDirectory: stat.isDirectory,
-			hasChildren: stat.hasChildren,
-			children: stat.children
-		};
 	}
 }
 

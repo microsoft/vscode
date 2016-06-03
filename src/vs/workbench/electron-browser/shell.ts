@@ -226,7 +226,6 @@ export class WorkbenchShell {
 			this.messageService
 		));
 
-
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
 		this.toUnbind.push(lifecycleService.onShutdown(() => disposables.dispose()));
 		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
@@ -249,7 +248,6 @@ export class WorkbenchShell {
 
 		let untitledEditorService = instantiationService.createInstance(UntitledEditorService);
 		this.themeService = new ThemeService(extensionService, this.windowService, this.storageService, this.telemetryService);
-
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		serviceCollection.set(IEventService, this.eventService);
