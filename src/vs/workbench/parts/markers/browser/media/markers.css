@@ -9,6 +9,14 @@
 	margin: 5px 10px 0 0;
 }
 
+.monaco-action-bar .action-item.markers-panel-action-filter .input-box-container {
+	background: #ddd;
+}
+
+.vs-dark .monaco-action-bar .action-item.markers-panel-action-filter .input-box-container {
+	background: none;
+}
+
 .markers-panel .markers-panel-container {
 	height: 100%;
 }
