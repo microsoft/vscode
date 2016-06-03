@@ -262,46 +262,8 @@ class DecorationRenderHelper {
 	 */
 	public static getCSSTextForModelDecorationClassName(opts:IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
-
-		if (typeof opts.backgroundColor !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.backgroundColor, opts.backgroundColor));
-		}
-
-		if (typeof opts.outlineColor !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.outlineColor, opts.outlineColor));
-		}
-		if (typeof opts.outlineStyle !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.outlineStyle, opts.outlineStyle));
-		}
-		if (typeof opts.outlineWidth !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.outlineWidth, opts.outlineWidth));
-		}
-
-		if (
-			typeof opts.borderColor !== 'undefined'
-			|| typeof opts.borderRadius !== 'undefined'
-			|| typeof opts.borderSpacing !== 'undefined'
-			|| typeof opts.borderStyle !== 'undefined'
-			|| typeof opts.borderWidth !== 'undefined'
-		) {
-			cssTextArr.push(strings.format('box-sizing: border-box;'));
-		}
-
-		if (typeof opts.borderColor !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderColor, opts.borderColor));
-		}
-		if (typeof opts.borderRadius !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderRadius, opts.borderRadius));
-		}
-		if (typeof opts.borderSpacing !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderSpacing, opts.borderSpacing));
-		}
-		if (typeof opts.borderStyle !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderStyle, opts.borderStyle));
-		}
-		if (typeof opts.borderWidth !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.borderWidth, opts.borderWidth));
-		}
+		DecorationRenderHelper.collectCSSText(opts, ['backgroundColor', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
+		DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
 
 		return cssTextArr.join('');
 	}
@@ -311,20 +273,7 @@ class DecorationRenderHelper {
 	 */
 	public static getCSSTextForModelDecorationInlineClassName(opts:IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
-
-		if (typeof opts.textDecoration !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.textDecoration, opts.textDecoration));
-		}
-		if (typeof opts.cursor !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.cursor, opts.cursor));
-		}
-		if (typeof opts.color !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.color, opts.color));
-		}
-		if (typeof opts.letterSpacing !== 'undefined') {
-			cssTextArr.push(strings.format(this._CSS_MAP.letterSpacing, opts.letterSpacing));
-		}
-
+		DecorationRenderHelper.collectCSSText(opts, ['textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
 		return cssTextArr.join('');
 	}
 
@@ -335,56 +284,9 @@ class DecorationRenderHelper {
 		let cssTextArr = [];
 
 		if (typeof opts !== 'undefined') {
-			if (
-				typeof opts.borderColor !== 'undefined'
-				|| typeof opts.borderRadius !== 'undefined'
-				|| typeof opts.borderSpacing !== 'undefined'
-				|| typeof opts.borderStyle !== 'undefined'
-				|| typeof opts.borderWidth !== 'undefined'
-			) {
-				cssTextArr.push(strings.format('box-sizing: border-box;'));
-			}
-
-			if (typeof opts.borderColor !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.borderColor, opts.borderColor));
-			}
-			if (typeof opts.borderRadius !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.borderRadius, opts.borderRadius));
-			}
-			if (typeof opts.borderSpacing !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.borderSpacing, opts.borderSpacing));
-			}
-			if (typeof opts.borderStyle !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.borderStyle, opts.borderStyle));
-			}
-			if (typeof opts.borderWidth !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.borderWidth, opts.borderWidth));
-			}
-			if (typeof opts.content !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.content, opts.content));
-			}
-			if (typeof opts.textDecoration !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.textDecoration, opts.textDecoration));
-			}
-			if (typeof opts.color !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.color, opts.color));
-			}
-			if (typeof opts.backgroundColor !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.backgroundColor, opts.backgroundColor));
-			}
-			if (typeof opts.margin !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.margin, opts.margin));
-			}
-			let setInlineBlock = false;
-			if (typeof opts.width !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.width, opts.width));
-				setInlineBlock = true;
-			}
-			if (typeof opts.height !== 'undefined') {
-				cssTextArr.push(strings.format(this._CSS_MAP.height, opts.height));
-				setInlineBlock = true;
-			}
-			if (setInlineBlock) {
+			DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
+			DecorationRenderHelper.collectCSSText(opts, ['content', 'textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
+			if (DecorationRenderHelper.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}
 		}
@@ -403,6 +305,26 @@ class DecorationRenderHelper {
 		}
 
 		return cssTextArr.join('');
+	}
+
+	private static border_rules = ['borderColor', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
+
+	public static collectBorderSettingsCSSText(opts: any, cssTextArr: string[]) : boolean {
+		if (DecorationRenderHelper.collectCSSText(opts, DecorationRenderHelper.border_rules, cssTextArr)) {
+			cssTextArr.push(strings.format('box-sizing: border-box;'));
+			return true;
+		}
+		return false;
+	}
+
+	private static collectCSSText(opts: any, properties: string[], cssTextArr: string[]) : boolean {
+		let lenBefore = cssTextArr.length;
+		for (let property of properties) {
+			if (typeof opts[property] !== 'undefined') {
+				cssTextArr.push(strings.format(this._CSS_MAP[property], opts[property]));
+			}
+		}
+		return cssTextArr.length !== lenBefore;
 	}
 
 	public static handle(styleSheet: HTMLStyleElement, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType, ...ruleSets: {selector?: string, light:string, dark:string}[]): string {
