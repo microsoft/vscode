@@ -9,7 +9,7 @@ import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -101,7 +101,7 @@ export class ShiftCommand implements ICommand {
 				if (contentStartVisibleColumn % tabSize !== 0) {
 					// The current line is "miss-aligned", so let's see if this is expected...
 					// This can only happen when it has trailing commas in the indent
-					let enterAction = getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+					let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
 					if (enterAction) {
 						extraSpaces = previousLineExtraSpaces;
 						if (enterAction.appendText) {

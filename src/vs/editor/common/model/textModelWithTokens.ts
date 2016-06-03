@@ -25,6 +25,7 @@ import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 import {LineToken} from 'vs/editor/common/model/lineToken';
 import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
 import {Position} from 'vs/editor/common/core/position';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class ModeToModelBinder implements IDisposable {
 
@@ -761,7 +762,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this._mode);
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
-		let currentModeBrackets = currentMode.mode.richEditSupport ? currentMode.mode.richEditSupport.brackets : null;
+		let currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentMode.mode);
 
 		if (!currentModeBrackets) {
 			return null;
@@ -791,7 +792,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
-		let currentModeBrackets = currentMode.mode.richEditSupport ? currentMode.mode.richEditSupport.brackets : null;
+		let currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentMode.mode);
 
 		// If position is in between two tokens, try first looking in the previous token
 		if (currentTokenIndex > 0 && currentTokenStart === position.column - 1) {
@@ -807,7 +808,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				// check if previous token is in a different mode
 				if (currentModeIndex > 0 && currentMode.startIndex === position.column - 1) {
 					prevMode = modeTransitions[currentModeIndex - 1];
-					prevModeBrackets = prevMode.mode.richEditSupport ? prevMode.mode.richEditSupport.brackets : null;
+					prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(prevMode.mode);
 				}
 
 				if (prevModeBrackets) {

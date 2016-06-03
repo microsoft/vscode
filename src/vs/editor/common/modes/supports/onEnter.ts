@@ -6,10 +6,10 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import {Position} from 'vs/editor/common/core/position';
 import {IPosition, ITextModel, ITokenizedModel} from 'vs/editor/common/editorCommon';
 import {IEnterAction, ILineContext, IMode, IRichEditOnEnter, IndentAction, CharacterPair} from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
+import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface IIndentationRules {
 	decreaseIndentPattern: RegExp;
@@ -43,12 +43,14 @@ export class OnEnterSupport implements IRichEditOnEnter {
 	private static _INDENT_OUTDENT: IEnterAction = { indentAction: IndentAction.IndentOutdent };
 	private static _OUTDENT: IEnterAction = { indentAction: IndentAction.Outdent };
 
+	private _registry: LanguageConfigurationRegistryImpl;
 	private _modeId: string;
 	private _brackets: IProcessedBracketPair[];
 	private _indentationRules: IIndentationRules;
 	private _regExpRules: IOnEnterRegExpRules[];
 
-	constructor(modeId: string, opts?:IOnEnterSupportOptions) {
+	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, opts?:IOnEnterSupportOptions) {
+		this._registry = registry;
 		opts = opts || {};
 		opts.brackets = opts.brackets || [
 			['(', ')'],
@@ -75,11 +77,14 @@ export class OnEnterSupport implements IRichEditOnEnter {
 		return handleEvent(context, position.column - 1, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				return this._onEnter(model, position);
-			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.onEnter) {
-				return nestedMode.richEditSupport.onEnter.onEnter(model, position);
-			} else {
-				return null;
 			}
+
+			let onEnterSupport = this._registry.getOnEnterSupport(nestedMode);
+			if (onEnterSupport) {
+				return onEnterSupport.onEnter(model, position);
+			}
+
+			return null;
 		});
 	}
 
@@ -178,53 +183,3 @@ export class OnEnterSupport implements IRichEditOnEnter {
 	}
 }
 
-export function getRawEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): IEnterAction {
-	let result:IEnterAction;
-	let richEditSupport = model.getMode().richEditSupport;
-
-	if (richEditSupport && richEditSupport.onEnter) {
-		try {
-			result = richEditSupport.onEnter.onEnter(model, new Position(lineNumber, column));
-		} catch (e) {
-			onUnexpectedError(e);
-		}
-	}
-
-	return result;
-}
-
-export function getEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): { enterAction: IEnterAction; indentation: string; } {
-	let lineText = model.getLineContent(lineNumber);
-	let indentation = strings.getLeadingWhitespace(lineText);
-	if (indentation.length > column - 1) {
-		indentation = indentation.substring(0, column - 1);
-	}
-
-	let enterAction = getRawEnterActionAtPosition(model, lineNumber, column);
-	if (!enterAction) {
-		enterAction = {
-			indentAction: IndentAction.None,
-			appendText: '',
-		};
-	} else {
-		if(!enterAction.appendText) {
-			if (
-				(enterAction.indentAction === IndentAction.Indent) ||
-				(enterAction.indentAction === IndentAction.IndentOutdent)
-			) {
-				enterAction.appendText = '\t';
-			} else {
-				enterAction.appendText = '';
-			}
-		}
-	}
-
-	if (enterAction.removeText) {
-		indentation = indentation.substring(0, indentation.length - 1);
-	}
-
-	return {
-		enterAction: enterAction,
-		indentation: indentation
-	};
-}

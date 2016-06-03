@@ -6,14 +6,17 @@
 
 import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IMode, IRichEditCharacterPair, CharacterPair} from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
+import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class CharacterPairSupport implements IRichEditCharacterPair {
 
+	private _registry: LanguageConfigurationRegistryImpl;
 	private _modeId: string;
 	private _autoClosingPairs: IAutoClosingPairConditional[];
 	private _surroundingPairs: IAutoClosingPair[];
 
-	constructor(modeId: string, config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[]}) {
+	constructor(registry: LanguageConfigurationRegistryImpl, modeId: string, config: { brackets?: CharacterPair[]; autoClosingPairs?: IAutoClosingPairConditional[], surroundingPairs?: IAutoClosingPair[]}) {
+		this._registry = registry;
 		this._modeId = modeId;
 		this._autoClosingPairs = config.autoClosingPairs;
 		if (!this._autoClosingPairs) {
@@ -52,11 +55,14 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 				}
 
 				return true;
-			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.characterPair) {
-				return nestedMode.richEditSupport.characterPair.shouldAutoClosePair(character, context, offset);
-			} else {
-				return null;
 			}
+
+			let characterPairSupport = this._registry.getCharacterPairSupport(nestedMode);
+			if (characterPairSupport) {
+				return characterPairSupport.shouldAutoClosePair(character, context, offset);
+			}
+
+			return null;
 		});
 	}
 
