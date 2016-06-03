@@ -387,7 +387,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			],
 
 			__electricCharacterSupport: {
-				caseInsensitive: true,
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},
 
@@ -398,7 +397,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 				{ open: '"', close: '"' },
 				{ open: '\'', close: '\'' }
 			],
-			
+
 			surroundingPairs: [
 				{ open: '"', close: '"' },
 				{ open: '\'', close: '\'' }

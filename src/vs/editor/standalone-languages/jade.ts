@@ -18,11 +18,7 @@ export var conf:IRichLanguageConfiguration = {
 		{ open: '{', close: '}', notIn: ['string', 'comment'] },
 		{ open: '[', close: ']', notIn: ['string', 'comment'] },
 		{ open: '(', close: ')', notIn: ['string', 'comment'] },
-	],
-	__electricCharacterSupport: {
-		caseInsensitive: true,
-		embeddedElectricCharacters: []
-	}
+	]
 };
 
 export var language = <ILanguage> {

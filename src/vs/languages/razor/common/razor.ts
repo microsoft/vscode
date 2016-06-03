@@ -119,7 +119,6 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 			],
 
 			__electricCharacterSupport: {
-				caseInsensitive: true,
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},
 

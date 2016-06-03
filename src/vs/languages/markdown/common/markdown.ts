@@ -231,11 +231,7 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 				blockComment: ['<!--', '-->',]
 			},
 			brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
-			autoClosingPairs: [],
-			__electricCharacterSupport: {
-				caseInsensitive: false,
-				embeddedElectricCharacters: []
-			}
+			autoClosingPairs: []
 		});
 
 		Modes.SuggestRegistry.register(this.getId(), {

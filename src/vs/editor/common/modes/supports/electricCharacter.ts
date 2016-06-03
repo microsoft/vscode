@@ -21,7 +21,6 @@ export interface IDocComment {
 
 export interface IBracketElectricCharacterContribution {
 	docComment?: IDocComment;
-	caseInsensitive?: boolean;
 	embeddedElectricCharacters?: string[];
 }
 
@@ -34,7 +33,7 @@ export class BracketElectricCharacterSupport implements modes.IRichEditElectricC
 	constructor(modeId: string, brackets: modes.IRichEditBrackets, contribution: IBracketElectricCharacterContribution) {
 		this._modeId = modeId;
 		this.contribution = contribution || {};
-		this.brackets = new Brackets(modeId, brackets, this.contribution.docComment, this.contribution.caseInsensitive);
+		this.brackets = new Brackets(modeId, brackets, this.contribution.docComment);
 	}
 
 	public getElectricCharacters(): string[]{
@@ -65,7 +64,7 @@ export class Brackets {
 	private _richEditBrackets: modes.IRichEditBrackets;
 	private _docComment: IDocComment;
 
-	constructor(modeId: string, richEditBrackets: modes.IRichEditBrackets, docComment: IDocComment = null, caseInsensitive: boolean = false) {
+	constructor(modeId: string, richEditBrackets: modes.IRichEditBrackets, docComment: IDocComment = null) {
 		this._modeId = modeId;
 		this._richEditBrackets = richEditBrackets;
 		this._docComment = docComment ? docComment : null;
