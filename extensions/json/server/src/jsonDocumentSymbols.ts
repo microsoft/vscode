@@ -7,14 +7,14 @@
 import Parser = require('./jsonParser');
 import Strings = require('./utils/strings');
 
-import {SymbolInformation, SymbolKind, ITextDocument, Range, Location} from 'vscode-languageserver';
+import {SymbolInformation, SymbolKind, TextDocument, Range, Location} from 'vscode-languageserver';
 
 export class JSONDocumentSymbols {
 
 	constructor() {
 	}
 
-	public compute(document: ITextDocument, doc: Parser.JSONDocument): Promise<SymbolInformation[]> {
+	public compute(document: TextDocument, doc: Parser.JSONDocument): Promise<SymbolInformation[]> {
 
 		let root = doc.root;
 		if (!root) {

@@ -5,9 +5,9 @@
 'use strict';
 
 import Json = require('jsonc-parser');
-import {ITextDocument, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
+import {TextDocument, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
 
-export function format(document: ITextDocument, range: Range, options: FormattingOptions): TextEdit[] {
+export function format(document: TextDocument, range: Range, options: FormattingOptions): TextEdit[] {
 	const documentText = document.getText();
 	let initialIndentLevel: number;
 	let value: string;
@@ -83,7 +83,7 @@ export function format(document: ITextDocument, range: Range, options: Formattin
 			replaceContent = secondToken === Json.SyntaxKind.LineCommentTrivia ? newLineAndIndent() : '';
 			secondToken = scanNext();
 		}
-		
+
 		if (secondToken === Json.SyntaxKind.CloseBraceToken) {
 			if (firstToken !== Json.SyntaxKind.OpenBraceToken) {
 				indentLevel--;
@@ -163,7 +163,7 @@ function computeIndentLevel(content: string, offset: number, options: Formatting
 	return Math.floor(nChars / tabSize);
 }
 
-function getEOL(document: ITextDocument): string {
+function getEOL(document: TextDocument): string {
 	let text = document.getText();
 	if (document.lineCount > 1) {
 		let to = document.offsetAt(Position.create(1, 0));

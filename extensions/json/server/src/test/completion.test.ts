@@ -11,7 +11,7 @@ import JsonSchema = require('../jsonSchema');
 import {JSONCompletion} from '../jsonCompletion';
 import {XHROptions, XHRResponse} from 'request-light';
 
-import {CompletionItem, CompletionItemKind, CompletionOptions, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
+import {CompletionItem, CompletionItemKind, CompletionOptions, TextDocument, TextDocumentIdentifier, Range, Position, TextEdit} from 'vscode-languageserver';
 import {applyEdits} from './textEditSupport';
 
 suite('JSON Completion', () => {
@@ -20,7 +20,7 @@ suite('JSON Completion', () => {
 		return Promise.reject<XHRResponse>({ responseText: '', status: 404 });
 	}
 
-	var assertSuggestion = function(completions: CompletionItem[], label: string, documentation?: string, document?: ITextDocument, resultText?: string) {
+	var assertSuggestion = function(completions: CompletionItem[], label: string, documentation?: string, document?: TextDocument, resultText?: string) {
 		var matches = completions.filter(function(completion: CompletionItem) {
 			return completion.label === label && (!documentation || completion.documentation === documentation);
 		});
@@ -31,7 +31,7 @@ suite('JSON Completion', () => {
 	};
 
 
-	var testSuggestionsFor = function(value: string, stringAfter: string, schema: JsonSchema.IJSONSchema, test: (items: CompletionItem[], document: ITextDocument) => void) : Thenable<void> {
+	var testSuggestionsFor = function(value: string, stringAfter: string, schema: JsonSchema.IJSONSchema, test: (items: CompletionItem[], document: TextDocument) => void) : Thenable<void> {
 		var uri = 'test://test.json';
 		var idx = stringAfter ? value.indexOf(stringAfter) : 0;
 
@@ -42,10 +42,10 @@ suite('JSON Completion', () => {
 			schemaService.registerExternalSchema(id, ["*.json"], schema);
 		}
 
-		var document = ITextDocument.create(uri, value);
-		var textDocumentLocation = TextDocumentPosition.create(uri, Position.create(0, idx));
+		var document = TextDocument.create(uri, 'json', 0, value);
+		var position = Position.create(0, idx);
 		var jsonDoc = Parser.parse(value);
-		return completionProvider.doSuggest(document, textDocumentLocation, jsonDoc).then(list => list.items).then(completions => {
+		return completionProvider.doSuggest(document, position, jsonDoc).then(list => list.items).then(completions => {
 			test(completions, document);
 			return null;
 		})
