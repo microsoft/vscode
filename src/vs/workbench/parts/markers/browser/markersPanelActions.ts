@@ -40,7 +40,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		var filterInputBox = new InputBox(filterInputBoxContainer, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
 		});
-		filterInputBox.value= this.prepareFilterValue(this.markersPanel.markersModel.filterOptions);
+		filterInputBox.value= this.markersPanel.markersModel.filterOptions.completeValue;
 		this.toDispose.push(filterInputBox.onDidChange((filter: string) => {
 			this.markersPanel.markersModel.update(this.prepareFilterOptions(filter));
 			this.markersPanel.refreshPanel();
@@ -66,8 +66,10 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 	}
 
 	private prepareFilterOptions(filter:string): FilterOptions {
-		filter= strings.trim(filter);
 		let filterOptions:FilterOptions= new FilterOptions();
+		filterOptions.completeValue= filter;
+
+		filter= strings.trim(filter);
 		if (!filter) {
 			return filterOptions;
 		}
@@ -87,19 +89,5 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		}
 		filterOptions.filterValue= filter.substr(startIndex).trim();
 		return filterOptions;
-	}
-
-	private prepareFilterValue(filterOptions: FilterOptions):string {
-		let filter= filterOptions.filterValue;
-		if (filterOptions.filterErrors) {
-			return Messages.MARKERS_PANEL_FILTER_ERRORS + ' ' + filter;
-		}
-		if (filterOptions.filterWarnings) {
-			return Messages.MARKERS_PANEL_FILTER_WARNINGS + ' ' + filter;
-		}
-		if (filterOptions.filterInfos) {
-			return Messages.MARKERS_PANEL_FILTER_INFOS + ' ' + filter;
-		}
-		return filter;
 	}
 }

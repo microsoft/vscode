@@ -33,6 +33,7 @@ export class FilterOptions {
 	public filterWarnings: boolean= false;
 	public filterInfos: boolean= false;
 	public filterValue: string= '';
+	public completeValue: string= '';
 
 	public hasActiveFilters():boolean {
 		return this.filterErrors || this.filterWarnings || this.filterInfos || !!this.filterValue;
