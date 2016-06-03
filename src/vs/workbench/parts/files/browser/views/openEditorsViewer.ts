@@ -220,10 +220,9 @@ export class Controller extends treedefaults.DefaultController {
 
 		// Close opened editor on middle mouse click
 		if (element instanceof OpenEditor && event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
-			const closeAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
-			closeAction.run({ event, group: (<OpenEditor>element).editorGroup, editor: (<OpenEditor>element).editorInput }).done(() => {
-				closeAction.dispose();
-			}, errors.onUnexpectedError);
+			const position = this.model.positionOfGroup(element.editorGroup);
+
+			this.editorService.closeEditor(position, element.editorInput).done(null, errors.onUnexpectedError);
 
 			return true;
 		}
