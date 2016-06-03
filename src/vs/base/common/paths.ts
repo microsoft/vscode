@@ -77,39 +77,6 @@ export function extname(path: string): string {
 	return idx ? path.substring(~idx) : '';
 }
 
-export function normalize2(path: string, toOSPath: boolean): string {
-
-	if (path === null || path === void 0) {
-		return path;
-	}
-
-	let len = path.length;
-	if (len === 0) {
-		return '.';
-	}
-
-	const sep = isWindows && toOSPath ? '\\' : '/';
-	const root = getRoot(path, sep);
-
-	let lastCode = -1;
-
-	for (let pos = root.length; pos < len; pos++) {
-		let code = path.charCodeAt(pos);
-		if (code === 64/*.*/) {
-
-			if (lastCode === -1 || lastCode === 47 || lastCode === 92) {
-
-				if (pos + 1 < len) {
-					code = path.charCodeAt(++pos);
-					if (code === 47 || code === 92) {
-
-					}
-				}
-			}
-		}
-	}
-}
-
 const _posixBadPath = /(\/\.\.?\/)|(\/\.\.?)$|^(\.\.?\/)|(\/\/+)|(\\)/;
 const _winBadPath = /(\\\.\.?\\)|(\\\.\.?)$|^(\.\.?\\)|(\\\\+)|(\/)/;
 
