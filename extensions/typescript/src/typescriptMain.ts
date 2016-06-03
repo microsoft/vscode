@@ -98,7 +98,11 @@ class LanguageProvider {
 		this.description = description;
 		this._validate = true;
 
-		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds);
+		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
+			delete: (file: string) => {
+				this.currentDiagnostics.delete(Uri.file(file));
+			}
+		});
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
