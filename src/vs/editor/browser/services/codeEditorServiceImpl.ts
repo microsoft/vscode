@@ -102,9 +102,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 			this._inlineClassName = inlineClassName;
 
 			this._disposable = toDisposable(() => {
-				dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.Light, key), styleSheet);
-				dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.Dark, key), styleSheet);
-				dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.HighContrastBlack, key), styleSheet);
+				dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionPrefixFor(key), styleSheet);
 			});
 		}
 	}
@@ -130,9 +128,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
-	private _styleSheet: HTMLStyleElement;
-	public _key: string;
-
+	private _disposable: IDisposable;
 	public refCount: number;
 
 	public className: string;
@@ -145,12 +141,9 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	constructor(styleSheet: HTMLStyleElement, key:string, options:IDecorationRenderOptions) {
 		var themedOpts = getThemedRenderOptions(options);
 
-		this._styleSheet = styleSheet;
-		this._key = key;
-
 		this.className = DecorationRenderHelper.handle(
-			this._styleSheet,
-			this._key,
+			styleSheet,
+			key,
 			null,
 			ModelDecorationCSSRuleType.ClassName,
 			{
@@ -160,8 +153,8 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		);
 
 		this.inlineClassName = DecorationRenderHelper.handle(
-			this._styleSheet,
-			this._key,
+			styleSheet,
+			key,
 			null,
 			ModelDecorationCSSRuleType.InlineClassName,
 			{
@@ -185,8 +178,8 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		}
 
 		this.glyphMarginClassName = DecorationRenderHelper.handle(
-			this._styleSheet,
-			this._key,
+			styleSheet,
+			key,
 			null,
 			ModelDecorationCSSRuleType.GlyphMarginClassName,
 			{
@@ -207,6 +200,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 				position: options.overviewRulerLane || OverviewRulerLane.Center
 			};
 		}
+
+		this._disposable = toDisposable(() => {
+			dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionPrefixFor(key), styleSheet);
+		});
 	}
 
 	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
@@ -224,9 +221,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	}
 
 	public dispose(): void {
-		dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.Light, this._key), this._styleSheet);
-		dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.Dark, this._key), this._styleSheet);
-		dom.removeCSSRulesWithPrefix(CSSNameHelper.getDeletionPrefixFor(ThemeType.HighContrastBlack, this._key), this._styleSheet);
+		if (this._disposable) {
+			this._disposable.dispose();
+			delete this._disposable;
+		}
 	}
 }
 
@@ -394,8 +392,8 @@ class CSSNameHelper {
 		return selector;
 	}
 
-	public static getDeletionPrefixFor(themeType:ThemeType, key:string): string {
-		return this._getSelectorPrefixOf(themeType) + ' .ced-' + key;
+	public static getDeletionPrefixFor(key:string): string {
+		return '.ced-' + key + '-';
 	}
 }
 
