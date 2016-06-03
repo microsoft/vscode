@@ -92,55 +92,58 @@ export function normalize(path: string, toOSPath?: boolean): string {
 		return path;
 	}
 
-	let len = path.length;
+	const len = path.length;
 	if (len === 0) {
 		return '.';
 	}
 
-	if (_isNormal(path, isWindows && toOSPath)) {
+	const wantsBackslash = isWindows && toOSPath;
+	if (_isNormal(path, wantsBackslash)) {
 		return path;
 	}
 
-	// operate on the 'path-portion' only
-	const sep = isWindows && toOSPath ? '\\' : '/';
+	const sep = wantsBackslash ? '\\' : '/';
 	const root = getRoot(path, sep);
-	path = path.slice(root.length);
-	len -= root.length;
 
+	// skip the root-portion of the path
+	let start = root.length;
+	let skip = false;
 	let res = '';
-	let start = 0;
 
-	for (let end = 0; end <= len; end++) {
+	for (let end = root.length; end <= len; end++) {
 
 		// either at the end or at a path-separator character
 		if (end === len || path.charCodeAt(end) === _slash || path.charCodeAt(end) === _backslash) {
 
-			let part = path.slice(start, end);
-			start = end + 1;
-
-			if (part === '.' && (root || res || end < len - 1)) {
-				// skip current (if there is already something or if there is more to come)
-				continue;
-			}
-
-			if (part === '..') {
+			if (streql(path, start, end, '..')) {
 				// skip current and remove parent (if there is already something)
 				let prev_start = res.lastIndexOf(sep);
 				let prev_part = res.slice(prev_start + 1);
 				if ((root || prev_part.length > 0) && prev_part !== '..') {
 					res = prev_start === -1 ? '' : res.slice(0, prev_start);
-					continue;
+					skip = true;
 				}
+			} else if (streql(path, start, end, '.') && (root || res || end < len - 1)) {
+				// skip current (if there is already something or if there is more to come)
+				skip = true;
 			}
 
-			if (res !== '' && res[res.length - 1] !== sep) {
-				res += sep;
+			if (!skip) {
+				let part = path.slice(start, end);
+				if (res !== '' && res[res.length - 1] !== sep) {
+					res += sep;
+				}
+				res += part;
 			}
-			res += part;
+			start = end + 1;
 		}
 	}
 
 	return root + res;
+}
+
+function streql(value: string, start: number, end: number, other: string): boolean {
+	return start + other.length === end &&  value.indexOf(other, start) === start;
 }
 
 /**
