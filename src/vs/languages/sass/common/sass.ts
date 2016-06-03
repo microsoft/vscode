@@ -21,7 +21,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export var language = <Types.ILanguage>{
 	defaultToken: '',

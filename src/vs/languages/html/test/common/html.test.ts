@@ -23,7 +23,7 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {HTMLMode} from 'vs/languages/html/common/html';
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class MockJSMode extends MockTokenizingMode {
 

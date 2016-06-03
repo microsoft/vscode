@@ -20,7 +20,7 @@ import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/comm
 import * as modes from 'vs/editor/common/modes';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {IRichLanguageConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IRichLanguageConfiguration, RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';

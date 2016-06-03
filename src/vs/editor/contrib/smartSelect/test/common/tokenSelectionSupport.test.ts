@@ -11,7 +11,7 @@ import {IMode, IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
 import {TokenSelectionSupport} from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
 import {createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class MockJSMode extends MockTokenizingMode {
 

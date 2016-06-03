@@ -8,7 +8,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import {createTokenizationSupport2, Language} from 'vs/languages/typescript/common/tokenization';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';

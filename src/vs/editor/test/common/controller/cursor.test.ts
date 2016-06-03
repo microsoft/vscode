@@ -17,7 +17,7 @@ import {
 } from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode, IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {BracketMode} from 'vs/editor/test/common/testModes';
 
