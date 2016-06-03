@@ -1,6 +1,5 @@
 Package: @@NAME@@
 Version: @@VERSION@@
-Depends: git
 Section: devel
 Priority: optional
 Architecture: @@ARCHITECTURE@@
