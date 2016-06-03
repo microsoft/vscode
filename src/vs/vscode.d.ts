@@ -427,14 +427,23 @@ declare namespace vscode {
 		union(other: Range): Range;
 
 		/**
-		 * Create a new range derived from this range.
+		 * Derived a new range from this range.
 		 *
 		 * @param start A position that should be used as start. The default value is the [current start](#Range.start).
 		 * @param end A position that should be used as end. The default value is the [current end](#Range.end).
 		 * @return A range derived from this range with the given start and end position.
-		 * If start and end are not different this range will be returned.
+		 * If start and end are not different `this` range will be returned.
 		 */
 		with(start?: Position, end?: Position): Range;
+
+		/**
+		 * Derived a new range from this range.
+		 *
+		 * @param change An object that describes a change to this range.
+		 * @return A range that reflects the given change. Will return `this` range if the change
+		 * is not changing anything.
+		 */
+		with (change: { start ?: Position, end ?: Position }): Range;
 	}
 
 	/**
@@ -940,8 +949,8 @@ declare namespace vscode {
 		/**
 		 * Derive a new Uri from this Uri.
 		 *
-		 * @param change An object that describes a change.
-		 * @return A new Uri that reflects the changes. Will return `this` Uri if the change
+		 * @param change An object that describes a change to this Uri.
+		 * @return A new Uri that reflects the given change. Will return `this` Uri if the change
 		 *  is not changing anything.
 		 * @sample ```
 			let file = Uri.parse('before:some/file/path');

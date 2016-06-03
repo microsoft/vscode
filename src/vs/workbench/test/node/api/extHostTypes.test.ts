@@ -267,12 +267,29 @@ suite('ExtHostTypes', function() {
 		assert.ok(range.with(range.start, range.end) === range);
 		assert.ok(range.with(new types.Position(1, 1)) === range);
 		assert.ok(range.with(undefined, new types.Position(2, 11)) === range);
+		assert.ok(range.with() === range);
+		assert.ok(range.with({ start: range.start }) === range);
+		assert.ok(range.with({ start: new types.Position(1, 1) }) === range);
+		assert.ok(range.with({ end: range.end }) === range);
+		assert.ok(range.with({ end: new types.Position(2, 11) }) === range);
 
 		let res = range.with(undefined, new types.Position(9, 8));
 		assert.equal(res.end.line, 9);
 		assert.equal(res.end.character, 8);
 		assert.equal(res.start.line, 1);
 		assert.equal(res.start.character, 1);
+
+		res = range.with({ end: new types.Position(9, 8) });
+		assert.equal(res.end.line, 9);
+		assert.equal(res.end.character, 8);
+		assert.equal(res.start.line, 1);
+		assert.equal(res.start.character, 1);
+
+		res = range.with({ end: new types.Position(9, 8), start: new types.Position(2, 3)});
+		assert.equal(res.end.line, 9);
+		assert.equal(res.end.character, 8);
+		assert.equal(res.start.line, 2);
+		assert.equal(res.start.character, 3);
 
 		assert.throws(() => range.with(null));
 		assert.throws(() => range.with(undefined, null));

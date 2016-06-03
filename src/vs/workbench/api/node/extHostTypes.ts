@@ -63,6 +63,20 @@ export class Position {
 		return result;
 	}
 
+	static is(other: any): other is Position {
+		if (!other) {
+			return false;
+		}
+		if (other instanceof Position) {
+			return true;
+		}
+		let {line, character} = <Position>other;
+		if (typeof line === 'number' && typeof character === 'number') {
+			return true;
+		}
+		return false;
+	}
+
 	private _line: number;
 	private _character: number;
 
@@ -246,7 +260,26 @@ export class Range {
 		return this._start.line === this._end.line;
 	}
 
-	with(start: Position = this.start, end: Position = this.end): Range {
+	with(change: { start?: Position, end?: Position }): Range;
+	with(start?: Position, end?: Position): Range;
+	with(startOrChange: Position | { start?: Position, end?: Position }, end: Position = this.end): Range {
+
+		if (startOrChange === null || end === null) {
+			throw illegalArgument();
+		}
+
+		let start: Position;
+		if (!startOrChange) {
+			start = this.start;
+
+		} else if (Position.is(startOrChange)) {
+			start = startOrChange;
+
+		} else {
+			start = startOrChange.start || this.start;
+			end = startOrChange.end || this.end;
+		}
+
 		if (start.isEqual(this._start) && end.isEqual(this.end)) {
 			return this;
 		}
