@@ -22,6 +22,7 @@ export var conf:IRichLanguageConfiguration = {
 	],
 	__electricCharacterSupport: {
 		caseInsensitive: false,
+		// trigger outdenting on 'end'
 		embeddedElectricCharacters: ['d']
 	}
 };
@@ -76,12 +77,7 @@ export var conf:IRichLanguageConfiguration = {
  */
 
 export var language = <ILanguage> {
-	displayName:    '',
-	name:           'ruby',
-
-	lineComment:      '#',
-	blockCommentStart: '=begin',
-	blockCommentEnd:   '=end',
+	tokenPostfix: '.ruby',
 
 	keywords: [
 		'__LINE__', '__ENCODING__', '__FILE__', 'BEGIN', 'END', 'alias', 'and', 'begin',
@@ -120,9 +116,6 @@ export var language = <ILanguage> {
 		{ open: '{', close: '}', token: 'delimiter.curly'},
 		{ open: '[', close: ']', token: 'delimiter.square'}
 	],
-
-	// trigger outdenting on 'end'
-	outdentTriggers: 'd',
 
 	// we include these common regular expressions
 	symbols:  /[=><!~?:&|+\-*\/\^%\.]+/,

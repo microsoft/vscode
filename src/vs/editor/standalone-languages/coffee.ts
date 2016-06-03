@@ -25,17 +25,17 @@ export var conf:IRichLanguageConfiguration = {
 		caseInsensitive: false,
 		embeddedElectricCharacters: []
 	}
+	// enhancedBrackets: [
+	// 		{ open: /for$/ }, { open: /while$/ },	{ open: /loop$/ }, { open: /if$/ }, { open: /unless$/ },
+	// 		{ open: /else$/ }, { open: /switch$/ }, { open: /try$/ }, { open: /catch$/ }, { open: /finally$/ },
+	// 		{ open: /class$/ }, { open: /->$/ }
+	// 	],
 };
 
 export var language = <ILanguage> {
-	displayName:    'CoffeeScript',
-	name:           'coffee',
 	defaultToken: '',
 	ignoreCase: true,
-
-	lineComment: '#',
-	blockCommentStart: '###',
-	blockCommentEnd: '###',
+	tokenPostfix: '.coffee',
 
 	brackets: [
 		{ open:'{', close:'}', token:'delimiter.curly'},
@@ -43,14 +43,6 @@ export var language = <ILanguage> {
 		{ open:'(', close:')', token:'delimiter.parenthesis'}
 	],
 
-	// enhancedBrackets: [
-	// 		{ open: /for$/ }, { open: /while$/ },	{ open: /loop$/ }, { open: /if$/ }, { open: /unless$/ },
-	// 		{ open: /else$/ }, { open: /switch$/ }, { open: /try$/ }, { open: /catch$/ }, { open: /finally$/ },
-	// 		{ open: /class$/ }, { open: /->$/ }
-	// 	],
-
-	// the default separators
-	wordDefinition: /(-?\d*\.\d\w*)|([^\`\~\!\@\#%\^\&\*\(\)\=\$\-\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
 	regEx: /\/(?!\/\/)(?:[^\/\\]|\\.)*\/[igm]*/,
 
 	keywords: [

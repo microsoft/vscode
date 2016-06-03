@@ -9,8 +9,7 @@ import {ILanguage, IRichLanguageConfiguration} from './types';
 
 export var conf:IRichLanguageConfiguration = {
 	comments: {
-		lineComment: '#',
-		blockComment: ['', ''],
+		lineComment: '#'
 	},
 	brackets: [['{','}'], ['[',']'], ['(',')']],
 	autoClosingPairs: [
@@ -27,13 +26,8 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName: 'R',
-	name: 'r',
 	defaultToken: '',
-
-	lineComment: '#',
-	blockCommentStart: '',
-	blockCommentEnd: '',
+	tokenPostfix: '.r',
 
 	roxygen: [
 		'@param',

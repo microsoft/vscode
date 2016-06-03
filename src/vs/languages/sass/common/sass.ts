@@ -24,17 +24,8 @@ import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchL
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export var language = <Types.ILanguage>{
-	displayName: 'Sass',
-	name: 'sass',
-
-	// TODO@Martin: This definition does not work with umlauts for example
-	wordDefinition: /(#?-?\d*\.\d\w*%?)|([$@#!.:]?[\w-?]+%?)|[$@#!.]/g,
-
 	defaultToken: '',
-
-	lineComment: '//',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
+	tokenPostfix: '.sass',
 
 	ws: '[ \t\n\r\f]*', // whitespaces (referenced in several rules)
 	identifier: '-?-?([a-zA-Z]|(\\\\(([0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))([\\w\\-]|(\\\\(([0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))*',
@@ -297,7 +288,7 @@ export class SASSMode extends AbstractMode {
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
-		let lexer = Compile.compile(language);
+		let lexer = Compile.compile(descriptor.id, language);
 		this._modeWorkerManager = new ModeWorkerManager<sassWorker.SassWorker>(descriptor, 'vs/languages/sass/common/sassWorker', 'SassWorker', 'vs/languages/css/common/cssWorker', instantiationService);
 		this._threadService = threadService;
 

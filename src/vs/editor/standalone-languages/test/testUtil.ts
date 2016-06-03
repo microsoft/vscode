@@ -5,11 +5,9 @@
 
 'use strict';
 
-import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {createOnEnterAsserter, executeMonarchTokenizationTests} from 'vs/editor/test/common/modesUtil';
-import {ILanguage} from '../types';
+import {ILanguage, IRichLanguageConfiguration} from '../types';
 
 export interface IRelaxedToken {
 	startIndex: number;
@@ -28,18 +26,17 @@ export interface IOnEnterAsserter {
 }
 
 export function testTokenization(name:string, language: ILanguage, tests:ITestItem[][]): void {
-	suite(language.displayName || name, () => {
+	suite(name, () => {
 		test('Tokenization', () => {
 			executeMonarchTokenizationTests(name, language, <any>tests);
 		});
 	});
 }
 
-export function testOnEnter(name:string, language: ILanguage, callback:(assertOnEnter: IOnEnterAsserter)=>void): void {
-	suite(language.displayName || name, () => {
+export function testOnEnter(name:string, conf: IRichLanguageConfiguration, callback:(assertOnEnter: IOnEnterAsserter)=>void): void {
+	suite(name, () => {
 		test('onEnter', () => {
-			var lexer = compile(language);
-			var richEditSupport = new RichEditSupport('test', null, createRichEditSupport(lexer));
+			var richEditSupport = new RichEditSupport('test', null, conf);
 			callback(createOnEnterAsserter('test', richEditSupport));
 		});
 	});

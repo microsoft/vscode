@@ -28,25 +28,8 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName: '',
-	name: 'cs',
 	defaultToken: '',
-
-	// used in the editor to insert comments (ctrl+/ or shift+alt+A)
-	lineComment: '// ',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
-
-	// the default separators except `@`
-	wordDefinition: /(-?\d*\.\d\w*)|([^\`\~\!\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-
-	autoClosingPairs: [
-		['"', '"'],
-		['\'', '\''],
-		['{', '}'],
-		['[', ']'],
-		['(', ')'],
-	],
+	tokenPostfix: '.cs',
 
 	brackets: [
 		{ open: '{', close: '}', token: 'delimiter.curly' },

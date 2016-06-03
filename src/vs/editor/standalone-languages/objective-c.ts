@@ -28,13 +28,8 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName: 'Objective-C',
-	name: 'objective-c',
 	defaultToken: '',
-
-	lineComment: '//',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
+	tokenPostfix: '.objective-c',
 
 	keywords: [
 		'#import',

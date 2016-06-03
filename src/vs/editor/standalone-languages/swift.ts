@@ -27,13 +27,8 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName: 'Swift',
-	name: 'swift',
 	defaultToken: '',
-
-	lineComment: '//',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
+	tokenPostfix: '.swift',
 
 	// TODO(owensd): Support the full range of unicode valid identifiers.
 	identifier: /[a-zA-Z_][\w$]*/,

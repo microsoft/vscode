@@ -26,15 +26,8 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName:    'F#',
-	name:           'fs',
 	defaultToken: '',
-
-	lineComment:      '//',
-	blockCommentStart: '(*',
-	blockCommentEnd: '*)',
-
-	autoClosingPairs: [ ['{', '}'], ['[', ']'], ['(',  ')'], ['"',  '"']], // Skip < > which would be there by default.
+	tokenPostfix: '.fs',
 
 	keywords: [
 		'abstract', 'and', 'atomic', 'as',

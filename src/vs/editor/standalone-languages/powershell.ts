@@ -24,36 +24,24 @@ export var conf:IRichLanguageConfiguration = {
 		caseInsensitive: true,
 		embeddedElectricCharacters: []
 	}
-};
-
-export var language = <ILanguage> {
-	displayName: 'PowerShell',
-	name: 'ps1',
-	defaultToken: '',
-	ignoreCase: true,
-
-	lineComment: '#',
-	blockCommentStart: '<#',
-	blockCommentEnd: '#>',
-
-	// the default separators except `$-`
-	wordDefinition: /(-?\d*\.\d\w*)|([^\`\~\!\@\#%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-
-	brackets: [
-				{ token: 'delimiter.curly', open: '{', close: '}' },
-				{ token: 'delimiter.square', open: '[', close: ']' },
-				{ token: 'delimiter.parenthesis', open: '(', close: ')' }],
-
 	// enhancedBrackets: [
 	// 			{ tokenType:'string', openTrigger: '"', open: /@"$/, closeComplete: '"@' },
 	// 			{ tokenType:'string', openTrigger: '\'', open: /@'$/, closeComplete: '\'@' },
 	// 			{ tokenType:'string', openTrigger: '"', open: /"$/, closeComplete: '"' },
 	// 			{ tokenType: 'string', openTrigger: '\'', open: /'$/, closeComplete: '\'' }
 	// ],
+};
 
-	autoClosingPairs: [['{', '}'], ['[', ']'], ['(', ')']],	// Defined explicitly, to suppress the
-															// default auto-closing of ' and " which is
-															// override above by enhancedBrackets
+export var language = <ILanguage> {
+	defaultToken: '',
+	ignoreCase: true,
+	tokenPostfix: '.ps1',
+
+	brackets: [
+		{ token: 'delimiter.curly', open: '{', close: '}' },
+		{ token: 'delimiter.square', open: '[', close: ']' },
+		{ token: 'delimiter.parenthesis', open: '(', close: ')' }
+	],
 
 	keywords: [
 		'begin', 'break', 'catch', 'class', 'continue', 'data',

@@ -8,10 +8,6 @@
 import {ILanguage, IRichLanguageConfiguration} from './types';
 
 export var conf:IRichLanguageConfiguration = {
-	comments: {
-		lineComment: '//',
-		blockComment: ['/*', '*/'],
-	},
 	brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
 	autoClosingPairs: [
 		{ open: '"', close: '"', notIn: ['string', 'comment'] },
@@ -28,9 +24,8 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage>{
-	displayName: 'Dockerfile',
-	name: 'dockerfile',
 	defaultToken: '',
+	tokenPostfix: '.dockerfile',
 
 	instructions: /FROM|MAINTAINER|RUN|EXPOSE|ENV|ADD|VOLUME|LABEL|USER|WORKDIR|COPY|CMD|ENTRYPOINT/,
 

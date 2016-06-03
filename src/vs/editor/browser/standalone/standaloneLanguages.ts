@@ -307,7 +307,7 @@ export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoi
 			let staticPlatformServices = ensureStaticPlatformServices(null);
 			let modeService = staticPlatformServices.modeService;
 
-			let lexer = compile(value.language);
+			let lexer = compile(language.id, value.language);
 
 			modeService.registerTokenizationSupport(language.id, (mode) => {
 				return createTokenizationSupport(modeService, mode, lexer);

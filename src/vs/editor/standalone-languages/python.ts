@@ -24,16 +24,13 @@ export var conf:IRichLanguageConfiguration = {
 		caseInsensitive: false,
 		embeddedElectricCharacters: []
 	}
+	// Cause an automatic indent to occur after lines ending in :.
+	// enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
 };
 
 export var language = <ILanguage> {
-	displayName: '',
-	name: 'python',
 	defaultToken: '',
-
-	lineComment: '#',
-	blockCommentStart: '\'\'\'',
-	blockCommentEnd: '\'\'\'',
+	tokenPostfix: '.python',
 
 	keywords: [
 		'and',
@@ -173,9 +170,6 @@ export var language = <ILanguage> {
 		{ open: '[', close: ']', token: 'delimiter.bracket' },
 		{ open: '(', close: ')', token: 'delimiter.parenthesis' }
 	],
-
-	// Cause an automatic indent to occur after lines ending in :.
-	// enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
 
 	tokenizer: {
 	root: [

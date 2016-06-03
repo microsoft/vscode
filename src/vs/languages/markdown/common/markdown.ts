@@ -25,14 +25,8 @@ import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
 	<Types.ILanguage>{
-		displayName: 'Markdown',
-		name: 'md',
 		defaultToken: '',
-
-		autoClosingPairs: [],
-
-		blockCommentStart: '<!--',
-		blockCommentEnd: '-->',
+		tokenPostfix: '.md',
 
 		// escape codes
 		control: /[\\`*_\[\]{}()#+\-\.!]/,
@@ -222,7 +216,7 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(descriptor.id);
-		let lexer = Compile.compile(language);
+		let lexer = Compile.compile(descriptor.id, language);
 
 		this._modeWorkerManager = new ModeWorkerManager<MarkdownWorker.MarkdownWorker>(descriptor, 'vs/languages/markdown/common/markdownWorker', 'MarkdownWorker', null, instantiationService);
 		this._threadService = threadService;

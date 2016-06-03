@@ -15,34 +15,13 @@
  */
 export interface ILanguage {
 	/**
-	 * unique name to identify the language.
-	 */
-	name: string;
-	/**
 	 * map from string to ILanguageRule[]
 	 */
 	tokenizer: Object;
-
-	/**
-	 * nice display name
-	 */
-	displayName?: string;
 	/**
 	 * is the language case insensitive?
 	 */
 	ignoreCase?: boolean;
-	/**
-	 * used to insert/delete line comments in the editor
-	 */
-	lineComment?: string;
-	/**
-	 * used to insert/delete block comments in the editor
-	 */
-	blockCommentStart?: string;
-	/**
-	 * used to insert/delete block comments in the editor
-	 */
-	blockCommentEnd?: string;
 	/**
 	 * if no match in the tokenizer assign this token class (default 'source')
 	 */
@@ -51,8 +30,6 @@ export interface ILanguage {
 	 * for example [['{','}','delimiter.curly']]
 	 */
 	brackets?: ILanguageBracket[];
-
-	// advanced
 	/**
 	 * start symbol in the tokenizer (by default the first entry is used)
 	 */
@@ -60,23 +37,7 @@ export interface ILanguage {
 	/**
 	 * attach this to every token class (by default '.' + name)
 	 */
-	tokenPostfix?: string;
-	/**
-	 * for example [['"','"']]
-	 */
-	autoClosingPairs?: string[][];
-	/**
-	 * word definition regular expression
-	 */
-	wordDefinition?: RegExp;
-	/**
-	 * characters that could potentially cause outdentation
-	 */
-	outdentTriggers?: string;
-	// /**
-	//  * Advanced auto completion, auto indenting, and bracket matching
-	//  */
-	// enhancedBrackets?: IRegexBracketPair[];
+	tokenPostfix: string;
 }
 
 /**

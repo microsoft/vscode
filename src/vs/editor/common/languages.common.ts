@@ -33,7 +33,6 @@ import 'vs/editor/common/modes';
 import 'vs/editor/common/modes/abstractMode';
 import 'vs/editor/common/modes/abstractState';
 import 'vs/editor/common/modes/monarch/monarchCommon';
-import 'vs/editor/common/modes/monarch/monarchDefinition';
 import 'vs/editor/common/modes/monarch/monarchLexer';
 import 'vs/editor/common/modes/monarch/monarchCompile';
 import 'vs/editor/common/modes/supports/richEditSupport';

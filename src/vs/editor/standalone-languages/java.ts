@@ -30,16 +30,8 @@ export var conf:IRichLanguageConfiguration = {
 };
 
 export var language = <ILanguage> {
-	displayName:    'Java',
-	name:           'java',
 	defaultToken: '',
-
-	lineComment:      '//',
-	blockCommentStart: '/*',
-	blockCommentEnd:   '*/',
-
-	// the default separators except `@$`
-	wordDefinition: /(-?\d*\.\d\w*)|([^\`\~\!\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+	tokenPostfix: '.java',
 
 	keywords: [
 		'abstract', 'continue', 'for', 'new', 'switch', 'assert', 'default',

@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, combinedDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
+import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -20,11 +20,6 @@ import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/comm
 import * as modes from 'vs/editor/common/modes';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
-import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
-import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {IRichLanguageConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
@@ -426,21 +421,6 @@ export class ModeServiceImpl implements IModeService {
 		};
 	}
 
-	protected doRegisterMonarchDefinition(modeId:string, lexer: ILexer): IDisposable {
-		return combinedDisposable(
-			this.registerTokenizationSupport(modeId, (mode: modes.IMode) => {
-				return createTokenizationSupport(this, mode, lexer);
-			}),
-
-			this.registerRichEditSupport(modeId, createRichEditSupport(lexer))
-		);
-	}
-
-	public registerMonarchDefinition(modeId:string, language:ILanguage): IDisposable {
-		var lexer = compile(objects.clone(language));
-		return this.doRegisterMonarchDefinition(modeId, lexer);
-	}
-
 	public registerRichEditSupport(modeId: string, support: IRichLanguageConfiguration): IDisposable {
 		return this.registerModeSupport(modeId, modes.MutableSupport.RichEditSupport, (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
 	}
@@ -646,12 +626,6 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		this._getModeServiceWorkerHelper().instantiateMode(modeId);
 		return super._createMode(modeId);
 	}
-
-	public registerMonarchDefinition(modeId:string, language:ILanguage): IDisposable {
-		this._getModeServiceWorkerHelper().registerMonarchDefinition(modeId, language);
-		var lexer = compile(objects.clone(language));
-		return super.doRegisterMonarchDefinition(modeId, lexer);
-	}
 }
 
 export interface IWorkerInitData {
@@ -686,9 +660,5 @@ export class ModeServiceWorkerHelper {
 
 	public configureModeById(modeId:string, options:any):void {
 		this._modeService.configureMode(modeId, options);
-	}
-
-	public registerMonarchDefinition(modeId:string, language:ILanguage): void {
-		this._modeService.registerMonarchDefinition(modeId, language);
 	}
 }

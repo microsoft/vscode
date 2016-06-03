@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {language} from 'vs/editor/standalone-languages/java';
+import {language, conf} from 'vs/editor/standalone-languages/java';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 testTokenization('java', language, [
@@ -605,7 +605,7 @@ testTokenization('java', language, [
 
 suite('java', () => {
 	test('word definition', () => {
-		var wordDefinition = language.wordDefinition;
+		var wordDefinition = conf.wordPattern;
 		assert.deepEqual('a b cde'.match(wordDefinition), ['a', 'b', 'cde']);
 
 		assert.deepEqual('public static void main(String[] args) {'.match(wordDefinition),
