@@ -117,6 +117,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	public dispose(): void {
 		super.dispose();
 
+		this.dirty = false; // we can no longer be dirty
+
 		if (this.textModelChangeListener) {
 			this.textModelChangeListener.dispose();
 			this.textModelChangeListener = null;
