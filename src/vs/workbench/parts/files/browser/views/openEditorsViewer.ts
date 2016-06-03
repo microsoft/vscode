@@ -269,7 +269,7 @@ export class Controller extends treedefaults.DefaultController {
 			return true;
 		}
 
-		this.openEditor(element, true);
+		this.openEditor(element, false);
 
 		return super.onEnter(tree, event);
 	}
