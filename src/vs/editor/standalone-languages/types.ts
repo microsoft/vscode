@@ -77,3 +77,68 @@ export interface ILanguageBracket {
 // 	tokenType?: string; // The type of the token. Matches from 'open' or 'close' will be expanded, e.g. 'keyword.$1'.
 // 						// Only used to auto-(un)indent a closing bracket.
 // }
+
+export type CharacterPair = [string, string];
+
+export interface CommentRule {
+	lineComment?: string;
+	blockComment?: CharacterPair;
+}
+
+export interface IIndentationRules {
+	decreaseIndentPattern: RegExp;
+	increaseIndentPattern: RegExp;
+	indentNextLinePattern?: RegExp;
+	unIndentedLinePattern?: RegExp;
+}
+
+export interface IOnEnterRegExpRules {
+	beforeText: RegExp;
+	afterText?: RegExp;
+	action: IEnterAction;
+}
+
+export interface IEnterAction {
+	indentAction:IndentAction;
+	appendText?:string;
+	removeText?:number;
+}
+
+export enum IndentAction {
+	None,
+	Indent,
+	IndentOutdent,
+	Outdent
+}
+export interface IAutoClosingPair {
+	open:string;
+	close:string;
+}
+
+export interface IAutoClosingPairConditional extends IAutoClosingPair {
+	notIn?: string[];
+}
+
+export interface IDocComment {
+	scope: string; // What tokens should be used to detect a doc comment (e.g. 'comment.documentation').
+	open: string; // The string that starts a doc comment (e.g. '/**')
+	lineStart: string; // The string that appears at the start of each line, except the first and last (e.g. ' * ').
+	close?: string; // The string that appears on the last line and closes the doc comment (e.g. ' */').
+}
+
+export interface IBracketElectricCharacterContribution {
+	docComment?: IDocComment;
+	caseInsensitive?: boolean;
+	embeddedElectricCharacters?: string[];
+}
+
+export interface IRichLanguageConfiguration {
+	comments?: CommentRule;
+	brackets?: CharacterPair[];
+	wordPattern?: RegExp;
+	indentationRules?: IIndentationRules;
+	onEnterRules?: IOnEnterRegExpRules[];
+	autoClosingPairs?: IAutoClosingPairConditional[];
+	surroundingPairs?: IAutoClosingPair[];
+	__electricCharacterSupport?: IBracketElectricCharacterContribution;
+}

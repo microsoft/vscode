@@ -11,8 +11,6 @@ import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/comm
 import * as modes from 'vs/editor/common/modes';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {IRichLanguageConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {IModelService} from 'vs/editor/common/services/modelService';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 
@@ -76,5 +74,5 @@ export interface IModeService {
 	registerRichEditSupport(modeId: string, support: IRichLanguageConfiguration): IDisposable;
 	registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable;
 	registerTokenizationSupport2(modeId: string, support: modes.TokensProvider): IDisposable;
-	registerMonarchDefinition(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, language:ILanguage): IDisposable;
+	registerMonarchDefinition(modeId:string, language:ILanguage): IDisposable;
 }
