@@ -32,7 +32,7 @@ suite('CSS Colorizing', () => {
 		);
 
 		tokenizationSupport = mode.tokenizationSupport;
-		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), CSSMode.LANG_CONFIG);
 		wordDefinition = LanguageConfigurationRegistry.getWordDefinition(mode);
 	})();
 

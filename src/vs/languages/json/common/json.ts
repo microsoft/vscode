@@ -16,10 +16,30 @@ import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadSer
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export class JSONMode extends AbstractMode {
+
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		wordPattern: createWordRegExp('.-'),
+
+		comments: {
+			lineComment: '//',
+			blockComment: ['/*', '*/']
+		},
+
+		brackets: [
+			['{', '}'],
+			['[', ']']
+		],
+
+		autoClosingPairs: [
+			{ open: '{', close: '}', notIn: ['string'] },
+			{ open: '[', close: ']', notIn: ['string'] },
+			{ open: '"', close: '"', notIn: ['string'] }
+		]
+	};
 
 	public tokenizationSupport: modes.ITokenizationSupport;
 	public richEditSupport: modes.IRichEditSupport;
@@ -40,26 +60,7 @@ export class JSONMode extends AbstractMode {
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
-
-			wordPattern: createWordRegExp('.-'),
-
-			comments: {
-				lineComment: '//',
-				blockComment: ['/*', '*/']
-			},
-
-			brackets: [
-				['{', '}'],
-				['[', ']']
-			],
-
-			autoClosingPairs: [
-				{ open: '{', close: '}', notIn: ['string'] },
-				{ open: '[', close: ']', notIn: ['string'] },
-				{ open: '"', close: '"', notIn: ['string'] }
-			]
-		});
+		this.richEditSupport = new RichEditSupport(this.getId(), null, JSONMode.LANG_CONFIG);
 
 		modes.HoverProviderRegistry.register(this.getId(), {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {

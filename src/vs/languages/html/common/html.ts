@@ -16,7 +16,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -285,6 +285,48 @@ export class State extends AbstractState {
 
 export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode implements ITokenizationCustomization {
 
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		wordPattern: createWordRegExp('#-?%'),
+
+		comments: {
+			blockComment: ['<!--', '-->']
+		},
+
+		brackets: [
+			['<!--', '-->'],
+			['<', '>'],
+		],
+
+		__electricCharacterSupport: {
+			embeddedElectricCharacters: ['*', '}', ']', ')']
+		},
+
+		autoClosingPairs: [
+			{ open: '{', close: '}' },
+			{ open: '[', close: ']' },
+			{ open: '(', close: ')' },
+			{ open: '"', close: '"' },
+			{ open: '\'', close: '\'' }
+		],
+
+		surroundingPairs: [
+			{ open: '"', close: '"' },
+			{ open: '\'', close: '\'' }
+		],
+
+		onEnterRules: [
+			{
+				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				action: { indentAction: modes.IndentAction.IndentOutdent }
+			},
+			{
+				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				action: { indentAction: modes.IndentAction.Indent }
+			}
+		],
+	};
+
 	public tokenizationSupport: modes.ITokenizationSupport;
 	public richEditSupport: modes.IRichEditSupport;
 	public configSupport: modes.IConfigurationSupport;
@@ -373,48 +415,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	}
 
 	protected _createRichEditSupport(): modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), null, {
-
-			wordPattern: createWordRegExp('#-?%'),
-
-			comments: {
-				blockComment: ['<!--', '-->']
-			},
-
-			brackets: [
-				['<!--', '-->'],
-				['<', '>'],
-			],
-
-			__electricCharacterSupport: {
-				embeddedElectricCharacters: ['*', '}', ']', ')']
-			},
-
-			autoClosingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"' },
-				{ open: '\'', close: '\'' }
-			],
-
-			surroundingPairs: [
-				{ open: '"', close: '"' },
-				{ open: '\'', close: '\'' }
-			],
-
-			onEnterRules: [
-				{
-					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
-					action: { indentAction: modes.IndentAction.IndentOutdent }
-				},
-				{
-					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					action: { indentAction: modes.IndentAction.Indent }
-				}
-			],
-		});
+		return new RichEditSupport(this.getId(), null, HTMLMode.LANG_CONFIG);
 	}
 
 	// TokenizationSupport

@@ -12,7 +12,7 @@ import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
 import {RAZORWorker} from 'vs/languages/razor/common/razorWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -55,6 +55,48 @@ class RAZORState extends htmlMode.State {
 }
 
 export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
+
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		wordPattern: createWordRegExp('#?%'),
+
+		comments: {
+			blockComment: ['<!--', '-->']
+		},
+
+		brackets: [
+			['<!--', '-->'],
+			['{', '}'],
+			['(', ')']
+		],
+
+		__electricCharacterSupport: {
+			embeddedElectricCharacters: ['*', '}', ']', ')']
+		},
+
+		autoClosingPairs: [
+			{ open: '{', close: '}' },
+			{ open: '[', close: ']' },
+			{ open: '(', close: ')' },
+			{ open: '"', close: '"' },
+			{ open: '\'', close: '\'' }
+		],
+		surroundingPairs: [
+			{ open: '"', close: '"' },
+			{ open: '\'', close: '\'' }
+		],
+
+		onEnterRules: [
+			{
+				beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				afterText: /^<\/(\w[\w\d]*)\s*>$/i,
+				action: { indentAction: modes.IndentAction.IndentOutdent }
+			},
+			{
+				beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				action: { indentAction: modes.IndentAction.Indent }
+			}
+		],
+	};
 
 	constructor(
 		descriptor:modes.IModeDescriptor,
@@ -104,48 +146,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	}
 
 	protected _createRichEditSupport(): modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), null, {
-
-			wordPattern: createWordRegExp('#?%'),
-
-			comments: {
-				blockComment: ['<!--', '-->']
-			},
-
-			brackets: [
-				['<!--', '-->'],
-				['{', '}'],
-				['(', ')']
-			],
-
-			__electricCharacterSupport: {
-				embeddedElectricCharacters: ['*', '}', ']', ')']
-			},
-
-			autoClosingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"' },
-				{ open: '\'', close: '\'' }
-			],
-			surroundingPairs: [
-				{ open: '"', close: '"' },
-				{ open: '\'', close: '\'' }
-			],
-
-			onEnterRules: [
-				{
-					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
-					action: { indentAction: modes.IndentAction.IndentOutdent }
-				},
-				{
-					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					action: { indentAction: modes.IndentAction.Indent }
-				}
-			],
-		});
+		return new RichEditSupport(this.getId(), null, RAZORMode.LANG_CONFIG);
 	}
 
 	public getInitialState(): modes.IState {
