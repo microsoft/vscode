@@ -8,7 +8,6 @@ import {Platform} from 'vs/base/common/platform';
 import {IConfiguration} from 'vs/editor/common/config/defaultConfig';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ITerminalConfiguration} from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
 import {GOLDEN_LINE_HEIGHT_RATIO} from 'vs/editor/common/config/defaultConfig';
 import {Builder} from 'vs/base/browser/builder';
 
@@ -83,21 +82,22 @@ export interface ITerminalFont {
  */
 export class TerminalConfigHelper {
 	private charMeasureElement: HTMLElement;
+	private font: ITerminalFont;
 
 	public constructor(
 		private platform: Platform,
 		private configurationService: IConfigurationService,
-		private themeService: IThemeService,
 		private parentDomElement: HTMLElement) {
 	}
 
-	public getTheme(): string[] {
-		let baseThemeId = getBaseThemeId(this.themeService.getTheme());
+	public getTheme(themeId: string): string[] {
+		let baseThemeId = getBaseThemeId(themeId);
 		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
-	private neasureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
-		if (!this.charMeasureElement) {
+	private measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
+		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
+		if (!this.charMeasureElement || !this.charMeasureElement.parentElement) {
 			this.charMeasureElement = new Builder(this.parentDomElement, true).div().build().getHTMLElement();
 		}
 		let style = this.charMeasureElement.style;
@@ -110,13 +110,14 @@ export class TerminalConfigHelper {
 		style.display = 'none';
 		let charWidth = Math.ceil(rect.width);
 		let charHeight = Math.ceil(rect.height);
-		return {
+		this.font = {
 			fontFamily,
 			fontSize,
 			lineHeight,
 			charWidth,
 			charHeight
 		};
+		return this.font;
 	}
 
 	/**
@@ -135,7 +136,7 @@ export class TerminalConfigHelper {
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
 		}
 
-		return this.neasureFont(fontFamily, fontSize, lineHeight);
+		return this.measureFont(fontFamily, fontSize, lineHeight);
 	}
 
 	public getShell(): string {
