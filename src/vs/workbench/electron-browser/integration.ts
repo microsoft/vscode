@@ -19,12 +19,11 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IWorkspaceContextService}from 'vs/workbench/services/workspace/common/contextService';
-import {IWindowService}from 'vs/workbench/services/window/electron-browser/windowService';
+import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ElectronWindow} from 'vs/workbench/electron-browser/window';
 import * as browser from 'vs/base/browser/browser';
-
-import win = require('vs/workbench/electron-browser/window');
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
@@ -59,7 +58,7 @@ export class ElectronIntegration {
 	public integrate(shellContainer: HTMLElement): void {
 
 		// Register the active window
-		let activeWindow = this.instantiationService.createInstance(win.ElectronWindow, currentWindow, shellContainer);
+		let activeWindow = this.instantiationService.createInstance(ElectronWindow, currentWindow, shellContainer);
 		this.windowService.registerWindow(activeWindow);
 
 		// Support runAction event
