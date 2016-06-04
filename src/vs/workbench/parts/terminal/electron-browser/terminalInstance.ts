@@ -65,7 +65,6 @@ export class TerminalInstance {
 			// also a weird bug here at least on Ubuntu 15.10 where the new terminal text does not
 			// repaint correctly.
 			if (exitCode !== 0) {
-				// TODO: Allow the terminal to be relaunched after an error
 				console.error('Integrated terminal exited with code ' + exitCode);
 			}
 			this.onExitCallback(this);
