@@ -51,10 +51,10 @@ export class StringEditor extends BaseTextEditor {
 
 		this.mapResourceToEditorViewState = Object.create(null);
 
-		this.toUnbind.push(this.eventService.addListener2(EventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledDeletedEvent(e)));
+		this.toUnbind.push(this.eventService.addListener2(EventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onUntitledSavedEvent(e)));
 	}
 
-	private onUntitledDeletedEvent(e: UntitledEditorEvent): void {
+	private onUntitledSavedEvent(e: UntitledEditorEvent): void {
 		delete this.mapResourceToEditorViewState[e.resource.toString()];
 	}
 

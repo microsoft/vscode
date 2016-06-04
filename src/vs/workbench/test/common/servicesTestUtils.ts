@@ -295,6 +295,10 @@ export class TestUntitledEditorService implements IUntitledEditorService {
 		return [];
 	}
 
+	public 	revertAll(resources?: URI[]): URI[] {
+		return [];
+	}
+
 	public isDirty() {
 		return false;
 	}
