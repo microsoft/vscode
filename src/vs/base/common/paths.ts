@@ -136,6 +136,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 				res += part;
 			}
 			start = end + 1;
+			skip = false;
 		}
 	}
 
