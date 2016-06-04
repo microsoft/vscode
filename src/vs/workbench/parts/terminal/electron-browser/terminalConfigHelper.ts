@@ -82,7 +82,6 @@ export interface ITerminalFont {
  */
 export class TerminalConfigHelper {
 	private charMeasureElement: HTMLElement;
-	private font: ITerminalFont;
 
 	public constructor(
 		private platform: Platform,
@@ -110,14 +109,13 @@ export class TerminalConfigHelper {
 		style.display = 'none';
 		let charWidth = Math.ceil(rect.width);
 		let charHeight = Math.ceil(rect.height);
-		this.font = {
+		return {
 			fontFamily,
 			fontSize,
 			lineHeight,
 			charWidth,
 			charHeight
 		};
-		return this.font;
 	}
 
 	/**
