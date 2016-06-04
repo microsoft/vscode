@@ -377,11 +377,10 @@ suite('Workbench UI Services', () => {
 		let ed = inst.createInstance(MyEditor, 'my.editor');
 
 		let inp = inst.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
-		let delegate: any = inst.createInstance(<any>DelegatingWorkbenchEditorService, ed, (editor: BaseEditor, input: EditorInput, options?: EditorOptions) => {
+		let delegate: any = inst.createInstance(<any>DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
 			assert.strictEqual(input, inp);
-			assert.strictEqual(editor, ed);
 
-			return TPromise.as(true);
+			return TPromise.as(ed);
 		});
 
 		delegate.openEditor(inp);

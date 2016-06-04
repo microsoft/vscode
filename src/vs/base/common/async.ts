@@ -572,7 +572,7 @@ export class RunOnceScheduler {
 	 */
 	schedule(delay = this.timeout): void {
 		this.cancel();
-		this.timeoutToken = platform.setTimeout(this.timeoutHandler, this.timeout);
+		this.timeoutToken = platform.setTimeout(this.timeoutHandler, delay);
 	}
 
 	/**
