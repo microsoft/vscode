@@ -6,13 +6,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as fs from 'fs';
-import * as os from 'os';
 import {workspace, window, Position, Range} from 'vscode';
 import {createRandomFile, deleteFile, cleanUp} from './utils';
-import {join} from 'path';
 
-suite("editor tests", () => {
+suite('editor tests', () => {
 
 	teardown(cleanUp);
 
