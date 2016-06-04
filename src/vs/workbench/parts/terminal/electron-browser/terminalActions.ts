@@ -24,3 +24,20 @@ export class ToggleTerminalAction extends Action {
 		return this.terminalService.toggle();
 	}
 }
+
+export class FocusTerminalAction extends Action {
+
+	public static ID = 'workbench.action.terminal.focus';
+	public static LABEL = nls.localize('focusTerminal', "Focus Integrated Terminal");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.terminalService.focus();
+	}
+}
