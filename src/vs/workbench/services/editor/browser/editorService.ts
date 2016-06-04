@@ -284,25 +284,23 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 }
 
-export interface IDelegatingWorkbenchEditorHandler {
-	(editor: BaseEditor, input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<boolean>;
-	(editor: BaseEditor, input: EditorInput, options?: EditorOptions, position?: Position): TPromise<boolean>;
+export interface IDelegatingWorkbenchEditorServiceHandler {
+	(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
+	(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 }
 
 /**
  * Subclass of workbench editor service that delegates all calls to the provided editor service. Subclasses can choose to override the behavior
- * of openEditor() by providing a handler. The handler returns a promise that resolves to true or false to indicate if an action has been taken.
- * If false is returned, the service will delegate to editor service for handling the call to openEditor().
+ * of openEditor() by providing a handler. The handler returns a promise that resolves to an editor to indicate if an action has been taken.
+ * If falsify is returned, the service will delegate to editor service for handling the call to openEditor().
  *
  * This gives clients a chance to override the behavior of openEditor() to match their context.
  */
 export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
-	private editor: BaseEditor;
-	private handler: IDelegatingWorkbenchEditorHandler;
+	private handler: IDelegatingWorkbenchEditorServiceHandler;
 
 	constructor(
-		editor: BaseEditor,
-		handler: IDelegatingWorkbenchEditorHandler,
+		handler: IDelegatingWorkbenchEditorServiceHandler,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
@@ -313,16 +311,15 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 			instantiationService
 		);
 
-		this.editor = editor;
 		this.handler = handler;
 	}
 
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
 	protected doOpenEditor(input: EditorInput, options?: EditorOptions, arg3?: any): TPromise<IEditor> {
-		return this.handler(this.editor, input, options, arg3).then((result) => {
-			if (result) {
-				return TPromise.as<BaseEditor>(this.editor);
+		return this.handler(input, options, arg3).then(editor => {
+			if (editor) {
+				return TPromise.as<BaseEditor>(editor);
 			}
 
 			return super.doOpenEditor(input, options, arg3);

@@ -15,7 +15,6 @@ import types = require('vs/base/common/types');
 import {Position} from 'vs/platform/editor/common/editor';
 import {IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {IDiffEditorOptions, IEditorOptions} from 'vs/editor/common/editorCommon';
-import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, TextDiffEditorOptions, EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
@@ -85,16 +84,16 @@ export class TextDiffEditor extends BaseTextEditor {
 		this.previousDiffAction = new NavigateAction(this, false);
 
 		// Support navigation within the diff editor by overriding the editor service within
-		let delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, this, (editor: BaseEditor, input: EditorInput, options?: EditorOptions, arg4?: any) => {
+		let delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
 
 			// Check if arg4 is a position argument that differs from this editors position
-			if (types.isUndefinedOrNull(arg4) || arg4 === false || arg4 === this.position) {
+			if (types.isUndefinedOrNull(arg3) || arg3 === false || arg3 === this.position) {
 				let activeDiffInput = <DiffEditorInput>this.getInput();
 				if (input && options && activeDiffInput) {
 
 					// Input matches modified side of the diff editor: perform the action on modified side
 					if (input.matches(activeDiffInput.modifiedInput)) {
-						return this.setInput(this.getInput(), options).then(() => true);
+						return this.setInput(this.getInput(), options).then(() => this);
 					}
 
 					// Input matches original side of the diff editor: perform the action on original side
@@ -103,13 +102,13 @@ export class TextDiffEditor extends BaseTextEditor {
 						if (options instanceof TextEditorOptions) {
 							(<TextEditorOptions>options).apply(originalEditor);
 
-							return TPromise.as<boolean>(true);
+							return TPromise.as(this);
 						}
 					}
 				}
 			}
 
-			return TPromise.as<boolean>(false);
+			return TPromise.as(null);
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
