@@ -113,7 +113,7 @@ suite('Colorizing - HTML', () => {
 
 		tokenizationSupport = _mode.tokenizationSupport;
 
-		onEnterSupport = LanguageConfigurationRegistry.getOnEnterSupport(_mode);
+		onEnterSupport = LanguageConfigurationRegistry.getOnEnterSupport(_mode.getId());
 	})();
 
 	test('Open Start Tag #1', () => {

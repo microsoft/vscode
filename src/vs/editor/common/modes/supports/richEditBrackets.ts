@@ -7,14 +7,14 @@
 import * as strings from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
 import {IRichEditBracket} from 'vs/editor/common/editorCommon';
-import * as modes from 'vs/editor/common/modes';
+import {IRichEditBrackets, CharacterPair} from 'vs/editor/common/modes';
 
 interface ISimpleInternalBracket {
 	open: string;
 	close: string;
 }
 
-export class RichEditBrackets implements modes.IRichEditBrackets {
+export class RichEditBrackets implements IRichEditBrackets {
 
 	public brackets: IRichEditBracket[];
 	public forwardRegex: RegExp;
@@ -23,7 +23,7 @@ export class RichEditBrackets implements modes.IRichEditBrackets {
 	public textIsBracket: {[text:string]:IRichEditBracket;};
 	public textIsOpenBracket: {[text:string]:boolean;};
 
-	constructor(modeId: string, brackets: modes.CharacterPair[]) {
+	constructor(modeId: string, brackets: CharacterPair[]) {
 		this.brackets = brackets.map((b) => {
 			return {
 				modeId: modeId,

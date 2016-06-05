@@ -255,9 +255,9 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 	}
 
 	public getEmbeddedAtPosition(position:editorCommon.IPosition):editorCommon.IMirrorModel {
-		var modeAtPosition = this.getModeAtPosition(position.lineNumber, position.column);
-		if (this._embeddedModels.hasOwnProperty(modeAtPosition.getId())) {
-			return this._embeddedModels[modeAtPosition.getId()];
+		var modeIdAtPosition = this.getModeIdAtPosition(position.lineNumber, position.column);
+		if (this._embeddedModels.hasOwnProperty(modeIdAtPosition)) {
+			return this._embeddedModels[modeIdAtPosition];
 		}
 		return null;
 	}
@@ -299,7 +299,7 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 
 			for (var i = 0; i < modeTransitions.length; i++) {
 				var modeTransition = modeTransitions[i];
-				if (modeTransition.mode.getId() !== currentModeId) {
+				if (modeTransition.modeId !== currentModeId) {
 
 					var modeRange = getOrCreateEmbeddedModeRange(currentModeId, currentMode);
 					modeRange.ranges.push({
@@ -309,7 +309,7 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 						endColumn: modeTransition.startIndex + 1
 					});
 
-					currentModeId = modeTransition.mode.getId();
+					currentModeId = modeTransition.modeId;
 					currentMode = modeTransition.mode;
 					currentStartLineNumber = lineNumber;
 					currentStartColumn = modeTransition.startIndex + 1;

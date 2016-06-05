@@ -7,7 +7,7 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import {IPosition, ITextModel, ITokenizedModel} from 'vs/editor/common/editorCommon';
-import {IEnterAction, ILineContext, IMode, IRichEditOnEnter, IndentAction, CharacterPair} from 'vs/editor/common/modes';
+import {IEnterAction, ILineContext, IRichEditOnEnter, IndentAction, CharacterPair} from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
 import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
@@ -74,12 +74,12 @@ export class OnEnterSupport implements IRichEditOnEnter {
 	public onEnter(model:ITokenizedModel, position: IPosition): IEnterAction {
 		var context = model.getLineContext(position.lineNumber);
 
-		return handleEvent(context, position.column - 1, (nestedMode:IMode, context:ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
+		return handleEvent(context, position.column - 1, (nestedModeId:string, context:ILineContext, offset:number) => {
+			if (this._modeId === nestedModeId) {
 				return this._onEnter(model, position);
 			}
 
-			let onEnterSupport = this._registry.getOnEnterSupport(nestedMode);
+			let onEnterSupport = this._registry.getOnEnterSupport(nestedModeId);
 			if (onEnterSupport) {
 				return onEnterSupport.onEnter(model, position);
 			}
