@@ -28,7 +28,7 @@ export interface INonWordTokenMap {
 export class WordHelper {
 
 	private static _safeGetWordDefinition(mode:IMode): RegExp {
-		return LanguageConfigurationRegistry.getWordDefinition(mode);
+		return LanguageConfigurationRegistry.getWordDefinition(mode.getId());
 	}
 
 	public static ensureValidWordDefinition(wordDefinition?:RegExp): RegExp {

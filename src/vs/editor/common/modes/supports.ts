@@ -45,10 +45,10 @@ export class LineTokens implements modes.ILineTokens {
 	}
 }
 
-export function handleEvent<T>(context:modes.ILineContext, offset:number, runner:(mode:modes.IMode, newContext:modes.ILineContext, offset:number)=>T):T {
+export function handleEvent<T>(context:modes.ILineContext, offset:number, runner:(modeId:string, newContext:modes.ILineContext, offset:number)=>T):T {
 	var modeTransitions = context.modeTransitions;
 	if (modeTransitions.length === 1) {
-		return runner(modeTransitions[0].mode, context, offset);
+		return runner(modeTransitions[0].modeId, context, offset);
 	}
 
 	var modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
@@ -68,7 +68,7 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 
 	var firstTokenCharacterOffset = context.getTokenStartIndex(firstTokenInModeIndex);
 	var newCtx = new FilteredLineContext(context, nestedMode, firstTokenInModeIndex, nextTokenAfterMode, firstTokenCharacterOffset, nextCharacterAfterModeIndex);
-	return runner(nestedMode, newCtx, offset - firstTokenCharacterOffset);
+	return runner(nestedMode.getId(), newCtx, offset - firstTokenCharacterOffset);
 }
 
 export class FilteredLineContext implements modes.ILineContext {

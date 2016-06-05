@@ -5,8 +5,8 @@
 'use strict';
 
 import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IAutoClosingPair,
-	IAutoClosingPairConditional, IRichEditOnEnter, IRichEditSupport, CharacterPair,
-	IMode, IRichEditElectricCharacter, IEnterAction, IndentAction} from 'vs/editor/common/modes';
+	IAutoClosingPairConditional, IRichEditOnEnter, CharacterPair,
+	IRichEditElectricCharacter, IEnterAction, IndentAction} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
@@ -35,7 +35,7 @@ export interface IRichLanguageConfiguration {
 	__electricCharacterSupport?: IBracketElectricCharacterContribution;
 }
 
-export class RichEditSupport implements IRichEditSupport {
+export class RichEditSupport {
 
 	private _conf: IRichLanguageConfiguration;
 
@@ -46,10 +46,10 @@ export class RichEditSupport implements IRichEditSupport {
 	public onEnter: IRichEditOnEnter;
 	public brackets: IRichEditBrackets;
 
-	constructor(modeId:string, previous:IRichEditSupport, rawConf:IRichLanguageConfiguration) {
+	constructor(modeId:string, previous:RichEditSupport, rawConf:IRichLanguageConfiguration) {
 
 		let prev:IRichLanguageConfiguration = null;
-		if (previous instanceof RichEditSupport) {
+		if (previous) {
 			prev = previous._conf;
 		}
 
@@ -150,44 +150,44 @@ export class LanguageConfigurationRegistryImpl {
 		};
 	}
 
-	private _getRichEditSupport(mode:IMode): IRichEditSupport {
-		return this._entries[mode.getId()];
+	private _getRichEditSupport(modeId:string): RichEditSupport {
+		return this._entries[modeId];
 	}
 
-	public getElectricCharacterSupport(mode:IMode): IRichEditElectricCharacter {
-		let value = this._getRichEditSupport(mode);
+	public getElectricCharacterSupport(modeId:string): IRichEditElectricCharacter {
+		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
 		}
 		return value.electricCharacter || null;
 	}
 
-	public getComments(mode:IMode): ICommentsConfiguration {
-		let value = this._getRichEditSupport(mode);
+	public getComments(modeId:string): ICommentsConfiguration {
+		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
 		}
 		return value.comments || null;
 	}
 
-	public getCharacterPairSupport(mode:IMode): IRichEditCharacterPair {
-		let value = this._getRichEditSupport(mode);
+	public getCharacterPairSupport(modeId:string): IRichEditCharacterPair {
+		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
 		}
 		return value.characterPair || null;
 	}
 
-	public getWordDefinition(mode:IMode): RegExp {
-		let value = this._getRichEditSupport(mode);
+	public getWordDefinition(modeId:string): RegExp {
+		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
 		}
 		return value.wordDefinition || null;
 	}
 
-	public getOnEnterSupport(mode:IMode): IRichEditOnEnter {
-		let value = this._getRichEditSupport(mode);
+	public getOnEnterSupport(modeId:string): IRichEditOnEnter {
+		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
 		}
@@ -197,7 +197,7 @@ export class LanguageConfigurationRegistryImpl {
 	public getRawEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): IEnterAction {
 		let result:IEnterAction;
 
-		let onEnterSupport = this.getOnEnterSupport(model.getMode());
+		let onEnterSupport = this.getOnEnterSupport(model.getMode().getId());
 
 		if (onEnterSupport) {
 			try {
@@ -246,8 +246,8 @@ export class LanguageConfigurationRegistryImpl {
 		};
 	}
 
-	public getBracketsSupport(mode:IMode): IRichEditBrackets {
-		let value = this._getRichEditSupport(mode);
+	public getBracketsSupport(modeId:string): IRichEditBrackets {
+		let value = this._getRichEditSupport(modeId);
 		if (!value) {
 			return null;
 		}

@@ -113,8 +113,8 @@ export class EditorAccessor implements emmet.Editor {
 
 	public getSyntax(): string {
 		let position = this.editor.getSelection().getStartPosition();
-		let mode = this.editor.getModel().getModeAtPosition(position.lineNumber, position.column);
-		let syntax = mode.getId().split('.').pop();
+		let modeId = this.editor.getModel().getModeIdAtPosition(position.lineNumber, position.column);
+		let syntax = modeId.split('.').pop();
 		if (/\b(razor|handlebars|erb|php|hbs|ejs|twig)\b/.test(syntax)) { // treat like html
 			return 'html';
 		}

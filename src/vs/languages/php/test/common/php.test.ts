@@ -76,7 +76,7 @@ suite('Syntax Highlighting - PHP', () => {
 
 		tokenizationSupport = mode.tokenizationSupport;
 		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), PHPMode.LANG_CONFIG);
-		wordDefinition = LanguageConfigurationRegistry.getWordDefinition(mode);
+		wordDefinition = LanguageConfigurationRegistry.getWordDefinition(mode.getId());
 	})();
 
 	test('', () => {

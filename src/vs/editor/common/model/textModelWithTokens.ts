@@ -441,7 +441,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	public getModeAtPosition(_lineNumber:number, _column:number): IMode {
+	public getModeIdAtPosition(_lineNumber:number, _column:number): string {
 		var validPosition = this.validatePosition({
 			lineNumber: _lineNumber,
 			column: _column
@@ -451,13 +451,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		var column = validPosition.column;
 
 		if (column === 1) {
-			return this.getStateBeforeLine(lineNumber).getMode();
+			return this.getStateBeforeLine(lineNumber).getMode().getId();
 		} else if (column === this.getLineMaxColumn(lineNumber)) {
-			return this.getStateAfterLine(lineNumber).getMode();
+			return this.getStateAfterLine(lineNumber).getMode().getId();
 		} else {
 			var modeTransitions = this._getLineModeTransitions(lineNumber);
 			var modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
-			return modeTransitions[modeTransitionIndex].mode;
+			return modeTransitions[modeTransitionIndex].modeId;
 		}
 	}
 
@@ -762,7 +762,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this._mode);
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
-		let currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentMode.mode);
+		let currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentMode.modeId);
 
 		if (!currentModeBrackets) {
 			return null;
@@ -792,7 +792,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
 		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
-		let currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentMode.mode);
+		let currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentMode.modeId);
 
 		// If position is in between two tokens, try first looking in the previous token
 		if (currentTokenIndex > 0 && currentTokenStart === position.column - 1) {
@@ -808,7 +808,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				// check if previous token is in a different mode
 				if (currentModeIndex > 0 && currentMode.startIndex === position.column - 1) {
 					prevMode = modeTransitions[currentModeIndex - 1];
-					prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(prevMode.mode);
+					prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(prevMode.modeId);
 				}
 
 				if (prevModeBrackets) {
@@ -898,7 +898,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
 			let currentModeIndex = modeTransitions.length - 1;
 			let currentModeStart = modeTransitions[currentModeIndex].startIndex;
-			let currentModeId = modeTransitions[currentModeIndex].mode.getId();
+			let currentModeId = modeTransitions[currentModeIndex].modeId;
 
 			let tokensLength = lineTokens.getTokenCount() - 1;
 			let currentTokenEnd = lineText.length;
@@ -908,7 +908,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 				currentModeStart = modeTransitions[currentModeIndex].startIndex;
-				currentModeId = modeTransitions[currentModeIndex].mode.getId();
+				currentModeId = modeTransitions[currentModeIndex].modeId;
 			}
 
 			for (let tokenIndex = tokensLength; tokenIndex >= 0; tokenIndex--) {
@@ -918,7 +918,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				if (currentTokenStart < currentModeStart) {
 					currentModeIndex--;
 					currentModeStart = modeTransitions[currentModeIndex].startIndex;
-					currentModeId = modeTransitions[currentModeIndex].mode.getId();
+					currentModeId = modeTransitions[currentModeIndex].modeId;
 				}
 
 				if (currentModeId === modeId && !ignoreBracketsInToken(currentTokenType)) {
@@ -965,7 +965,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
 			let currentModeIndex = 0;
 			let nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
-			let currentModeId = modeTransitions[currentModeIndex].mode.getId();
+			let currentModeId = modeTransitions[currentModeIndex].modeId;
 
 			let startTokenIndex = 0;
 			let currentTokenStart = lineTokens.getTokenStartIndex(startTokenIndex);
@@ -975,7 +975,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 				currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 				nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
-				currentModeId = modeTransitions[currentModeIndex].mode.getId();
+				currentModeId = modeTransitions[currentModeIndex].modeId;
 			}
 
 			for (let tokenIndex = startTokenIndex, tokensLength = lineTokens.getTokenCount(); tokenIndex < tokensLength; tokenIndex++) {
@@ -985,7 +985,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				if (currentTokenStart >= nextModeStart) {
 					currentModeIndex++;
 					nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
-					currentModeId = modeTransitions[currentModeIndex].mode.getId();
+					currentModeId = modeTransitions[currentModeIndex].modeId;
 				}
 
 				if (currentModeId === modeId && !ignoreBracketsInToken(currentTokenType)) {

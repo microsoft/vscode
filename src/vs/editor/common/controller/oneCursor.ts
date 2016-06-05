@@ -1269,7 +1269,7 @@ export class OneCursorOp {
 			return false;
 		}
 
-		let characterPairSupport = LanguageConfigurationRegistry.getCharacterPairSupport(cursor.model.getMode());
+		let characterPairSupport = LanguageConfigurationRegistry.getCharacterPairSupport(cursor.model.getMode().getId());
 
 		if(!characterPairSupport) {
 			return false;
@@ -1380,7 +1380,7 @@ export class OneCursorOp {
 		let lineContext = cursor.model.getLineContext(position.lineNumber);
 
 		let electricAction:IElectricAction;
-		let electricCharSupport = LanguageConfigurationRegistry.getElectricCharacterSupport(cursor.model.getMode());
+		let electricCharSupport = LanguageConfigurationRegistry.getElectricCharacterSupport(cursor.model.getMode().getId());
 		if (electricCharSupport) {
 			try {
 				electricAction = electricCharSupport.onElectricCharacter(lineContext, position.column - 2);

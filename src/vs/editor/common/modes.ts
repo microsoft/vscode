@@ -760,41 +760,6 @@ export interface IRichEditBrackets {
 	textIsOpenBracket: {[text:string]:boolean;};
 }
 
-/**
- * @internal
- */
-export interface IRichEditSupport {
-	/**
-	 * Optional adapter for electric characters.
-	 */
-	electricCharacter?:IRichEditElectricCharacter;
-
-	/**
-	 * Optional adapter for comment insertion.
-	 */
-	comments?:ICommentsConfiguration;
-
-	/**
-	 * Optional adapter for insertion of character pair.
-	 */
-	characterPair?:IRichEditCharacterPair;
-
-	/**
-	 * Optional adapter for classification of tokens.
-	 */
-	wordDefinition?: RegExp;
-
-	/**
-	 * Optional adapter for custom Enter handling.
-	 */
-	onEnter?: IRichEditOnEnter;
-
-	/**
-	 * Optional adapter for brackets.
-	 */
-	brackets?: IRichEditBrackets;
-}
-
 // --- feature registries ------
 
 /**
