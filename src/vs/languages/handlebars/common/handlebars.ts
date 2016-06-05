@@ -10,7 +10,7 @@ import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebars
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -191,10 +191,8 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
 		}, true);
-	}
 
-	protected _createRichEditSupport(): modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), null, HandlebarsMode.LANG_CONFIG);
+		LanguageConfigurationRegistry.register(this.getId(), HandlebarsMode.LANG_CONFIG);
 	}
 
 	public getInitialState() : modes.IState {

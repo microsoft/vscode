@@ -21,16 +21,14 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {HTMLMode} from 'vs/languages/html/common/html';
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
-import {RichEditSupport, LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class MockJSMode extends MockTokenizingMode {
 
-	public richEditSupport: Modes.IRichEditSupport;
-
 	constructor() {
-		super('js', 'mock-js');
+		super('html-js-mock', 'mock-js');
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [
 				['(', ')'],
 				['{', '}'],

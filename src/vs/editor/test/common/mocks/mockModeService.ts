@@ -9,7 +9,6 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
-import {IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {IModeService, IModeLookupResult} from 'vs/editor/common/services/modeService';
 
 export class MockModeService implements IModeService {
@@ -80,9 +79,6 @@ export class MockModeService implements IModeService {
 		throw new Error('Not implemented');
 	}
 
-	registerRichEditSupport(modeId: string, support: IRichLanguageConfiguration): IDisposable {
-		throw new Error('Not implemented');
-	}
 	registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
 		throw new Error('Not implemented');
 	}

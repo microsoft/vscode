@@ -953,7 +953,6 @@ export interface IConfigurationChangedEvent {
  */
 export interface IModeSupportChangedEvent {
 	tokenizationSupport:boolean;
-	richEditSupport: boolean;
 }
 
 /**

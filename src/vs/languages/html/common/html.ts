@@ -16,7 +16,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -328,7 +328,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	};
 
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public richEditSupport: modes.IRichEditSupport;
 	public configSupport: modes.IConfigurationSupport;
 
 	private modeService:IModeService;
@@ -349,8 +348,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, true);
 		this.configSupport = this;
-
-		this.richEditSupport = this._createRichEditSupport();
 
 		this._registerSupports();
 	}
@@ -404,6 +401,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
 		}, true);
+
+		LanguageConfigurationRegistry.register(this.getId(), HTMLMode.LANG_CONFIG);
 	}
 
 	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
@@ -412,10 +411,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 
 	private _worker<T>(runner:(worker:W)=>winjs.TPromise<T>): winjs.TPromise<T> {
 		return this._modeWorkerManager.worker(runner);
-	}
-
-	protected _createRichEditSupport(): modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), null, HTMLMode.LANG_CONFIG);
 	}
 
 	// TokenizationSupport

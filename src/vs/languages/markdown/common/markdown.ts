@@ -20,7 +20,7 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
@@ -210,7 +210,6 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 	public emitOutputSupport: Modes.IEmitOutputSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public richEditSupport: Modes.IRichEditSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<MarkdownWorker.MarkdownWorker>;
 	private _threadService:IThreadService;
@@ -234,7 +233,7 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, MarkdownMode.LANG_CONFIG);
+		LanguageConfigurationRegistry.register(this.getId(), MarkdownMode.LANG_CONFIG);
 
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],

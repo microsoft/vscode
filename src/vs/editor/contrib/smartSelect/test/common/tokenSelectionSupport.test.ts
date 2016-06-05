@@ -7,20 +7,18 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import {Range} from 'vs/editor/common/core/range';
-import {IMode, IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
+import {IMode, IndentAction} from 'vs/editor/common/modes';
 import {TokenSelectionSupport} from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
 import {createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class MockJSMode extends MockTokenizingMode {
 
-	public richEditSupport: IRichEditSupport;
-
 	constructor() {
-		super('js', 'mock-js');
+		super('js-tokenSelectionSupport', 'mock-js');
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [
 				['(', ')'],
 				['{', '}'],

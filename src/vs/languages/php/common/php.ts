@@ -10,7 +10,7 @@ import Modes = require('vs/editor/common/modes');
 import {AbstractMode, isDigit, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -476,7 +476,6 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 	};
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public richEditSupport: Modes.IRichEditSupport;
 
 	private modeService:IModeService;
 
@@ -491,7 +490,7 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, PHPMode.LANG_CONFIG);
+		LanguageConfigurationRegistry.register(this.getId(), PHPMode.LANG_CONFIG);
 
 		if (editorWorkerService) {
 			Modes.SuggestRegistry.register(this.getId(), new TextualSuggestSupport(editorWorkerService, configurationService), true);

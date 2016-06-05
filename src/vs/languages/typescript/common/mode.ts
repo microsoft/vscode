@@ -16,6 +16,7 @@ import {LanguageServiceDefaults, typeScriptDefaults, javaScriptDefaults, Languag
 import {register} from './languageFeatures';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as workerManager from 'vs/languages/typescript/common/workerManager';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 function setupMode(modelService:IModelService, markerService:IMarkerService, modeService:IModeService, defaults:LanguageServiceDefaults, modeId:string, language:Language): void {
 
@@ -33,7 +34,7 @@ function setupMode(modelService:IModelService, markerService:IMarkerService, mod
 	);
 	disposables.push(registration);
 
-	disposables.push(modeService.registerRichEditSupport(modeId, richEditConfiguration));
+	disposables.push(LanguageConfigurationRegistry.register(modeId, richEditConfiguration));
 
 	disposables.push(modeService.registerTokenizationSupport2(modeId, createTokenizationSupport2(language)));
 }

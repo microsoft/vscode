@@ -180,27 +180,6 @@ export interface ILineContext {
 	findIndexOfOffset(offset:number): number;
 }
 
-/**
- * @internal
- */
-export enum MutableSupport {
-	RichEditSupport = 1,
-	TokenizationSupport = 2
-}
-
-/**
- * @internal
- */
-export function mutableSupportToString(registerableSupport:MutableSupport) {
-	if (registerableSupport === MutableSupport.RichEditSupport) {
-		return 'richEditSupport';
-	}
-	if (registerableSupport === MutableSupport.TokenizationSupport) {
-		return 'tokenizationSupport';
-	}
-	throw new Error('Illegal argument!');
-}
-
 
 export interface IMode {
 
@@ -221,7 +200,7 @@ export interface IMode {
 	 * Register a support by name. Only optional.
 	 * @internal
 	 */
-	registerSupport?<T>(support:MutableSupport, callback:(mode:IMode)=>T): IDisposable;
+	setTokenizationSupport?<T>(callback:(mode:IMode)=>T): IDisposable;
 
 	/**
 	 * Optional adapter to support tokenization.
@@ -246,12 +225,6 @@ export interface IMode {
 	 * @internal
 	 */
 	configSupport?:IConfigurationSupport;
-
-	/**
-	 * Optional adapter to support rich editing.
-	 * @internal
-	 */
-	richEditSupport?: IRichEditSupport;
 }
 
 /**

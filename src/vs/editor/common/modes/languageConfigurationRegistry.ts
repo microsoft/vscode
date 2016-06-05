@@ -17,6 +17,7 @@ import {ITokenizedModel} from 'vs/editor/common/editorCommon';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {Position} from 'vs/editor/common/core/position';
 import * as strings from 'vs/base/common/strings';
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 export interface CommentRule {
 	lineComment?: string;
@@ -140,14 +141,17 @@ export class LanguageConfigurationRegistryImpl {
 		this._entries = Object.create(null);
 	}
 
-	public register(languageId:string, configuration:IRichLanguageConfiguration): void {
+	public register(languageId:string, configuration:IRichLanguageConfiguration): IDisposable {
 		let previous = this._entries[languageId] || null;
 		this._entries[languageId] = new RichEditSupport(languageId, previous, configuration);
 		this._onDidChange.fire(void 0);
+		return {
+			dispose: () => {}
+		};
 	}
 
 	private _getRichEditSupport(mode:IMode): IRichEditSupport {
-		return /*this._entries[mode.getId()] || */mode.richEditSupport;
+		return this._entries[mode.getId()];
 	}
 
 	public getElectricCharacterSupport(mode:IMode): IRichEditElectricCharacter {

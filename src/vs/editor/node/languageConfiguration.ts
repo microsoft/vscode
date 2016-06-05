@@ -10,6 +10,7 @@ import {readFile} from 'vs/base/node/pfs';
 import {IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IAutoClosingPair} from 'vs/editor/common/modes';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 type CharacterPair = [string, string];
 
@@ -88,7 +89,7 @@ export class LanguageConfigurationFileHandler {
 			richEditConfig.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
 		}
 
-		this._modeService.registerRichEditSupport(modeId, richEditConfig);
+		LanguageConfigurationRegistry.register(modeId, richEditConfig);
 	}
 
 	private _mapCharacterPairs(pairs:CharacterPair[]): IAutoClosingPair[] {

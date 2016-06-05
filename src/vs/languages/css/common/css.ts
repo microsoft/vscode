@@ -17,7 +17,7 @@ import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {wireCancellationToken} from 'vs/base/common/async';
 
@@ -302,7 +302,6 @@ export class CSSMode extends AbstractMode {
 	};
 
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public richEditSupport: modes.IRichEditSupport;
 	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
 	public configSupport:modes.IConfigurationSupport;
 
@@ -322,7 +321,7 @@ export class CSSMode extends AbstractMode {
 			getInitialState: () => new State(this, States.Selector, false, null, false, 0)
 		}, false, false);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, CSSMode.LANG_CONFIG);
+		LanguageConfigurationRegistry.register(this.getId(), CSSMode.LANG_CONFIG);
 
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
