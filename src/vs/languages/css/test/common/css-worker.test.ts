@@ -14,12 +14,24 @@ import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import cssErrors = require('vs/languages/css/common/parser/cssErrors');
 import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+
+export class CSSMockMode extends MockMode {
+	constructor() {
+		super('css-mock-mode-id');
+		LanguageConfigurationRegistry.register(this.getId(), {
+			wordPattern: /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g
+		});
+	}
+}
+
+var cssMockMode = new CSSMockMode();
 
 export function mockMirrorModel(content:string, url:URI = null) : mm.MirrorModel {
-	return mm.createTestMirrorModelFromString(content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g), url);
+	return mm.createTestMirrorModelFromString(content, cssMockMode, url);
 }
 
 suite('Validation - CSS', () => {
@@ -39,7 +51,7 @@ suite('Validation - CSS', () => {
 			resourceService: resourceService,
 			markerService: markerService
 		});
-		var worker = new cssWorker.CSSWorker('mock.mode.id', services.resourceService, services.markerService);
+		var worker = new cssWorker.CSSWorker('css-mock-mode-id', services.resourceService, services.markerService);
 		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
@@ -61,7 +73,7 @@ suite('Validation - CSS', () => {
 			markerService: markerService
 		});
 
-		var worker = new cssWorker.CSSWorker('mock.mode.id', services.resourceService, services.markerService);
+		var worker = new cssWorker.CSSWorker('css-mock-mode-id', services.resourceService, services.markerService);
 		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });

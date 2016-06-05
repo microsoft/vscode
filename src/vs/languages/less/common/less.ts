@@ -21,7 +21,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {wireCancellationToken} from 'vs/base/common/async';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export var language: Types.ILanguage = <Types.ILanguage> {
 	defaultToken: '',
@@ -189,7 +189,6 @@ export class LESSMode extends AbstractMode {
 	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
 	public configSupport:modes.IConfigurationSupport;
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public richEditSupport: modes.IRichEditSupport;
 
 	private modeService: IModeService;
 	private _modeWorkerManager: ModeWorkerManager<lessWorker.LessWorker>;
@@ -249,7 +248,7 @@ export class LESSMode extends AbstractMode {
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, LESSMode.LANG_CONFIG);
+		LanguageConfigurationRegistry.register(this.getId(), LESSMode.LANG_CONFIG);
 	}
 
 	public creationDone(): void {

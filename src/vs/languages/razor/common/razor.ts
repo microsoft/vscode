@@ -12,7 +12,7 @@ import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
 import {RAZORWorker} from 'vs/languages/razor/common/razorWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {wireCancellationToken} from 'vs/base/common/async';
@@ -139,14 +139,12 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
 		}, true);
+
+		LanguageConfigurationRegistry.register(this.getId(), RAZORMode.LANG_CONFIG);
 	}
 
 	protected _createModeWorkerManager(descriptor:modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {
 		return new ModeWorkerManager<RAZORWorker>(descriptor, 'vs/languages/razor/common/razorWorker', 'RAZORWorker', 'vs/languages/html/common/htmlWorker', instantiationService);
-	}
-
-	protected _createRichEditSupport(): modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), null, RAZORMode.LANG_CONFIG);
 	}
 
 	public getInitialState(): modes.IState {

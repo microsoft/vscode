@@ -6,7 +6,7 @@
 
 import * as modes from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, CommentRule} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 
@@ -33,17 +33,16 @@ export class CommentState extends AbstractState {
 export class CommentMode extends MockMode {
 
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public richEditSupport: modes.IRichEditSupport;
 
-	constructor(commentsConfig:modes.ICommentsConfiguration) {
+	constructor(commentsConfig:CommentRule) {
 		super();
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new CommentState(this, 0)
 		}, false, false);
 
-		this.richEditSupport = {
-			comments:commentsConfig
-		};
+		LanguageConfigurationRegistry.register(this.getId(), {
+			comments: commentsConfig
+		});
 	}
 }
 
@@ -141,11 +140,9 @@ export class ModelMode2 extends MockMode {
 
 export class BracketMode extends MockMode {
 
-	public richEditSupport: modes.IRichEditSupport;
-
 	constructor() {
 		super();
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [
 				['{', '}'],
 				['[', ']'],

@@ -16,7 +16,7 @@ import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadSer
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export class JSONMode extends AbstractMode {
@@ -42,7 +42,6 @@ export class JSONMode extends AbstractMode {
 	};
 
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public richEditSupport: modes.IRichEditSupport;
 	public configSupport:modes.IConfigurationSupport;
 	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
 
@@ -60,7 +59,7 @@ export class JSONMode extends AbstractMode {
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, JSONMode.LANG_CONFIG);
+		LanguageConfigurationRegistry.register(this.getId(), JSONMode.LANG_CONFIG);
 
 		modes.HoverProviderRegistry.register(this.getId(), {
 			provideHover: (model, position, token): Thenable<modes.Hover> => {

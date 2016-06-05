@@ -10,7 +10,7 @@ import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
 import {CommentMode} from 'vs/editor/test/common/testModes';
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	var mode = new CommentMode({ lineCommentToken: '!@#', blockCommentStartToken: '<0', blockCommentEndToken: '0>' });
+	var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
 	testCommand(lines, mode, selection, (sel) => new BlockCommentCommand(sel), expectedLines, expectedSelection);
 }
 

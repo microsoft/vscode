@@ -42,6 +42,7 @@ import vscode = require('vscode');
 import {TextEditorRevealType} from 'vs/workbench/api/node/mainThreadEditors';
 import * as paths from 'vs/base/common/paths';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 /**
  * This class implements the API described in vscode.d.ts,
@@ -503,6 +504,6 @@ export class MainProcessVSCodeAPIHelper {
 	}
 
 	public Modes_RichEditSupport_register(disposeToken:string, modeId: string, configuration:vscode.LanguageConfiguration): void {
-		this._token2Dispose[disposeToken] = this._modeService.registerRichEditSupport(modeId, <any>configuration);
+		this._token2Dispose[disposeToken] = LanguageConfigurationRegistry.register(modeId, configuration);
 	}
 }

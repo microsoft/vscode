@@ -25,6 +25,7 @@ import {CancellationToken} from 'vs/base/common/cancellation';
 import {toThenable} from 'vs/base/common/async';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export function register(language:ILanguageExtensionPoint): void {
 	ModesRegistry.registerLanguage(language);
@@ -50,9 +51,7 @@ export function onLanguage(languageId:string, callback:()=>void): IDisposable {
 }
 
 export function setLanguageConfiguration(languageId:string, configuration:IRichLanguageConfiguration): IDisposable {
-	startup.initStaticServicesIfNecessary();
-	let staticPlatformServices = ensureStaticPlatformServices(null);
-	return staticPlatformServices.modeService.registerRichEditSupport(languageId, configuration);
+	return LanguageConfigurationRegistry.register(languageId, configuration);
 }
 
 export function setTokensProvider(languageId:string, support:modes.TokensProvider): IDisposable {
@@ -313,7 +312,7 @@ export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoi
 				return createTokenizationSupport(modeService, mode, lexer);
 			});
 
-			modeService.registerRichEditSupport(language.id, value.conf);
+			LanguageConfigurationRegistry.register(language.id, value.conf);
 		}, (err) => {
 			console.error('Cannot find module ' + defModule, err);
 		});
