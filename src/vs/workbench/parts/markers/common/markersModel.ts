@@ -33,10 +33,35 @@ export class FilterOptions {
 	public filterWarnings: boolean= false;
 	public filterInfos: boolean= false;
 	public filterValue: string= '';
-	public completeValue: string= '';
+	public filter: string= '';
+
+	constructor(filter:string='') {
+		if (filter) {
+			this.parse(filter);
+		}
+	}
 
 	public hasActiveFilters():boolean {
 		return this.filterErrors || this.filterWarnings || this.filterInfos || !!this.filterValue;
+	}
+
+	private parse(filter: string) {
+		this.filter= filter;
+		filter= strings.trim(filter);
+		let startIndex= 0;
+		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_ERRORS)) {
+			this.filterErrors= true;
+			startIndex= (Messages.MARKERS_PANEL_FILTER_ERRORS).length;
+		}
+		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_WARNINGS)) {
+			this.filterWarnings= true;
+			startIndex= (Messages.MARKERS_PANEL_FILTER_WARNINGS).length;
+		}
+		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_INFOS)) {
+			this.filterInfos= true;
+			startIndex= (Messages.MARKERS_PANEL_FILTER_INFOS).length;
+		}
+		this.filterValue= filter.substr(startIndex).trim();
 	}
 }
 

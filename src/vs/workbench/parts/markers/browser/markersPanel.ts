@@ -99,6 +99,7 @@ export class MarkersPanel extends Panel {
 	}
 
 	public refreshPanel(updateTitleArea: boolean= false):TPromise<any> {
+		this.collapseAllAction.enabled= this.markersModel.hasFilteredResources();
 		this.refreshAutoExpanded();
 		if (updateTitleArea) {
 			this.updateTitleArea();

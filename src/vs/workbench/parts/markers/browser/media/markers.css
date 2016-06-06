@@ -6,15 +6,20 @@
 .monaco-action-bar .action-item.markers-panel-action-filter {
 	width: 400px;
 	cursor: default;
-	margin: 5px 10px 0 0;
+	margin: 4px 10px 0 0;
 }
 
-.monaco-action-bar .action-item.markers-panel-action-filter .input-box-container {
-	background: #ddd;
+.monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+	border: 1px solid #ddd;
 }
 
-.vs-dark .monaco-action-bar .action-item.markers-panel-action-filter .input-box-container {
-	background: none;
+.vs-dark .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+	border: none;
+}
+
+.monaco-action-bar .action-item.markers-panel-action-filter .filterIcon {
+	margin: 2px 0 0 4px;
+	background: url('filter.svg') center center no-repeat;
 }
 
 .markers-panel .markers-panel-container {
@@ -32,6 +37,7 @@
 
 .markers-panel .markers-panel-container .tree-container {
 	height: 100%;
+	margin-top: 2px;
 }
 
 .markers-panel .markers-panel-container .tree-container .markers-panel-tree-entry {
