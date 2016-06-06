@@ -72,6 +72,11 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
 	public show(where: any, heightInLines: number): void {
 		this._isActive = true;
+
+		this._headElement.style.borderTopColor = this.options.frameColor;
+		this._bodyElement.style.borderTopColor = this.options.frameColor;
+		this._bodyElement.style.borderBottomColor = this.options.frameColor;
+
 		super.show(where, heightInLines);
 	}
 
