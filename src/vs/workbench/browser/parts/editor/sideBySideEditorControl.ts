@@ -1353,7 +1353,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		// Editor Title (Status + Label + Description)
 		let name = input.getName() || '';
 		let description = isActive ? (input.getDescription() || '') : '';
-		let verboseDescription = isActive ? (input.getDescription(true) || '') : '';
+		let verboseDescription = input.getDescription(true) || '';
 		if (description === verboseDescription) {
 			verboseDescription = ''; // dont repeat what is already shown
 		}
