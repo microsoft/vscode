@@ -3477,10 +3477,12 @@ export interface IEditorContribution {
 export interface IThemeDecorationRenderOptions {
 	backgroundColor?: string;
 
+	outline?: string;
 	outlineColor?: string;
 	outlineStyle?: string;
 	outlineWidth?: string;
 
+	border?:string;
 	borderColor?: string;
 	borderRadius?: string;
 	borderSpacing?: string;
@@ -3501,17 +3503,14 @@ export interface IThemeDecorationRenderOptions {
 }
 
 export interface IContentDecorationRenderOptions {
-	borderStyle?: string;
-	borderWidth?: string;
-	borderRadius?: string;
-	borderSpacing?: string;
-	borderColor?: string;
-
-	content?: string;
-	textDecoration?: string;
+	contentText?: string;
+	contentIconPath?: string;
 
 	color?: string;
 	backgroundColor?: string;
+
+	border?: string;
+	textDecoration?: string;
 	margin?: string;
 	width?: string;
 	height?: string;
