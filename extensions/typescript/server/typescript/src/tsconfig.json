@@ -1,0 +1,7 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"outDir": "../out",
+		"target": "es5"
+	}
+}

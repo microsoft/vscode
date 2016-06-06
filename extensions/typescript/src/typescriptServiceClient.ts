@@ -178,7 +178,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private startService(resendModels: boolean = false): void {
-		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
+		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'out', 'server.js');
 
 		if (this.tsdk) {
 			if ((<any>path).isAbsolute(this.tsdk)) {
@@ -201,7 +201,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 			try {
 				let options: electron.IForkOptions = {
-					execArgv: [] //[`--debug-brk=5859`]
+					execArgv: [`--debug=6005`]
 				};
 				let value = process.env.TSS_DEBUG;
 				if (value) {

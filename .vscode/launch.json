@@ -87,6 +87,14 @@
 			"sourceMaps": true
 		},
 		{
+			"name": "Attach to TSServer",
+			"type": "node",
+			"request": "attach",
+			"port": 6005,
+			"sourceMaps": false,
+			"outDir": "${workspaceRoot}/extensions/typescript/server/typescript/lib"
+		},
+		{
 			"name": "Convert css-schema to browser.js",
 			"type": "node",
 			"request": "launch",
