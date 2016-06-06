@@ -82,30 +82,48 @@
 
 /* Editor Title Styles */
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
-	width: 12px; /* move the actions close to the label */
-}
-
-.monaco-workbench > .part.editor > .content .inactive .title .title-actions,
-.monaco-workbench > .part.editor > .content .inactive .title .title-label-actions {
+.monaco-workbench > .part.editor > .content .inactive .title .title-actions {
 	opacity: 0.5;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
-	padding-left: 0; /* remove padding because we have the title label actions to the left */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+	padding-right: 0px;
 }
 
-.monaco-workbench > .part.editor > .content .inactive .title {
-	cursor: pointer;
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .editor-group-toolbar {
+	padding-left: 4px;
+	background-color: rgba(128, 128, 128, 0.2);
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .editor-group-toolbar.has-primary-actions {
+	padding-left: 8px;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
 	font-style: italic;
-	padding-left: 1px; /* we need to push the label a bit to accomodate for the italic style */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label {
 	font-style: normal;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration {
+	width: 16px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+	background: url('close-dirty.svg') center center no-repeat;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+	background: url('close-dirty-inverse.svg') center center no-repeat;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
@@ -127,7 +145,7 @@
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
 	margin-left: 0.5em;
 	font-size: 0.9em;
-	cursor: pointer;
+	cursor: default;
 }
 
 .vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
@@ -214,10 +232,6 @@
 .hc-black .monaco-workbench .show-group-editors-action,
 .hc-black .monaco-workbench .split-editor-action {
 	background: none;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
-	width: 24px;
 }
 
 .hc-black .monaco-workbench .show-group-editors-action:before {

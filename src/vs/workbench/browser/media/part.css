@@ -46,7 +46,7 @@
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
 	text-decoration: none;
 	font-size: 13px;
-	cursor: pointer;
+	cursor: default;
 }
 
 .monaco-workbench > .part > .title > .title-actions {
@@ -56,11 +56,11 @@
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
+	display: flex;
 	flex: initial;
 }
 
 .monaco-workbench > .part > .title > .title-actions .action-label,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label,
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label {
 	display: block;
 	height: 35px;
@@ -96,5 +96,5 @@
 }
 
 .monaco-workbench > .part > .status {
-	display: none; /* Parts have to opt in to show title area */
+	display: none; /* Parts have to opt in to show status area */
 }
