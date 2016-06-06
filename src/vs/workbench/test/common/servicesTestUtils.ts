@@ -113,7 +113,7 @@ export class TestContextService implements WorkspaceContextService.IWorkspaceCon
 	}
 
 	public toWorkspaceRelativePath(resource: URI): string {
-		return Paths.makeAbsolute(Paths.normalize(resource.fsPath.substr('c:'.length)));
+		return Paths.makePosixAbsolute(Paths.normalize(resource.fsPath.substr('c:'.length)));
 	}
 
 	public toResource(workspaceRelativePath: string): URI {
@@ -292,10 +292,6 @@ export class TestUntitledEditorService implements IUntitledEditorService {
 	}
 
 	public getDirty() {
-		return [];
-	}
-
-	public 	revertAll(resources?: URI[]): URI[] {
 		return [];
 	}
 

@@ -46,7 +46,11 @@
 
 /* ---------- Dark Theme ---------- */
 
-.vs-dark .monaco-workbench { background-color: #252526; color: #CCC; }
+.vs-dark .monaco-workbench {
+	--input-bgcolor: #3C3C3C;
+	background-color: #252526;
+	color: #CCC;
+}
 
 .vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top {	box-shadow: #000 0 6px 6px -6px inset; }
 .vs-dark .monaco-workbench .monaco-scrollable-element .shadow.left { box-shadow: #000 6px 0 6px -6px inset; }
@@ -58,7 +62,7 @@
 
 .vs-dark .monaco-workbench input,
 .vs-dark .monaco-workbench textarea {
-	background-color: #3C3C3C;
+	background-color: var(--input-bgcolor);
 }
 
 .vs-dark .monaco-workbench input:disabled {

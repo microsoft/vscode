@@ -2241,8 +2241,9 @@ declare namespace vscode {
 		 * will be used as insert text as well as for sorting and filtering.
 		 *
 		 * @param label The label of the completion.
+		 * @param kind The [kind](#CompletionItemKind) of the completion.
 		 */
-		constructor(label: string);
+		constructor(label: string, kind?: CompletionItemKind);
 	}
 
 	/**
