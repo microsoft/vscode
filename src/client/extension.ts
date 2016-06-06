@@ -31,10 +31,17 @@ export function activate(context: vscode.ExtensionContext) {
     var pythonSettings = new settings.PythonSettings();
     unitTestOutChannel = vscode.window.createOutputChannel(pythonSettings.unitTest.outputWindow);
     unitTestOutChannel.clear();
-    formatOutChannel = vscode.window.createOutputChannel(pythonSettings.formatting.outputWindow);
-    formatOutChannel.clear();
-    lintingOutChannel = vscode.window.createOutputChannel(pythonSettings.linting.outputWindow);
-    lintingOutChannel.clear();
+    formatOutChannel = unitTestOutChannel;
+    lintingOutChannel = unitTestOutChannel;
+    if (pythonSettings.unitTest.outputWindow !== pythonSettings.formatting.outputWindow) {
+        formatOutChannel = vscode.window.createOutputChannel(pythonSettings.formatting.outputWindow);
+        formatOutChannel.clear();
+    }
+    if (pythonSettings.unitTest.outputWindow !== pythonSettings.linting.outputWindow) {
+        lintingOutChannel = vscode.window.createOutputChannel(pythonSettings.linting.outputWindow);
+        lintingOutChannel.clear();
+    }
+
 
     sortImports.activate(context);
     activateUnitTestProvider(context, pythonSettings, unitTestOutChannel);
