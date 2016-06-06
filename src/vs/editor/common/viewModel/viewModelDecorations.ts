@@ -138,17 +138,12 @@ export class ViewModelDecorations implements IDisposable {
 				myDecoration.modelRange = theirDecoration.range;
 				myDecoration.range = this.converter.convertModelRangeToViewRange(theirDecoration.range, theirDecoration.options.isWholeLine);
 //				console.log(theirDecoration.range.toString() + '--->' + myDecoration.range.toString());
-
-				if (myDecoration.options.inlineClassName) {
-					inlineDecorationsChanged = true;
-				}
+				inlineDecorationsChanged = inlineDecorationsChanged || hasInlineChanges(myDecoration);
 				somethingChanged = true;
 			}
 
 			if (removedMap.hasOwnProperty(myDecoration.id)) {
-				if (this.decorations[i].options.inlineClassName) {
-					inlineDecorationsChanged = true;
-				}
+				inlineDecorationsChanged = inlineDecorationsChanged || hasInlineChanges(this.decorations[i]);
 				this.decorations.splice(i, 1);
 				len--;
 				i--;
@@ -166,9 +161,7 @@ export class ViewModelDecorations implements IDisposable {
 				myDecoration = new ViewModelDecoration(theirDecoration, this.converter.convertModelRangeToViewRange(theirDecoration.range, theirDecoration.options.isWholeLine));
 //				console.log(theirDecoration.range.toString() + '--->' + myDecoration.range.toString());
 				this.decorations.push(myDecoration);
-				if (myDecoration.options.inlineClassName) {
-					inlineDecorationsChanged = true;
-				}
+				inlineDecorationsChanged = inlineDecorationsChanged || hasInlineChanges(myDecoration);
 				somethingChanged = true;
 			}
 		}
@@ -195,7 +188,7 @@ export class ViewModelDecorations implements IDisposable {
 		for (i = 0, len = decorations.length; i < len; i++) {
 			d = decorations[i];
 			newRange = this.converter.convertModelRangeToViewRange(d.modelRange, d.options.isWholeLine);
-			if (!inlineDecorationsChanged && d.options.inlineClassName && !Range.equalsRange(newRange, d.range)) {
+			if (!inlineDecorationsChanged && hasInlineChanges(d) && !Range.equalsRange(newRange, d.range)) {
 				inlineDecorationsChanged = true;
 			}
 			if (!somethingChanged && !Range.equalsRange(newRange, d.range)) {
@@ -267,6 +260,24 @@ export class ViewModelDecorations implements IDisposable {
 					inlineDecorations[j - startLineNumber].push(d);
 				}
 			}
+			if (d.options.beforeContentClassName && r.startLineNumber >= startLineNumber) {
+				let beforeDecoration = {
+					id: d.id + '$beforeContent',
+					ownerId: d.ownerId,
+					range: new Range(r.startLineNumber, r.startColumn, r.startLineNumber, r.startColumn + 1),
+					options: { inlineClassName: d.options.beforeContentClassName, stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+				};
+				inlineDecorations[r.startLineNumber - startLineNumber].push(beforeDecoration);
+			}
+			if (d.options.afterContentClassName && r.endLineNumber <= endLineNumber) {
+				let afterDecoration = {
+					id: d.id + '$afterContent',
+					ownerId: d.ownerId,
+					range: new Range(r.endLineNumber, r.endColumn - 1, r.endLineNumber, r.endColumn),
+					options: { inlineClassName: d.options.afterContentClassName, stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+				};
+				inlineDecorations[r.endLineNumber - startLineNumber].push(afterDecoration);
+			}
 		}
 
 		return {
@@ -274,6 +285,9 @@ export class ViewModelDecorations implements IDisposable {
 			inlineDecorations: inlineDecorations
 		};
 	}
+}
 
-
+function hasInlineChanges(decoration:editorCommon.IModelDecoration) : boolean {
+	let options = decoration.options;
+	return !!(options.inlineClassName || options.beforeContentClassName || options.afterContentClassName);
 }

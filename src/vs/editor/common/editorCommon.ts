@@ -1041,6 +1041,14 @@ export interface IModelDecorationOptions {
 	 * to have a background color decoration.
 	 */
 	inlineClassName?:string;
+	/**
+	 * If set, the decoration will be rendered before the text with this CSS class name.
+	 */
+	beforeContentClassName?:string;
+	/**
+	 * If set, the decoration will be rendered after the text with this CSS class name.
+	 */
+	afterContentClassName?:string;
 }
 
 /**
