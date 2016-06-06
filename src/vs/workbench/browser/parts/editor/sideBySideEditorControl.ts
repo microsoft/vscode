@@ -189,7 +189,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		this.toDispose = [];
 
 		this.initActions();
-		this.initStyles();
 		this.create(this.parent);
 	}
 
@@ -224,26 +223,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Close All Editors in Group
 		this.closeEditorsInGroupActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
-	}
-
-	private initStyles(): void {
-		let grabCursor = isWindows ? 'cursor: url("' + require.toUrl('vs/workbench/browser/parts/editor/media/grab.cur') + '"), move;' : 'cursor: -webkit-grab;';
-		let grabbingCursor = isWindows ? 'cursor: url("' + require.toUrl('vs/workbench/browser/parts/editor/media/grabbing.cur') + '"), move;' : 'cursor: -webkit-grabbing;';
-
-		DOM.createCSSRule(
-			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title, ' +
-			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title .title-label a, ' +
-			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container .title .title-label span', grabCursor
-		);
-
-		DOM.createCSSRule(
-			'#monaco-workbench-editor-move-overlay, ' +
-			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged, ' +
-			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title, ' +
-			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title .title-label a, ' +
-			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .title .title-label span, ' +
-			'.monaco-workbench > .part.editor > .content.multiple-editors .one-editor-container.dragged .monaco-editor .view-lines', grabbingCursor
-		);
 	}
 
 	public get onGroupFocusChanged(): Event<void> {
@@ -816,6 +795,11 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			this.progressBar[position] = new ProgressBar($(this.containers[position]));
 			this.progressBar[position].getContainer().hide();
 		});
+
+		// Drag cursor
+		if (isWindows) {
+			parent.addClass('custom-drag-cursor');
+		}
 	}
 
 	private fillTitleArea(parent: Builder, position: Position): void {
@@ -854,7 +838,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				width: '100%',
 				height: '100%',
 				zIndex: 3000000
-			}).id('monaco-workbench-editor-move-overlay');
+			}).id(isWindows ? 'monaco-workbench-editor-move-overlay' : 'monaco-workbench-editor-move-overlay-custom-drag-cursor');
 			overlayDiv.appendTo(this.parent);
 
 			// Update flag
