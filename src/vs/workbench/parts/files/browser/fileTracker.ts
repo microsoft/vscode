@@ -140,7 +140,7 @@ export class FileTracker implements IWorkbenchContribution {
 		// Dispose all known inputs passed on resource
 		let oldFile = e.getBefore();
 		if ((e.gotMoved() || e.gotDeleted())) {
-			this.disposeAll(oldFile.resource);
+			this.handleDelete(oldFile.resource);
 		}
 	}
 
@@ -150,7 +150,7 @@ export class FileTracker implements IWorkbenchContribution {
 		let allDeleted = e.getDeleted();
 		if (allDeleted && allDeleted.length > 0) {
 			allDeleted.forEach((deleted) => {
-				this.disposeAll(deleted.resource);
+				this.handleDelete(deleted.resource);
 			});
 		}
 
@@ -353,37 +353,36 @@ export class FileTracker implements IWorkbenchContribution {
 		return null;
 	}
 
-	private disposeAll(deletedResource: URI): void {
-		if (this.textFileService.isDirty(deletedResource)) {
+	private handleDelete(resource: URI): void {
+		if (this.textFileService.isDirty(resource)) {
 			return; // never dispose dirty resources
 		}
 
 		// Add existing clients matching resource
-		let inputsContainingPath: EditorInput[] = FileEditorInput.getAll(deletedResource);
+		let inputsContainingPath: EditorInput[] = FileEditorInput.getAll(resource);
 
 		// Collect from history and opened editors and see which ones to pick
 		const candidates = this.historyService.getHistory();
 		this.stacks.groups.forEach(group => candidates.push(...group.getEditors()));
 		candidates.forEach(input => {
 			if (input instanceof DiffEditorInput) {
-				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, deletedResource);
+				input = this.getMatchingFileEditorInputFromDiff(<DiffEditorInput>input, resource);
 				if (input instanceof FileEditorInput) {
 					inputsContainingPath.push(<FileEditorInput>input);
 				}
 			}
 
 			// File Editor Input
-			else if (input instanceof FileEditorInput && this.containsResource(<FileEditorInput>input, deletedResource)) {
+			else if (input instanceof FileEditorInput && this.containsResource(<FileEditorInput>input, resource)) {
 				inputsContainingPath.push(<FileEditorInput>input);
 			}
 
 			// IFrame Input
-			else if (input instanceof IFrameEditorInput && this.containsResource(<IFrameEditorInput>input, deletedResource)) {
+			else if (input instanceof IFrameEditorInput && this.containsResource(<IFrameEditorInput>input, resource)) {
 				inputsContainingPath.push(<IFrameEditorInput>input);
 			}
 		});
 
-		// Clean up inputs that match
 		inputsContainingPath.forEach((input) => {
 
 			// Editor History
@@ -391,13 +390,12 @@ export class FileTracker implements IWorkbenchContribution {
 
 			// Dispose Input
 			if (!input.isDisposed()) {
-				if (input instanceof FileEditorInput) {
-					input.dispose(true /* force */);
-				} else {
-					input.dispose();
-				}
+				input.dispose();
 			}
 		});
+
+		// Clean up model if any
+		CACHE.dispose(resource);
 	}
 
 	private containsResource(input: FileEditorInput, resource: URI): boolean;

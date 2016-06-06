@@ -196,10 +196,15 @@ export abstract class TextFileService implements ITextFileService {
 				}
 			}, (error) => {
 
-				// FileNotFound means the file got deleted meanwhile, so dispose this model
+				// FileNotFound means the file got deleted meanwhile, so dispose
 				if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+
+					// Inputs
 					let clients = FileEditorInput.getAll(model.getResource());
-					clients.forEach((input) => input.dispose(true));
+					clients.forEach(input => input.dispose());
+
+					// Model
+					CACHE.dispose(model.getResource());
 
 					// store as successful revert
 					mapResourceToResult[model.getResource().toString()].success = true;
