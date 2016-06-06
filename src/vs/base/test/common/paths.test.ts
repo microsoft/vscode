@@ -68,6 +68,9 @@ suite('Paths', () => {
 		assert.equal(paths.normalize('foo\\bar'), 'foo/bar');
 		assert.equal(paths.normalize(null), null);
 		assert.equal(paths.normalize(undefined), undefined);
+
+		// https://github.com/Microsoft/vscode/issues/7234
+		assert.equal(paths.join('/home/aeschli/workspaces/vscode/extensions/css', './syntaxes/css.plist'), '/home/aeschli/workspaces/vscode/extensions/css/syntaxes/css.plist');
 	});
 
 	test('getRootLength', () => {
