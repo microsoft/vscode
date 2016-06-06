@@ -838,7 +838,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				width: '100%',
 				height: '100%',
 				zIndex: 3000000
-			}).id(isWindows ? 'monaco-workbench-editor-move-overlay' : 'monaco-workbench-editor-move-overlay-custom-drag-cursor');
+			}).id(isWindows ? 'monaco-workbench-editor-move-overlay-custom-drag-cursor' : 'monaco-workbench-editor-move-overlay');
 			overlayDiv.appendTo(this.parent);
 
 			// Update flag
