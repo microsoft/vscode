@@ -73,7 +73,7 @@ var tasks = compilations.map(function(tsconfigFile) {
 					addComment: false,
 					includeContent: !!build,
 					sourceRoot: function(file) {
-						var levels = file.relative.split('/').length;
+						var levels = file.relative.split(path.sep).length;
 						return '../'.repeat(levels) + 'src';
 					}
 				}))
