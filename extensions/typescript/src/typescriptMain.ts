@@ -371,6 +371,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
 			let converted = new Diagnostic(range, text);
 			converted.source = source;
+			converted.code = diagnostic.code;
 			result.push(converted);
 		}
 		return result;

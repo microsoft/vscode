@@ -984,6 +984,11 @@ export interface Diagnostic {
       * Text of diagnostic message.
       */
     text: string;
+
+    /**
+      * Unique code of diagnostic.
+      */
+    code: number;
 }
 
 export interface DiagnosticEventBody {
