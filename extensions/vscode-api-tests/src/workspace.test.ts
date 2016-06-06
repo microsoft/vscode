@@ -64,7 +64,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, untitled closes on save', function () {
+	test('openTextDocument, untitled closes on save', function (done) {
 		const path = join(workspace.rootPath, './newfile.txt');
 
 		return workspace.openTextDocument(Uri.parse('untitled:' + path)).then(doc => {
@@ -74,15 +74,18 @@ suite('workspace-namespace', () => {
 			let closed: TextDocument;
 			let d0 = workspace.onDidCloseTextDocument(e => closed = e);
 
-			return doc.save().then(() => {
-				assert.ok(closed === doc);
-				assert.ok(!doc.isDirty);
-				assert.ok(fs.existsSync(path));
+			return window.showTextDocument(doc).then(() => {
+				return doc.save().then(() => {
+					assert.ok(closed === doc);
+					assert.ok(!doc.isDirty);
+					assert.ok(fs.existsSync(path));
 
-				d0.dispose();
+					d0.dispose();
 
-				return deleteFile(Uri.file(join(workspace.rootPath, './newfile.txt')));
+					return deleteFile(Uri.file(join(workspace.rootPath, './newfile.txt'))).then(() => done(null));
+				});
 			});
+
 		});
 	});
 

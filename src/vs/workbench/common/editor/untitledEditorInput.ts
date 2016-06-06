@@ -58,7 +58,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
 	}
 
@@ -97,7 +97,9 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 	}
 
 	public revert(): TPromise<boolean> {
-		return this.textFileService.revert(this.resource);
+		this.cachedModel.revert();
+
+		return TPromise.as(true);
 	}
 
 	public suggestFileName(): string {
@@ -179,14 +181,14 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public dispose(): void {
 
+		// Listeners
+		dispose(this.toUnbind);
+
 		// Model
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
-
-		// Listeners
-		dispose(this.toUnbind);
 
 		super.dispose();
 	}

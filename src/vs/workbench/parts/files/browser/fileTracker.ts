@@ -65,7 +65,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Update editors and inputs from local changes and saves
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e: UntitledEditorEvent) => this.onUntitledEditorDeleted(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onUntitledEditorSaved(e)));
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledEditorDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVE_ERROR, (e: TextFileChangeEvent) => this.onTextFileSaveError(e)));
@@ -107,7 +107,7 @@ export class FileTracker implements IWorkbenchContribution {
 		this.updateActivityBadge();
 	}
 
-	private onUntitledEditorDeleted(e: UntitledEditorEvent): void {
+	private onUntitledEditorSaved(e: UntitledEditorEvent): void {
 		if (this.lastDirtyCount > 0) {
 			this.updateActivityBadge();
 		}
