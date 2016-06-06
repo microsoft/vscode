@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/sidebyside';
+import 'vs/css!./media/notabstitle';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
@@ -1034,7 +1035,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			'class': 'title-decoration'
 		}, (div) => {
 			this.titleDecoration[position] = div;
-
 		});
 
 		// Left Title Label
@@ -1258,10 +1258,8 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 			const isOverflowing = state.editorCount > 1;
 			const actions = [this.showEditorsOfGroup[state.position], this.showAllEditorsAction];
 			if (!isOverflowing) {
-				actions.forEach(a => a.class = 'show-group-editors-overflowing-action-hidden');
 				actions.forEach(a => a.enabled = false);
 			} else {
-				actions.forEach(a => a.class = 'show-group-editors-action');
 				actions.forEach(a => a.enabled = true);
 			}
 		}
@@ -1348,11 +1346,6 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		const canSplit = isActive && this.getVisibleEditorCount() < 3 && this.lastActiveEditor.supportsSplitEditor();
 		const primaryGroupActions = this.getPrimaryGroupActions(position, groupCount, canSplit, isOverflowing);
 		this.groupActionsToolbar[position].setActions(primaryGroupActions, this.getSecondaryGroupActions(position))();
-		if (primaryGroupActions.length) {
-			this.groupActionsToolbar[position].getContainer().addClass('has-primary-actions');
-		} else {
-			this.groupActionsToolbar[position].getContainer().removeClass('has-primary-actions');
-		}
 	}
 
 	public setTitleLabel(position: Position, input: EditorInput, isPinned: boolean, isActive: boolean): void {

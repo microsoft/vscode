@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Editor Container Styles */
-
 .vs .monaco-workbench .editor:not(.empty) > .content {
 	background-color: #F3F3F3;
 }
@@ -66,6 +64,10 @@
 	border-left: 1px solid #444;
 }
 
+.hc-black .monaco-workbench .editor > .content > .editor-center {
+	border-left: 1px solid #6FC3DF;
+}
+
 .vs .monaco-workbench .editor > .content > .editor-right {
 	border-left: 1px solid #E7E7E7;
 }
@@ -74,85 +76,15 @@
 	border-left: 1px solid #444;
 }
 
+.hc-black .monaco-workbench .editor > .content > .editor-right {
+	border-left: 1px solid #6FC3DF;
+}
+
 .monaco-workbench > .editor > .content .editor-container {
 	height: calc(100% - 35px); /* Editor is below editor title */
 }
 
-/* Editor Title Styles */
-
-.monaco-workbench > .part.editor > .content .inactive .title .title-actions {
-	opacity: 0.5;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title {
-	padding-right: 0px;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .editor-group-toolbar {
-	padding-left: 4px;
-	background-color: rgba(128, 128, 128, 0.2);
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .editor-group-toolbar.has-primary-actions {
-	padding-left: 8px;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
-	font-style: italic;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label {
-	font-style: normal;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration {
-	width: 16px;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
-	background-size: 16px;
-	background-position: left center;
-	background-repeat: no-repeat;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
-	background: url('close-dirty.svg') center center no-repeat;
-}
-
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty,
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
-	background: url('close-dirty-inverse.svg') center center no-repeat;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
-	color: #333333;
-}
-
-.vs .monaco-workbench > .part.editor > .content .inactive .title .title-label a {
-	color: rgba(51, 51, 51, 0.5);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
-	color: white;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .inactive .title .title-label a {
-	color: rgba(255, 255, 255, 0.5);
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
-	margin-left: 0.5em;
-	font-size: 0.9em;
-	cursor: default;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
-	color: rgba(108, 108, 108, 0.7);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
-	color: rgba(204, 204, 204, 0.7);
-}
+/* Actions */
 
 .monaco-workbench .close-editor-action {
 	background: url('close.svg') center center no-repeat;
@@ -178,11 +110,7 @@
 	background: url('stackview-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .show-group-editors-action-hidden {
-	display: none;
-}
-
-/* High Contrast Theming */
+/* High Contrast Icons */
 
 .hc-black .monaco-workbench .close-editor-action,
 .hc-black .monaco-workbench .show-group-editors-action,
@@ -215,12 +143,4 @@
 	left: 8px;
 	height: 16px;
 	width: 16px;
-}
-
-.hc-black .monaco-workbench .editor > .content > .editor-center {
-	border-left: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench .editor > .content > .editor-right {
-	border-left: 1px solid #6FC3DF;
 }
