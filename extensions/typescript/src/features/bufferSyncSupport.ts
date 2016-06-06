@@ -5,6 +5,7 @@
 'use strict';
 
 import * as fs from 'fs';
+import * as path from 'path';
 
 import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
@@ -78,6 +79,7 @@ export default class BufferSyncSupport {
 
 	private _validate: boolean;
 	private modeIds: Map<boolean>;
+	private extensions: Map<boolean>;
 	private diagnostics: Diagnostics;
 	private disposables: Disposable[] = [];
 	private syncedBuffers: Map<SyncedBuffer>;
@@ -86,11 +88,12 @@ export default class BufferSyncSupport {
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
 
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, validate: boolean = true) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: Map<boolean>, validate: boolean = true) {
 		this.client = client;
 		this.modeIds = Object.create(null);
 		modeIds.forEach(modeId => this.modeIds[modeId] = true);
 		this.diagnostics = diagnostics;
+		this.extensions = extensions;
 		this._validate = validate;
 
 		this.pendingDiagnostics = Object.create(null);
@@ -173,7 +176,7 @@ export default class BufferSyncSupport {
 			return;
 		}
 		// If the file still exists on disk keep on validating the file.
-		if (fs.existsSync(filepath)) {
+		if (fs.existsSync(filepath) && this.extensions[path.extname(filepath)]) {
 			this.closedFiles[filepath] = true;
 		} else {
 			// Ensure we don't have the file in the map and clear all errors.

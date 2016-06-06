@@ -16,6 +16,8 @@ import { env, languages, commands, workspace, window, Uri, ExtensionContext, Ind
 import * as nls from 'vscode-nls';
 nls.config({locale: env.language});
 
+import * as path from 'path';
+
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
@@ -39,6 +41,7 @@ interface LanguageDescription {
 	id: string;
 	diagnosticSource: string;
 	modeIds: string[];
+	extensions: string[];
 }
 
 export function activate(context: ExtensionContext): void {
@@ -51,12 +54,14 @@ export function activate(context: ExtensionContext): void {
 		{
 			id: 'typescript',
 			diagnosticSource: 'ts',
-			modeIds: [MODE_ID_TS, MODE_ID_TSX]
+			modeIds: [MODE_ID_TS, MODE_ID_TSX],
+			extensions: ['.ts', '.tsx']
 		},
 		{
 			id: 'javascript',
 			diagnosticSource: 'js',
-			modeIds: [MODE_ID_JS, MODE_ID_JSX]
+			modeIds: [MODE_ID_JS, MODE_ID_JSX],
+			extensions: ['.js', '.jsx']
 		}
 	]);
 
@@ -85,6 +90,7 @@ const validateSetting = 'validate.enable';
 class LanguageProvider {
 
 	private description: LanguageDescription;
+	private extensions: Map<boolean>;
 	private syntaxDiagnostics: Map<Diagnostic[]>;
 	private currentDiagnostics: DiagnosticCollection;
 	private bufferSyncSupport: BufferSyncSupport;
@@ -96,15 +102,18 @@ class LanguageProvider {
 
 	constructor(client: TypeScriptServiceClient, description: LanguageDescription) {
 		this.description = description;
+		this.extensions = Object.create(null);
+		description.extensions.forEach(extension => this.extensions[extension] = true);
 		this._validate = true;
 
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
 				this.currentDiagnostics.delete(Uri.file(file));
 			}
-		});
+		}, this.extensions);
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
+
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 		this.configurationChanged();
@@ -220,7 +229,8 @@ class LanguageProvider {
 	}
 
 	public handles(file: string): boolean {
-		return this.bufferSyncSupport.handles(file);
+		let extension = path.extname(file);
+		return (extension && this.extensions[extension]) || this.bufferSyncSupport.handles(file);
 	}
 
 	public get id(): string {
