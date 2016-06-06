@@ -10,6 +10,7 @@ import {Builder, $} from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
+import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
 import {Action, IActionRunner, IAction} from 'vs/base/common/actions';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
@@ -98,7 +99,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public renderHeader(container: HTMLElement): void {
 		let titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.workspace.name).appendTo(titleDiv);
+		$('span').text(this.workspace.name).title(labels.getPathLabel(this.workspace.resource.fsPath)).appendTo(titleDiv);
 
 		super.renderHeader(container);
 	}
