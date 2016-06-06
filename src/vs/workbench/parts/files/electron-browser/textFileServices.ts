@@ -87,7 +87,7 @@ export class TextFileService extends AbstractTextFileService {
 
 		// Save
 		if (confirm === ConfirmResult.SAVE) {
-			return this.saveAll(true /* includeUntitled */).then((result) => {
+			return this.saveAll(true /* includeUntitled */).then(result => {
 				if (result.results.some((r) => !r.success)) {
 					return true; // veto if some saves failed
 				}
@@ -114,20 +114,11 @@ export class TextFileService extends AbstractTextFileService {
 	public revertAll(resources?: URI[], force?: boolean): TPromise<ITextFileOperationResult> {
 
 		// Revert files
-		return super.revertAll(resources, force).then((r) => {
+		return super.revertAll(resources, force).then(r => {
 
 			// Revert untitled
-			let untitledInputs = this.untitledEditorService.getAll(resources);
-			untitledInputs.forEach((input) => {
-				if (input) {
-					input.dispose();
-
-					r.results.push({
-						source: input.getResource(),
-						success: true
-					});
-				}
-			});
+			const reverted = this.untitledEditorService.revertAll(resources);
+			reverted.forEach(res => r.results.push({ source: res, success: true }));
 
 			return r;
 		});

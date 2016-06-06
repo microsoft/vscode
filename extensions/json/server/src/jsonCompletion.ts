@@ -10,7 +10,7 @@ import SchemaService = require('./jsonSchemaService');
 import JsonSchema = require('./jsonSchema');
 import {IJSONWorkerContribution} from './jsonContributions';
 
-import {CompletionItem, CompletionItemKind, CompletionList, ITextDocument, TextDocumentPosition, Range, TextEdit, RemoteConsole} from 'vscode-languageserver';
+import {CompletionItem, CompletionItemKind, CompletionList, TextDocument, Position, Range, TextEdit, RemoteConsole} from 'vscode-languageserver';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -46,9 +46,9 @@ export class JSONCompletion {
 		return Promise.resolve(item);
 	}
 
-	public doSuggest(document: ITextDocument, textDocumentPosition: TextDocumentPosition, doc: Parser.JSONDocument): Thenable<CompletionList> {
+	public doSuggest(document: TextDocument, position: Position, doc: Parser.JSONDocument): Thenable<CompletionList> {
 
-		let offset = document.offsetAt(textDocumentPosition.position);
+		let offset = document.offsetAt(position);
 		let node = doc.getNodeFromOffsetEndInclusive(offset);
 
 		let currentWord = this.getCurrentWord(document, offset);
@@ -61,7 +61,7 @@ export class JSONCompletion {
 		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
 			overwriteRange = Range.create(document.positionAt(node.start), document.positionAt(node.end));
 		} else {
-			overwriteRange = Range.create(document.positionAt(offset - currentWord.length), textDocumentPosition.position);
+			overwriteRange = Range.create(document.positionAt(offset - currentWord.length), position);
 		}
 
 		let proposed: { [key: string]: boolean } = {};
@@ -87,7 +87,7 @@ export class JSONCompletion {
 			}
 		};
 
-		return this.schemaService.getSchemaForResource(textDocumentPosition.uri, doc).then((schema) => {
+		return this.schemaService.getSchemaForResource(document.uri, doc).then((schema) => {
 			let collectionPromises: Thenable<any>[] = [];
 
 			let addValue = true;
@@ -134,7 +134,7 @@ export class JSONCompletion {
 
 				let location = node.getNodeLocation();
 				this.contributions.forEach((contribution) => {
-					let collectPromise = contribution.collectPropertySuggestions(textDocumentPosition.uri, location, currentWord, addValue, isLast, collector);
+					let collectPromise = contribution.collectPropertySuggestions(document.uri, location, currentWord, addValue, isLast, collector);
 					if (collectPromise) {
 						collectionPromises.push(collectPromise);
 					}
@@ -157,7 +157,7 @@ export class JSONCompletion {
 
 			if (!node) {
 				this.contributions.forEach((contribution) => {
-					let collectPromise = contribution.collectDefaultSuggestions(textDocumentPosition.uri, collector);
+					let collectPromise = contribution.collectDefaultSuggestions(document.uri, collector);
 					if (collectPromise) {
 						collectionPromises.push(collectPromise);
 					}
@@ -170,7 +170,7 @@ export class JSONCompletion {
 					if (!valueNode || offset <= valueNode.end) {
 						let location = node.parent.getNodeLocation();
 						this.contributions.forEach((contribution) => {
-							let collectPromise = contribution.collectValueSuggestions(textDocumentPosition.uri, location, parentKey, collector);
+							let collectPromise = contribution.collectValueSuggestions(document.uri, location, parentKey, collector);
 							if (collectPromise) {
 								collectionPromises.push(collectPromise);
 							}
@@ -230,7 +230,7 @@ export class JSONCompletion {
 		}
 	}
 
-	private getSchemaLessValueSuggestions(doc: Parser.JSONDocument, node: Parser.ASTNode, offset: number, document: ITextDocument, collector: ISuggestionsCollector): void {
+	private getSchemaLessValueSuggestions(doc: Parser.JSONDocument, node: Parser.ASTNode, offset: number, document: TextDocument, collector: ISuggestionsCollector): void {
 		let collectSuggestionsForValues = (value: Parser.ASTNode) => {
 			if (!value.contains(offset)) {
 				let content = this.getTextForMatchingNode(value, document);
@@ -449,7 +449,7 @@ export class JSONCompletion {
 	}
 
 
-	private getTextForMatchingNode(node: Parser.ASTNode, document: ITextDocument): string {
+	private getTextForMatchingNode(node: Parser.ASTNode, document: TextDocument): string {
 		switch (node.type) {
 			case 'array':
 				return '[]';
@@ -513,7 +513,7 @@ export class JSONCompletion {
 		return this.getTextForValue(key);
 	}
 
-	private getCurrentWord(document: ITextDocument, offset: number) {
+	private getCurrentWord(document: TextDocument, offset: number) {
 		var i = offset - 1;
 		var text = document.getText();
 		while (i >= 0 && ' \t\n\r\v":{[,'.indexOf(text.charAt(i)) === -1) {

@@ -51,6 +51,8 @@ import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler
 
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import Constants from 'vs/workbench/parts/markers/common/constants';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 
@@ -368,7 +370,8 @@ class StatusBarItem implements IStatusbarItem {
 
 	constructor(@IPanelService panelService:IPanelService,
 		@IMarkerService markerService:IMarkerService, @IOutputService outputService:IOutputService,
-		@ITaskService taskService:ITaskService) {
+		@ITaskService taskService:ITaskService,
+		@IPartService private partService: IPartService) {
 
 		this.panelService = panelService;
 		this.markerService = markerService;
@@ -418,8 +421,13 @@ class StatusBarItem implements IStatusbarItem {
 //		}));
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e:MouseEvent) => {
-			this.panelService.openPanel('workbench.panel.markers', true);
-		}));
+			const panel= this.panelService.getActivePanel();
+			if (panel && panel.getId() === Constants.MARKERS_PANEL_ID) {
+				this.partService.setPanelHidden(true);
+			} else {
+				this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
+			}
+			}));
 
 		let updateStatus = (element:HTMLDivElement, stats:number): boolean => {
 			if (stats > 0) {

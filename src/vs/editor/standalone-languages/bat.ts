@@ -5,24 +5,19 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
 
-export var language = <ILanguage> {
-	displayName:    'Batch',
-	name:           'bat',
-	defaultToken: '',
-	ignoreCase: true,
-
-	lineComment: 'REM',
-
-	autoClosingPairs: [	['{','}' ], 	['[',']' ],	['(',')' ],	['"','"' ]], // Exclude '
-
-	brackets: [
-		{ token: 'punctuation.bracket', open: '{', close: '}' },
-		{ token: 'punctuation.parenthesis', open: '(', close: ')' },
-		{ token: 'punctuation.square', open: '[', close: ']' }
-	],
-
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: 'REM'
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+	]
 	// enhancedBrackets: [
 	// 		{
 	// 			openTrigger: 'l',
@@ -34,6 +29,18 @@ export var language = <ILanguage> {
 	// 			tokenType: 'keyword.tag-setlocal'
 	// 		}
 	// 	],
+};
+
+export var language = <ILanguage> {
+	defaultToken: '',
+	ignoreCase: true,
+	tokenPostfix: '.bat',
+
+	brackets: [
+		{ token: 'punctuation.bracket', open: '{', close: '}' },
+		{ token: 'punctuation.parenthesis', open: '(', close: ')' },
+		{ token: 'punctuation.square', open: '[', close: ']' }
+	],
 
 	keywords: /call|defined|echo|errorlevel|exist|for|goto|if|pause|set|shift|start|title|not|pushd|popd/,
 

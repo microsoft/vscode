@@ -30,7 +30,14 @@ export class Marker {
 
 export class FilterOptions {
 	public filterErrors: boolean= false;
+	public filterWarnings: boolean= false;
+	public filterInfos: boolean= false;
 	public filterValue: string= '';
+	public completeValue: string= '';
+
+	public hasActiveFilters():boolean {
+		return this.filterErrors || this.filterWarnings || this.filterInfos || !!this.filterValue;
+	}
 }
 
 export class MarkersModel {
@@ -47,22 +54,12 @@ export class MarkersModel {
 		this.update(markers);
 	}
 
+	public get filterOptions(): FilterOptions {
+		return this._filterOptions;
+	}
+
 	public get filteredResources(): Resource[] {
 		return this._filteredResources;
-	}
-
-	public get filterErrors():boolean {
-		return this._filterOptions.filterErrors;
-	}
-
-	public toggleFilterErrors() {
-		this._filterOptions.filterErrors= !this._filterOptions.filterErrors;
-		this.update();
-	}
-
-	public set filter(filter:string) {
-		this._filterOptions.filterValue= filter;
-		this.update();
 	}
 
 	public hasFilteredResources(): boolean {
@@ -81,10 +78,14 @@ export class MarkersModel {
 		return this._nonFilteredResources;
 	}
 
+	public update(filterOptions: FilterOptions);
 	public update(resourceUri: URI, markers: IMarker[]);
 	public update(markers: IMarker[]);
-	public update();
 	public update(arg1?: any, arg2?: any) {
+		if (arg1 instanceof FilterOptions) {
+			this._filterOptions= arg1;
+		}
+
 		if (arg1 instanceof URI) {
 			this.updateResource(arg1, arg2);
 		}
@@ -150,6 +151,12 @@ export class MarkersModel {
 		if (this._filterOptions.filterErrors && Severity.Error !== marker.severity) {
 			return false;
 		}
+		if (this._filterOptions.filterWarnings && Severity.Warning !== marker.severity) {
+			return false;
+		}
+		if (this._filterOptions.filterInfos && Severity.Info !== marker.severity) {
+			return false;
+		}
 		if (this._filterOptions.filterValue) {
 			const labelHighlights = Marker._filter(this._filterOptions.filterValue, marker.message);
 			const descHighlights = Marker._filter(this._filterOptions.filterValue, marker.resource.toString());
@@ -195,16 +202,7 @@ export class MarkersModel {
 
 	public getTitle(markerStatistics: MarkerStatistics):string {
 		let title= MarkersModel.getStatisticsLabel(markerStatistics);
-		if (!title) {
-			return Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS;
-		}
-		if (this._filterOptions.filterValue) {
-			return title + ' ' + Messages.MARKERS_PANEL_TITLE_SHOWING_FILTERED;
-		}
-		if (this._filterOptions.filterErrors) {
-			return title + ' ' + Messages.MARKERS_PANEL_TITLE_SHOWING_ONLY_ERRORS;
-		}
-		return title;
+		return title ? title : Messages.MARKERS_PANEL_TITLE_NO_PROBLEMS;
 	}
 
 	public getMessage():string {
@@ -212,11 +210,8 @@ export class MarkersModel {
 			return '';
 		}
 		if (this.hasResources()) {
-			if (this._filterOptions.filterValue) {
+			if (this._filterOptions.hasActiveFilters()) {
 				return Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
-			}
-			if (this._filterOptions.filterErrors) {
-				return Messages.MARKERS_PANEL_NO_ERRORS;
 			}
 		}
 		return Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;

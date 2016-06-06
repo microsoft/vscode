@@ -10,10 +10,6 @@ import {workspace, languages, ExtensionContext, extensions, Uri} from 'vscode';
 import {LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-namespace TelemetryNotification {
-	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
-}
-
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = { get method() { return 'vscode/content'; } };
 }
@@ -68,7 +64,7 @@ export function activate(context: ExtensionContext) {
 
 		// Create the language client and start the client.
 		let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
-		client.onNotification(TelemetryNotification.type, e => {
+		client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
 			}

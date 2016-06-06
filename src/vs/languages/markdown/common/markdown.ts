@@ -19,21 +19,14 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
-import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
 	<Types.ILanguage>{
-		displayName: 'Markdown',
-		name: 'md',
 		defaultToken: '',
-
-		autoClosingPairs: [],
-
-		blockCommentStart: '<!--',
-		blockCommentEnd: '-->',
+		tokenPostfix: '.md',
 
 		// escape codes
 		control: /[\\`*_\[\]{}()#+\-\.!]/,
@@ -206,10 +199,17 @@ export const language =
 
 export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSupport {
 
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		comments: {
+			blockComment: ['<!--', '-->',]
+		},
+		brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+		autoClosingPairs: []
+	};
+
 	public emitOutputSupport: Modes.IEmitOutputSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public richEditSupport: Modes.IRichEditSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<MarkdownWorker.MarkdownWorker>;
 	private _threadService:IThreadService;
@@ -223,7 +223,7 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(descriptor.id);
-		let lexer = Compile.compile(language);
+		let lexer = Compile.compile(descriptor.id, language);
 
 		this._modeWorkerManager = new ModeWorkerManager<MarkdownWorker.MarkdownWorker>(descriptor, 'vs/languages/markdown/common/markdownWorker', 'MarkdownWorker', null, instantiationService);
 		this._threadService = threadService;
@@ -233,7 +233,7 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
+		LanguageConfigurationRegistry.register(this.getId(), MarkdownMode.LANG_CONFIG);
 
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],

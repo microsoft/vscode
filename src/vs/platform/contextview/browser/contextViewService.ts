@@ -14,7 +14,11 @@ export class ContextViewService implements IContextViewService {
 
 	private contextView: ContextView;
 
-	constructor(container: HTMLElement, telemetryService: ITelemetryService, messageService: IMessageService) {
+	constructor(
+		container: HTMLElement,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService
+	) {
 		this.contextView = new ContextView(container);
 	}
 

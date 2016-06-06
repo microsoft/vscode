@@ -5,10 +5,10 @@
 
 'use strict';
 
-import {language} from 'vs/editor/standalone-languages/coffee';
+import {language, conf} from 'vs/editor/standalone-languages/coffee';
 import {testOnEnter, testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-testOnEnter('coffeescript', language, (assertOnEnter) => {
+testOnEnter('coffeescript', conf, (assertOnEnter) => {
 	assertOnEnter.nothing('', ' a', '');
 	assertOnEnter.indents('', ' {', '');
 	assertOnEnter.indents('', '( ', '');

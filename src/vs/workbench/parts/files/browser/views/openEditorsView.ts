@@ -5,6 +5,7 @@
 
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
+import {RunOnceScheduler} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction, IActionRunner} from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
@@ -22,7 +23,7 @@ import {SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {ITextFileService, IFilesConfiguration, VIEWLET_ID, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorStacksModel, IStacksModelChangeEvent} from 'vs/workbench/common/editor';
+import {IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup} from 'vs/workbench/common/editor';
 import {Renderer, DataSource, Controller, AccessibilityProvider,  ActionProvider, OpenEditor, DragAndDrop} from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CloseAllEditorsAction} from 'vs/workbench/browser/parts/editor/editorActions';
@@ -41,6 +42,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
+	private structuralTreeRefreshScheduler: RunOnceScheduler;
+	private structuralRefreshDelay: number;
+	private groupToRefresh: IEditorGroup;
+	private fullRefreshNeeded: boolean;
 
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IMessageService messageService: IMessageService,
@@ -58,6 +63,9 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
+
+		this.structuralRefreshDelay = 0;
+		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -101,7 +109,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			ariaLabel: nls.localize('treeAriaLabel', "Open Editors")
 		});
 
-		this.updateTree({ structural: true, group: null });
+		this.fullRefreshNeeded = true;
+		this.structuralTreeUpdate();
 	}
 
 	public create(): TPromise<void> {
@@ -119,7 +128,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private registerListeners(): void {
 
 		// update on model changes
-		this.toDispose.push(this.model.onModelChanged(e => this.updateTree(e)));
+		this.toDispose.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
 
 		// Also handle configuration updates
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
@@ -127,50 +136,65 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === VIEWLET_ID) {
-				this.updateTree({ structural: true, group: null });
+				this.fullRefreshNeeded = true;
+				this.structuralTreeUpdate();
 			}
 		}));
 	}
 
-	private updateTree(e: IStacksModelChangeEvent): void {
-		if (this.isDisposed || !this.isVisible) {
+	private onEditorStacksModelChanged(e: IStacksModelChangeEvent): void {
+		if (this.isDisposed || !this.isVisible || !this.tree) {
 			return;
 		}
 
-		if (this.tree) {
-			// Do a minimal tree update based on if the change is structural or not #6670
-			if (e.structural) {
-				// View size
-				this.expandedBodySize = this.getExpandedBodySize(this.model);
-
-				// Show groups only if there is more than 1 group
-				const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
-				// If an editor changed structurally it is enough to refresh the group, otherwise a group changed structurally and we need the full refresh.
-				const toRefresh = e.editor ? e.group : null;
-				(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh(toRefresh))
-				// Always expand all the groups as they are unclickable
-					.done(() => this.tree.expandAll(this.model.groups), errors.onUnexpectedError);
+		// Do a minimal tree update based on if the change is structural or not #6670
+		if (e.structural) {
+			// If an editor changed structurally it is enough to refresh the group, otherwise a group changed structurally and we need the full refresh.
+			// If there are multiple groups to refresh - refresh the whole tree.
+			if (e.editor && !this.groupToRefresh) {
+				this.groupToRefresh = e.group;
 			} else {
-				const toRefresh = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
-				this.tree.refresh(toRefresh, false).done(null, errors.onUnexpectedError);
-				this.updateDirtyIndicator();
+				this.fullRefreshNeeded = true;
 			}
-		}
-
-		// Make sure to keep active open editor highlighted
-		if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
-			this.highlightEntry(new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup));
+			this.structuralTreeRefreshScheduler.schedule(this.structuralRefreshDelay);
+		} else {
+			const toRefresh = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
+			this.tree.refresh(toRefresh, false).done(null, errors.onUnexpectedError);
+			this.updateDirtyIndicator();
+			this.highlightActiveEditor();
 		}
 	}
 
-	private highlightEntry(entry: OpenEditor): void {
-		this.tree.clearFocus();
-		this.tree.clearSelection();
+	private structuralTreeUpdate(): void {
+		// View size
+		this.expandedBodySize = this.getExpandedBodySize(this.model);
+		// Show groups only if there is more than 1 group
+		const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
+		// TODO@Isidor temporary workaround due to a partial tree refresh issue
+		this.fullRefreshNeeded = true;
+		const toRefresh = this.fullRefreshNeeded ? null : this.groupToRefresh;
 
-		if (entry) {
-			this.tree.setFocus(entry);
-			this.tree.setSelection([entry]);
-			this.tree.reveal(entry).done(null, errors.onUnexpectedError);
+		(treeInput !== this.tree.getInput() ? this.tree.setInput(treeInput) : this.tree.refresh(toRefresh)).done(() => {
+			this.fullRefreshNeeded = false;
+			this.groupToRefresh = null;
+			this.highlightActiveEditor();
+
+			// Always expand all the groups as they are unclickable
+			return this.tree.expandAll(this.model.groups);
+		}, errors.onUnexpectedError);
+	}
+
+	private highlightActiveEditor(): void {
+		if (this.model.activeGroup && this.model.activeGroup.activeEditor /* could be empty */) {
+			const openEditor = new OpenEditor(this.model.activeGroup.activeEditor, this.model.activeGroup);
+			this.tree.clearFocus();
+			this.tree.clearSelection();
+
+			if (openEditor) {
+				this.tree.setFocus(openEditor);
+				this.tree.setSelection([openEditor]);
+				this.tree.reveal(openEditor).done(null, errors.onUnexpectedError);
+			}
 		}
 	}
 
@@ -223,6 +247,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}
 
 		return itemsToShow * Renderer.ITEM_HEIGHT;
+	}
+
+	public setStructuralRefreshDelay(delay: number): void {
+		this.structuralRefreshDelay = delay;
 	}
 
 	public getOptimalWidth():number {

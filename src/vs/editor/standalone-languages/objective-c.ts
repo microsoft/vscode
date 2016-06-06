@@ -5,16 +5,27 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '//',
+		blockComment: ['/*', '*/'],
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+		{ open: '<', close: '>', notIn: ['string', 'comment'] },
+	]
+};
 
 export var language = <ILanguage> {
-	displayName: 'Objective-C',
-	name: 'objective-c',
 	defaultToken: '',
-
-	lineComment: '//',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
+	tokenPostfix: '.objective-c',
 
 	keywords: [
 		'#import',

@@ -104,7 +104,7 @@ export class SwitchingMode extends MockMode {
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
 	}
 
-	registerSupport<T>(support:modes.MutableSupport, callback:(mode:modes.IMode)=>T): IDisposable {
+	setTokenizationSupport<T>(callback:(mode:modes.IMode)=>T): IDisposable {
 		return EmptyDisposable;
 	}
 
@@ -336,8 +336,8 @@ suite('Editor Modes - Tokenization', () => {
 			{ startIndex: 5, id: 'B' }
 		]);
 
-		handleEvent(createMockLineContext('abc (def', lineTokens), 0, (mode:modes.IMode, context:modes.ILineContext, offset:number) => {
-			assert.deepEqual(mode.getId(), 'A');
+		handleEvent(createMockLineContext('abc (def', lineTokens), 0, (modeId:string, context:modes.ILineContext, offset:number) => {
+			assert.deepEqual(modeId, 'A');
 			assert.equal(context.getTokenCount(), 3);
 			assert.equal(context.getTokenStartIndex(0), 0);
 			assert.equal(context.getTokenType(0), 'A.abc');
@@ -349,8 +349,8 @@ suite('Editor Modes - Tokenization', () => {
 			assert.equal(context.getLineContent(), 'abc (');
 		});
 
-		handleEvent(createMockLineContext('abc (def', lineTokens), 6, (mode:modes.IMode, context:modes.ILineContext, offset:number) => {
-			assert.deepEqual(mode.getId(), 'B');
+		handleEvent(createMockLineContext('abc (def', lineTokens), 6, (modeId:string, context:modes.ILineContext, offset:number) => {
+			assert.deepEqual(modeId, 'B');
 			assert.equal(context.getTokenCount(), 1);
 			assert.equal(context.getTokenStartIndex(0), 0);
 			assert.equal(context.getTokenType(0), 'B.def');

@@ -73,34 +73,6 @@ suite('Files - TextFileEditorModel', () => {
 		CACHE.clear();
 	});
 
-	test('Resolves from cache and disposes when last input disposed', function (done) {
-		let c1 = baseInstantiationService.createInstance(FileEditorInput, toResource('/path/index.txt'), 'text/plain', 'utf8');
-		let c2 = baseInstantiationService.createInstance(FileEditorInput, toResource('/path/index.txt'), 'text/plain', 'utf8');
-		let c3 = baseInstantiationService.createInstance(FileEditorInput, toResource('/path/index.txt'), 'text/plain', 'utf8');
-
-		c1.resolve(true).then((model1) => {
-			c2.resolve(true).then((model2) => {
-				assert.equal(model1, model2);
-
-				c2.dispose(false);
-				c1.resolve(true).then((model3) => {
-					assert.equal(model1, model3);
-
-					c1.dispose(true);
-					c3.resolve(true).then((model4) => {
-						assert.ok(model4 !== model1);
-
-						c1.dispose(true);
-						c2.dispose(true);
-						c3.dispose(true);
-
-						done();
-					});
-				});
-			});
-		});
-	});
-
 	test('Load does not trigger save', function (done) {
 		let m1 = baseInstantiationService.createInstance(TextFileEditorModel, toResource('/path/index.txt'), 'utf8');
 
@@ -145,7 +117,7 @@ suite('Files - TextFileEditorModel', () => {
 	test('Revert', function (done) {
 		let eventCounter = 0;
 
-		eventService.addListener2('files:fileReverted', () => {
+		eventService.addListener2(EventType.FILE_REVERTED, () => {
 			eventCounter++;
 		});
 
@@ -271,8 +243,8 @@ suite('Files - TextFileEditorModel', () => {
 						assert.ok(m1.getLastModifiedTime() > m1Mtime);
 						assert.ok(m2.getLastModifiedTime() > m2Mtime);
 
-						c1.dispose(true);
-						c2.dispose(true);
+						m1.dispose();
+						m2.dispose();
 
 						done();
 					});

@@ -63,7 +63,7 @@ suite('LESS-tokenization', () => {
 		);
 
 		tokenizationSupport = mode.tokenizationSupport;
-		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), LESSMode.LANG_CONFIG);
 	})();
 
 	test('', () => {

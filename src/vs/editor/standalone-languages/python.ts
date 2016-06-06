@@ -5,16 +5,28 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '#',
+		blockComment: ['\'\'\'', '\'\'\''],
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+	]
+	// Cause an automatic indent to occur after lines ending in :.
+	// enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
+};
 
 export var language = <ILanguage> {
-	displayName: '',
-	name: 'python',
 	defaultToken: '',
-
-	lineComment: '#',
-	blockCommentStart: '\'\'\'',
-	blockCommentEnd: '\'\'\'',
+	tokenPostfix: '.python',
 
 	keywords: [
 		'and',
@@ -154,9 +166,6 @@ export var language = <ILanguage> {
 		{ open: '[', close: ']', token: 'delimiter.bracket' },
 		{ open: '(', close: ')', token: 'delimiter.parenthesis' }
 	],
-
-	// Cause an automatic indent to occur after lines ending in :.
-	// enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
 
 	tokenizer: {
 	root: [

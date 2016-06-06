@@ -26,15 +26,6 @@ class MockConfigurationService implements IConfigurationService {
 	public setUserConfiguration(key: any, value: any): Thenable<void> { return TPromise.as(null); }
 }
 
-class MockThemeService implements IThemeService {
-	public constructor(private activeTheme: string = undefined) {}
-	public serviceId: ServiceIdentifier<any>;
-	public setTheme(themeId: string, broadcastToAllWindows: boolean): TPromise<boolean> { return null; }
-	public getTheme(): string { return this.activeTheme; }
-	public getThemes(): TPromise<IThemeData[]> { return null; }
-	public onDidThemeChange: Event<string>;
-}
-
 suite('Workbench - TerminalConfigHelper', () => {
 	let fixture: HTMLElement;
 	let fixtureId = 'terminal-config-helper-fixture';
@@ -49,7 +40,6 @@ suite('Workbench - TerminalConfigHelper', () => {
 	});
 
 	test('TerminalConfigHelper - getFont', function () {
-		let themeService: IThemeService = new MockThemeService();
 		let configurationService: IConfigurationService;
 		let configHelper: TerminalConfigHelper;
 
@@ -63,7 +53,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 
 		configurationService = new MockConfigurationService({
@@ -76,7 +66,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getFont().fontFamily, 'foo', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
 
 		configurationService = new MockConfigurationService({
@@ -91,7 +81,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getFont().fontSize, 2, 'terminal.integrated.fontSize should be selected over editor.fontSize');
 
 		configurationService = new MockConfigurationService({
@@ -106,7 +96,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getFont().fontSize, 1, 'editor.fontSize should be the fallback when terminal.integrated.fontSize not set');
 
 		configurationService = new MockConfigurationService({
@@ -121,7 +111,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 
 		configurationService = new MockConfigurationService({
@@ -136,12 +126,11 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be the fallback when terminal.integrated.lineHeight not set');
 	});
 
 	test('TerminalConfigHelper - getShell', function () {
-		let themeService: IThemeService = new MockThemeService();
 		let configurationService: IConfigurationService;
 		let configHelper: TerminalConfigHelper;
 
@@ -154,7 +143,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
 		assert.equal(configHelper.getShell(), 'foo', 'terminal.integrated.shell.linux should be selected on Linux');
 
 		configurationService = new MockConfigurationService({
@@ -166,7 +155,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Mac, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Mac, configurationService, fixture);
 		assert.equal(configHelper.getShell(), 'foo', 'terminal.integrated.shell.osx should be selected on OS X');
 
 		configurationService = new MockConfigurationService({
@@ -178,18 +167,16 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Windows, configurationService, themeService, fixture);
+		configHelper = new TerminalConfigHelper(Platform.Windows, configurationService, fixture);
 		assert.equal(configHelper.getShell(), 'foo', 'terminal.integrated.shell.windows should be selected on Windows');
 	});
 
 	test('TerminalConfigHelper - getTheme', function () {
 		let configurationService: IConfigurationService = new MockConfigurationService();
-		let themeService: IThemeService;
 		let configHelper: TerminalConfigHelper;
 
-		themeService = new MockThemeService('hc-black foo');
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
-		assert.deepEqual(configHelper.getTheme(), [
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
+		assert.deepEqual(configHelper.getTheme('hc-black foo'), [
 			'#000000',
 			'#cd0000',
 			'#00cd00',
@@ -208,9 +195,8 @@ suite('Workbench - TerminalConfigHelper', () => {
 			'#ffffff'
 		], 'The high contrast terminal theme should be selected when the hc-black theme is active');
 
-		themeService = new MockThemeService('vs foo');
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
-		assert.deepEqual(configHelper.getTheme(), [
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
+		assert.deepEqual(configHelper.getTheme('vs foo'), [
 			'#000000',
 			'#cd3131',
 			'#008000',
@@ -229,9 +215,8 @@ suite('Workbench - TerminalConfigHelper', () => {
 			'#a5a5a5'
 		], 'The light terminal theme should be selected when a vs theme is active');
 
-		themeService = new MockThemeService('vs-dark foo');
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, themeService, fixture);
-		assert.deepEqual(configHelper.getTheme(), [
+		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, fixture);
+		assert.deepEqual(configHelper.getTheme('vs-dark foo'), [
 			'#000000',
 			'#cd3131',
 			'#09885a',

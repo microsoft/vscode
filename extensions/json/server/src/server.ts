@@ -5,11 +5,10 @@
 'use strict';
 
 import {
-	IPCMessageReader, IPCMessageWriter,
-	createConnection, IConnection,
-	TextDocuments, ITextDocument, Diagnostic, DiagnosticSeverity,
-	InitializeParams, InitializeResult, TextDocumentIdentifier, TextDocumentPosition, CompletionList,
-	CompletionItem, Hover, SymbolInformation, DocumentFormattingParams,
+	IPCMessageReader, IPCMessageWriter, createConnection, IConnection,
+	TextDocuments, TextDocument, Diagnostic, DiagnosticSeverity,
+	InitializeParams, InitializeResult, TextDocumentPositionParams, CompletionList,
+	CompletionItem, Hover, SymbolInformation, DocumentFormattingParams, DocumentSymbolParams,
 	DocumentRangeFormattingParams, NotificationType, RequestType
 } from 'vscode-languageserver';
 
@@ -32,10 +31,6 @@ import {FileAssociationContribution} from './jsoncontributions/fileAssociationCo
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
-
-namespace TelemetryNotification {
-	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
-}
 
 namespace SchemaAssociationNotification {
 	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
@@ -89,7 +84,7 @@ let workspaceContext = {
 
 let telemetry = {
 	log: (key: string, data: any) => {
-		connection.sendNotification(TelemetryNotification.type, { key, data });
+		connection.telemetry.logEvent({ key, data });
 	}
 };
 
@@ -208,7 +203,7 @@ function updateConfiguration() {
 }
 
 
-function validateTextDocument(textDocument: ITextDocument): void {
+function validateTextDocument(textDocument: TextDocument): void {
 	if (textDocument.getText().length === 0) {
 		// ignore empty documents
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
@@ -268,28 +263,28 @@ connection.onDidChangeWatchedFiles((change) => {
 	}
 });
 
-function getJSONDocument(document: ITextDocument): JSONDocument {
+function getJSONDocument(document: TextDocument): JSONDocument {
 	return parseJSON(document.getText());
 }
 
-connection.onCompletion((textDocumentPosition: TextDocumentPosition): Thenable<CompletionList> => {
-	let document = documents.get(textDocumentPosition.uri);
+connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): Thenable<CompletionList> => {
+	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
-	return jsonCompletion.doSuggest(document, textDocumentPosition, jsonDocument);
+	return jsonCompletion.doSuggest(document, textDocumentPosition.position, jsonDocument);
 });
 
 connection.onCompletionResolve((item: CompletionItem) : Thenable<CompletionItem> => {
 	return jsonCompletion.doResolve(item);
 });
 
-connection.onHover((textDocumentPosition: TextDocumentPosition): Thenable<Hover> => {
-	let document = documents.get(textDocumentPosition.uri);
+connection.onHover((textDocumentPosition: TextDocumentPositionParams): Thenable<Hover> => {
+	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
-	return jsonHover.doHover(document, textDocumentPosition, jsonDocument);
+	return jsonHover.doHover(document, textDocumentPosition.position, jsonDocument);
 });
 
-connection.onDocumentSymbol((textDocumentIdentifier: TextDocumentIdentifier): Thenable<SymbolInformation[]> => {
-	let document = documents.get(textDocumentIdentifier.uri);
+connection.onDocumentSymbol((documentSymbolParams: DocumentSymbolParams): Thenable<SymbolInformation[]> => {
+	let document = documents.get(documentSymbolParams.textDocument.uri);
 	let jsonDocument = getJSONDocument(document);
 	return jsonDocumentSymbols.compute(document, jsonDocument);
 });

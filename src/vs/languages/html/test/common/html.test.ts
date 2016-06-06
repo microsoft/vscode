@@ -5,12 +5,10 @@
 'use strict';
 
 import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {Model} from 'vs/editor/common/model/model';
 import {getTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE, COMMENT, DELIM_COMMENT, DELIM_DOCTYPE, DOCTYPE} from 'vs/languages/html/common/htmlTokenTypes';
-import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {Range} from 'vs/editor/common/core/range';
@@ -23,16 +21,14 @@ import {InstantiationService} from 'vs/platform/instantiation/common/instantiati
 import {HTMLMode} from 'vs/languages/html/common/html';
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class MockJSMode extends MockTokenizingMode {
 
-	public richEditSupport: Modes.IRichEditSupport;
-
 	constructor() {
-		super('js', 'mock-js');
+		super('html-js-mock', 'mock-js');
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+		LanguageConfigurationRegistry.register(this.getId(), {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -97,6 +93,7 @@ suite('Colorizing - HTML', () => {
 
 	let tokenizationSupport: Modes.ITokenizationSupport;
 	let _mode: Modes.IMode;
+	let onEnterSupport: Modes.IRichEditOnEnter;
 
 	(function() {
 		let threadService = NULL_THREAD_SERVICE;
@@ -115,6 +112,8 @@ suite('Colorizing - HTML', () => {
 		);
 
 		tokenizationSupport = _mode.tokenizationSupport;
+
+		onEnterSupport = LanguageConfigurationRegistry.getOnEnterSupport(_mode.getId());
 	})();
 
 	test('Open Start Tag #1', () => {
@@ -708,7 +707,7 @@ suite('Colorizing - HTML', () => {
 	test('onEnter 1', function() {
 		var model = new Model('<script type=\"text/javascript\">function f() { foo(); }', Model.DEFAULT_CREATION_OPTIONS, _mode);
 
-		var actual = _mode.richEditSupport.onEnter.onEnter(model, {
+		var actual = onEnterSupport.onEnter(model, {
 			lineNumber: 1,
 			column: 46
 		});
@@ -721,7 +720,7 @@ suite('Colorizing - HTML', () => {
 	test('onEnter 2', function() {
 		function onEnter(line:string, offset:number): Modes.IEnterAction {
 			let model = new TextModelWithTokens([], TextModel.toRawText(line, Model.DEFAULT_CREATION_OPTIONS), false, _mode);
-			let result = getRawEnterActionAtPosition(model, 1, offset + 1);
+			let result = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, 1, offset + 1);
 			model.dispose();
 			return result;
 		}

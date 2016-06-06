@@ -16,10 +16,11 @@ import {
 	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData
 } from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import {IMode, IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IMode, IndentAction} from 'vs/editor/common/modes';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {BracketMode} from 'vs/editor/test/common/testModes';
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 
 let H = Handler;
 
@@ -1062,41 +1063,26 @@ suite('Editor Controller - Cursor', () => {
 	});
 });
 
-class TestMode {
-	public getId():string {
-		return 'testing';
-	}
-
-	public toSimplifiedMode(): IMode {
-		return this;
-	}
-}
-
-class SurroundingMode extends TestMode {
-	public richEditSupport: IRichEditSupport;
-
+class SurroundingMode extends MockMode {
 	constructor() {
 		super();
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+		LanguageConfigurationRegistry.register(this.getId(), {
 			autoClosingPairs: [{ open: '(', close: ')' }]
 		});
 	}
 }
 
-class OnEnterMode extends TestMode {
-	public richEditSupport: IRichEditSupport;
-
+class OnEnterMode extends MockMode {
 	constructor(indentAction: IndentAction) {
 		super();
-		this.richEditSupport = {
-			onEnter: {
-				onEnter: (model, position) => {
-					return {
-						indentAction: indentAction
-					};
+		LanguageConfigurationRegistry.register(this.getId(), {
+			onEnterRules: [{
+				beforeText: /.*/,
+				action: {
+					indentAction: indentAction
 				}
-			}
-		};
+			}]
+		});
 	}
 }
 

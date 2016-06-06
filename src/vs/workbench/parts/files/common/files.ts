@@ -191,13 +191,13 @@ export class LocalFileChangeEvent extends PropertyChangeEvent {
 /**
  * Text file change events are emitted when files are saved or reverted.
  */
-export class TextFileChangeEvent extends LocalFileChangeEvent {
+export class TextFileChangeEvent extends BaseEvent {
 	private _resource: URI;
 	private _model: IModel;
 	private _isAutoSaved: boolean;
 
-	constructor(resource: URI, model: IModel, before: IFileStat, after: IFileStat = before, originalEvent?: BaseEvent) {
-		super(before, after, originalEvent);
+	constructor(resource: URI, model: IModel) {
+		super();
 
 		this._resource = resource;
 		this._model = model;

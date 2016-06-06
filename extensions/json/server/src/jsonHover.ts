@@ -9,7 +9,7 @@ import Parser = require('./jsonParser');
 import SchemaService = require('./jsonSchemaService');
 import {IJSONWorkerContribution} from './jsonContributions';
 
-import {Hover, ITextDocument, TextDocumentPosition, Range, MarkedString} from 'vscode-languageserver';
+import {Hover, TextDocument, Position, Range, MarkedString} from 'vscode-languageserver';
 
 export class JSONHover {
 
@@ -21,9 +21,9 @@ export class JSONHover {
 		this.contributions = contributions;
 	}
 
-	public doHover(document: ITextDocument, textDocumentPosition: TextDocumentPosition, doc: Parser.JSONDocument): Thenable<Hover> {
+	public doHover(document: TextDocument, position: Position, doc: Parser.JSONDocument): Thenable<Hover> {
 
-		let offset = document.offsetAt(textDocumentPosition.position);
+		let offset = document.offsetAt(position);
 		let node = doc.getNodeFromOffset(offset);
 
 		// use the property description when hovering over an object key
@@ -39,7 +39,7 @@ export class JSONHover {
 		if (!node) {
 			return Promise.resolve(void 0);
 		}
-		
+
 		var createHover = (contents: MarkedString[]) => {
 			let range = Range.create(document.positionAt(node.start), document.positionAt(node.end));
 			let result: Hover = {
@@ -47,18 +47,18 @@ export class JSONHover {
 				range: range
 			};
 			return result;
-		};	
-		
+		};
+
 		let location = node.getNodeLocation();
 		for (let i = this.contributions.length - 1; i >= 0; i--) {
 			let contribution = this.contributions[i];
-			let promise = contribution.getInfoContribution(textDocumentPosition.uri, location);
+			let promise = contribution.getInfoContribution(document.uri, location);
 			if (promise) {
 				return promise.then(htmlContent => createHover(htmlContent));
 			}
 		}
 
-		return this.schemaService.getSchemaForResource(textDocumentPosition.uri, doc).then((schema) => {
+		return this.schemaService.getSchemaForResource(document.uri, doc).then((schema) => {
 			if (schema) {
 				let matchingSchemas: Parser.IApplicableSchema[] = [];
 				doc.validate(schema.schema, matchingSchemas, node.start);

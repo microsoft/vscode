@@ -11,7 +11,7 @@ import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 suite('OnEnter', () => {
 
 	test('uses indentationRules', () => {
-		var support = new OnEnterSupport(null, {
+		var support = new OnEnterSupport(null, null, {
 			indentationRules: {
 				decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 				increaseIndentPattern: /(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
@@ -42,7 +42,7 @@ suite('OnEnter', () => {
 			['(', ')'],
 			['begin', 'end']
 		];
-		var support = new OnEnterSupport(null, {
+		var support = new OnEnterSupport(null, null, {
 			brackets: brackets
 		});
 		var testIndentAction = (beforeText:string, afterText:string, expected:IndentAction) => {
@@ -75,7 +75,7 @@ suite('OnEnter', () => {
 	});
 
 	test('uses regExpRules', () => {
-		var support = new OnEnterSupport(null, {
+		var support = new OnEnterSupport(null, null, {
 			regExpRules: [
 				{
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,

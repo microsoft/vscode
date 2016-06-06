@@ -5,7 +5,7 @@
 'use strict';
 
 import Json = require('jsonc-parser');
-import {ITextDocument, DocumentFormattingParams, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
+import {TextDocument, DocumentFormattingParams, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
 import Formatter = require('../jsonFormatter');
 import assert = require('assert');
 import {applyEdits} from './textEditSupport';
@@ -20,14 +20,14 @@ suite('JSON Formatter', () => {
 		let rangeEnd = unformatted.lastIndexOf('|');
 		if (rangeStart !== -1 && rangeEnd !== -1) {
 			// remove '|'
-			var unformattedDoc = ITextDocument.create(uri, unformatted);
+			var unformattedDoc = TextDocument.create(uri, 'json', 0, unformatted);
 			unformatted = unformatted.substring(0, rangeStart) + unformatted.substring(rangeStart + 1, rangeEnd) + unformatted.substring(rangeEnd + 1);
 			let startPos = unformattedDoc.positionAt(rangeStart);
 			let endPos = unformattedDoc.positionAt(rangeEnd);
 			range = Range.create(startPos, endPos);
 		}
 
-		var document = ITextDocument.create(uri, unformatted);
+		var document = TextDocument.create(uri, 'json', 0, unformatted);
 		let edits = Formatter.format(document, range, { tabSize: 2, insertSpaces: insertSpaces });
 		let formatted  = applyEdits(document, edits);
 		assert.equal(formatted, expected);
@@ -308,7 +308,7 @@ suite('JSON Formatter', () => {
 
 		format(content, expected);
 	});
-	
+
 	test('multiple mixed comments on same line', () => {
 		var content = [
 			'[ /*comment*/  /*comment*/   // comment ',

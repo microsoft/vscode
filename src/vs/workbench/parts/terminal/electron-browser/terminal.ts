@@ -37,5 +37,6 @@ export interface ITerminalConfiguration {
 export interface ITerminalService {
 	serviceId: ServiceIdentifier<any>;
 
+	focus(): TPromise<any>;
 	toggle(): TPromise<any>;
 }

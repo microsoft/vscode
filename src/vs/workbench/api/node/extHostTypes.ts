@@ -717,8 +717,9 @@ export class CompletionItem {
 	insertText: string;
 	textEdit: TextEdit;
 
-	constructor(label: string) {
+	constructor(label: string, kind?: CompletionItemKind) {
 		this.label = label;
+		this.kind = kind;
 	}
 
 	toJSON(): any {

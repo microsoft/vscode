@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { sequence } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
-import {isLinux, isMacintosh, isWindows} from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';

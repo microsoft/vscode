@@ -5,16 +5,25 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '#'
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+	]
+};
 
 export var language = <ILanguage> {
-	displayName: 'R',
-	name: 'r',
 	defaultToken: '',
-
-	lineComment: '#',
-	blockCommentStart: '',
-	blockCommentEnd: '',
+	tokenPostfix: '.r',
 
 	roxygen: [
 		'@param',

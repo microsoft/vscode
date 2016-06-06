@@ -72,7 +72,7 @@ export class MonarchLexer extends AbstractState {
 			return false;
 		}
 		var otherm: MonarchLexer = <MonarchLexer>other;
-		if ((this.stack.length !== otherm.stack.length) || (this.lexer.name !== otherm.lexer.name) ||
+		if ((this.stack.length !== otherm.stack.length) || (this.lexer.languageId !== otherm.lexer.languageId) ||
 			(this.embeddedMode !== otherm.embeddedMode)) {
 			return false;
 		}
@@ -288,7 +288,7 @@ export class MonarchLexer extends AbstractState {
 			}
 
 			if (action.log && typeof (action.log) === 'string') {
-				monarchCommon.log(this.lexer, this.lexer.displayName + ': ' + monarchCommon.substituteMatches(this.lexer, action.log, matched, matches, state));
+				monarchCommon.log(this.lexer, this.lexer.languageId + ': ' + monarchCommon.substituteMatches(this.lexer, action.log, matched, matches, state));
 			}
 		}
 

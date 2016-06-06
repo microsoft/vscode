@@ -10,13 +10,14 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
+import {ILineContext, IMode, IToken} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 /**
  * @internal
@@ -953,7 +954,6 @@ export interface IConfigurationChangedEvent {
  */
 export interface IModeSupportChangedEvent {
 	tokenizationSupport:boolean;
-	richEditSupport: boolean;
 }
 
 /**
@@ -1677,7 +1677,7 @@ export interface ITokenizedModel extends ITextModel {
 	/**
 	 * @internal
 	 */
-	_getLineModeTransitions(lineNumber:number): IModeTransition[];
+	_getLineModeTransitions(lineNumber:number): ModeTransition[];
 
 	/**
 	 * Get the current language mode associated with the model.
@@ -1702,7 +1702,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * Returns the true (inner-most) language mode at a given position.
 	 * @internal
 	 */
-	getModeAtPosition(lineNumber:number, column:number): IMode;
+	getModeIdAtPosition(lineNumber:number, column:number): string;
 
 	/**
 	 * Get the word under or besides `position`.

@@ -6,12 +6,12 @@
 
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {createTokenizationSupport2, Language} from 'vs/languages/typescript/common/tokenization';
-import {createRichEditSupport} from 'vs/languages/typescript/common/mode';
+import {richEditConfiguration} from 'vs/languages/typescript/common/mode';
 
 suite('TS/JS - syntax highlighting', () => {
 
 	var tokenizationSupport = createTokenizationSupport2(Language.EcmaScript5);
-	var assertOnEnter = modesUtil.createOnEnterAsserter('javascript', createRichEditSupport('javascript'));
+	var assertOnEnter = modesUtil.createOnEnterAsserter('javascript', richEditConfiguration);
 
 	test('onEnter', function() {
 		assertOnEnter.nothing('', '', 'var f = function() {');

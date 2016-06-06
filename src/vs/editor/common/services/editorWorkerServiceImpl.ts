@@ -32,7 +32,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 
 	private _workerManager:WorkerManager;
 
-	constructor(modelService:IModelService) {
+	constructor(@IModelService modelService:IModelService) {
 		this._workerManager = new WorkerManager(modelService);
 	}
 

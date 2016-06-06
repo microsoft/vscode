@@ -15,7 +15,7 @@ import async = require('vs/base/common/async');
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 import {isString} from 'vs/base/common/types';
-import Actions = require('vs/base/common/actions');
+import {IAction, ActionRunner as BaseActionRunner, IActionRunner} from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
 import {InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {$} from 'vs/base/browser/builder';
@@ -143,7 +143,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.hasActions(tree, stat);
 	}
 
-	public getActions(tree: ITree, stat: FileStat): TPromise<Actions.IAction[]> {
+	public getActions(tree: ITree, stat: FileStat): TPromise<IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
 			return TPromise.as([]);
 		}
@@ -159,7 +159,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.hasSecondaryActions(tree, stat);
 	}
 
-	public getSecondaryActions(tree: ITree, stat: FileStat): TPromise<Actions.IAction[]> {
+	public getSecondaryActions(tree: ITree, stat: FileStat): TPromise<IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
 			return TPromise.as([]);
 		}
@@ -167,7 +167,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getSecondaryActions(tree, stat);
 	}
 
-	public runAction(tree: ITree, stat: FileStat, action: Actions.IAction, context?: any): TPromise<any>;
+	public runAction(tree: ITree, stat: FileStat, action: IAction, context?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): TPromise<any>;
 	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): TPromise<any> {
 		context = objects.mixin({
@@ -176,7 +176,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		}, context);
 
 		if (!isString(arg)) {
-			let action = <Actions.IAction>arg;
+			let action = <IAction>arg;
 			if (action.enabled) {
 				return action.run(context);
 			}
@@ -187,7 +187,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		let id = <string>arg;
 		let promise = this.hasActions(tree, stat) ? this.getActions(tree, stat) : TPromise.as([]);
 
-		return promise.then((actions: Actions.IAction[]) => {
+		return promise.then((actions: IAction[]) => {
 			for (let i = 0, len = actions.length; i < len; i++) {
 				if (actions[i].id === id && actions[i].enabled) {
 					return actions[i].run(context);
@@ -196,7 +196,7 @@ export class FileActionProvider extends ContributableActionProvider {
 
 			promise = this.hasSecondaryActions(tree, stat) ? this.getSecondaryActions(tree, stat) : TPromise.as([]);
 
-			return promise.then((actions: Actions.IAction[]) => {
+			return promise.then((actions: IAction[]) => {
 				for (let i = 0, len = actions.length; i < len; i++) {
 					if (actions[i].id === id && actions[i].enabled) {
 						return actions[i].run(context);
@@ -237,7 +237,7 @@ export class FileViewletState implements IFileViewletState {
 	}
 }
 
-export class ActionRunner extends Actions.ActionRunner implements Actions.IActionRunner {
+export class ActionRunner extends BaseActionRunner implements IActionRunner {
 	private viewletState: FileViewletState;
 
 	constructor(state: FileViewletState) {
@@ -246,7 +246,7 @@ export class ActionRunner extends Actions.ActionRunner implements Actions.IActio
 		this.viewletState = state;
 	}
 
-	public run(action: Actions.IAction, context?: any): TPromise<any> {
+	public run(action: IAction, context?: any): TPromise<any> {
 		return super.run(action, { viewletState: this.viewletState });
 	}
 }
@@ -257,7 +257,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 	constructor(
 		state: FileViewletState,
-		actionRunner: Actions.IActionRunner,
+		actionRunner: IActionRunner,
 		@IContextViewService private contextViewService: IContextViewService
 	) {
 		super({

@@ -5,19 +5,26 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '//',
+		blockComment: ['/*', '*/'],
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+	autoClosingPairs: [
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+		{ open: '"', close: '"', notIn: ['string', 'comment'] }
+	]
+};
 
 export var language = <ILanguage> {
 
-	displayName:    'Go',
-	name:           'go',
 	defaultToken: '',
-
-	lineComment:      '//',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
-
-	autoClosingPairs: [ ['{', '}'], ['[', ']'], ['(',  ')'], ['"',  '"']], // Skip < > which would be there by default.
+	tokenPostfix: '.go',
 
 	keywords: [
 		'break',

@@ -41,7 +41,12 @@ export class MainThreadService extends CommonMainThreadService {
 	private extensionHostProcessManager: ExtensionHostProcessManager;
 	private remoteCom: IMainProcessExtHostIPC;
 
-	constructor(contextService: IWorkspaceContextService, messageService: IMessageService, windowService: IWindowService, lifecycleService: ILifecycleService) {
+	constructor(
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IMessageService messageService: IMessageService,
+		@IWindowService windowService: IWindowService,
+		@ILifecycleService lifecycleService: ILifecycleService
+	) {
 		super(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
 
 		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService);

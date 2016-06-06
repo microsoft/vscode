@@ -5,10 +5,10 @@
 
 'use strict';
 
-import {language} from 'vs/editor/standalone-languages/cpp';
+import {language, conf} from 'vs/editor/standalone-languages/cpp';
 import {testOnEnter, testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-testOnEnter('cpp', language, (assertOnEnter) => {
+testOnEnter('cpp', conf, (assertOnEnter) => {
 	assertOnEnter.nothing('', ' a', '');
 	assertOnEnter.indents('', ' <', '');
 	assertOnEnter.indents('', ' {', '');

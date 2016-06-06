@@ -5,22 +5,17 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
 
-export var language = <ILanguage> {
-	displayName: 'XML',
-	name: 'xml',
-	defaultToken: '',
-
-	ignoreCase: true,
-
-	lineComment: '', // no line comment in xml
-	blockCommentStart: '<!--',
-	blockCommentEnd: '-->',
-
-	// Useful regular expressions
-	qualifiedName: /(?:[\w\.\-]+:)?[\w\.\-]+/,
-
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		blockComment: ['<!--', '-->'],
+	},
+	brackets: [['{','}'],['[',']'],['(',')'],['<','>']],
+	autoClosingPairs: [
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+	]
 	// enhancedBrackets: [{
 	// 	tokenType: 'tag.tag-$1.xml',
 	// 	openTrigger: '>',
@@ -29,8 +24,16 @@ export var language = <ILanguage> {
 	// 	closeTrigger: '>',
 	// 	close: /<\/(\w[\w\d]*)\s*>$/i
 	// }],
+};
 
-	autoClosingPairs:  [['\'', '\''], ['"', '"'] ],
+export var language = <ILanguage> {
+	defaultToken: '',
+	tokenPostfix: '.xml',
+
+	ignoreCase: true,
+
+	// Useful regular expressions
+	qualifiedName: /(?:[\w\.\-]+:)?[\w\.\-]+/,
 
 	tokenizer: {
 		root: [

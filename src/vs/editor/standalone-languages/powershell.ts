@@ -5,36 +5,39 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
 
-export var language = <ILanguage> {
-	displayName: 'PowerShell',
-	name: 'ps1',
-	defaultToken: '',
-	ignoreCase: true,
-
-	lineComment: '#',
-	blockCommentStart: '<#',
-	blockCommentEnd: '#>',
-
+export var conf:IRichLanguageConfiguration = {
 	// the default separators except `$-`
-	wordDefinition: /(-?\d*\.\d\w*)|([^\`\~\!\@\#%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-
-	brackets: [
-				{ token: 'delimiter.curly', open: '{', close: '}' },
-				{ token: 'delimiter.square', open: '[', close: ']' },
-				{ token: 'delimiter.parenthesis', open: '(', close: ')' }],
-
+	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+	comments: {
+		lineComment: '#',
+		blockComment: ['<#', '#>'],
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')']],
+	autoClosingPairs: [
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+	]
 	// enhancedBrackets: [
 	// 			{ tokenType:'string', openTrigger: '"', open: /@"$/, closeComplete: '"@' },
 	// 			{ tokenType:'string', openTrigger: '\'', open: /@'$/, closeComplete: '\'@' },
 	// 			{ tokenType:'string', openTrigger: '"', open: /"$/, closeComplete: '"' },
 	// 			{ tokenType: 'string', openTrigger: '\'', open: /'$/, closeComplete: '\'' }
 	// ],
+};
 
-	autoClosingPairs: [['{', '}'], ['[', ']'], ['(', ')']],	// Defined explicitly, to suppress the
-															// default auto-closing of ' and " which is
-															// override above by enhancedBrackets
+export var language = <ILanguage> {
+	defaultToken: '',
+	ignoreCase: true,
+	tokenPostfix: '.ps1',
+
+	brackets: [
+		{ token: 'delimiter.curly', open: '{', close: '}' },
+		{ token: 'delimiter.square', open: '[', close: ']' },
+		{ token: 'delimiter.parenthesis', open: '(', close: ')' }
+	],
 
 	keywords: [
 		'begin', 'break', 'catch', 'class', 'continue', 'data',

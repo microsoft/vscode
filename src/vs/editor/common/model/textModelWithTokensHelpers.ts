@@ -8,6 +8,7 @@ import {IPosition, IWordAtPosition} from 'vs/editor/common/editorCommon';
 import {IMode, IModeTransition} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ITextSource {
 
@@ -27,7 +28,7 @@ export interface INonWordTokenMap {
 export class WordHelper {
 
 	private static _safeGetWordDefinition(mode:IMode): RegExp {
-		return (mode.richEditSupport ? mode.richEditSupport.wordDefinition : null);
+		return LanguageConfigurationRegistry.getWordDefinition(mode.getId());
 	}
 
 	public static ensureValidWordDefinition(wordDefinition?:RegExp): RegExp {

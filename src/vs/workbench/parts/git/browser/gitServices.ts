@@ -493,7 +493,7 @@ export class GitService extends ee.EventEmitter
 	}
 
 	private onTextFileChange(e:filesCommon.TextFileChangeEvent): void {
-		var shouldTriggerStatus = e.gotUpdated() && paths.basename(e.resource.fsPath) === '.gitignore';
+		var shouldTriggerStatus = paths.basename(e.resource.fsPath) === '.gitignore';
 
 		if (!shouldTriggerStatus) {
 			return;

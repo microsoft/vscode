@@ -5,16 +5,25 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '//',
+		blockComment: ['/*', '*/'],
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+	]
+};
 
 export var language = <ILanguage> {
-	displayName:    'C++',
-	name:           'cpp',
 	defaultToken: '',
-
-	lineComment:      '//',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
+	tokenPostfix: '.cpp',
 
 	brackets: [
 		{ token: 'delimiter.curly', open: '{', close: '}' },
@@ -22,8 +31,6 @@ export var language = <ILanguage> {
 		{ token: 'delimiter.square', open: '[', close: ']' },
 		{ token: 'delimiter.angle', open: '<', close: '>' }
 	],
-
-	autoClosingPairs: [ ['{', '}'], ['[', ']'], ['(',  ')'], ['"',  '"']], // Skip < > which would be there by default.
 
 	keywords: [
 		'abstract',

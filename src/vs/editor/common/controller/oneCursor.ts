@@ -15,7 +15,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IElectricAction, IndentAction} from 'vs/editor/common/modes';
-import {getEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface IPostOperationRunnable {
 	(ctx: IOneCursorOperationContext): void;
@@ -1196,7 +1196,7 @@ export class OneCursorOp {
 		}
 		ctx.shouldPushStackElementBefore = true;
 
-		let r = getEnterActionAtPosition(cursor.model, position.lineNumber, position.column);
+		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(cursor.model, position.lineNumber, position.column);
 		let enterAction = r.enterAction;
 		let indentation = r.indentation;
 
@@ -1269,9 +1269,9 @@ export class OneCursorOp {
 			return false;
 		}
 
-		let richEditSupport = cursor.model.getMode().richEditSupport;
+		let characterPairSupport = LanguageConfigurationRegistry.getCharacterPairSupport(cursor.model.getMode().getId());
 
-		if(!richEditSupport || !richEditSupport.characterPair) {
+		if(!characterPairSupport) {
 			return false;
 		}
 
@@ -1297,7 +1297,7 @@ export class OneCursorOp {
 
 		let shouldAutoClosePair = false;
 		try {
-			shouldAutoClosePair = richEditSupport.characterPair.shouldAutoClosePair(ch, lineContext, position.column - 1);
+			shouldAutoClosePair = characterPairSupport.shouldAutoClosePair(ch, lineContext, position.column - 1);
 		} catch(e) {
 			onUnexpectedError(e);
 		}
@@ -1380,10 +1380,10 @@ export class OneCursorOp {
 		let lineContext = cursor.model.getLineContext(position.lineNumber);
 
 		let electricAction:IElectricAction;
-		let richEditSupport = cursor.model.getMode().richEditSupport;
-		if(richEditSupport && richEditSupport.electricCharacter) {
+		let electricCharSupport = LanguageConfigurationRegistry.getElectricCharacterSupport(cursor.model.getMode().getId());
+		if (electricCharSupport) {
 			try {
-				electricAction = richEditSupport.electricCharacter.onElectricCharacter(lineContext, position.column - 2);
+				electricAction = electricCharSupport.onElectricCharacter(lineContext, position.column - 2);
 			} catch(e) {
 				onUnexpectedError(e);
 			}
@@ -1488,7 +1488,7 @@ export class OneCursorOp {
 			return '\t';
 		}
 
-		let r = getEnterActionAtPosition(cursor.model, lastLineNumber, cursor.model.getLineMaxColumn(lastLineNumber));
+		let r = LanguageConfigurationRegistry.getEnterActionAtPosition(cursor.model, lastLineNumber, cursor.model.getLineMaxColumn(lastLineNumber));
 
 		let indentation: string;
 		if (r.enterAction.indentAction === IndentAction.Outdent) {

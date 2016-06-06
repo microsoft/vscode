@@ -5,19 +5,29 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	// the default separators except `@$`
+	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+	comments: {
+		lineComment: '//',
+		blockComment: ['/*', '*/'],
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+		{ open: '<', close: '>', notIn: ['string', 'comment'] },
+	]
+};
 
 export var language = <ILanguage> {
-	displayName:    'Java',
-	name:           'java',
 	defaultToken: '',
-
-	lineComment:      '//',
-	blockCommentStart: '/*',
-	blockCommentEnd:   '*/',
-
-	// the default separators except `@$`
-	wordDefinition: /(-?\d*\.\d\w*)|([^\`\~\!\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+	tokenPostfix: '.java',
 
 	keywords: [
 		'abstract', 'continue', 'for', 'new', 'switch', 'assert', 'default',

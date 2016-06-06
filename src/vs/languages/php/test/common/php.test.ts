@@ -15,6 +15,7 @@ import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollect
 import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {PHPMode} from 'vs/languages/php/common/php';
 import {MockTokenizingMode} from 'vs/editor/test/common/mocks/mockMode';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 class PHPMockModeService extends MockModeService {
 
@@ -74,8 +75,8 @@ suite('Syntax Highlighting - PHP', () => {
 		);
 
 		tokenizationSupport = mode.tokenizationSupport;
-		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-		wordDefinition = mode.richEditSupport.wordDefinition;
+		assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), PHPMode.LANG_CONFIG);
+		wordDefinition = LanguageConfigurationRegistry.getWordDefinition(mode.getId());
 	})();
 
 	test('', () => {

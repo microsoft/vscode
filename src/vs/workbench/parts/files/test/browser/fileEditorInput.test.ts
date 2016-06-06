@@ -93,8 +93,10 @@ suite('Files - FileEditorInput', () => {
 					return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 						assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
 
-						inputToResolve.dispose(true);
-						sameOtherInput.dispose(true);
+						inputToResolve.dispose();
+						sameOtherInput.dispose();
+
+						resolvedModelA.dispose();
 
 						return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 							assert(resolvedModelA !== resolved); // Different instance, because input got disposed
@@ -168,11 +170,11 @@ suite('Files - FileEditorInput', () => {
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
 		return editorService.resolveEditorModel(inputToResolve).then(function (resolved) {
 			return editorService.resolveEditorModel(sameOtherInput).then(function (resolved) {
-				(<any>tracker).disposeAll(toResource('/bar'), []);
+				(<any>tracker).handleDelete(toResource('/bar'), []);
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
 
-				(<any>tracker).disposeAll(toResource('/fooss5/bar/file2.js'), []);
+				(<any>tracker).handleDelete(toResource('/fooss5/bar/file2.js'), []);
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());
@@ -214,11 +216,11 @@ suite('Files - FileEditorInput', () => {
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
 		return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
 			return editorService.resolveEditorModel(sameOtherInput, true).then(function (resolved) {
-				(<any>tracker).disposeAll(toResource('/bar'), []);
+				(<any>tracker).handleDelete(toResource('/bar'), []);
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
 
-				(<any>tracker).disposeAll(toResource('/foo6'), []);
+				(<any>tracker).handleDelete(toResource('/foo6'), []);
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());

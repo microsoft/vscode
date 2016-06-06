@@ -10,8 +10,9 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ICommentsConfiguration, IMode} from 'vs/editor/common/modes';
+import {ICommentsConfiguration} from 'vs/editor/common/modes';
 import {BlockCommentCommand} from './blockCommentCommand';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -69,19 +70,17 @@ export class LineCommentCommand implements editorCommon.ICommand {
 			i:number,
 			lineCount:number,
 			lineNumber:number,
-			mode: IMode,
 			modeId: string;
 
 		for (i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
 			lineNumber = startLineNumber + i;
-			mode = model.getModeAtPosition(lineNumber, 1);
-			modeId = mode.getId();
+			modeId = model.getModeIdAtPosition(lineNumber, 1);
 
 			// Find the commentStr for this line, if none is found then bail out: we cannot do line comments
 			if (seenModes[modeId]) {
 				commentStr = seenModes[modeId];
 			} else {
-				config = (mode.richEditSupport ? mode.richEditSupport.comments : null);
+				config = LanguageConfigurationRegistry.getComments(modeId);
 				commentStr = (config ? config.lineCommentToken : null);
 				if (!commentStr) {
 					// Mode does not support line comments
@@ -273,8 +272,8 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder, s:Selection): void {
-		let richEditSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).richEditSupport;
-		let config = richEditSupport ? richEditSupport.comments : null;
+		let modeId = model.getModeIdAtPosition(s.startLineNumber, s.startColumn);
+		let config = LanguageConfigurationRegistry.getComments(modeId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;

@@ -12,6 +12,7 @@ import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchL
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ITestItem {
 	line: string;
@@ -47,13 +48,14 @@ export interface IOnEnterAsserter {
 	indentsOutdents(oneLineAboveText:string, beforeText:string, afterText:string): void;
 }
 
-export function createOnEnterAsserter(modeId:string, richEditSupport: modes.IRichEditSupport): IOnEnterAsserter {
+export function createOnEnterAsserter(modeId:string, conf: IRichLanguageConfiguration): IOnEnterAsserter {
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
 		var model = new Model(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
 			Model.DEFAULT_CREATION_OPTIONS,
 			new MockMode(modeId)
 		);
+		var richEditSupport = new RichEditSupport(modeId, null, conf);
 		var actual = richEditSupport.onEnter.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
 		if (expected === modes.IndentAction.None) {
 			assert.equal(actual, null, oneLineAboveText + '\\n' + beforeText + '|' + afterText);
@@ -92,9 +94,8 @@ export function executeTests2(tokenizationSupport: modes.TokensProvider, tests:I
 	}
 }
 
-
 export function executeMonarchTokenizationTests(name:string, language:ILanguage, tests:ITestItem[][]): void {
-	var lexer = compile(language);
+	var lexer = compile(name, language);
 
 	var modeService = createMockModeService();
 

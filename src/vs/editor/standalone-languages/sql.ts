@@ -5,26 +5,37 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
 
-export var language = <ILanguage> {
-	displayName: 'SQL',
-	name: 'sql',
-	defaultToken: '',
-	ignoreCase: true,
-	brackets: [
-		{ open: '[', close: ']', token: 'delimiter.square' },
-		{ open: '(', close: ')', token: 'delimiter.parenthesis' }
-	],
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '--',
+		blockComment: ['/*', '*/'],
+	},
+	brackets: [['[',']'],['(',')']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+	]
 	// enhancedBrackets:[
 	// 	{ openTrigger: 'n', open: /begin$/i, closeComplete: 'end', matchCase: true },
 	// 	{ openTrigger: 'e', open: /case$/i, closeComplete: 'end', matchCase: true },
 	// 	{ openTrigger: 'n', open: /when$/i, closeComplete: 'then', matchCase: true }
 	// ],
-	noindentBrackets: '()',
-	lineComment: '--',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
+};
+
+export var language = <ILanguage> {
+	defaultToken: '',
+	tokenPostfix: '.sql',
+	ignoreCase: true,
+
+	brackets: [
+		{ open: '[', close: ']', token: 'delimiter.square' },
+		{ open: '(', close: ')', token: 'delimiter.parenthesis' }
+	],
+
 	keywords: [
 		'ABORT_AFTER_WAIT',
 		'ABSENT',

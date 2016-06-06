@@ -312,33 +312,15 @@ export class FileEditorInput extends CommonFileEditorInput {
 		});
 	}
 
-	public dispose(force?: boolean): void {
+	public dispose(): void {
 
 		// Listeners
 		dispose(this.toUnbind);
 
-		// TextFileEditorModel
-		let cachedModel = CACHE.get(this.resource);
-		if (cachedModel) {
-
-			// Only dispose if the last client called dispose() unless a forced dispose is triggered
-			let index = this.indexOfClient();
-			if (index >= 0) {
-
-				// Remove from Clients List
-				FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].splice(index, 1);
-
-				// We typically never want to dispose a file editor model because this means loosing undo/redo history.
-				// For that, we will keep the model around unless someone forces a dispose on the input. A forced dispose
-				// can happen when the model has not been used for a while or was changed outside the application which
-				// means loosing the undo redo history anyways.
-				if (!force) {
-					return;
-				}
-
-				// Dispose for real
-				CACHE.dispose(this.resource);
-			}
+		// Clear from our input cache
+		const index = this.indexOfClient();
+		if (index >= 0) {
+			FileEditorInput.FILE_EDITOR_MODEL_CLIENTS[this.resource.toString()].splice(index, 1);
 		}
 
 		super.dispose();

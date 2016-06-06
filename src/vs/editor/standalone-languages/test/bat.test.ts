@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {language} from 'vs/editor/standalone-languages/bat';
+import {language, conf} from 'vs/editor/standalone-languages/bat';
 import {testOnEnter, testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 testTokenization('bat', language, [
@@ -333,7 +333,7 @@ testTokenization('bat', language, [
 	]}]
 ]);
 
-testOnEnter('bat', language, (assertOnEnter) => {
+testOnEnter('bat', conf, (assertOnEnter) => {
 	assertOnEnter.nothing('', ' a', '');
 	assertOnEnter.indents('', ' {', '');
 	assertOnEnter.indents('', '( ', '');

@@ -102,17 +102,16 @@ export abstract class AbstractMode implements modes.IMode {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);
 	}
 
-	public registerSupport<T>(supportEnum:modes.MutableSupport, callback:(mode:modes.IMode) => T) : IDisposable {
-		let supportStr = modes.mutableSupportToString(supportEnum);
+	public setTokenizationSupport<T>(callback:(mode:modes.IMode) => T) : IDisposable {
 		var supportImpl = callback(this);
-		this[supportStr] = supportImpl;
-		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(supportEnum));
+		this['tokenizationSupport'] = supportImpl;
+		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
 
 		return {
 			dispose: () => {
-				if (this[supportStr] === supportImpl) {
-					delete this[supportStr];
-					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(supportEnum));
+				if (this['tokenizationSupport'] === supportImpl) {
+					delete this['tokenizationSupport'];
+					this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent());
 				}
 			}
 		};
@@ -122,7 +121,6 @@ export abstract class AbstractMode implements modes.IMode {
 class SimplifiedMode implements modes.IMode {
 
 	tokenizationSupport: modes.ITokenizationSupport;
-	richEditSupport: modes.IRichEditSupport;
 
 	private _sourceMode: modes.IMode;
 	private _eventEmitter: EventEmitter;
@@ -152,7 +150,6 @@ class SimplifiedMode implements modes.IMode {
 
 	private _assignSupports(): void {
 		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
-		this.richEditSupport = this._sourceMode.richEditSupport;
 	}
 }
 
@@ -235,17 +232,8 @@ export class FrankensteinMode extends AbstractMode {
 	}
 }
 
-function _createModeSupportChangedEvent(supportEnum:modes.MutableSupport): IModeSupportChangedEvent {
-	let e:IModeSupportChangedEvent = {
-		richEditSupport: false,
-		tokenizationSupport: false
+function _createModeSupportChangedEvent(): IModeSupportChangedEvent {
+	return {
+		tokenizationSupport: true
 	};
-	if (supportEnum === modes.MutableSupport.RichEditSupport) {
-		e.richEditSupport = true;
-		return e;
-	} else if (supportEnum === modes.MutableSupport.TokenizationSupport) {
-		e.tokenizationSupport = true;
-		return e;
-	}
-	throw new Error('Illegal argument!');
 }

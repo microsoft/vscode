@@ -17,15 +17,13 @@ import URI from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
-import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language: types.ILanguage = {
-	displayName: 'Log',
-	name: 'Log',
 	defaultToken: '',
+	tokenPostfix: '.log',
 	ignoreCase: true,
 
 	tokenizer: {
@@ -48,8 +46,19 @@ export const language: types.ILanguage = {
 
 export class OutputMode extends AbstractMode {
 
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+		autoClosingPairs: [
+			{ open: '"', close: '"', notIn: ['string', 'comment'] },
+			{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+			{ open: '{', close: '}', notIn: ['string', 'comment'] },
+			{ open: '[', close: ']', notIn: ['string', 'comment'] },
+			{ open: '(', close: ')', notIn: ['string', 'comment'] },
+			{ open: '<', close: '>', notIn: ['string', 'comment'] },
+		]
+	};
+
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public richEditSupport: modes.IRichEditSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<OutputWorker>;
 
@@ -61,12 +70,12 @@ export class OutputMode extends AbstractMode {
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
-		let lexer = compile(language);
+		let lexer = compile(descriptor.id, language);
 		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
+		LanguageConfigurationRegistry.register(this.getId(), OutputMode.LANG_CONFIG);
 
 		modes.LinkProviderRegistry.register(this.getId(), {
 			provideLinks: (model, token): Thenable<modes.ILink[]> => {

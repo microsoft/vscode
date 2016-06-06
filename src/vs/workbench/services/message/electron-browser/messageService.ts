@@ -16,9 +16,9 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 export class MessageService extends WorkbenchMessageService {
 
 	constructor(
-		private contextService: IWorkspaceContextService,
-		private windowService: IWindowService,
-		telemetryService: ITelemetryService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IWindowService private windowService: IWindowService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(telemetryService);
 	}

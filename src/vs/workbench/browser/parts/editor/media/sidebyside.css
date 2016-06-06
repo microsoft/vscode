@@ -195,16 +195,8 @@
 	background: url('SplitEditor_inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .show-group-editors-overflowing-action {
-	background: url('chevron.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .show-group-editors-overflowing-action {
-	background: url('chevron-inverse.svg') center center no-repeat;
-}
-
 .monaco-workbench .show-group-editors-action {
-	background: url('chevron.svg') center center no-repeat;
+	background: url('stackView_light.svg') center center no-repeat;
 }
 
 .monaco-workbench .show-group-editors-action-hidden {
@@ -212,7 +204,7 @@
 }
 
 .vs-dark .monaco-workbench .show-group-editors-action {
-	background: url('chevron-inverse.svg') center center no-repeat;
+	background: url('stackView_dark.svg') center center no-repeat;
 }
 
 /* High Contrast Theming */
@@ -229,7 +221,7 @@
 }
 
 .hc-black .monaco-workbench .show-group-editors-action:before {
-	content: url('chevron-inverse.svg');
+	content: url('stackView_dark.svg');
 	position: absolute;
 	top: 12px;
 	left: 8px;

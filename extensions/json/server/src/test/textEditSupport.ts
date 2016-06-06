@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITextDocument, TextEdit} from 'vscode-languageserver';
+import {TextDocument, TextEdit} from 'vscode-languageserver';
 import assert = require('assert');
 
-export function applyEdits(document: ITextDocument, edits: TextEdit[]) : string {
+export function applyEdits(document: TextDocument, edits: TextEdit[]) : string {
 	let formatted = document.getText();
 	let sortedEdits = edits.sort((a, b) => document.offsetAt(b.range.start) - document.offsetAt(a.range.start));
 	let lastOffset = formatted.length;

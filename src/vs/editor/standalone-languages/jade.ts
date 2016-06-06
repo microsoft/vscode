@@ -5,16 +5,27 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '//'
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+	]
+};
 
 export var language = <ILanguage> {
-	displayName:    'Jade',
-	name:           'jade',
-	defaultToken:   '',
+	defaultToken: '',
+	tokenPostfix: '.jade',
 
 	ignoreCase: true,
-
-	lineComment: '//',
 
 	brackets: [
 			{ token:'delimiter.curly', open: '{', close: '}' },

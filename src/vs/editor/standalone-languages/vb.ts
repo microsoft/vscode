@@ -5,56 +5,91 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '\'',
+		blockComment: ['/*', '*/'],
+	},
+	brackets: [
+		['{','}'],['[',']'],['(',')'],['<','>'],
+		['addhandler','end addhandler'],
+		['class','end class'],
+		['enum','end enum'],
+		['event','end event'],
+		['function','end function'],
+		['get','end get'],
+		['if','end if'],
+		['interface','end interface'],
+		['module','end module'],
+		['namespace','end namespace'],
+		['operator','end operator'],
+		['property','end property'],
+		['raiseevent','end raiseevent'],
+		['removehandler','end removehandler'],
+		['select','end select'],
+		['set','end set'],
+		['structure','end structure'],
+		['sub','end sub'],
+		['synclock','end synclock'],
+		['try','end try'],
+		['while','end while'],
+		['with','end with'],
+		['using','end using'],
+		['do','loop'],
+		['for','next']
+	],
+	autoClosingPairs: [
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '<', close: '>', notIn: ['string', 'comment'] },
+	]
+};
 
 export var language = <ILanguage> {
-	displayName: 'VB',
-	name: 'vb',
 	defaultToken: '',
+	tokenPostfix: '.vb',
 	ignoreCase: true,
 
 	brackets: [
-	{ token:'delimiter.bracket', open: '{', close: '}'},
-	{ token:'delimiter.array', open: '[', close: ']'},
-	{ token:'delimiter.parenthesis', open: '(', close: ')'},
-	{ token:'delimiter.angle', open: '<', close: '>'},
+		{ token:'delimiter.bracket', open: '{', close: '}'},
+		{ token:'delimiter.array', open: '[', close: ']'},
+		{ token:'delimiter.parenthesis', open: '(', close: ')'},
+		{ token:'delimiter.angle', open: '<', close: '>'},
 
-	// Special bracket statement pairs
-	// according to https://msdn.microsoft.com/en-us/library/tsw2a11z.aspx
-	{ token: 'keyword.tag-addhandler', open: 'addhandler', close: 'end addhandler'},
-	{ token: 'keyword.tag-class', open: 'class', close: 'end class'},
-	{ token: 'keyword.tag-enum', open: 'enum', close: 'end enum'},
-	{ token: 'keyword.tag-event', open: 'event', close: 'end event'},
-	{ token: 'keyword.tag-function', open: 'function', close: 'end function'},
-	{ token: 'keyword.tag-get', open: 'get', close: 'end get'},
-	{ token: 'keyword.tag-if', open: 'if', close: 'end if'},
-	{ token: 'keyword.tag-interface', open: 'interface', close: 'end interface'},
-	{ token: 'keyword.tag-module', open: 'module', close: 'end module'},
-	{ token: 'keyword.tag-namespace', open: 'namespace', close: 'end namespace'},
-	{ token: 'keyword.tag-operator', open: 'operator', close: 'end operator'},
-	{ token: 'keyword.tag-property', open: 'property', close: 'end property'},
-	{ token: 'keyword.tag-raiseevent', open: 'raiseevent', close: 'end raiseevent'},
-	{ token: 'keyword.tag-removehandler', open: 'removehandler', close: 'end removehandler'},
-	{ token: 'keyword.tag-select', open: 'select', close: 'end select'},
-	{ token: 'keyword.tag-set', open: 'set', close: 'end set'},
-	{ token: 'keyword.tag-structure', open: 'structure', close: 'end structure'},
-	{ token: 'keyword.tag-sub', open: 'sub', close: 'end sub'},
-	{ token: 'keyword.tag-synclock', open: 'synclock', close: 'end synclock'},
-	{ token: 'keyword.tag-try', open: 'try', close: 'end try'},
-	{ token: 'keyword.tag-while', open: 'while', close: 'end while'},
-	{ token: 'keyword.tag-with', open: 'with', close: 'end with'},
+		// Special bracket statement pairs
+		// according to https://msdn.microsoft.com/en-us/library/tsw2a11z.aspx
+		{ token: 'keyword.tag-addhandler', open: 'addhandler', close: 'end addhandler'},
+		{ token: 'keyword.tag-class', open: 'class', close: 'end class'},
+		{ token: 'keyword.tag-enum', open: 'enum', close: 'end enum'},
+		{ token: 'keyword.tag-event', open: 'event', close: 'end event'},
+		{ token: 'keyword.tag-function', open: 'function', close: 'end function'},
+		{ token: 'keyword.tag-get', open: 'get', close: 'end get'},
+		{ token: 'keyword.tag-if', open: 'if', close: 'end if'},
+		{ token: 'keyword.tag-interface', open: 'interface', close: 'end interface'},
+		{ token: 'keyword.tag-module', open: 'module', close: 'end module'},
+		{ token: 'keyword.tag-namespace', open: 'namespace', close: 'end namespace'},
+		{ token: 'keyword.tag-operator', open: 'operator', close: 'end operator'},
+		{ token: 'keyword.tag-property', open: 'property', close: 'end property'},
+		{ token: 'keyword.tag-raiseevent', open: 'raiseevent', close: 'end raiseevent'},
+		{ token: 'keyword.tag-removehandler', open: 'removehandler', close: 'end removehandler'},
+		{ token: 'keyword.tag-select', open: 'select', close: 'end select'},
+		{ token: 'keyword.tag-set', open: 'set', close: 'end set'},
+		{ token: 'keyword.tag-structure', open: 'structure', close: 'end structure'},
+		{ token: 'keyword.tag-sub', open: 'sub', close: 'end sub'},
+		{ token: 'keyword.tag-synclock', open: 'synclock', close: 'end synclock'},
+		{ token: 'keyword.tag-try', open: 'try', close: 'end try'},
+		{ token: 'keyword.tag-while', open: 'while', close: 'end while'},
+		{ token: 'keyword.tag-with', open: 'with', close: 'end with'},
 
-	// Other pairs
-	{ token: 'keyword.tag-using', open: 'using', close: 'end using' },
-	{ token: 'keyword.tag-do', open: 'do', close: 'loop' },
-	{ token: 'keyword.tag-for', open: 'for', close: 'next' }
+		// Other pairs
+		{ token: 'keyword.tag-using', open: 'using', close: 'end using' },
+		{ token: 'keyword.tag-do', open: 'do', close: 'loop' },
+		{ token: 'keyword.tag-for', open: 'for', close: 'next' }
 	],
-
-	autoClosingPairs:  [ ['{', '}'], ['[', ']'], ['(', ')'], ['"', '"'], ['<', '>'], ],
-
-	lineComment:      '\'',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
 
 	keywords: [
 		'AddHandler', 'AddressOf', 'Alias', 'And', 'AndAlso', 'As', 'Async', 'Boolean', 'ByRef', 'Byte', 'ByVal', 'Call',

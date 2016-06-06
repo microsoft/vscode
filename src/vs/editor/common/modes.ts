@@ -180,27 +180,6 @@ export interface ILineContext {
 	findIndexOfOffset(offset:number): number;
 }
 
-/**
- * @internal
- */
-export enum MutableSupport {
-	RichEditSupport = 1,
-	TokenizationSupport = 2
-}
-
-/**
- * @internal
- */
-export function mutableSupportToString(registerableSupport:MutableSupport) {
-	if (registerableSupport === MutableSupport.RichEditSupport) {
-		return 'richEditSupport';
-	}
-	if (registerableSupport === MutableSupport.TokenizationSupport) {
-		return 'tokenizationSupport';
-	}
-	throw new Error('Illegal argument!');
-}
-
 
 export interface IMode {
 
@@ -221,7 +200,7 @@ export interface IMode {
 	 * Register a support by name. Only optional.
 	 * @internal
 	 */
-	registerSupport?<T>(support:MutableSupport, callback:(mode:IMode)=>T): IDisposable;
+	setTokenizationSupport?<T>(callback:(mode:IMode)=>T): IDisposable;
 
 	/**
 	 * Optional adapter to support tokenization.
@@ -246,12 +225,6 @@ export interface IMode {
 	 * @internal
 	 */
 	configSupport?:IConfigurationSupport;
-
-	/**
-	 * Optional adapter to support rich editing.
-	 * @internal
-	 */
-	richEditSupport?: IRichEditSupport;
 }
 
 /**
@@ -785,41 +758,6 @@ export interface IRichEditBrackets {
 	brackets: editorCommon.IRichEditBracket[];
 	textIsBracket: {[text:string]:editorCommon.IRichEditBracket;};
 	textIsOpenBracket: {[text:string]:boolean;};
-}
-
-/**
- * @internal
- */
-export interface IRichEditSupport {
-	/**
-	 * Optional adapter for electric characters.
-	 */
-	electricCharacter?:IRichEditElectricCharacter;
-
-	/**
-	 * Optional adapter for comment insertion.
-	 */
-	comments?:ICommentsConfiguration;
-
-	/**
-	 * Optional adapter for insertion of character pair.
-	 */
-	characterPair?:IRichEditCharacterPair;
-
-	/**
-	 * Optional adapter for classification of tokens.
-	 */
-	wordDefinition?: RegExp;
-
-	/**
-	 * Optional adapter for custom Enter handling.
-	 */
-	onEnter?: IRichEditOnEnter;
-
-	/**
-	 * Optional adapter for brackets.
-	 */
-	brackets?: IRichEditBrackets;
 }
 
 // --- feature registries ------

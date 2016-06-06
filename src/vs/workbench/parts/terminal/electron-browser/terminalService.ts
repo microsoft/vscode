@@ -17,6 +17,10 @@ export class TerminalService implements ITerminalService {
 	) {
 	}
 
+	public focus(): TPromise<any> {
+		return this.panelService.openPanel(TERMINAL_PANEL_ID, true);
+	}
+
 	public toggle(): TPromise<any> {
 		const panel = this.panelService.getActivePanel();
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {

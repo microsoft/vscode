@@ -5,7 +5,26 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	comments: {
+		lineComment: '#',
+		blockComment: ['=begin', '=end'],
+	},
+	brackets: [['(',')'],['{','}'], ['[',']']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+	],
+	__electricCharacterSupport: {
+		// trigger outdenting on 'end'
+		embeddedElectricCharacters: ['d']
+	}
+};
 
 /*
  * Ruby language definition
@@ -57,12 +76,7 @@ import {ILanguage} from './types';
  */
 
 export var language = <ILanguage> {
-	displayName:    '',
-	name:           'ruby',
-
-	lineComment:      '#',
-	blockCommentStart: '=begin',
-	blockCommentEnd:   '=end',
+	tokenPostfix: '.ruby',
 
 	keywords: [
 		'__LINE__', '__ENCODING__', '__FILE__', 'BEGIN', 'END', 'alias', 'and', 'begin',
@@ -101,9 +115,6 @@ export var language = <ILanguage> {
 		{ open: '{', close: '}', token: 'delimiter.curly'},
 		{ open: '[', close: ']', token: 'delimiter.square'}
 	],
-
-	// trigger outdenting on 'end'
-	outdentTriggers: 'd',
 
 	// we include these common regular expressions
 	symbols:  /[=><!~?:&|+\-*\/\^%\.]+/,

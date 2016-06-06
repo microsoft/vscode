@@ -10,6 +10,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {IConfiguration, IModel, ISelection} from 'vs/editor/common/editorCommon';
 import {IAutoClosingPair} from 'vs/editor/common/modes';
 import {Position} from 'vs/editor/common/core/position';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ICursorCollectionState {
 	primary: IOneCursorState;
@@ -326,51 +327,50 @@ export class CursorCollection {
 			surroundingPairs: {}
 		};
 
-		let richEditSupport = this.model.getMode().richEditSupport;
 
-		let electricChars: string[];
-		if (richEditSupport && richEditSupport.electricCharacter) {
+		let electricCharSupport = LanguageConfigurationRegistry.getElectricCharacterSupport(this.model.getMode().getId());
+		if (electricCharSupport) {
+			let electricChars: string[] = null;
 			try {
-				electricChars = richEditSupport.electricCharacter.getElectricCharacters();
+				electricChars = electricCharSupport.getElectricCharacters();
 			} catch(e) {
 				onUnexpectedError(e);
 				electricChars = null;
 			}
-		}
-		if (electricChars) {
-			for (i = 0; i < electricChars.length; i++) {
-				result.electricChars[electricChars[i]] = true;
+			if (electricChars) {
+				for (i = 0; i < electricChars.length; i++) {
+					result.electricChars[electricChars[i]] = true;
+				}
 			}
 		}
 
-		let autoClosingPairs: IAutoClosingPair[];
-		if (richEditSupport && richEditSupport.characterPair) {
+		let characterPairSupport = LanguageConfigurationRegistry.getCharacterPairSupport(this.model.getMode().getId());
+		if (characterPairSupport) {
+			let autoClosingPairs: IAutoClosingPair[];
 			try {
-				autoClosingPairs = richEditSupport.characterPair.getAutoClosingPairs();
+				autoClosingPairs = characterPairSupport.getAutoClosingPairs();
 			} catch(e) {
 				onUnexpectedError(e);
 				autoClosingPairs = null;
 			}
-		}
-		if (autoClosingPairs) {
-			for (i = 0; i < autoClosingPairs.length; i++) {
-				result.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
-				result.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
+			if (autoClosingPairs) {
+				for (i = 0; i < autoClosingPairs.length; i++) {
+					result.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
+					result.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
+				}
 			}
-		}
 
-		let surroundingPairs: IAutoClosingPair[];
-		if (richEditSupport && richEditSupport.characterPair) {
+			let surroundingPairs: IAutoClosingPair[];
 			try {
-				surroundingPairs = richEditSupport.characterPair.getSurroundingPairs();
+				surroundingPairs = characterPairSupport.getSurroundingPairs();
 			} catch(e) {
 				onUnexpectedError(e);
 				surroundingPairs = null;
 			}
-		}
-		if (surroundingPairs) {
-			for (i = 0; i < surroundingPairs.length; i++) {
-				result.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
+			if (surroundingPairs) {
+				for (i = 0; i < surroundingPairs.length; i++) {
+					result.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
+				}
 			}
 		}
 

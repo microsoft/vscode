@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {language} from 'vs/editor/standalone-languages/powershell';
+import {language, conf} from 'vs/editor/standalone-languages/powershell';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 testTokenization('powershell', language, [
@@ -738,7 +738,7 @@ testTokenization('powershell', language, [
 
 suite('powershell', () => {
 	test('word definition', () => {
-		var wordDefinition = language.wordDefinition;
+		var wordDefinition = conf.wordPattern;
 		assert.deepEqual('a b cde'.match(wordDefinition), ['a', 'b', 'cde']);
 		assert.deepEqual('if ($parameterSet["class"] -eq "blank")'.match(wordDefinition), ['if', '$parameterSet', 'class', '-eq', 'blank']);
 

@@ -9,10 +9,6 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import * as modes from 'vs/editor/common/modes';
-import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {IRichLanguageConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService, IModeLookupResult} from 'vs/editor/common/services/modeService';
 
 export class MockModeService implements IModeService {
@@ -83,16 +79,10 @@ export class MockModeService implements IModeService {
 		throw new Error('Not implemented');
 	}
 
-	registerRichEditSupport(modeId: string, support: IRichLanguageConfiguration): IDisposable {
-		throw new Error('Not implemented');
-	}
 	registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
 		throw new Error('Not implemented');
 	}
 	registerTokenizationSupport2(modeId: string, support: modes.TokensProvider): IDisposable {
-		throw new Error('Not implemented');
-	}
-	registerMonarchDefinition(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
 		throw new Error('Not implemented');
 	}
 }

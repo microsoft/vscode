@@ -5,28 +5,27 @@
 
 'use strict';
 
-import {ILanguage} from './types';
+import {ILanguage, IRichLanguageConfiguration} from './types';
+
+export var conf:IRichLanguageConfiguration = {
+	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+	comments: {
+		lineComment: '//',
+		blockComment: ['/*', '*/'],
+	},
+	brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+	autoClosingPairs: [
+		{ open: '"', close: '"', notIn: ['string', 'comment'] },
+		{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+		{ open: '{', close: '}', notIn: ['string', 'comment'] },
+		{ open: '[', close: ']', notIn: ['string', 'comment'] },
+		{ open: '(', close: ')', notIn: ['string', 'comment'] },
+	]
+};
 
 export var language = <ILanguage> {
-	displayName: '',
-	name: 'cs',
 	defaultToken: '',
-
-	// used in the editor to insert comments (ctrl+/ or shift+alt+A)
-	lineComment: '// ',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
-
-	// the default separators except `@`
-	wordDefinition: /(-?\d*\.\d\w*)|([^\`\~\!\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-
-	autoClosingPairs: [
-		['"', '"'],
-		['\'', '\''],
-		['{', '}'],
-		['[', ']'],
-		['(', ')'],
-	],
+	tokenPostfix: '.cs',
 
 	brackets: [
 		{ open: '{', close: '}', token: 'delimiter.curly' },

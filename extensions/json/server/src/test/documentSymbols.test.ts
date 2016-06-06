@@ -11,7 +11,7 @@ import JsonSchema = require('../jsonSchema');
 import {JSONCompletion} from '../jsonCompletion';
 import {JSONDocumentSymbols} from '../jsonDocumentSymbols';
 
-import {SymbolInformation, SymbolKind, TextDocumentIdentifier, ITextDocument, TextDocumentPosition, Range, Position, TextEdit} from 'vscode-languageserver';
+import {SymbolInformation, SymbolKind, TextDocumentIdentifier, TextDocument, Range, Position, TextEdit} from 'vscode-languageserver';
 
 suite('JSON Document Symbols', () => {
 
@@ -20,7 +20,7 @@ suite('JSON Document Symbols', () => {
 
 		var symbolProvider = new JSONDocumentSymbols();
 
-		var document = ITextDocument.create(uri, value);
+		var document = TextDocument.create(uri, 'json', 0, value);
 		var jsonDoc = Parser.parse(value);
 		return symbolProvider.compute(document, jsonDoc);
 	}

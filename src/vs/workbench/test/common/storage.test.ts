@@ -15,7 +15,7 @@ suite('Workbench Storage', () => {
 
 	test('Swap Data with undefined default value', () => {
 		let context = new TestContextService();
-		let s = new Storage(context, new InMemoryLocalStorage());
+		let s = new Storage(new InMemoryLocalStorage(), null, context);
 
 		s.swap('Monaco.IDE.Core.Storage.Test.swap', 'foobar', 'barfoo');
 		assert.strictEqual('foobar', s.get('Monaco.IDE.Core.Storage.Test.swap'));
@@ -27,7 +27,7 @@ suite('Workbench Storage', () => {
 
 	test('Remove Data', () => {
 		let context = new TestContextService();
-		let s = new Storage(context, new InMemoryLocalStorage());
+		let s = new Storage(new InMemoryLocalStorage(), null, context);
 		s.store('Monaco.IDE.Core.Storage.Test.remove', 'foobar');
 		assert.strictEqual('foobar', s.get('Monaco.IDE.Core.Storage.Test.remove'));
 
@@ -37,7 +37,7 @@ suite('Workbench Storage', () => {
 
 	test('Get Data, Integer, Boolean', () => {
 		let context = new TestContextService();
-		let s = new Storage(context, new InMemoryLocalStorage());
+		let s = new Storage(new InMemoryLocalStorage(), null, context);
 
 		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.get', StorageScope.GLOBAL, 'foobar'), 'foobar');
 		assert.strictEqual(s.get('Monaco.IDE.Core.Storage.Test.get', StorageScope.GLOBAL, ''), '');
@@ -72,14 +72,14 @@ suite('Workbench Storage', () => {
 	test('Storage cleans up when workspace changes', () => {
 		let storageImpl = new InMemoryLocalStorage();
 		let context = new TestContextService();
-		let s = new Storage(context, storageImpl);
+		let s = new Storage(storageImpl, null, context);
 
 		s.store('key1', 'foobar');
 		s.store('key2', 'something');
 		s.store('wkey1', 'foo', StorageScope.WORKSPACE);
 		s.store('wkey2', 'foo2', StorageScope.WORKSPACE);
 
-		s = new Storage(context, storageImpl);
+		s = new Storage(storageImpl, null, context);
 
 		assert.strictEqual(s.get('key1', StorageScope.GLOBAL), 'foobar');
 		assert.strictEqual(s.get('key1', StorageScope.WORKSPACE, null), null);
@@ -91,7 +91,7 @@ suite('Workbench Storage', () => {
 		let ws: any = clone(TestWorkspace);
 		ws.uid = new Date().getTime() + 100;
 		context = new TestContextService(ws);
-		s = new Storage(context, storageImpl);
+		s = new Storage(storageImpl, null, context);
 
 		assert.strictEqual(s.get('key1', StorageScope.GLOBAL), 'foobar');
 		assert.strictEqual(s.get('key1', StorageScope.WORKSPACE, null), null);

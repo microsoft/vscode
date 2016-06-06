@@ -20,22 +20,12 @@ import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {wireCancellationToken} from 'vs/base/common/async';
-import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export var language: Types.ILanguage = <Types.ILanguage> {
-	displayName: 'LESS',
-	name: 'less',
-
-	// TODO@Martin: This definition does not work with umlauts for example
-	wordDefinition: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
-
 	defaultToken: '',
-
-	lineComment: '//',
-	blockCommentStart: '/*',
-	blockCommentEnd: '*/',
+	tokenPostfix: '.less',
 
 	identifier: '-?-?([a-zA-Z]|(\\\\(([0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))([\\w\\-]|(\\\\(([0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))*',
 	identifierPlus: '-?-?([a-zA-Z:.]|(\\\\(([0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))([\\w\\-:.]|(\\\\(([0-9a-fA-F]{1,6}\\s?)|[^[0-9a-fA-F])))*',
@@ -178,10 +168,27 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 
 export class LESSMode extends AbstractMode {
 
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		// TODO@Martin: This definition does not work with umlauts for example
+		wordPattern: /(#?-?\d*\.\d\w*%?)|([@#!.:]?[\w-?]+%?)|[@#!.]/g,
+		comments: {
+			blockComment: ['/*', '*/'],
+			lineComment: '//'
+		},
+		brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+		autoClosingPairs: [
+			{ open: '"', close: '"', notIn: ['string', 'comment'] },
+			{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+			{ open: '{', close: '}', notIn: ['string', 'comment'] },
+			{ open: '[', close: ']', notIn: ['string', 'comment'] },
+			{ open: '(', close: ')', notIn: ['string', 'comment'] },
+			{ open: '<', close: '>', notIn: ['string', 'comment'] },
+		]
+	};
+
 	public inplaceReplaceSupport:modes.IInplaceReplaceSupport;
 	public configSupport:modes.IConfigurationSupport;
 	public tokenizationSupport: modes.ITokenizationSupport;
-	public richEditSupport: modes.IRichEditSupport;
 
 	private modeService: IModeService;
 	private _modeWorkerManager: ModeWorkerManager<lessWorker.LessWorker>;
@@ -196,7 +203,7 @@ export class LESSMode extends AbstractMode {
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
-		let lexer = Compile.compile(language);
+		let lexer = Compile.compile(descriptor.id, language);
 
 		this._modeWorkerManager = new ModeWorkerManager<lessWorker.LessWorker>(descriptor, 'vs/languages/less/common/lessWorker', 'LessWorker', 'vs/languages/css/common/cssWorker', instantiationService);
 		this._threadService = threadService;
@@ -241,7 +248,7 @@ export class LESSMode extends AbstractMode {
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
+		LanguageConfigurationRegistry.register(this.getId(), LESSMode.LANG_CONFIG);
 	}
 
 	public creationDone(): void {

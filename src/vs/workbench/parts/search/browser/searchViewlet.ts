@@ -35,7 +35,6 @@ import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistr
 import {Scope} from 'vs/workbench/common/memento';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {UntitledEditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
 import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 import {getOutOfWorkspaceEditorResources} from 'vs/workbench/common/editor';
 import {FileChangeType, FileChangesEvent, EventType as FileEventType} from 'vs/platform/files/common/files';
@@ -164,8 +163,10 @@ class SearchController extends DefaultController {
 
 		if (platform.isMacintosh) {
 			this.downKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_BACKSPACE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onEnter.bind(this));
 		} else {
 			this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
+			this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
 		}
 
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ESCAPE, (tree: ITree, event: any) => { this.onEscape(tree, event); });
@@ -680,7 +681,6 @@ export class SearchViewlet extends Viewlet {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
-		@ITextFileService private textFileService: ITextFileService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(ID, telemetryService);
@@ -692,7 +692,7 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFilesChanged(e)));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e) => this.onUntitledFileDeleted(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e) => this.onUntitledFileSaved(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
@@ -890,7 +890,8 @@ export class SearchViewlet extends Viewlet {
 			this.toUnbind.push(renderer);
 
 			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
-				let element: any, keyboard = event.payload && event.payload.origin === 'keyboard';
+				let element: any;
+				let keyboard = event.payload && event.payload.origin === 'keyboard';
 				if (keyboard) {
 					element = this.tree.getFocus();
 				} else {
@@ -905,8 +906,9 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+				let focusEditor = keyboard || doubleClick;
 
-				this.onFocus(element, !keyboard && !doubleClick, sideBySide);
+				this.onFocus(element, !focusEditor, sideBySide, doubleClick);
 			}));
 		});
 
@@ -969,7 +971,7 @@ export class SearchViewlet extends Viewlet {
 		if (visible && !this.editorService.getActiveEditor()) {
 			let focus = this.tree.getFocus();
 			if (focus) {
-				this.onFocus(focus, false, false);
+				this.onFocus(focus);
 			}
 		}
 
@@ -1437,7 +1439,7 @@ export class SearchViewlet extends Viewlet {
 		this.tree.onVisible();
 	}
 
-	private onFocus(lineMatch: Match, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
+	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
 			return TPromise.as(true);
 		}
@@ -1447,13 +1449,14 @@ export class SearchViewlet extends Viewlet {
 		return this.editorService.openEditor({
 			resource: lineMatch.parent().resource(),
 			options: {
-				preserveFocus: preserveFocus,
+				preserveFocus,
+				pinned,
 				selection: lineMatch instanceof EmptyMatch ? void 0 : lineMatch.range()
 			}
 		}, sideBySide);
 	}
 
-	private onUntitledFileDeleted(e: UntitledEditorEvent): void {
+	private onUntitledFileSaved(e: UntitledEditorEvent): void {
 		if (!this.viewModel) {
 			return;
 		}
