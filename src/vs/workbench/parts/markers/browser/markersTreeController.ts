@@ -9,7 +9,7 @@ import mouse = require('vs/base/browser/mouseEvent');
 import keyboard = require('vs/base/browser/keyboardEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import { Marker } from 'vs/workbench/parts/markers/common/markersModel';
+import { MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMarker } from 'vs/platform/markers/common/markers';
 
@@ -20,8 +20,19 @@ export class Controller extends treedefaults.DefaultController {
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
+		let currentFoucssed= tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
-			return this.openFileAtElement(element);
+			if (this.openFileAtElement(element)) {
+				return true;
+			}
+			if (element instanceof MarkersModel) {
+				if (currentFoucssed) {
+					tree.setFocus(currentFoucssed);
+				} else {
+					tree.focusFirst();
+				}
+				return true;
+			}
 		}
 		return false;
 	}
@@ -44,8 +55,9 @@ export class Controller extends treedefaults.DefaultController {
 						startColumn: marker.startColumn,
 						endLineNumber: marker.endLineNumber,
 						endColumn: marker.endColumn
-					}
-				}
+					},
+					preserveFocus: false,
+				},
 			}).done(null, errors.onUnexpectedError);
 			return true;
 		}

@@ -37,6 +37,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		DOM.addClass(container, 'markers-panel-action-filter');
 		var filterInputBox = new InputBox(container, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
+			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			iconClass: 'filterIcon'
 		});
 		filterInputBox.value= this.markersPanel.markersModel.filterOptions.filter;

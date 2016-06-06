@@ -28,11 +28,10 @@
 
 .markers-panel .markers-panel-container .message-box-container {
 	padding-left: 20px;
-	display: none;
 }
 
-.markers-panel  .markers-panel-container .message-box-container.visible {
-	display: block;
+.markers-panel  .markers-panel-container .hidden {
+	display: none;
 }
 
 .markers-panel .markers-panel-container .tree-container {
