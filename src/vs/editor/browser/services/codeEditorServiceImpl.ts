@@ -72,8 +72,8 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 	private _disposable: IDisposable;
 	private _parentTypeKey: string;
-	private _inlineClassName: string;
-	private _stickiness: TrackedRangeStickiness;
+	private _beforeContentClassName: string;
+	private _afterContentClassName: string;
 
 	constructor(styleSheet: HTMLStyleElement, key: string, parentTypeKey: string, options:IDecorationRenderOptions) {
 		this._parentTypeKey = parentTypeKey;
@@ -81,26 +81,28 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 		var themedOpts = getThemedRenderOptions(options);
 
-		let inlineClassName = DecorationRenderHelper.handle(
+		this._beforeContentClassName = DecorationRenderHelper.handle(
 			styleSheet,
 			key,
 			parentTypeKey,
-			ModelDecorationCSSRuleType.InlineClassName,
-			{
-				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.after),
-				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.after),
-				selector: '::after'
-			},
+			ModelDecorationCSSRuleType.BeforeContentClassName,
 			{
 				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.before),
-				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.before),
-				selector: '::before'
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.before)
 			}
 		);
-		if (inlineClassName) {
-			this._stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-			this._inlineClassName = inlineClassName;
 
+		this._afterContentClassName = DecorationRenderHelper.handle(
+			styleSheet,
+			key,
+			parentTypeKey,
+			ModelDecorationCSSRuleType.AfterContentClassName,
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.after),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.after)
+			}
+		);
+		if (this._beforeContentClassName || this._afterContentClassName) {
 			this._disposable = toDisposable(() => {
 				dom.removeCSSRulesContainingSelector(CSSNameHelper.getDeletionPrefixFor(key), styleSheet);
 			});
@@ -109,11 +111,11 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 
 	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
 		let options = codeEditorService.resolveDecorationOptions(this._parentTypeKey, true);
-		if (this._inlineClassName) {
-			options.inlineClassName = this._inlineClassName;
+		if (this._beforeContentClassName) {
+			options.beforeContentClassName = this._beforeContentClassName;
 		}
-		if (this._stickiness) {
-			options.stickiness = this._stickiness;
+		if (this._afterContentClassName) {
+			options.afterContentClassName = this._afterContentClassName;
 		}
 		return options;
 	}
@@ -133,6 +135,8 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	public className: string;
 	public inlineClassName: string;
+	public beforeContentClassName: string;
+	public afterContentClassName: string;
 	public glyphMarginClassName: string;
 	public isWholeLine:boolean;
 	public overviewRuler:IModelDecorationOverviewRulerOptions;
@@ -160,22 +164,30 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			{
 				light: DecorationRenderHelper.getCSSTextForModelDecorationInlineClassName(themedOpts.light),
 				dark: DecorationRenderHelper.getCSSTextForModelDecorationInlineClassName(themedOpts.dark)
-			},
-			{
-				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.after),
-				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.after),
-				selector: '::after'
-			},
-			{
-				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.before),
-				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.before),
-				selector: '::before'
 			}
 		);
 
-		if (themedOpts.light.before || themedOpts.light.after || themedOpts.dark.before || themedOpts.dark.after) {
-			this.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-		}
+		this.beforeContentClassName = DecorationRenderHelper.handle(
+			styleSheet,
+			key,
+			null,
+			ModelDecorationCSSRuleType.BeforeContentClassName,
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.before),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.before)
+			}
+		);
+
+		this.afterContentClassName = DecorationRenderHelper.handle(
+			styleSheet,
+			key,
+			null,
+			ModelDecorationCSSRuleType.AfterContentClassName,
+			{
+				light: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.light.after),
+				dark: DecorationRenderHelper.getCSSTextForModelDecorationContentClassName(themedOpts.dark.after)
+			}
+		);
 
 		this.glyphMarginClassName = DecorationRenderHelper.handle(
 			styleSheet,
@@ -212,6 +224,8 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		}
 		return {
 			inlineClassName: this.inlineClassName,
+			beforeContentClassName: this.beforeContentClassName,
+			afterContentClassName: this.afterContentClassName,
 			className: this.className,
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
@@ -325,23 +339,21 @@ class DecorationRenderHelper {
 		return cssTextArr.length !== lenBefore;
 	}
 
-	public static handle(styleSheet: HTMLStyleElement, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType, ...ruleSets: {selector?: string, light:string, dark:string}[]): string {
-		function createCSSSelector(themeType:ThemeType, pseudoSelector: string, cssText:string) {
-			let selector = CSSNameHelper.getSelector(themeType, key, parentKey, ruleType, pseudoSelector);
+	public static handle(styleSheet: HTMLStyleElement, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType, cssTexts: {light:string, dark:string}): string {
+		function createCSSSelector(themeType:ThemeType, cssText:string) {
+			let selector = CSSNameHelper.getSelector(themeType, key, parentKey, ruleType);
 			dom.createCSSRule(selector, cssText, styleSheet);
 		}
 
 		let hasContent = false;
-		for (let ruleSet of ruleSets) {
-			if (ruleSet.light.length > 0) {
-				createCSSSelector(ThemeType.Light, ruleSet.selector, ruleSet.light);
-				hasContent = true;
-			}
-			if (ruleSet.dark.length > 0) {
-				createCSSSelector(ThemeType.Dark, ruleSet.selector, ruleSet.dark);
-				createCSSSelector(ThemeType.HighContrastBlack, ruleSet.selector, ruleSet.dark);
-				hasContent = true;
-			}
+		if (cssTexts.light.length > 0) {
+			createCSSSelector(ThemeType.Light, cssTexts.light);
+			hasContent = true;
+		}
+		if (cssTexts.dark.length > 0) {
+			createCSSSelector(ThemeType.Dark, cssTexts.dark);
+			createCSSSelector(ThemeType.HighContrastBlack, cssTexts.dark);
+			hasContent = true;
 		}
 		if (hasContent) {
 			let className = CSSNameHelper.getClassName(key, ruleType);
@@ -362,7 +374,9 @@ enum ThemeType {
 enum ModelDecorationCSSRuleType {
 	ClassName = 0,
 	InlineClassName = 1,
-	GlyphMarginClassName = 2
+	GlyphMarginClassName = 2,
+	BeforeContentClassName = 3,
+	AfterContentClassName = 4
 }
 
 class CSSNameHelper {
@@ -381,13 +395,15 @@ class CSSNameHelper {
 		return 'ced-' + key + '-' + type;
 	}
 
-	public static getSelector(themeType:ThemeType, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType, pseudoSelector:string): string {
+	public static getSelector(themeType:ThemeType, key:string, parentKey: string, ruleType:ModelDecorationCSSRuleType): string {
 		let selector = this._getSelectorPrefixOf(themeType) + ' .' + this.getClassName(key, ruleType);
 		if (parentKey) {
 			selector = selector + '.' + this.getClassName(parentKey, ruleType);
 		}
-		if (pseudoSelector) {
-			selector = selector + pseudoSelector;
+		if (ruleType === ModelDecorationCSSRuleType.BeforeContentClassName) {
+			selector += '::before';
+		} else if (ruleType === ModelDecorationCSSRuleType.AfterContentClassName) {
+			selector += '::after';
 		}
 		return selector;
 	}
