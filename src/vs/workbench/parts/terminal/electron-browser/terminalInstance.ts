@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import cp = require('child_process');
-import termJs = require('term.js');
+import xterm = require('xterm');
 import lifecycle = require('vs/base/common/lifecycle');
 import os = require('os');
 import path = require('path');
@@ -45,7 +45,7 @@ export class TerminalInstance {
 			vertical: ScrollbarVisibility.Auto
 		});
 		this.toDispose.push(terminalScrollbar);
-		this.terminal = termJs({
+		this.terminal = xterm({
 			cursorBlink: false // term.js' blinking cursor breaks selection
 		});
 
