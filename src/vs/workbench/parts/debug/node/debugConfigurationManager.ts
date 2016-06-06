@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import path = require('path');
-import nls = require('vs/nls');
+import * as path from 'path';
+import * as nls from 'vs/nls';
 import { sequence } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
+import * as types from 'vs/base/common/types';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
-import objects = require('vs/base/common/objects');
+import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import editor = require('vs/editor/common/editorCommon');
-import extensionsRegistry = require('vs/platform/extensions/common/extensionsRegistry');
-import platform = require('vs/platform/platform');
-import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
+import * as editor from 'vs/editor/common/editorCommon';
+import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
+import * as platform from 'vs/platform/platform';
+import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
-import debug = require('vs/workbench/parts/debug/common/debug');
+import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
@@ -285,12 +286,13 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 	public setConfiguration(nameOrConfig: string|debug.IConfig): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
-			if (typeof nameOrConfig === 'string' && (!config || !config.configurations)) {
-				this.configuration = null;
-				return;
-			}
-
-			if (typeof nameOrConfig === 'string') {
+			if (types.isObject(nameOrConfig)) {
+				this.configuration = objects.deepClone(nameOrConfig) as debug.IConfig;
+			} else {
+				if (!config || !config.configurations) {
+					this.configuration = null;
+					return;
+				}
 				// if the configuration name is not set yet, take the first launch config (can happen if debug viewlet has not been opened yet).
 				const filtered = nameOrConfig ? config.configurations.filter(cfg => cfg.name === nameOrConfig) : [config.configurations[0]];
 
@@ -298,8 +300,6 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 				if (config && this.configuration) {
 					this.configuration.debugServer = config.debugServer;
 				}
-			} else {
-				this.configuration = objects.deepClone(nameOrConfig);
 			}
 
 			if (this.configuration) {
