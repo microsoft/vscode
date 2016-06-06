@@ -25,9 +25,7 @@
 
 .monaco-workbench .editor > .content > .one-editor-container {
 	position: absolute;
-
-	/* use border box to be able to draw a border as separator between editors */
-	box-sizing:	border-box;
+	box-sizing:	border-box; /* use border box to be able to draw a border as separator between editors */
 }
 
 .monaco-workbench .editor > .content > .editor-left {
@@ -156,95 +154,44 @@
 	color: rgba(204, 204, 204, 0.7);
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description {
-	position: absolute;
-	top: 12px;
-	right: 0;
-	height: 100%;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner {
-	text-transform: uppercase;
-	font-size: 11px !important;
-	padding: 0 10px 0 12px;
-	cursor: default;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner {
-	color: rgb(51, 51, 51);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner {
-	color: white;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner.error,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner.conflict {
-	color: #E02020;
-}
-
-.monaco-workbench > .part.editor > .content .inactive .title .title-label .state-description .inner {
-	opacity: 0.5;
-}
-
-.monaco-workbench .close-editor-action,
-.monaco-workbench .close-editor-dirty-action:hover {
+.monaco-workbench .close-editor-action {
 	background: url('close.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .close-editor-action,
-.vs-dark .monaco-workbench .close-editor-dirty-action:hover {
+.vs-dark .monaco-workbench .close-editor-action {
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .close-editor-dirty-action {
-	background: url('close-dirty.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .close-editor-dirty-action {
-	background: url('close-dirty-inverse.svg') center center no-repeat;
-}
-
 .monaco-workbench .split-editor-action {
-	background: url('SplitEditor.svg') center center no-repeat;
+	background: url('split-editor.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .split-editor-action {
-	background: url('SplitEditor_inverse.svg') center center no-repeat;
+	background: url('split-editor-inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .show-group-editors-action {
-	background: url('stackView_light.svg') center center no-repeat;
+	background: url('stackview.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-workbench .show-group-editors-action {
+	background: url('stackview-inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .show-group-editors-action-hidden {
 	display: none;
 }
 
-.vs-dark .monaco-workbench .show-group-editors-action {
-	background: url('stackView_dark.svg') center center no-repeat;
-}
-
 /* High Contrast Theming */
 
 .hc-black .monaco-workbench .close-editor-action,
-.hc-black .monaco-workbench .close-editor-dirty-action,
 .hc-black .monaco-workbench .show-group-editors-action,
 .hc-black .monaco-workbench .split-editor-action {
 	background: none;
 }
 
 .hc-black .monaco-workbench .show-group-editors-action:before {
-	content: url('stackView_dark.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .monaco-workbench .close-editor-dirty-action:before {
-	content: url('close-decorated-inverse.svg');
+	content: url('stackview-inverse.svg');
 	position: absolute;
 	top: 12px;
 	left: 8px;
