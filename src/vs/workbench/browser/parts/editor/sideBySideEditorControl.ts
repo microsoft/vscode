@@ -35,7 +35,7 @@ import {QuickOpenAction} from 'vs/workbench/browser/quickopen';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ShowEditorsInLeftGroupAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
+import {ShowEditorsInLeftGroupAction, ShowAllEditorsAction, ShowEditorsInCenterGroupAction, ShowEditorsInRightGroupAction, CloseEditorsInGroupAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, CloseEditorAction} from 'vs/workbench/browser/parts/editor/editorActions';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 
 export enum Rochade {
@@ -129,6 +129,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 	private moveGroupRightActions: MoveGroupRightAction[];
 	private closeEditorsInGroupActions: CloseEditorsInGroupAction[];
 	private splitEditorAction: SplitEditorAction;
+	private showAllEditorsAction: ShowAllEditorsAction;
 
 	private leftSash: Sash;
 	private startLeftContainerWidth: number;
@@ -193,6 +194,9 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 		// Close
 		this.closeEditorActions = POSITIONS.map((position) => this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close")));
+
+		// Show All Editors
+		this.showAllEditorsAction = this.instantiationService.createInstance(ShowAllEditorsAction, ShowAllEditorsAction.ID, nls.localize('showEditors', "Show Editors"));
 
 		// Show Editors of Group
 		this.showEditorsOfGroup = POSITIONS.map((position) => {
@@ -1198,13 +1202,13 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 
 			// Overflow
 			const isOverflowing = state.editorCount > 1;
-			const showEditorAction = this.showEditorsOfGroup[state.position];
+			const actions = [this.showEditorsOfGroup[state.position], this.showAllEditorsAction];
 			if (!isOverflowing) {
-				showEditorAction.class = 'show-group-editors-overflowing-action-hidden';
-				showEditorAction.enabled = false;
+				actions.forEach(a => a.class = 'show-group-editors-overflowing-action-hidden');
+				actions.forEach(a => a.enabled = false);
 			} else {
-				showEditorAction.class = 'show-group-editors-action';
-				showEditorAction.enabled = true;
+				actions.forEach(a => a.class = 'show-group-editors-action');
+				actions.forEach(a => a.enabled = true);
 			}
 		}
 	}
@@ -1293,9 +1297,16 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 				actionPosition = Position.RIGHT; // with 2 groups, CENTER === RIGHT
 			}
 
-			this.showEditorsOfGroup[actionPosition].class = 'show-group-editors-action';
-			this.showEditorsOfGroup[actionPosition].enabled = true;
-			primaryActions.unshift(this.showEditorsOfGroup[actionPosition]);
+			let overflowAction: Action;
+			if (groupCount === 1) {
+				overflowAction = this.showAllEditorsAction;
+			} else {
+				overflowAction = this.showEditorsOfGroup[actionPosition];
+			}
+
+			overflowAction.class = 'show-group-editors-action';
+			overflowAction.enabled = true;
+			primaryActions.unshift(overflowAction);
 		}
 
 		// Secondary Actions
@@ -1730,7 +1741,7 @@ export class SideBySideEditorControl implements ISideBySideEditorControl, IVerti
 		});
 
 		// Actions
-		[this.splitEditorAction, ...this.closeEditorActions, ...this.moveGroupLeftActions, ...this.moveGroupRightActions, ...this.closeEditorsInGroupActions].forEach((action) => {
+		[this.splitEditorAction, this.showAllEditorsAction, ...this.showEditorsOfGroup, ...this.closeEditorActions, ...this.moveGroupLeftActions, ...this.moveGroupRightActions, ...this.closeEditorsInGroupActions].forEach((action) => {
 			action.dispose();
 		});
 

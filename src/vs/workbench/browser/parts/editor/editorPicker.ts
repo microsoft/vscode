@@ -134,15 +134,17 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 			});
 		}
 
-		// Grouping
-		let lastGroup: IEditorGroup;
-		entries.forEach(e => {
-			if (!lastGroup || lastGroup !== e.group) {
-				e.setGroupLabel(nls.localize('groupLabel', "Group: {0}", e.group.label));
-				e.setShowBorder(!!lastGroup);
-				lastGroup = e.group;
-			}
-		});
+		// Grouping (for more than one group)
+		if (stacks.groups.length > 1) {
+			let lastGroup: IEditorGroup;
+			entries.forEach(e => {
+				if (!lastGroup || lastGroup !== e.group) {
+					e.setGroupLabel(nls.localize('groupLabel', "Group: {0}", e.group.label));
+					e.setShowBorder(!!lastGroup);
+					lastGroup = e.group;
+				}
+			});
+		}
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
