@@ -86,12 +86,6 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 		return this.dirty;
 	}
 
-	public revert(): void {
-		this.dirty = false;
-
-		this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_SAVED, new UntitledEditorEvent(this.resource));
-	}
-
 	public load(): TPromise<EditorModel> {
 		return super.load().then((model) => {
 			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
@@ -123,6 +117,8 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 	public dispose(): void {
 		super.dispose();
 
+		this.dirty = false; // we can no longer be dirty
+
 		if (this.textModelChangeListener) {
 			this.textModelChangeListener.dispose();
 			this.textModelChangeListener = null;
@@ -132,5 +128,7 @@ export class UntitledEditorModel extends StringEditorModel implements IEncodingS
 			this.configurationChangeListener.dispose();
 			this.configurationChangeListener = null;
 		}
+
+		this.eventService.emit(WorkbenchEventType.UNTITLED_FILE_DELETED, new UntitledEditorEvent(this.resource));
 	}
 }

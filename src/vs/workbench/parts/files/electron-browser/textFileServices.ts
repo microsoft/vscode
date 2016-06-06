@@ -117,8 +117,17 @@ export class TextFileService extends AbstractTextFileService {
 		return super.revertAll(resources, force).then(r => {
 
 			// Revert untitled
-			const reverted = this.untitledEditorService.revertAll(resources);
-			reverted.forEach(res => r.results.push({ source: res, success: true }));
+			let untitledInputs = this.untitledEditorService.getAll(resources);
+			untitledInputs.forEach(input => {
+				if (input) {
+					input.dispose();
+
+					r.results.push({
+						source: input.getResource(),
+						success: true
+					});
+				}
+			});
 
 			return r;
 		});

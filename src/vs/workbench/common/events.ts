@@ -33,9 +33,9 @@ export class EventType {
 	static UNTITLED_FILE_DIRTY = 'untitledFileDirty';
 
 	/**
-	 * Event type for when an untitled file is saved.
+	 * Event type for when an untitled file is deleted.
 	 */
-	static UNTITLED_FILE_SAVED = 'untitledFileSaved';
+	static UNTITLED_FILE_DELETED = 'untitledFileDeleted';
 
 	/**
 	 * Event type for when a resources encoding changes.

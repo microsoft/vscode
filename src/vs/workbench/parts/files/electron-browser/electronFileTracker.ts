@@ -77,7 +77,7 @@ export class FileTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Local text file changes
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, () => this.onUntitledSavedEvent()));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, () => this.onUntitledDeletedEvent()));
 		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, () => this.onUntitledDirtyEvent()));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_DIRTY, (e: TextFileChangeEvent) => this.onTextFileDirty(e)));
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_SAVED, (e: TextFileChangeEvent) => this.onTextFileSaved(e)));
@@ -199,7 +199,7 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onUntitledSavedEvent(): void {
+	private onUntitledDeletedEvent(): void {
 		if (this.isDocumentedEdited) {
 			this.updateDocumentEdited();
 		}
