@@ -18,7 +18,11 @@ export function activate(context) {
 		provideCompletionItems(document, position, token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (location.path[1] === 'command') {
-				return commands.then(ids => ids.map(id => new vscode.CompletionItem(id, vscode.CompletionItemKind.Value)));
+				return commands.then(ids => ids.map(id => {
+					let item = new vscode.CompletionItem(id);
+					item.kind = vscode.CompletionItemKind.Value;
+					return item;
+				}));
 			}
 		}
 	});
