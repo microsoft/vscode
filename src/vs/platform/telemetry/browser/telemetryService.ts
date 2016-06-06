@@ -84,8 +84,7 @@ export class TelemetryService implements ITelemetryService {
 		}
 		if (this._configuration.enableSoftIdle) {
 			this._softIdleMonitor = new IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-			this._softIdleMonitor.addOneTimeActiveListener(() => this._onUserActive());
-			this._softIdleMonitor.addOneTimeIdleListener(() => this._onUserIdle());
+			this._disposables.push(this._softIdleMonitor.onStatusChange(status => this._onIdleStatus(status)));
 			this._disposables.push(this._softIdleMonitor);
 		}
 
@@ -96,6 +95,14 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
+	private _onIdleStatus(status: UserStatus): void {
+		if (status === UserStatus.Active) {
+			this._onUserActive();
+		} else {
+			this._onUserIdle();
+		}
+	}
+
 	private _updateUserOptIn(): void {
 		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
 		this._configuration.userOptIn = config ? config.enableTelemetry : this._configuration.userOptIn;
@@ -103,12 +110,10 @@ export class TelemetryService implements ITelemetryService {
 
 	private _onUserIdle(): void {
 		this.publicLog(TelemetryService.IDLE_START_EVENT_NAME);
-		this._softIdleMonitor.addOneTimeIdleListener(() => this._onUserIdle());
 	}
 
 	private _onUserActive(): void {
 		this.publicLog(TelemetryService.IDLE_STOP_EVENT_NAME);
-		this._softIdleMonitor.addOneTimeActiveListener(() => this._onUserActive());
 	}
 
 	private _onTelemetryTimerEventStop(events: ITimerEvent[]): void {
@@ -150,7 +155,7 @@ export class TelemetryService implements ITelemetryService {
 
 	public publicLog(eventName: string, data?: any): TPromise<any> {
 
-		if (this._hardIdleMonitor && this._hardIdleMonitor.getStatus() === UserStatus.Idle) {
+		if (this._hardIdleMonitor && this._hardIdleMonitor.status === UserStatus.Idle) {
 			return TPromise.as(undefined);
 		}
 
