@@ -91,12 +91,12 @@ suite('Paths', () => {
 	});
 
 	test('makeAbsolute', () => {
-		assert.equal(paths.makeAbsolute('foo'), '/foo');
-		assert.equal(paths.makeAbsolute('foo/bar'), '/foo/bar');
-		assert.equal(paths.makeAbsolute('foo/bar/'), '/foo/bar/');
-		assert.equal(paths.makeAbsolute('/foo/bar'), '/foo/bar');
-		assert.equal(paths.makeAbsolute('/'), '/');
-		assert.equal(paths.makeAbsolute(''), '/');
+		assert.equal(paths.makePosixAbsolute('foo'), '/foo');
+		assert.equal(paths.makePosixAbsolute('foo/bar'), '/foo/bar');
+		assert.equal(paths.makePosixAbsolute('foo/bar/'), '/foo/bar/');
+		assert.equal(paths.makePosixAbsolute('/foo/bar'), '/foo/bar');
+		assert.equal(paths.makePosixAbsolute('/'), '/');
+		assert.equal(paths.makePosixAbsolute(''), '/');
 	});
 
 	test('basename', () => {
