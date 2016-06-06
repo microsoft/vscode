@@ -802,7 +802,7 @@ export class EditorContribOptions {
 		this.contextmenu = Boolean(source.contextmenu);
 		this.quickSuggestions = Boolean(source.quickSuggestions);
 		this.quickSuggestionsDelay = source.quickSuggestionsDelay||0;
-		this.parameterHints = Boolean(this.parameterHints);
+		this.parameterHints = Boolean(source.parameterHints);
 		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
