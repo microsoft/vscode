@@ -37,11 +37,6 @@ export interface IUntitledEditorService {
 	isDirty(resource: URI): boolean;
 
 	/**
-	 * Reverts the untitled resources if found.
-	 */
-	revertAll(resources?: URI[]): URI[];
-
-	/**
 	 * Creates a new untitled input with the optional resource URI or returns an existing one
 	 * if the provided resource exists already as untitled input.
 	 *
@@ -75,21 +70,6 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		return Object.keys(UntitledEditorService.CACHE).map((key) => UntitledEditorService.CACHE[key]);
-	}
-
-	public revertAll(resources?: URI[], force?: boolean): URI[] {
-		const reverted: URI[] = [];
-
-		const untitledInputs = this.getAll(resources);
-		untitledInputs.forEach(input => {
-			if (input) {
-				input.revert();
-
-				reverted.push(input.getResource());
-			}
-		});
-
-		return reverted;
 	}
 
 	public isDirty(resource: URI): boolean {
