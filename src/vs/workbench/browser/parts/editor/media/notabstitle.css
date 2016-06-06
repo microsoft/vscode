@@ -1,0 +1,106 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Title Decoration */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration {
+	width: 16px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+	background-size: 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+	background: url('close-dirty.svg') center center no-repeat;
+}
+
+.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty,
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
+	background: url('close-dirty-inverse.svg') center center no-repeat;
+}
+
+/* Title Label */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
+	line-height: 35px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	position: relative;
+	flex: 1;
+	font-style: italic;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label {
+	font-style: normal;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
+	text-decoration: none;
+	font-size: 13px;
+	cursor: default;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
+	color: #333333;
+}
+
+.vs .monaco-workbench > .part.editor > .content .inactive .title .title-label a {
+	color: rgba(51, 51, 51, 0.5);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
+	color: white;
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .inactive .title .title-label a {
+	color: rgba(255, 255, 255, 0.5);
+}
+
+/* Title Description */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
+	margin-left: 0.5em;
+	font-size: 0.9em;
+	cursor: default;
+}
+
+.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
+	color: rgba(108, 108, 108, 0.7);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
+	color: rgba(204, 204, 204, 0.7);
+}
+
+/* Title Actions */
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
+	display: flex;
+	flex: initial;
+}
+
+.monaco-workbench > .part.editor > .content .inactive .title .title-actions {
+	opacity: 0.5;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label {
+	display: block;
+	height: 35px;
+	width: 28px;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label .label {
+	display: none;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .editor-group-toolbar {
+	padding-left: 4px;
+	background-color: rgba(128, 128, 128, 0.2);
+}
