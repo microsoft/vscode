@@ -193,11 +193,7 @@ export class MarkersPanel extends Panel {
 			if (this.autoExpanded.contains(resource.uri.toString())) {
 				return;
 			}
-			if (resource.markers.length > 0 && resource.markers.length < 10) {
-				this.tree.expand(resource).done(null, errors.onUnexpectedError);
-			} else {
-				this.tree.collapse(resource).done(null, errors.onUnexpectedError);
-			}
+			this.tree.expand(resource).done(null, errors.onUnexpectedError);
 			this.autoExpanded.set(resource.uri.toString());
 		});
 	}
