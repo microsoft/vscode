@@ -247,10 +247,12 @@ class DecorationRenderHelper {
 		color: 'color:{0} !important;',
 		backgroundColor: 'background-color:{0};',
 
+		outline: 'outline:{0};',
 		outlineColor: 'outline-color:{0};',
 		outlineStyle: 'outline-style:{0};',
 		outlineWidth: 'outline-width:{0};',
 
+		border: 'border:{0};',
 		borderColor: 'border-color:{0};',
 		borderRadius: 'border-radius:{0};',
 		borderSpacing: 'border-spacing:{0};',
@@ -263,7 +265,8 @@ class DecorationRenderHelper {
 
 		gutterIconPath: 'background:url(\'{0}\') center center no-repeat;',
 
-		content: 'content:{0};',
+		contentText: 'content:\'{0}\';',
+		contentIconPath: 'content:url(\'{0}\')',
 		margin: 'margin:{0};',
 		width: 'width:{0};',
 		height: 'height:{0};'
@@ -274,7 +277,7 @@ class DecorationRenderHelper {
 	 */
 	public static getCSSTextForModelDecorationClassName(opts:IThemeDecorationRenderOptions): string {
 		let cssTextArr = [];
-		DecorationRenderHelper.collectCSSText(opts, ['backgroundColor', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
+		DecorationRenderHelper.collectCSSText(opts, ['backgroundColor', 'outline', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
 		DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
 
 		return cssTextArr.join('');
@@ -297,7 +300,14 @@ class DecorationRenderHelper {
 
 		if (typeof opts !== 'undefined') {
 			DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
-			DecorationRenderHelper.collectCSSText(opts, ['content', 'textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
+			if (typeof opts.contentIconPath !== 'undefined') {
+				cssTextArr.push(strings.format(this._CSS_MAP.contentIconPath, URI.file(opts.contentIconPath).toString()));
+			}
+			if (typeof opts.contentText !== 'undefined') {
+				let escaped = opts.contentText.replace(/\"/g, '\\\"');
+				cssTextArr.push(strings.format(this._CSS_MAP.contentText, escaped));
+			}
+			DecorationRenderHelper.collectCSSText(opts, ['textDecoration', 'color', 'backgroundColor', 'margin'], cssTextArr);
 			if (DecorationRenderHelper.collectCSSText(opts, ['width', 'height'], cssTextArr)) {
 				cssTextArr.push('display:inline-block;');
 			}
@@ -319,7 +329,7 @@ class DecorationRenderHelper {
 		return cssTextArr.join('');
 	}
 
-	private static border_rules = ['borderColor', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
+	private static border_rules = ['border', 'borderColor', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
 
 	public static collectBorderSettingsCSSText(opts: any, cssTextArr: string[]) : boolean {
 		if (DecorationRenderHelper.collectCSSText(opts, DecorationRenderHelper.border_rules, cssTextArr)) {
