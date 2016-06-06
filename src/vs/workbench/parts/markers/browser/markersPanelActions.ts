@@ -40,7 +40,7 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			iconClass: 'filterIcon'
 		});
-		filterInputBox.value= this.markersPanel.markersModel.filterOptions.filter;
+		filterInputBox.value= this.markersPanel.markersModel.filterOptions.completeFilter;
 		this.toDispose.push(filterInputBox.onDidChange((filter: string) => {
 			this.markersPanel.markersModel.update(new FilterOptions(filter));
 			this.markersPanel.refreshPanel();

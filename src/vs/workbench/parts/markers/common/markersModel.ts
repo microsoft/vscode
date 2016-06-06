@@ -29,11 +29,12 @@ export class Marker {
 }
 
 export class FilterOptions {
-	public filterErrors: boolean= false;
-	public filterWarnings: boolean= false;
-	public filterInfos: boolean= false;
-	public filterValue: string= '';
-	public filter: string= '';
+
+	private _filterErrors: boolean= false;
+	private _filterWarnings: boolean= false;
+	private _filterInfos: boolean= false;
+	private _filter: string= '';
+	private _completeFilter: string= '';
 
 	constructor(filter:string='') {
 		if (filter) {
@@ -41,27 +42,41 @@ export class FilterOptions {
 		}
 	}
 
-	public hasActiveFilters():boolean {
-		return this.filterErrors || this.filterWarnings || this.filterInfos || !!this.filterValue;
+	public get filterErrors(): boolean {
+		return this._filterErrors;
+	}
+
+	public get filterWarnings(): boolean {
+		return this._filterWarnings;
+	}
+
+	public get filterInfos(): boolean {
+		return this._filterInfos;
+	}
+
+	public get filter(): string {
+		return this._filter;
+	}
+
+	public get completeFilter(): string {
+		return this._completeFilter;
+	}
+
+	public hasFilters():boolean {
+		return !!this._filter;
 	}
 
 	private parse(filter: string) {
-		this.filter= filter;
-		filter= strings.trim(filter);
-		let startIndex= 0;
-		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_ERRORS)) {
-			this.filterErrors= true;
-			startIndex= (Messages.MARKERS_PANEL_FILTER_ERRORS).length;
-		}
-		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_WARNINGS)) {
-			this.filterWarnings= true;
-			startIndex= (Messages.MARKERS_PANEL_FILTER_WARNINGS).length;
-		}
-		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_INFOS)) {
-			this.filterInfos= true;
-			startIndex= (Messages.MARKERS_PANEL_FILTER_INFOS).length;
-		}
-		this.filterValue= filter.substr(startIndex).trim();
+		this._completeFilter= filter;
+		this._filter= filter.trim();
+		this._filterErrors= this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_ERRORS);
+		this._filterWarnings= this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_WARNINGS);
+		this._filterInfos= this.matches(this._filter, Messages.MARKERS_PANEL_FILTER_INFOS);
+	}
+
+	private matches(prefix: string, word: string):boolean {
+		let result= matchesPrefix(prefix, word);
+		return result && result.length > 0;
 	}
 }
 
@@ -173,19 +188,22 @@ export class MarkersModel {
 	}
 
 	private filterMarker(marker: IMarker):boolean {
-		if (this._filterOptions.filterErrors && Severity.Error !== marker.severity) {
+		if (this._filterOptions.filter) {
+			const labelHighlights = Marker._filter(this._filterOptions.filter, marker.message);
+			const descHighlights = Marker._filter(this._filterOptions.filter, marker.resource.toString());
+			if (!!labelHighlights || !!descHighlights) {
+				return true;
+			}
+			if (this._filterOptions.filterErrors && Severity.Error === marker.severity) {
+				return true;
+			}
+			if (this._filterOptions.filterWarnings && Severity.Warning === marker.severity) {
+				return true;
+			}
+			if (this._filterOptions.filterInfos && Severity.Info === marker.severity) {
+				return true;
+			}
 			return false;
-		}
-		if (this._filterOptions.filterWarnings && Severity.Warning !== marker.severity) {
-			return false;
-		}
-		if (this._filterOptions.filterInfos && Severity.Info !== marker.severity) {
-			return false;
-		}
-		if (this._filterOptions.filterValue) {
-			const labelHighlights = Marker._filter(this._filterOptions.filterValue, marker.message);
-			const descHighlights = Marker._filter(this._filterOptions.filterValue, marker.resource.toString());
-			return !!labelHighlights || !!descHighlights;
 		}
 		return true;
 	}
@@ -235,7 +253,7 @@ export class MarkersModel {
 			return '';
 		}
 		if (this.hasResources()) {
-			if (this._filterOptions.hasActiveFilters()) {
+			if (this._filterOptions.hasFilters()) {
 				return Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
 			}
 		}
