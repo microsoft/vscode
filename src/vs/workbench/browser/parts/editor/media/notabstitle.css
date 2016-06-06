@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Title Container */
+
+.monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+	padding-left: 2px;
+}
+
 /* Title Decoration */
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration {
-	width: 16px;
+	width: 18px;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-decoration.dirty {
@@ -25,6 +31,7 @@
 }
 
 /* Title Label */
+
 .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
 	line-height: 35px;
 	white-space: nowrap;
