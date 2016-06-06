@@ -37,7 +37,7 @@ export function activate(context: ExtensionContext) {
 	languages.getLanguages().then(languageIds => {
 
 		// The server is implemented in node
-		let serverModule = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
+		let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
 		// The debug options for the server
 		let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
 
