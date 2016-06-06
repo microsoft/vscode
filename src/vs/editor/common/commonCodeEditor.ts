@@ -103,7 +103,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	protected _instantiationService: IInstantiationService;
 	protected _keybindingService: IKeybindingService;
 
-	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:{ [subtype:string]:string[]}};
+	private _decorationTypeKeysToIds: {[decorationTypeKey:string]:string[]};
+	private _decorationTypeSubtypes: {[decorationTypeKey:string]:{ [subtype:string]:boolean}};
 
 	private _codeEditorService: ICodeEditorService;
 	private _editorIdContextKey: IKeybindingContextKey<string>;
@@ -130,6 +131,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 		var timerEvent = timer.start(timer.Topic.EDITOR, 'CodeEditor.ctor');
 
+		// listeners that are kept during the whole editor lifetime
 		this._lifetimeDispose = [];
 
 		this._keybindingService = keybindingService.createScoped(domElement);
@@ -140,8 +142,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this._hasNonEmptySelectionKey = this._keybindingService.createKey(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION, false);
 		this._langIdKey = this._keybindingService.createKey<string>(editorCommon.KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID, undefined);
 
-		// listeners that are kept during the whole editor lifetime
 		this._decorationTypeKeysToIds = {};
+		this._decorationTypeSubtypes = {};
 
 		options = options || {};
 		if (typeof options.ariaLabel === 'undefined') {
@@ -653,70 +655,49 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 	public setDecorations(decorationTypeKey: string, decorationOptions:editorCommon.IDecorationOptions[]): void {
 
-		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
-		if (!oldDecorationsIds) {
-			oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] = {};
-		}
+		let newDecorationsSubTypes: {[key:string]:boolean}= {};
+		let oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
+		this._decorationTypeSubtypes[decorationTypeKey] = newDecorationsSubTypes;
 
-		// group all decoration options by render options. Each group is identified by a subType id. The subtype id is empty if
-		// there are no custom render options.
-		let decorationOptionsBySubTypes :{[key:string]: editorCommon.IDecorationOptions[]} = {};
+		let newModelDecorations :editorCommon.IModelDeltaDecoration[] = [];
+
 		for (let decorationOption of decorationOptions) {
-			let subKey = decorationOption.renderOptions ? hash(decorationOption.renderOptions).toString(16) : '';
-			let subTypeDecorationOptions = decorationOptionsBySubTypes[subKey];
-			if (!subTypeDecorationOptions) {
-				decorationOptionsBySubTypes[subKey] = subTypeDecorationOptions = [];
-			}
-			subTypeDecorationOptions.push(decorationOption);
-		}
-
-		// for each sub type create decorations. For custom render options register a decoration type if necessary
-		for (let subType in decorationOptionsBySubTypes) {
-			let decorationOptions = decorationOptionsBySubTypes[subType];
 			let typeKey = decorationTypeKey;
-			let oldIds = oldDecorationsIds[subType] || [];
-
-			if (subType.length > 0) {
+			if (decorationOption.renderOptions) {
+				// identify custom reder options by a hash code over all keys and values
+				// For custom render options register a decoration type if necessary
+				let subType = hash(decorationOption.renderOptions).toString(16);
 				typeKey = decorationTypeKey + '-' + subType;
-				if (oldIds.length === 0) {
-					// custom render options: decoration type did not exist before, register new one
-					this._codeEditorService.registerDecorationType(typeKey, decorationOptions[0].renderOptions, decorationTypeKey);
+				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
+					// decoration type did not exist before, register new one
+					this._codeEditorService.registerDecorationType(typeKey, decorationOption.renderOptions, decorationTypeKey);
 				}
+				newDecorationsSubTypes[subType] = true;
 			}
-
-			let modelDecorations: editorCommon.IModelDeltaDecoration[] = decorationOptions.map(r => {
-				let opts = this._codeEditorService.resolveDecorationOptions(typeKey, !!r.hoverMessage);
-				if (r.hoverMessage) {
-					opts.htmlMessage = r.hoverMessage;
-				}
-				return {
-					range: r.range,
-					options: opts
-				};
-			});
-
-			oldDecorationsIds[subType] = this.deltaDecorations(oldIds, modelDecorations);
+			let opts = this._codeEditorService.resolveDecorationOptions(typeKey, !!decorationOption.hoverMessage);
+			if (decorationOption.hoverMessage) {
+				opts.htmlMessage = decorationOption.hoverMessage;
+			}
+			newModelDecorations.push({ range: decorationOption.range, options: opts });
 		}
 
-		// remove decorations that are no longer used, deregister decoration type if necessary
-		for (let subType in oldDecorationsIds) {
-			if (!decorationOptionsBySubTypes.hasOwnProperty(subType)) {
-				this.deltaDecorations(oldDecorationsIds[subType], []);
-				delete oldDecorationsIds[subType];
-				if (subType.length > 0) { // custom render options: unregister decoration type
-					this._codeEditorService.removeDecorationType(decorationTypeKey + '-' + subType);
-				}
+		// update all decorations
+		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
+		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
+
+		// remove decoration sub types that are no longer used, deregister decoration type if necessary
+		for (let subType in oldDecorationsSubTypes) {
+			if (!newDecorationsSubTypes[subType]) {
+				this._codeEditorService.removeDecorationType(decorationTypeKey + '-' + subType);
 			}
 		}
 	}
 
 	public removeDecorations(decorationTypeKey: string): void {
-		let decorationIdsBySubType = this._decorationTypeKeysToIds[decorationTypeKey];
-		if (decorationIdsBySubType) {
-			for (let subType in decorationIdsBySubType) {
-				this.deltaDecorations(decorationIdsBySubType[subType], []);
-			}
-			delete this._decorationTypeKeysToIds[decorationTypeKey];
+		// remove decorations for type and sub type
+		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
+		if (oldDecorationsIds) {
+			this.deltaDecorations(oldDecorationsIds, []);
 		}
 	}
 
