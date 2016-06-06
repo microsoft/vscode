@@ -9,12 +9,12 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range, DocumentFilter, Selection } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
 import * as nls from 'vscode-nls';
-nls.config({locale: env.language});
+nls.config({ locale: env.language });
 
 import * as path from 'path';
 
@@ -33,9 +33,10 @@ import FormattingProvider from './features/formattingProvider';
 import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
-
+import CodeActionProvider from './features/codeActionProvider';
 import * as VersionStatus from './utils/versionStatus';
 import * as ProjectStatus from './utils/projectStatus';
+import {QuickFix, QuickFixQueryInformation, getRefactoringsByFilePath, RefactoringsByFilePath} from './features/lang/fixmyts/quickfix';
 
 interface LanguageDescription {
 	id: string;
@@ -73,6 +74,39 @@ export function activate(context: ExtensionContext): void {
 
 	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
 		clientHost.reloadProjects();
+	}));
+
+	context.subscriptions.push(commands.registerCommand('typescript.quickfix', (quickFix: QuickFix, quickFixQueryInformation: QuickFixQueryInformation) => {
+		let refactorings = getRefactoringsByFilePath(quickFix.provideFix(quickFixQueryInformation));
+		function applyRefactorings(refactorings: RefactoringsByFilePath) {
+			let refactorPaths = Object.keys(refactorings);
+			refactorPaths.forEach((rp) => {
+				let refactoringForPath = refactorings[rp];
+				workspace.openTextDocument(Uri.file(rp)).then((document) => {
+					window.showTextDocument(document).then(editor => {
+						let lastRange: Range;
+						editor.edit((builder) => {
+							refactoringForPath.forEach(refactoring => {
+								var range = new Range(editor.document.positionAt(refactoring.span.start), editor.document.positionAt(refactoring.span.start + refactoring.span.length));
+								builder.replace(range, refactoring.newText);
+								lastRange = range;
+							});
+						}).then(() => {
+							if (lastRange) {
+								editor.revealRange(lastRange);
+								editor.selection = new Selection(lastRange.end, lastRange.end);
+							}
+							commands.executeCommand('editor.action.format');
+						});
+					});
+				}, (reason) => {
+					console.log(reason);
+				});
+
+			});
+		}
+		applyRefactorings(refactorings);
+
 	}));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
@@ -155,6 +189,7 @@ class LanguageProvider {
 			languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 			languages.registerOnTypeFormattingEditProvider(selector, this.formattingProvider, ';', '}', '\n');
 			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
+			languages.registerCodeActionsProvider(selector, new CodeActionProvider(client));
 			languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
 					// ^(.*\*/)?\s*\}.*$

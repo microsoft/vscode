@@ -34,7 +34,9 @@
     "vscode-debugprotocol": "1.9.0",
     "vscode-textmate": "1.1.0",
     "winreg": "1.2.0",
-    "yauzl": "2.3.1"
+    "yauzl": "2.3.1",
+    "typescript": "^1.8.0",
+    "fuzzaldrin": "^2.1.0"
   },
   "devDependencies": {
     "async": "^1.4.0",
@@ -85,7 +87,6 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^3.3.0",
-    "typescript": "^1.8.0",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
