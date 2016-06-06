@@ -112,16 +112,13 @@ export class EventEmitter implements IEventEmitter {
 		return this.addListener(eventType, listener);
 	}
 
-	private addOneTimeListener(eventType:string, listener:ListenerCallback):IDisposable {
-		var unbind = this.addListener(eventType, (value:any) => {
-			unbind.dispose();
+	public addOneTimeDisposableListener(eventType:string, listener:ListenerCallback):IDisposable {
+		const disposable = this.addListener(eventType, value => {
+			disposable.dispose();
 			listener(value);
 		});
-		return unbind;
-	}
-
-	public addOneTimeDisposableListener(eventType:string, listener:ListenerCallback):IDisposable {
-		return this.addOneTimeListener(eventType, listener);
+		
+		return disposable;
 	}
 
 	protected addBulkListener(listener:BulkListenerCallback):IDisposable {
