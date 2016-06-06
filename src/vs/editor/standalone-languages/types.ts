@@ -17,7 +17,7 @@ export interface ILanguageDef {
 
 export interface ILanguage {
 	// required
-	tokenizer: Object;							// map from string to ILanguageRule[]
+	tokenizer: any;							// map from string to ILanguageRule[]
 	tokenPostfix: string;						// attach this to every token class (by default '.' + name)
 
 	// optional

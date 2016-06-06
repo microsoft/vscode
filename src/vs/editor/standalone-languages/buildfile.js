@@ -6,7 +6,7 @@
 
 exports.collectModules = function() {
 	return [
-		{ name: "vs/editor/standalone-languages/bat" },
+		// { name: "vs/editor/standalone-languages/bat" },
 		{ name: "vs/editor/standalone-languages/coffee" },
 		{ name: "vs/editor/standalone-languages/cpp" },
 		{ name: "vs/editor/standalone-languages/csharp" },

@@ -24,7 +24,7 @@ import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/edit
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
-	<Types.ILanguage>{
+	<Types.IMonarchLanguage>{
 		defaultToken: '',
 		tokenPostfix: '.md',
 

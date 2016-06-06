@@ -23,7 +23,7 @@ import {wireCancellationToken} from 'vs/base/common/async';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
-export var language = <Types.ILanguage>{
+export var language = <Types.IMonarchLanguage>{
 	defaultToken: '',
 	tokenPostfix: '.sass',
 

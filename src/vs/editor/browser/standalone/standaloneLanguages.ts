@@ -12,7 +12,7 @@ import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegist
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
+import {IMonarchLanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {ensureStaticPlatformServices} from 'vs/editor/browser/standalone/standaloneServices';
 import * as modes from 'vs/editor/common/modes';
@@ -58,6 +58,17 @@ export function setTokensProvider(languageId:string, support:modes.TokensProvide
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);
 	return staticPlatformServices.modeService.registerTokenizationSupport2(languageId, support);
+}
+
+export function setMonarchTokensProvider(languageId:string, languageDef:IMonarchLanguage): IDisposable {
+	startup.initStaticServicesIfNecessary();
+	let staticPlatformServices = ensureStaticPlatformServices(null);
+	let lexer = compile(languageId, languageDef);
+	let modeService = staticPlatformServices.modeService;
+
+	return modeService.registerTokenizationSupport(languageId, (mode) => {
+		return createTokenizationSupport(modeService, mode, lexer);
+	});
 }
 
 export function registerReferenceProvider(languageId:string, support:modes.ReferenceProvider): IDisposable {
@@ -296,7 +307,7 @@ export function registerMonarchStandaloneLanguage(language:ILanguageExtensionPoi
 	ModesRegistry.registerLanguage(language);
 
 	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
-		require([defModule], (value:{language:ILanguage;conf:IRichLanguageConfiguration}) => {
+		require([defModule], (value:{language:IMonarchLanguage;conf:IRichLanguageConfiguration}) => {
 			if (!value.language) {
 				console.error('Expected ' + defModule + ' to export a `language`');
 				return;
@@ -363,6 +374,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		// provider methods
 		setLanguageConfiguration: setLanguageConfiguration,
 		setTokensProvider: setTokensProvider,
+		setMonarchTokensProvider: setMonarchTokensProvider,
 		registerReferenceProvider: registerReferenceProvider,
 		registerRenameProvider: registerRenameProvider,
 		registerCompletionItemProvider: registerCompletionItemProvider,
@@ -377,9 +389,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerDocumentRangeFormattingEditProvider: registerDocumentRangeFormattingEditProvider,
 		registerOnTypeFormattingEditProvider: registerOnTypeFormattingEditProvider,
 		registerLinkProvider: registerLinkProvider,
-
-		// other methods
-		// registerMonarchStandaloneLanguage: registerMonarchStandaloneLanguage,
 
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,

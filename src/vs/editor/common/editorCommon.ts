@@ -959,6 +959,7 @@ export interface IConfigurationChangedEvent {
 
 /**
  * An event describing that one or more supports of a mode have changed.
+ * @internal
  */
 export interface IModeSupportChangedEvent {
 	tokenizationSupport:boolean;
@@ -1418,6 +1419,9 @@ export interface ITextModelResolvedOptions {
 	trimAutoWhitespace: boolean;
 }
 
+/**
+ * @internal
+ */
 export interface ITextModelCreationOptions {
 	tabSize: number;
 	insertSpaces: boolean;
@@ -2029,6 +2033,9 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 
 	onDidChangeRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
 	onDidChangeContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
+	/**
+	 * @internal
+	 */
 	onDidChangeModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
 	onDidChangeDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
 	onDidChangeOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
@@ -3519,6 +3526,9 @@ export interface IRangeWithMessage {
 export interface ICommonCodeEditor extends IEditor {
 
 	onDidChangeModel(listener: (e:IModelChangedEvent)=>void): IDisposable;
+	/**
+	 * @internal
+	 */
 	onDidChangeModelModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
 	onDidChangeModelDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
 

@@ -9,7 +9,7 @@ import {Model} from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
+import {IMonarchLanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -94,7 +94,7 @@ export function executeTests2(tokenizationSupport: modes.TokensProvider, tests:I
 	}
 }
 
-export function executeMonarchTokenizationTests(name:string, language:ILanguage, tests:ITestItem[][]): void {
+export function executeMonarchTokenizationTests(name:string, language:IMonarchLanguage, tests:ITestItem[][]): void {
 	var lexer = compile(name, language);
 
 	var modeService = createMockModeService();

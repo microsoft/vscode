@@ -355,16 +355,6 @@ declare module monaco {
         code?: IHTMLContentElementCode;
     }
 
-    export interface IAction extends IDisposable {
-        id: string;
-        label: string;
-        tooltip: string;
-        class: string;
-        enabled: boolean;
-        checked: boolean;
-        run(event?: any): Promise<any>;
-    }
-
     export interface IKeyboardEvent {
         browserEvent: Event;
         target: HTMLElement;
@@ -709,90 +699,20 @@ declare module monaco.editor {
         theme?: string;
         mimeType?: string;
     }
-
-    /**
-     * A Monarch language definition
-     */
-    export interface ILanguage {
-        /**
-         * unique name to identify the language.
-         */
-        name: string;
-        /**
-         * map from string to ILanguageRule[]
-         */
-        tokenizer: Object;
-        /**
-         * nice display name
-         */
-        displayName?: string;
-        /**
-         * is the language case insensitive?
-         */
-        ignoreCase?: boolean;
-        /**
-         * used to insert/delete line comments in the editor
-         */
-        lineComment?: string;
-        /**
-         * used to insert/delete block comments in the editor
-         */
-        blockCommentStart?: string;
-        /**
-         * used to insert/delete block comments in the editor
-         */
-        blockCommentEnd?: string;
-        /**
-         * if no match in the tokenizer assign this token class (default 'source')
-         */
-        defaultToken?: string;
-        /**
-         * for example [['{','}','delimiter.curly']]
-         */
-        brackets?: ILanguageBracket[];
-        /**
-         * start symbol in the tokenizer (by default the first entry is used)
-         */
-        start?: string;
-        /**
-         * attach this to every token class (by default '.' + name)
-         */
-        tokenPostfix?: string;
-        /**
-         * for example [['"','"']]
-         */
-        autoClosingPairs?: string[][];
-        /**
-         * word definition regular expression
-         */
-        wordDefinition?: RegExp;
-        /**
-         * characters that could potentially cause outdentation
-         */
-        outdentTriggers?: string;
-    }
-
-    /**
-     * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
-     */
-    export interface ILanguageBracket {
-        /**
-         * open bracket
-         */
-        open: string;
-        /**
-         * closeing bracket
-         */
-        close: string;
-        /**
-         * token class
-         */
-        token: string;
-    }
     export enum ScrollbarVisibility {
         Auto = 1,
         Hidden = 2,
         Visible = 3,
+    }
+
+    export interface IAction extends IDisposable {
+        id: string;
+        label: string;
+        tooltip: string;
+        class: string;
+        enabled: boolean;
+        checked: boolean;
+        run(event?: any): Promise<any>;
     }
 
     /**
@@ -1041,6 +961,10 @@ declare module monaco.editor {
          */
         quickSuggestionsDelay?: number;
         /**
+         * Enables parameter hints
+         */
+        parameterHints?: boolean;
+        /**
          * Render icons in suggestions box.
          * Defaults to true.
          */
@@ -1218,6 +1142,7 @@ declare module monaco.editor {
         contextmenu: boolean;
         quickSuggestions: boolean;
         quickSuggestionsDelay: number;
+        parameterHints: boolean;
         iconsInSuggestions: boolean;
         formatOnType: boolean;
         suggestOnTriggerCharacters: boolean;
@@ -1261,14 +1186,6 @@ declare module monaco.editor {
         viewInfo: IViewConfigurationChangedEvent;
         wrappingInfo: boolean;
         contribInfo: boolean;
-    }
-
-    /**
-     * An event describing that one or more supports of a mode have changed.
-     */
-    export interface IModeSupportChangedEvent {
-        tokenizationSupport: boolean;
-        richEditSupport: boolean;
     }
 
     /**
@@ -1586,14 +1503,6 @@ declare module monaco.editor {
         trimAutoWhitespace: boolean;
     }
 
-    export interface ITextModelCreationOptions {
-        tabSize: number;
-        insertSpaces: boolean;
-        detectIndentation: boolean;
-        trimAutoWhitespace: boolean;
-        defaultEOL: DefaultEndOfLine;
-    }
-
     export interface ITextModelUpdateOptions {
         tabSize?: number;
         insertSpaces?: boolean;
@@ -1903,7 +1812,6 @@ declare module monaco.editor {
     export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithTrackedRanges, ITextModelWithDecorations, IEditorModel {
         onDidChangeRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
         onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
-        onDidChangeModeSupport(listener: (e: IModeSupportChangedEvent) => void): IDisposable;
         onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
         onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
         onDidChangeMode(listener: (e: IModelModeChangedEvent) => void): IDisposable;
@@ -2765,7 +2673,6 @@ declare module monaco.editor {
 
     export interface ICommonCodeEditor extends IEditor {
         onDidChangeModel(listener: (e: IModelChangedEvent) => void): IDisposable;
-        onDidChangeModelModeSupport(listener: (e: IModeSupportChangedEvent) => void): IDisposable;
         onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
         onDidFocusEditorText(listener: () => void): IDisposable;
         onDidBlurEditorText(listener: () => void): IDisposable;
@@ -3308,6 +3215,8 @@ declare module monaco.languages {
 
     export function setTokensProvider(languageId: string, support: TokensProvider): IDisposable;
 
+    export function setMonarchTokensProvider(languageId: string, languageDef: IMonarchLanguage): IDisposable;
+
     export function registerReferenceProvider(languageId: string, support: ReferenceProvider): IDisposable;
 
     export function registerRenameProvider(languageId: string, support: RenameProvider): IDisposable;
@@ -3410,7 +3319,6 @@ declare module monaco.languages {
 
     export interface IBracketElectricCharacterContribution {
         docComment?: IDocComment;
-        caseInsensitive?: boolean;
         embeddedElectricCharacters?: string[];
     }
 
@@ -3671,6 +3579,119 @@ declare module monaco.languages {
         aliases?: string[];
         mimetypes?: string[];
         configuration?: string;
+    }
+    /**
+     * A Monarch language definition
+     */
+    export interface IMonarchLanguage {
+        /**
+         * map from string to ILanguageRule[]
+         */
+        tokenizer: {
+            [name: string]: IMonarchLanguageRule[];
+        };
+        /**
+         * is the language case insensitive?
+         */
+        ignoreCase?: boolean;
+        /**
+         * if no match in the tokenizer assign this token class (default 'source')
+         */
+        defaultToken?: string;
+        /**
+         * for example [['{','}','delimiter.curly']]
+         */
+        brackets?: IMonarchLanguageBracket[];
+        /**
+         * start symbol in the tokenizer (by default the first entry is used)
+         */
+        start?: string;
+        /**
+         * attach this to every token class (by default '.' + name)
+         */
+        tokenPostfix: string;
+    }
+
+    /**
+     * A rule is either a regular expression and an action
+     * 		shorthands: [reg,act] == { regex: reg, action: act}
+     *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
+     */
+    export interface IMonarchLanguageRule {
+        /**
+         * match tokens
+         */
+        regex?: string | RegExp;
+        /**
+         * action to take on match
+         */
+        action?: IMonarchLanguageAction;
+        /**
+         * or an include rule. include all rules from the included state
+         */
+        include?: string;
+    }
+
+    /**
+     * An action is either an array of actions...
+     * ... or a case statement with guards...
+     * ... or a basic action with a token value.
+     */
+    export interface IMonarchLanguageAction {
+        /**
+         * array of actions for each parenthesized match group
+         */
+        group?: IMonarchLanguageAction[];
+        /**
+         * map from string to ILanguageAction
+         */
+        cases?: Object;
+        /**
+         * token class (ie. css class) (or "@brackets" or "@rematch")
+         */
+        token?: string;
+        /**
+         * the next state to push, or "@push", "@pop", "@popall"
+         */
+        next?: string;
+        /**
+         * switch to this state
+         */
+        switchTo?: string;
+        /**
+         * go back n characters in the stream
+         */
+        goBack?: number;
+        /**
+         * @open or @close
+         */
+        bracket?: string;
+        /**
+         * switch to embedded language (useing the mimetype) or get out using "@pop"
+         */
+        nextEmbedded?: string;
+        /**
+         * log a message to the browser console window
+         */
+        log?: string;
+    }
+
+    /**
+     * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
+     */
+    export interface IMonarchLanguageBracket {
+        /**
+         * open bracket
+         */
+        open: string;
+        /**
+         * closeing bracket
+         */
+        close: string;
+        /**
+         * token class
+         */
+        token: string;
     }
 
 }

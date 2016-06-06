@@ -21,7 +21,7 @@ import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchL
 import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
-export const language: types.ILanguage = {
+export const language: types.IMonarchLanguage = {
 	defaultToken: '',
 	tokenPostfix: '.log',
 	ignoreCase: true,
