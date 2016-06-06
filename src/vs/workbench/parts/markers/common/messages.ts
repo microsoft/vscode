@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 
 export default class Messages {
 
+	public static MARKERS_PANEL_VIEW_CATEGORY:string= nls.localize('viewCategory', "View");
 	public static MARKERS_PANEL_TOGGLE_LABEL:string= nls.localize('markers.panel.toggle.label', "Toggle Problems");
 
 	public static MARKERS_PANEL_TITLE_NO_PROBLEMS:string= nls.localize('markers.panel.title.no.problems', "No problems");
