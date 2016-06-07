@@ -9,7 +9,7 @@ import {NeverIdleMonitor, UserStatus} from 'vs/base/common/idleMonitor';
 import * as IdleMonitor from 'vs/base/browser/idleMonitor';
 import {Emitter} from 'vs/base/common/event';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {TelemetryService} from 'vs/platform/telemetry/browser/telemetryService';
+import {TelemetryService} from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import Telemetry = require('vs/platform/telemetry/common/telemetry');
 import Errors = require('vs/base/common/errors');

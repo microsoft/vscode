@@ -20,7 +20,7 @@ import timer = require('vs/base/common/timer');
 import {Workbench} from 'vs/workbench/browser/workbench';
 import {Storage, inMemoryLocalStorageInstance} from 'vs/workbench/common/storage';
 import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/browser/telemetryService';
+import {TelemetryService, ITelemetryServiceConfig} from  'vs/platform/telemetry/common/telemetryService';
 import {IdleMonitor} from  'vs/base/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import {createAppender} from 'vs/platform/telemetry/node/appInsightsAppender';
