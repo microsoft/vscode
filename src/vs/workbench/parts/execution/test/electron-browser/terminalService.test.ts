@@ -113,7 +113,7 @@ suite('Execution - TerminalService', () => {
 				}
 			}
 		};
-		mockConfig.externalTerminal.macExec = undefined;
+		mockConfig.terminal.external.macExec = undefined;
 		let testService = new MacTerminalService(mockConfig);
 		(<any>testService).spawnTerminal(
 			mockSpawner,
