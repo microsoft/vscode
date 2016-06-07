@@ -97,9 +97,9 @@ var writable = new stream.Writable({
 	write: function () { /* No OP */ }
 });
 
-// process.__defineGetter__('stdout', function() { return writable; });
-// process.__defineGetter__('stderr', function() { return writable; });
-// process.__defineGetter__('stdin', function() { return writable; });
+process.__defineGetter__('stdout', function() { return writable; });
+process.__defineGetter__('stderr', function() { return writable; });
+process.__defineGetter__('stdin', function() { return writable; });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', function (err) {
