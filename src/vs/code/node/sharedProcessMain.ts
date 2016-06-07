@@ -18,6 +18,8 @@ import { EventService } from 'vs/platform/event/common/eventService';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { NodeConfigurationService } from 'vs/platform/configuration/node/nodeConfigurationService';
 
 import product from 'vs/platform/product';
 import { ITelemetryAppender, combinedAppender, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,7 +28,7 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/aiAdapter';
 
 function quit(err?: Error) {
 	if (err) {
-		console.error(err);
+		console.error(err.stack || err);
 	}
 
 	process.exit(err ? 1 : 0);
@@ -49,7 +51,7 @@ const eventPrefix = 'monacoworkbench';
 
 function createAppender(): ITelemetryAppender {
 	const result: ITelemetryAppender[] = [];
-	const { key, asimovKey } = product.aiConfig;
+	const { key, asimovKey } = product.aiConfig || { key: null, asimovKey: null };
 
 	if (key) {
 		result.push(new AppInsightsAppender(eventPrefix, null, key));
@@ -68,6 +70,7 @@ function main(server: Server): void {
 	services.set(IEventService, new SyncDescriptor(EventService));
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService));
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
+	services.set(IConfigurationService, new SyncDescriptor(NodeConfigurationService));
 
 	const instantiationService = new InstantiationService(services);
 
