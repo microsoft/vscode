@@ -29,7 +29,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IOptions, ZoneWidget} from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import {getCodeActions} from 'vs/editor/contrib/quickFix/common/quickFix';
+import {getCodeActions, IQuickFix2} from 'vs/editor/contrib/quickFix/common/quickFix';
 
 class MarkerModel {
 
@@ -181,6 +181,117 @@ class MarkerModel {
 	}
 }
 
+class FixesWidget {
+
+	domNode: HTMLDivElement;
+
+	private _disposeOnUpdate: IDisposable[] = [];
+	private _listener: IDisposable;
+
+	constructor(
+		container: HTMLElement,
+		@IKeybindingService private _keybindingService: IKeybindingService
+	) {
+		this.domNode = document.createElement('div');
+		container.appendChild(this.domNode);
+
+		this._listener = dom.addStandardDisposableListener(container, 'keydown', (e) => {
+			switch (e.asKeybinding()) {
+				case CommonKeybindings.LEFT_ARROW:
+					this._move(true);
+					// this._goLeft();
+					e.preventDefault();
+					e.stopPropagation();
+					break;
+				case CommonKeybindings.RIGHT_ARROW:
+					this._move(false);
+					// this._goRight();
+					e.preventDefault();
+					e.stopPropagation();
+					break;
+			}
+		});
+	}
+
+	dispose(): void {
+		this._disposeOnUpdate = dispose(this._disposeOnUpdate);
+		this._listener = dispose(this._listener);
+	}
+
+	update(fixes: TPromise<IQuickFix2[]>): TPromise<any> {
+		this._disposeOnUpdate = dispose(this._disposeOnUpdate);
+		this.domNode.style.display = 'none';
+		return fixes.then(fixes => this._doUpdate(fixes), onUnexpectedError);
+	}
+
+	private _doUpdate(fixes: IQuickFix2[]): void {
+
+		dom.clearNode(this.domNode);
+
+		if (!fixes || fixes.length === 0) {
+			return;
+		}
+
+		// light bulb and label
+		let quickfixhead = document.createElement('span');
+		quickfixhead.className = 'quickfixhead';
+		quickfixhead.appendChild(document.createTextNode(fixes.length > 1
+			? nls.localize('quickfix.multiple.label', 'Suggested fixes: ')
+			: nls.localize('quickfix.single.label', 'Suggested fix: ')));
+		this.domNode.appendChild(quickfixhead);
+
+		// each fix as entry
+		const container = document.createElement('span');
+		container.className = 'quickfixcontainer';
+
+		fixes.forEach((fix, idx, arr) => {
+
+			if (idx > 0) {
+				let separator = document.createElement('span');
+				separator.appendChild(document.createTextNode(', '));
+				container.appendChild(separator);
+			}
+
+			let entry = document.createElement('a');
+			entry.tabIndex = 0;
+			entry.className = `quickfixentry`;
+			entry.dataset['idx'] = String(idx);
+			entry.dataset['next'] = String(idx < arr.length - 1 ? idx + 1 : 0);
+			entry.dataset['prev'] = String(idx > 0 ? idx - 1 : arr.length - 1);
+			entry.appendChild(document.createTextNode(fix.command.title));
+			this._disposeOnUpdate.push(dom.addDisposableListener(entry, dom.EventType.CLICK, () => {
+				this._keybindingService.executeCommand(fix.command.id, ...fix.command.arguments);
+				return true;
+			}));
+			this._disposeOnUpdate.push(dom.addStandardDisposableListener(entry, 'keydown', (e) => {
+				switch (e.asKeybinding()) {
+					case CommonKeybindings.ENTER:
+					case CommonKeybindings.SPACE:
+						this._keybindingService.executeCommand(fix.command.id, ...fix.command.arguments);
+						e.preventDefault();
+						e.stopPropagation();
+				}
+			}));
+			container.appendChild(entry);
+		});
+
+		this.domNode.appendChild(container);
+		this.domNode.style.display = '';
+	}
+
+	private _move(left: boolean): void {
+		let target: HTMLElement;
+		if (document.activeElement.classList.contains('quickfixentry')) {
+			let current = <HTMLElement> document.activeElement;
+			let idx = left ? current.dataset['prev'] : current.dataset['next'];
+			target = <HTMLElement>this.domNode.querySelector(`a[data-idx='${idx}']`);
+		} else {
+			target = <HTMLElement> this.domNode.querySelector('.quickfixentry');
+		}
+		target.focus();
+	}
+}
+
 var zoneOptions: IOptions = {
 	showFrame: true,
 	showArrow: true,
@@ -191,10 +302,8 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 	private _container: HTMLElement;
 	private _element: HTMLElement;
-	private _quickFixSection: HTMLElement;
+	private _fixesWidget: FixesWidget;
 	private _callOnDispose: IDisposable[] = [];
-	private _localCleanup: IDisposable[] = [];
-	private _quickFixEntries: HTMLElement[];
 
 	constructor(editor: ICodeEditor, private _model: MarkerModel, private _keybindingService: IKeybindingService) {
 		super(editor, zoneOptions);
@@ -215,45 +324,8 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this._element.setAttribute('role', 'alert');
 		this._container.appendChild(this._element);
 
-		this._quickFixSection = document.createElement('div');
-		this._container.appendChild(this._quickFixSection);
-
-		this._callOnDispose.push(dom.addStandardDisposableListener(this._container, 'keydown', (e) => {
-			switch (e.asKeybinding()) {
-				case CommonKeybindings.LEFT_ARROW:
-					this._goLeft();
-					e.preventDefault();
-					e.stopPropagation();
-					break;
-				case CommonKeybindings.RIGHT_ARROW:
-					this._goRight();
-					e.preventDefault();
-					e.stopPropagation();
-					break;
-
-			}
-		}));
-	}
-
-	private _goLeft(): void {
-		if (!this._quickFixEntries) {
-			return;
-		}
-		let idx = this._quickFixEntries.indexOf(<HTMLElement>document.activeElement);
-		if (idx === -1) {
-			idx = 1;
-		}
-		idx = (idx + this._quickFixEntries.length - 1) % this._quickFixEntries.length;
-		this._quickFixEntries[idx].focus();
-	}
-
-	private _goRight(): void {
-		if (!this._quickFixEntries) {
-			return;
-		}
-		let idx = this._quickFixEntries.indexOf(<HTMLElement>document.activeElement);
-		idx = (idx + 1) % this._quickFixEntries.length;
-		this._quickFixEntries[idx].focus();
+		this._fixesWidget = new FixesWidget(this._container, this._keybindingService);
+		this._callOnDispose.push(this._fixesWidget);
 	}
 
 	public show(where: editorCommon.IPosition, heightInLines: number): void {
@@ -282,8 +354,6 @@ class MarkerNavigationWidget extends ZoneWidget {
 				break;
 		}
 
-		this._localCleanup = dispose(this._localCleanup);
-
 		// update label and show
 		let text = strings.format('({0}/{1}) ', this._model.indexOf(marker) + 1, this._model.length());
 		if (marker.source) {
@@ -292,62 +362,10 @@ class MarkerNavigationWidget extends ZoneWidget {
 		dom.clearNode(this._element);
 		this._element.appendChild(document.createTextNode(text));
 		this._element.appendChild(renderHtml(marker.message));
-		this._quickFixSection.style.display = 'none';
 
-		getCodeActions(this.editor.getModel(), Range.lift(marker)).then(result => {
-			dom.clearNode(this._quickFixSection);
-
-			if (result.length > 0) {
-
-				this._localCleanup.push({
-					dispose: () => {
-						this._quickFixEntries = [];
-					}
-				});
-
-				let quickfixhead = document.createElement('span');
-				quickfixhead.className = 'quickfixhead';
-				quickfixhead.appendChild(document.createTextNode(result.length > 1 ? nls.localize('quickfix.multiple.label', 'Suggested fixes: ') : nls.localize('quickfix.single.label', 'Suggested fix: ')));
-				this._quickFixSection.appendChild(quickfixhead);
-
-				this._quickFixEntries = [];
-				let quickfixcontainer = document.createElement('span');
-				quickfixcontainer.className = 'quickfixcontainer';
-				result.forEach((fix, idx, arr) => {
-					var container = quickfixcontainer;
-					if (idx > 0) {
-						let separator = document.createElement('span');
-						separator.appendChild(document.createTextNode(', '));
-						container.appendChild(separator);
-					}
-
-					let entry = document.createElement('a');
-					entry.tabIndex = 0;
-					entry.className = 'quickfixentry';
-					entry.appendChild(document.createTextNode(fix.command.title));
-					this._localCleanup.push(dom.addDisposableListener(entry, dom.EventType.CLICK, () => {
-						this._keybindingService.executeCommand(fix.command.id, ...fix.command.arguments);
-						return true;
-					}));
-					this._localCleanup.push(dom.addStandardDisposableListener(entry, 'keydown', (e) => {
-						switch (e.asKeybinding()) {
-							case CommonKeybindings.ENTER:
-							case CommonKeybindings.SPACE:
-								this._keybindingService.executeCommand(fix.command.id, ...fix.command.arguments);
-								e.preventDefault();
-								e.stopPropagation();
-						}
-					}));
-					container.appendChild(entry);
-
-					this._quickFixEntries.push(entry);
-				});
-				this._quickFixSection.appendChild(quickfixcontainer);
-
-				this._quickFixSection.style.display = '';
-				this.show(new Position(marker.startLineNumber, marker.startColumn), 4);
-			}
-		}, onUnexpectedError);
+		this._fixesWidget
+			.update(getCodeActions(this.editor.getModel(), Range.lift(marker)))
+			.then(() => this.show(new Position(marker.startLineNumber, marker.startColumn), 4));
 
 		this._model.withoutWatchingEditorPosition(() => this.show(new Position(marker.startLineNumber, marker.startColumn), 3));
 	}
