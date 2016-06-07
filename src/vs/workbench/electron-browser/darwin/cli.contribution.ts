@@ -70,7 +70,7 @@ class InstallAction extends Action {
 						lineNumber
 					);
 
-					const resource = URI.create('file', null, file);
+					const resource = URI.file(file);
 					const input = { resource, mime: 'text/x-shellscript' };
 					const actions = [
 						new Action('inlineEdit', nls.localize('editFile', "Edit '{0}'", file), '', true, () => {

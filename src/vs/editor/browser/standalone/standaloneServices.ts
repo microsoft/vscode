@@ -218,7 +218,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let contextService = services.contextService;
 	if (!contextService) {
 		contextService = new BaseWorkspaceContextService({
-			resource: URI.create('inmemory', 'model', '/'),
+			resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' }),
 			id: null,
 			name: null,
 			uid: null,

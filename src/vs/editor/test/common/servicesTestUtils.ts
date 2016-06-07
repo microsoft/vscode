@@ -117,7 +117,7 @@ export function createMockModeService(): IModeService {
 
 export function createMockModelService(): IModelService {
 	let contextService = new BaseWorkspaceContextService({
-		resource: URI.create('inmemory', 'model', '/'),
+		resource: URI.from({ scheme: 'inmemory', authority: 'model', path: '/' }),
 		id: null,
 		name: null,
 		uid: null,

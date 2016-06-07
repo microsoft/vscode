@@ -142,7 +142,13 @@ declare module monaco {
         }): Uri;
         static parse(value: string): Uri;
         static file(path: string): Uri;
-        static create(scheme?: string, authority?: string, path?: string, query?: string, fragment?: string): Uri;
+        static from(components: {
+            scheme?: string;
+            authority?: string;
+            path?: string;
+            query?: string;
+            fragment?: string;
+        }): Uri;
         /**
          *
          * @param skipEncoding Do not encode the result, default is `false`
