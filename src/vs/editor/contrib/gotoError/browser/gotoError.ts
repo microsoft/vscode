@@ -169,6 +169,14 @@ class MarkerModel {
 		return { errors, others };
 	}
 
+	public get total() {
+		return this._markers.length;
+	}
+
+	public indexOf(marker: IMarker): number {
+		return 1 + this._markers.indexOf(marker);
+	}
+
 	public reveal(): void {
 
 		if (this._nextIdx === -1) {
@@ -380,6 +388,9 @@ class MarkerNavigationWidget extends PeekViewWidget {
 				this.options.frameColor = '#5aac5a';
 				break;
 		}
+
+		// update meta title
+		this.setMetaTitle(nls.localize('', " – {0}/{1}", this._model.indexOf(marker), this._model.total));
 
 		// update label and show
 		dom.clearNode(this._element);
