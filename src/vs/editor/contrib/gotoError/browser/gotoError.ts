@@ -462,8 +462,10 @@ class MarkerController implements editorCommon.IEditorContribution {
 	private _cleanUp(): void {
 		this._markersNavigationVisible.reset();
 		this._callOnClose = dispose(this._callOnClose);
-		this._zone.dispose();
-		this._zone = null;
+		if (this._zone) {
+			this._zone.dispose();
+			this._zone = null;
+		}
 		this._model = null;
 	}
 
