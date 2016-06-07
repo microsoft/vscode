@@ -148,7 +148,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 			if (markdownConfiguration && types.isArray(markdownConfiguration.styles)) {
 				newMarkdownConfigurationThumbprint = markdownConfiguration.styles.join('');
 
-				let styles: string[] = markdownConfiguration.styles.map((style: string) => paths.makeAbsolute(paths.normalize(style)));
+				let styles: string[] = markdownConfiguration.styles.map((style: string) => paths.makePosixAbsolute(paths.normalize(style)));
 				this.markdownConfigurationPaths = styles;
 			}
 		}

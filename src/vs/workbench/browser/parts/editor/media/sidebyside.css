@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Editor Container Styles */
-
 .vs .monaco-workbench .editor:not(.empty) > .content {
 	background-color: #F3F3F3;
 }
@@ -25,9 +23,7 @@
 
 .monaco-workbench .editor > .content > .one-editor-container {
 	position: absolute;
-
-	/* use border box to be able to draw a border as separator between editors */
-	box-sizing:	border-box;
+	box-sizing:	border-box; /* use border box to be able to draw a border as separator between editors */
 }
 
 .monaco-workbench .editor > .content > .editor-left {
@@ -68,6 +64,10 @@
 	border-left: 1px solid #444;
 }
 
+.hc-black .monaco-workbench .editor > .content > .editor-center {
+	border-left: 1px solid #6FC3DF;
+}
+
 .vs .monaco-workbench .editor > .content > .editor-right {
 	border-left: 1px solid #E7E7E7;
 }
@@ -76,169 +76,50 @@
 	border-left: 1px solid #444;
 }
 
+.hc-black .monaco-workbench .editor > .content > .editor-right {
+	border-left: 1px solid #6FC3DF;
+}
+
 .monaco-workbench > .editor > .content .editor-container {
 	height: calc(100% - 35px); /* Editor is below editor title */
 }
 
-/* Editor Title Styles */
+/* Actions */
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
-	width: 12px; /* move the actions close to the label */
-}
-
-.monaco-workbench > .part.editor > .content .inactive .title .title-actions,
-.monaco-workbench > .part.editor > .content .inactive .title .title-label-actions {
-	opacity: 0.5;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
-	padding-left: 0; /* remove padding because we have the title label actions to the left */
-}
-
-.monaco-workbench > .part.editor > .content .inactive .title {
-	cursor: pointer;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
-	font-style: italic;
-	padding-left: 1px; /* we need to push the label a bit to accomodate for the italic style */
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title.pinned .title-label {
-	font-style: normal;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
-	color: #333333;
-}
-
-.vs .monaco-workbench > .part.editor > .content .inactive .title .title-label a {
-	color: rgba(51, 51, 51, 0.5);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
-	color: white;
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content .inactive .title .title-label a {
-	color: rgba(255, 255, 255, 0.5);
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
-	margin-left: 0.5em;
-	font-size: 0.9em;
-	cursor: pointer;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
-	color: rgba(108, 108, 108, 0.7);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
-	color: rgba(204, 204, 204, 0.7);
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description {
-	position: absolute;
-	top: 12px;
-	right: 0;
-	height: 100%;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner {
-	text-transform: uppercase;
-	font-size: 11px !important;
-	padding: 0 10px 0 12px;
-	cursor: default;
-}
-
-.vs .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner {
-	color: rgb(51, 51, 51);
-}
-
-.vs-dark .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner {
-	color: white;
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner.error,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label .state-description .inner.conflict {
-	color: #E02020;
-}
-
-.monaco-workbench > .part.editor > .content .inactive .title .title-label .state-description .inner {
-	opacity: 0.5;
-}
-
-.monaco-workbench .close-editor-action,
-.monaco-workbench .close-editor-dirty-action:hover {
+.monaco-workbench .close-editor-action {
 	background: url('close.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .close-editor-action,
-.vs-dark .monaco-workbench .close-editor-dirty-action:hover {
+.vs-dark .monaco-workbench .close-editor-action {
 	background: url('close-inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .close-editor-dirty-action {
-	background: url('close-dirty.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .close-editor-dirty-action {
-	background: url('close-dirty-inverse.svg') center center no-repeat;
-}
-
 .monaco-workbench .split-editor-action {
-	background: url('SplitEditor.svg') center center no-repeat;
+	background: url('split-editor.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .split-editor-action {
-	background: url('SplitEditor_inverse.svg') center center no-repeat;
-}
-
-.monaco-workbench .show-group-editors-overflowing-action {
-	background: url('chevron.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .show-group-editors-overflowing-action {
-	background: url('chevron-inverse.svg') center center no-repeat;
+	background: url('split-editor-inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .show-group-editors-action {
-	background: url('chevron.svg') center center no-repeat;
-}
-
-.monaco-workbench .show-group-editors-action-hidden {
-	display: none;
+	background: url('stackview.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .show-group-editors-action {
-	background: url('chevron-inverse.svg') center center no-repeat;
+	background: url('stackview-inverse.svg') center center no-repeat;
 }
 
-/* High Contrast Theming */
+/* High Contrast Icons */
 
 .hc-black .monaco-workbench .close-editor-action,
-.hc-black .monaco-workbench .close-editor-dirty-action,
 .hc-black .monaco-workbench .show-group-editors-action,
 .hc-black .monaco-workbench .split-editor-action {
 	background: none;
 }
 
-.hc-black .monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label-actions .action-label {
-	width: 24px;
-}
-
 .hc-black .monaco-workbench .show-group-editors-action:before {
-	content: url('chevron-inverse.svg');
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .monaco-workbench .close-editor-dirty-action:before {
-	content: url('close-decorated-inverse.svg');
+	content: url('stackview-inverse.svg');
 	position: absolute;
 	top: 12px;
 	left: 8px;
@@ -262,12 +143,4 @@
 	left: 8px;
 	height: 16px;
 	width: 16px;
-}
-
-.hc-black .monaco-workbench .editor > .content > .editor-center {
-	border-left: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench .editor > .content > .editor-right {
-	border-left: 1px solid #6FC3DF;
 }

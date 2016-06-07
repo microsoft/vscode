@@ -83,11 +83,20 @@ gulp.task('editor-distro', ['clean-editor-distro', 'minify-editor', 'optimize-ed
 	return es.merge(
 		// other assets
 		es.merge(
-			gulp.src('build/monaco/package.json'),
 			gulp.src('build/monaco/LICENSE'),
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')
 		).pipe(gulp.dest('out-monaco-editor-core')),
+
+		// package.json
+		gulp.src('build/monaco/package.json')
+			.pipe(es.through(function(data) {
+				var json = JSON.parse(data.contents.toString());
+				json.private = false;
+				data.contents = new Buffer(JSON.stringify(json, null, '  '));
+				this.emit('data', data);
+			}))
+			.pipe(gulp.dest('out-monaco-editor-core')),
 
 		// dev folder
 		es.merge(

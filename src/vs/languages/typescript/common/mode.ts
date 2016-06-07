@@ -8,7 +8,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import {createTokenizationSupport2, Language} from 'vs/languages/typescript/common/tokenization';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
-import {RichEditSupport, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -16,6 +16,7 @@ import {LanguageServiceDefaults, typeScriptDefaults, javaScriptDefaults, Languag
 import {register} from './languageFeatures';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import * as workerManager from 'vs/languages/typescript/common/workerManager';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 function setupMode(modelService:IModelService, markerService:IMarkerService, modeService:IModeService, defaults:LanguageServiceDefaults, modeId:string, language:Language): void {
 
@@ -33,12 +34,12 @@ function setupMode(modelService:IModelService, markerService:IMarkerService, mod
 	);
 	disposables.push(registration);
 
-	disposables.push(modeService.registerRichEditSupport(modeId, richEditConfiguration));
+	disposables.push(LanguageConfigurationRegistry.register(modeId, richEditConfiguration));
 
 	disposables.push(modeService.registerTokenizationSupport2(modeId, createTokenizationSupport2(language)));
 }
 
-const richEditConfiguration:IRichLanguageConfiguration = {
+export const richEditConfiguration:IRichLanguageConfiguration = {
 	wordPattern: createWordRegExp('$'),
 
 	comments: {
@@ -94,10 +95,6 @@ const richEditConfiguration:IRichLanguageConfiguration = {
 		{ open: '`', close: '`' }
 	]
 };
-
-export function createRichEditSupport(modeId:string): RichEditSupport {
-	return new RichEditSupport(modeId, null, richEditConfiguration);
-}
 
 let isActivated = false;
 export function activate(ctx:ServicesAccessor): void {

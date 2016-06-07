@@ -611,51 +611,51 @@ suite('TelemetryService', () => {
 
 	}));
 
-	test('Test soft idle start/stop events', sinon.test(function () {
+	// test('Test soft idle start/stop events', sinon.test(function () {
 
-		let activeListener: () => void = null;
-		let idleListener: () => void = null;
+	// 	let activeListener: () => void = null;
+	// 	let idleListener: () => void = null;
 
-		function MockIdleMonitor(timeout: number): void {
-			assert.equal(timeout, TelemetryService.SOFT_IDLE_TIME);
-		}
+	// 	function MockIdleMonitor(timeout: number): void {
+	// 		assert.equal(timeout, TelemetryService.SOFT_IDLE_TIME);
+	// 	}
 
-		MockIdleMonitor.prototype.addOneTimeActiveListener = function (callback: () => void): void {
-			activeListener = callback;
-		};
+	// 	MockIdleMonitor.prototype.addOneTimeActiveListener = function (callback: () => void): void {
+	// 		activeListener = callback;
+	// 	};
 
-		MockIdleMonitor.prototype.addOneTimeIdleListener = function (callback: () => void): void {
-			idleListener = callback;
-		};
+	// 	MockIdleMonitor.prototype.addOneTimeIdleListener = function (callback: () => void): void {
+	// 		idleListener = callback;
+	// 	};
 
-		MockIdleMonitor.prototype.dispose = function () {
-			// empty
-		};
+	// 	MockIdleMonitor.prototype.dispose = function () {
+	// 		// empty
+	// 	};
 
-		this.stub(IdleMonitor, 'IdleMonitor', MockIdleMonitor);
+	// 	this.stub(IdleMonitor, 'IdleMonitor', MockIdleMonitor);
 
-		let testAppender = new TestTelemetryAppender();
-		let service = new TelemetryService({ enableHardIdle: false, enableSoftIdle: true, appender: [testAppender] }, undefined);
+	// 	let testAppender = new TestTelemetryAppender();
+	// 	let service = new TelemetryService({ enableHardIdle: false, enableSoftIdle: true, appender: [testAppender] }, undefined);
 
 
-		assert.equal(testAppender.getEventsCount(), 0);
+	// 	assert.equal(testAppender.getEventsCount(), 0);
 
-		idleListener();
-		activeListener();
-		idleListener();
-		activeListener();
+	// 	idleListener();
+	// 	activeListener();
+	// 	idleListener();
+	// 	activeListener();
 
-		//verify that two idle happened
-		assert.equal(testAppender.getEventsCount(), 4);
-		//first idle
-		assert.equal(testAppender.events[0].eventName, TelemetryService.IDLE_START_EVENT_NAME);
-		assert.equal(testAppender.events[1].eventName, TelemetryService.IDLE_STOP_EVENT_NAME);
-		//second idle
-		assert.equal(testAppender.events[2].eventName, TelemetryService.IDLE_START_EVENT_NAME);
-		assert.equal(testAppender.events[3].eventName, TelemetryService.IDLE_STOP_EVENT_NAME);
+	// 	//verify that two idle happened
+	// 	assert.equal(testAppender.getEventsCount(), 4);
+	// 	//first idle
+	// 	assert.equal(testAppender.events[0].eventName, TelemetryService.IDLE_START_EVENT_NAME);
+	// 	assert.equal(testAppender.events[1].eventName, TelemetryService.IDLE_STOP_EVENT_NAME);
+	// 	//second idle
+	// 	assert.equal(testAppender.events[2].eventName, TelemetryService.IDLE_START_EVENT_NAME);
+	// 	assert.equal(testAppender.events[3].eventName, TelemetryService.IDLE_STOP_EVENT_NAME);
 
-		service.dispose();
-	}));
+	// 	service.dispose();
+	// }));
 
 	test('Telemetry Service respects user opt-in settings', sinon.test(function () {
 		let testAppender = new TestTelemetryAppender();

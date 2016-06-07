@@ -13,12 +13,12 @@ import {CommentMode} from 'vs/editor/test/common/testModes';
 suite('Editor Contrib - Line Comment Command', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineCommentToken: '!@#', blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
 		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 
 	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineCommentToken: '!@#', blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		var mode = new CommentMode({ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] });
 		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
 	}
 
@@ -520,7 +520,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineCommentToken: '', blockCommentStartToken: '(', blockCommentEndToken: ')' });
+		var mode = new CommentMode({ lineComment: '', blockComment: ['(', ')'] });
 		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 
@@ -630,7 +630,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new CommentMode({ lineCommentToken: null, blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		var mode = new CommentMode({ lineComment: null, blockComment: ['<!@#', '#@!>'] });
 		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 

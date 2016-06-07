@@ -692,7 +692,7 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 
 		this.toUnbind.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e) => this.onFilesChanged(e)));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DELETED, (e) => this.onUntitledFileDeleted(e)));
+		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e) => this.onUntitledFileSaved(e)));
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
 	}
 
@@ -1456,7 +1456,7 @@ export class SearchViewlet extends Viewlet {
 		}, sideBySide);
 	}
 
-	private onUntitledFileDeleted(e: UntitledEditorEvent): void {
+	private onUntitledFileSaved(e: UntitledEditorEvent): void {
 		if (!this.viewModel) {
 			return;
 		}

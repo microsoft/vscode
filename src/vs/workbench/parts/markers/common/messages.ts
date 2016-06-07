@@ -8,6 +8,7 @@ import nls = require('vs/nls');
 
 export default class Messages {
 
+	public static MARKERS_PANEL_VIEW_CATEGORY:string= nls.localize('viewCategory', "View");
 	public static MARKERS_PANEL_TOGGLE_LABEL:string= nls.localize('markers.panel.toggle.label', "Toggle Problems");
 
 	public static MARKERS_PANEL_TITLE_NO_PROBLEMS:string= nls.localize('markers.panel.title.no.problems', "No problems");
@@ -16,7 +17,7 @@ export default class Messages {
 	public static MARKERS_PANEL_NO_PROBLEMS_FILTERS:string= nls.localize('markers.panel.no.problems.filters', "No results found with provided filter criteria");
 
 	public static MARKERS_PANEL_ACTION_TOOLTIP_FILTER:string= nls.localize('markers.panel.action.filter', "Filter Problems");
-	public static MARKERS_PANEL_FILTER_PLACEHOLDER:string= nls.localize('markers.panel.filter.placeholder', "Filter by type, text or both. Example: errors text");
+	public static MARKERS_PANEL_FILTER_PLACEHOLDER:string= nls.localize('markers.panel.filter.placeholder', "Filter by type or text");
 	public static MARKERS_PANEL_FILTER_ERRORS:string= nls.localize('markers.panel.filter.errors', "errors");
 	public static MARKERS_PANEL_FILTER_WARNINGS:string= nls.localize('markers.panel.filter.warnings', "warnings");
 	public static MARKERS_PANEL_FILTER_INFOS:string= nls.localize('markers.panel.filter.infos', "infos");

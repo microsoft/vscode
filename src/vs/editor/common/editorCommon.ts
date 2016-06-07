@@ -10,13 +10,14 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
+import {ILineContext, IMode, IToken} from 'vs/editor/common/modes';
 import {ViewLineToken} from 'vs/editor/common/core/viewLineToken';
 import {ScrollbarVisibility} from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 /**
  * @internal
@@ -347,6 +348,10 @@ export interface IEditorOptions {
 	 * Defaults to 500 (ms)
 	 */
 	quickSuggestionsDelay?:number;
+	/**
+	 * Enables parameter hints
+	 */
+	parameterHints?:boolean;
 	/**
 	 * Render icons in suggestions box.
 	 * Defaults to true.
@@ -764,6 +769,7 @@ export class EditorContribOptions {
 	contextmenu:boolean;
 	quickSuggestions:boolean;
 	quickSuggestionsDelay:number;
+	parameterHints: boolean;
 	iconsInSuggestions:boolean;
 	formatOnType:boolean;
 	suggestOnTriggerCharacters: boolean;
@@ -782,6 +788,7 @@ export class EditorContribOptions {
 		contextmenu:boolean;
 		quickSuggestions:boolean;
 		quickSuggestionsDelay:number;
+		parameterHints:boolean;
 		iconsInSuggestions:boolean;
 		formatOnType:boolean;
 		suggestOnTriggerCharacters: boolean;
@@ -795,7 +802,8 @@ export class EditorContribOptions {
 		this.hover = Boolean(source.hover);
 		this.contextmenu = Boolean(source.contextmenu);
 		this.quickSuggestions = Boolean(source.quickSuggestions);
-		this.quickSuggestionsDelay = source.quickSuggestionsDelay|0;
+		this.quickSuggestionsDelay = source.quickSuggestionsDelay||0;
+		this.parameterHints = Boolean(source.parameterHints);
 		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
 		this.formatOnType = Boolean(source.formatOnType);
 		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
@@ -816,6 +824,7 @@ export class EditorContribOptions {
 			&& this.contextmenu === other.contextmenu
 			&& this.quickSuggestions === other.quickSuggestions
 			&& this.quickSuggestionsDelay === other.quickSuggestionsDelay
+			&& this.parameterHints === other.parameterHints
 			&& this.iconsInSuggestions === other.iconsInSuggestions
 			&& this.formatOnType === other.formatOnType
 			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
@@ -950,10 +959,10 @@ export interface IConfigurationChangedEvent {
 
 /**
  * An event describing that one or more supports of a mode have changed.
+ * @internal
  */
 export interface IModeSupportChangedEvent {
 	tokenizationSupport:boolean;
-	richEditSupport: boolean;
 }
 
 /**
@@ -1410,6 +1419,9 @@ export interface ITextModelResolvedOptions {
 	trimAutoWhitespace: boolean;
 }
 
+/**
+ * @internal
+ */
 export interface ITextModelCreationOptions {
 	tabSize: number;
 	insertSpaces: boolean;
@@ -1677,7 +1689,7 @@ export interface ITokenizedModel extends ITextModel {
 	/**
 	 * @internal
 	 */
-	_getLineModeTransitions(lineNumber:number): IModeTransition[];
+	_getLineModeTransitions(lineNumber:number): ModeTransition[];
 
 	/**
 	 * Get the current language mode associated with the model.
@@ -1702,7 +1714,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * Returns the true (inner-most) language mode at a given position.
 	 * @internal
 	 */
-	getModeAtPosition(lineNumber:number, column:number): IMode;
+	getModeIdAtPosition(lineNumber:number, column:number): string;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -2021,6 +2033,9 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 
 	onDidChangeRawContent(listener: (e:IModelContentChangedEvent)=>void): IDisposable;
 	onDidChangeContent(listener: (e:IModelContentChangedEvent2)=>void): IDisposable;
+	/**
+	 * @internal
+	 */
 	onDidChangeModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
 	onDidChangeDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
 	onDidChangeOptions(listener: (e:IModelOptionsChangedEvent)=>void): IDisposable;
@@ -3511,6 +3526,9 @@ export interface IRangeWithMessage {
 export interface ICommonCodeEditor extends IEditor {
 
 	onDidChangeModel(listener: (e:IModelChangedEvent)=>void): IDisposable;
+	/**
+	 * @internal
+	 */
 	onDidChangeModelModeSupport(listener: (e:IModeSupportChangedEvent)=>void): IDisposable;
 	onDidChangeModelDecorations(listener: (e:IModelDecorationsChangedEvent)=>void): IDisposable;
 

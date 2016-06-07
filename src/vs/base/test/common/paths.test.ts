@@ -68,6 +68,9 @@ suite('Paths', () => {
 		assert.equal(paths.normalize('foo\\bar'), 'foo/bar');
 		assert.equal(paths.normalize(null), null);
 		assert.equal(paths.normalize(undefined), undefined);
+
+		// https://github.com/Microsoft/vscode/issues/7234
+		assert.equal(paths.join('/home/aeschli/workspaces/vscode/extensions/css', './syntaxes/css.plist'), '/home/aeschli/workspaces/vscode/extensions/css/syntaxes/css.plist');
 	});
 
 	test('getRootLength', () => {
@@ -88,12 +91,12 @@ suite('Paths', () => {
 	});
 
 	test('makeAbsolute', () => {
-		assert.equal(paths.makeAbsolute('foo'), '/foo');
-		assert.equal(paths.makeAbsolute('foo/bar'), '/foo/bar');
-		assert.equal(paths.makeAbsolute('foo/bar/'), '/foo/bar/');
-		assert.equal(paths.makeAbsolute('/foo/bar'), '/foo/bar');
-		assert.equal(paths.makeAbsolute('/'), '/');
-		assert.equal(paths.makeAbsolute(''), '/');
+		assert.equal(paths.makePosixAbsolute('foo'), '/foo');
+		assert.equal(paths.makePosixAbsolute('foo/bar'), '/foo/bar');
+		assert.equal(paths.makePosixAbsolute('foo/bar/'), '/foo/bar/');
+		assert.equal(paths.makePosixAbsolute('/foo/bar'), '/foo/bar');
+		assert.equal(paths.makePosixAbsolute('/'), '/');
+		assert.equal(paths.makePosixAbsolute(''), '/');
 	});
 
 	test('basename', () => {

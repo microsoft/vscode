@@ -42,6 +42,7 @@ export class MarkersPanel extends Panel {
 	private filterAction: FilterAction;
 	private collapseAllAction: IAction;
 
+	private treeContainer: HTMLElement;
 	private messageBoxContainer: HTMLElement;
 	private messageBox: HTMLElement;
 
@@ -99,14 +100,19 @@ export class MarkersPanel extends Panel {
 	}
 
 	public refreshPanel(updateTitleArea: boolean= false):TPromise<any> {
+		this.collapseAllAction.enabled= this.markersModel.hasFilteredResources();
 		this.refreshAutoExpanded();
 		if (updateTitleArea) {
 			this.updateTitleArea();
 		}
-		return this.tree.refresh().then(() => {
-			this.autoExpand();
-			this.renderMessage();
-		});
+		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
+		this.renderMessage();
+		if (this.markersModel.hasFilteredResources()) {
+			return this.tree.refresh().then(() => {
+				this.autoExpand();
+			});
+		}
+		return TPromise.as(null);
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
@@ -115,11 +121,11 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createTree(parent: HTMLElement):void {
-		var treeContainer= dom.append(parent, dom.emmet('.tree-container'));
+		this.treeContainer= dom.append(parent, dom.emmet('.tree-container'));
 		var actionProvider = this.instantiationService.createInstance(ActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
 		var controller = this.instantiationService.createInstance(Controller);
-		this.tree= new TreeImpl.Tree(treeContainer, {
+		this.tree= new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer: renderer,
 			controller: controller
@@ -164,13 +170,14 @@ export class MarkersPanel extends Panel {
 		let allMarkers = this.markerService.read().slice(0);
 		this.markersModel.update(allMarkers);
 		this.tree.setInput(this.markersModel).then(this.autoExpand.bind(this));
+		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
 		this.renderMessage();
 	}
 
 	private renderMessage():void {
 		let message= this.markersModel.getMessage();
 		this.messageBox.textContent= message;
-		dom.toggleClass(this.messageBoxContainer, 'visible', !this.markersModel.hasFilteredResources());
+		dom.toggleClass(this.messageBoxContainer, 'hidden', this.markersModel.hasFilteredResources());
 	}
 
 	private refreshAutoExpanded(): void {
@@ -186,11 +193,7 @@ export class MarkersPanel extends Panel {
 			if (this.autoExpanded.contains(resource.uri.toString())) {
 				return;
 			}
-			if (resource.markers.length > 0 && resource.markers.length < 10) {
-				this.tree.expand(resource).done(null, errors.onUnexpectedError);
-			} else {
-				this.tree.collapse(resource).done(null, errors.onUnexpectedError);
-			}
+			this.tree.expand(resource).done(null, errors.onUnexpectedError);
 			this.autoExpanded.set(resource.uri.toString());
 		});
 	}

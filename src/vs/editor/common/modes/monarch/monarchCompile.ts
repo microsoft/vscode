@@ -11,7 +11,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
-import {ILanguage, ILanguageBracket} from 'vs/editor/common/modes/monarch/monarchTypes';
+import {IMonarchLanguage, IMonarchLanguageBracket} from 'vs/editor/common/modes/monarch/monarchTypes';
 
 /*
  * Type helpers
@@ -386,7 +386,7 @@ class Rule implements monarchCommon.IRule {
  * (Currently we have no samples that need this so perhaps we should always have
  * jsonStrict to true).
  */
-export function compile(languageId:string, json: ILanguage): monarchCommon.ILexer {
+export function compile(languageId:string, json: IMonarchLanguage): monarchCommon.ILexer {
 	if (!json || typeof (json) !== 'object') {
 		throw new Error('Monarch: expecting a language definition object');
 	}
@@ -512,7 +512,7 @@ export function compile(languageId:string, json: ILanguage): monarchCommon.ILexe
 			{ open: '(', close: ')', token: 'delimiter.parenthesis' },
 			{ open: '<', close: '>', token: 'delimiter.angle' }];
 	}
-	var brackets : ILanguageBracket[] = [];
+	var brackets : IMonarchLanguageBracket[] = [];
 	for (var bracketIdx in json.brackets) {
 		if (json.brackets.hasOwnProperty(bracketIdx)) {
 			var desc = <any> json.brackets[bracketIdx];

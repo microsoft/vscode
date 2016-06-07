@@ -24,6 +24,12 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {DelegatingWorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
+import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
+import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
+import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;
@@ -44,6 +50,8 @@ export class ExplorerViewlet extends Viewlet {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -71,6 +79,7 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	private onConfigurationUpdated(config: IFilesConfiguration): TPromise<void> {
+
 		// Open editors view should always be visible in no folder workspace.
 		let openEditorsVisible = !this.contextService.getWorkspace() || config.explorer.openEditors.visible !== 0;
 
@@ -104,8 +113,7 @@ export class ExplorerViewlet extends Viewlet {
 
 				// Update title area since the title actions have changed.
 				this.updateTitleArea();
-				// Focus the viewlet since that triggers a rerender.
-				return this.setVisible(this.isVisible()).then(() => this.focus());
+				return this.setVisible(this.isVisible()).then(() => this.focus()); // Focus the viewlet since that triggers a rerender.
 			});
 		}
 
@@ -124,9 +132,40 @@ export class ExplorerViewlet extends Viewlet {
 
 		// With a Workspace
 		if (this.contextService.getWorkspace()) {
-			// If open editors are not visible set header size explicitly to 0, otherwise let it be computed by super class.
-			const headerSize = this.openEditorsVisible ? undefined : 0;
-			this.explorerView = explorerView = this.instantiationService.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
+
+			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
+			// editors view above. This is a workaround for being able to double click on a file to make it pinned
+			// without causing the animation in the opened editors view to kick in and change scroll position.
+			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
+			// a new entry in the opened editors view.
+			const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService, (input: EditorInput, options?: EditorOptions, arg3?: any) => {
+				if (this.openEditorsView) {
+					let delay = 0;
+					if (arg3 === false /* not side by side */ || typeof arg3 !== 'number' /* no explicit position */) {
+						const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
+						if (!activeGroup || !activeGroup.previewEditor) {
+							delay = 250; // a new editor entry is likely because there is either no group or no preview in group
+						}
+					}
+
+					this.openEditorsView.setStructuralRefreshDelay(delay);
+				}
+
+				const onSuccessOrError = (editor?: BaseEditor) => {
+					if (this.openEditorsView) {
+						this.openEditorsView.setStructuralRefreshDelay(0);
+					}
+
+					return editor;
+				};
+
+				return this.editorService.openEditor(input, options, arg3).then(onSuccessOrError, onSuccessOrError);
+			});
+
+			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
+
+			const headerSize = this.openEditorsVisible ? undefined : 0; // If open editors are not visible set header size explicitly to 0, otherwise let it be computed by super class.
+			this.explorerView = explorerView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
 		}
 
 		// No workspace

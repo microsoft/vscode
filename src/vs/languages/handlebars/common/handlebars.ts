@@ -10,7 +10,7 @@ import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebars
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -107,6 +107,49 @@ export class HandlebarsState extends htmlMode.State {
 
 export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		wordPattern: createWordRegExp('#-?%'),
+
+		comments: {
+			blockComment: ['<!--', '-->']
+		},
+
+		brackets: [
+			['<!--', '-->'],
+			['{{', '}}']
+		],
+
+		__electricCharacterSupport: {
+			embeddedElectricCharacters: ['*', '}', ']', ')']
+		},
+
+		autoClosingPairs: [
+			{ open: '{', close: '}' },
+			{ open: '[', close: ']' },
+			{ open: '(', close: ')' },
+			{ open: '"', close: '"' },
+			{ open: '\'', close: '\'' }
+		],
+
+		surroundingPairs: [
+			{ open: '<', close: '>' },
+			{ open: '"', close: '"' },
+			{ open: '\'', close: '\'' }
+		],
+
+		onEnterRules: [
+			{
+				beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				afterText: /^<\/(\w[\w\d]*)\s*>$/i,
+				action: { indentAction: modes.IndentAction.IndentOutdent }
+			},
+			{
+				beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+				action: { indentAction: modes.IndentAction.Indent }
+			}
+		],
+	};
+
 	constructor(
 		descriptor:modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -148,52 +191,8 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 				return wireCancellationToken(token, this._provideLinks(model.uri));
 			}
 		}, true);
-	}
 
-	protected _createRichEditSupport(): modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), null, {
-
-			wordPattern: createWordRegExp('#-?%'),
-
-			comments: {
-				blockComment: ['<!--', '-->']
-			},
-
-			brackets: [
-				['<!--', '-->'],
-				['{{', '}}']
-			],
-
-			__electricCharacterSupport: {
-				embeddedElectricCharacters: ['*', '}', ']', ')']
-			},
-
-			autoClosingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"' },
-				{ open: '\'', close: '\'' }
-			],
-
-			surroundingPairs: [
-				{ open: '<', close: '>' },
-				{ open: '"', close: '"' },
-				{ open: '\'', close: '\'' }
-			],
-
-			onEnterRules: [
-				{
-					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
-					action: { indentAction: modes.IndentAction.IndentOutdent }
-				},
-				{
-					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					action: { indentAction: modes.IndentAction.Indent }
-				}
-			],
-		});
+		LanguageConfigurationRegistry.register(this.getId(), HandlebarsMode.LANG_CONFIG);
 	}
 
 	public getInitialState() : modes.IState {

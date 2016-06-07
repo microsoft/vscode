@@ -68,7 +68,6 @@ export class DebugService implements debug.IDebugService {
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
-	private debugStringEditorInputs: DebugStringEditorInput[];
 	private telemetryAdapter: IAIAdapter;
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
@@ -99,7 +98,6 @@ export class DebugService implements debug.IDebugService {
 	) {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = [];
-		this.debugStringEditorInputs = [];
 		this.session = null;
 		this._state = debug.State.Inactive;
 		this._onDidChangeState = new Emitter<debug.State>();
@@ -913,17 +911,9 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {
-		const filtered = this.debugStringEditorInputs.filter(input => input.getResource().toString() === source.uri.toString());
-
-		if (filtered.length === 0) {
-			const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
-			this.debugStringEditorInputs.push(result);
-			this.toDisposeOnSessionEnd.push(result);
-
-			return result;
-		} else {
-			return filtered[0];
-		}
+		const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
+		this.toDisposeOnSessionEnd.push(result);
+		return result;
 	}
 
 	private sendAllBreakpoints(): TPromise<any> {

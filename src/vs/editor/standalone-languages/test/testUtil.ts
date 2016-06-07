@@ -5,7 +5,6 @@
 
 'use strict';
 
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {createOnEnterAsserter, executeMonarchTokenizationTests} from 'vs/editor/test/common/modesUtil';
 import {ILanguage, IRichLanguageConfiguration} from '../types';
 
@@ -36,8 +35,7 @@ export function testTokenization(name:string, language: ILanguage, tests:ITestIt
 export function testOnEnter(name:string, conf: IRichLanguageConfiguration, callback:(assertOnEnter: IOnEnterAsserter)=>void): void {
 	suite(name, () => {
 		test('onEnter', () => {
-			var richEditSupport = new RichEditSupport('test', null, conf);
-			callback(createOnEnterAsserter('test', richEditSupport));
+			callback(createOnEnterAsserter('test', conf));
 		});
 	});
 }

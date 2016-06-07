@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
 import { IAction, Action } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -36,17 +35,18 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 
 	public render(container: HTMLElement): void {
 		DOM.addClass(container, 'markers-panel-action-filter');
-		var filterInputBoxContainer = DOM.append(container, DOM.emmet('.input-box-container'));
-		var filterInputBox = new InputBox(filterInputBoxContainer, this.contextViewService, {
-			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER
+		var filterInputBox = new InputBox(container, this.contextViewService, {
+			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
+			ariaLabel: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
+			iconClass: 'filterIcon'
 		});
-		filterInputBox.value= this.markersPanel.markersModel.filterOptions.completeValue;
+		filterInputBox.value= this.markersPanel.markersModel.filterOptions.completeFilter;
 		this.toDispose.push(filterInputBox.onDidChange((filter: string) => {
-			this.markersPanel.markersModel.update(this.prepareFilterOptions(filter));
+			this.markersPanel.markersModel.update(new FilterOptions(filter));
 			this.markersPanel.refreshPanel();
 		}));
-		this.toDispose.push(DOM.addStandardDisposableListener(filterInputBoxContainer, 'keydown', this.handleKeyboardEvent));
-		this.toDispose.push(DOM.addStandardDisposableListener(filterInputBoxContainer, 'keyup', this.handleKeyboardEvent));
+		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
+		this.toDispose.push(DOM.addStandardDisposableListener(container, 'keyup', this.handleKeyboardEvent));
 	}
 
 	public dispose(): void {
@@ -63,31 +63,5 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 				e.stopPropagation();
 				break;
 		}
-	}
-
-	private prepareFilterOptions(filter:string): FilterOptions {
-		let filterOptions:FilterOptions= new FilterOptions();
-		filterOptions.completeValue= filter;
-
-		filter= strings.trim(filter);
-		if (!filter) {
-			return filterOptions;
-		}
-
-		let startIndex= 0;
-		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_ERRORS)) {
-			filterOptions.filterErrors= true;
-			startIndex= (Messages.MARKERS_PANEL_FILTER_ERRORS).length;
-		}
-		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_WARNINGS)) {
-			filterOptions.filterWarnings= true;
-			startIndex= (Messages.MARKERS_PANEL_FILTER_WARNINGS).length;
-		}
-		if (strings.startsWith(filter.toLocaleLowerCase(), Messages.MARKERS_PANEL_FILTER_INFOS)) {
-			filterOptions.filterInfos= true;
-			startIndex= (Messages.MARKERS_PANEL_FILTER_INFOS).length;
-		}
-		filterOptions.filterValue= filter.substr(startIndex).trim();
-		return filterOptions;
 	}
 }

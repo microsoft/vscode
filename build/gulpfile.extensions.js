@@ -36,7 +36,6 @@ var tasks = compilations.map(function(tsconfigFile) {
 	var tsOptions = require(absolutePath).compilerOptions;
 	tsOptions.verbose = !quiet;
 	tsOptions.sourceMap = true;
-	tsOptions.sourceRoot = '../src';
 
 	var name = relativeDirname.replace(/\//g, '-');
 
@@ -73,7 +72,10 @@ var tasks = compilations.map(function(tsconfigFile) {
 				.pipe(sourcemaps.write('.', {
 					addComment: false,
 					includeContent: !!build,
-					sourceRoot: tsOptions.sourceRoot
+					sourceRoot: function(file) {
+						var levels = file.relative.split(path.sep).length;
+						return '../'.repeat(levels) + 'src';
+					}
 				}))
 				.pipe(tsFilter.restore)
 				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18n, out) : es.through())

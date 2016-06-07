@@ -12,10 +12,12 @@ export class ModeTransition {
 
 	public startIndex:number;
 	public mode:IMode;
+	public modeId: string;
 
 	constructor(startIndex:number, mode:IMode) {
 		this.startIndex = startIndex|0;
 		this.mode = mode;
+		this.modeId = mode.getId();
 	}
 
 	public static findIndexInSegmentsArray(arr:ModeTransition[], desiredIndex: number): number {

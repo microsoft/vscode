@@ -1,11 +1,8 @@
 {
   "name": "monaco-editor-core",
-  "version": "0.2.3",
+  "private": true,
+  "version": "0.3.0",
   "description": "A browser based code editor",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "author": "Microsoft Corporation",
   "license": "MIT"
 }

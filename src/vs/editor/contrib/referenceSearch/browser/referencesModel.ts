@@ -64,26 +64,22 @@ export class OneReference {
 
 export class FilePreview {
 
-	private _value: string;
-	private _lineStarts: number[];
+	constructor(private _value: IModel) {
 
-	constructor(value: string) {
-		this._value = value;
-		this._lineStarts = strings.computeLineStarts(value);
 	}
 
 	public preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
 
-		var lineStart = this._lineStarts[range.startLineNumber - 1],
-			rangeStart = lineStart + range.startColumn - 1,
-			rangeEnd = this._lineStarts[range.endLineNumber - 1] + range.endColumn - 1,
-			lineEnd = range.endLineNumber >= this._lineStarts.length ? this._value.length : this._lineStarts[range.endLineNumber];
+		const {startLineNumber, startColumn, endColumn} = range;
+		const beforeRange = new Range(startLineNumber, 1, startLineNumber, startColumn);
+		const afterRange = new Range(startLineNumber, endColumn, startLineNumber, Number.MAX_VALUE);
 
-		var ret = {
-			before: this._value.substring(lineStart, rangeStart).replace(/^\s+/, strings.empty),
-			inside: this._value.substring(rangeStart, rangeEnd),
-			after: this._value.substring(rangeEnd, lineEnd).replace(/\s+$/, strings.empty)
+		const ret = {
+			before: this._value.getValueInRange(beforeRange).replace(/^\s+/, strings.empty),
+			inside: this._value.getValueInRange(range),
+			after: this._value.getValueInRange(afterRange).replace(/\s+$/, strings.empty)
 		};
+
 		// long before parts will be cut at the best position
 		ret.before = strings.lcut(ret.before, n);
 		return ret;
@@ -143,8 +139,7 @@ export class FileReferences {
 			if (!model) {
 				throw new Error();
 			}
-			const value = (<IModel>model.textEditorModel).getValue();
-			this._preview = new FilePreview(value);
+			this._preview = new FilePreview(<IModel>model.textEditorModel);
 			this._resolved = true;
 			return this;
 

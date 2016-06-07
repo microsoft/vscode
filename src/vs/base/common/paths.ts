@@ -136,6 +136,7 @@ export function normalize(path: string, toOSPath?: boolean): string {
 				res += part;
 			}
 			start = end + 1;
+			skip = false;
 		}
 	}
 
@@ -299,13 +300,10 @@ function isPosixAbsolute(path: string): boolean {
 	return path && path[0] === '/';
 }
 
-export function makeAbsolute(path: string, isPathNormalized?: boolean): string {
-	return isPosixAbsolute(!isPathNormalized ? normalize(path) : path) ? path : sep + path;
+export function makePosixAbsolute(path: string): string {
+	return isPosixAbsolute(normalize(path)) ? path : sep + path;
 }
 
-export function isRelative(path: string): boolean {
-	return path && path.length > 1 && path[0] === '.';
-}
 
 const _slash = '/'.charCodeAt(0);
 const _backslash = '\\'.charCodeAt(0);

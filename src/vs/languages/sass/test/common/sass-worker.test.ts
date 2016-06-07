@@ -9,24 +9,35 @@ import mm = require('vs/editor/common/model/mirrorModel');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
 import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
+
+class SassMockMode extends MockMode {
+	constructor() {
+		super('sass-mock-mode-id');
+		LanguageConfigurationRegistry.register(this.getId(), {
+			wordPattern: /(#?-?\d*\.\d\w*%?)|([$@#!]?[\w-?]+%?)|[$@#!]/g
+		});
+	}
+}
 
 suite('SASS - Worker', () => {
 
+	var mockMode = new SassMockMode();
+
 	var mockSASSWorkerEnv = function (url:URI, content: string) : { worker: sassWorker.SassWorker; model: mm.MirrorModel } {
 		var resourceService = new ResourceService.ResourceService();
-		var model = mm.createTestMirrorModelFromString(content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([$@#!]?[\w-?]+%?)|[$@#!]/g), url);
+		var model = mm.createTestMirrorModelFromString(content, mockMode, url);
 		resourceService.insert(url, model);
 
 		let services = servicesUtil2.createMockEditorWorkerServices({
 			resourceService: resourceService,
 		});
 
-		var worker = new sassWorker.SassWorker('mock.mode.id', services.resourceService, services.markerService);
+		var worker = new sassWorker.SassWorker('sass-mock-mode-id', services.resourceService, services.markerService);
 		return { worker: worker, model: model };
 	};
 

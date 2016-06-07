@@ -13,11 +13,11 @@
 /**
  * A Monarch language definition
  */
-export interface ILanguage {
+export interface IMonarchLanguage {
 	/**
 	 * map from string to ILanguageRule[]
 	 */
-	tokenizer: Object;
+	tokenizer: {[name:string]:IMonarchLanguageRule[]};
 	/**
 	 * is the language case insensitive?
 	 */
@@ -29,7 +29,7 @@ export interface ILanguage {
 	/**
 	 * for example [['{','}','delimiter.curly']]
 	 */
-	brackets?: ILanguageBracket[];
+	brackets?: IMonarchLanguageBracket[];
 	/**
 	 * start symbol in the tokenizer (by default the first entry is used)
 	 */
@@ -45,7 +45,7 @@ export interface ILanguage {
  * 		shorthands: [reg,act] == { regex: reg, action: act}
  *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
  */
-export interface ILanguageRule {
+export interface IMonarchLanguageRule {
 	/**
 	 * match tokens
 	 */
@@ -53,7 +53,7 @@ export interface ILanguageRule {
 	/**
 	 * action to take on match
 	 */
-	action?: ILanguageAction;
+	action?: IMonarchLanguageAction;
 
 	/**
 	 * or an include rule. include all rules from the included state
@@ -66,11 +66,11 @@ export interface ILanguageRule {
  * ... or a case statement with guards...
  * ... or a basic action with a token value.
  */
-export interface ILanguageAction {
+export interface IMonarchLanguageAction {
 	/**
 	 * array of actions for each parenthesized match group
 	 */
-	group?: ILanguageAction[];
+	group?: IMonarchLanguageAction[];
 
 	/**
 	 * map from string to ILanguageAction
@@ -110,7 +110,7 @@ export interface ILanguageAction {
 /**
  * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
  */
-export interface ILanguageBracket {
+export interface IMonarchLanguageBracket {
 	/**
 	 * open bracket
 	 */

@@ -47,11 +47,11 @@ export class BracketElectricCharacterSupport implements modes.IRichEditElectricC
 	}
 
 	public onElectricCharacter(context:modes.ILineContext, offset:number): modes.IElectricAction {
-		return handleEvent(context, offset, (nestedMode:modes.IMode, context:modes.ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
+		return handleEvent(context, offset, (nestedModeId:string, context:modes.ILineContext, offset:number) => {
+			if (this._modeId === nestedModeId) {
 				return this.brackets.onElectricCharacter(context, offset);
 			}
-			let electricCharacterSupport = this._registry.getElectricCharacterSupport(nestedMode);
+			let electricCharacterSupport = this._registry.getElectricCharacterSupport(nestedModeId);
 			if (electricCharacterSupport) {
 				return electricCharacterSupport.onElectricCharacter(context, offset);
 			}

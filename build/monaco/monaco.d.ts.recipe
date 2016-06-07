@@ -38,7 +38,6 @@ declare module monaco {
 #include(vs/base/common/uri): URI
 #include(vs/base/common/keyCodes): KeyCode, KeyMod
 #include(vs/base/common/htmlContent): IHTMLContentElementCode, IHTMLContentElement
-#include(vs/base/common/actions): IAction
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
 #include(vs/editor/common/editorCommon): IScrollEvent
@@ -54,18 +53,9 @@ declare module monaco.editor {
 #include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions
 #include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices
 #include(vs/platform/markers/common/markers): IMarkerData
-
-    export interface IColorizerOptions {
-        tabSize?: number;
-    }
-
-    export interface IColorizerElementOptions extends IColorizerOptions {
-        theme?: string;
-        mimeType?: string;
-    }
-
-#include(vs/editor/common/modes/monarch/monarchTypes): ILanguage, ILanguageBracket
+#include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/browser/ui/scrollbar/scrollableElementOptions): ScrollbarVisibility
+#include(vs/base/common/actions): IAction
 #includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
 }
@@ -78,6 +68,7 @@ declare module monaco.languages {
 #include(vs/editor/common/modes/supports/electricCharacter): IBracketElectricCharacterContribution, IDocComment
 #includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IToken2=>IToken;ILineTokens2=>ILineTokens;IState2=>IState):
 #include(vs/editor/common/services/modeService): ILanguageExtensionPoint
+#includeAll(vs/editor/common/modes/monarch/monarchTypes):
 
 }
 

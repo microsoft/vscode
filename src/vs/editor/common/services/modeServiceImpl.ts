@@ -20,7 +20,6 @@ import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/comm
 import * as modes from 'vs/editor/common/modes';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
-import {IRichLanguageConfiguration, RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -388,18 +387,18 @@ export class ModeServiceImpl implements IModeService {
 		};
 	}
 
-	private _registerModeSupport<T>(mode:modes.IMode, support: modes.MutableSupport, callback: (mode: modes.IMode) => T): IDisposable {
-		if (mode.registerSupport) {
-			return mode.registerSupport(support, callback);
+	private _registerTokenizationSupport<T>(mode:modes.IMode, callback: (mode: modes.IMode) => T): IDisposable {
+		if (mode.setTokenizationSupport) {
+			return mode.setTokenizationSupport(callback);
 		} else {
-			console.warn('Cannot register support ' + modes.mutableSupportToString(support) + ' on mode ' + mode.getId() + ' because it does not support it.');
+			console.warn('Cannot register tokenizationSupport on mode ' + mode.getId() + ' because it does not support it.');
 			return EmptyDisposable;
 		}
 	}
 
-	protected registerModeSupport<T>(modeId: string, support: modes.MutableSupport, callback: (mode: modes.IMode) => T): IDisposable {
+	private registerModeSupport<T>(modeId: string, callback: (mode: modes.IMode) => T): IDisposable {
 		if (this._instantiatedModes.hasOwnProperty(modeId)) {
-			return this._registerModeSupport(this._instantiatedModes[modeId], support, callback);
+			return this._registerTokenizationSupport(this._instantiatedModes[modeId], callback);
 		}
 
 		let cc: (disposable:IDisposable)=>void;
@@ -410,7 +409,7 @@ export class ModeServiceImpl implements IModeService {
 				return;
 			}
 
-			cc(this._registerModeSupport(mode, support, callback));
+			cc(this._registerTokenizationSupport(mode, callback));
 			disposable.dispose();
 		});
 
@@ -421,16 +420,12 @@ export class ModeServiceImpl implements IModeService {
 		};
 	}
 
-	public registerRichEditSupport(modeId: string, support: IRichLanguageConfiguration): IDisposable {
-		return this.registerModeSupport(modeId, modes.MutableSupport.RichEditSupport, (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
-	}
-
 	public registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
-		return this.registerModeSupport(modeId, modes.MutableSupport.TokenizationSupport, callback);
+		return this.registerModeSupport(modeId, callback);
 	}
 
 	public registerTokenizationSupport2(modeId: string, support: modes.TokensProvider): IDisposable {
-		return this.registerModeSupport(modeId, modes.MutableSupport.TokenizationSupport, (mode) => {
+		return this.registerModeSupport(modeId, (mode) => {
 			return new TokenizationSupport2Adapter(mode, support);
 		});
 	}

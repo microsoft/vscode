@@ -11,12 +11,12 @@ var global:any = self;
 global.MonacoEditorLanguages = global.MonacoEditorLanguages || [];
 let MonacoEditorLanguages: ILanguageDef[] = global.MonacoEditorLanguages;
 
-MonacoEditorLanguages.push({
-	id: 'bat',
-	extensions: [ '.bat', '.cmd'],
-	aliases: [ 'Batch', 'bat' ],
-	defModule: 'vs/editor/standalone-languages/bat'
-});
+// MonacoEditorLanguages.push({
+// 	id: 'bat',
+// 	extensions: [ '.bat', '.cmd'],
+// 	aliases: [ 'Batch', 'bat' ],
+// 	defModule: 'vs/editor/standalone-languages/bat'
+// });
 MonacoEditorLanguages.push({
 	id: 'coffeescript',
 	extensions: [ '.coffee' ],

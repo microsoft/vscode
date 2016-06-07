@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IMode, IRichEditCharacterPair, CharacterPair} from 'vs/editor/common/modes';
+import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IRichEditCharacterPair, CharacterPair} from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
 import {LanguageConfigurationRegistryImpl} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
@@ -30,8 +30,8 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 	}
 
 	public shouldAutoClosePair(character:string, context:ILineContext, offset:number): boolean {
-		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
+		return handleEvent(context, offset, (nestedModeId:string, context:ILineContext, offset:number) => {
+			if (this._modeId === nestedModeId) {
 
 				// Always complete on empty line
 				if (context.getTokenCount() === 0) {
@@ -57,7 +57,7 @@ export class CharacterPairSupport implements IRichEditCharacterPair {
 				return true;
 			}
 
-			let characterPairSupport = this._registry.getCharacterPairSupport(nestedMode);
+			let characterPairSupport = this._registry.getCharacterPairSupport(nestedModeId);
 			if (characterPairSupport) {
 				return characterPairSupport.shouldAutoClosePair(character, context, offset);
 			}

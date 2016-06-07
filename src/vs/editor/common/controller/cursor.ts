@@ -16,6 +16,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IColumnSelectResult} from 'vs/editor/common/controller/cursorMoveHelper';
+import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface ITypingListener {
 	(): void;
@@ -140,8 +141,8 @@ export class Cursor extends EventEmitter {
 		this.modelUnbinds.push(this.model.onDidChangeMode((e) => {
 			this._onModelModeChanged();
 		}));
-		this.modelUnbinds.push(this.model.onDidChangeModeSupport((e) => {
-			// TODO@Alex: react only if certain supports changed?
+		this.modelUnbinds.push(LanguageConfigurationRegistry.onDidChange(() => {
+			// TODO@Alex: react only if certain supports changed? (and if my model's mode changed)
 			this._onModelModeChanged();
 		}));
 

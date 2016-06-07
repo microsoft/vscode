@@ -20,11 +20,11 @@ import {IConfigurationService} from 'vs/platform/configuration/common/configurat
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {RichEditSupport} from 'vs/editor/common/modes/languageConfigurationRegistry';
+import {LanguageConfigurationRegistry, IRichLanguageConfiguration} from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {wireCancellationToken} from 'vs/base/common/async';
 
 export const language =
-	<Types.ILanguage>{
+	<Types.IMonarchLanguage>{
 		defaultToken: '',
 		tokenPostfix: '.md',
 
@@ -199,10 +199,17 @@ export const language =
 
 export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSupport {
 
+	public static LANG_CONFIG:IRichLanguageConfiguration = {
+		comments: {
+			blockComment: ['<!--', '-->',]
+		},
+		brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
+		autoClosingPairs: []
+	};
+
 	public emitOutputSupport: Modes.IEmitOutputSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public richEditSupport: Modes.IRichEditSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<MarkdownWorker.MarkdownWorker>;
 	private _threadService:IThreadService;
@@ -226,13 +233,7 @@ export class MarkdownMode extends AbstractMode implements Modes.IEmitOutputSuppo
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), null, {
-			comments: {
-				blockComment: ['<!--', '-->',]
-			},
-			brackets: [['{','}'], ['[',']'], ['(',')'], ['<','>']],
-			autoClosingPairs: []
-		});
+		LanguageConfigurationRegistry.register(this.getId(), MarkdownMode.LANG_CONFIG);
 
 		Modes.SuggestRegistry.register(this.getId(), {
 			triggerCharacters: [],

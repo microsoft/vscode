@@ -133,6 +133,7 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	 * resolving the editor input.
 	 */
 	public dispose(): void {
+		this._onDidChangeDirty.dispose();
 		this.disposed = true;
 		this.emit('dispose');
 

@@ -35,7 +35,6 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private static MEMENTO_COLLAPSED = 'openEditors.memento.collapsed';
 	private static DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
-	private static STRUCTURAL_TREE_REFRESH_DELAY = 250;
 
 	private settings: any;
 	private visibleOpenEditors: number;
@@ -44,6 +43,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
 	private structuralTreeRefreshScheduler: RunOnceScheduler;
+	private structuralRefreshDelay: number;
 	private groupToRefresh: IEditorGroup;
 	private fullRefreshNeeded: boolean;
 
@@ -64,7 +64,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		this.settings = settings;
 		this.model = editorGroupService.getStacksModel();
 
-		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), OpenEditorsView.STRUCTURAL_TREE_REFRESH_DELAY);
+		this.structuralRefreshDelay = 0;
+		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -155,7 +156,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			} else {
 				this.fullRefreshNeeded = true;
 			}
-			this.structuralTreeRefreshScheduler.schedule();
+			this.structuralTreeRefreshScheduler.schedule(this.structuralRefreshDelay);
 		} else {
 			const toRefresh = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
 			this.tree.refresh(toRefresh, false).done(null, errors.onUnexpectedError);
@@ -246,6 +247,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		}
 
 		return itemsToShow * Renderer.ITEM_HEIGHT;
+	}
+
+	public setStructuralRefreshDelay(delay: number): void {
+		this.structuralRefreshDelay = delay;
 	}
 
 	public getOptimalWidth():number {
