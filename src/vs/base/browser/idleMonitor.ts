@@ -38,7 +38,6 @@ export class IdleMonitor extends Disposable implements IIdleMonitor {
 		this._idleCheckTimeout = this._register(new TimeoutTimer());
 		this._lastActiveTime = -1;
 		this._idleTime = idleTime;
-		this._onStatusChange = new Emitter<UserStatus>();
 
 		this._register(dom.addDisposableListener(document, 'mousemove', () => this._onUserActive()));
 		this._register(dom.addDisposableListener(document, 'keydown', () => this._onUserActive()));
