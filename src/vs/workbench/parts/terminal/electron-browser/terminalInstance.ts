@@ -98,8 +98,8 @@ export class TerminalInstance {
 		if (!this.font || !this.font.charWidth || !this.font.charHeight) {
 			return;
 		}
-		let cols = Math.floor(this.parentDomElement.offsetWidth / this.font.charWidth);
-		let rows = Math.floor(this.parentDomElement.offsetHeight / this.font.charHeight);
+		let cols = Math.floor(dimension.width / this.font.charWidth);
+		let rows = Math.floor(dimension.height / this.font.charHeight);
 		if (this.terminal) {
 			this.terminal.resize(cols, rows);
 		}
