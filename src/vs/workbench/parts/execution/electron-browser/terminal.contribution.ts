@@ -38,7 +38,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'terminal.external.macExec': {
 			'type': 'string',
-			'description': nls.localize('terminal.external.macExec', "Customizes which terminal Application to run on Mac OS."),
+			'description': nls.localize('terminal.external.macExec', "Customizes which terminal application to run on OS X."),
 			'default': DEFAULT_TERMINAL_MAC
 		},
 		'terminal.external.linuxExec': {
