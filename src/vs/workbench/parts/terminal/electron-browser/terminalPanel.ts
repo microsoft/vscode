@@ -106,6 +106,9 @@ export class TerminalPanel extends Panel {
 		this.themeStyleElement.innerHTML = css;
 	}
 
+	/**
+	 * Converts a CSS hex color (#rrggbb) to a CSS rgba color (rgba(r, g, b, a)).
+	 */
 	private convertHexCssColorToRgba(hex: string, alpha: number): string {
 		let r = parseInt(hex.substr(1, 2), 16);
 		let g = parseInt(hex.substr(3, 2), 16);
