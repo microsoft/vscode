@@ -11,7 +11,7 @@ import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform
 import {optional} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IIdleMonitor, IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
+import {IIdleMonitor, UserStatus} from 'vs/base/common/idleMonitor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TimeKeeper, ITimerEvent} from 'vs/base/common/timer';
@@ -20,8 +20,8 @@ import {Registry} from 'vs/platform/platform';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender[];
-	hardIdleMonitor?: IIdleMonitor;
-	softIdleMonitor?: IIdleMonitor;
+	hardIdleMonitor: IIdleMonitor;
+	softIdleMonitor: IIdleMonitor;
 	commonProperties?: TPromise<{ [name: string]: any }>;
 	piiPaths?: string[];
 	userOptIn?: boolean;
@@ -49,6 +49,8 @@ export class TelemetryService implements ITelemetryService {
 	) {
 		this._configuration = mixin(config, <ITelemetryServiceConfig>{
 			appender: [],
+			hardIdleMonitor: null,
+			softIdleMonitor: null,
 			commonProperties: TPromise.as({}),
 			piiPaths: [],
 			userOptIn: true
@@ -71,14 +73,12 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables.push(this._timeKeeper);
 		this._disposables.push(this._timeKeeper.addListener(events => this._onTelemetryTimerEventStop(events)));
 
-		this._hardIdleMonitor = this._configuration.hardIdleMonitor || new IdleMonitor();
-		// TODO@joao remove
-		this._disposables.push(this._hardIdleMonitor);
+		this._hardIdleMonitor = this._configuration.hardIdleMonitor;
+		this._softIdleMonitor = this._configuration.softIdleMonitor;
 
-		this._softIdleMonitor = this._configuration.softIdleMonitor || new IdleMonitor(TelemetryService.SOFT_IDLE_TIME);
-		this._disposables.push(this._softIdleMonitor.onStatusChange(status => this._onIdleStatus(status)));
-		// TODO@joao remove
-		this._disposables.push(this._softIdleMonitor);
+		if (this._softIdleMonitor) {
+			this._disposables.push(this._softIdleMonitor.onStatusChange(status => this._onIdleStatus(status)));
+		}
 
 		if (this._configurationService) {
 			this._updateUserOptIn();
